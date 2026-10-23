@@ -340,6 +340,59 @@ def check_iq2_s():
     print("raw-blocks: IQ2_S %d exact values, all indices/vector lanes, isolated fields, scales and unaligned blocks [ok]" % len(expected))
 
 
+def iq2_xxs_block(d, indices, scales, codes):
+    assert len(indices) == 32 and len(scales) == 8 and len(codes) == 32
+    out = bytearray(66); out[:2] = struct.pack("<H", d)
+    for group in range(8):
+        base = 2 + 8 * group; out[base:base + 4] = bytes(indices[4 * group:4 * group + 4])
+        word = scales[group] << 28
+        for vector in range(4): word |= codes[4 * group + vector] << (7 * vector)
+        out[base + 4:base + 8] = struct.pack("<I", word)
+    return out
+
+
+def iq2_xs_block(d, indices, scales, codes):
+    assert len(indices) == 32 and len(scales) == 16 and len(codes) == 32
+    out = bytearray(74); out[:2] = struct.pack("<H", d)
+    for vector in range(32): struct.pack_into("<H", out, 2 + 2 * vector, indices[vector] | (codes[vector] << 9))
+    for group in range(8): out[66 + group] = scales[2 * group] | (scales[2 * group + 1] << 4)
+    return out
+
+
+def check_iq2_small(type_id, grid, block_fn, index_count, type_name):
+    expected_hash = "05826b5d3e472a3a78f196be62ac78acf81df0f909626e12ab9fa2a5d490dd54" if type_id == sd.IQ2_XXS else "06e47aaca60b4dc1d9b5a3f34540437058a6b142b4d7a59d5ded769b4d1bf1de"
+    assert hashlib.sha256(grid).hexdigest() == expected_hash
+    payload, expected = bytearray(), []
+    for batch in range(index_count):
+        indices = [(batch + 17 * v) % index_count for v in range(32)]
+        codes = [(batch + 13 * v) % 128 for v in range(32)]
+        scales = [(batch + 3 * v) % 16 for v in range(16 if type_id == sd.IQ2_XS else 8)]
+        d = HALVES[batch % len(HALVES)]
+        payload += block_fn(d, indices, scales, codes)
+        for group in range(8):
+            for vector in range(4):
+                si = group if type_id == sd.IQ2_XXS else 2 * group + vector // 2
+                db = Fraction(2 * scales[si] + 1, 8)
+                index, code = indices[4 * group + vector], codes[4 * group + vector]
+                signs = code | ((code.bit_count() & 1) << 7)
+                for lane in range(8):
+                    factor = db * grid[8 * index + lane] * (-1 if signs >> lane & 1 else 1)
+                    expected.append(cell(lambda h, factor=factor: h(d) * factor))
+    got = sd.decode(type_id, payload, len(expected))
+    assert_values(type_name, expected, got); assert_numpy_matches(type_name, type_id, payload, len(expected))
+    unaligned = memoryview(b"x" + payload + b"y")[1:-1]
+    assert_same_bits(type_name + " unaligned", sd.pack_f32(got), sd.pack_f32(sd.decode(type_id, unaligned, len(expected))))
+    assert_numpy_matches(type_name + " unaligned", type_id, unaligned, len(expected))
+    try: sd.payload_bytes(type_id, 255)
+    except ValueError: pass
+    else: raise AssertionError(type_name + " accepted partial block")
+    print("raw-blocks: %s %d exact values, dictionary/sign/scale sweeps and unaligned blocks [ok]" % (type_name, len(expected)))
+
+
+def check_iq2_xxs(): check_iq2_small(sd.IQ2_XXS, sd.IQ2_XXS_GRID, iq2_xxs_block, 256, "IQ2_XXS")
+def check_iq2_xs(): check_iq2_small(sd.IQ2_XS, sd.IQ2_XS_GRID, iq2_xs_block, 512, "IQ2_XS")
+
+
 def iq4_xs_block(d, scales, cs):
     high = sum((s >> 4) << 2 * b for b, s in enumerate(scales))
     low = bytes(scales[2 * i] & 15 | (scales[2 * i + 1] & 15) << 4 for i in range(4))
@@ -709,6 +762,8 @@ def run(require=False):
     check_iq4(rng)
     check_iq3_s()
     check_iq2_s()
+    check_iq2_xxs()
+    check_iq2_xs()
     check_iq3_xxs()
     check_mxfp4(rng)
     check_q3_k(rng)

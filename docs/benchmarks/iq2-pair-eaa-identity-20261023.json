@@ -1,0 +1,638 @@
+{
+  "schema": "llmx-iq2-eaa-existing-format-identity-v1",
+  "purpose": "Current-eaa existing-format identity against published main eaa08d839. This is not a full suite, new-format released-model qualification, timing result, merge, or hosted-CI pass.",
+  "source": {
+    "base": "eaa08d83906a3bab822277b052278af671d4f824",
+    "candidate": "916c45408c5430b29f2d64482059626bb554650d"
+  },
+  "cpu": {
+    "device": "cpu",
+    "case_count": 9,
+    "all_passed": true,
+    "container_exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "started": "2026-10-23T18:55:35.372770+00:00",
+    "ended": "2026-10-23T19:41:57.944043+00:00",
+    "source_pins_sha256": "d51b43316ee2bdf12d7626bd3f23a70f2c4b8c2c6c9c13c316a12490d62819c6",
+    "execution_sha256": "7e6d73ea5d9ea62987c00c2d9a80d95cd3fed5147846371fc8d61cee5d5a1351",
+    "result_sha256": "553c4522d8cde1aa6687872ab77bf9b2d196922cee64bf221f48dd49fe977f2f",
+    "result_hash_matches_execution_artifact": true,
+    "candidate": {
+      "revision": "916c45408c5430b29f2d64482059626bb554650d",
+      "version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+      "cli_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+      "tool_sha256": "0dd5d7a70cf30447c6af8626b53ad359bde3662da54af822848f53ed1b6fe00f",
+      "library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+    },
+    "base": {
+      "revision": "eaa08d83906a3bab822277b052278af671d4f824",
+      "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+      "cli_sha256": "f8e6469f76f3a34087d1680bfc3af3c447761517df6e958d035c3c72a5cd515a",
+      "tool_sha256": "b0ab0c39292eefe01d898898e6a8f1fab98b157dd712480d5217163f03ce96dd",
+      "library_sha256": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904"
+    },
+    "cases": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "0342ce85d1d844d62b101182ea65492209ff8fe1e15b097499c014ec48a00a13"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "a3a647c193b6416c01ce0f2b72dc3cbcfc957725a8f4b6ab89d80ea349bf991e"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "c14b1842c0db40ae3ce1abdccef286e3b967a847062d03186921e01f28b2b0e5"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_NL.gguf",
+        "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "284238cacd82dd293a3f793528b38208d6c416a1c68702c9bf5ad05801908710"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "725c60b9ae75b054ed648145ec1a8ec8c0e97c228ed864992e269508efd20c84"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "51016ae922c110dad3dd4e3dba709268036c182bdfad80674638f3ce6b24aaf8"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_XS.gguf",
+        "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "fa30a8c493e85a46a142ebb37f12e971d0189c4636741a57e6e4b74d7eb64fa7"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "e237703ee874d39cc93d084a6b07072cefb92ca21ad34198fe31b31a7e91881e"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "1ba30e6c2cffe9fc94b2b90797f19c4cea0ab557414be34dc443724f8936f37e"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q2_K.gguf",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "d8a53c3ddfbe9b41c422ece957df91b997adca2fcf0b4a149b7e1812f48ea565"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "ab8e026c32bc986bfa5bafa4f9b2411ec9e9bb73fb71449aeefb47446a6663be"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "9df1d298fc8120a391d8c50d54383b3459671f59116a4c6a91d050c5faa7f398"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q3_K_S.gguf",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "9d06f33ae041ebcf45a0709af4a6cef4446230df07dc765f1984543531675e11"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "5748a368bbec12d8dffe4330a99c1f5820e1b08cc1ed436e049938d5989b6db4"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "299c953497f06cbeb728e6344c9ca3aa5066edf8851da8e6ce5d6e6998bdc39a"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+        "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "fa0504246140e51a8057c416900fb09ee9b06e98aa26acb0e3ba5eae1fd0f669"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "d7840bf3ee6603076ff29a0f373f922c53b823be9e54b81ee7bce90e2750caaa"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "c5c24c52e7dcf85086a406bac08523d1867099df2e2bc579f38aff7cd0cb6e9b"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+        "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "94c74febb984a15165fcaa7d171af1c5151270d44a28dd362b4b0f7de648a989"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "8d9b178febd86bb163a93c26dce8e2b6804fb096b6d788d115ebe20644614e7f"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "564b5faf958d09547cd3078b8415204069dac7669eb34c3beff1a2a5e5647eaa"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ3_XXS.gguf",
+        "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "1a8af58effc082aad1d6133b60c0c459144e53e4618cb59da0af0be56bc1545e"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "5decffb852470b354d96e0a9087cb17924b3b00a9cd26c9f4817991f27e75be1"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "de042b7e458638774d2a5cf6d4d8e3e376e47e1e2b8de797eaae11bd217b90cd"
+          }
+        },
+        "equal": true
+      }
+    ]
+  },
+  "vulkan": {
+    "device": "vulkan:0",
+    "case_count": 17,
+    "all_passed": true,
+    "container_exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "started": "2026-10-23T19:06:19.672522+00:00",
+    "ended": "2026-10-23T19:08:11.099923+00:00",
+    "source_pins_sha256": "d51b43316ee2bdf12d7626bd3f23a70f2c4b8c2c6c9c13c316a12490d62819c6",
+    "execution_sha256": "8c4f2cfce6fae73ef946b7bd79b57dd06f186d6794f863ada01b7b6b334c5ea4",
+    "result_sha256": "08b56c1bae978cbadae8357bb2d69b6835aa6fc172fdc9321d68b24d0fdd432f",
+    "result_hash_matches_execution_artifact": true,
+    "candidate": {
+      "revision": "916c45408c5430b29f2d64482059626bb554650d",
+      "version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+      "cli_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+      "tool_sha256": "0dd5d7a70cf30447c6af8626b53ad359bde3662da54af822848f53ed1b6fe00f",
+      "library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+    },
+    "base": {
+      "revision": "eaa08d83906a3bab822277b052278af671d4f824",
+      "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+      "cli_sha256": "f8e6469f76f3a34087d1680bfc3af3c447761517df6e958d035c3c72a5cd515a",
+      "tool_sha256": "b0ab0c39292eefe01d898898e6a8f1fab98b157dd712480d5217163f03ce96dd",
+      "library_sha256": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904"
+    },
+    "cases": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "5aef4a07779b7f0e564d2fd8f5ea52fb7b7beca5c57dc5715516cf19812d5fe8"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "30a4c85cb1deb283c2e650d1a83bedb06e36497b1315377c8ef62aa71e614de2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "8b61ebb23c95540b73ae995784ca500ad0ac03da15e347c66c552f9ca392d8c9"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "df13f3265c812abfbd30997835bab95edafb17413aa7ba2728dc1094ce4b6624"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "809ae872a936eb2034d98eaf15dae82e38039c6b380a1cb3da8cf0c2b5466009"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "3f251868eda97586423ff559400e3383beb57eb7eb327efc87340c5b4e90c4ae"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "adb2f05fc6ddc8f1652e57f77544496153debec32fc81306a2b16dbf4fa6cec4"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "9c71f49ddada0cc4c2c6657ff0fb25fc5b3779df9aae1d1d05b5f105dc062f53"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "a848c3f46e514079ff1c7f80afc7b7da62f53f90e5594c8158dc11e5bf76784a"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+        "tokens": 243,
+        "tokenize_sha256": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2",
+        "captures": {
+          "batched": {
+            "bytes": 241367040,
+            "sha256": "b6abad5a00f66c76aa98b5169d243a3bfc09dbacfda1534dcfb33568e1b890ed"
+          },
+          "decode": {
+            "bytes": 241367040,
+            "sha256": "37afa9a71899b84b129244bd17cca00bba69fe1725fd4fbb7e4ccca914bd65d3"
+          },
+          "greedy": {
+            "bytes": 63569920,
+            "sha256": "ec985c9cc4125dbcba296ed9e824c8c1b792248ddee43b6aff47817aa3a72265"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+        "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+        "tokens": 243,
+        "tokenize_sha256": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2",
+        "captures": {
+          "batched": {
+            "bytes": 241367040,
+            "sha256": "37ded02021c1e26167c6f67a892af3b687d4ad7293935cce8bd050be64c023c6"
+          },
+          "decode": {
+            "bytes": 241367040,
+            "sha256": "a6c511c1242b1403e31d0afff30765fd39301140ed4423bbcfd95d0d25f6c7ba"
+          },
+          "greedy": {
+            "bytes": 63569920,
+            "sha256": "98b0cee3c4f0e09518722a397da30eb3d14d3f233bf74cc2bab63450ad897883"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_1.gguf",
+        "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "e7c3a2a5b45a0ac71b3a8af1813b9fb2c26334b9d5c6784c3fdba0e1dcbf9615"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "84933d1d07326e2c7bc28a6a8eb87f5ce490b04871a3fcb5bed3d80136dfbbb2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "262f804f27813064fda4eb7a4e40614748287c3df4cb36a88edde0989729bb6f"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_NL.gguf",
+        "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "f549636af82e6f76902216ce18beaa0b4200bea684e0af0d570d6112bc7e6105"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "9343bf042f8574fe46a429d473fb273131ea10ffe0f2d447d32f537a70d96941"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "d55bc1b7c1ed240cb3d7fa644356800b26bf33a309944515605e097c025bd56c"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-F16-converted.gguf",
+        "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "a14fe69eaf30665c7903a9c8527f92508ae1884720b69dbdaddd937fd9daf411"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "eec0abe061fcc98b91ad432aff2d60f2a244f1ae827af574da93624991674eae"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "c7166035b1cf2efddaa18d1b70bedf4c4ddb6a3fa3250ff839e6fa31f07c3022"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-BF16.gguf",
+        "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "81a607c280e6cc06a007788246f609a12f9bfb2ae3c923c6f4107456b805cd39"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "b240bc8a68ee1f7d00da5969037ac79753f91d872ab4e2c6939b257b1bc6362f"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+        "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "072b8bd1b400be7766558c49800cd89b665ba33ff7c6556bc81589e3edfe5328"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "0ebffb772c17cef20541c840c0060c6e4109680359bd838c13ec8b24390883da"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "774af7e553f30060c79233f5ffc89e27d8b0d0addf9902f695e22910655615a6"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_XS.gguf",
+        "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "36634b66ffd90c2e0d5a2517ca57835527d058210155741f4b04c7851d8a01c0"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "aa5d8bdcf0bf4e981ad6b6e0742364446df9bf77c3f44d2888d20784868e41d2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "df3522e9e6ea89bc15a0b11d1ad6dffcea693c5a8d4f39380990b11219332c9b"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q2_K.gguf",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "7d09a262ad804f0174700efd0e74c1aa79cea31ff51ab62d23a442712750f13d"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "69940f04145e0d30e29372e841cfe364622435d0ac421c50751a718d56e61a2a"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "25fcdc5f09c1ca953f9fb700ac40c831eae245002ebdd65c57ec59b35d21113a"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-Q3_K_S.gguf",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "5bc83ebfb549030489ee5b65112a0b67ad49bc6219b17ca9c955739b23b13a3a"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "a27025d2b4f431727f95d1d4fcebbce7b647c45462f9d76f7fd8b076f21e79d3"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "fe116f8fe49cf89dc764e7e170786302cef12bcc85780fbb0b6c5a41877ab922"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+        "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "42e1e6d73b9316fc99a94cee609ff65a73557663649f54d59d793958237aece2"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "004be3f687999fa8ee34292406751566d39e1de564b681392c7c5ea1797814c5"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "689bd658d740e4a26acf51eb87c24657a5a3c2f089845e80e4f9a746155233d0"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+        "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "066a50ed12d4c57917d6568acd065a3f15b543cbac2c7eb53ad227eddeb0d695"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "ee0ad976dd7827e11bd50068685d58ed914b30c22278230b0b0e4780b06efcf2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "223c7f5569fed61f4849c71d9ba00e1bbaef258cc3105df30d4d42fffc84736d"
+          }
+        },
+        "equal": true
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ3_XXS.gguf",
+        "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+        "tokens": 247,
+        "tokenize_sha256": "7ec87c47a9218adf0e9e85277e97a3ad4e09608dbd85e8caae19f3a3f6752a65",
+        "captures": {
+          "batched": {
+            "bytes": 150112768,
+            "sha256": "93c90ca9605b52f37b60839c9d2f70d0b4d50412d7149be295bec52fdb8b9990"
+          },
+          "decode": {
+            "bytes": 150112768,
+            "sha256": "f617fa371aba101b383f7503c5b5239e4edf84f6538cc694c3d4a1d7aa3e5ef2"
+          },
+          "greedy": {
+            "bytes": 38895616,
+            "sha256": "b040505ed29f6731b9301e9eacac504c8c0357cad39bd70cac4702d88969fa19"
+          }
+        },
+        "equal": true
+      }
+    ]
+  },
+  "checks": {
+    "exact_tokenization": true,
+    "full_vocabulary_batched_logits": true,
+    "per_token_decode_logits": true,
+    "64_token_greedy_outputs": true,
+    "all_captures_equal": true
+  },
+  "timing_admission": {
+    "freeze_sha256": "4a958c64323d524a69e4ccc227703c5577b116b0b74aad8694952db3433479fe",
+    "status": "stopped before container creation by host-memory guard; no timing sample",
+    "mem_available_bytes": 12578181120,
+    "required_mem_available_bytes": 15032385536,
+    "disk_free_bytes": 276387856384,
+    "source": "Root launch summary; no execution receipt was collected locally."
+  },
+  "hosted_ci_checkpoint": {
+    "run_id": 40007693183,
+    "status": "in progress",
+    "jobs_green": 4,
+    "jobs_running": 3,
+    "failures": 0,
+    "qualification": "No hosted pass claimed."
+  },
+  "limits": "The identities cover only the listed existing-format models against eaa main. Current-eaa device focused checks and v4/v5 composed server evidence are separately recorded. Timing, full suite, and hosted CI remain pending."
+}

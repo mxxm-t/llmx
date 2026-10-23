@@ -1,0 +1,42 @@
+{
+  "revision": "585616c88708ecd5c14616e43b6f54a9de49eb1a",
+  "version": "llmx 0.1.0+g585616c88708 numerics 967de8ae61e0935c",
+  "binary_sha256": "b2bd80d386c7846b588fda8bbacec9905aa709957c1d184e1cd5b419d9f21ece",
+  "logs": {
+    "build-iq2-address-configure.log": "45fd785b55f2f058022531fe894ec7b5f6ec1a071082962bef3ec790512a7f27",
+    "build-iq2-address-build.log": "519b56d1c793aa49214a96a65ad4f78ad8bf2ce88b93529f17460aab82db8098",
+    "build-iq2-address-radeon-native.log": "1362225dc104294d6a6f5fa4993ece6ac787cc319fbc86281cf3ab5f4ed99d67",
+    "build-iq2-address-radeon-auto.log": "e241f9e36a6e01e1d3518bdc99ec87790e167b8d1a26a2ad06adb9af3cc621d7",
+    "build-iq2-address-radeon-int8.log": "e241f9e36a6e01e1d3518bdc99ec87790e167b8d1a26a2ad06adb9af3cc621d7"
+  },
+  "native": {
+    "formats": [
+      "IQ2_XXS",
+      "IQ2_XS"
+    ],
+    "range_products_each": 960,
+    "threshold_cases_each": 5,
+    "threshold": 64,
+    "row_rows": 63,
+    "tile_rows": 65,
+    "timestamp_witnesses": true
+  },
+  "hf_auto": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-iq2-address/Release/llmx.exe --device vulkan:0 --only iq2-xxs,iq2-xs --no-perf-floor --require-tools",
+    "exit_code": 0,
+    "logit_cases_each": 150,
+    "nll_cases_each": 12,
+    "iq2_xxs_max_logit": 1.986e-05,
+    "iq2_xxs_max_nll": 1.42e-06,
+    "iq2_xs_max_logit": 1.638e-05,
+    "iq2_xs_max_nll": 1.86e-06
+  },
+  "scope": "Updated optimized Windows shaders, native operators and auto-dtype tiny HF. Explicit dtype policies and released-file/long-context/split checks are separate.",
+  "hf_int8_requested": {
+    "exit_code": 0,
+    "logit_cases_each": 150,
+    "nll_cases_each": 12,
+    "log_byte_identical_to_auto": true,
+    "scope": "The small shapes select F16 fallback bounds; this does not establish native block-int8 HF coverage."
+  }
+}

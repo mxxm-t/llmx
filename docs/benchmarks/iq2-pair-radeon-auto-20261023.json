@@ -1,0 +1,49 @@
+{
+  "scope": "Tiny dense tied, untied and MoE fixtures on Windows Radeon VII. Not released-file, split, MI50 or performance qualification.",
+  "base": "888ae1310c9385964c93b8f2e719a39f7ec32bc5",
+  "version": "llmx 0.1.0+g888ae1310c93.dirty numerics 266bde0ccc607c4d",
+  "binary_sha256": "8d1da1bbe759ed1d41897752686b76ba28cc73cc0440add5d0f5369a1c463da2",
+  "command": [
+    "python",
+    "-X",
+    "utf8",
+    "tests/run_tests.py",
+    "--exe",
+    "build-iq2-small/Release/llmx.exe",
+    "--device",
+    "vulkan:0",
+    "--dtype",
+    "auto",
+    "--only",
+    "iq2-xxs,iq2-xs",
+    "--no-perf-floor",
+    "--require-tools"
+  ],
+  "exit": 0,
+  "log": "build-iq2-small-hf-radeon-auto.log",
+  "log_sha256": "88828705cde72d75a2b1f22635e31fe1819eef1b43a89ac40f3de1c4eb4dc495",
+  "results": [
+    {
+      "format": "IQ2_XXS",
+      "logit_checks": 150,
+      "nll_checks": 12,
+      "max_logit_error": 0.00001986,
+      "logit_bound": 0.0005992650985717773,
+      "max_nll_error": 0.00000142,
+      "nll_bound": 0.00010182466502683951,
+      "logit_bound_used_percent": 3.3140591780385913,
+      "nll_bound_used_percent": 1.3945540597906296
+    },
+    {
+      "format": "IQ2_XS",
+      "logit_checks": 150,
+      "nll_checks": 12,
+      "max_logit_error": 0.00001638,
+      "logit_bound": 0.0006600618362426758,
+      "max_nll_error": 0.00000186,
+      "nll_bound": 0.00008615504702191856,
+      "logit_bound_used_percent": 2.481585678887484,
+      "nll_bound_used_percent": 2.1588984793041788
+    }
+  ]
+}

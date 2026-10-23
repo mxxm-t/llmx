@@ -1,0 +1,71 @@
+{
+    "schema":  "llmx-iq2-eaa-integration-preparation-v1",
+    "status":  "Prepared only. No current-eaa product build or combined qualification has run.",
+    "revisions":  {
+                      "landing_main":  "eaa08d83906a3bab822277b052278af671d4f824",
+                      "feature_patch_origin":  "a93d7925de32bc77da86bb4b692bad3acd5e1fd6",
+                      "prior_NI_head":  "ca4fd2e1a5ef232ba5283eb33832f0b39a483898"
+                  },
+    "patch":  {
+                  "path":  "build-quant-resume-20261020/iq2-main-eaa-prep/iq2-a93-current-worktree.patch",
+                  "sha256":  "20311c9a9d522be6702ad66b589062475156497768c1c0f040ac34867378363e",
+                  "bytes":  1348377,
+                  "paths_from_a93":  72,
+                  "paths_staged_on_eaa":  72
+              },
+    "main_delta":  {
+                       "commits":  [
+                                       "c8dbe1c2f",
+                                       "0cdfe310f",
+                                       "eaa08d839"
+                                   ],
+                       "changed_path_count":  17,
+                       "scope":  "Server cache/scheduling, pacing tests and docs. No IQ2 quant/Vulkan/CMake/test-source changes."
+                   },
+    "exact_prior_NI_comparison":  {
+                                      "runtime_source_count":  17,
+                                      "runtime_paths_sha256":  "0ad059911f128ce3968cc97bc46cf60ddbb8f42826c4a89d2e0da676031c94e4",
+                                      "build_registration_count":  2,
+                                      "build_paths_sha256":  "13a3c29a21911438e9ca714ccfa70171b83823f6e7d9780abf43b3c9ada26869",
+                                      "test_fixture_count":  14,
+                                      "test_paths_sha256":  "bc6a57cd9440bdca78693c43b713f6fbe707651573d2ff46b1c25919111b09e7",
+                                      "reference_tool_count":  2,
+                                      "reference_paths_sha256":  "e874f9f09e41092a66ba8134439f647f9db20578cbde1f4a16d345dda11fc03f",
+                                      "mismatches":  0,
+                                      "interpretation":  "Runtime/build/test/reference files in these groups are byte-identical to prior NI. Existing evidence remains valid only for its recorded product and input pins."
+                                  },
+    "merged_docs":  {
+                        "AGENTS":  "Three-way merge retained main pacing test text and IQ2 operator test descriptions (iq2-small, iq2-small-vulkan).",
+                        "USAGE":  "Three-way merge retained --disk-cache-max-age TIME and IQ2_XXS/IQ2_XS registry entries.",
+                        "review":  "AGENTS.md, docs/STATUS.md and docs/USAGE.md were the only same-path main/feature changes; normalized three-way checks had no conflicts."
+                    },
+    "prior_products":  [
+                           {
+                               "base":  "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+                               "candidate_version":  "llmx 0.1.0+unknown numerics 967de8ae61e0935c",
+                               "candidate_sha256":  "ece917c07133d8973b848464a51857fdc587a8b486d669154a176cc9b1f52fdf",
+                               "evidence":  "benchmarks/iq2-pair-current-main-integration-20261023.json",
+                               "scope":  "Prior paired build, identities, 40 device components across v4 plus CLI recovery. Not eaa."
+                           },
+                           {
+                               "base":  "a93d7925de32bc77da86bb4b692bad3acd5e1fd6",
+                               "tested_revision":  "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+                               "cli_sha256":  "166c219585c2025d9dd4c6e586f572394ef0a5834f465034b373c2969602119e",
+                               "numerics":  "1c2f3e76a1a96f1f",
+                               "library_sha256_prefix":  "8fdfe267",
+                               "shader_outputs_equal":  229,
+                               "focused_checks":  7,
+                               "evidence":  "benchmarks/iq2-pair-dashboard-integration-20261023.json",
+                               "scope":  "Focused combined-tree integration only. No full suite, released-file gate or timing claim."
+                           }
+                       ],
+    "pending":  {
+                    "eaa_build":  "pending",
+                    "native_CTest":  "pending",
+                    "focused_IQ2_CPU_Vulkan":  "pending",
+                    "released_short_CPU_Vulkan_on_new_product":  "pending",
+                    "regression_timing":  "not run; old timing is base 19a312f60 only",
+                    "hosted_CI":  "pending"
+                },
+    "ci_note":  "Parent-reported temporary run 39986411879 had four green jobs and three running at checkpoint; train2 failed on linked-test-only WeightRows::read in its pending branch. No green CI claim."
+}

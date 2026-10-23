@@ -1,0 +1,281 @@
+{
+  "schema_version": 1,
+  "purpose": "Current-main integration checkpoint for IQ2_XXS/IQ2_XS; records paired builds, CPU and Vulkan identities, and split device component coverage. Existing-path timing is recorded separately.",
+  "base_revision": "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+  "candidate_tree": "ba76a13f3b5878ee04d82d5e0b11d2437451bbdf",
+  "build_environment": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "source_and_build_mounts": "/w and /b for both arms",
+    "cmake_configuration": "Release; Vulkan enabled; same target compiler/toolchain and flags",
+    "paired_generated_config_sha256_equal": true,
+    "paired_flags_make_sha256_equal": true,
+    "note": "CMakeCache and compile_commands hashes differ because source revisions/configured inputs differ; no claim of byte-identical caches."
+  },
+  "builds": {
+    "current_main": {
+      "revision": "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+      "version": "llmx 0.1.0+unknown numerics 227a1fd84d620024",
+      "passed": true,
+      "exit_code": 0,
+      "removed": true,
+      "oom_killed": false,
+      "memory_peak_bytes": 1727631360,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "compile_jobs": 2,
+      "source_manifest_sha256": "6546cc99543cd7110084fda1ae107b42f4ca37b6eb87ff3716ca4a3b2071bdbc",
+      "log_sha256": "e487a0cc8058cb9f5fc4b8b46c3c38c0f348d57265b429472a90e68d2315c9b1",
+      "memory_samples_sha256": "db79739c2e87df8038abc31508c289efb4f4d5750c9a06faa8b357b221787248",
+      "source_bundle_candidate_unchanged": true,
+      "build_identity": {
+        "compiler_flags": "GNU 14.2.0; Release;  -O3 -DNDEBUG; vulkan 1; ipo ",
+        "compiler_toolchain": "shaderc 2025.2-1, spirv-tools 2025.1~rc1-1, glslang 15.1.0+1.4.309.0-1, Target: SPIR-V 1.0",
+        "generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "llmx_flags_make_sha256": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "cmake_cache_sha256": "96501e58f245c8bbb508b1a7f9344f7ca89a32f9af728ce528afd58ae6ea9223",
+        "compile_commands_sha256": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b"
+      },
+      "artifacts": {
+        "llmx": "6acd61ad7c891353dd2c7511a648b1ca7013f99e98cc7d1a1be3bf7b8c8b7729",
+        "llmx-model-logits": "c7f6ca9806e76ef040c79505437185ad962eec1ef50f8a3d4a2a2635446564eb",
+        "libllmx-vulkan.a": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904"
+      },
+      "compiled_shader_set_matches_retained_address_v1": false,
+      "execution_record_sha256": "0e711109a417ebea391f3a725be78b3b673294ce098ee0b26e2044b37f5aa4ef"
+    },
+    "candidate": {
+      "revision": "ba76a13f3b5878ee04d82d5e0b11d2437451bbdf",
+      "version": "llmx 0.1.0+unknown numerics 967de8ae61e0935c",
+      "passed": true,
+      "exit_code": 0,
+      "removed": true,
+      "oom_killed": false,
+      "memory_peak_bytes": 1805000704,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "compile_jobs": 2,
+      "source_manifest_sha256": "b0d5b2efe9ee3d9c2dd103e188b9f208cd5a136bfeff0da072fa4d002227712d",
+      "log_sha256": "5a966c33d0a7b530bd652ee55184e7f584923405320d13b05bf08d28f7a179b8",
+      "memory_samples_sha256": "8c2eb8d28615c6310df654e85c247b85c31cedbaa8c1af44298033865e592d4a",
+      "source_bundle_candidate_unchanged": true,
+      "build_identity": {
+        "compiler_flags": "GNU 14.2.0; Release;  -O3 -DNDEBUG; vulkan 1; ipo ",
+        "compiler_toolchain": "shaderc 2025.2-1, spirv-tools 2025.1~rc1-1, glslang 15.1.0+1.4.309.0-1, Target: SPIR-V 1.0",
+        "generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "llmx_flags_make_sha256": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "cmake_cache_sha256": "c6232622e84ef36b92b3d3e5e38331af0f3284f541c44791bc687af01b884186",
+        "compile_commands_sha256": "2930695867c5a3674eee5cb7c32c9db5c20090a876b1cf7c62ec5d7efb00d058"
+      },
+      "artifacts": {
+        "llmx": "ece917c07133d8973b848464a51857fdc587a8b486d669154a176cc9b1f52fdf",
+        "llmx-model-logits": "8787fd7861b53bdcc1f18eed844f22b6c45c85594c26e5f942681ecefe2a93dc",
+        "libllmx-vulkan.a": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+      },
+      "compiled_shader_set_matches_retained_address_v1": true,
+      "execution_record_sha256": "67bb51f78eb58ecfd6642a68a495c70fdf8b38b3d0bd428c9d2d03029e87fc2f"
+    }
+  },
+  "preflight_history": {
+    "v1": {
+      "classification": "Preflight rejected active production llmx-serve because its Docker CPU set was unrestricted/empty; stopped before creating a build container.",
+      "source": "Root-recorded summary; old execution log was not in the collected evidence files."
+    },
+    "v2": {
+      "classification": "Preflight allowed llmx-serve but rejected active llmx-health-dashboard for the same unrestricted/empty CPU-set reason; stopped before creating a build container.",
+      "source": "Root-recorded summary; old execution log was not in the collected evidence files."
+    },
+    "v3": "Added exact background-service allowlisting for llmx-serve and llmx-health-dashboard while retaining the memory guard and other competing-job checks. Both paired builds passed."
+  },
+  "vulkan_existing_path_identity": {
+    "status": "passed",
+    "stage": "vulkan",
+    "device": "vulkan:0",
+    "started": "2026-10-23T15:08:49.286330+00:00",
+    "ended": "2026-10-23T15:10:40.506841+00:00",
+    "case_count": 17,
+    "all_cases_passed": true,
+    "coverage": "Full-vocabulary batched and per-token output identity plus 64 greedy tokens, as specified by the runner; existing-format models only.",
+    "model_files": [
+      "Qwen3-0.6B-Q8_0.gguf",
+      "Qwen3-0.6B-Q4_0.gguf",
+      "Qwen3-0.6B-Q5_K_M.gguf",
+      "Qwen3-0.6B-Q4_K_M.gguf",
+      "Qwen3.5-0.8B-Q8_0.gguf",
+      "Qwen3.5-0.8B-Q4_K_M.gguf",
+      "Qwen3-0.6B-Q5_1.gguf",
+      "Qwen3-0.6B-IQ4_NL.gguf",
+      "Qwen3-0.6B-F16-converted.gguf",
+      "Qwen3-0.6B-BF16.gguf",
+      "Qwen3-0.6B-Q5_0-converted.gguf",
+      "Qwen3-0.6B-IQ4_XS.gguf",
+      "Qwen3-0.6B-Q2_K.gguf",
+      "Qwen3-0.6B-Q3_K_S.gguf",
+      "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+      "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+      "Qwen_Qwen3-0.6B-IQ3_XXS.gguf"
+    ],
+    "source_pins_sha256": "a369460255cb93e35da8ef91db97499538c33be8ed18ceff0fa7e987edbedc47",
+    "transcript_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+    "identity_result_sha256": "68cc4b4cda44c25686ac2c0355a6fc8d79670431dad96482b1a9ae4bf3abf29b",
+    "execution_record_sha256": "eba44d32ee5339d120987e166bf2f1d5bef3da9ba988909c95757b44504079e6",
+    "execution": {
+      "exit_code": 0,
+      "container_removed": true,
+      "oom_killed": false,
+      "artifact_count": 264,
+      "guard_pci": "0000:c9:00.0",
+      "guard_busy": 0,
+      "guard_vram_used_bytes": null
+    }
+  },
+  "pending": {
+    "cpu_existing_path_identity": "passed: 9/9 cases",
+    "device_integration_suite": "covered by composed evidence: v4 39/40 plus focused CLI recovery PASS; no full-suite rerun",
+    "existing_path_timing": "not yet complete",
+    "hosted_ci_and_landing": "pending"
+  },
+  "scope_limits": [
+    "These existing-format identity results do not qualify IQ2_XXS or IQ2_XS accuracy on released files, performance, or device-specific numerical coverage.",
+    "The candidate build shader set matches the retained frozen address-v1 shader set. The main arm has its own shader count; do not compare this set-equality claim as a main/candidate equality."
+  ],
+  "records": {
+    "current_main_build_sha256": "0e711109a417ebea391f3a725be78b3b673294ce098ee0b26e2044b37f5aa4ef",
+    "candidate_build_sha256": "67bb51f78eb58ecfd6642a68a495c70fdf8b38b3d0bd428c9d2d03029e87fc2f",
+    "vulkan_identity_result_sha256": "68cc4b4cda44c25686ac2c0355a6fc8d79670431dad96482b1a9ae4bf3abf29b",
+    "vulkan_identity_execution_sha256": "eba44d32ee5339d120987e166bf2f1d5bef3da9ba988909c95757b44504079e6"
+  },
+  "candidate_shader_set_comparison": {
+    "candidate_shader_count": 229,
+    "retained_address_v1_shader_count": 229,
+    "all_shader_bytes_identical": true,
+    "proof_sha256": "acbc410a6b99b8e631cbcf36f1e3ec87eeb458d94349a65eed48afc097a2c49e",
+    "proof_source_manifest_sha256": "1afbe5755c35a43f3c95ff918c12037366f7dd55e816056a38d2d9cacc9a9305"
+  },
+  "device_integration_composition": {
+    "status": "composed pass across two executions; full v4 was not rerun",
+    "component_coverage": "40 of 40 components covered: 39 PASS in device-integration-v4 plus focused CLI PASS in cli-recovery-v1/results",
+    "v4": {
+      "passed": false,
+      "exit_code": 1,
+      "removed": true,
+      "oom_killed": false,
+      "pins_unchanged": true,
+      "components_total": 40,
+      "components_passed": 39,
+      "only_failure": "cli",
+      "result_sha256": "78f89c234da5cb58cc5972c90ea07708076f1684f4e74d448eb94a7c83313104",
+      "execution_sha256": "a367167a324330b5336efdc16d9410823b3dfafe5fe3ef4702d669b6f00e8e0b"
+    },
+    "cli_recovery": {
+      "passed": true,
+      "exit_code": 0,
+      "removed": true,
+      "oom_killed": false,
+      "pins_unchanged": true,
+      "command": "python3 -B -u -X utf8 /w/tests/run_tests.py --exe /b/llmx --only cli --device vulkan:0",
+      "component_results": {
+        "cli": "PASS"
+      },
+      "candidate_version": "llmx 0.1.0+unknown numerics 967de8ae61e0935c",
+      "candidate_binary_sha256": "ece917c07133d8973b848464a51857fdc587a8b486d669154a176cc9b1f52fdf",
+      "source_manifest_sha256": "b0d5b2efe9ee3d9c2dd103e188b9f208cd5a136bfeff0da072fa4d002227712d",
+      "overlay_lf_sha256": "4a8cbd04171ecd1c90ac74590183056357735522af653a357f0144660f9c26af",
+      "result_sha256": "fc9430a3b45a544ddef745c6e19a4da464f49f315d54bfa5ba6ea0126c680802",
+      "execution_sha256": "2660095e80a2c649c57f9312469aca35318eda7513a3e293b95a94db1701c34e",
+      "cli_log_sha256": "9d9d8144ac9377b42833b7264cb81e33fdddaab132956a33342ada08cedeea89"
+    },
+    "basis": "Recovery used the same candidate binary, source manifest and runtime version as v4. The preserved v4 CLI failure was an obsolete IQ2_XS refusal expectation; the focused overlay changes only check_known_storage to use IQ1_S.",
+    "limitations": [
+      "This is split coverage, not a single successful 40-component execution.",
+      "The CPU existing-path identity stage remains active and must be checked dynamically before timing freeze."
+    ]
+  },
+  "cpu_existing_path_identity": {
+    "status": "passed",
+    "stage": "cpu",
+    "case_count": 9,
+    "all_cases_passed": true,
+    "coverage": "Existing-format identity only; paired tokenize, full-vocabulary batched/per-token captures and greedy IDs as defined by the runner.",
+    "started": "2026-10-23T15:08:42.118093+00:00",
+    "ended": "2026-10-23T15:42:36.204138+00:00",
+    "source_pins_sha256": "a369460255cb93e35da8ef91db97499538c33be8ed18ceff0fa7e987edbedc47",
+    "model_files": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_NL.gguf",
+        "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_XS.gguf",
+        "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-Q2_K.gguf",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-Q3_K_S.gguf",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+        "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+        "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ3_XXS.gguf",
+        "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+        "tokens": 247,
+        "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600"
+      }
+    ],
+    "identity_result_sha256": "0d5624bb77bcfefbb0512e4a5ab14aef9eb655cfa64726c2627ff2518ffce0af",
+    "execution_record_sha256": "300f80f15d022f67d392aba2ad214e3ca064fd3f46e0949b7faa5dfaf28ab99f",
+    "execution": {
+      "exit_code": 0,
+      "container_removed": true,
+      "oom_killed": false,
+      "artifact_count": 144,
+      "result_artifact_name": "progress.json",
+      "result_artifact_sha256": "0d5624bb77bcfefbb0512e4a5ab14aef9eb655cfa64726c2627ff2518ffce0af"
+    }
+  }
+}

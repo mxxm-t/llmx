@@ -1,0 +1,289 @@
+{
+  "title": "IQ2_XXS/IQ2_XS focused TP2 evidence",
+  "date": "2026-10-23",
+  "scope": "Selected tiny split-fixture qualification only; not released-model, full landing, or performance qualification.",
+  "execution": {
+    "source_revision": "585616c88708ecd5c14616e43b6f54a9de49eb1a",
+    "source_manifest_sha256": "bd5e81e61e007d0c02a922a7788f82ea446bc52e0dd64daa72692e05974dc706",
+    "binary_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+    "vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "command_policy": "144 calls; logits use --top 260; 4 threads; ubatch 1 or 16; --device vulkan:0,vulkan:1; F32 KV; requested dtype auto/f32/bf16/int8.",
+    "resource_limits": {
+      "cpuset": "6-7",
+      "cpu_quota": 2,
+      "memory_bytes": 6442450944,
+      "memory_swap_bytes": 6442450944,
+      "network": "none",
+      "devices": [
+        [
+          "/dev/dri/renderD130",
+          "0000:c9:00.0"
+        ],
+        [
+          "/dev/dri/renderD131",
+          "0000:cc:00.0"
+        ]
+      ]
+    },
+    "passed": true,
+    "diagnostic_exit": 0,
+    "planned_calls": 144,
+    "completed_calls": 144,
+    "container_removed": true,
+    "build_source_bundle_pins_unchanged": {
+      "build": true,
+      "source": true,
+      "bundle": true
+    }
+  },
+  "coverage": {
+    "indices": "0..143 inclusive",
+    "unique_indices": 144,
+    "checked": 144,
+    "passed": 144,
+    "per_policy_format": "12 full-vocabulary logits plus 6 NLL checks across dense-untied, dense-tied and MoE fixtures",
+    "device_witnesses_per_call": 2,
+    "device_mapping": [
+      {
+        "vulkan": "vulkan:0",
+        "render": "/dev/dri/renderD130",
+        "pci": "0000:c9:00.0"
+      },
+      {
+        "vulkan": "vulkan:1",
+        "render": "/dev/dri/renderD131",
+        "pci": "0000:cc:00.0"
+      }
+    ]
+  },
+  "policy_summaries": [
+    {
+      "requested_dtype": "auto",
+      "format": "IQ2_XXS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 2.111064243316696e-05,
+      "max_nll_error": 5.632566310254106e-06,
+      "frozen_bounds": {
+        "logit": 0.0005992650985717773,
+        "nll": 0.00010182466502683951
+      },
+      "witness_paths": [
+        "block-int16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "auto",
+      "format": "IQ2_XS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 2.9137939453124928e-05,
+      "max_nll_error": 3.975382765197821e-06,
+      "frozen_bounds": {
+        "logit": 0.0006600618362426758,
+        "nll": 8.615504702191856e-05
+      },
+      "witness_paths": [
+        "block-int16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "f32",
+      "format": "IQ2_XXS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 8.095092773885426e-07,
+      "max_nll_error": 3.4719755959145004e-08,
+      "frozen_bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "witness_paths": [
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "f32",
+      "format": "IQ2_XS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 7.681713104223942e-07,
+      "max_nll_error": 3.551083782582509e-08,
+      "frozen_bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "witness_paths": [
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "bf16",
+      "format": "IQ2_XXS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 0.0028169746189117273,
+      "max_nll_error": 0.00040777243368950167,
+      "frozen_bounds": {
+        "logit": 0.005267143249511719,
+        "nll": 0.0007180966018882629
+      },
+      "witness_paths": [
+        "bf16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "bf16",
+      "format": "IQ2_XS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 0.0020096277005672465,
+      "max_nll_error": 0.00017126470595396626,
+      "frozen_bounds": {
+        "logit": 0.005983009934425354,
+        "nll": 0.0007261934654803071
+      },
+      "witness_paths": [
+        "bf16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "int8",
+      "format": "IQ2_XXS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 2.111064243316696e-05,
+      "max_nll_error": 5.632566310254106e-06,
+      "frozen_bounds": {
+        "logit": 0.0005992650985717773,
+        "nll": 0.00010182466502683951
+      },
+      "witness_paths": [
+        "block-int16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    },
+    {
+      "requested_dtype": "int8",
+      "format": "IQ2_XS",
+      "passed": true,
+      "calls": 18,
+      "full_vocabulary_logits": 12,
+      "nll_checks": 6,
+      "max_logit_error": 2.9137939453124928e-05,
+      "max_nll_error": 3.975382765197821e-06,
+      "frozen_bounds": {
+        "logit": 0.0006600618362426758,
+        "nll": 8.615504702191856e-05
+      },
+      "witness_paths": [
+        "block-int16",
+        "f32"
+      ],
+      "device_witnesses": 2
+    }
+  ],
+  "int8_scope": "The int8 request policy ran, but IQ2_XXS/IQ2_XS matrix-path witnesses selected block-int16 on both Vulkan devices, with F32 fallback where recorded. No native block-int8 execution is established by these calls. Keep the tiny-shape fallback distinction explicit.",
+  "immutable_inputs": {
+    "source_archive_revision": "585616c88708ecd5c14616e43b6f54a9de49eb1a",
+    "source_manifest_sha256": "bd5e81e61e007d0c02a922a7788f82ea446bc52e0dd64daa72692e05974dc706",
+    "verified_hashes": {
+      "tests/data/dtype_budget.json": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644",
+      "tests/data/baseline_iq2_xxs_split.json": "363b90946c413895cad946645667a5f7063f5ab811ffc5459e76ec8316a60275",
+      "tests/data/baseline_iq2_xs_split.json": "2ae90131d114f063b9d7f64596aeaba164c49a858525af26ba5ec6601b31d03d"
+    },
+    "fixtures": [
+      {
+        "format": "IQ2_XXS",
+        "fixture": "dense-untied",
+        "model_sha256": "6f918cd939fe490d1e2c295fd822e31d7226447881b94499523c3a7785a2baca",
+        "weights_sha256": "2302771f0998ef58a04ec0d8da4b162c0c587c1061651df8f6ad2f1ae1031b05",
+        "packed_sha256": "c6ad17d70f2cb7998b9ff6266f950ec168901e639b1e8780630a2d3ce5a24a5b"
+      },
+      {
+        "format": "IQ2_XXS",
+        "fixture": "dense-tied",
+        "model_sha256": "976047c6a9d35837dbc5e34f753c9b4b0c9a24ee8c1b217eaf591ea2cd8a2153",
+        "weights_sha256": "d67bd2714f425896ce7d09f40c7b5da640ee8d3fcfc0462fe0a0f33214bb4c83",
+        "packed_sha256": "c22febd7fe88147556a19580be1ea229191dfbc26c24650b226251b26dd29c90"
+      },
+      {
+        "format": "IQ2_XXS",
+        "fixture": "moe",
+        "model_sha256": "5c8c5f89f7fdd332e5284553c927b2b2b4c72c3cc053c50e2e3b0c66a343f021",
+        "weights_sha256": "6a07cb0bf0077711b2b21e84c9ee5f98097841a65c0b530ad8d329bf7896052a",
+        "packed_sha256": "46732936d24002fdba7a7edca3d5fdcd2a53b8bc3524dded97ac58109bb82228"
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "dense-untied",
+        "model_sha256": "bad5fce59cf26ad17ef3a5b56efa64e1ee280664c941861d6868bcfce8964d2f",
+        "weights_sha256": "b2c3d2cf86e6179c0df96de172ddb2a5d00db0f8dc2d841c58d37ea9ab14ac08",
+        "packed_sha256": "7842d9916b519f4ec86a9e7671d9f8dc8632cbe24820627a42739c6d1002aa21"
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "dense-tied",
+        "model_sha256": "07b844fcd10fb2200780aef4313ab57d2cdc600d134ed8599cf9d8fc5f47df4f",
+        "weights_sha256": "111ed082e5fb7a0f45e5fa6b1a3c845b11452c4b7af415f546303cc0cf785eec",
+        "packed_sha256": "8371fdcd8fcf88554e6abce8b7f420d49617a6709aefded637bc317a97cfbe77"
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "moe",
+        "model_sha256": "08a7fe707546a319fdc21d08da4caf920e116b736757f5bc1543ecb7228c834d",
+        "weights_sha256": "bd0f2c0cbffe8fa4074715b0439abe700481d3b0669a14bf2d07260a6e228a2f",
+        "packed_sha256": "33c046b13e5fc4d16548c9c57b733356cb633227fb5dfd0738d00482a33dd401"
+      }
+    ]
+  },
+  "artifact_audit": {
+    "execution_json_sha256": "0e78915ae9a9a65d34633a3833dcfcd25292ebf8d0532f0ce4ac918bd5a51b9a",
+    "result_json_sha256": "562d6560431537b4fd9b3152206b93690ce49f9135190b887309898fafc84f21",
+    "progress_jsonl_sha256": "cc554d126ad655c980683dc0c10dfa4d19f55e0b0e842770240b4109b3e67a35",
+    "execution_manifest": {
+      "count": 298,
+      "sha256": "cfbd7dfd0fb807ccdccb2cde00066f52a2d71a0834f1baf8e89604f7fc4c6d63",
+      "verified": true
+    },
+    "result_manifest": {
+      "count": 295,
+      "sha256": "ce3ae17892fcaf37b621552deed743217fd82560068170227b9e2bcd3712cb0b",
+      "verified": true
+    },
+    "all_recorded_artifact_hashes_match": true,
+    "manifest_hash_definition": "SHA-256 of sorted UTF-8 lines \"relative-name<TAB>artifact-sha256<LF>\" from the recorded artifact map."
+  },
+  "markdown_inventory_since": {
+    "base": "c1128a74963a846256977cd0a414cf7bc033106a",
+    "tracked_markdown_changes_before_this_record": 0,
+    "untracked_markdown_files_before_this_record": 0,
+    "reviewed_scope": "No pre-existing Markdown delta to review."
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "purpose": "Focused combined IQ2 and dashboard integration on current main; records the fresh three-target build and seven CPU/Vulkan lookup/model/server checks. No full suite or timing is claimed.",
+  "base_revision": "a93d7925de32bc77da86bb4b692bad3acd5e1fd6",
+  "tested_revision": "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+  "source_equivalence_audit": {
+    "quant_and_backend_sources_match_revision": "340e0e024",
+    "model_api_server_and_dashboard_sources_match_revision": "a93d7925de32bc77da86bb4b692bad3acd5e1fd6"
+  },
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "configuration": "Release, Vulkan enabled, GNU 14.2.0, glslc shaderc 2025.2-1",
+    "cpuset": "14-15",
+    "cpu_quota": 2,
+    "memory_limit_bytes": 8589934592,
+    "targets": ["llmx", "llmx-arch-qwen4exp-test", "llmx-qwen4exp-model-test"],
+    "passed": true,
+    "exit_code": 0,
+    "container_removed": true,
+    "oom_killed": false,
+    "memory_peak_bytes": 1742417920,
+    "cgroup_oom_events": 0,
+    "source_manifest_sha256": "2fec31d9a6af7028208c736f5110ac0972e6c186d14318d931b0f6b91e075689",
+    "cli_sha256": "166c219585c2025d9dd4c6e586f572394ef0a5834f465034b373c2969602119e",
+    "cli_version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+    "numerics_sha256": "1c2f3e76a1a96f1f61bb9aedaf198e242b08de0033137959029f3491178d4e0a",
+    "vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "vulkan_library_matches_retained_address_build": true,
+    "compiled_shader_count": 229,
+    "compiled_shader_set_matches_retained_address_build": true,
+    "build_execution_sha256": "8f40d136b5bcb0dbb469f8b0eb49c3412a14f16553b147fa5c0fa78bb8934eff",
+    "build_log_sha256": "880c5847dc2ecd707a82496e9693fdc997b6647069f4ca8dcc8bb07dd0070a67"
+  },
+  "focused_checks": {
+    "passed": true,
+    "count": 7,
+    "device": "CPU and Vulkan renderD130",
+    "checks": [
+      {"device": "cpu", "check": "test_native_reads_emitted_gguf_and_matches_hf_lookup_rows", "passed": true},
+      {"device": "cpu", "check": "test_native_model_matches_full_hf_graph", "passed": true},
+      {"device": "cpu", "check": "test_native_server_lookup_storage", "passed": true},
+      {"device": "cpu", "check": "server.check_server synthetic F32/health schema", "passed": true},
+      {"device": "vulkan:0", "check": "test_native_model_matches_full_hf_graph", "passed": true},
+      {"device": "vulkan:0", "check": "test_native_server_lookup_storage", "passed": true},
+      {"device": "vulkan:0", "check": "server.check_server synthetic F32/health schema", "passed": true}
+    ],
+    "scope": "Qwen4Exp lookup/model CPU and Vulkan fixtures, plus synthetic server health schema. No full suite.",
+    "passed": true,
+    "exit_code": 0,
+    "container_removed": true,
+    "oom_killed": false,
+    "cgroup_oom_events": 0,
+    "memory_peak_bytes": 183173120,
+    "build_execution_sha256": "8f40d136b5bcb0dbb469f8b0eb49c3412a14f16553b147fa5c0fa78bb8934eff",
+    "result_sha256": "4cf21feb3c18b20d9a294ca7706b056c1c0382eebc21d81f321efc6116e56a54",
+    "execution_sha256": "7e39c377f4e137f896250ee71b48f376c98a351de98e92b7c78f93cf74ec98b7",
+    "run_log_sha256": "5c4c80f0a6a477b614d38d4c0bf17d638bf8b481599bde027e42766f2e76a6d9"
+  },
+  "limitations": [
+    "This combined-head checkpoint does not rerun the full native, CPU or device suite.",
+    "The completed existing-path timing remains scoped to base 19a312f60; no timing was run against a93d7925.",
+    "Hosted run 39983355769 is pending. The IQ2 feature is not merged."
+  ],
+  "retained_prior_failures": "Earlier preflight, test and resource-guard failures remain in their original records; this focused pass does not replace or erase them."
+}

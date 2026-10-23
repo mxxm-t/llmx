@@ -1,0 +1,290 @@
+{
+  "schema": "llmx-iq2-pair-mi50-tiny-hf-v1",
+  "date": "2026-10-23",
+  "scope": "Independent tiny synthetic IQ2_XXS and IQ2_XS HF fixture checks on the MI50, for four requested dtypes. This is correctness evidence, not released-file qualification, model-depth qualification, or performance data.",
+  "runtime": {
+    "execution_path": "build-quant-resume-20261020\\iq2-pair-operators-v1\\tiny-hf-v1\\execution.json",
+    "execution_sha256": "c6b840b448e57048631376e7c1ac96d7fa1f5dddb36c0f9634d10353aaec3d23",
+    "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498",
+    "binary_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+    "native_test_binary_sha256": "732bf40b7940b972c8ae5ff477d31c9a4bad940fd09c43230ad2980c23264b31",
+    "vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "build_source_manifest_sha256": "14b517b1320b84531f1a9586b7f976b4b47746fa3bd7329a92f8b78ed7c513c9",
+    "device": "AMD Instinct MI50 / MI60 (RADV VEGA20)",
+    "pci": "0000:c9:00.0",
+    "render_node": "/dev/dri/renderD130",
+    "driver": "Mesa 25.0.7-2+deb13u1",
+    "gpu_guard": {
+      "pci": "0000:c9:00.0",
+      "busy": 0,
+      "vram": 10932224,
+      "power": "auto"
+    },
+    "container_id": "706abe68dfc3cadcd643135f175e18e3111e31e0ae4dd10559c11c1135070cb6",
+    "container_removed": true,
+    "oom_killed": false,
+    "exit_code": 0,
+    "pins_unchanged": true,
+    "container_policy": {
+      "network": "none",
+      "cpuset": "6-7",
+      "cpu_quota": 2,
+      "memory_bytes": 6442450944,
+      "memory_swap_bytes": 6442450944,
+      "pids_limit": 256,
+      "core_dumps": 0,
+      "device": "renderD130"
+    }
+  },
+  "source_snapshot": {
+    "revision": "585616c88708ecd5c14616e43b6f54a9de49eb1a",
+    "file_count": 235,
+    "manifest_sha256": "bd5e81e61e007d0c02a922a7788f82ea446bc52e0dd64daa72692e05974dc706",
+    "archive_sha256": "1c2239c00589075ca8237b9800e7a2650129ba4c987ec7429385202b1de27c06",
+    "all_extracted_file_hashes_match": true,
+    "selected_source_hashes": {
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/iq2_small.py": "1ceb48eb65c54ef9141dc8058b765011901b9fc6a0fe9482f8d3a5cd82feb4c8",
+      "tests/spec_decode.py": "8e13f2f4af5697c5f1e64dae6b5bbbaa955ece310cda9070865acb3dd80d3dff",
+      "tests/data/dtype_budget.json": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644",
+      "tests/data/baseline_iq2_xxs.json": "e053d7d70e35646de3c8723afd5c185c5cc99d00f7ef545cfa5bf0ec71e9d338",
+      "tests/data/baseline_iq2_xs.json": "66bdf1e8277c8e46b006fc9b11f56d9588dbf5053c7dfcdd75de592b28418a6a"
+    },
+    "budget_file_sha256": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644"
+  },
+  "artifact_audit": {
+    "execution_listed_output_artifacts_match": true,
+    "output_artifacts": {
+      "f32.log": {
+        "expected": "91e90b5c131af9c35014a11b30bcc5ef7556fbc03c6fd36bbbe1a3a7220c7a39",
+        "actual": "91e90b5c131af9c35014a11b30bcc5ef7556fbc03c6fd36bbbe1a3a7220c7a39",
+        "matches": true
+      },
+      "device.txt": {
+        "expected": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "actual": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "matches": true
+      },
+      "int8.log": {
+        "expected": "08dd08f6c44171104bd73b383cf8cd3b7bc52449c2d9e57a9d06c1338ee1010e",
+        "actual": "08dd08f6c44171104bd73b383cf8cd3b7bc52449c2d9e57a9d06c1338ee1010e",
+        "matches": true
+      },
+      "auto.log": {
+        "expected": "08dd08f6c44171104bd73b383cf8cd3b7bc52449c2d9e57a9d06c1338ee1010e",
+        "actual": "08dd08f6c44171104bd73b383cf8cd3b7bc52449c2d9e57a9d06c1338ee1010e",
+        "matches": true
+      },
+      "bf16.log": {
+        "expected": "1553b7db96da1bbe5469d4be14f9484e3fefed12915a7d3015fe201d2b841b58",
+        "actual": "1553b7db96da1bbe5469d4be14f9484e3fefed12915a7d3015fe201d2b841b58",
+        "matches": true
+      }
+    },
+    "reported_build_artifacts": {
+      "llmx": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+      "llmx-iq2-small-test": "732bf40b7940b972c8ae5ff477d31c9a4bad940fd09c43230ad2980c23264b31",
+      "libllmx-vulkan.a": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+    },
+    "note": "Build artifacts are pinned in the execution record; their Linux binary files were not duplicated in this local evidence directory for a second byte-for-byte rehash."
+  },
+  "request_matrix": {
+    "calls": [
+      {
+        "dtype": "auto",
+        "status": "passed",
+        "exit_code": 0
+      },
+      {
+        "dtype": "f32",
+        "status": "passed",
+        "exit_code": 0
+      },
+      {
+        "dtype": "bf16",
+        "status": "passed",
+        "exit_code": 0
+      },
+      {
+        "dtype": "int8",
+        "status": "passed",
+        "exit_code": 0
+      }
+    ],
+    "all_four_calls_passed": true,
+    "per_format_coverage": "150 full-vocabulary logit cases and 12 NLL checks per requested dtype",
+    "fixture_kinds": [
+      "dense-untied",
+      "dense-tied",
+      "MoE"
+    ],
+    "no_skips": true,
+    "log_rounding": "Reported maxima are printed to 8 decimal places; headroom derives from these displayed values."
+  },
+  "results": [
+    {
+      "requested_dtype": "auto",
+      "format": "IQ2_XXS",
+      "reported_max_logit_error": 1.986e-05,
+      "logit_bound": 0.0005992650985717773,
+      "logit_headroom": 0.0005794050985717773,
+      "logit_headroom_fraction": 0.966859408219614,
+      "reported_max_nll_error": 1.39e-06,
+      "nll_bound": 0.00010182466502683951,
+      "nll_headroom": 0.00010043466502683951,
+      "nll_headroom_fraction": 0.9863490834992326,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "MI50 automatic dtype resolves to F16; per-path IQ2 product may use block-int16."
+    },
+    {
+      "requested_dtype": "auto",
+      "format": "IQ2_XS",
+      "reported_max_logit_error": 1.638e-05,
+      "logit_bound": 0.0006600618362426758,
+      "logit_headroom": 0.0006436818362426758,
+      "logit_headroom_fraction": 0.9751841432111252,
+      "reported_max_nll_error": 1.86e-06,
+      "nll_bound": 8.615504702191856e-05,
+      "nll_headroom": 8.429504702191856e-05,
+      "nll_headroom_fraction": 0.9784110152069582,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "MI50 automatic dtype resolves to F16; per-path IQ2 product may use block-int16."
+    },
+    {
+      "requested_dtype": "f32",
+      "format": "IQ2_XXS",
+      "reported_max_logit_error": 5.6e-07,
+      "logit_bound": 2e-05,
+      "logit_headroom": 1.944e-05,
+      "logit_headroom_fraction": 0.972,
+      "reported_max_nll_error": 2e-08,
+      "nll_bound": 1e-05,
+      "nll_headroom": 9.980000000000001e-06,
+      "nll_headroom_fraction": 0.998,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "Strict F32."
+    },
+    {
+      "requested_dtype": "f32",
+      "format": "IQ2_XS",
+      "reported_max_logit_error": 6.1e-07,
+      "logit_bound": 2e-05,
+      "logit_headroom": 1.9390000000000002e-05,
+      "logit_headroom_fraction": 0.9695,
+      "reported_max_nll_error": 2e-08,
+      "nll_bound": 1e-05,
+      "nll_headroom": 9.980000000000001e-06,
+      "nll_headroom_fraction": 0.998,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "Strict F32."
+    },
+    {
+      "requested_dtype": "bf16",
+      "format": "IQ2_XXS",
+      "reported_max_logit_error": 0.00123741,
+      "logit_bound": 0.005267143249511719,
+      "logit_headroom": 0.004029733249511719,
+      "logit_headroom_fraction": 0.7650699930907117,
+      "reported_max_nll_error": 0.00011107,
+      "nll_bound": 0.0007180966018882629,
+      "nll_headroom": 0.0006070266018882628,
+      "nll_headroom_fraction": 0.8453272168285755,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "BF16 request; frozen BF16 family budget."
+    },
+    {
+      "requested_dtype": "bf16",
+      "format": "IQ2_XS",
+      "reported_max_logit_error": 0.00102188,
+      "logit_bound": 0.005983009934425354,
+      "logit_headroom": 0.004961129934425354,
+      "logit_headroom_fraction": 0.8292030246982788,
+      "reported_max_nll_error": 7.023e-05,
+      "nll_bound": 0.0007261934654803071,
+      "nll_headroom": 0.000655963465480307,
+      "nll_headroom_fraction": 0.903290234161568,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "BF16 request; frozen BF16 family budget."
+    },
+    {
+      "requested_dtype": "int8",
+      "format": "IQ2_XXS",
+      "reported_max_logit_error": 1.986e-05,
+      "logit_bound": 0.0005992650985717773,
+      "logit_headroom": 0.0005794050985717773,
+      "logit_headroom_fraction": 0.966859408219614,
+      "reported_max_nll_error": 1.39e-06,
+      "nll_bound": 0.00010182466502683951,
+      "nll_headroom": 0.00010043466502683951,
+      "nll_headroom_fraction": 0.9863490834992326,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "Requested int8 but no block-int8 matrix path was witnessed for these IQ2 fixtures; checker used frozen F16 bounds. This is not native block-int8 HF fixture coverage."
+    },
+    {
+      "requested_dtype": "int8",
+      "format": "IQ2_XS",
+      "reported_max_logit_error": 1.638e-05,
+      "logit_bound": 0.0006600618362426758,
+      "logit_headroom": 0.0006436818362426758,
+      "logit_headroom_fraction": 0.9751841432111252,
+      "reported_max_nll_error": 1.86e-06,
+      "nll_bound": 8.615504702191856e-05,
+      "nll_headroom": 8.429504702191856e-05,
+      "nll_headroom_fraction": 0.9784110152069582,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "passed": true,
+      "effective_policy": "Requested int8 but no block-int8 matrix path was witnessed for these IQ2 fixtures; checker used frozen F16 bounds. This is not native block-int8 HF fixture coverage."
+    }
+  ],
+  "separate_native_operator_controls": {
+    "scope_note": "These are separate MI50 native operator checks from the retained same-path screen checkpoint, not HF fixture results and not the tiny-HF runtime binary. They validate IQ2 operator coverage including the block-int16 integer product path; they do not establish native block-int8 HF fixture coverage.",
+    "formats": [
+      {
+        "format": "IQ2_XXS",
+        "screen_execution_path": "build-quant-resume-20261020\\iq2-pair-operators-v1\\screen-v1-iq2_xxs\\execution.json",
+        "screen_execution_sha256": "f4e69816c3a499ed8b6a7aadf2b97ccf6349510d9d502cb0dd989f4b4bd5ca0c",
+        "native_test_log_sha256": "1b22e9b11a4b232aa5560465c02bc9b020fe78170ed381cbc33c73b22a24b318",
+        "native_passed": true,
+        "range_products": 960,
+        "tile_threshold_columns": 40,
+        "row_edge_columns": 39,
+        "tile_edge_columns": 41,
+        "threshold_cases": 5,
+        "row_tile_timestamps": "yes/yes",
+        "binary_sha256": "a52a8a9f88d65e11de8cb3041e5b7864ede522f52be707ca1f0b39d6deee3303",
+        "version": "llmx 0.1.0+unknown numerics 266bde0ccc607c4d"
+      },
+      {
+        "format": "IQ2_XS",
+        "screen_execution_path": "build-quant-resume-20261020\\iq2-pair-operators-v1\\screen-v1-iq2_xs\\execution.json",
+        "screen_execution_sha256": "47498cd80b61ae36a8dcd96db25941da5920ad43f64fafd33a3d61af88a78b0e",
+        "native_test_log_sha256": "1b22e9b11a4b232aa5560465c02bc9b020fe78170ed381cbc33c73b22a24b318",
+        "native_passed": true,
+        "range_products": 960,
+        "tile_threshold_columns": 40,
+        "row_edge_columns": 39,
+        "tile_edge_columns": 41,
+        "threshold_cases": 5,
+        "row_tile_timestamps": "yes/yes",
+        "binary_sha256": "a52a8a9f88d65e11de8cb3041e5b7864ede522f52be707ca1f0b39d6deee3303",
+        "version": "llmx 0.1.0+unknown numerics 266bde0ccc607c4d"
+      }
+    ]
+  },
+  "limits": "Tiny synthetic fixture only, short context. No released IQ2 GGUF file or long-context consumer is tested here. F16/BF16 bounds are the frozen IQ2 family budgets; F32 remains strict. The int8 request uses F16 fallback bounds when no block-int8 path is witnessed. No speed claim."
+}

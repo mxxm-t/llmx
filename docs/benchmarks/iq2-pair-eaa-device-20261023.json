@@ -1,0 +1,677 @@
+{
+  "schema": "llmx-iq2-pair-eaa-device-identity-20261023-v1",
+  "purpose": "Focused eaa Vulkan device evidence and separate existing-format identity. Does not claim a complete server real-model pass, full suite, performance qualification, hosted CI pass, or merge.",
+  "candidate": {
+    "base_main_revision": "eaa08d83906a3bab822277b052278af671d4f824",
+    "source_revision": "916c45408c5430b29f2d64482059626bb554650d",
+    "source_revision_kind": "uncommitted-index-tree",
+    "version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+    "llmx_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+    "libllmx_vulkan_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "source_pins_sha256": "0f987112b86977fcd6643091f4d7b61c0d587308856113344ded764db3e47a1c",
+    "build_record_sha256": "f9f667ad7fbc5025652edc95ce48b842f5ddaaaa8f2aac9c515320461584567c",
+    "build_receipt_artifact_count": 13
+  },
+  "focused_device_run": {
+    "result_sha256": "d3f4832b6fb204a7b2bbef806a916b4d29d4a624bf019b4b644f7024ff454908",
+    "execution_sha256": "9d2b37591141a73d538c60316ba19b7d35623843176430c84a9cbdf3af263ec4",
+    "bundle_pins_sha256": "09ad90cdb8a34d8c6fc31948b393e3730ebddf1a019843bc5f835c6c013693a0",
+    "source_pins_sha256": "0f987112b86977fcd6643091f4d7b61c0d587308856113344ded764db3e47a1c",
+    "native_ctest": {
+      "test": "iq2-small-vulkan",
+      "status": "pass",
+      "log_sha256": "a19ec75cd22c76436d379377b8b2847461ae8786fc3095866f8d8ec253451498"
+    },
+    "python_components": {
+      "f32": "PASS",
+      "iq2-xxs": "PASS",
+      "iq2-xs": "PASS",
+      "server": "PASS"
+    },
+    "component_summary_log_sha256": "eaa67b3727e72a125916f8aed72fadb9b9d936c6088b9921c5047456e1f20077",
+    "released_short_cells": [
+      {
+        "model": "iq2-xxs",
+        "policy_request": "auto",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+        "hf_reference_execution_sha256": "0fe98102f3a8902e2b4e146fbdd16d8c08cb6c5352c675c2abdb97c1a1076371",
+        "log_sha256": "73ed1cd3eef67b3ca4d29d3570d59ca790ea9b017cae82fcfd72b3a09217499e",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      },
+      {
+        "model": "iq2-xxs",
+        "policy_request": "f32",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+        "hf_reference_execution_sha256": "0fe98102f3a8902e2b4e146fbdd16d8c08cb6c5352c675c2abdb97c1a1076371",
+        "log_sha256": "145d7e1130fdde0d8d33306b6ad207193d791d7f1d402cef7df9fcd401612eed",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      },
+      {
+        "model": "iq2-xxs",
+        "policy_request": "int8",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+        "hf_reference_execution_sha256": "0fe98102f3a8902e2b4e146fbdd16d8c08cb6c5352c675c2abdb97c1a1076371",
+        "log_sha256": "17262cfde4c8a72f1b47992ac9107ec45d8343021602665da20018e06443a7a4",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      },
+      {
+        "model": "iq2-xs",
+        "policy_request": "auto",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+        "hf_reference_execution_sha256": "25541c891f9bd9f65d7c69b664978cb196e9751e22f5dd3120bec9bb686fc5f1",
+        "log_sha256": "508d9c093e660443bfc73ee775d381dd4c656d8344de9ca658b696e6b1e30a69",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      },
+      {
+        "model": "iq2-xs",
+        "policy_request": "f32",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+        "hf_reference_execution_sha256": "25541c891f9bd9f65d7c69b664978cb196e9751e22f5dd3120bec9bb686fc5f1",
+        "log_sha256": "e61fe1523e3b8eeaf59501ab049b5393e60cdbd108155a467b4651b544d06f43",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      },
+      {
+        "model": "iq2-xs",
+        "policy_request": "int8",
+        "status": "pass",
+        "top1_cases": "6/6",
+        "top5_cases": "6/6",
+        "file_exact_nll_log_lines": 8,
+        "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+        "hf_reference_execution_sha256": "25541c891f9bd9f65d7c69b664978cb196e9751e22f5dd3120bec9bb686fc5f1",
+        "log_sha256": "67dff32e873a18d73d001190ba53ec830fdae3ebf5c247e6a4340c4f727b815d",
+        "note": "int8 is a request-policy check, not evidence of a native block-int8 path"
+      }
+    ],
+    "call_count": 8,
+    "payload_exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "source_unchanged_after": true,
+    "build_protected_artifacts_unchanged": true,
+    "only_post_ctest_build_artifact_change": [
+      "Testing/Temporary/LastTest.log"
+    ]
+  },
+  "server_boundary": {
+    "v3_component_status": "PASS",
+    "v3_real_model_section": "SKIP",
+    "v3_reason": "The fixture was not mounted, so real-model coverage was not exercised.",
+    "v3_server_log_sha256": "eaa67b3727e72a125916f8aed72fadb9b9d936c6088b9921c5047456e1f20077",
+    "v4_run": {
+      "scope": "server component only with pinned Qwen3-0.6B Q8_0 fixture",
+      "result_sha256": "2a6407e2dbcbe5c196198d129025ba7b3e941ca8a9491350b4f2eb1d4cce9844",
+      "execution_sha256": "722d8361d813cd7208555b249d662bf64e9e5e0c0927be5cf677b18d10fef061",
+      "log_sha256": "c4e4e7853023ed23235a144f3011151a9aa08668cfae3b221041a2bf1cac766a",
+      "runtime_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+      "fixture_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "component_result": "failed",
+      "container_exit": 1,
+      "removed": true,
+      "oom_killed": false,
+      "completed_before_failure": "The real Qwen3 server checks reached the host-memory-tier follow-up; prior checks in the component passed.",
+      "failure": {
+        "check": "check_disk_keep",
+        "requested_disk_cache_bytes": 4294967296,
+        "container_tmpfs_bytes": 1073741824,
+        "tmpfs_free_bytes_at_check": 1070133248,
+        "runtime_behavior": "correctly refused the 4 GiB disk-cache request because the mounted tmpfs did not have sufficient free space"
+      },
+      "interpretation": "Environment-capacity failure, not a numerical/correctness failure. Preserve the failed attempt.",
+      "next": "The five remaining real-Q8 functions passed in v5. Preserve v4 failure; do not label the composition as one full component rerun."
+    },
+    "v5_tail": {
+      "scope": "Only five remaining actual real-Q8 server functions; not a full server component rerun.",
+      "execution_exit": 0,
+      "container_exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "container_id": "988b94188adf8140d70ba68755d48a8bdd07eb7becaf1cd8e85eeed571e1f6fd",
+      "runtime_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+      "fixture_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bundle_pins_sha256": "53a686642819379e1951696fbd0d319f4c1a395443963ed6ec6c6ac03d0c9b6e",
+      "source_pins_sha256": "0f987112b86977fcd6643091f4d7b61c0d587308856113344ded764db3e47a1c",
+      "build_record_sha256": "f9f667ad7fbc5025652edc95ce48b842f5ddaaaa8f2aac9c515320461584567c",
+      "result_sha256": "c97b957e244cb7f5a3fd16b9ac8c334b6dc1296b1c47cb1f4e7a03fcff7c0eac",
+      "execution_sha256": "0a7c2073ab620c825379487b515f9af302131985ad3c6904a8e7c1ad9379b0ab",
+      "tail_checks_sha256": "2ffcbaf00f950dee2a9dc7d048b588aa2a71d68f3da0dc7b46934c06deb30fb1",
+      "server_log_sha256": "d99277a21ab2dad84dbe9938ad7fb080bf90a64f121f0b95d117543cb9428f1a",
+      "artifact_hashes_verified": true,
+      "checks": [
+        {
+          "name": "check_disk_keep",
+          "status": "passed",
+          "result": 1472,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "check_reprefill",
+          "status": "passed",
+          "result": [
+            640,
+            531
+          ],
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "check_unrelated_donor",
+          "status": "passed",
+          "result": null,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "check_departed",
+          "status": "passed",
+          "result": null,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "check_ignore_eos_real",
+          "status": "passed",
+          "result": [
+            13,
+            48
+          ],
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "memory_peak_bytes": 366505984
+    },
+    "composition": {
+      "v4_prefix": "Prior real-Q8 checks passed through host-tier coverage; v4 then retained its disk-cache refusal on 1 GiB tmpfs.",
+      "v5_tail": "All five remaining real-Q8 server functions passed under the same runtime and fixture.",
+      "claim": "Combined prefix plus tail evidence is retained as a composition of two executions. The v4 full component failed, and there was no single successful full server-component rerun."
+    }
+  },
+  "existing_format_vulkan_identity": {
+    "result_sha256": "08b56c1bae978cbadae8357bb2d69b6835aa6fc172fdc9321d68b24d0fdd432f",
+    "execution_sha256": "8c4f2cfce6fae73ef946b7bd79b57dd06f186d6794f863ada01b7b6b334c5ea4",
+    "source_pins_sha256": "d51b43316ee2bdf12d7626bd3f23a70f2c4b8c2c6c9c13c316a12490d62819c6",
+    "result_text_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+    "device": "vulkan:0",
+    "gpu": {
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0"
+    },
+    "base_arm": {
+      "revision": "eaa08d83906a3bab822277b052278af671d4f824",
+      "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+      "cli_sha256": "f8e6469f76f3a34087d1680bfc3af3c447761517df6e958d035c3c72a5cd515a",
+      "vulkan_library_sha256": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904",
+      "verified_source_files": 2259
+    },
+    "candidate_arm": {
+      "revision": "916c45408c5430b29f2d64482059626bb554650d",
+      "version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+      "cli_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+      "vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+      "verified_source_files": 2298
+    },
+    "models_passed": 17,
+    "models_failed": 0,
+    "output_identity": "All 17 model cases passed; prompt token IDs, full batched and decode logits, and 64-token greedy outputs match byte-for-byte between eaa base and candidate.",
+    "cases": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "1cfe4217d85bd3ff6e3b8549bc92f8a12ef36cfdbf8a27987470c0416cb5a987",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "ab3f624e39769e6b8a545a27fd12f80b45fa5e3a021866ad85bd035a40ed781f",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "e6d135f16b77809c2c6c5bc05768ffa2aa9c588e670eda4c7dbe9766adbb4e91",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "5aef4a07779b7f0e564d2fd8f5ea52fb7b7beca5c57dc5715516cf19812d5fe8",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "30a4c85cb1deb283c2e650d1a83bedb06e36497b1315377c8ef62aa71e614de2",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "8b61ebb23c95540b73ae995784ca500ad0ac03da15e347c66c552f9ca392d8c9",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "model_sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "df13f3265c812abfbd30997835bab95edafb17413aa7ba2728dc1094ce4b6624",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "809ae872a936eb2034d98eaf15dae82e38039c6b380a1cb3da8cf0c2b5466009",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "3f251868eda97586423ff559400e3383beb57eb7eb327efc87340c5b4e90c4ae",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "adb2f05fc6ddc8f1652e57f77544496153debec32fc81306a2b16dbf4fa6cec4",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "9c71f49ddada0cc4c2c6657ff0fb25fc5b3779df9aae1d1d05b5f105dc062f53",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "a848c3f46e514079ff1c7f80afc7b7da62f53f90e5594c8158dc11e5bf76784a",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+        "prompt_token_count": 243,
+        "prompt_ids_sha256": "724e5ccfc32247c031016fdc09e6279431a2c9fbf857fde1767ade37b9ef2bb0",
+        "batched_logits": {
+          "bytes": 241367040,
+          "sha256": "b6abad5a00f66c76aa98b5169d243a3bfc09dbacfda1534dcfb33568e1b890ed",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 241367040,
+          "sha256": "37afa9a71899b84b129244bd17cca00bba69fe1725fd4fbb7e4ccca914bd65d3",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 63569920,
+          "sha256": "ec985c9cc4125dbcba296ed9e824c8c1b792248ddee43b6aff47817aa3a72265",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+        "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+        "prompt_token_count": 243,
+        "prompt_ids_sha256": "724e5ccfc32247c031016fdc09e6279431a2c9fbf857fde1767ade37b9ef2bb0",
+        "batched_logits": {
+          "bytes": 241367040,
+          "sha256": "37ded02021c1e26167c6f67a892af3b687d4ad7293935cce8bd050be64c023c6",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 241367040,
+          "sha256": "a6c511c1242b1403e31d0afff30765fd39301140ed4423bbcfd95d0d25f6c7ba",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 63569920,
+          "sha256": "98b0cee3c4f0e09518722a397da30eb3d14d3f233bf74cc2bab63450ad897883",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_1.gguf",
+        "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "e7c3a2a5b45a0ac71b3a8af1813b9fb2c26334b9d5c6784c3fdba0e1dcbf9615",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "84933d1d07326e2c7bc28a6a8eb87f5ce490b04871a3fcb5bed3d80136dfbbb2",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "262f804f27813064fda4eb7a4e40614748287c3df4cb36a88edde0989729bb6f",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_NL.gguf",
+        "model_sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "f549636af82e6f76902216ce18beaa0b4200bea684e0af0d570d6112bc7e6105",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "9343bf042f8574fe46a429d473fb273131ea10ffe0f2d447d32f537a70d96941",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "d55bc1b7c1ed240cb3d7fa644356800b26bf33a309944515605e097c025bd56c",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-F16-converted.gguf",
+        "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "a14fe69eaf30665c7903a9c8527f92508ae1884720b69dbdaddd937fd9daf411",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "eec0abe061fcc98b91ad432aff2d60f2a244f1ae827af574da93624991674eae",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "c7166035b1cf2efddaa18d1b70bedf4c4ddb6a3fa3250ff839e6fa31f07c3022",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-BF16.gguf",
+        "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "81a607c280e6cc06a007788246f609a12f9bfb2ae3c923c6f4107456b805cd39",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "c74140eb1ca6024e7fb5685ac15c295c34816b8c4736fa04d0494e874a63251d",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "b240bc8a68ee1f7d00da5969037ac79753f91d872ab4e2c6939b257b1bc6362f",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_0-converted.gguf",
+        "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "072b8bd1b400be7766558c49800cd89b665ba33ff7c6556bc81589e3edfe5328",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "0ebffb772c17cef20541c840c0060c6e4109680359bd838c13ec8b24390883da",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "774af7e553f30060c79233f5ffc89e27d8b0d0addf9902f695e22910655615a6",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-IQ4_XS.gguf",
+        "model_sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "36634b66ffd90c2e0d5a2517ca57835527d058210155741f4b04c7851d8a01c0",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "aa5d8bdcf0bf4e981ad6b6e0742364446df9bf77c3f44d2888d20784868e41d2",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "df3522e9e6ea89bc15a0b11d1ad6dffcea693c5a8d4f39380990b11219332c9b",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q2_K.gguf",
+        "model_sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "7d09a262ad804f0174700efd0e74c1aa79cea31ff51ab62d23a442712750f13d",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "69940f04145e0d30e29372e841cfe364622435d0ac421c50751a718d56e61a2a",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "25fcdc5f09c1ca953f9fb700ac40c831eae245002ebdd65c57ec59b35d21113a",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q3_K_S.gguf",
+        "model_sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "5bc83ebfb549030489ee5b65112a0b67ad49bc6219b17ca9c955739b23b13a3a",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "a27025d2b4f431727f95d1d4fcebbce7b647c45462f9d76f7fd8b076f21e79d3",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "fe116f8fe49cf89dc764e7e170786302cef12bcc85780fbb0b6c5a41877ab922",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+        "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "42e1e6d73b9316fc99a94cee609ff65a73557663649f54d59d793958237aece2",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "004be3f687999fa8ee34292406751566d39e1de564b681392c7c5ea1797814c5",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "689bd658d740e4a26acf51eb87c24657a5a3c2f089845e80e4f9a746155233d0",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ2_M.gguf",
+        "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "066a50ed12d4c57917d6568acd065a3f15b543cbac2c7eb53ad227eddeb0d695",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "ee0ad976dd7827e11bd50068685d58ed914b30c22278230b0b0e4780b06efcf2",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "223c7f5569fed61f4849c71d9ba00e1bbaef258cc3105df30d4d42fffc84736d",
+          "equal": true
+        }
+      },
+      {
+        "file": "Qwen_Qwen3-0.6B-IQ3_XXS.gguf",
+        "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+        "prompt_token_count": 247,
+        "prompt_ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+        "batched_logits": {
+          "bytes": 150112768,
+          "sha256": "93c90ca9605b52f37b60839c9d2f70d0b4d50412d7149be295bec52fdb8b9990",
+          "equal": true
+        },
+        "decode_logits": {
+          "bytes": 150112768,
+          "sha256": "f617fa371aba101b383f7503c5b5239e4edf84f6538cc694c3d4a1d7aa3e5ef2",
+          "equal": true
+        },
+        "passed": true,
+        "greedy_generated_token_count": 64,
+        "greedy_token_ids_equal": true,
+        "greedy_logits_capture": {
+          "bytes": 38895616,
+          "sha256": "b040505ed29f6731b9301e9eacac504c8c0357cad39bd70cac4702d88969fa19",
+          "equal": true
+        }
+      }
+    ],
+    "exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "guard_mem_available_bytes": 10895437824
+  },
+  "retained_preflight_history": [
+    {
+      "attempt": "device-prep-v1",
+      "status": "stopped before container creation",
+      "cause": "Referenced a nonexistent short-f32/reference/execution.json path; receipt is a sibling in short-f32.",
+      "receipt_sha256": "cb6cad3934aa0b964c82ec04a5cb6a0e1213fb0001ce56bfbe7b237226f4ab3a"
+    },
+    {
+      "attempt": "device-prep-v2",
+      "status": "stopped before container creation",
+      "cause": "Source-v2 manifest SHA transcription had one incorrect byte; corrected literal is pinned in recovery note.",
+      "first_execution_sha256": "3ecdffa4b2965be6d5e18be9c97473b97271d1a46a12029426d51507cbbe3098",
+      "correction_note_sha256": "276ec993aa20d92320e1b013e7889fee9cf5f888929832fa74662423a9f473dd"
+    },
+    {
+      "attempt": "initial Vulkan identity preflight (session 1092)",
+      "status": "stopped before container creation; no GPU/model work",
+      "cause": "Host MemAvailable was 10609922048 bytes, below the unchanged 10 GiB start guard (10737418240 bytes).",
+      "evidence_note": "Retained from root launch summary; no matching local JSON receipt was present in the collected files."
+    }
+  ],
+  "qualification_boundary": {
+    "v4_server_only": "v4 full component failed on tmpfs capacity; v4 prefix plus v5 tail covers the retained real-Q8 checks across two executions",
+    "full_server_real_model": "real-Q8 prefix and five tail checks passed across v4/v5 executions; no single full component rerun",
+    "full_suite": "not run",
+    "performance": "not run here",
+    "hosted_ci": "pending",
+    "merged": "false"
+  }
+}

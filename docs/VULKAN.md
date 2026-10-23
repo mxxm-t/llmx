@@ -171,9 +171,10 @@ The decode row kernels and integer-dot prefill tile read signed 16-bit integers 
 Their reference inputs use the same rounding; independent HF gates measure the resulting model error.
 
 - **Dequantization** is split between GLSL includes: `qdecode.glsl` has the
-  generic per-value decoders except Q8_0, which `embed` uses, and IQ2_S/IQ3_S,
-  whose decoders are in `iq2_s.glsl` and `iq3_s.glsl` and whose matrix cache is in
-  `lookup_cache.glsl`.
+  generic per-value decoders. Dedicated includes handle Q8_0 and the IQ formats:
+  `iq2_small.glsl` decodes IQ2_XXS/IQ2_XS, `iq2_s.glsl` decodes IQ2_S,
+  `iq3_xxs.glsl` decodes IQ3_XXS, and `iq3_s.glsl` decodes IQ3_S. The lookup
+  cache supplies their dictionary view where the selected kernel uses it.
   The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
   keyed by the storage IDs in `quant/types.hpp`; `quant::Registry` names
   implemented C++ decoders, and the shader include supplies device decoders.
@@ -182,7 +183,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   Other existing types' `embed` decodes take a zero's sign from the driver's arithmetic, which the tested drivers keep today; of the existing backend-vulkan exact embed checks only the Q6_K rows decode a -0, so for Q8_0, Q4_1, Q4_K and Q5_K nothing checks it. IQ3_S carries an explicit sign bit, including for zero; its focused test checks that behavior.
   A model holding a type without a kernel is refused before any weight is adopted, naming the tensor and its type (`Backend::supports_type`).
   A direct matmul, routed product or embed of such a type is refused before it records a dispatch, naming the type by its numeric id.
-  Today: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ3_S, IQ4_NL and IQ4_XS, plus MXFP4 on devices with its required properties. The [README support matrix](../README.md#quantization-types) separates inference support from quantize writers and metadata recognition. Other known storage layouts, including auxiliary Q8_1/Q8_K, remain unavailable for Vulkan inference and are refused during placement.
+  The [README support matrix](../README.md#quantization-types) lists the supported inference formats separately from quantize writers and metadata recognition. MXFP4 requires the device properties recorded there. Other known storage layouts, including auxiliary Q8_1/Q8_K, remain unavailable for Vulkan inference and are refused during placement.
 
   IQ4_NL and IQ4_XS use signed lookup rows on lookup-dot profiles and tiles on integer-tile profiles over the block-int16 activation twin, with wider F32 elsewhere. Radeon VII retains its faster F32 tiles. MI50 model timings include both lookup formats, but there is no isolated tile benchmark; remaining speed work is recorded in STATUS. Neither lookup format has a native 8-bit activation path; an int8 request uses its wider block-int16 or F32 path. Explicit F32 keeps original inputs and BF16 uses its input-rounding tile.
 

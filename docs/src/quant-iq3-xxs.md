@@ -8,8 +8,7 @@ Each word describes 32 consecutive values. Its high four bits select scale
 s; its low 28 bits hold four seven-bit sign codes. Each sign code describes
 eight consecutive values, formed from two adjacent four-byte dictionary
 vectors. The low seven sign bits are explicit; bit seven is their parity,
-so every eight-lane sign mask has even parity. `iq3_xxs_signs` expands that
-format field without a second table. All 128 codes agree with the canonical
+so every eight-lane sign mask has even parity. `iq_even_parity_signs` in `iq_signs.hpp` expands that format field without a second table, and is shared with IQ2_XXS and IQ2_XS. All 128 codes agree with the canonical
 format sign table.
 
 A lane's magnitude is d * (1 + 2*s) / 4 times its dictionary byte; its sign

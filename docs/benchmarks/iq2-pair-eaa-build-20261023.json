@@ -1,0 +1,92 @@
+{
+  "schema": "llmx-iq2-eaa-build-integration-v1",
+  "scope": "Paired current-main Release/Vulkan builds and eight focused candidate CTests. No full suite or merge claim.",
+  "arms": {
+    "main": {
+      "receipt_sha256": "b28c878413cdc270369a650bb79aaa4276826e9af0dec82f24c4ced8c05924a3",
+      "revision": "eaa08d83906a3bab822277b052278af671d4f824",
+      "version": "llmx 0.1.0+unknown numerics 81cc4a7a6cc2d0f5",
+      "artifacts": {
+        "llmx": "f8e6469f76f3a34087d1680bfc3af3c447761517df6e958d035c3c72a5cd515a",
+        "llmx-model-logits": "b0ab0c39292eefe01d898898e6a8f1fab98b157dd712480d5217163f03ce96dd",
+        "libllmx-vulkan.a": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904",
+        "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "generated/llmx-build-info.hpp": "a1f8e4cd1f50adf4f59fbeb46769b53e32bbbe229ceef87ddbf89a0bf5e1e95a",
+        "CMakeCache.txt": "6d2d6bf022daca9d485a1a93ac27eb4c5b8fba55833fc11d18a5dfbfdcd2b7fd",
+        "compile_commands.json": "8a3be935f8332a231e6ee227a4ff67e3c47b839bb434fc56054d39b4ca01d52b",
+        "CMakeFiles/llmx.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "CMakeFiles/llmx-model-logits.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "CTestTestfile.cmake": "82f47a9f4e3cbec30efe47812b2fbb74a2c78d073e9f43b9b23420ab78be5494"
+      },
+      "compiled_shader_count": 213,
+      "source_manifest_sha256": "a172828df7b6c32b67671fee98474fa236472287adfe84d02331855e9748cbc2",
+      "log_sha256": "4da4f6121f1cf7ac014de4e853cfd9928c27da58649d5846756c904c3b42d4b3",
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false
+    },
+    "candidate": {
+      "receipt_sha256": "f9f667ad7fbc5025652edc95ce48b842f5ddaaaa8f2aac9c515320461584567c",
+      "revision": "916c45408c5430b29f2d64482059626bb554650d",
+      "version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+      "artifacts": {
+        "llmx": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+        "llmx-model-logits": "0dd5d7a70cf30447c6af8626b53ad359bde3662da54af822848f53ed1b6fe00f",
+        "libllmx-vulkan.a": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+        "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "generated/llmx-build-info.hpp": "c54c0a19785f0d0aa0dfa54c5f7c088d638562b7787b70b0cfd494789ed96be3",
+        "CMakeCache.txt": "1fc14b37bfc2d85a7640c9f9e8a60c9a3f47bf8085d7be0c2adfec7a706e9205",
+        "compile_commands.json": "2930695867c5a3674eee5cb7c32c9db5c20090a876b1cf7c62ec5d7efb00d058",
+        "CMakeFiles/llmx.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "CMakeFiles/llmx-model-logits.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+        "selected-tests.json": "08632dcefe4eda31194be6d9185b4e74b8a2e7e836eae9169461604d70aa95f3",
+        "ctest-results.xml": "44ccf64ac8888a3b8d9da851b7a59ea5c08687bfa1f4ed647035066b92f8f848",
+        "Testing/Temporary/LastTest.log": "2f4cad21afb18a8ecefbb60fcaec10d5ee38359787b9d447bc66d13737464cdb",
+        "CTestTestfile.cmake": "be00fcc5131be64b5c2c81d63f93fb7b61fdf23376537f15c9d46872941d9e99"
+      },
+      "compiled_shader_count": 229,
+      "source_manifest_sha256": "0f987112b86977fcd6643091f4d7b61c0d587308856113344ded764db3e47a1c",
+      "log_sha256": "22d3bc21f4908c02ade26e8a250ef0ee1889d9c99791b446c7c58f675aff405c",
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "ctest": {
+        "expected": 8,
+        "reported": 8,
+        "names": [
+          "disk-store",
+          "server-resume",
+          "server-resume-cache",
+          "cache-scenario",
+          "cache-scenario-production",
+          "server-passes",
+          "server-passes-cpu",
+          "iq2-small"
+        ],
+        "passed": 8,
+        "skipped": 0
+      }
+    }
+  },
+  "build_comparison": {
+    "same_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "same_configure": "cmake -S /w -B /b -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    "source_kind": "LF-normalized Git archives without .git; both revisions report unknown",
+    "flags_and_config": "Both target flags.make files and generated/config.hpp match byte for byte.",
+    "cmake_cache": "Only SITE:STRING differs: base 5a35a781e92b, candidate 001cf6ac71af. These are CTest container hostnames. All other lines match; both raw cache hashes are retained.",
+    "candidate_library_matches_prior": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "prior_library": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/combined-dashboard-v1/build/libllmx-vulkan.a"
+  },
+  "prior_head_ci": {
+    "head": "ca4fd2e1a5ef232ba5283eb33832f0b39a483898",
+    "run": 39986411879,
+    "passed_jobs": 7,
+    "scope": "Earlier a93-based IQ2 head, not this eaa integration."
+  },
+  "pending": [
+    "Current-main CPU/device identities",
+    "Focused device and released short checks",
+    "Current-main timing",
+    "Combined-source hosted CI and landing"
+  ]
+}

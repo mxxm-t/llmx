@@ -1,0 +1,126 @@
+{
+  "title": "IQ2 pair Windows native expectation follow-up",
+  "date": "2026-10-23",
+  "scope": "Test-only correction to two catalog expectations after the retained 79-test Windows native run. The two failed tests were rerun; the other 77 were not rerun.",
+  "source": {
+    "feature_head": "e800d8ef60b4de068af7673098d8e88ef41fd3ad",
+    "feature_parent": "c1128a74963a846256977cd0a414cf7bc033106a",
+    "branch": "feat/iq2-xxs-xs-20261023",
+    "working_source_delta": [
+      "tests/backend_errors.cpp",
+      "tests/backend_vulkan.cpp"
+    ],
+    "runtime_or_numerics_changed": false,
+    "landing_base_note": "The prepared 888ae1310 baseline is not the final main integration base. Main later advanced to 19a312f60 after CLI-help landing; this checkpoint is not a full integration run against that base."
+  },
+  "initial_full_ctest": {
+    "tests": 79,
+    "passed": 77,
+    "failed": 2,
+    "exit": 8,
+    "binary_sha256": "871258a689224f84622cdffe42e2fe8c5331063e4369b83f07b3c1447be6c326",
+    "failures": [
+      {
+        "test": "backend-errors",
+        "cause": "Its expected CPU execution-support catalog omitted the now-supported GGML type IDs 16 and 17. The retained failure text was \"storage metadata changed execution support\"."
+      },
+      {
+        "test": "backend-vulkan",
+        "cause": "Its expected Vulkan F16 device path catalog omitted IQ2_XXS and IQ2_XS. The retained failure text was \"device path catalog ignores the tile profile\"."
+      }
+    ]
+  },
+  "test_only_followup": {
+    "changed_expectations": [
+      {
+        "file": "tests/backend_errors.cpp",
+        "change": "Add implemented type IDs 16 and 17 to expected CPU support."
+      },
+      {
+        "file": "tests/backend_vulkan.cpp",
+        "change": "Add IQ2_XXS and IQ2_XS to the expected block-int16/F32 fallback path strings."
+      }
+    ],
+    "rebuilt_targets": [
+      "llmx-backend-errors-test",
+      "llmx-backend-vulkan-test"
+    ],
+    "ctest_command": "ctest --test-dir build-iq2-address -C Release -R \"^(backend-errors|backend-vulkan)$\" --output-on-failure",
+    "rerun_tests": 2,
+    "passed": 2,
+    "failed": 0,
+    "duration_seconds": 36.74,
+    "full_79_test_rerun": false,
+    "runtime_identity": {
+      "version": "llmx 0.1.0+gc1128a74963a.dirty numerics 967de8ae61e0935c",
+      "cli_sha256": "871258a689224f84622cdffe42e2fe8c5331063e4369b83f07b3c1447be6c326",
+      "identity_change_note": "The fresh CMake build refreshed the automatic Git build identifier; the runtime/numerics sources are unchanged by the two test expectation edits.",
+      "previous_cli_sha256": "b2bd80d386c7846b588fda8bbacec9905aa709957c1d184e1cd5b419d9f21ece"
+    },
+    "test_executables": {
+      "backend_errors_sha256": "af2483f7fbd972a88002ad322445f694ac83e89e428090424b468d428cb0017a",
+      "backend_vulkan_sha256": "e059216e75785135e8f919a453d8a57b665d4ee14bc24ac2b33b2d13d5288137"
+    }
+  },
+  "artifacts": {
+    "initial_full_ctest_log": {
+      "path": "build-quant-resume-20261020/iq2-pair-windows-integration-v1/ctest.log",
+      "sha256": "fcff0d3c486fb066ace54e6439c70a8acf255c99285c7ed1f30d67aa345f75e0",
+      "bytes": 19324
+    },
+    "initial_ctest_result": {
+      "path": "build-quant-resume-20261020/iq2-pair-windows-integration-v1/ctest-result.json",
+      "sha256": "cc45ea48cf24a47b0c4ebe0d152f78f4fa4aac4603fbc3802f1801f3a197ad4e",
+      "bytes": 246
+    },
+    "initial_cmake_build_log": {
+      "path": "build-quant-resume-20261020/iq2-pair-windows-integration-v1/build.log",
+      "sha256": "ccf40f1aac73d23ba3a0c04db0f9ca5abf6969c769b17fc7aae71e5cf33c09aa",
+      "bytes": 93196
+    },
+    "initial_build_result": {
+      "path": "build-quant-resume-20261020/iq2-pair-windows-integration-v1/build-result.json",
+      "sha256": "618906051c156b223a9795faeb4b9bc105b61ee751d0af360a64088b8fbf9a7a",
+      "bytes": 220
+    },
+    "focused_test_rebuild_log": {
+      "path": "worktrees/iq2-xxs-xs-20261023/build-native-expectations.log",
+      "sha256": "45dd0bdf5c0a387630f85c8103995013ca97c3dcfe45536d854c31ccfabffbdf",
+      "bytes": 19630
+    },
+    "focused_test_ctest_log": {
+      "path": "worktrees/iq2-xxs-xs-20261023/build-native-expectations-ctest.log",
+      "sha256": "43e303bd5c931ddeddd1fea7a10b536c9e594194984dc1b89c62b4b7de0a0483",
+      "bytes": 774
+    },
+    "current_cli": {
+      "path": "worktrees/iq2-xxs-xs-20261023/build-iq2-address/Release/llmx.exe",
+      "sha256": "871258a689224f84622cdffe42e2fe8c5331063e4369b83f07b3c1447be6c326",
+      "bytes": 9535488
+    },
+    "backend_errors_test": {
+      "path": "worktrees/iq2-xxs-xs-20261023/build-iq2-address/Release/llmx-backend-errors-test.exe",
+      "sha256": "af2483f7fbd972a88002ad322445f694ac83e89e428090424b468d428cb0017a",
+      "bytes": 356352
+    },
+    "backend_vulkan_test": {
+      "path": "worktrees/iq2-xxs-xs-20261023/build-iq2-address/Release/llmx-backend-vulkan-test.exe",
+      "sha256": "e059216e75785135e8f919a453d8a57b665d4ee14bc24ac2b33b2d13d5288137",
+      "bytes": 7819264
+    },
+    "backend_errors_source": {
+      "path": "worktrees/iq2-xxs-xs-20261023/tests/backend_errors.cpp",
+      "sha256": "8d8b2ff239668ecfef7cc65cfb1595b526ee43231a86bad33f36b77a92dc1e1b",
+      "bytes": 16961
+    },
+    "backend_vulkan_source": {
+      "path": "worktrees/iq2-xxs-xs-20261023/tests/backend_vulkan.cpp",
+      "sha256": "1aaa2c91b482720e53f49f41640e8b602df99dd4afaa928cd09eedb34ce52f2f",
+      "bytes": 260847
+    }
+  },
+  "limitations": [
+    "This is not a 79/79 CTest rerun; only the two previously failing expectations were rebuilt and rerun.",
+    "A full integration against current main base 19a312f60 remains separate."
+  ]
+}

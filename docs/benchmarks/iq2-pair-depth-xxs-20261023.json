@@ -1,0 +1,359 @@
+{
+  "title": "IQ2_XXS released-file depth comparison and IQ2_XS short check",
+  "date": "2026-10-23",
+  "scope": "XXS long-context HF depth comparisons on the pinned released model; XS short HF checks. Partial qualification only; XS long-context references/comparisons remain open.",
+  "runtime": {
+    "source_manifest_sha256": "14b517b1320b84531f1a9586b7f976b4b47746fa3bd7329a92f8b78ed7c513c9",
+    "binary_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+    "vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "fixtures": {
+      "raw": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+      "chat": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
+    },
+    "device": {
+      "render": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0"
+    },
+    "probe_sha256": {
+      "default": "774db9e02b4b306438c8c04c4f15824633526cefe3355dd117857917864bc922",
+      "f32": "d4b6c216f3abd423a5c5705016b4af931151517a4c8554480767d2e4eb71a581"
+    },
+    "source_base_revision": "585616c88708ecd5c14616e43b6f54a9de49eb1a",
+    "source_boundary": "The runtime source snapshot is based on this revision with the four shader-source overlays listed below; do not interpret the revision alone as the complete built source.",
+    "shader_source_overlay": {
+      "src/backends/vulkan/shaders/iq2_small.glsl": "00b37e09afdd267518c8de505c80b0b697f2d33af67cd5d49efabcae7de566bb",
+      "src/backends/vulkan/shaders/matmul_row.comp": "569e87b2ecbb32f39666ee42e0e224fe56fc0cf8dc03ab2735965e848cf9c616",
+      "src/backends/vulkan/shaders/iq2_dot.glsl": "6a1bc8282b127f33464107ed131b8440a669c4eee7fe7ddcd0b7693ceee62647",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "94d3e830cd70d265a50eeeff7eccda5e694d3f550c2195ac43c66e86b60c1c4f"
+    }
+  },
+  "xxs_depth_subruns": [
+    {
+      "name": "depth-v2-iq2-xxs-default",
+      "execution_sha256": "c20c0e2195f8cfcb7be245cbd5348ecbf7d3c47b5c7ad6d5ba85969bf09ff568",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "artifacts": {
+        "iq2-xxs-raw.stdout": "ec85efcf36d4208b09f8abfa43ffddfa930fe595911e94a222b774620534f9aa",
+        "run.log": "4515f967fc67438a2c4f64ac16f797be2d44e72328f6fc8c51829c044241500b",
+        "iq2-xxs-chat.stdout": "c2f8b9de2df56956ac3e54f064f69225b86f2891f0b4dde2f7d8aabd79433023",
+        "iq2-xxs-raw.stderr": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+        "activity.jsonl": "3b74229d6b3287f8bf9b0916bcd400e5803590d7e05adfdfa6a1ccdcf0d591ad",
+        "iq2-xxs-chat.stderr": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+        "report.json": "01db11313ac67b28908941887e8a4cbd205d10fc0175aff3bf3f5ca97ca9a591"
+      },
+      "capture": {
+        "report_sha256": "01db11313ac67b28908941887e8a4cbd205d10fc0175aff3bf3f5ca97ca9a591",
+        "complete": true,
+        "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+        "runtime_files_unchanged": true,
+        "probe_sha256": "774db9e02b4b306438c8c04c4f15824633526cefe3355dd117857917864bc922",
+        "captures": [
+          {
+            "variant": "raw",
+            "positions": 512,
+            "exit": 0,
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "positions": 512,
+            "exit": 0,
+            "matrix_paths": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "depth-v2-iq2-xxs-f32",
+      "execution_sha256": "a891ff7e0af1fc8562e5e4bc8a413615cba454d08e457bb91b1aa7f60eac3106",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "artifacts": {
+        "iq2-xxs-raw.stdout": "f13613cd67b80f943e5294d5c1dade57b423d43362807abbf2aa1eea2c643ae5",
+        "iq2-xxs-chat.stdout": "64b16ea8ebcec72713cb643e74eb43af80800c009151959ae5518d77d5a9f399",
+        "report.json": "617ccab224d0600df5ac04d2a99874d20c15c5389814aa70ed89f1ed40fb6bab",
+        "run.log": "95c92f67fd425e60e1a5b227d0ba1f69b8f32f1acaa76d7bfdff1855fb471235",
+        "iq2-xxs-raw.stderr": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+        "activity.jsonl": "8d65d3935bfba62349c06914b90b551c582f16ae9aed848107dd1174cb6a14ff",
+        "iq2-xxs-chat.stderr": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c"
+      },
+      "capture": {
+        "report_sha256": "617ccab224d0600df5ac04d2a99874d20c15c5389814aa70ed89f1ed40fb6bab",
+        "complete": true,
+        "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+        "runtime_files_unchanged": true,
+        "probe_sha256": "d4b6c216f3abd423a5c5705016b4af931151517a4c8554480767d2e4eb71a581",
+        "captures": [
+          {
+            "variant": "raw",
+            "positions": 512,
+            "exit": 0,
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          },
+          {
+            "variant": "chat",
+            "positions": 512,
+            "exit": 0,
+            "matrix_paths": {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "depth-v2-iq2-xxs-selected-f16",
+      "execution_sha256": "43a7c38ec10533ed73ebfbe35cf55944deb018053bfb022ac90d2ac2b3890bb7",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "artifacts": {
+        "run.log": "7714f03313e1a5b17ae678c5dd925cca1feed7285670e394267992a0f0ff39a0",
+        "comparison.json": "4868b39bbed8daf9aed7335e068096f60b702ea1dc5a7704e2b320e23568b3d4",
+        "activity.jsonl": "763d7e0b011e3205a25c10871fa5d8521039a09090d6377d2098babd4f20360c"
+      },
+      "comparison": {
+        "report_sha256": "4868b39bbed8daf9aed7335e068096f60b702ea1dc5a7704e2b320e23568b3d4",
+        "role": "selected-f16",
+        "reference_report_sha256": "f221d80bdfe24ffc15da4a6b2c5c7759c910600bf34978b5c60511c767e4fcdd",
+        "capture_report_sha256": "01db11313ac67b28908941887e8a4cbd205d10fc0175aff3bf3f5ca97ca9a591",
+        "tie_margin": 0.1,
+        "variants": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 510,
+              "accepted-tie": 2,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [
+              16825,
+              16892
+            ],
+            "miss_positions": []
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 511,
+              "accepted-tie": 1,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [
+              16416
+            ],
+            "miss_positions": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "depth-v2-iq2-xxs-selected-f32",
+      "execution_sha256": "06db0d0c23c147d13b90bd36266fbb7e8338c0efc5d862a16af5a00a43669663",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "artifacts": {
+        "comparison.json": "539eb8fb487f8107a05cb7b199ace878ad6cc82d9565ad3966ad714c1eac1cb6",
+        "activity.jsonl": "240d2ff8bf80e389d63279f39081c40662193fbc4d026a83d24f81af19b9a78a",
+        "run.log": "5c7a133352fa3264ae693fa001116ddf52669bdc659257747514b297e1cf5107"
+      },
+      "comparison": {
+        "report_sha256": "539eb8fb487f8107a05cb7b199ace878ad6cc82d9565ad3966ad714c1eac1cb6",
+        "role": "selected-f32",
+        "reference_report_sha256": "88221a4fabb2637b3f0940a46e442a3a133b8af03589b78de8fadff47fd7a82f",
+        "capture_report_sha256": "617ccab224d0600df5ac04d2a99874d20c15c5389814aa70ed89f1ed40fb6bab",
+        "tie_margin": 0.1,
+        "variants": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [],
+            "miss_positions": []
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [],
+            "miss_positions": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "depth-v2-iq2-xxs-default-f32-reference",
+      "execution_sha256": "23f2d5a66ea5425c3878c6ebb64dff64c5507cfbcf8472e11aa51e052407868f",
+      "passed": true,
+      "removed": true,
+      "exit_code": 0,
+      "oom_killed": false,
+      "artifacts": {
+        "activity.jsonl": "3c73fba720006c7922075e2042df7ce654c267e5cc87f22f107062ad57c3cf9a",
+        "comparison.json": "5543c7a7782cb64ce524a9f975bf5f04aa4b08c3ddf1f63ae42f6f63c13786fb",
+        "run.log": "6e2aeabe105217aced38696a0af908fefc4dd79d3c4e8f50361abaff81abbaad"
+      },
+      "comparison": {
+        "report_sha256": "5543c7a7782cb64ce524a9f975bf5f04aa4b08c3ddf1f63ae42f6f63c13786fb",
+        "role": "default-f32-reference",
+        "reference_report_sha256": "88221a4fabb2637b3f0940a46e442a3a133b8af03589b78de8fadff47fd7a82f",
+        "capture_report_sha256": "01db11313ac67b28908941887e8a4cbd205d10fc0175aff3bf3f5ca97ca9a591",
+        "tie_margin": 0.1,
+        "variants": [
+          {
+            "variant": "raw",
+            "counts": {
+              "exact": 512,
+              "accepted-tie": 0,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [],
+            "miss_positions": []
+          },
+          {
+            "variant": "chat",
+            "counts": {
+              "exact": 511,
+              "accepted-tie": 1,
+              "miss": 0
+            },
+            "positions": [
+              16383,
+              16894
+            ],
+            "tie_positions": [
+              16416
+            ],
+            "miss_positions": []
+          }
+        ]
+      }
+    }
+  ],
+  "xs_released_short": {
+    "execution_sha256": "565a474f842cc964264c49303080be791f9fd9fa71c3433e185115e7c01a3e2c",
+    "passed": true,
+    "removed": true,
+    "pre_removal_state": {
+      "Status": "running",
+      "Running": true,
+      "OOMKilled": false,
+      "ExitCode": 0,
+      "Pid": 1812411,
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "lifecycle_note": "Runner records docker inspect State before `docker rm -f`; then successful rm sets removed=true. Running=true in that snapshot is expected.",
+    "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+    "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498",
+    "source_manifest_sha256": "bd5e81e61e007d0c02a922a7788f82ea446bc52e0dd64daa72692e05974dc706",
+    "build": {
+      "cli_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+      "library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+      "passed": true,
+      "removed": true
+    },
+    "calls": [
+      {
+        "requested_dtype": "auto",
+        "status": "passed",
+        "exit_code": 0
+      },
+      {
+        "requested_dtype": "f32",
+        "status": "passed",
+        "exit_code": 0
+      },
+      {
+        "requested_dtype": "int8",
+        "status": "passed",
+        "exit_code": 0
+      }
+    ],
+    "logs": {
+      "auto": "69ef773519c6f7e185ec630424ecbb3c6f8081f514e7cffe69fc485073dc3255",
+      "f32": "71bc2274aa5b90cd896e5eef731a7f766d761d819abf27148be61010feb63587",
+      "int8": "a1389ffc64a185c7471639e14235e8a98e45e897ba837a4767c224cebe286f39"
+    },
+    "device_log_sha256": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "summary": "Each request log reports 6/6 top-1/top-5 ranking checks and 8 NLL checks passing. Maximum displayed NLL deltas: auto 0.000128, F32 0.000003, int8 request 0.002411. Int8 request is F16 fallback per run audit; not native int8 qualification."
+  },
+  "limitations": [
+    "Historical checkpoint: IQ2_XS depth was incomplete here after retained memory-guard stops. The unchanged-runtime recovered comparisons later completed; see iq2-pair-depth-xs-20261023.json.",
+    "Short int8-request results use an F16 fallback on this model and do not establish native block-int8 coverage.",
+    "Depth comparisons cover ranking only under the unchanged 0.1 top-two tie rule; they do not establish performance or NLL."
+  ],
+  "xs_recovery_resource_stop": {
+    "execution_sha256": "ac0df0d26ddb219c9311f08b1919a486e86e8fc0aa339b267b98d867f3b6b816",
+    "passed": false,
+    "removed": true,
+    "oom_killed": false,
+    "reason": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/released-reference-recovery-20261023/run.py\", line 285, in phase\n    assert sample['host_available_bytes'] >= plan['resources']['minimum_host_available_bytes'], sample\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'at': 1792763527.6460478, 'host_available_bytes': 14270713856, 'disk_free_bytes': 345815121920, 'memory.current': '8065523712', 'memory.peak': '8203112448', 'memory.events': 'low 0\\nhigh 0\\nmax 0\\noom 0\\noom_kill 0\\noom_group_kill 0', 'cpu.stat': 'usage_usec 781752400\\nuser_usec 508153907\\nsystem_usec 273598493\\nnice_usec 0\\ncore_sched.force_idle_usec 0\\nnr_periods 2356\\nnr_throttled 55\\nthrottled_usec 70177\\nnr_bursts 0\\nburst_usec 0'}\n",
+    "next": "Wait for concurrent CPU server validation to release memory; preserve 14 GiB live reserve and original artifacts."
+  },
+  "xs_depth_followup": {
+    "artifact": "docs/benchmarks/iq2-pair-depth-xs-20261023.json",
+    "state": "Completed for selected F16/F32 and default-versus-F32 reference, raw/chat, 512 forced-context positions each; no current-main integration or CI claim."
+  }
+}

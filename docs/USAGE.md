@@ -197,9 +197,9 @@ float32 data in `out.bin`. JSON output escapes path and tensor-name quotes,
 backslashes and control characters, preserving UTF-8 tensor names. Reusing this
 output with `quantize` requires the shape rules above: GGUF can also hold scalar,
 zero-sized or F32 tensors whose rows do not contain whole quantization blocks.
-The registry decoder types, in family order, are F32, F16, BF16; Q4_0, Q4_1, Q5_0, Q5_1, Q8_0; Q2_K, Q3_K, Q4_K, Q5_K, Q6_K; IQ3_XXS, IQ2_S, IQ3_S, IQ4_NL, IQ4_XS; and MXFP4. `quantize` writes only Q4_0 and Q8_0; the other formats have no quantize writer. The CPU/Vulkan support matrix is in the [README](../README.md#quantization-types).
+The registry decoder types, in family order, are F32, F16, BF16; Q4_0, Q4_1, Q5_0, Q5_1, Q8_0; Q2_K, Q3_K, Q4_K, Q5_K, Q6_K; IQ2_XXS, IQ2_XS, IQ3_XXS, IQ2_S, IQ3_S, IQ4_NL, IQ4_XS; and MXFP4. `quantize` writes only Q4_0 and Q8_0; the other formats have no quantize writer. The CPU/Vulkan support matrix is in the [README](../README.md#quantization-types).
 F16 and BF16 are widened exactly; `quantize` does not write either format.
-IQ3_XXS has an initial read-only decoder and CPU/Vulkan implementations in development; model and performance qualification are separate in [STATUS](STATUS.md).
+IQ3_XXS has a read-only decoder and CPU/Vulkan inference support. Model and performance qualification are recorded in [STATUS](STATUS.md).
 IQ2_S has read-only CPU/Vulkan inference support. Its released-model qualification and measured prefill/decode tradeoff are recorded in [STATUS](STATUS.md); there is no IQ2_S quantize writer.
 IQ3_S has read-only CPU/Vulkan inference support; the recorded scope and evidence are in [STATUS](STATUS.md).
 IQ4_XS has read-only CPU and Vulkan support through the shared IQ4 decoder and product families. Local format, operator, tiny/released-file HF, selected split and 16K checks are complete; the narrowly approved split-MoE F32 fixture exception and evidence are recorded in STATUS and PRECISION.

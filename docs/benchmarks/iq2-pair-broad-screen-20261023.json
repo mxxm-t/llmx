@@ -1,0 +1,3802 @@
+{
+  "scope": "Same-file IQ2 Vulkan workload extension on MI50. PP and TG are separate empty-history phases, not request latency. Four blocks per cell, no observations discarded.",
+  "runner_sha256": "e912abb487f8d3d54dd35c79f445f7f99e84b28b19a7bc42bdd656e974ecf94c",
+  "activity_analyzer_sha256": "008b3382b01cdef08d3ec699bed231563de13d8a391600136ce9b017295b456b",
+  "reference_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "candidate_binary_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+  "screens": {
+    "iq2_xxs": {
+      "execution_sha256": "6669bdf653b78c2ce2a6b52b5bf3d9572bdee7ad1cd4820dc41c9bb2dcc5aac6",
+      "source_directory": "C:/Users/Marko/Desktop/Projects/llmx/build-quant-resume-20261020/iq2-pair-operators-v1/address-broad-v1-iq2_xxs",
+      "artifact_hashes": {
+        "1-candidate.stdout": "ba8efe757797f4071bcf5ee4ae6b53314d59d93523a54b41d769447c2114d44f",
+        "18-mx.stderr": "26c010a87d830c3ecdce9d1c8b191b111aa062d6ca141f2bf8e2dd12b04be5df",
+        "0-baseline.stdout": "d5ee3934a2ad2549bc0bd81e7804d4478f81c2836812e57668a2ccf77c901218",
+        "6-mx.stderr": "866e2d7452ff4e5bc592fbc94a68befece42c6318b892a38aa32f363578bae05",
+        "29-mx.stdout": "c0ce206653ba0e8acf5f2ce7aaed30fca29073fe1638e7b0d064f5f06b98f05d",
+        "16-candidate.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "version.stdout": "f6f6b0b1b4c5c333e43009f2c4aef897a7413e6aaf5fea582a2eab54ba1a1aeb",
+        "5-mx.stderr": "c5696f03802e3121bc11b4dfa0a6eb452106d3f0ce5f3aa8247404b6aefede61",
+        "28-candidate.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "20-baseline.stderr": "afe183d69d340ca54969b2014ccb18121f42c5be72cfc35910d36d56a68c266c",
+        "2-mx.stderr": "9a5aff063c9a9ce2a3b4872a877a0cb81140ff18a3493f54e6b9e588d5142f65",
+        "22-candidate.stdout": "6bdbb2eac12a4544e54ae634524f44ad037ee2ff8024e4acfcfdf6f6c10a3316",
+        "14-baseline.stdout": "c993121089d69d96d531be11c1c35c62c5f352fe8fd0669af7515f8d6970669e",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "21-baseline.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "4-candidate.stdout": "023357df2c2987fcaa165edca3360159b2ae417ea94a9b57f15b270546a1b629",
+        "11-mx.stderr": "dffdf9173db377c2276996d5fdb3401873a28ad4f079fb0ebba6a6e5b330aa5d",
+        "17-baseline.stdout": "cd71cbe8415f7e7100f11bac50005fd28bacd3c38bd01adf0e887cbe70c5220a",
+        "candidate-version.stdout": "72fcab9cf8042c3a0d9639410435bc83084946775df56ed1d1e8a864dbe5f743",
+        "13-candidate.stderr": "c7a3392a6e4c792bf35731a84f07b5c23089726e0517d3d25cd6b95b6566e0c6",
+        "23-mx.stdout": "c2f972fdadf93db5275bad92e4cba3f4f88cbb2cd3eb08fe8d7a62cc36f447a2",
+        "26-baseline.stdout": "822fe01c2b5ac0ca66e4772b0334b7a788e0b1cb83a262e7ba71ae9d57935c3b",
+        "12-mx.stderr": "8baf06004d98d7f33836789dcee94c812c90db38ea1f8a2f659ca04ff26ee5dc",
+        "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "8-baseline.stderr": "f5fbfee1c23033c90acd55f64528d025522d383f1b07b145e3fa7d0f223a4320",
+        "25-candidate.stdout": "5ea21fdc0014f84140d926fc561028ec6a960010d5118fb3915404023aabc455",
+        "15-mx.stderr": "02c77ba5c4a29ede63694bb3faf62c273be4777713d30c865842855c3470e268",
+        "24-mx.stdout": "c8cd1c4a117a029001af34fbace1421cd45ed1705142b87827ee33c3c8551d8d",
+        "10-candidate.stderr": "bf34955e7a4faaae947fa0c10f2da4eb607ed4b5717c6f8c066bb55b616df0c2",
+        "27-baseline.stdout": "b3a52b62ba75dc3e1d1f9c670ce83742236f5070c744bea15b9b064a745fbac9",
+        "9-baseline.stderr": "269a200aa8a09d130728d89ca6b80101bbaa9b6ea91825dd32937726d7424029",
+        "3-baseline.stdout": "8efa971d19edcd391e50436c3c378579848231bd72b7c9c22d7e1d482a1b4007",
+        "19-candidate.stdout": "0d35f66ee3026141083ad0691a1602b15ca3604f73cfbd4c130fc886269ee352",
+        "7-candidate.stdout": "a3c6b16db67857d2f6ea72d94338c54f949b3c3d2b2a3506249bf975fcd7f375",
+        "2-mx.stdout": "95173f7c042ad7503de1ada6b6e44a763563729340aa6e9102c00b96e9c877a9",
+        "activity.jsonl": "7d50706039078802dea9c40d97c1072e843c530bc1771ada3827886de4871762",
+        "22-candidate.stderr": "bf34955e7a4faaae947fa0c10f2da4eb607ed4b5717c6f8c066bb55b616df0c2",
+        "21-baseline.stdout": "29a394b1750c339efc489739a32b0c7f8591e0c11c86d34a5b32b5645293220e",
+        "14-baseline.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "0-baseline.stderr": "bf34955e7a4faaae947fa0c10f2da4eb607ed4b5717c6f8c066bb55b616df0c2",
+        "18-mx.stdout": "02ad7b17dc02f79352c58a855fc42c37e142586b3409deaf49cf28b16fac2528",
+        "1-candidate.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "6-mx.stdout": "704f5528a36fe1d4fab6dd56ca0d35a64f426b3b8ab7c3ab8dd396220eee0695",
+        "29-mx.stderr": "c21049fb4c27d9cdfde9f2e6f624358784c33f2a193fb0f12d5f17c32b869db8",
+        "20-baseline.stdout": "66cefe052999f473ab5ffb8fbe81c7cb31c8eb55291074090383a7de54547029",
+        "28-candidate.stdout": "f68480f78e2d8f951fbfd22b568b1e3910cadbf7265e2f8ced0120bcfe5832df",
+        "5-mx.stdout": "7eccc9c2eca251d4e49c0cb99c22c998d35ae69a57c7a35d4de7c942ce617d11",
+        "version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "16-candidate.stdout": "6d5513da5c9e5bbcb3b61d3546af6577b266a8563cd32f1d91c87aa38f742a12",
+        "15-mx.stdout": "4387197832910d7cdc359ff7c75dbe53f6fd35cc198ec0ba85b385997dae893b",
+        "10-candidate.stdout": "732a5afd955c84d6805da673c4bce96e723c3ccfffc7e907db6296473f9854f4",
+        "24-mx.stderr": "a7d41021a1bedca2c7defbd568d4cdc2a9e16c846bd359740918be9c09202b38",
+        "19-candidate.stderr": "bf34955e7a4faaae947fa0c10f2da4eb607ed4b5717c6f8c066bb55b616df0c2",
+        "9-baseline.stdout": "02385a61147b1aaea39c599b6d922aa9856c36fc9b0a3b455e5c15471c937177",
+        "3-baseline.stderr": "bf34955e7a4faaae947fa0c10f2da4eb607ed4b5717c6f8c066bb55b616df0c2",
+        "27-baseline.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "7-candidate.stderr": "c7a3392a6e4c792bf35731a84f07b5c23089726e0517d3d25cd6b95b6566e0c6",
+        "11-mx.stdout": "9504c21c3884fdd82c561b6d3fdd511127c6c7fe1556d46b2d08576d48e7be35",
+        "4-candidate.stderr": "afe183d69d340ca54969b2014ccb18121f42c5be72cfc35910d36d56a68c266c",
+        "17-baseline.stderr": "c7a3392a6e4c792bf35731a84f07b5c23089726e0517d3d25cd6b95b6566e0c6",
+        "23-mx.stderr": "afbd34d3ac8a7e8471afa0ff79578e587b6cd3075132fd43e08ccb5b7f3313a8",
+        "candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "13-candidate.stdout": "0b3d12f9c515e62c7faed19192a522ca864f178ba8c5714ab3ae6feb2000b916",
+        "8-baseline.stdout": "13dff6711c2cd7d7f0aad8e363db8d23aa68a3bde7bd0e87a83a56fa078005c4",
+        "25-candidate.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+        "26-baseline.stderr": "6cd5e58c47ad85b1214a1da1295ad348a623974fecbec982a994a79c49fd5612",
+        "12-mx.stdout": "6d11f0383057be9a129bc9907f31638f38eef2243bf52e31bf8544d3cd031355"
+      },
+      "pins_unchanged": true,
+      "removed": true,
+      "oom_killed": false,
+      "lifecycle": "State is inspected before the exact container is removed. Running=true in that snapshot is expected.",
+      "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498",
+      "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+      "thresholds": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "calls": [
+        {
+          "index": 0,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "baseline",
+          "warmup": true,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757962.0620358,
+          "end": 1792757965.4334812,
+          "rates": {
+            "pp128": 4971.88,
+            "tg256": 215.96
+          },
+          "pp_phase_seconds": 0.025744788691601565,
+          "tg_phase_seconds": 1.1854047045749212,
+          "pp_plus_tg_phase_seconds": 1.2111494932665228,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 1,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "candidate",
+          "warmup": true,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757965.433927,
+          "end": 1792757968.1030476,
+          "rates": {
+            "pp128": 5036.41,
+            "tg256": 266.58
+          },
+          "pp_phase_seconds": 0.0254149284907305,
+          "tg_phase_seconds": 0.9603121014329657,
+          "pp_plus_tg_phase_seconds": 0.9857270299236962,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 2,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "mx",
+          "warmup": true,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792757968.1034834,
+          "end": 1792757971.478977,
+          "rates": {
+            "pp128": 2639.75,
+            "tg256": 254.11
+          },
+          "pp_phase_seconds": 0.048489440287906055,
+          "tg_phase_seconds": 1.0074377238203926,
+          "pp_plus_tg_phase_seconds": 1.0559271641082988,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 3,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757971.4795232,
+          "end": 1792757974.3982704,
+          "rates": {
+            "pp128": 4974.19,
+            "tg256": 215.5
+          },
+          "pp_phase_seconds": 0.025732832883343822,
+          "tg_phase_seconds": 1.1879350348027842,
+          "pp_plus_tg_phase_seconds": 1.2136678676861279,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 4,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757974.3987508,
+          "end": 1792757976.9173117,
+          "rates": {
+            "pp128": 5026.6,
+            "tg256": 266.37
+          },
+          "pp_phase_seconds": 0.025464528707277282,
+          "tg_phase_seconds": 0.961069189473289,
+          "pp_plus_tg_phase_seconds": 0.9865337181805663,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 5,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792757976.917854,
+          "end": 1792757979.6416953,
+          "rates": {
+            "pp128": 2602.96,
+            "tg256": 253.19
+          },
+          "pp_phase_seconds": 0.0491747856286689,
+          "tg_phase_seconds": 1.0110983846123465,
+          "pp_plus_tg_phase_seconds": 1.0602731702410153,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 6,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792757979.642183,
+          "end": 1792757982.365891,
+          "rates": {
+            "pp128": 2606.29,
+            "tg256": 253.63
+          },
+          "pp_phase_seconds": 0.04911195607549428,
+          "tg_phase_seconds": 1.0093443204668218,
+          "pp_plus_tg_phase_seconds": 1.058456276542316,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 7,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757982.3664224,
+          "end": 1792757984.885002,
+          "rates": {
+            "pp128": 5026.48,
+            "tg256": 266.94
+          },
+          "pp_phase_seconds": 0.025465136636373766,
+          "tg_phase_seconds": 0.9590170075672436,
+          "pp_plus_tg_phase_seconds": 0.9844821442036173,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 8,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757984.885463,
+          "end": 1792757987.8540182,
+          "rates": {
+            "pp128": 4972.05,
+            "tg256": 215.96
+          },
+          "pp_phase_seconds": 0.02574390844822558,
+          "tg_phase_seconds": 1.1854047045749212,
+          "pp_plus_tg_phase_seconds": 1.2111486130231468,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 9,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757987.8545134,
+          "end": 1792757990.8229458,
+          "rates": {
+            "pp128": 4967.63,
+            "tg256": 216.08
+          },
+          "pp_phase_seconds": 0.02576681435614166,
+          "tg_phase_seconds": 1.1847463902258422,
+          "pp_plus_tg_phase_seconds": 1.2105132045819837,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 10,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757990.8234887,
+          "end": 1792757993.2914145,
+          "rates": {
+            "pp128": 5038.0,
+            "tg256": 267.61
+          },
+          "pp_phase_seconds": 0.02540690750297737,
+          "tg_phase_seconds": 0.9566159710025783,
+          "pp_plus_tg_phase_seconds": 0.9820228785055557,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 11,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792757993.2919576,
+          "end": 1792757996.0157392,
+          "rates": {
+            "pp128": 2646.64,
+            "tg256": 253.45
+          },
+          "pp_phase_seconds": 0.048363207689750026,
+          "tg_phase_seconds": 1.0100611560465576,
+          "pp_plus_tg_phase_seconds": 1.0584243637363075,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 12,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792757996.0163095,
+          "end": 1792757998.7399378,
+          "rates": {
+            "pp128": 2628.69,
+            "tg256": 253.61
+          },
+          "pp_phase_seconds": 0.04869345567564072,
+          "tg_phase_seconds": 1.0094239186151965,
+          "pp_plus_tg_phase_seconds": 1.0581173742908372,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 13,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792757998.740498,
+          "end": 1792758001.2089398,
+          "rates": {
+            "pp128": 5038.44,
+            "tg256": 267.3
+          },
+          "pp_phase_seconds": 0.025404688752867954,
+          "tg_phase_seconds": 0.9577254021698466,
+          "pp_plus_tg_phase_seconds": 0.9831300909227145,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 14,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758001.2094607,
+          "end": 1792758004.1286144,
+          "rates": {
+            "pp128": 4961.25,
+            "tg256": 215.07
+          },
+          "pp_phase_seconds": 0.02579994960947342,
+          "tg_phase_seconds": 1.1903101315850653,
+          "pp_plus_tg_phase_seconds": 1.2161100811945387,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 15,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "mx",
+          "warmup": true,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758004.1292305,
+          "end": 1792758010.3601525,
+          "rates": {
+            "pp4096": 2317.73,
+            "tg256": 254.07
+          },
+          "pp_phase_seconds": 1.7672464005729744,
+          "tg_phase_seconds": 1.0075963317196048,
+          "pp_plus_tg_phase_seconds": 2.774842732292579,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 16,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "candidate",
+          "warmup": true,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758010.3608253,
+          "end": 1792758014.9328983,
+          "rates": {
+            "pp4096": 3915.86,
+            "tg256": 267.5
+          },
+          "pp_phase_seconds": 1.046002666081014,
+          "tg_phase_seconds": 0.9570093457943926,
+          "pp_plus_tg_phase_seconds": 2.0030120118754065,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 17,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "baseline",
+          "warmup": true,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758014.933467,
+          "end": 1792758019.9058394,
+          "rates": {
+            "pp4096": 3917.01,
+            "tg256": 215.97
+          },
+          "pp_phase_seconds": 1.0456955688139677,
+          "tg_phase_seconds": 1.1853498171042274,
+          "pp_plus_tg_phase_seconds": 2.231045385918195,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 18,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758019.9064014,
+          "end": 1792758026.0865612,
+          "rates": {
+            "pp4096": 2311.79,
+            "tg256": 253.84
+          },
+          "pp_phase_seconds": 1.7717872298089359,
+          "tg_phase_seconds": 1.0085092971950835,
+          "pp_plus_tg_phase_seconds": 2.7802965270040194,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 19,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758026.0871387,
+          "end": 1792758030.5588253,
+          "rates": {
+            "pp4096": 3967.74,
+            "tg256": 267.47
+          },
+          "pp_phase_seconds": 1.032325706825548,
+          "tg_phase_seconds": 0.9571166859834747,
+          "pp_plus_tg_phase_seconds": 1.9894423928090226,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 20,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758030.559418,
+          "end": 1792758035.582016,
+          "rates": {
+            "pp4096": 3919.66,
+            "tg256": 215.85
+          },
+          "pp_phase_seconds": 1.0449885959496488,
+          "tg_phase_seconds": 1.1860088024090805,
+          "pp_plus_tg_phase_seconds": 2.2309973983587295,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 21,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758035.5825794,
+          "end": 1792758040.6059532,
+          "rates": {
+            "pp4096": 3917.33,
+            "tg256": 216.07
+          },
+          "pp_phase_seconds": 1.045610147728172,
+          "tg_phase_seconds": 1.18480122182626,
+          "pp_plus_tg_phase_seconds": 2.230411369554432,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 22,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758040.6066375,
+          "end": 1792758045.1297524,
+          "rates": {
+            "pp4096": 3929.83,
+            "tg256": 267.75
+          },
+          "pp_phase_seconds": 1.0422842718387308,
+          "tg_phase_seconds": 0.9561157796451915,
+          "pp_plus_tg_phase_seconds": 1.9984000514839222,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 23,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758045.130346,
+          "end": 1792758051.3100126,
+          "rates": {
+            "pp4096": 2311.04,
+            "tg256": 253.46
+          },
+          "pp_phase_seconds": 1.7723622265300472,
+          "tg_phase_seconds": 1.0100213051369051,
+          "pp_plus_tg_phase_seconds": 2.7823835316669525,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 24,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758051.3106718,
+          "end": 1792758057.5409472,
+          "rates": {
+            "pp4096": 2311.63,
+            "tg256": 254.09
+          },
+          "pp_phase_seconds": 1.7719098644679294,
+          "tg_phase_seconds": 1.007517021527805,
+          "pp_plus_tg_phase_seconds": 2.7794268859957345,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 25,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758057.5416,
+          "end": 1792758062.0634747,
+          "rates": {
+            "pp4096": 4003.18,
+            "tg256": 267.63
+          },
+          "pp_phase_seconds": 1.02318656667949,
+          "tg_phase_seconds": 0.956544483054964,
+          "pp_plus_tg_phase_seconds": 1.979731049734454,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 26,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758062.0640728,
+          "end": 1792758067.036662,
+          "rates": {
+            "pp4096": 3875.58,
+            "tg256": 216.32
+          },
+          "pp_phase_seconds": 1.0568740678814526,
+          "tg_phase_seconds": 1.183431952662722,
+          "pp_plus_tg_phase_seconds": 2.2403060205441747,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 27,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758067.037316,
+          "end": 1792758072.0101078,
+          "rates": {
+            "pp4096": 3863.13,
+            "tg256": 215.93
+          },
+          "pp_phase_seconds": 1.0602801355377633,
+          "tg_phase_seconds": 1.1855693974899273,
+          "pp_plus_tg_phase_seconds": 2.2458495330276906,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 28,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758072.0107298,
+          "end": 1792758076.4822876,
+          "rates": {
+            "pp4096": 3993.21,
+            "tg256": 267.45
+          },
+          "pp_phase_seconds": 1.0257411956796663,
+          "tg_phase_seconds": 0.9571882594877548,
+          "pp_plus_tg_phase_seconds": 1.982929455167421,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 29,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758076.4829063,
+          "end": 1792758082.6632915,
+          "rates": {
+            "pp4096": 2287.61,
+            "tg256": 253.58
+          },
+          "pp_phase_seconds": 1.7905149916288177,
+          "tg_phase_seconds": 1.0095433393800772,
+          "pp_plus_tg_phase_seconds": 2.800058331008895,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        }
+      ],
+      "cells": {
+        "P128/G256": {
+          "samples": {
+            "baseline": {
+              "pp128": [
+                4974.19,
+                4972.05,
+                4967.63,
+                4961.25
+              ],
+              "tg256": [
+                215.5,
+                215.96,
+                216.08,
+                215.07
+              ]
+            },
+            "candidate": {
+              "pp128": [
+                5026.6,
+                5026.48,
+                5038.0,
+                5038.44
+              ],
+              "tg256": [
+                266.37,
+                266.94,
+                267.61,
+                267.3
+              ]
+            },
+            "mx": {
+              "pp128": [
+                2602.96,
+                2606.29,
+                2646.64,
+                2628.69
+              ],
+              "tg256": [
+                253.19,
+                253.63,
+                253.45,
+                253.61
+              ]
+            }
+          },
+          "means_tok_s": {
+            "baseline": {
+              "pp128": 4968.78,
+              "tg256": 215.6525
+            },
+            "candidate": {
+              "pp128": 5032.38,
+              "tg256": 267.055
+            },
+            "mx": {
+              "pp128": 2621.145,
+              "tg256": 253.47
+            }
+          },
+          "paired": [
+            {
+              "block": 0,
+              "candidate_vs_mx_percent": {
+                "pp128": 93.11091987583369,
+                "tg256": 5.205576839527626
+              }
+            },
+            {
+              "block": 1,
+              "candidate_vs_mx_percent": {
+                "pp128": 92.85958201121132,
+                "tg256": 5.247801916177108
+              }
+            },
+            {
+              "block": 2,
+              "candidate_vs_mx_percent": {
+                "pp128": 90.35456276637548,
+                "tg256": 5.58690076938253
+              }
+            },
+            {
+              "block": 3,
+              "candidate_vs_mx_percent": {
+                "pp128": 91.67113657373062,
+                "tg256": 5.398052127282038
+              }
+            }
+          ],
+          "candidate_vs_mx_percent": {
+            "pp128": 91.99166776351558,
+            "tg256": 5.359608632185275
+          },
+          "candidate_vs_halfword_percent": {
+            "pp128": 1.2799922717447787,
+            "tg256": 23.835800651511118
+          }
+        },
+        "P4096/G256": {
+          "samples": {
+            "baseline": {
+              "pp4096": [
+                3919.66,
+                3917.33,
+                3875.58,
+                3863.13
+              ],
+              "tg256": [
+                215.85,
+                216.07,
+                216.32,
+                215.93
+              ]
+            },
+            "candidate": {
+              "pp4096": [
+                3967.74,
+                3929.83,
+                4003.18,
+                3993.21
+              ],
+              "tg256": [
+                267.47,
+                267.75,
+                267.63,
+                267.45
+              ]
+            },
+            "mx": {
+              "pp4096": [
+                2311.79,
+                2311.04,
+                2311.63,
+                2287.61
+              ],
+              "tg256": [
+                253.84,
+                253.46,
+                254.09,
+                253.58
+              ]
+            }
+          },
+          "means_tok_s": {
+            "baseline": {
+              "pp4096": 3893.925,
+              "tg256": 216.0425
+            },
+            "candidate": {
+              "pp4096": 3973.49,
+              "tg256": 267.575
+            },
+            "mx": {
+              "pp4096": 2305.5175,
+              "tg256": 253.7425
+            }
+          },
+          "paired": [
+            {
+              "block": 0,
+              "candidate_vs_mx_percent": {
+                "pp4096": 71.6306411914577,
+                "tg256": 5.369524109675394
+              }
+            },
+            {
+              "block": 1,
+              "candidate_vs_mx_percent": {
+                "pp4096": 70.04595333702575,
+                "tg256": 5.637970488439992
+              }
+            },
+            {
+              "block": 2,
+              "candidate_vs_mx_percent": {
+                "pp4096": 73.17563796974427,
+                "tg256": 5.328820496674402
+              }
+            },
+            {
+              "block": 3,
+              "candidate_vs_mx_percent": {
+                "pp4096": 74.55816332329373,
+                "tg256": 5.469674264531887
+              }
+            }
+          ],
+          "candidate_vs_mx_percent": {
+            "pp4096": 72.34698934187227,
+            "tg256": 5.451392651999565
+          },
+          "candidate_vs_halfword_percent": {
+            "pp4096": 2.043311055040853,
+            "tg256": 23.85294560098128
+          }
+        }
+      },
+      "activity": {
+        "flags": {
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "low_idle": 0,
+          "iowait": 0,
+          "gap": 0,
+          "other_gpu": 124
+        },
+        "per_call": {
+          "0": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "1": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "2": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "3": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "4": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "5": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "6": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "7": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "8": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "9": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "10": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "11": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "12": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "13": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "14": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "15": {
+            "intervals": 8,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 8
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "16": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "17": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "18": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "19": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "20": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 4,
+            "unknown_gpu_intervals": 0
+          },
+          "21": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "22": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "23": {
+            "intervals": 8,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 8
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "24": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "25": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "26": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "27": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "28": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "29": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          }
+        },
+        "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "interval_count": 124,
+        "missed_sample_intervals": 18,
+        "unknown_gpu_intervals": 0,
+        "max_gap_seconds": 1.0025391459930688
+      }
+    },
+    "iq2_xs": {
+      "execution_sha256": "b1236f62b75d7a4de66e442534cd3f5e692ba3c36427f4259ba88f630e6e89d8",
+      "source_directory": "C:/Users/Marko/Desktop/Projects/llmx/build-quant-resume-20261020/iq2-pair-operators-v1/address-broad-v1-iq2_xs",
+      "artifact_hashes": {
+        "13-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "25-candidate.stdout": "1609a69fd666b0bb2395e30a366cc897de4a1c659a43bcfb25a105ff60598bdf",
+        "21-baseline.stderr": "d327b2b0b1a3fa22f71aaf8f9f089fdc2e4c27b6a3c26e7098e64f1cd2f00364",
+        "version.stdout": "f6f6b0b1b4c5c333e43009f2c4aef897a7413e6aaf5fea582a2eab54ba1a1aeb",
+        "14-baseline.stdout": "3bed44fbfd65428f4b57b71e14937cf8b116db1b5e0b2208c482432a51264edc",
+        "19-candidate.stdout": "38a96b411c3b4086e10eca146b2f2da8fc52bc5156d2dfbbfb79332f812b389f",
+        "0-baseline.stdout": "23a6ff5091b869e805d828705568c7ca0b3cff95db62ac296a04fb96a5fc4e5d",
+        "candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "1-candidate.stdout": "4dbd2644e6c35cc8d218997fda83f5f4e5039516d03c642d3ce9ff7f86197a8e",
+        "18-mx.stderr": "4ae0920a90351a2ec98486543e8ada741fbc63e40cacde3d4705b2ffe862c2d2",
+        "29-mx.stdout": "845e379e97dcfcca02e91eaec8ab57337351ce30305a96e2a4a88c1f3e900c9a",
+        "20-baseline.stderr": "9720a774bf118093f95e30ab72d892a404ecd41a6488ce50cd44f6259ce8d57c",
+        "10-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "16-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "28-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "6-mx.stderr": "491c607c75d807d73d6aabce04ac8b395faf91db13c95777b9830e70dcc933e5",
+        "15-mx.stderr": "6252a6ac424d65fa715c70db490826f74672c4696583611e8551b10e25dae6f2",
+        "5-mx.stderr": "9f1d22cdbeabaef0af9bb62ec572786c6465a594ab198d0874197a685ecfe410",
+        "7-candidate.stdout": "97417e5dc3d6e9c912ed355c193f685f847cea4152d61ef5664dbd7de89d8e93",
+        "24-mx.stdout": "33339f7499811ddb845b4a61598b19a666e23b026a05733c20c2b4897e5af29c",
+        "27-baseline.stdout": "18d033a92c7d3f63c513630b27d681ed6a057de665f0b31f048ef33735a4f457",
+        "3-baseline.stdout": "ddb4c20f75c5004a16fab87ffa44d82d2b6c789b0d9fdf91686278c3cbc59beb",
+        "9-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "17-baseline.stdout": "9156f27ff31610286aea2a367df4fdd49789cad64a556720f0bd89834fe42ec8",
+        "22-candidate.stdout": "a6dc4beee4bb2cb027515f9abca2c7f7a0530e8c556f80d22a41ac1abc9ff48b",
+        "23-mx.stdout": "a162386fc6904b0bd5253fe73dbeefc54d35cab3640e5b5b073bb3f370d657f1",
+        "2-mx.stderr": "f4812971eb64e65cc42037a7610a8e52240ac4f3521532c780e093fa1632a2a4",
+        "4-candidate.stdout": "92f5e87fc78838911b9b9e2d3cab0d1363c8d3eed679e1a790e734afa16ad6f1",
+        "12-mx.stderr": "91f8477bf57cb5c8ea4a9f4fa1fa09e65a2217a7b29201d3c737d4cdba9fb1c3",
+        "8-baseline.stderr": "f7fda376f53a7f007651921e03726beff290f0552b4975cd3fc254ab7f650edc",
+        "11-mx.stderr": "7aca8292bb041cf67a6e4f373b212c50293b8cf3020f2eab1b60950087175831",
+        "26-baseline.stdout": "6e629872b6ce58db7362774a340f9030b089e15d69738fba9647fdc022a14030",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "19-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "candidate-version.stdout": "72fcab9cf8042c3a0d9639410435bc83084946775df56ed1d1e8a864dbe5f743",
+        "1-candidate.stderr": "6c8a710886dbf610a476407b7959124f51323b9775cf89f56c5f599e9fb72699",
+        "0-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "activity.jsonl": "b0daaa6d256b864a42ce7c059474bf0bc660df84bff3115e3265ee708922efbc",
+        "18-mx.stdout": "9f2712d7bdaf97aeb4f331d663ab08b62c5004663a545cb3d703336f257a2cce",
+        "20-baseline.stdout": "72d8d28f322131648d84ee723441d18be92e26174f1bcc2b8ebb8fd11ea28d9c",
+        "10-candidate.stdout": "dde80c7b70a0740cfeddf9b8d1c3d650984039900b52a9339148cd5103172832",
+        "29-mx.stderr": "47262b52aec7268e3c198584a279d00e7523c5bbd6c1a575de39aed5646e0c03",
+        "13-candidate.stdout": "0fb9d7118a1ffdde33f77016da6a71365d54ac844ff8fb9b6e8ff37318846b75",
+        "25-candidate.stderr": "f7fda376f53a7f007651921e03726beff290f0552b4975cd3fc254ab7f650edc",
+        "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "14-baseline.stderr": "8c16aba2e7afbc3f2ff4bc6b8efcd7c1a75e383855cd8c7e76bcb56cde1422a8",
+        "21-baseline.stdout": "024f5d38c6d523d6e46b4eb563f5b96438fa257b045756acb23f6ce4d2613cbb",
+        "23-mx.stderr": "4d02e541bc62cdf25ca01f7d4dc4c2be506466e5a68340ba882d0a8f9de56f46",
+        "22-candidate.stderr": "ac36107f0e277c9ccaf7ea970fb964dd4f41779875c2360c4dbdddd651ee3315",
+        "17-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "12-mx.stdout": "9c86051dd485a610316f0beec19e032997f2c4021679a9599855906100a32549",
+        "4-candidate.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "2-mx.stdout": "33a45199a4dc0042393988a6f7c9def25770621d28eb32dd45568d873fd7a5da",
+        "26-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "11-mx.stdout": "d6b3156293631ec18d1e7ad432561442fc99103af16ff54263248ae90e78618d",
+        "8-baseline.stdout": "83618667f6b473075ab49032f0724a1f4f9c16f541680a5986e4979ef99ce6c8",
+        "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+        "28-candidate.stdout": "cc0b2564049f7ba49c748150c3da6263220cbefd30bd450cb9d589fe584e4316",
+        "16-candidate.stdout": "93cfa3671d0dedd2401b26c2a581bdee4ac853c5d9bd51d19ddf706332f7f6d8",
+        "6-mx.stdout": "506fd82c99ba22396d09d2c3ffc64a8153328dafe26175b12d344fda5e582982",
+        "7-candidate.stderr": "c2c7c205d12e970a4934c4cc4b700ddfca05ece5133dd209a2e258b6f47b8fc0",
+        "5-mx.stdout": "274c72db91bd44b1cb7ba51813f0c1184c6092737ce39cabb7d50fd2e6eb0b68",
+        "15-mx.stdout": "02a6f794463fe8b1e015170654ddc515f83a6b0dc7142cc1cb18bcf15b8e275a",
+        "3-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1",
+        "9-baseline.stdout": "1f4d9d6ec119fed7758ba263d9176e5ee4c3761f9a7194ff9cf58fd7e92b2d8e",
+        "24-mx.stderr": "fcc3906c8e5226002e1903309f990d1388e08d204d5251b275b584e404387e62",
+        "27-baseline.stderr": "9f2830e305dd9e24500367cf81bc998e01c1c0f55570a1bfc007e4a7fd9535a1"
+      },
+      "pins_unchanged": true,
+      "removed": true,
+      "oom_killed": false,
+      "lifecycle": "State is inspected before the exact container is removed. Running=true in that snapshot is expected.",
+      "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498",
+      "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+      "thresholds": {
+        "system_idle_below_percent": 25,
+        "iowait_above_percent": 5,
+        "unrelated_cpu_at_least_percent": 100,
+        "disk_bytes_per_second_above": 50000000,
+        "sample_gap_above_seconds": 2.5
+      },
+      "calls": [
+        {
+          "index": 0,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "baseline",
+          "warmup": true,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758105.5707421,
+          "end": 1792758108.4405189,
+          "rates": {
+            "pp128": 4690.24,
+            "tg256": 263.26
+          },
+          "pp_phase_seconds": 0.027290714334447706,
+          "tg_phase_seconds": 0.9724226999924029,
+          "pp_plus_tg_phase_seconds": 0.9997134143268507,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 1,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "candidate",
+          "warmup": true,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758108.4409473,
+          "end": 1792758111.0097115,
+          "rates": {
+            "pp128": 4696.35,
+            "tg256": 275.43
+          },
+          "pp_phase_seconds": 0.02725520883239111,
+          "tg_phase_seconds": 0.9294557600842319,
+          "pp_plus_tg_phase_seconds": 0.956710968916623,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 2,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": null,
+          "arm": "mx",
+          "warmup": true,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758111.0103176,
+          "end": 1792758114.3863435,
+          "rates": {
+            "pp128": 2636.08,
+            "tg256": 274.38
+          },
+          "pp_phase_seconds": 0.048556948195805895,
+          "tg_phase_seconds": 0.9330126102485604,
+          "pp_plus_tg_phase_seconds": 0.9815695584443663,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 3,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758114.3867848,
+          "end": 1792758116.9060833,
+          "rates": {
+            "pp128": 4680.83,
+            "tg256": 262.82
+          },
+          "pp_phase_seconds": 0.02734557760055375,
+          "tg_phase_seconds": 0.9740506810744997,
+          "pp_plus_tg_phase_seconds": 1.0013962586750533,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 4,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758116.9067006,
+          "end": 1792758119.3261058,
+          "rates": {
+            "pp128": 4692.22,
+            "tg256": 276.08
+          },
+          "pp_phase_seconds": 0.027279198332559,
+          "tg_phase_seconds": 0.9272674587076211,
+          "pp_plus_tg_phase_seconds": 0.95454665704018,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 5,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 0,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758119.3267465,
+          "end": 1792758121.901408,
+          "rates": {
+            "pp128": 2639.24,
+            "tg256": 274.2
+          },
+          "pp_phase_seconds": 0.048498810263560725,
+          "tg_phase_seconds": 0.9336250911743253,
+          "pp_plus_tg_phase_seconds": 0.9821239014378861,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 6,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758121.9019694,
+          "end": 1792758124.4767861,
+          "rates": {
+            "pp128": 2639.86,
+            "tg256": 274.08
+          },
+          "pp_phase_seconds": 0.048487419787412965,
+          "tg_phase_seconds": 0.9340338587273789,
+          "pp_plus_tg_phase_seconds": 0.9825212785147919,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 7,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758124.4772515,
+          "end": 1792758126.8964677,
+          "rates": {
+            "pp128": 4708.8,
+            "tg256": 275.88
+          },
+          "pp_phase_seconds": 0.027183146449201494,
+          "tg_phase_seconds": 0.9279396839205452,
+          "pp_plus_tg_phase_seconds": 0.9551228303697467,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 8,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 1,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758126.8969643,
+          "end": 1792758129.4161296,
+          "rates": {
+            "pp128": 4681.01,
+            "tg256": 263.06
+          },
+          "pp_phase_seconds": 0.027344526074501014,
+          "tg_phase_seconds": 0.9731620162700525,
+          "pp_plus_tg_phase_seconds": 1.0005065423445536,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 9,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758129.4166107,
+          "end": 1792758131.9366639,
+          "rates": {
+            "pp128": 4681.83,
+            "tg256": 257.96
+          },
+          "pp_phase_seconds": 0.027339736812314844,
+          "tg_phase_seconds": 0.9924019227787254,
+          "pp_plus_tg_phase_seconds": 1.0197416595910402,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 10,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758131.9371786,
+          "end": 1792758134.4054487,
+          "rates": {
+            "pp128": 4695.42,
+            "tg256": 275.06
+          },
+          "pp_phase_seconds": 0.027260607144834755,
+          "tg_phase_seconds": 0.9307060277757581,
+          "pp_plus_tg_phase_seconds": 0.9579666349205929,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 11,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 2,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758134.405992,
+          "end": 1792758136.929752,
+          "rates": {
+            "pp128": 2643.26,
+            "tg256": 274.61
+          },
+          "pp_phase_seconds": 0.0484250508841355,
+          "tg_phase_seconds": 0.9322311641964968,
+          "pp_plus_tg_phase_seconds": 0.9806562150806323,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 12,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "128",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758136.930266,
+          "end": 1792758139.503967,
+          "rates": {
+            "pp128": 2661.95,
+            "tg256": 273.79
+          },
+          "pp_phase_seconds": 0.04808505043295329,
+          "tg_phase_seconds": 0.9350231929581065,
+          "pp_plus_tg_phase_seconds": 0.9831082433910598,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 13,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758139.5045745,
+          "end": 1792758141.9227402,
+          "rates": {
+            "pp128": 4696.19,
+            "tg256": 275.26
+          },
+          "pp_phase_seconds": 0.027256137422037866,
+          "tg_phase_seconds": 0.9300297900167115,
+          "pp_plus_tg_phase_seconds": 0.9572859274387494,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 14,
+          "cell": "P128/G256",
+          "p": 128,
+          "g": 256,
+          "block": 3,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758141.923309,
+          "end": 1792758144.4918144,
+          "rates": {
+            "pp128": 4680.86,
+            "tg256": 262.48
+          },
+          "pp_phase_seconds": 0.027345402340595532,
+          "tg_phase_seconds": 0.9753124047546479,
+          "pp_plus_tg_phase_seconds": 1.0026578070952434,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 15,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "mx",
+          "warmup": true,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758144.492323,
+          "end": 1792758150.5724301,
+          "rates": {
+            "pp4096": 2308.69,
+            "tg256": 275.37
+          },
+          "pp_phase_seconds": 1.774166302102058,
+          "tg_phase_seconds": 0.9296582779532991,
+          "pp_plus_tg_phase_seconds": 2.703824580055357,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 16,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "candidate",
+          "warmup": true,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758150.5730703,
+          "end": 1792758155.0951414,
+          "rates": {
+            "pp4096": 3829.71,
+            "tg256": 276.63
+          },
+          "pp_phase_seconds": 1.069532680020158,
+          "tg_phase_seconds": 0.9254238513537939,
+          "pp_plus_tg_phase_seconds": 1.9949565313739521,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 17,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": null,
+          "arm": "baseline",
+          "warmup": true,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758155.0958257,
+          "end": 1792758159.7187257,
+          "rates": {
+            "pp4096": 3771.48,
+            "tg256": 263.87
+          },
+          "pp_phase_seconds": 1.0860457963452013,
+          "tg_phase_seconds": 0.9701747072422026,
+          "pp_plus_tg_phase_seconds": 2.056220503587404,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 18,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758159.7194977,
+          "end": 1792758165.7500072,
+          "rates": {
+            "pp4096": 2298.14,
+            "tg256": 275.8
+          },
+          "pp_phase_seconds": 1.782310912302993,
+          "tg_phase_seconds": 0.9282088469905728,
+          "pp_plus_tg_phase_seconds": 2.710519759293566,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 19,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758165.7505949,
+          "end": 1792758170.273205,
+          "rates": {
+            "pp4096": 3832.1,
+            "tg256": 276.75
+          },
+          "pp_phase_seconds": 1.068865635030401,
+          "tg_phase_seconds": 0.9250225835591689,
+          "pp_plus_tg_phase_seconds": 1.99388821858957,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 20,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 0,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758170.2738528,
+          "end": 1792758174.8961327,
+          "rates": {
+            "pp4096": 3845.04,
+            "tg256": 263.65
+          },
+          "pp_phase_seconds": 1.0652685017581092,
+          "tg_phase_seconds": 0.9709842594348569,
+          "pp_plus_tg_phase_seconds": 2.036252761192966,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 21,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758174.8967795,
+          "end": 1792758179.5187902,
+          "rates": {
+            "pp4096": 3843.27,
+            "tg256": 263.41
+          },
+          "pp_phase_seconds": 1.0657591061778122,
+          "tg_phase_seconds": 0.9718689495463345,
+          "pp_plus_tg_phase_seconds": 2.037628055724147,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 22,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758179.5193756,
+          "end": 1792758184.0421438,
+          "rates": {
+            "pp4096": 3814.87,
+            "tg256": 277.08
+          },
+          "pp_phase_seconds": 1.0736932057973143,
+          "tg_phase_seconds": 0.923920889273856,
+          "pp_plus_tg_phase_seconds": 1.9976140950711703,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 23,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 1,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758184.0427446,
+          "end": 1792758190.075879,
+          "rates": {
+            "pp4096": 2294.29,
+            "tg256": 275.81
+          },
+          "pp_phase_seconds": 1.7853017709182362,
+          "tg_phase_seconds": 0.9281751930676915,
+          "pp_plus_tg_phase_seconds": 2.7134769639859275,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 24,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758190.0765417,
+          "end": 1792758196.1070526,
+          "rates": {
+            "pp4096": 2287.64,
+            "tg256": 274.97
+          },
+          "pp_phase_seconds": 1.7904915109020652,
+          "tg_phase_seconds": 0.9310106557078953,
+          "pp_plus_tg_phase_seconds": 2.7215021666099606,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 25,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758196.107717,
+          "end": 1792758200.6299329,
+          "rates": {
+            "pp4096": 3827.37,
+            "tg256": 277.17
+          },
+          "pp_phase_seconds": 1.0701865772057575,
+          "tg_phase_seconds": 0.92362088249089,
+          "pp_plus_tg_phase_seconds": 1.9938074596966475,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 26,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 2,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758200.6305027,
+          "end": 1792758205.2526915,
+          "rates": {
+            "pp4096": 3809.86,
+            "tg256": 263.19
+          },
+          "pp_phase_seconds": 1.075105121972986,
+          "tg_phase_seconds": 0.972681332877389,
+          "pp_plus_tg_phase_seconds": 2.047786454850375,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 27,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "baseline",
+          "warmup": false,
+          "command": [
+            "/prior/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758205.253317,
+          "end": 1792758209.8760283,
+          "rates": {
+            "pp4096": 3817.68,
+            "tg256": 263.29
+          },
+          "pp_phase_seconds": 1.0729029148592863,
+          "tg_phase_seconds": 0.9723118994264879,
+          "pp_plus_tg_phase_seconds": 2.0452148142857745,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 28,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "candidate",
+          "warmup": false,
+          "command": [
+            "/e/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f32",
+            "--cache-type-v",
+            "f32",
+            "--dtype",
+            "auto",
+            "--load-mode",
+            "auto"
+          ],
+          "status": "passed",
+          "start": 1792758209.876631,
+          "end": 1792758214.3981624,
+          "rates": {
+            "pp4096": 3853.67,
+            "tg256": 277.01
+          },
+          "pp_phase_seconds": 1.0628829142090526,
+          "tg_phase_seconds": 0.9241543626583878,
+          "pp_plus_tg_phase_seconds": 1.9870372768674405,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        },
+        {
+          "index": 29,
+          "cell": "P4096/G256",
+          "p": 4096,
+          "g": 256,
+          "block": 3,
+          "arm": "mx",
+          "warmup": false,
+          "command": [
+            "/ref/build/mx-cli-bench-vulkan",
+            "/model.gguf",
+            "4",
+            "4096",
+            "256",
+            "1"
+          ],
+          "status": "passed",
+          "start": 1792758214.3988116,
+          "end": 1792758220.4296186,
+          "rates": {
+            "pp4096": 2310.8,
+            "tg256": 275.68
+          },
+          "pp_phase_seconds": 1.7725463043101954,
+          "tg_phase_seconds": 0.9286128845037724,
+          "pp_plus_tg_phase_seconds": 2.7011591888139677,
+          "phase_time_scope": "Derived P/PP + G/TG sums separate empty-history PP and TG microbench phases, each reset independently; excludes model load/startup, is not decode after the stated prompt and is not server/request latency."
+        }
+      ],
+      "cells": {
+        "P128/G256": {
+          "samples": {
+            "baseline": {
+              "pp128": [
+                4680.83,
+                4681.01,
+                4681.83,
+                4680.86
+              ],
+              "tg256": [
+                262.82,
+                263.06,
+                257.96,
+                262.48
+              ]
+            },
+            "candidate": {
+              "pp128": [
+                4692.22,
+                4708.8,
+                4695.42,
+                4696.19
+              ],
+              "tg256": [
+                276.08,
+                275.88,
+                275.06,
+                275.26
+              ]
+            },
+            "mx": {
+              "pp128": [
+                2639.24,
+                2639.86,
+                2643.26,
+                2661.95
+              ],
+              "tg256": [
+                274.2,
+                274.08,
+                274.61,
+                273.79
+              ]
+            }
+          },
+          "means_tok_s": {
+            "baseline": {
+              "pp128": 4681.1325,
+              "tg256": 261.58
+            },
+            "candidate": {
+              "pp128": 4698.1575,
+              "tg256": 275.57
+            },
+            "mx": {
+              "pp128": 2646.0775,
+              "tg256": 274.17
+            }
+          },
+          "paired": [
+            {
+              "block": 0,
+              "candidate_vs_mx_percent": {
+                "pp128": 77.78678710537885,
+                "tg256": 0.6856309263311378
+              }
+            },
+            {
+              "block": 1,
+              "candidate_vs_mx_percent": {
+                "pp128": 78.37309554294545,
+                "tg256": 0.6567425569176999
+              }
+            },
+            {
+              "block": 2,
+              "candidate_vs_mx_percent": {
+                "pp128": 77.63746282999023,
+                "tg256": 0.1638687593314092
+              }
+            },
+            {
+              "block": 3,
+              "candidate_vs_mx_percent": {
+                "pp128": 76.419166400571,
+                "tg256": 0.5369078490814028
+              }
+            }
+          ],
+          "candidate_vs_mx_percent": {
+            "pp128": 77.55177238761905,
+            "tg256": 0.5106320895794436
+          },
+          "candidate_vs_halfword_percent": {
+            "pp128": 0.3636940419866397,
+            "tg256": 5.348268216224494
+          }
+        },
+        "P4096/G256": {
+          "samples": {
+            "baseline": {
+              "pp4096": [
+                3845.04,
+                3843.27,
+                3809.86,
+                3817.68
+              ],
+              "tg256": [
+                263.65,
+                263.41,
+                263.19,
+                263.29
+              ]
+            },
+            "candidate": {
+              "pp4096": [
+                3832.1,
+                3814.87,
+                3827.37,
+                3853.67
+              ],
+              "tg256": [
+                276.75,
+                277.08,
+                277.17,
+                277.01
+              ]
+            },
+            "mx": {
+              "pp4096": [
+                2298.14,
+                2294.29,
+                2287.64,
+                2310.8
+              ],
+              "tg256": [
+                275.8,
+                275.81,
+                274.97,
+                275.68
+              ]
+            }
+          },
+          "means_tok_s": {
+            "baseline": {
+              "pp4096": 3828.9625,
+              "tg256": 263.385
+            },
+            "candidate": {
+              "pp4096": 3832.0025,
+              "tg256": 277.0025
+            },
+            "mx": {
+              "pp4096": 2297.7174999999997,
+              "tg256": 275.565
+            }
+          },
+          "paired": [
+            {
+              "block": 0,
+              "candidate_vs_mx_percent": {
+                "pp4096": 66.74789177334715,
+                "tg256": 0.34445250181289744
+              }
+            },
+            {
+              "block": 1,
+              "candidate_vs_mx_percent": {
+                "pp4096": 66.2767130571985,
+                "tg256": 0.4604619121859166
+              }
+            },
+            {
+              "block": 2,
+              "candidate_vs_mx_percent": {
+                "pp4096": 67.30648178909269,
+                "tg256": 0.8000872822489624
+              }
+            },
+            {
+              "block": 3,
+              "candidate_vs_mx_percent": {
+                "pp4096": 66.76778604812186,
+                "tg256": 0.4824434126523558
+              }
+            }
+          ],
+          "candidate_vs_mx_percent": {
+            "pp4096": 66.7743097225834,
+            "tg256": 0.521655507774943
+          },
+          "candidate_vs_halfword_percent": {
+            "pp4096": 0.07939487524362132,
+            "tg256": 5.170188127645847
+          }
+        }
+      },
+      "activity": {
+        "flags": {
+          "unrelated_cpu": 1,
+          "disk": 14,
+          "low_idle": 0,
+          "iowait": 0,
+          "gap": 0,
+          "other_gpu": 118
+        },
+        "per_call": {
+          "0": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "1": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "2": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "3": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "4": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "5": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "6": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "7": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "8": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "9": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 1,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "10": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "11": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "12": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "13": {
+            "intervals": 4,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 4
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "14": {
+            "intervals": 3,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 3
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "15": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "16": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 0,
+            "unknown_gpu_intervals": 0
+          },
+          "17": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "18": {
+            "intervals": 8,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 8
+            },
+            "missed_sample_intervals": 3,
+            "unknown_gpu_intervals": 0
+          },
+          "19": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 1,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "20": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 5,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "21": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 3,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "22": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 2,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "23": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 1,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "24": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 2,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "25": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 1,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "26": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 2,
+            "unknown_gpu_intervals": 0
+          },
+          "27": {
+            "intervals": 6,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 1,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 6
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "28": {
+            "intervals": 5,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 2,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 5
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          },
+          "29": {
+            "intervals": 7,
+            "flagged_intervals": {
+              "unrelated_cpu": 0,
+              "disk": 0,
+              "low_idle": 0,
+              "iowait": 0,
+              "gap": 0,
+              "other_gpu": 7
+            },
+            "missed_sample_intervals": 1,
+            "unknown_gpu_intervals": 0
+          }
+        },
+        "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+        "interval_count": 118,
+        "missed_sample_intervals": 21,
+        "unknown_gpu_intervals": 0,
+        "max_gap_seconds": 1.004548867000267
+      }
+    }
+  },
+  "analysis_sha256": "694cb5970a9126a629564dbbcde94d9cd2723e39de475e6a8388ed89e1d68b65",
+  "schema": "llmx-iq2-broad-screen-v1",
+  "interpretation": "XXS decode improves by about 5.4% versus mx on both added workloads; XS decode is near parity, with a roughly 0.5% mean lead that does not establish a robust speed advantage. Prefill improves substantially in all four cells. These separate-phase screens do not establish server latency, released-file correctness or merge readiness."
+}

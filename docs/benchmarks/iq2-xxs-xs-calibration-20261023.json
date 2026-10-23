@@ -1,0 +1,558 @@
+{
+  "title": "Prospective IQ2_XXS and IQ2_XS HF calibration and focused CPU qualification",
+  "date": "2026-10-23",
+  "scope": "Tiny synthetic HF references, prospective dtype calibration, and focused CPU candidate fixture checks only. No GPU/device, released-file, performance, or hosted qualification is implied.",
+  "source": {
+    "revision": "888ae1310c9385964c93b8f2e719a39f7ec32bc5",
+    "dirty": true,
+    "file_sha256": {
+      "tests/block_fixture.py": "ce327e86c1941a36c120b43bd2241db958fc3abcf713b408009fd48c27f64a90",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/data/dtype_budget.json": "02236613dfac827534fb3345b20366cd51ef403197bb8dd5850011f54833bbd8",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/iq2_s.py": "33ec93b0924f361f383448ee1948c405675a6a7e152c60db4ca4948b7f8e0fc1",
+      "tests/iq2_small.py": "1ceb48eb65c54ef9141dc8058b765011901b9fc6a0fe9482f8d3a5cd82feb4c8",
+      "tests/iq3_s.py": "8bdda3397dbc5bcdee2d659ef8b470284b428335190b8b016b60282a7c679cdc",
+      "tests/iq3_xxs.py": "dd2bcedae9101915bd803970527124d57d1d0b443123a4ae612780c69e3dc338",
+      "tests/iq4_xs.py": "bf1eba289873aa1d4db648ead4785912b563ab91c18b44454385a0459fa45fd9",
+      "tests/q3_k.py": "3ef1c122c816931e633c2aaf951993169bea917091f52c607c3079c5fddb1f2c",
+      "tests/q5_0.py": "2c81ff88abc9a6a844341da54d758c0786cf5370c8dfe4f1cf0d6f4f63da5ac6",
+      "tests/q5_1.py": "728d2f499ec3ee1d566b2ef9a99c964ba4b2565076f84fefbc8af86aed75015b",
+      "tests/raw_blocks.py": "23d843d6650187b74b01c28f54649615732fe90a3f12ad721b5d2808458092ac",
+      "tests/roundtrip.py": "02764a658ceb48538d28daa159042b294623f348727fe8fe215b33fad136399b",
+      "tests/spec_decode.py": "8e13f2f4af5697c5f1e64dae6b5bbbaa955ece310cda9070865acb3dd80d3dff",
+      "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+      "tools/calibrate_dtype.py": "e57ce5c93ce8b7a8fc572d3e0436d46ef7624d2a20cab384b4d7fe2be5e43341",
+      "tools/gen_baseline.py": "8e70de2ca281f03a5082df0fff76ad39c8d9dbfb40abc540b6de6638f5427372",
+      "tools/gen_chat_baseline.py": "7316697c48833b87fd68db1d89bb60baae89b9c0e7bd743dd81132d967ce28e1"
+    },
+    "archive_sha256": "7364785f8e54a6a754ae6e3b38843115cc2ae4020cd9d825524d3ce803a57d8b",
+    "pins_sha256": "c24809508110e52e60b8628b228a58977af38f5b442958c89a5f2e697b1f7bbf",
+    "local_proposal_sha256": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644"
+  },
+  "environment": {
+    "image": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "repo_digest": [
+      "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de"
+    ],
+    "python_environment": "/opt/claude-work/llmx-p2-qp-hf",
+    "packages": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6"
+    },
+    "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+    "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+    "torch_threads": 1,
+    "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+    "container_affinity": [
+      0,
+      1
+    ],
+    "cgroup": {
+      "cpu.max": "200000 100000\n",
+      "cpuset.cpus.effective": "0-1\n",
+      "memory.max": "8589934592\n",
+      "memory.swap.max": "0\n"
+    },
+    "gpu_devices_exposed": false
+  },
+  "execution": {
+    "source_pins_sha256": "c24809508110e52e60b8628b228a58977af38f5b442958c89a5f2e697b1f7bbf",
+    "launch_sha256": "b05c4ddc89c19796280433a96bcc1a5b14ee31fb773473ea1dabd79d7e9dcc50",
+    "payload_sha256": "66850ba1476144249cad5f0d5187e52a7a6aef9ae09ab516d53d93d034960a56",
+    "execution_json_sha256": "ec1ba130d03638ab53e1ec739d94936df24d79e8b069e5a0502519e33dc9b634",
+    "container": "llmx-iq2-xxs-xs-hf-reference-v1-20261023",
+    "container_id": "e957fd74e22422857cd2418aa2b567e79ecd13bb7ff4e2cfced7557fd079f18a",
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-iq2-xxs-xs-hf-reference-v1-20261023",
+      "--label",
+      "llmx.iq2-xxs-xs-hf-reference=v1-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "0-1",
+      "--cpus",
+      "2",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/hf-reference-v1/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/hf-reference-v1:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/hf-reference-v1/out:/out",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "/bundle/payload.py"
+    ],
+    "start_utc": "2026-10-23T10:50:27.000303+00:00",
+    "end_utc": "2026-10-23T11:04:30.103102+00:00",
+    "host_mem_available_bytes": 25723133952,
+    "disk_before": {
+      "total": 3620222271488,
+      "used": 3235933847552,
+      "free": 384288423936
+    },
+    "disk_after": {
+      "total": 3620265263104,
+      "used": 3236236886016,
+      "free": 384028377088
+    },
+    "cpu_peer_snapshot": {
+      "llmx-xdev-flash-20261015": {
+        "cpuset": "0-1",
+        "overlap": [
+          0,
+          1
+        ],
+        "processes": [
+          "root                3754867             3754843             0                   Oct15               ?                   00:00:15            /sbin/docker-init -- sleep infinity",
+          "root                3754920             3754867             0                   Oct15               ?                   00:00:00            sleep infinity"
+        ]
+      }
+    },
+    "stages": [
+      {
+        "name": "iq2-xxs-goldens",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/gen_baseline.py",
+          "iq2-xxs",
+          "--output-dir",
+          "/out/goldens"
+        ],
+        "start": 1792752631.4199803,
+        "exit": 0,
+        "end": 1792752698.5707433,
+        "log_sha256": "cbb501ee360de7ed06c34dad3378926c900ff7c6670beb307d13d5ec41c236ef"
+      },
+      {
+        "name": "iq2-xxs-calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq2-xxs",
+          "--output",
+          "/out/calibration/iq2-xxs-budget-proposal.json"
+        ],
+        "start": 1792752698.5712667,
+        "exit": 0,
+        "end": 1792753030.9361396,
+        "log_sha256": "f59406b6f0fe9654ff0ef789ae03871496a06417a29c6064efe762866d4db324"
+      },
+      {
+        "name": "iq2-xs-goldens",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/gen_baseline.py",
+          "iq2-xs",
+          "--output-dir",
+          "/out/goldens"
+        ],
+        "start": 1792753030.9370434,
+        "exit": 0,
+        "end": 1792753108.7299917,
+        "log_sha256": "a6ad3c266a6f7f4a8b73ab1fe7dd05a4ad4b2955f5790b71857cfa8151e1cd32"
+      },
+      {
+        "name": "iq2-xs-calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq2-xs",
+          "--output",
+          "/out/calibration/iq2-xs-budget-proposal.json"
+        ],
+        "start": 1792753108.730689,
+        "exit": 0,
+        "end": 1792753459.6648846,
+        "log_sha256": "4bff41f155de9c751aac9abaffbca501c0591d248c2585b2868e66fb7947c4ca"
+      }
+    ],
+    "exit": 0,
+    "oom_killed": false,
+    "container_removed": true,
+    "container_memory_peak_bytes": "3263471616\n",
+    "preflight_attempts": [
+      {
+        "file": "preflight-attempt-001.json",
+        "sha256": "077ec2b8c3a50e0f008e733aa7a3bacc40857c44da433ec3fac788e217bfffea",
+        "reason": "Initial launcher incorrectly required host GPU device paths to be absent; no container or extracted source/output was created."
+      },
+      {
+        "file": "preflight-attempt-002.json",
+        "sha256": "7ffbe56495d66a73025bfe24e1e40bd37dfb6e9e3314417e59585aed1c2aaf9e",
+        "reason": "Launcher parsed empty docker ps -q output as JSON while checking an unused container name; no container or extracted source/output was created."
+      },
+      {
+        "file": "preflight-attempt-003.json",
+        "sha256": "f45b358ab0f60037d5fe8defe2d5d0f4af273ef6de39ce2fb2ecb8b63e9872cc",
+        "reason": "docker top on this host rejected the selected format flags; the default docker top output was inspected and the peer check corrected; no container or extracted source/output was created."
+      }
+    ]
+  },
+  "references": {
+    "files": {
+      "baseline_iq2_xxs.json": {
+        "sha256": "e053d7d70e35646de3c8723afd5c185c5cc99d00f7ef545cfa5bf0ec71e9d338",
+        "installed_sha256": "e053d7d70e35646de3c8723afd5c185c5cc99d00f7ef545cfa5bf0ec71e9d338",
+        "fixtures": [
+          "dense-untied",
+          "dense-tied",
+          "moe"
+        ]
+      },
+      "baseline_iq2_xxs_split.json": {
+        "sha256": "363b90946c413895cad946645667a5f7063f5ab811ffc5459e76ec8316a60275",
+        "installed_sha256": "363b90946c413895cad946645667a5f7063f5ab811ffc5459e76ec8316a60275",
+        "fixtures": [
+          "dense-untied",
+          "dense-tied",
+          "moe"
+        ]
+      },
+      "baseline_iq2_xs.json": {
+        "sha256": "66bdf1e8277c8e46b006fc9b11f56d9588dbf5053c7dfcdd75de592b28418a6a",
+        "installed_sha256": "66bdf1e8277c8e46b006fc9b11f56d9588dbf5053c7dfcdd75de592b28418a6a",
+        "fixtures": [
+          "dense-untied",
+          "dense-tied",
+          "moe"
+        ]
+      },
+      "baseline_iq2_xs_split.json": {
+        "sha256": "2ae90131d114f063b9d7f64596aeaba164c49a858525af26ba5ec6601b31d03d",
+        "installed_sha256": "2ae90131d114f063b9d7f64596aeaba164c49a858525af26ba5ec6601b31d03d",
+        "fixtures": [
+          "dense-untied",
+          "dense-tied",
+          "moe"
+        ]
+      }
+    },
+    "output_hashes": {
+      "out/goldens/baseline_iq2_xs.json": "66bdf1e8277c8e46b006fc9b11f56d9588dbf5053c7dfcdd75de592b28418a6a",
+      "out/goldens/baseline_iq2_xs_split.json": "2ae90131d114f063b9d7f64596aeaba164c49a858525af26ba5ec6601b31d03d",
+      "out/goldens/baseline_iq2_xxs.json": "e053d7d70e35646de3c8723afd5c185c5cc99d00f7ef545cfa5bf0ec71e9d338",
+      "out/goldens/baseline_iq2_xxs_split.json": "363b90946c413895cad946645667a5f7063f5ab811ffc5459e76ec8316a60275"
+    }
+  },
+  "calibration": {
+    "protocol": "30 model identities per dtype and family: dense-untied, dense-tied and MoE; ordinary and split shapes; original seed 12345 plus seeds 0-3. Each budget is exactly twice the maximum accepted-row error; routing-changing rows remain refused and excluded.",
+    "base_dtype_budget_sha256": "02236613dfac827534fb3345b20366cd51ef403197bb8dd5850011f54833bbd8",
+    "existing_families_unchanged": 7,
+    "existing_families_comparison": "Exact JSON equality after removing the two proposed family entries.",
+    "families": {
+      "iq2-xxs": {
+        "margin": 2.0,
+        "threads": 1,
+        "rows_per_dtype": 30,
+        "dtypes": {
+          "f16": {
+            "accepted": 30,
+            "refused_count": 0,
+            "max_logit_error": 0.00029963254928588867,
+            "max_nll_error": 5.0912332513419756e-05,
+            "logit_budget": 0.0005992650985717773,
+            "nll_budget": 0.00010182466502683951,
+            "refused": []
+          },
+          "bf16": {
+            "accepted": 29,
+            "refused_count": 1,
+            "max_logit_error": 0.0026335716247558594,
+            "max_nll_error": 0.0003590483009441314,
+            "logit_budget": 0.005267143249511719,
+            "nll_budget": 0.0007180966018882629,
+            "refused": [
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 3,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "6cbda124cf01ab7ba63e0b15bcbc854ed69b8b2f60b3ec13561903726a0e3df5",
+                "packed_sha256": "dc3b841653aac75fdfe13d59ce41550d4f85fcf5122bed93010f413d196bff32",
+                "logit_error": 0.0009382665157318115,
+                "nll_error": 2.9034434715136115e-05,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 13,
+                    "original": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          2,
+                          3
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.1.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              }
+            ]
+          },
+          "int8": {
+            "accepted": 30,
+            "refused_count": 0,
+            "max_logit_error": 0.007746174931526184,
+            "max_nll_error": 0.001134106286798442,
+            "logit_budget": 0.015492349863052368,
+            "nll_budget": 0.002268212573596884,
+            "refused": []
+          }
+        },
+        "all_rows_retained_in": "../../tests/data/dtype_budget.json"
+      },
+      "iq2-xs": {
+        "margin": 2.0,
+        "threads": 1,
+        "rows_per_dtype": 30,
+        "dtypes": {
+          "f16": {
+            "accepted": 30,
+            "refused_count": 0,
+            "max_logit_error": 0.0003300309181213379,
+            "max_nll_error": 4.307752351095928e-05,
+            "logit_budget": 0.0006600618362426758,
+            "nll_budget": 8.615504702191856e-05,
+            "refused": []
+          },
+          "bf16": {
+            "accepted": 30,
+            "refused_count": 0,
+            "max_logit_error": 0.002991504967212677,
+            "max_nll_error": 0.00036309673274015353,
+            "logit_budget": 0.005983009934425354,
+            "nll_budget": 0.0007261934654803071,
+            "refused": []
+          },
+          "int8": {
+            "accepted": 29,
+            "refused_count": 1,
+            "max_logit_error": 0.009257987141609192,
+            "max_nll_error": 0.001216687608120992,
+            "logit_budget": 0.018515974283218384,
+            "nll_budget": 0.002433375216241984,
+            "refused": [
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 1,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "519752c8a0849c10ef0965d37323222582f88e05fcf6437fc84468dae7f3d13c",
+                "packed_sha256": "9d67eca93f17355e8e226ea04468fc08ca254283a17fb8ce09018179a9f16754",
+                "logit_error": 0.0032895058393478394,
+                "nll_error": 0.0006135955215054167,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 14,
+                    "original": {
+                      "router": "model.layers.0.mlp.gate",
+                      "experts": [
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          2
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.0.mlp.gate",
+                      "experts": [
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          0,
+                          2
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              }
+            ]
+          }
+        },
+        "all_rows_retained_in": "../../tests/data/dtype_budget.json"
+      }
+    },
+    "combined_proposal_sha256": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644",
+    "updated_dtype_budget_sha256": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644",
+    "proposal_output_hashes": {
+      "out/calibration/iq2-xs-budget-proposal.json": "d154e39a0300591fcf60d6b69dfa7bcc6a8864b20d28b5f469af026b70632a2b",
+      "out/calibration/iq2-xxs-budget-proposal.json": "430a2c414b9b29b4d5facdfd9979bee63d91d90db01b2b37943c07f4dd7c3204",
+      "out/calibration/iq2-xxs-xs-budget-proposal.json": "af81325397ddd1cbfcdf5a78a37b5d525c9b095ec0999ad253c84b1896815644"
+    }
+  },
+  "candidate_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-iq2-small/Release/llmx.exe --only iq2-xxs,iq2-xs,reference-consumer,docs,dead-code",
+    "binary_sha256": "8d1da1bbe759ed1d41897752686b76ba28cc73cc0440add5d0f5369a1c463da2",
+    "binary_version": "llmx 0.1.0+g888ae1310c93.dirty numerics 266bde0ccc607c4d",
+    "iq2-xxs": {
+      "result": "PASS",
+      "fixtures": 3,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "max_logit_error": 5.7e-07,
+      "max_nll_error": 3e-08,
+      "f32_bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      }
+    },
+    "iq2-xs": {
+      "result": "PASS",
+      "fixtures": 3,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "max_logit_error": 6.1e-07,
+      "max_nll_error": 3e-08,
+      "f32_bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      }
+    },
+    "reference_consumer": {
+      "result": "PASS",
+      "tests": 72,
+      "skipped": 4
+    },
+    "docs": {
+      "result": "PASS",
+      "findings": 0,
+      "planted_faults": 21
+    },
+    "dead_code": {
+      "result": "PASS",
+      "listed_findings": 5,
+      "planted_faults": 18
+    },
+    "docs_dead_code_after_final_doc_edit": {
+      "docs": "PASS: 0 findings, 21 planted faults",
+      "dead_code": "PASS: 5 listed findings, 18 planted faults"
+    }
+  },
+  "qualification_limits": "Reference calibration and tiny CPU HF checks passed. No released-file, GPU/Vulkan, performance, hosted CI, or merge gate is claimed."
+}

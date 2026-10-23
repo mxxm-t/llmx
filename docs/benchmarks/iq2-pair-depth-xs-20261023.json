@@ -1,0 +1,426 @@
+{
+  "title": "IQ2_XS recovered released-file 16K depth comparisons",
+  "date": "2026-10-23",
+  "scope": "Three recovered comparison-only stages reuse existing MI50 raw/chat captures and completed same-file independent HF references. No runtime edit, new capture or numerical allowance. This is frozen address-runtime evidence, not a current-main integrated-binary pass.",
+  "runtime": {
+    "source_manifest_sha256": "14b517b1320b84531f1a9586b7f976b4b47746fa3bd7329a92f8b78ed7c513c9",
+    "source_directory": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/source",
+    "build_files": {
+      "llmx": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+      "llmx-iq2-small-test": "732bf40b7940b972c8ae5ff477d31c9a4bad940fd09c43230ad2980c23264b31",
+      "libllmx-vulkan.a": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+    },
+    "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+    "source_boundary": "Actual frozen source is identified by its raw manifest, not revision alone. The four accessor-owner source differences and their 229-output compiled equality carry separately from the current-main help change."
+  },
+  "criterion": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "top_two_tie_margin": 0.1,
+    "positions_per_variant": 512,
+    "context_tokens": 16384,
+    "variants": [
+      "raw",
+      "chat"
+    ],
+    "forced_context_ranking": true
+  },
+  "recovered_comparisons": {
+    "selected-f16": {
+      "execution_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/selected-f16-execution.json",
+      "execution_sha256": "f749c45befa59c59297d01ac8eee8610a5094646d1fddc751d0bc9170f3808a2",
+      "comparison_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/selected-f16-comparison.json",
+      "comparison_sha256": "9299d2e3bbcc0a8cc38b79a04def399968e0025a82740d508835944fb50fb43c",
+      "reference_execution_sha256": "044e44313d424695bae9dd851a00a3d0f1722f3ed690d95cf18b37b91094f325",
+      "reference_report_sha256": "a914ceb8395f4386a96f625a89e00a94c4696123544c024199dab7a56da85511",
+      "reference_files": {
+        "chat.json": "fa141b285fa73ad7c81ee391826bcd4868ab2280422cad9dbbc11fd16b80291f",
+        "chat.npy": "4e5870548faee4ccab908d67793c80a5b3b1289272d23ce6c11335eee24e7f33",
+        "report.json": "a914ceb8395f4386a96f625a89e00a94c4696123544c024199dab7a56da85511",
+        "raw.json": "d1363b80d0e85c62096de4c6cf95ac52e95ceee5862c4edb0906312fc5279bb1",
+        "raw.npy": "2c59c420697e61d613c42399bb7e6648f836d65e37494007a51c019cfe319cf5"
+      },
+      "reference_producer_sha256": "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+      "capture_report_sha256": "e5db4d28f1f9d1d0eefb05a4069ed6210e1dbc72d172bae8e360bd9308585d78",
+      "probe_sha256": "774db9e02b4b306438c8c04c4f15824633526cefe3355dd117857917864bc922",
+      "command": [
+        "docker",
+        "create",
+        "--init",
+        "--runtime",
+        "runc",
+        "--name",
+        "llmx-xdev-iq2pair-depth-v2-recovery2-iq2-xs-selected-f16",
+        "--label",
+        "llmx.iq2pair-depth-v2-recovery=4c19ed24921948a3adb2c09b7af789d2",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "10-11",
+        "--cpus",
+        "2",
+        "--memory",
+        "6442450944",
+        "--memory-swap",
+        "6442450944",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,size=256m",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/source:/source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/build:/b:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery-v2:/bundle:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery2-iq2-xs-selected-f16:/out",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/released-reference-recovery-20261023/composed-reference/iq2-xs/depth-f16/reference:/reference:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-iq2-xs-default:/captures:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/tiny-hf-v1/source:/reference-source:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/compare-default-depth.py",
+        "--source",
+        "/reference-source",
+        "--reference",
+        "/reference",
+        "--captures",
+        "/captures",
+        "--kind",
+        "iq2-xs",
+        "--role",
+        "selected-f16",
+        "--variant",
+        "both",
+        "--producer-sha256",
+        "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+        "--output",
+        "/out/comparison.json"
+      ],
+      "passed": true,
+      "removed": true,
+      "oom_killed": false,
+      "runtime_files_unchanged": true,
+      "reference_files_unchanged": true,
+      "bundle_pins_unchanged": true,
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "counts": {
+            "exact": 509,
+            "accepted-tie": 3,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "counts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "selected-f32": {
+      "execution_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/selected-f32-execution.json",
+      "execution_sha256": "19d1c6cf8bbae630954ac54c8606aa036514388bd2cf5929a225749d3466f67f",
+      "comparison_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/selected-f32-comparison.json",
+      "comparison_sha256": "9b167fc30d0bcf3c02268f877e071c98381626a095cf2ed174a371faca2b07de",
+      "reference_execution_sha256": "274cc8ef6005f9ce4df60b5acedb3b72882c56d53877b766b6af00307cefdec1",
+      "reference_report_sha256": "035cc894cf5212a2e2b4e21081964178aefc9d26e8084e560ffe426d3c52672c",
+      "reference_files": {
+        "raw.json": "9696c80af3ab08408064587474e659cad3d0916fa765219f7a056039e000c426",
+        "raw.npy": "efda221381c09bd3a21c359570036d72c4ffb790d6dfa6e794d3be27dfd9c106",
+        "chat.json": "e3f13f8a66c1ea2ff0eeb89a6d7239f36bb7a68d217fcfca4ce8e90020593a88",
+        "chat.npy": "d22a06e2598d1d3b5e0509e756f005ddcc3b837798f1622ae61288670b37962d",
+        "report.json": "035cc894cf5212a2e2b4e21081964178aefc9d26e8084e560ffe426d3c52672c"
+      },
+      "reference_producer_sha256": "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+      "capture_report_sha256": "16de1e3c04551609ff6af2328bb438a6618e465874c4e3bcffecd70171b6a91e",
+      "probe_sha256": "d4b6c216f3abd423a5c5705016b4af931151517a4c8554480767d2e4eb71a581",
+      "command": [
+        "docker",
+        "create",
+        "--init",
+        "--runtime",
+        "runc",
+        "--name",
+        "llmx-xdev-iq2pair-depth-v2-recovery2-iq2-xs-selected-f32",
+        "--label",
+        "llmx.iq2pair-depth-v2-recovery=a879837c361f4a5a99f5d075eb9a1379",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "10-11",
+        "--cpus",
+        "2",
+        "--memory",
+        "6442450944",
+        "--memory-swap",
+        "6442450944",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,size=256m",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/source:/source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/build:/b:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery-v2:/bundle:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery2-iq2-xs-selected-f32:/out",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/released-reference-recovery-20261023/composed-reference/iq2-xs/depth-f32/reference:/reference:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-iq2-xs-f32:/captures:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/tiny-hf-v1/source:/reference-source:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/compare-default-depth.py",
+        "--source",
+        "/reference-source",
+        "--reference",
+        "/reference",
+        "--captures",
+        "/captures",
+        "--kind",
+        "iq2-xs",
+        "--role",
+        "selected-f32",
+        "--variant",
+        "both",
+        "--producer-sha256",
+        "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+        "--output",
+        "/out/comparison.json"
+      ],
+      "passed": true,
+      "removed": true,
+      "oom_killed": false,
+      "runtime_files_unchanged": true,
+      "reference_files_unchanged": true,
+      "bundle_pins_unchanged": true,
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "counts": {
+            "exact": 512,
+            "accepted-tie": 0,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        }
+      ]
+    },
+    "default-f32-reference": {
+      "execution_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/default-f32-reference-execution.json",
+      "execution_sha256": "4ef89c76b638a92c89d905fced98d3e088bc760a6ce2ec92ad2e8c2ff8be2845",
+      "comparison_artifact": "build-quant-resume-20261020/iq2-xs-depth-complete-20261023/default-f32-reference-comparison.json",
+      "comparison_sha256": "4db3a324b2a89b661a5a27ea4190d488118c61d08f7b1875e4e9d191daab9720",
+      "reference_execution_sha256": "274cc8ef6005f9ce4df60b5acedb3b72882c56d53877b766b6af00307cefdec1",
+      "reference_report_sha256": "035cc894cf5212a2e2b4e21081964178aefc9d26e8084e560ffe426d3c52672c",
+      "reference_files": {
+        "raw.json": "9696c80af3ab08408064587474e659cad3d0916fa765219f7a056039e000c426",
+        "raw.npy": "efda221381c09bd3a21c359570036d72c4ffb790d6dfa6e794d3be27dfd9c106",
+        "chat.json": "e3f13f8a66c1ea2ff0eeb89a6d7239f36bb7a68d217fcfca4ce8e90020593a88",
+        "chat.npy": "d22a06e2598d1d3b5e0509e756f005ddcc3b837798f1622ae61288670b37962d",
+        "report.json": "035cc894cf5212a2e2b4e21081964178aefc9d26e8084e560ffe426d3c52672c"
+      },
+      "reference_producer_sha256": "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+      "capture_report_sha256": "e5db4d28f1f9d1d0eefb05a4069ed6210e1dbc72d172bae8e360bd9308585d78",
+      "probe_sha256": "774db9e02b4b306438c8c04c4f15824633526cefe3355dd117857917864bc922",
+      "command": [
+        "docker",
+        "create",
+        "--init",
+        "--runtime",
+        "runc",
+        "--name",
+        "llmx-xdev-iq2pair-depth-v2-recovery2-iq2-xs-default-f32-reference",
+        "--label",
+        "llmx.iq2pair-depth-v2-recovery=6aab84f2d20647789be32c052f2424cc",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "10-11",
+        "--cpus",
+        "2",
+        "--memory",
+        "6442450944",
+        "--memory-swap",
+        "6442450944",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,size=256m",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/llmx-test-cache",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/source:/source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/build:/b:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery-v2:/bundle:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-recovery2-iq2-xs-default-f32-reference:/out",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/released-reference-recovery-20261023/composed-reference/iq2-xs/depth-f32/reference:/reference:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/depth-v2-iq2-xs-default:/captures:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/tiny-hf-v1/source:/reference-source:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "-B",
+        "-u",
+        "/bundle/compare-default-depth.py",
+        "--source",
+        "/reference-source",
+        "--reference",
+        "/reference",
+        "--captures",
+        "/captures",
+        "--kind",
+        "iq2-xs",
+        "--role",
+        "default-f32-reference",
+        "--variant",
+        "both",
+        "--producer-sha256",
+        "fbc0872e0c3a0f6337f1ad88ee1c18bd4fc630875f373822b2741a90b04df864",
+        "--output",
+        "/out/comparison.json"
+      ],
+      "passed": true,
+      "removed": true,
+      "oom_killed": false,
+      "runtime_files_unchanged": true,
+      "reference_files_unchanged": true,
+      "bundle_pins_unchanged": true,
+      "cells": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "counts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "counts": {
+            "exact": 511,
+            "accepted-tie": 1,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "aggregate_counts": {
+    "exact": 3066,
+    "accepted-tie": 6,
+    "miss": 0
+  },
+  "aggregate_positions": 3072,
+  "retained_prior_attempts": {
+    "artifact": "docs/benchmarks/iq2-pair-depth-xxs-20261023.json",
+    "meaning": "Earlier F16 host-memory guard stops remain retained resource failures with no OOM/numerical failure; recovery completed without lowering the 10 GiB cap, 24 GiB initial reserve or 14 GiB live floor."
+  },
+  "limits": [
+    "Ranking at forced-context positions under the existing 0.1 top-two rule; no long-context NLL, bitwise logit equality, greedy-generation identity or performance qualification.",
+    "Selected F16 uses recorded block-int16, selected F32 uses F32, default uses F16/block-int16 against same-file F32 HF. No BF16/native block-int8 depth coverage is claimed.",
+    "Current-main integration builds, existing-path identity/timing, remaining device integration and final hosted CI/landing remain pending. Feature is not merged by this record."
+  ]
+}

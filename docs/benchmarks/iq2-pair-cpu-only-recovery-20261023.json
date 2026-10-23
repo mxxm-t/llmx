@@ -1,0 +1,112 @@
+{
+  "ci_run": 39983355769,
+  "ci_head": "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+  "ci_ubuntu_job": 120516091584,
+  "ci_failure": "Authenticated log retrieval confirms has_timed_kernel and check_tile_threshold rejected by -Werror=unused-function in tests/iq2_small.cpp.",
+  "local_reproduction": "CPU-only Release compilation rejects unused has_timed_kernel and check_tile_threshold with -Werror=unused-function.",
+  "fix": "Compile both Vulkan-only test helper definitions only when LLMX_HAS_BACKEND_VULKAN is enabled. Delete their unreachable CPU stubs. No runtime or bound changes.",
+  "reproduction": {
+    "start": 1792772287.8737657,
+    "steps": [
+      [
+        "cmake",
+        "-S",
+        "/w",
+        "-B",
+        "/b",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      [
+        "cmake",
+        "--build",
+        "/b",
+        "--parallel",
+        "2",
+        "--target",
+        "llmx-iq2-small-test"
+      ]
+    ],
+    "passed": false,
+    "exit": 1,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 1,
+      "Error": "",
+      "StartedAt": "2026-10-23T16:18:07.968292501Z",
+      "FinishedAt": "2026-10-23T16:18:20.151373636Z"
+    },
+    "removed": true,
+    "end": 1792772300.3932939,
+    "log_sha256": "4625414fcc0b6009c053196a43ef11328832f7180064a9349476726762f26527"
+  },
+  "recovery": {
+    "start": 1792772403.8160775,
+    "steps": [
+      [
+        "cmake",
+        "-S",
+        "/w",
+        "-B",
+        "/b",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      [
+        "cmake",
+        "--build",
+        "/b",
+        "--parallel",
+        "2",
+        "--target",
+        "llmx-iq2-small-test"
+      ],
+      [
+        "ctest",
+        "--test-dir",
+        "/b",
+        "--output-on-failure",
+        "-R",
+        "^iq2-small$"
+      ]
+    ],
+    "passed": true,
+    "overlay_sha256": "f293aa50015f5e993da6a28bbdc4221974b5060cd3b4d8d942af7bf5e295dbb1",
+    "exit": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T16:20:03.935904511Z",
+      "FinishedAt": "2026-10-23T16:20:16.796595086Z"
+    },
+    "removed": true,
+    "end": 1792772417.0558848,
+    "log_sha256": "e9de6415b91e356b4e0306f74677b8b75d12b11825cea8c797752d2bcd7ae34c"
+  },
+  "records": {
+    "cpu-only-repro.json": "c03e7281f8e65047169148207668f8b8c0fc2fd221b26ce2c098237402170a2a",
+    "cpu-only-recovery.json": "f39afa8128fa62416913fb7c282264f1bef9a979d09ea0a7990276fd17a1d9f1"
+  },
+  "scope": "Fresh CPU-only llmx-iq2-small-test build and its focused CTest pass. Vulkan helper bodies and assertions are unchanged. Original CI remains failed; corrected hosted head still required.",
+  "initial_log_access": "Unauthenticated log request returned HTTP403 before the credential helper was used.",
+  "ci_log": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq2-original-ubuntu-ci.log",
+    "sha256": "08bb098c077bb38fe9a12adaf26a4666414b1bded1e0399c094964ae30e3cbbb",
+    "bytes": 68278,
+    "job": 120516091584
+  },
+  "superseded_run_cancellation": "Cancellation requested successfully (HTTP202) after verifying run39983355769 belongs to gate/iq2-pair-20261023 at5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6. Original failed job log retained."
+}

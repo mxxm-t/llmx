@@ -1,0 +1,64 @@
+{
+  "review": "Final IQ2 pair current-main Markdown inventory and owner-page consistency review",
+  "base_commit": "a93d7925de32bc77da86bb4b692bad3acd5e1fd6",
+  "current_markdown_count": 129,
+  "base_markdown_count": 124,
+  "base_comparison": {
+    "modified": 13,
+    "added": 5,
+    "unchanged": 111,
+    "deleted": 0
+  },
+  "prior_checkpoint": {
+    "inventory": "benchmarks/iq2-pair-address-markdown-review-20261023.json",
+    "base_commit": "d420150072f1fe60dd7f11d2736fa0c2c5b1ac17",
+    "prior_inventory_count": 129,
+    "changed_since_prior": 12,
+    "unchanged_since_prior": 117,
+    "unchanged_pages_verified_by_sha256": true
+  },
+  "inventory_sha256": "195b1a43db556b20e3f2b2c179652fba0f959cb7a983bd9b46735e1574e5a34f",
+  "changed_since_prior_pages": [
+    {"path": "docs/ARCHITECTURE.md", "sha256": "a54aa6ab2d51e1c422958db3fa05b7eed0a8b0bccc9ca0a0827e746483ba07a9"},
+    {"path": "docs/src/model-runtime.md", "sha256": "664b8a59bf5ee42a37ba0a52e0f9265e2922642a603a50ced7ffc0c0dbc169bb"},
+    {"path": "docs/src/server.md", "sha256": "a24adf0b5b509a32cc887e7365fd6518d21731912f012137772642069eaecc1f"},
+    {"path": "docs/STATUS.md", "sha256": "5032a8e3a4d2c8fca8b1efb9ccc5290258e871ced96c22bc0ee518ab5ad76dc7"},
+    {"path": "docs/USAGE.md", "sha256": "b23bc5675e78677088ee88ac1a4dfbd8c7bd11de93ecef78acc30bfc7e627d5f"},
+    {"path": "docs/VULKAN.md", "sha256": "c9a1a88d49b6e6619f4c8ce5673f470443fcdd769158c5d2826388d960252928"},
+    {"path": "docs/src/cli-main.md", "sha256": "57f8eaef6c70f4629cb76f78f8ab899614504f99151769eebe10a1c94cea8368"},
+    {"path": "docs/src/quant-quant.md", "sha256": "c04c29deae941607398f04a5ee9030a85100408b54b4acb6d55d28567c77d4e6"},
+    {"path": "docs/src/quant-types.md", "sha256": "4e3763a0343a71e5bc0f7c038265d5d6a756501fff5cec1dbbb008e52fd899ec"},
+    {"path": "docs/src/quant-iq2-xs-grid.md", "sha256": "294df3cb0692fe5a57a653cc4cf2a165e9dfd1153e191e55ee743cad0a74a18d"},
+    {"path": "docs/src/quant-iq2-xxs-grid.md", "sha256": "b7c4e45eadb5cd5a5bafa37b90465b86b369a778dde466e9811765b1889dea74"},
+    {"path": "tools/health_dashboard/README.md", "sha256": "781ffd6183e4aaef3357fbcf3d52a8c32afb2ae9a4ab0f700954145dafef8dfd"}
+  ],
+  "owner_pages_reviewed": [
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/src/model-runtime.md",
+    "docs/src/server.md",
+    "docs/USAGE.md",
+    "docs/ROADMAP.md",
+    "docs/PRECISION.md",
+    "docs/VULKAN.md",
+    "docs/src/backends-vulkan.md",
+    "docs/src/quant-quant.md",
+    "docs/src/quant-types.md",
+    "docs/src/quant-iq2-xxs.md",
+    "docs/src/quant-iq2-xs.md",
+    "docs/src/quant-iq2-xxs-grid.md",
+    "docs/src/quant-iq2-xs-grid.md",
+    "docs/src/quant-iq2-s.md",
+    "docs/src/quant-iq3-xxs.md",
+    "tools/health_dashboard/README.md"
+  ],
+  "consistency_findings": [
+    "README keeps IQ2_XXS and IQ2_XS marked In development for CPU and Vulkan, with no quantize writer.",
+    "USAGE and the quant registry owner list IQ2_XXS and IQ2_XS as read-only decoder types.",
+    "The storage owner and ROADMAP both state 35 active GGML layouts; storage metadata does not imply execution support.",
+    "VULKAN.md describes the IQ2 small shader include and links the README as the single inference support matrix; no duplicate stale format list remains.",
+    "Format detail and precision pages separate implementation evidence from released-file and device qualification."
+  ],
+  "pending": ["existing-path timing against base a93d7925", "hosted landing CI"],
+  "scope_note": "Changed pages were reread against source and retained evidence. The 117 pages identical to the prior SHA-256 inventory carry forward that checkpoint. This is a documentation review, not a support or landing qualification."
+}

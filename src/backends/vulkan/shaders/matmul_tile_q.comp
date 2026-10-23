@@ -1,5 +1,5 @@
 #version 450
-#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS)
+#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)
 #define LLMX_LOOKUP
 #endif
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
@@ -32,6 +32,7 @@ int dot_word(uint w, uint x, int acc) { return acc + dotPacked4x8EXT(int(w), int
 int dot_word(uvec2 w, uvec2 x, int acc) { return dot_pairs(w, x, acc); }
 #endif
 #include "q.glsl"
+#include "iq2_layout.glsl"
 #ifdef LLMX_Q8MX
 #extension GL_ARB_gpu_shader_fp64 : require
 #extension GL_EXT_spirv_intrinsics : require
@@ -71,11 +72,13 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #if defined(LLMX_Q8MX) || defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"
 #endif
-#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS)
+#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)
 layout(set = 0, binding = 5) readonly buffer GRID { uint grid[]; };
 #define LOOKUP_GRID_SOURCE(i) grid[i]
 #ifdef LLMX_IQ3_XXS
 #define LOOKUP_GRID_SIZE 256u
+#elif defined(LLMX_IQ2_SMALL)
+#define LOOKUP_GRID_SIZE IQ2_SMALL_GRID_WORDS
 #elif defined(LLMX_IQ2_S)
 #define LOOKUP_GRID_SIZE 2048u
 #else
@@ -85,6 +88,10 @@ layout(set = 0, binding = 5) readonly buffer GRID { uint grid[]; };
 #ifdef LLMX_IQ3_XXS
 #define IQ3_XXS_GRID_WORD(i) lookup_words[i]
 #include "iq3_xxs.glsl"
+#elif defined(LLMX_IQ2_SMALL)
+#define IQ2_SMALL_HALF(i) (QBYTE(i) | (QBYTE((i) + 1u) << 8u))
+#define IQ2_GRID_WORD(i) lookup_words[i]
+#include "iq2_small.glsl"
 #elif defined(LLMX_IQ2_S)
 #define IQ2_GRID_WORD(i) lookup_words[i]
 #include "iq2_s.glsl"
@@ -101,7 +108,7 @@ float lookup_input(uint col, uint b, uint j) {
 }
 #ifdef LLMX_IQ3_XXS
 #include "iq3_xxs_dot.glsl"
-#elif defined(LLMX_IQ2_S)
+#elif defined(LLMX_IQ2_S) || defined(LLMX_IQ2_SMALL)
 #include "iq2_dot.glsl"
 #elif defined(LLMX_IQ3_S)
 #include "iq3_dot.glsl"
@@ -227,7 +234,7 @@ void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], 
 }
 
 void main() {
-#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS)
+#if defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)
     lookup_init();
 #endif
     uint tid = gl_LocalInvocationID.x;

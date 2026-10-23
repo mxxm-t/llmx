@@ -1,0 +1,670 @@
+{
+  "schema": "llmx.iq2-pair-eaa-landing.v1",
+  "scope": "Documentation/evidence landing checkpoint for IQ2_XXS and IQ2_XS on eaa08d839. No runtime, tests, fixtures, tools, build or workflow inputs changed after the hosted-tested feature head.",
+  "base_revision": "eaa08d83906a3bab822277b052278af671d4f824",
+  "hosted_tested_head": "66c1e87dd8a1c9f997f67f94651aa734e9620e35",
+  "hosted_ci": {
+    "run_id": 40007693183,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40007693183",
+    "head_sha": "66c1e87dd8a1c9f997f67f94651aa734e9620e35",
+    "main_sha": "eaa08d83906a3bab822277b052278af671d4f824",
+    "status": "completed",
+    "conclusion": "success",
+    "snapshot_path": "iq2-eaa-ci-observations/20261023T195755733050Z.json",
+    "snapshot_sha256": "589c1a977c37f394df5017809fc44424621b249b35e85d330543229f1dc23cae",
+    "observed_at": "2026-10-23T19:57:53.936104+00:00",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "timing": {
+    "path": "iq2-eaa-timing-analysis-20261023.json",
+    "sha256": "882ec876b71210d086c7aeaf389b4869ca2541676f237b39544af8084441006c",
+    "baseline_head": "eaa08d83906a3bab822277b052278af671d4f824",
+    "candidate_binary_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+    "baseline_binary_sha256": "f8e6469f76f3a34087d1680bfc3af3c447761517df6e958d035c3c72a5cd515a",
+    "calls": 54,
+    "warmups": 18,
+    "measured_calls": 36,
+    "cells": 9,
+    "samples_per_arm_per_cell": 2,
+    "terminal": {
+      "passed": true,
+      "removed": true,
+      "exit": 0,
+      "end": 1792785371.6333296
+    },
+    "monitor_returncode": 0,
+    "cell_means": [
+      {
+        "model": "qwen3-iq2_s",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6330.3,
+          "tg128": 263.775
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6328.425,
+          "tg128": 263.85
+        },
+        "candidate_change_percent": {
+          "pp512": -0.02961944931519911,
+          "tg128": 0.028433323855581172
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              2,
+              3
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.005369619325579222,
+              "tg128": 0.10247068199931153
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              4,
+              5
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.05388169412894328,
+              "tg128": -0.04544421722335601
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-iq3_xxs",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6673.17,
+          "tg128": 264.48
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6689.42,
+          "tg128": 264.5
+        },
+        "candidate_change_percent": {
+          "pp512": 0.2435124536015021,
+          "tg128": 0.007562008469452763
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              8,
+              9
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.3003885705373355,
+              "tg128": 0.0113580433877436
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              10,
+              11
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.18672388673182105,
+              "tg128": 0.003776007249922664
+            }
+          }
+        ]
+      },
+      {
+        "model": "iq3-s",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6989.85,
+          "tg128": 288.985
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6990.280000000001,
+          "tg128": 288.49
+        },
+        "candidate_change_percent": {
+          "pp512": 0.006151777219831622,
+          "tg128": -0.1712891672578154
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              14,
+              15
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.06023915373289945,
+              "tg128": -0.1073295710279365
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              16,
+              17
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.047919506672255974,
+              "tg128": -0.2351801895275618
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-iq4_nl",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6731.93,
+          "tg128": 273.14
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6730.535,
+          "tg128": 272.495
+        },
+        "candidate_change_percent": {
+          "pp512": -0.02072214060455657,
+          "tg128": -0.23614263747527842
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              20,
+              21
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.00044600977355813143,
+              "tg128": -0.05126890540886331
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              22,
+              23
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.041854976957511614,
+              "tg128": -0.4209216353720513
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-iq4_xs",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6549.75,
+          "tg128": 260.42
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6551.665,
+          "tg128": 261.045
+        },
+        "candidate_change_percent": {
+          "pp512": 0.029237757166300504,
+          "tg128": 0.23999692803933215
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              26,
+              27
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.09999740464752271,
+              "tg128": 0.5692526635639794
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              28,
+              29
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.04153096576291482,
+              "tg128": -0.0881732796626511
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-q8_0",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 8859.09,
+          "tg128": 400.12
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 8854.18,
+          "tg128": 401.91499999999996
+        },
+        "candidate_change_percent": {
+          "pp512": -0.055423299684276284,
+          "tg128": 0.4486154153753752
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              32,
+              33
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.17341125188717887,
+              "tg128": 0.03235923731765844
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              34,
+              35
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.06283131937858677,
+              "tg128": 0.8682559598494288
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-q3_k_s",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 6829.5650000000005,
+          "tg128": 272.755
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 6831.805,
+          "tg128": 272.23
+        },
+        "candidate_change_percent": {
+          "pp512": 0.03279857501905514,
+          "tg128": -0.1924804311561612
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              38,
+              39
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.034575005786918744,
+              "tg128": -0.17235688877478283
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              40,
+              41
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.031024132970602913,
+              "tg128": -0.21259438457590374
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen35-q4_k_m",
+        "dtype": "auto",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 7053.475,
+          "tg128": 312.8
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 7046.165,
+          "tg128": 313.345
+        },
+        "candidate_change_percent": {
+          "pp512": -0.10363685984567939,
+          "tg128": 0.17423273657288796
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              44,
+              45
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.10717612184054648,
+              "tg128": 0.14517065617136726
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              46,
+              47
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.10009726164517119,
+              "tg128": 0.20277548951270763
+            }
+          }
+        ]
+      },
+      {
+        "model": "qwen3-iq3_xxs",
+        "dtype": "f32",
+        "samples_per_arm": 2,
+        "base_mean_tokens_s": {
+          "pp512": 2015.345,
+          "tg128": 78.345
+        },
+        "candidate_mean_tokens_s": {
+          "pp512": 2009.85,
+          "tg128": 77.43
+        },
+        "candidate_change_percent": {
+          "pp512": -0.2726580312552018,
+          "tg128": -1.1679111621673233
+        },
+        "directional_pairs": [
+          {
+            "direction": "forward",
+            "indices": [
+              50,
+              51
+            ],
+            "order": [
+              "base",
+              "candidate"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": 0.24240312585550594,
+              "tg128": -1.4329580348004023
+            }
+          },
+          {
+            "direction": "reverse",
+            "indices": [
+              52,
+              53
+            ],
+            "order": [
+              "candidate",
+              "base"
+            ],
+            "candidate_rate_change_percent": {
+              "pp512": -0.7845115846540462,
+              "tg128": -0.9041130778046691
+            }
+          }
+        ]
+      }
+    ],
+    "activity": {
+      "samples": 112,
+      "intervals": 111,
+      "interval_flags": {
+        "disk": 1,
+        "unrelated_cpu": 5
+      },
+      "monitor_gap_intervals": 0,
+      "max_interval_seconds": 1.0033580099698156,
+      "process_missing_intervals": 0,
+      "disk_missing_intervals": 0,
+      "missed_process_observations": 48,
+      "null_process_delta_observations": 2140,
+      "process_appeared": 2140,
+      "process_disappeared": 836,
+      "gpu_missing_calls": [],
+      "uncovered_call_seconds": 0.6431708335876465,
+      "measured_flagged_calls": [
+        44,
+        45,
+        46
+      ],
+      "top_unrelated_cgroups": [
+        {
+          "cgroup": "0::/",
+          "observed_cpu_seconds": 9.51,
+          "name_at_start": null,
+          "cpus_at_start": null
+        },
+        {
+          "cgroup": "0::/system.slice/gpu-fan-control.service",
+          "observed_cpu_seconds": 6.94,
+          "name_at_start": null,
+          "cpus_at_start": null
+        },
+        {
+          "cgroup": "0::/system.slice/containerd.service",
+          "observed_cpu_seconds": 6.46,
+          "name_at_start": null,
+          "cpus_at_start": null
+        },
+        {
+          "cgroup": "0::/system.slice/docker.service",
+          "observed_cpu_seconds": 5.2,
+          "name_at_start": null,
+          "cpus_at_start": null
+        },
+        {
+          "cgroup": "0::/user.slice/user-0.slice/session-126.scope",
+          "observed_cpu_seconds": 2.17,
+          "name_at_start": null,
+          "cpus_at_start": null
+        }
+      ],
+      "uncovered_calls": [
+        {
+          "index": 53,
+          "seconds": 0.6431708335876465
+        }
+      ]
+    },
+    "interpretation": "Eight default-policy cells range from -0.104% to +0.244% PP and -0.236% to +0.449% TG. The explicit F32 IQ3_XXS control is -0.273% PP/-1.168% TG, with TG directional pairs -1.433%/-0.904%. Root accepts this bounded observed tradeoff under repository policy. Two samples per arm/cell do not establish a noise band, zero-cost claim, equivalence or causal attribution. All calls, samples, activity observations and the 0.643-second uncovered tail remain in the source analysis.",
+    "analysis_passed": true,
+    "all_planned_calls_passed": true,
+    "candidate_source_tree": "916c45408c5430b29f2d64482059626bb554650d",
+    "candidate_revision_kind": "source-tree hash, not a Git commit",
+    "prior_launch_preflight_refusals": [
+      {
+        "path": "iq2-eaa-timing-collected-20261023/preflight-memory-stop-v1.json",
+        "sha256": "8b875d9c8d651d3d506b0cdf574f29d9b64bda0ecf3d9e820f9b5874884dee50",
+        "record": {
+          "recorded_at": "2026-10-23T22:45:35.646853",
+          "stage": "resources before container creation",
+          "mem_available": 12578181120,
+          "required_mem_available": 15032385536,
+          "disk_free": 276387856384,
+          "required_disk_free": 25769803776,
+          "passed": false,
+          "container_created": false,
+          "samples_run": 0,
+          "source": "Captured run-performance.py traceback from the first launch after timing freeze"
+        }
+      },
+      {
+        "path": "iq2-eaa-timing-collected-20261023/preflight-cpu-stop-v1.json",
+        "sha256": "063fabf2566ceb110bc3afcf39b99fd0265ef9daeb73c2cf750fef1fa0b74b90",
+        "record": {
+          "recorded_at": "2026-10-23T22:51:40.497044",
+          "stage": "CPU ownership guard before container creation",
+          "peer": "llmx-ddev-build-lp4",
+          "peer_cpus": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13
+          ],
+          "timing_cpus": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "passed": false,
+          "container_created": false,
+          "samples_run": 0,
+          "source": "Captured run-performance.py traceback from the second launch after timing freeze"
+        }
+      },
+      {
+        "path": "iq2-eaa-timing-collected-20261023/preflight-cpu-stop-v2.json",
+        "sha256": "0cf667fd562667a727b481e7131a719449644feaa704be940bdfda2f967ab9ed",
+        "record": {
+          "recorded_at": "2026-10-23T22:55:48.827169",
+          "passed": false,
+          "stage": "CPU guard before timing container creation",
+          "peer": "llmx-ddev-build-lp4ng",
+          "peer_cpus": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13
+          ],
+          "container_created": false,
+          "samples_run": 0,
+          "source": "Captured third-launch traceback; retained after later successful admission"
+        }
+      }
+    ]
+  },
+  "source_carry_from_tested_head": {
+    "all_paths_documentation_only": true,
+    "runtime_test_fixture_tool_build_workflow_inputs_unchanged": true,
+    "changed_paths_since_tested_head": [
+      "README.md",
+      "docs/ROADMAP.md",
+      "docs/STATUS.md",
+      "docs/benchmarks/iq2-pair-eaa-device-20261023.json",
+      "docs/benchmarks/iq2-pair-eaa-identity-20261023.json",
+      "docs/benchmarks/iq2-pair-eaa-landing-20261023.json"
+    ]
+  },
+  "new_format_comparison_scope": "Previously recorded pinned mx Vulkan comparisons and the current-binary bridge remain in their existing records. The tested candidate library and 229 compiled shader outputs match the retained qualified set. This eaa existing-path timing is not an mx comparison. No ROCm result or claim is made.",
+  "landing_state": "The IQ2 pair lands as one feature commit by fast-forward from unchanged base eaa08d839. This landing tree carries documentation and evidence changes only from hosted-tested head 66c1e87dd.",
+  "related_device_preflight_history": {
+    "retained_in": "docs/benchmarks/iq2-pair-eaa-device-20261023.json",
+    "scope": "Separate device-harness setup failures, not timing preflight stops."
+  }
+}

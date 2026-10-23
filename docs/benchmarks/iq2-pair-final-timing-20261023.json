@@ -1,0 +1,1514 @@
+{
+  "schema_version": 1,
+  "scope": "Completed MI50 main19/current IQ2 candidate existing-path timing plus frozen-address/current candidate XXS/XS bridge; no new numerical or mx run.",
+  "decision": "Root accepts the bounded observed tradeoff with every small loss retained. No robust speed gain, performance equivalence or causal attribution is claimed.",
+  "terminal": {
+    "passed": true,
+    "removed": true,
+    "exit": 0,
+    "end": 1792770410.4811203
+  },
+  "oom_killed": false,
+  "calls": {
+    "planned": 66,
+    "passed": 66,
+    "warmup": 22,
+    "measured": 44,
+    "cells": 11,
+    "measured_samples_per_arm_per_cell": 2,
+    "order_per_cell": "warm reference/candidate, measured reference/candidate, measured candidate/reference",
+    "discarded": 0,
+    "replaced": 0
+  },
+  "configuration": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "gpu_node": "/dev/dri/renderD130",
+    "gpu_pci": "0000:c9:00.0",
+    "gpu_uuid": "00000000-c900-0000-0000-000000000000",
+    "gpu_driver": "Mesa 25.0.7-2+deb13u1",
+    "cpu_set": "4-7",
+    "quota": 4,
+    "memory_gib": 8,
+    "threads": 4,
+    "ubatch": 512,
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "load_mode": "auto",
+    "repeats": 1,
+    "activity_flags": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    }
+  },
+  "benchmark": "P512/G128, r1; dtype auto resolves F16, except explicit F32 IQ3_XXS control. PP/TG are independently reset phases, not request latency or decode after this prompt.",
+  "pins": {
+    "base_revision": "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+    "candidate_tree": "ba76a13f3b5878ee04d82d5e0b11d2437451bbdf",
+    "executables": {
+      "base": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/main/build/llmx",
+        "sha256": "6acd61ad7c891353dd2c7511a648b1ca7013f99e98cc7d1a1be3bf7b8c8b7729",
+        "version": "llmx 0.1.0+unknown numerics 227a1fd84d620024"
+      },
+      "candidate": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/candidate/build/llmx",
+        "sha256": "ece917c07133d8973b848464a51857fdc587a8b486d669154a176cc9b1f52fdf",
+        "version": "llmx 0.1.0+unknown numerics 967de8ae61e0935c"
+      },
+      "frozen": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/build/llmx",
+        "sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+        "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498"
+      }
+    },
+    "source_arms": {
+      "base": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/main/source",
+        "build": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/main/build",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/final-timing-v2/timing-source-pins.json",
+        "revision": "19a312f60d380f7139419c7bfcc24c6ebd08a616",
+        "library_sha256": "77e1102b31198ae90c5b4268a99ea577a085bf516e613e2aea74226826a16904"
+      },
+      "candidate": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/candidate/source",
+        "build": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/current-main-integration-v3/candidate/build",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/final-timing-v2/timing-source-pins.json",
+        "revision": "ba76a13f3b5878ee04d82d5e0b11d2437451bbdf",
+        "library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+      },
+      "frozen": {
+        "tree": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/source",
+        "build": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/address-v1/build",
+        "manifest": "/zpool1/llmx-xdev-quant-20261020/iq2-xxs-xs-20261023/final-timing-v2/timing-source-pins.json",
+        "revision": "585616c (raw frozen manifest; not current source)",
+        "library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6"
+      }
+    },
+    "model_files": {
+      "qwen3-q8_0": {
+        "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+        "bytes": 639446688,
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+      },
+      "qwen35-q4_k_m": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q4_K_M.gguf",
+        "bytes": 532517120,
+        "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+      },
+      "qwen3-iq4_nl": {
+        "path": "/zpool1/models/llmx-xdev-iq4-nl-20261003/Qwen3-0.6B-IQ4_NL.gguf",
+        "bytes": 381566656,
+        "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+      },
+      "qwen3-iq4_xs": {
+        "path": "/zpool1/models/llmx-xdev-iq4-xs-20261021/Qwen3-0.6B-IQ4_XS.gguf",
+        "bytes": 367804096,
+        "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+      },
+      "qwen3-q3_k_s": {
+        "path": "/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q3_K_S.gguf",
+        "bytes": 323075776,
+        "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67",
+        "repo": "unsloth/Qwen3-0.6B-GGUF",
+        "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b"
+      },
+      "iq3-s": {
+        "path": "/zpool1/models/Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf",
+        "bytes": 409375296,
+        "sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3"
+      },
+      "qwen3-iq2_s": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq2-s-20261023/models/Qwen_Qwen3-0.6B-IQ2_M.gguf",
+        "bytes": 331761056,
+        "sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07"
+      },
+      "qwen3-iq3_xxs": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/models/Qwen_Qwen3-0.6B-IQ3_XXS.gguf",
+        "bytes": 345867680,
+        "sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701"
+      },
+      "iq2_xxs": {
+        "path": "/zpool1/models/llmx-iq2-pair-20261023/Qwen3-0.6B.i1-IQ2_XXS.gguf",
+        "bytes": 280496896,
+        "sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961"
+      },
+      "iq2_xs": {
+        "path": "/zpool1/models/llmx-iq2-pair-20261023/Qwen3-0.6B.i1-IQ2_XS.gguf",
+        "bytes": 293047040,
+        "sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b"
+      }
+    }
+  },
+  "cells": [
+    {
+      "scope": "existing",
+      "model": "qwen3-iq2_s",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6336.06,
+              6323.17
+            ],
+            "mean": 6329.615
+          },
+          "tg128": {
+            "samples": [
+              261.14,
+              264.53
+            ],
+            "mean": 262.835
+          },
+          "activity": {
+            "flagged_calls": {
+              "2": [
+                "unrelated_cpu"
+              ],
+              "5": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 2,
+            "unrelated_cpu_percent": 210.0957130088439,
+            "idle_percent": 80.19631745085192,
+            "iowait_percent": 0.0992443369217757,
+            "disk_bytes_per_second": 3019947.1710635554
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6327.96,
+              6315.25
+            ],
+            "mean": 6321.605
+          },
+          "tg128": {
+            "samples": [
+              264.06,
+              264.28
+            ],
+            "mean": 264.16999999999996
+          },
+          "activity": {
+            "flagged_calls": {
+              "3": [
+                "unrelated_cpu"
+              ],
+              "4": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 2,
+            "unrelated_cpu_percent": 236.7478540152726,
+            "idle_percent": 81.57030469759295,
+            "iowait_percent": 0.09820386896462617,
+            "disk_bytes_per_second": 1806958.0874316145
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            2,
+            3
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.12783969848770838,
+            "tg128": 1.118174159454699
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            4,
+            5
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.12525363069473272,
+            "tg128": -0.09450723925452653
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": -0.12654798119633437,
+        "tg128": 0.5079232217931384
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-iq3_xxs",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6686.89,
+              6672.57
+            ],
+            "mean": 6679.73
+          },
+          "tg128": {
+            "samples": [
+              265.05,
+              264.63
+            ],
+            "mean": 264.84000000000003
+          },
+          "activity": {
+            "flagged_calls": {
+              "8": [
+                "unrelated_cpu"
+              ],
+              "11": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 5,
+            "unrelated_cpu_percent": 225.13427325424254,
+            "idle_percent": 81.1512102622969,
+            "iowait_percent": 0.12233058747629988,
+            "disk_bytes_per_second": 10571179.89094568
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6683.87,
+              6685.6
+            ],
+            "mean": 6684.735000000001
+          },
+          "tg128": {
+            "samples": [
+              265.24,
+              264.82
+            ],
+            "mean": 265.03
+          },
+          "activity": {
+            "flagged_calls": {
+              "9": [
+                "unrelated_cpu"
+              ],
+              "10": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 196.9637821083693,
+            "idle_percent": 82.23612023284805,
+            "iowait_percent": 0.1165278408814341,
+            "disk_bytes_per_second": 177134.96570016147
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            8,
+            9
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.04516299804543378,
+            "tg128": 0.07168458781361409
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            10,
+            11
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.19527708214377437,
+            "tg128": 0.07179835997430661
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.07492817823475661,
+        "tg128": 0.07174142878716427
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "iq3-s",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6985.6,
+              6989.0
+            ],
+            "mean": 6987.3
+          },
+          "tg128": {
+            "samples": [
+              289.63,
+              290.21
+            ],
+            "mean": 289.91999999999996
+          },
+          "activity": {
+            "flagged_calls": {
+              "14": [
+                "unrelated_cpu"
+              ],
+              "17": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 229.47917374374722,
+            "idle_percent": 80.48170662483884,
+            "iowait_percent": 0.0,
+            "disk_bytes_per_second": 1569233.6028134695
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6976.86,
+              6980.25
+            ],
+            "mean": 6978.555
+          },
+          "tg128": {
+            "samples": [
+              289.12,
+              288.02
+            ],
+            "mean": 288.57
+          },
+          "activity": {
+            "flagged_calls": {
+              "15": [
+                "unrelated_cpu"
+              ],
+              "16": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 225.10633491552966,
+            "idle_percent": 81.26760849550321,
+            "iowait_percent": 0.10660162858427613,
+            "disk_bytes_per_second": 576559.7952256869
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            14,
+            15
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.125114521300973,
+            "tg128": -0.17608673134689168
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            16,
+            17
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.12519673773071505,
+            "tg128": -0.754625960511357
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": -0.12515563951740472,
+        "tg128": -0.4656456953642252
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-iq4_nl",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6733.18,
+              6725.57
+            ],
+            "mean": 6729.375
+          },
+          "tg128": {
+            "samples": [
+              273.91,
+              273.76
+            ],
+            "mean": 273.83500000000004
+          },
+          "activity": {
+            "flagged_calls": {
+              "20": [
+                "unrelated_cpu"
+              ],
+              "23": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 1,
+            "unrelated_cpu_percent": 227.08674697082648,
+            "idle_percent": 81.37538219934144,
+            "iowait_percent": 0.06459759220176688,
+            "disk_bytes_per_second": 1345483.643387646
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6735.07,
+              6731.62
+            ],
+            "mean": 6733.344999999999
+          },
+          "tg128": {
+            "samples": [
+              273.67,
+              272.14
+            ],
+            "mean": 272.905
+          },
+          "activity": {
+            "flagged_calls": {
+              "21": [
+                "unrelated_cpu"
+              ],
+              "22": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 219.9370924274868,
+            "idle_percent": 81.41701300106845,
+            "iowait_percent": 0.06243127146702727,
+            "disk_bytes_per_second": 1888529.419108877
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            20,
+            21
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.02806994614727998,
+            "tg128": -0.08762002117483902
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            22,
+            23
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.08995520082313302,
+            "tg128": -0.5917592051431941
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.05899507755176003,
+        "tg128": -0.3396205744335301
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-iq4_xs",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6550.25,
+              6553.97
+            ],
+            "mean": 6552.110000000001
+          },
+          "tg128": {
+            "samples": [
+              261.4,
+              261.5
+            ],
+            "mean": 261.45
+          },
+          "activity": {
+            "flagged_calls": {
+              "26": [
+                "unrelated_cpu"
+              ],
+              "29": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 221.18636486319517,
+            "idle_percent": 82.29669772909246,
+            "iowait_percent": 0.16586400673585625,
+            "disk_bytes_per_second": 2297003.2237207843
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6539.31,
+              6545.34
+            ],
+            "mean": 6542.325000000001
+          },
+          "tg128": {
+            "samples": [
+              261.27,
+              260.14
+            ],
+            "mean": 260.705
+          },
+          "activity": {
+            "flagged_calls": {
+              "27": [
+                "unrelated_cpu"
+              ],
+              "28": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 1,
+            "unrelated_cpu_percent": 223.54220868893105,
+            "idle_percent": 81.90697811726042,
+            "iowait_percent": 0.026310159630752995,
+            "disk_bytes_per_second": 345613.21196275414
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            26,
+            27
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.16701652608678286,
+            "tg128": -0.04973221117061666
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            28,
+            29
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.13167591551380697,
+            "tg128": -0.5200764818355741
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": -0.14934120458904854,
+        "tg128": -0.2849493210938969
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-q8_0",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              8867.84,
+              8836.89
+            ],
+            "mean": 8852.365
+          },
+          "tg128": {
+            "samples": [
+              401.18,
+              401.67
+            ],
+            "mean": 401.425
+          },
+          "activity": {
+            "flagged_calls": {
+              "32": [
+                "unrelated_cpu"
+              ],
+              "35": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 199.6674991761024,
+            "idle_percent": 79.57197961244383,
+            "iowait_percent": 0.049145172850017224,
+            "disk_bytes_per_second": 5069155.123409871
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              8865.66,
+              8857.45
+            ],
+            "mean": 8861.555
+          },
+          "tg128": {
+            "samples": [
+              401.84,
+              400.48
+            ],
+            "mean": 401.15999999999997
+          },
+          "activity": {
+            "flagged_calls": {
+              "33": [
+                "unrelated_cpu"
+              ],
+              "34": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 227.26247653809088,
+            "idle_percent": 80.4483745103275,
+            "iowait_percent": 0.02874466094799076,
+            "disk_bytes_per_second": 177893.5148498653
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            32,
+            33
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.024583213048501307,
+            "tg128": 0.16451468168900973
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            34,
+            35
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.23266103798962323,
+            "tg128": -0.29626310155101976
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.10381406550679095,
+        "tg128": -0.06601482219593668
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-q3_k_s",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              6826.42,
+              6826.68
+            ],
+            "mean": 6826.55
+          },
+          "tg128": {
+            "samples": [
+              273.47,
+              273.52
+            ],
+            "mean": 273.495
+          },
+          "activity": {
+            "flagged_calls": {
+              "38": [
+                "unrelated_cpu"
+              ],
+              "41": [
+                "disk",
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 236.00744472835294,
+            "idle_percent": 77.86665490837926,
+            "iowait_percent": 0.13339743209300114,
+            "disk_bytes_per_second": 27497711.206540797
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6832.7,
+              6829.96
+            ],
+            "mean": 6831.33
+          },
+          "tg128": {
+            "samples": [
+              273.72,
+              271.69
+            ],
+            "mean": 272.70500000000004
+          },
+          "activity": {
+            "flagged_calls": {
+              "39": [
+                "unrelated_cpu"
+              ],
+              "40": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 5,
+            "unrelated_cpu_percent": 146.16844364393108,
+            "idle_percent": 80.80775963227644,
+            "iowait_percent": 0.13784931427065417,
+            "disk_bytes_per_second": 3810472.2040961636
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            38,
+            39
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.09199551155656405,
+            "tg128": 0.0914177057812493
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            40,
+            41
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.04804678115861716,
+            "tg128": -0.6690552793214288
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.07002072789330516,
+        "tg128": -0.28885354394045937
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen35-q4_k_m",
+      "dtype": "auto",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              7033.43,
+              7044.74
+            ],
+            "mean": 7039.085
+          },
+          "tg128": {
+            "samples": [
+              305.09,
+              315.75
+            ],
+            "mean": 310.41999999999996
+          },
+          "activity": {
+            "flagged_calls": {
+              "44": [
+                "disk",
+                "unrelated_cpu"
+              ],
+              "47": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 5,
+            "unrelated_cpu_percent": 226.3182188127156,
+            "idle_percent": 57.96429357100355,
+            "iowait_percent": 0.19631891652548808,
+            "disk_bytes_per_second": 3749155.45345217
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              7040.36,
+              7043.14
+            ],
+            "mean": 7041.75
+          },
+          "tg128": {
+            "samples": [
+              310.59,
+              316.67
+            ],
+            "mean": 313.63
+          },
+          "activity": {
+            "flagged_calls": {
+              "45": [
+                "unrelated_cpu"
+              ],
+              "46": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 10,
+            "unrelated_cpu_percent": 263.32999999850745,
+            "idle_percent": 60.7534439758936,
+            "iowait_percent": 0.028407051879811858,
+            "disk_bytes_per_second": 2348880.0326008373
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            44,
+            45
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.09852945149093628,
+            "tg128": 1.8027467304729816
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            46,
+            47
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.022711980853795666,
+            "tg128": 0.2913697545526617
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.03786003436525576,
+        "tg128": 1.0340828554861181
+      }
+    },
+    {
+      "scope": "existing",
+      "model": "qwen3-iq3_xxs",
+      "dtype": "f32",
+      "reference": "base",
+      "samples_per_arm": 2,
+      "arms": {
+        "base": {
+          "pp512": {
+            "samples": [
+              2026.2,
+              2020.3
+            ],
+            "mean": 2023.25
+          },
+          "tg128": {
+            "samples": [
+              78.48,
+              78.56
+            ],
+            "mean": 78.52000000000001
+          },
+          "activity": {
+            "flagged_calls": {
+              "50": [
+                "unrelated_cpu"
+              ],
+              "53": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 171.87074408213402,
+            "idle_percent": 87.04090464690367,
+            "iowait_percent": 0.07339597278804427,
+            "disk_bytes_per_second": 1499440.618723982
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              2020.46,
+              2019.79
+            ],
+            "mean": 2020.125
+          },
+          "tg128": {
+            "samples": [
+              77.77,
+              77.67
+            ],
+            "mean": 77.72
+          },
+          "activity": {
+            "flagged_calls": {
+              "51": [
+                "disk",
+                "unrelated_cpu"
+              ],
+              "52": [
+                "disk",
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 10,
+            "unrelated_cpu_percent": 189.53020636767968,
+            "idle_percent": 83.56990154275186,
+            "iowait_percent": 0.09600117735651616,
+            "disk_bytes_per_second": 20510233.377050404
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            50,
+            51
+          ],
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.2832889152107443,
+            "tg128": -0.9046890927625006
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            52,
+            53
+          ],
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.025243775676875302,
+            "tg128": -1.13289205702648
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": -0.15445446682318398,
+        "tg128": -1.0188487009679226
+      }
+    },
+    {
+      "scope": "bridge",
+      "model": "iq2_xxs",
+      "dtype": "auto",
+      "reference": "frozen",
+      "samples_per_arm": 2,
+      "arms": {
+        "frozen": {
+          "pp512": {
+            "samples": [
+              6739.25,
+              6752.91
+            ],
+            "mean": 6746.08
+          },
+          "tg128": {
+            "samples": [
+              263.5,
+              271.58
+            ],
+            "mean": 267.53999999999996
+          },
+          "activity": {
+            "flagged_calls": {
+              "56": [
+                "unrelated_cpu"
+              ],
+              "59": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 130.50594615854286,
+            "idle_percent": 82.177934548042,
+            "iowait_percent": 0.0775872367645276,
+            "disk_bytes_per_second": 2721046.394012585
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6750.58,
+              6749.14
+            ],
+            "mean": 6749.860000000001
+          },
+          "tg128": {
+            "samples": [
+              271.75,
+              267.56
+            ],
+            "mean": 269.655
+          },
+          "activity": {
+            "flagged_calls": {
+              "57": [
+                "unrelated_cpu"
+              ],
+              "58": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 1,
+            "unrelated_cpu_percent": 248.98606041216743,
+            "idle_percent": 79.39109966247509,
+            "iowait_percent": 0.04651807234861685,
+            "disk_bytes_per_second": 1377084.2209332378
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            56,
+            57
+          ],
+          "order": [
+            "frozen",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.1681195978781025,
+            "tg128": 3.130929791271342
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            58,
+            59
+          ],
+          "order": [
+            "candidate",
+            "frozen"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.05582778387390741,
+            "tg128": -1.4802268208262692
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": 0.056032540379025164,
+        "tg128": 0.7905359946176249
+      }
+    },
+    {
+      "scope": "bridge",
+      "model": "iq2_xs",
+      "dtype": "auto",
+      "reference": "frozen",
+      "samples_per_arm": 2,
+      "arms": {
+        "frozen": {
+          "pp512": {
+            "samples": [
+              6277.02,
+              6272.5
+            ],
+            "mean": 6274.76
+          },
+          "tg128": {
+            "samples": [
+              281.19,
+              281.1
+            ],
+            "mean": 281.145
+          },
+          "activity": {
+            "flagged_calls": {
+              "62": [
+                "unrelated_cpu"
+              ],
+              "65": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0.3091397285461426,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 0,
+            "unrelated_cpu_percent": 213.91249592938107,
+            "idle_percent": 82.03797911795044,
+            "iowait_percent": 0.08435643527669712,
+            "disk_bytes_per_second": 495090.9596718105
+          }
+        },
+        "candidate": {
+          "pp512": {
+            "samples": [
+              6267.86,
+              6273.39
+            ],
+            "mean": 6270.625
+          },
+          "tg128": {
+            "samples": [
+              281.34,
+              280.75
+            ],
+            "mean": 281.04499999999996
+          },
+          "activity": {
+            "flagged_calls": {
+              "63": [
+                "unrelated_cpu"
+              ],
+              "64": [
+                "unrelated_cpu"
+              ]
+            },
+            "uncovered_seconds": 0,
+            "gpu_missing_calls": [],
+            "process_missed_observations": 1,
+            "unrelated_cpu_percent": 171.24416805616374,
+            "idle_percent": 80.84066591320331,
+            "iowait_percent": 0.08740879759062326,
+            "disk_bytes_per_second": 1811339.1768090893
+          }
+        }
+      },
+      "pairs": [
+        {
+          "direction": "forward",
+          "indices": [
+            62,
+            63
+          ],
+          "order": [
+            "frozen",
+            "candidate"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": -0.1459291192317469,
+            "tg128": 0.05334471353888315
+          }
+        },
+        {
+          "direction": "reverse",
+          "indices": [
+            64,
+            65
+          ],
+          "order": [
+            "candidate",
+            "frozen"
+          ],
+          "candidate_rate_change_percent": {
+            "pp512": 0.014188919888402651,
+            "tg128": -0.12451085023124087
+          }
+        }
+      ],
+      "candidate_rate_change_percent": {
+        "pp512": -0.06589893477998432,
+        "tg128": -0.035568834587140774
+      }
+    }
+  ],
+  "activity": {
+    "samples": 134,
+    "intervals": 133,
+    "interval_flags": {
+      "unrelated_cpu": 132,
+      "disk": 5
+    },
+    "monitor_gap_intervals": 0,
+    "max_interval_seconds": 1.0024620409822091,
+    "process_missing_intervals": 0,
+    "disk_missing_intervals": 0,
+    "missed_process_observations": 78,
+    "null_process_delta_observations": 2097,
+    "process_appeared": 2097,
+    "process_disappeared": 701,
+    "gpu_missing_calls": [],
+    "uncovered_call_seconds": 0.3091397285461426,
+    "measured_flagged_calls": [
+      2,
+      3,
+      4,
+      5,
+      8,
+      9,
+      10,
+      11,
+      14,
+      15,
+      16,
+      17,
+      20,
+      21,
+      22,
+      23,
+      26,
+      27,
+      28,
+      29,
+      32,
+      33,
+      34,
+      35,
+      38,
+      39,
+      40,
+      41,
+      44,
+      45,
+      46,
+      47,
+      50,
+      51,
+      52,
+      53,
+      56,
+      57,
+      58,
+      59,
+      62,
+      63,
+      64,
+      65
+    ],
+    "top_unrelated_cgroups": [
+      {
+        "cgroup": "0::/system.slice/docker-4445a546f3059da8de4739d4cc692f47923e80e2b6e1e4f4cc829ce3b71c0865.scope",
+        "observed_cpu_seconds": 185.93,
+        "name_at_start": "/llmx-ddev-pf-ctest",
+        "cpus_at_start": "4-5"
+      },
+      {
+        "cgroup": "0::/system.slice/docker-189c59dfd3eb3238de0576b225124e465657bad004c2934123e0b3b9594be8f9.scope",
+        "observed_cpu_seconds": 49.07,
+        "name_at_start": null,
+        "cpus_at_start": null
+      },
+      {
+        "cgroup": "0::/",
+        "observed_cpu_seconds": 14.73,
+        "name_at_start": null,
+        "cpus_at_start": null
+      },
+      {
+        "cgroup": "0::/system.slice/gpu-fan-control.service",
+        "observed_cpu_seconds": 9.59,
+        "name_at_start": null,
+        "cpus_at_start": null
+      },
+      {
+        "cgroup": "0::/system.slice/docker-cd1261f201e93542d16f317768bd1fea7b745706dce688b3ca29d8b53c14f38c.scope",
+        "observed_cpu_seconds": 3.39,
+        "name_at_start": "/llmx-ldev-gate-27b",
+        "cpus_at_start": "10,11"
+      }
+    ],
+    "uncovered_calls": [
+      {
+        "index": 65,
+        "seconds": 0.3091397285461426
+      }
+    ]
+  },
+  "carry": {
+    "claim": "Existing frozen-address numerical and matched mx Vulkan evidence retains its tested binary/source scope. The candidate Vulkan library is byte-identical and all229 compiled shader outputs match; the short XXS/XS bridge provides current-binary timing context, not a numerical rerun or equivalence proof.",
+    "candidate_and_frozen_vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+    "shader_comparison": {
+      "candidate_shader_count": 229,
+      "retained_address_v1_shader_count": 229,
+      "all_shader_bytes_identical": true,
+      "proof_sha256": "acbc410a6b99b8e631cbcf36f1e3ec87eeb458d94349a65eed48afc097a2c49e",
+      "proof_source_manifest_sha256": "1afbe5755c35a43f3c95ff918c12037366f7dd55e816056a38d2d9cacc9a9305"
+    },
+    "prior_matched_reference_record": "iq2-pair-broad-screen-20261023.json",
+    "prior_address_record": "iq2-pair-address-screen-20261023.json",
+    "current_integration_record": "iq2-pair-current-main-integration-20261023.json"
+  },
+  "limits": [
+    "Two measured observations per arm/cell plus one warmup per arm. Screen only; no layout/noise-band or causal claim from small differences.",
+    "All66 planned calls retained;22warm/44measured; no discarded/replaced slow or activity-flagged samples and no arbitrary minor-regression cutoff.",
+    "PP/TG phases reset independently; rates do not establish decode-after-prompt or request latency.",
+    "Whole-disk and host activity are not process-attributed IO; appeared/disappeared/null process deltas and sample overlap limit attribution. Missing counters are unknown, not zero.",
+    "Current main19/current IQ2 candidate existing-path comparison and frozen-address/current bridge only. Broad mx comparison remains separate."
+  ],
+  "pending": [
+    "Exact-head hosted CI and landing; feature remains unmerged."
+  ],
+  "records": {
+    "analysis": {
+      "path": "build-quant-resume-20261020/iq2-final-timing-analysis-20261023.json",
+      "sha256": "643f8dd13113b38d2332edfd8c2fbbcba210cf9434a630ae06f5b583b5dc35d4"
+    },
+    "analysis_markdown_sha256": "e48bc42ce9ac1dcc8f535d75bf147e2540b24232b757f7b878c5d8695d85797b",
+    "collected_root": "build-quant-resume-20261020/iq2-final-timing-collected-20261023",
+    "launch_result_sha256": "5a9574ca95993ff0012deeef4f705f148543e46bb9828d3442c399e5172f4962",
+    "complete_sha256": "2d9fa93c96bf9ad68b75bb529380a561a69df298a87da839123dc65a74a99f01",
+    "executed_plan_sha256": "57fc5d23fc17e1c31fd76a5e019993225a1fea5e7937295d2f472b7fb7f725cb",
+    "activity_sha256": "dd2ef337ba13e1b6c3033b77cd7d862766df2b0600d785f7b9450c617c6db6fa",
+    "timing_freeze_sha256": "bb89ae70f48fceed9286967641289a201e2ae46f233e761e010dd3b63fa55b6d",
+    "source_pins_sha256": "a369460255cb93e35da8ef91db97499538c33be8ed18ceff0fa7e987edbedc47",
+    "collection_pins_sha256": "5a66337930c56f704d6b5bbebd31c82916f5b2c26655d0d86879cc124be57d04",
+    "activity_intervals_sha256": "b9702ac88fafa10972d62398b10dc38fd2ddaed3c2511d30a802848fa70ce66a"
+  }
+}

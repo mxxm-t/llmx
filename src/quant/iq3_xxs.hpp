@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "core/fp16.hpp"
+#include "quant/iq_signs.hpp"
 #include "quant/types.hpp"
 
 namespace quant {
@@ -9,15 +10,6 @@ namespace quant {
 inline constexpr uint32_t IQ3_XXS_GRID[256] = {
 #include "quant/iq3_xxs_grid.inc"
 };
-
-// The eighth sign makes the number of negative lanes even.
-inline uint8_t iq3_xxs_signs(unsigned code) {
-    unsigned parity = code;
-    parity ^= parity >> 4;
-    parity ^= parity >> 2;
-    parity ^= parity >> 1;
-    return uint8_t(code | ((parity & 1u) << 7));
-}
 
 // Each 32 values share an odd multiplier divided by four and four seven-bit sign codes.
 inline void dequantize_row_iq3_xxs(const uint8_t* src, float* dst, size_t nblocks) {
@@ -31,7 +23,7 @@ inline void dequantize_row_iq3_xxs(const uint8_t* src, float* dst, size_t nblock
             const float scaled = d * float(1 + 2 * (word >> 28)) * 0.25f;
             for (size_t v = 0; v < 8; ++v) {
                 const uint32_t vector = IQ3_XXS_GRID[p[2 + 8 * g + v]];
-                const uint8_t signs = iq3_xxs_signs((word >> (7 * (v / 2))) & 127u);
+                const uint8_t signs = iq_even_parity_signs((word >> (7 * (v / 2))) & 127u);
                 for (size_t lane = 0; lane < 4; ++lane) {
                     const float value = scaled * float((vector >> (8 * lane)) & 255u);
                     dst[b * IQ3_XXS_BLOCK + 32 * g + 4 * v + lane] =

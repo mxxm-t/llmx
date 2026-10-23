@@ -1,0 +1,128 @@
+{
+  "schema": "llmx-iq2-pair-released-short-v1",
+  "format": "IQ2_XXS",
+  "scope": "Released-file independent HF comparison with the unchanged file-exact consumer. XS and long-context checks remain open. Requesting int8 is recorded separately from proving each actual dispatch.",
+  "execution_sha256": "fd75f97b7913dc732bc4b9b675c34d2ab300207a111df59d1014fdf6e6e0caab",
+  "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+  "reference_hashes": {
+    "baseline_logits.json": "6990c47138cfcbb27c831c022530d6d09cea4fb7ee0c72e9684d6d8811d53941",
+    "baseline_perplexity.json": "4622087ae717ab2e00ce617363d63c8c931e14be5eac8b939301cdfeccc121e0"
+  },
+  "version": "llmx 0.1.0+unknown numerics 16e571d945aa0498",
+  "binary_sha256": "be44a6b6369c8e716529e0356bae237779d15d0f9301d36aedab4e1462889657",
+  "artifacts": {
+    "int8.log": "493bf9909d65b78b7338573cc8715cd6f16e2d4627cba8c51b5660078d6c28aa",
+    "device.txt": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "auto.log": "0f932b9408eee3e42f257ba6c4d84dc501e9c00a6c857d7a117924243cf851ed",
+    "f32.log": "b4032b1f06e6a38f41f9ebc3f2e85ec82ba744b0913bc56f82ff45c6d97cb6a8"
+  },
+  "calls": [
+    {
+      "dtype": "auto",
+      "command": [
+        "env",
+        "LLMX_DTYPE=auto",
+        "LLMX_CACHE_TYPE=f32",
+        "python3",
+        "-B",
+        "-u",
+        "-X",
+        "utf8",
+        "/source/tests/baseline.py",
+        "--exe",
+        "/b/llmx",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "/reference",
+        "--model",
+        "/model.gguf"
+      ],
+      "start": 1792758989.2370334,
+      "status": "passed",
+      "end": 1792759002.534697,
+      "exit_code": 0
+    },
+    {
+      "dtype": "f32",
+      "command": [
+        "env",
+        "LLMX_DTYPE=f32",
+        "LLMX_CACHE_TYPE=f32",
+        "python3",
+        "-B",
+        "-u",
+        "-X",
+        "utf8",
+        "/source/tests/baseline.py",
+        "--exe",
+        "/b/llmx",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "/reference",
+        "--model",
+        "/model.gguf"
+      ],
+      "start": 1792759002.5351639,
+      "status": "passed",
+      "end": 1792759022.196806,
+      "exit_code": 0
+    },
+    {
+      "dtype": "int8",
+      "command": [
+        "env",
+        "LLMX_DTYPE=int8",
+        "LLMX_CACHE_TYPE=f32",
+        "python3",
+        "-B",
+        "-u",
+        "-X",
+        "utf8",
+        "/source/tests/baseline.py",
+        "--exe",
+        "/b/llmx",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "/reference",
+        "--model",
+        "/model.gguf"
+      ],
+      "start": 1792759022.1972644,
+      "status": "passed",
+      "end": 1792759035.4442894,
+      "exit_code": 0
+    }
+  ],
+  "results": {
+    "auto": {
+      "top1": 6,
+      "top5_sets": 6,
+      "cases": 6,
+      "nll_cases": 8,
+      "max_continuous_nll_delta": 0.000164,
+      "max_window_nll_delta": 0.000148,
+      "output": "file-exact-logits[model.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 5/6  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 batched]: PPL 527.6780 vs HF 527.5915, NLL delta 0.000164 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 per-token]: PPL 527.6060 vs HF 527.5915, NLL delta 0.000027 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 batched]: PPL 1149.0400 vs HF 1149.0892, NLL delta 0.000046 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 per-token]: PPL 1148.9200 vs HF 1149.0892, NLL delta 0.000148 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 batched]: PPL 731.4480 vs HF 731.5011, NLL delta 0.000073 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 per-token]: PPL 731.4130 vs HF 731.5011, NLL delta 0.000120 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 batched]: PPL 754.2010 vs HF 754.2043, NLL delta 0.000004 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 per-token]: PPL 754.2100 vs HF 754.2043, NLL delta 0.000008 <= 0.020  [ok]\n"
+    },
+    "f32": {
+      "top1": 6,
+      "top5_sets": 6,
+      "cases": 6,
+      "nll_cases": 8,
+      "max_continuous_nll_delta": 4e-06,
+      "max_window_nll_delta": 4e-06,
+      "output": "file-exact-logits[model.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 batched]: PPL 527.5890 vs HF 527.5915, NLL delta 0.000004 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 per-token]: PPL 527.5920 vs HF 527.5915, NLL delta 0.000000 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 batched]: PPL 1149.0900 vs HF 1149.0892, NLL delta 0.000000 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 per-token]: PPL 1149.0900 vs HF 1149.0892, NLL delta 0.000001 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 batched]: PPL 731.4990 vs HF 731.5011, NLL delta 0.000002 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 per-token]: PPL 731.5000 vs HF 731.5011, NLL delta 0.000001 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 batched]: PPL 754.2010 vs HF 754.2043, NLL delta 0.000004 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 per-token]: PPL 754.2040 vs HF 754.2043, NLL delta 0.000001 <= 0.020  [ok]\n"
+    },
+    "int8": {
+      "top1": 6,
+      "top5_sets": 6,
+      "cases": 6,
+      "nll_cases": 8,
+      "max_continuous_nll_delta": 0.001578,
+      "max_window_nll_delta": 0.002593,
+      "output": "file-exact-logits[model.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 batched]: PPL 528.4250 vs HF 527.5915, NLL delta 0.001578 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=0 chunks=1 per-token]: PPL 528.3450 vs HF 527.5915, NLL delta 0.001428 <= 0.010  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 batched]: PPL 1148.4100 vs HF 1149.0892, NLL delta 0.000591 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=4 per-token]: PPL 1148.3700 vs HF 1149.0892, NLL delta 0.000622 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 batched]: PPL 731.6490 vs HF 731.5011, NLL delta 0.000202 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=64 chunks=2 per-token]: PPL 731.4440 vs HF 731.5011, NLL delta 0.000078 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 batched]: PPL 756.1630 vs HF 754.2043, NLL delta 0.002593 <= 0.020  [ok]\nfile-exact-ppl[model.gguf c=123 chunks=2 per-token]: PPL 755.9670 vs HF 754.2043, NLL delta 0.002335 <= 0.020  [ok]\n"
+    }
+  }
+}

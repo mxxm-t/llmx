@@ -236,6 +236,25 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual(decoded[name], sd.decode(sd.IQ3_XXS, payload, math.prod(shape)))
         self.assertNotIn("output.weight", decoded)
 
+    def test_iq2_small_generator_fixtures(self):
+        import iq2_small
+        import spec_decode as sd
+        for kind, label, fixture, block_type, block_size in (
+                ("iq2-xxs", "IQ2_XXS", iq2_small.fixture_xxs, sd.IQ2_XXS, 66),
+                ("iq2-xs", "IQ2_XS", iq2_small.fixture_xs, sd.IQ2_XS, 74)):
+            with self.subTest(kind=kind), patch.object(generator, "gen_block_family") as generate:
+                generator.main([kind])
+                generate.assert_called_once_with(kind, label, fixture, generator.OUT_DIR)
+                config, weights, packed = fixture(True, False, seed=7, split=True)
+                self.assertEqual(config["context_length"], 16)
+                self.assertTrue(packed)
+                decoded = {name: values for name, _, _, values in weights}
+                for name, shape, actual, data in packed:
+                    self.assertEqual(actual, block_type)
+                    self.assertEqual(len(data), math.prod(shape) // 256 * block_size)
+                    self.assertEqual(decoded[name], sd.decode(block_type, data, math.prod(shape)))
+                self.assertNotIn("output.weight", decoded)
+
     def test_iq3_xxs_keeps_format_and_hf_scopes(self):
         import iq3_xxs
         import common
@@ -1467,13 +1486,17 @@ class DtypeCalibration(unittest.TestCase):
         fixture = ({"context_length": 16}, [], [])
         expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
-        for family, module in (("q5-1", q5_1), ("iq4-xs", iq4_xs), ("iq2-s", iq2_s), ("iq3-xxs", iq3_xxs)):
-            with self.subTest(family=family), patch.object(module, "fixture", return_value=fixture) as source, \
+        import iq2_small
+        for family, module, fixture_name in (("q5-1", q5_1, "fixture"), ("iq4-xs", iq4_xs, "fixture"),
+                                             ("iq2-s", iq2_s, "fixture"), ("iq3-xxs", iq3_xxs, "fixture"),
+                                             ("iq2-xxs", iq2_small, "fixture_xxs"), ("iq2-xs", iq2_small, "fixture_xs")):
+            source = patch.object(module, fixture_name, return_value=fixture)
+            with self.subTest(family=family), source as mocked_source, \
                     patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
                 identities = [(identity["fixture"], identity["split"], identity["seed"])
                               for _, identity in self.calibration.family_models(family)]
                 self.assertEqual(set(identities), expected)
-                self.assertEqual(source.call_count, len(expected))
+                self.assertEqual(mocked_source.call_count, len(expected))
 
     def test_iq3_xxs_family_selector(self):
         torch = SimpleNamespace(__version__="2.5.1+cpu", set_num_threads=MagicMock())

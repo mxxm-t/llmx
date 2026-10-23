@@ -15,7 +15,7 @@ signs. The decoded value is exactly representable in F32 for finite half scales.
 
 The dictionary is fixed format data, not a generated quantizer or an inference
 algorithm copied from another runtime. IQ2_S differs from the IQ2_XXS and
-IQ2_XS layouts and tables; those remain unsupported. CPU/Vulkan read-only inference and the
+IQ2_XS layouts and tables, which have separate decoders. CPU/Vulkan read-only inference and the
 pinned released-file qualification are recorded in [STATUS](../STATUS.md).
 Storage decoding alone does not qualify another file or architecture.
 

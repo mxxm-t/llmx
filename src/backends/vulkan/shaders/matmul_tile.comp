@@ -4,6 +4,7 @@
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
+#include "iq2_layout.glsl"
 #ifdef LLMX_MXFP4
 #extension GL_ARB_gpu_shader_fp64 : require
 #extension GL_EXT_spirv_intrinsics : require
@@ -51,6 +52,13 @@ layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #include "lookup_cache.glsl"
 #define IQ3_XXS_GRID_WORD(i) lookup_words[i]
 #include "iq3_xxs.glsl"
+#elif defined(LLMX_IQ2_SMALL)
+#define IQ2_SMALL_HALF(i) (QBYTE(i) | (QBYTE((i) + 1u) << 8u))
+#define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#define LOOKUP_GRID_SIZE IQ2_SMALL_GRID_WORDS
+#include "lookup_cache.glsl"
+#define IQ2_GRID_WORD(i) lookup_words[i]
+#include "iq2_small.glsl"
 #elif defined(LLMX_IQ2_S)
 #define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
 #define LOOKUP_GRID_SIZE 2048u
@@ -120,6 +128,9 @@ void main() {
 #elif defined(LLMX_IQ3_XXS)
     lookup_init();
     const uint type = TYPE_IQ3_XXS;
+#elif defined(LLMX_IQ2_SMALL)
+    lookup_init();
+    const uint type = IQ2_SMALL_TYPE;
 #elif defined(LLMX_IQ2_S)
     lookup_init();
     const uint type = TYPE_IQ2_S;
@@ -242,6 +253,23 @@ void main() {
                     for (uint lane = 0u; lane < min(4u, WVALS - i); ++lane) {
                         uint position = j + lane;
                         ws[wseg * WVALS + i + lane][wrow] = iq3_xxs_component(word, position & 3u,
+                            (signs >> (position & 7u)) & 1u, scaled);
+                    }
+                }
+#endif
+#ifdef LLMX_IQ2_SMALL
+            } else if (type == IQ2_SMALL_TYPE) {
+                uint o = (wr * (p.nin / 256u) + k0 / 256u) * IQ2_SMALL_BYTES;
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                uint first = k0 % 256u + wseg * WVALS;
+                for (uint i = 0u; i < WVALS; i += 4u) {
+                    uint j = first + i, signs, scale;
+                    uint index = iq2_small_index(type, o, j / 32u, (j / 8u) & 3u, signs, scale);
+                    uint word = IQ2_GRID_WORD(2u * index + ((j & 7u) / 4u));
+                    precise float scaled = d * float(1u + 2u * scale) * 0.125;
+                    for (uint lane = 0u; lane < 4u && i + lane < WVALS; ++lane) {
+                        uint position = j + lane;
+                        ws[wseg * WVALS + i + lane][wrow] = iq2_small_component(word, position & 3u,
                             (signs >> (position & 7u)) & 1u, scaled);
                     }
                 }

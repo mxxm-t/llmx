@@ -1,0 +1,380 @@
+{
+  "date": "2026-10-23",
+  "scope": "IQ2_XXS and IQ2_XS early P512/G128 same-file screens versus pinned mx Vulkan; ten calls per format, all warmups and measurements retained. PP and TG are separate empty-history phases, not request latency. This is not a performance qualification or merge pass.",
+  "execution_conditions": "Same IQ2_XXS or IQ2_XS Qwen3-0.6B file for candidate and pinned mx Vulkan; P512/G128, ubatch 512, 4 threads, automatic llmx dtype, F32 KV. Each contains 2 warmups and 4 candidate/mx measured pairs in alternating order. PP and TG reset independently and do not represent request latency.",
+  "interpretation": "The screens show a prefill-rate gain with a generation-rate deficit. The short sample count is descriptive only; do not infer a universal tradeoff or causal attribution.",
+  "formats": {
+    "iq2_xxs": {
+      "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+      "candidate_binary_sha256": "a52a8a9f88d65e11de8cb3041e5b7864ede522f52be707ca1f0b39d6deee3303",
+      "candidate_version": "llmx 0.1.0+unknown numerics 266bde0ccc607c4d",
+      "reference_commit": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "source_manifest_sha256": "8961b57c397e8982c08617ecffed1af6bc671fba99bd3290ddccf417a02b7dbf",
+      "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "execution_sha256": "f4e69816c3a499ed8b6a7aadf2b97ccf6349510d9d502cb0dd989f4b4bd5ca0c",
+      "activity_sha256": "94275fd449a39545f33e683a9c6001d7c68fbc2289f2f51d0c53e364042d5cec",
+      "status": {
+        "passed": true,
+        "native_passed": true,
+        "pins_unchanged": true,
+        "monitor_exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "container_exit": 0
+      },
+      "artifact_hashes_verified": 33,
+      "call_count": 10,
+      "warmups": 2,
+      "measured_calls": [
+        {
+          "index": 2,
+          "block": 0,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6571.97,
+            "tg128": 183.21
+          },
+          "start": 1792755159.7711518,
+          "end": 1792755161.8885987
+        },
+        {
+          "index": 3,
+          "block": 0,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3702.32,
+            "tg128": 253.85
+          },
+          "start": 1792755161.889279,
+          "end": 1792755163.8122525
+        },
+        {
+          "index": 4,
+          "block": 1,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3706.77,
+            "tg128": 253.74
+          },
+          "start": 1792755163.8127308,
+          "end": 1792755165.7360687
+        },
+        {
+          "index": 5,
+          "block": 1,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6573.88,
+            "tg128": 183.18
+          },
+          "start": 1792755165.736518,
+          "end": 1792755167.8052642
+        },
+        {
+          "index": 6,
+          "block": 2,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6574.76,
+            "tg128": 183.01
+          },
+          "start": 1792755167.805724,
+          "end": 1792755169.8795156
+        },
+        {
+          "index": 7,
+          "block": 2,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3703.21,
+            "tg128": 253.92
+          },
+          "start": 1792755169.8800528,
+          "end": 1792755171.8029132
+        },
+        {
+          "index": 8,
+          "block": 3,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3707.7,
+            "tg128": 253.45
+          },
+          "start": 1792755171.8035133,
+          "end": 1792755173.726726
+        },
+        {
+          "index": 9,
+          "block": 3,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6572.22,
+            "tg128": 182.56
+          },
+          "start": 1792755173.7271748,
+          "end": 1792755175.8463886
+        }
+      ],
+      "mean_tok_s": {
+        "candidate": {
+          "pp512": 6573.2075,
+          "tg128": 182.99
+        },
+        "mx": {
+          "pp512": 3705.0,
+          "tg128": 253.74
+        }
+      },
+      "mean_delta_percent_candidate_vs_mx": {
+        "pp512": 77.41450742240217,
+        "tg128": -27.882872231417988
+      },
+      "matched_pair_delta_percent_candidate_vs_mx": [
+        {
+          "pp512": 77.50950755202143,
+          "tg128": -27.82745715974
+        },
+        {
+          "pp512": 77.34793364573468,
+          "tg128": -27.807992433199335
+        },
+        {
+          "pp512": 77.54218637344358,
+          "tg128": -27.926118462507876
+        },
+        {
+          "pp512": 77.25867788656042,
+          "tg128": -27.97001380942986
+        }
+      ],
+      "activity": {
+        "samples": 26,
+        "intervals": 25,
+        "max_gap_seconds": 1.0033937729895115,
+        "flagged_intervals": {
+          "unrelated_cpu": 0,
+          "disk": 24,
+          "low_idle": 0,
+          "iowait": 0,
+          "gap": 0,
+          "other_gpu": 25
+        },
+        "missed_sample_intervals": 5,
+        "unknown_gpu_intervals": 0,
+        "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+      }
+    },
+    "iq2_xs": {
+      "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+      "candidate_binary_sha256": "a52a8a9f88d65e11de8cb3041e5b7864ede522f52be707ca1f0b39d6deee3303",
+      "candidate_version": "llmx 0.1.0+unknown numerics 266bde0ccc607c4d",
+      "reference_commit": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "source_manifest_sha256": "8961b57c397e8982c08617ecffed1af6bc671fba99bd3290ddccf417a02b7dbf",
+      "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "execution_sha256": "47498cd80b61ae36a8dcd96db25941da5920ad43f64fafd33a3d61af88a78b0e",
+      "activity_sha256": "387c25bc632b5a1879c0b8c0a966e7be1c9dbf7d498df6f533579648524d4433",
+      "status": {
+        "passed": true,
+        "native_passed": true,
+        "pins_unchanged": true,
+        "monitor_exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "container_exit": 0
+      },
+      "artifact_hashes_verified": 33,
+      "call_count": 10,
+      "warmups": 2,
+      "measured_calls": [
+        {
+          "index": 2,
+          "block": 0,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6213.5,
+            "tg128": 249.66
+          },
+          "start": 1792755235.7337544,
+          "end": 1792755237.4508245
+        },
+        {
+          "index": 3,
+          "block": 0,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3688.75,
+            "tg128": 274.25
+          },
+          "start": 1792755237.4511874,
+          "end": 1792755239.2747066
+        },
+        {
+          "index": 4,
+          "block": 1,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3709.61,
+            "tg128": 275.17
+          },
+          "start": 1792755239.2751458,
+          "end": 1792755241.147559
+        },
+        {
+          "index": 5,
+          "block": 1,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6220.93,
+            "tg128": 249.0
+          },
+          "start": 1792755241.1479113,
+          "end": 1792755242.915887
+        },
+        {
+          "index": 6,
+          "block": 2,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6222.83,
+            "tg128": 249.21
+          },
+          "start": 1792755242.9162946,
+          "end": 1792755244.6341074
+        },
+        {
+          "index": 7,
+          "block": 2,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3699.97,
+            "tg128": 275.52
+          },
+          "start": 1792755244.634478,
+          "end": 1792755246.4588957
+        },
+        {
+          "index": 8,
+          "block": 3,
+          "arm": "mx",
+          "rates_tok_s": {
+            "pp512": 3675.0,
+            "tg128": 275.15
+          },
+          "start": 1792755246.4593143,
+          "end": 1792755248.282817
+        },
+        {
+          "index": 9,
+          "block": 3,
+          "arm": "candidate",
+          "rates_tok_s": {
+            "pp512": 6227.5,
+            "tg128": 245.65
+          },
+          "start": 1792755248.2832723,
+          "end": 1792755250.0511506
+        }
+      ],
+      "mean_tok_s": {
+        "candidate": {
+          "pp512": 6221.1900000000005,
+          "tg128": 248.38
+        },
+        "mx": {
+          "pp512": 3693.3325,
+          "tg128": 275.0225
+        }
+      },
+      "mean_delta_percent_candidate_vs_mx": {
+        "pp512": 68.44381056945186,
+        "tg128": -9.687389213609787
+      },
+      "matched_pair_delta_percent_candidate_vs_mx": [
+        {
+          "pp512": 68.44459505252456,
+          "tg128": -8.966271649954427
+        },
+        {
+          "pp512": 67.69768250570816,
+          "tg128": -9.510484427808274
+        },
+        {
+          "pp512": 68.18595826452648,
+          "tg128": -9.549216027874552
+        },
+        {
+          "pp512": 69.45578231292518,
+          "tg128": -10.721424677448654
+        }
+      ],
+      "activity": {
+        "samples": 23,
+        "intervals": 22,
+        "max_gap_seconds": 1.0034345239400864,
+        "flagged_intervals": {
+          "unrelated_cpu": 0,
+          "disk": 22,
+          "low_idle": 0,
+          "iowait": 0,
+          "gap": 0,
+          "other_gpu": 22
+        },
+        "missed_sample_intervals": 4,
+        "unknown_gpu_intervals": 0,
+        "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+      }
+    }
+  },
+  "audit": {
+    "analysis_path": "build-quant-resume-20261020/iq2-pair-operators-v1/screen-analysis-v1/analysis.json",
+    "analysis_sha256": "38bb4d90c9c1acf6363ac8db42b4b18bd6bd61ad16ec7937f5ca9d439297a7f4",
+    "analyzer_path": "build-quant-resume-20261020/iq2-pair-operators-v1/screen-analysis-v1/analyze.py",
+    "analyzer_sha256": "008b3382b01cdef08d3ec699bed231563de13d8a391600136ce9b017295b456b",
+    "raw_directories": {
+      "iq2_xxs": "build-quant-resume-20261020/iq2-pair-operators-v1/screen-v1-iq2_xxs",
+      "iq2_xs": "build-quant-resume-20261020/iq2-pair-operators-v1/screen-v1-iq2_xs"
+    },
+    "all_execution_artifacts_hash_checked": true,
+    "all_warmups_and_measurements_retained": true,
+    "raw_scratch_relative_to_worktree": "../../build-quant-resume-20261020/iq2-pair-operators-v1/screen-analysis-v1/analysis.json"
+  },
+  "bf16_radeon_tiny_hf_reported_result": {
+    "status": "PASS; root reports session exit 0",
+    "command": [
+      "python",
+      "tests/run_tests.py",
+      "--exe",
+      "build-iq2-small/Release/llmx.exe",
+      "--device",
+      "vulkan:0",
+      "--dtype",
+      "bf16",
+      "--only",
+      "iq2-xxs,iq2-xs",
+      "--no-perf-floor",
+      "--require-tools"
+    ],
+    "binary_sha256": "8d1da1bbe759ed1d41897752686b76ba28cc73cc0440add5d0f5369a1c463da2",
+    "binary_version": "llmx 0.1.0+g888ae1310c93.dirty numerics 266bde0ccc607c4d",
+    "transcript_path": "build-iq2-small-hf-radeon-bf16.log",
+    "transcript_sha256": "1553b7db96da1bbe5469d4be14f9484e3fefed12915a7d3015fe201d2b841b58",
+    "transcript_provenance": "Whitespace-normalized transcript of saved tool output from session 83731, not the original redirected stream.",
+    "iq2_xxs": {
+      "logit_checks": 150,
+      "nll_checks": 12,
+      "max_logit_error": 0.00123741,
+      "logit_bound": 0.005267143249511719,
+      "max_nll_error": 0.00011107,
+      "nll_bound": 0.0007180966018882629
+    },
+    "iq2_xs": {
+      "logit_checks": 150,
+      "nll_checks": 12,
+      "max_logit_error": 0.00102188,
+      "logit_bound": 0.005983009934425354,
+      "max_nll_error": 7.023e-05,
+      "nll_bound": 0.0007261934654803071
+    },
+    "scope": "Tiny dense tied/untied and MoE fixtures. Not released-file, split, long-context or performance qualification."
+  }
+}

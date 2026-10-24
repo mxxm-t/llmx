@@ -1,0 +1,254 @@
+{
+  "date": "2026-10-24",
+  "scope": "Preserved default short failures and eight-call TQ1_0 dtype/KV diagnostic; not depth, performance, defect attribution or a default-policy pass.",
+  "candidate_commit": "e2d7c5ccf077c451bad8e7b18ff0c990a3953dad",
+  "binary_sha256": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d",
+  "version": "llmx 0.1.0+g1edef79254d9.dirty numerics 7ce465b81f23850c",
+  "reference_run": 40084648588,
+  "reference_audit_sha256": "8c0ef2122e649df8b6198ed1a853143cbe5f321de4a3cded118e941bf1244a07",
+  "source_receipts": {
+    "tq-main-default-short-20261024": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-main-default-short-20261024\\results.json",
+      "sha256": "7095ece12142b21795f7d74c03ed86bf773437ac5d04afb9cfa05daf5125b6d9"
+    },
+    "tq-main-default-short-retry-20261024": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-main-default-short-retry-20261024\\results.json",
+      "sha256": "9039b474bd8baedc2a6beb7f345606b7db5bb1f793e44acc616f4b550ac071d8"
+    },
+    "tq-short-policy-isolation-20261024": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-policy-isolation-20261024\\results.json",
+      "sha256": "151e59166624acba764f72fd5cf003da2dbcc09cc1d8cf34ef0c2b1ce3a194cb"
+    }
+  },
+  "initial_attempt": {
+    "status": "failed",
+    "launched_cells": 0,
+    "error": "AssertionError('Released short consumer requires 3 GiB available before launch')"
+  },
+  "default_short": {
+    "requested_dtype": "auto",
+    "kv": "f16/f16",
+    "reference": "File-exact HF F32 matrix and F32 KV",
+    "cells": [
+      {
+        "name": "tq1-0-cpu",
+        "status": "failed",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "reference_sha256": {
+          "baseline_logits.json": "4e9aad35cdd2ec3c4084f131a226113b78e69f71f3bdbe5a77e0e90b761cf087",
+          "baseline_perplexity.json": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8"
+        },
+        "exit_code": 1,
+        "elapsed_seconds": 7.188000000081956,
+        "log_sha256": "7bb5ca075fdad4becd8ed3c0c2e958ba9615b3f2c6e44e2e178d277db52450f3",
+        "mean_nll": 16.494195567,
+        "hf_mean_nll_printed": 16.524825,
+        "absolute_nll_delta": 0.0306293356,
+        "continuous_bound": 0.01,
+        "ranking": "top-1 6/6; top-5 set 6/6; exact order 5/6",
+        "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-main-default-short-retry-20261024\\tq1-0-cpu.log",
+        "hf_mean_nll": 16.52482490256211
+      },
+      {
+        "name": "tq2-0-cpu",
+        "status": "failed",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "reference_sha256": {
+          "baseline_logits.json": "067db38e2842129f127277f27af999d03148e16ee02124d489db6d6afffe89a1",
+          "baseline_perplexity.json": "4b5048e2db5402280340df494e31e0876f58daef2761077f65d5afde08bc044f"
+        },
+        "exit_code": 1,
+        "elapsed_seconds": 13.25,
+        "log_sha256": "2eeb8b97ee73649ed6763f708f67bf2a479ecb83c0e8f7c4a8c09344611afc04",
+        "mean_nll": 16.494195567,
+        "hf_mean_nll_printed": 16.524831,
+        "absolute_nll_delta": 0.030635159,
+        "continuous_bound": 0.01,
+        "ranking": "top-1 6/6; top-5 set 6/6; exact order 5/6",
+        "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-main-default-short-retry-20261024\\tq2-0-cpu.log",
+        "hf_mean_nll": 16.524830726029982
+      }
+    ],
+    "stop_before_gpu": "AssertionError('Released short consumer requires 3 GiB available before launch')",
+    "available_at_stop_bytes": 3071889408,
+    "gpu_full_default_short": "Not run"
+  },
+  "isolation": {
+    "status": "completed",
+    "model": "TQ1_0",
+    "pins": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-3ac-integration-20261024\\build-vulkan\\Release\\llmx.exe": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-model-cache\\models--Majipa--Qwen3-0.6B-GGUF-Quantized\\snapshots\\6df0b3e98df0fd81c85f3eb94215c1aa50470b53\\Qwen3-0.6B-TQ1_0.gguf": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-short-ref-prep-v1\\run-40084648588\\tq1-0-unpacked\\tq1-0\\tq1-0-file-exact\\baseline_perplexity.json": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-3ac-integration-20261024\\tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+    },
+    "threads": 6,
+    "tokens": 247,
+    "scored_tokens": 246,
+    "hf_f32_mean_nll": 16.52482490256211,
+    "continuous_bound": 0.01,
+    "rows": [
+      {
+        "name": "cpu-f32-kv-f32",
+        "exit_code": 0,
+        "mean_nll": 16.524774173,
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "51adf2d1dd9f7f79ba1a1d48939e3de41ce3ef652e15a0db7a90f85c83996007",
+        "stderr_sha256": "21b4e9ab9e957f7eee7da5b2f7b1d09825cc8340d366f97205f8d9975c209d8e",
+        "absolute_nll_delta": 5.072956210838697e-05,
+        "within_existing_bound": true,
+        "requested_dtype": "f32",
+        "device": "cpu",
+        "kv": "f32"
+      },
+      {
+        "name": "cpu-f32-kv-f16",
+        "exit_code": 0,
+        "mean_nll": 16.494195567,
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "f26450349e463dd0eccc489f10ebe0c587a2ed29bfe460c7b55d7e6580cd966b",
+        "stderr_sha256": "21b4e9ab9e957f7eee7da5b2f7b1d09825cc8340d366f97205f8d9975c209d8e",
+        "absolute_nll_delta": 0.030629335562110782,
+        "within_existing_bound": false,
+        "requested_dtype": "f32",
+        "device": "cpu",
+        "kv": "f16"
+      },
+      {
+        "name": "cpu-auto-kv-f32",
+        "exit_code": 0,
+        "mean_nll": 16.524774173,
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "51adf2d1dd9f7f79ba1a1d48939e3de41ce3ef652e15a0db7a90f85c83996007",
+        "stderr_sha256": "594971249bcccfac59930a28d2271dbabb58cce9c1ab944967ecef40a1507a16",
+        "absolute_nll_delta": 5.072956210838697e-05,
+        "within_existing_bound": true,
+        "requested_dtype": "auto",
+        "device": "cpu",
+        "kv": "f32"
+      },
+      {
+        "name": "cpu-auto-kv-f16",
+        "exit_code": 0,
+        "mean_nll": 16.494195567,
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "f26450349e463dd0eccc489f10ebe0c587a2ed29bfe460c7b55d7e6580cd966b",
+        "stderr_sha256": "594971249bcccfac59930a28d2271dbabb58cce9c1ab944967ecef40a1507a16",
+        "absolute_nll_delta": 0.030629335562110782,
+        "within_existing_bound": false,
+        "requested_dtype": "auto",
+        "device": "cpu",
+        "kv": "f16"
+      },
+      {
+        "name": "vulkan-0-f32-kv-f32",
+        "exit_code": 0,
+        "mean_nll": 16.524760292,
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "e1ca759722734c26b36c7d439195fd836f3c034dafd9951ae872fdee79a0d313",
+        "stderr_sha256": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "absolute_nll_delta": 6.461056210937954e-05,
+        "within_existing_bound": true,
+        "requested_dtype": "f32",
+        "device": "vulkan:0",
+        "kv": "f32"
+      },
+      {
+        "name": "vulkan-0-f32-kv-f16",
+        "exit_code": 0,
+        "mean_nll": 16.493630537,
+        "witness": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "b48a2bd403b7b015312b540f8b3b264bbafe47ea07fb1d5c383daf8f704630f6",
+        "stderr_sha256": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "absolute_nll_delta": 0.031194365562107862,
+        "within_existing_bound": false,
+        "requested_dtype": "f32",
+        "device": "vulkan:0",
+        "kv": "f16"
+      },
+      {
+        "name": "vulkan-0-auto-kv-f32",
+        "exit_code": 0,
+        "mean_nll": 16.524760292,
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "e1ca759722734c26b36c7d439195fd836f3c034dafd9951ae872fdee79a0d313",
+        "stderr_sha256": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "absolute_nll_delta": 6.461056210937954e-05,
+        "within_existing_bound": true,
+        "requested_dtype": "auto",
+        "device": "vulkan:0",
+        "kv": "f32"
+      },
+      {
+        "name": "vulkan-0-auto-kv-f16",
+        "exit_code": 0,
+        "mean_nll": 16.493630537,
+        "witness": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        },
+        "stdout_sha256": "b48a2bd403b7b015312b540f8b3b264bbafe47ea07fb1d5c383daf8f704630f6",
+        "stderr_sha256": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "absolute_nll_delta": 0.031194365562107862,
+        "within_existing_bound": false,
+        "requested_dtype": "auto",
+        "device": "vulkan:0",
+        "kv": "f16"
+      }
+    ]
+  },
+  "left": "Independent HF logical-F16-KV control remains pending; no acceptance bound or runtime code changed."
+}

@@ -7,6 +7,14 @@
 - **Review:** all 129 Markdown pages were reconciled. This page and the dashboard README describe the change, while 127 pages retain their parent content and source correspondence.
 - **Landing:** lands by fast-forward from main `d0c09440b` as one presentation change. Production receives the static page after publication without restarting inference or the dashboard collector. [Validation evidence](benchmarks/dashboard-lookup-card-20261024.json).
 
+## HF CI job budget (2026-10-24, private proposal)
+
+- **Goal:** The 60-minute HF job limit cancels the final server check after the two HF passes and layer split complete.
+- **Done:** Increased only `hf-reference.timeout-minutes` from 60 to 75. Updated `docs/CI.md` and added pinned evidence in `docs/benchmarks/hf-ci-job-budget-20261024.json`.
+- **Left:** Peer review and a full hosted run at the proposed timeout. The cancelled server step has no measured completion time.
+- **Local checks:** docs and dead-code pass, with zero unexpected findings and all planted faults detected. The checkpoint review reconciles 129 Markdown pages: 127 are unchanged, and CI/STATUS were checked against the workflow and pinned job evidence. No runtime, numerical or performance checks are required for this timeout-only proposal.
+- **Gotchas:** Run 40050997649 passed six of seven jobs. Its HF job hit the platform time limit, not a test assertion. All test steps and inner timeouts are unchanged.
+
 ## Lookup rows read ahead (2026-10-23, branch feat/lookup-prefetch on feat/split-pacing b9bc503dd, item P of the Flash decode design of 2026-10-20 08:29, ranked first for cold text by F2DEV on 2026-10-23 11:14, lands by fast-forward as two commits)
 
 - **Goal:** Qwen3.8-Flash-Next's per-layer embedding rows, read from the table's file (`--lookup-storage file`), stop holding a decode token and a prompt.

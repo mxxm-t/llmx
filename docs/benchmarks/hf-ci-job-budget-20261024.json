@@ -1,0 +1,80 @@
+{
+  "schema": "llmx-hf-ci-job-budget-v1",
+  "date": "2026-10-24",
+  "status": "private proposal, peer review and complete hosted run pending",
+  "scope": "The behavioral change is only the hf-reference job timeout from 60 to 75 minutes. The adjacent comment now points to the measured rationale. All checks and inner timeouts remain unchanged.",
+  "current_run": {
+    "run_id": 40050997649,
+    "head": "ed38a31eb74e9de83a6c106ca0e2acfb8a2558d2",
+    "job_id": 120743413675,
+    "job_name": "HF reference (CPU)",
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40050997649/job/120743413675",
+    "started_at": "2026-10-24T01:42:22Z",
+    "ended_at": "2026-10-24T02:42:40Z",
+    "conclusion": "cancelled",
+    "annotation": "job exceeded maximum execution time 1h0m0s",
+    "workflow_limit_minutes": 60,
+    "passed_jobs": 6,
+    "total_jobs": 7,
+    "completed_steps": [
+      {
+        "name": "Test with required HF fixtures",
+        "duration_seconds": 1907,
+        "started_at": "2026-10-24T01:52:11Z",
+        "ended_at": "2026-10-24T02:23:58Z"
+      },
+      {
+        "name": "HF gate with f32 caches",
+        "duration_seconds": 830,
+        "started_at": "2026-10-24T02:23:58Z",
+        "ended_at": "2026-10-24T02:37:48Z"
+      },
+      {
+        "name": "Layer split over two CPU backends",
+        "duration_seconds": 49,
+        "started_at": "2026-10-24T02:37:48Z",
+        "ended_at": "2026-10-24T02:38:37Z"
+      }
+    ],
+    "cancelled_step": {
+      "name": "Many users through the server",
+      "started_at": "2026-10-24T02:38:37Z",
+      "ended_at": "2026-10-24T02:42:38Z",
+      "elapsed_seconds": 241,
+      "completion_time": "unknown"
+    },
+    "elapsed_before_final_step_seconds": 3375
+  },
+  "prior_successes": [
+    {
+      "run_id": 40024496810,
+      "duration_seconds": 3467,
+      "started_at": "2026-10-23T21:08:02Z",
+      "ended_at": "2026-10-23T22:05:49Z"
+    },
+    {
+      "run_id": 40032647038,
+      "duration_seconds": 2374,
+      "started_at": "2026-10-23T22:17:35Z",
+      "ended_at": "2026-10-23T22:57:09Z"
+    }
+  ],
+  "evidence_snapshots": [
+    {
+      "path": "build-quant-resume-20261020/tq-ci-observations/20261024T063201921679Z-jobs.json",
+      "sha256": "4fa1a9e76edc53b5596a65a42336c78b9cd91dd4332bbaa9afdc77804d64e3ae"
+    },
+    {
+      "path": "build-quant-resume-20261020/iq1-ci-observations/20261023T232009664892Z.json",
+      "sha256": "c09040aa4f6a345c771986fed4b3cdb07108823a6196140a42985c4592c445f3"
+    }
+  ],
+  "workflow": {
+    "base_commit": "d0c09440b745baec91c85dda646a7a3e240727ef",
+    "base_blob": "89c416e90dcb2c4314da889bb69880682ade2bbe",
+    "proposed_blob": "704414c3658f1fc582c023f920c7d8db62d271e2",
+    "proposed_timeout_minutes": 75,
+    "changed_scope": "hf-reference timeout plus its explanatory comment pointing to docs/CI.md"
+  },
+  "interpretation": "The current job exceeded 60 minutes while the final server check was still running. The check completion time is unknown. Prior completed jobs took 57m47s and 39m34s. These observations justify a larger job ceiling but do not establish a stable upper bound."
+}

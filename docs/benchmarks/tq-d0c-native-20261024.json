@@ -50,12 +50,11 @@
     "path": "build-quant-resume-20261020\\quant-d0c-doc-review-20261024\\review.md",
     "sha256": "9d44889c42276e0a1d1dc19ac907d0aa50b58bf74bc4fedc305fc4faff4ddc13",
     "pages": 130,
-    "checkpoint_delta": "Only this evidence record and the STATUS native-checkpoint paragraph are added after the review."
+    "checkpoint_delta": "STATUS and this evidence record include the focused native checks and subsequent short CPU identity results. Other reviewed Markdown pages are unchanged."
   },
   "limits": [
     "CPU only",
     "No performance measurement",
-    "Short released-file identity remains pending",
     "No fresh hosted pass",
     "Prior numerical and timing records retain their original binary identity"
   ],
@@ -65,5 +64,71 @@
     "Current-main identity and timing",
     "Matched mx Vulkan timing",
     "Hosted integration checks"
-  ]
+  ],
+  "short_identity": {
+    "scope": "Fixed-input CPU integration identity only, with auto dtype and F32 KV. Not HF, 16K depth or performance qualification.",
+    "report_path": "build-quant-resume-20261020\\quant-d0c-short-identity-20261024\\results.json",
+    "report_sha256": "78052e85a69d1840b1caa28a9b4cfd00e0b672359e7653ddfb936531f16678d3",
+    "provenance_sha256": "141ece15c4fb5cd20df49216f759c5fbcbeca897fc71274db7332c1ab767414b",
+    "comparisons": [
+      {
+        "name": "TQ1_0",
+        "versions": [
+          "0.1.0+g612a3d9d1e4e.dirty",
+          "0.1.0+gc1cea7360c25.dirty"
+        ],
+        "metadata_exclusion": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "full_vocabulary_rows": 90,
+        "phases": {
+          "batched": {
+            "size": 7900672,
+            "sha256": "0895ddd785d7db686577c8db1d9b2d18b4e1ce8ed3eb5ee1bdd71ab765b53d0f",
+            "exact_bytes": true
+          },
+          "decode": {
+            "size": 7900672,
+            "sha256": "26e675894d2478aa923cd2159ae0d57445befc86c0804632c58728d199772982",
+            "exact_bytes": true
+          },
+          "greedy": {
+            "size": 38895616,
+            "sha256": "4276254ca92c46f08cb9abbe1670c4830f403fffc39aa0de9ae0dfcb4b8fc341",
+            "exact_bytes": true
+          }
+        }
+      },
+      {
+        "name": "TQ2_0",
+        "versions": [
+          "0.1.0+g612a3d9d1e4e.dirty",
+          "0.1.0+gc1cea7360c25.dirty"
+        ],
+        "metadata_exclusion": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "full_vocabulary_rows": 90,
+        "phases": {
+          "batched": {
+            "size": 7900672,
+            "sha256": "0895ddd785d7db686577c8db1d9b2d18b4e1ce8ed3eb5ee1bdd71ab765b53d0f",
+            "exact_bytes": true
+          },
+          "decode": {
+            "size": 7900672,
+            "sha256": "26e675894d2478aa923cd2159ae0d57445befc86c0804632c58728d199772982",
+            "exact_bytes": true
+          },
+          "greedy": {
+            "size": 38895616,
+            "sha256": "4276254ca92c46f08cb9abbe1670c4830f403fffc39aa0de9ae0dfcb4b8fc341",
+            "exact_bytes": true
+          }
+        }
+      }
+    ]
+  }
 }

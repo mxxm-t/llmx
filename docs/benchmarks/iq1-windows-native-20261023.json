@@ -1,0 +1,429 @@
+{
+  "schema": "llmx-iq1-integrated-windows-native-qualification-v1",
+  "source_checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "product": {
+    "binary_sha256": "d850a71de150ddc6b79568043df662d8e5483b51a6e0fca576144c68e1080454",
+    "version": "llmx 0.1.0+g10ac84660c34.dirty numerics e3011170275b2364",
+    "build_log": "build-integrated-vulkan/build-all-qualification.log",
+    "build_log_sha256": "3b059f8273f83108af052b4ab11a4cd32661c374eab4cad6d39e01c47dd3e005"
+  },
+  "ctest": {
+    "command": "ctest --test-dir build-integrated-vulkan -C Release --output-on-failure",
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "total_seconds": 1035.86,
+    "log": "build-integrated-vulkan/ctest-all-qualification.log",
+    "log_sha256": "7e6e807b32e97ad3cf6e16a61406f67488f742c2fa0bce0eee6c20ed5ae702cf",
+    "last_test_log": "build-integrated-vulkan/Testing/Temporary/LastTest.log",
+    "last_test_log_sha256": "699b72d512844d2ff8f638b299df28a60fba18f8a30afae961a5fd8e9ccbf33a",
+    "tests": [
+      {
+        "index": 1,
+        "name": "format-output",
+        "seconds": 0.04
+      },
+      {
+        "index": 2,
+        "name": "hub-manifest",
+        "seconds": 0.05
+      },
+      {
+        "index": 3,
+        "name": "hub-pull",
+        "seconds": 1.6
+      },
+      {
+        "index": 4,
+        "name": "hub-transport",
+        "seconds": 1.24
+      },
+      {
+        "index": 5,
+        "name": "gguf-shards",
+        "seconds": 0.77
+      },
+      {
+        "index": 6,
+        "name": "model-validation",
+        "seconds": 94.44
+      },
+      {
+        "index": 7,
+        "name": "shard",
+        "seconds": 16.94
+      },
+      {
+        "index": 8,
+        "name": "gguf-validation",
+        "seconds": 0.58
+      },
+      {
+        "index": 9,
+        "name": "json",
+        "seconds": 0.99
+      },
+      {
+        "index": 10,
+        "name": "tokenizer-encode",
+        "seconds": 0.1
+      },
+      {
+        "index": 11,
+        "name": "cli-output",
+        "seconds": 0.08
+      },
+      {
+        "index": 12,
+        "name": "load-progress",
+        "seconds": 2.57
+      },
+      {
+        "index": 13,
+        "name": "file-reader",
+        "seconds": 0.54
+      },
+      {
+        "index": 14,
+        "name": "context-cut",
+        "seconds": 0.1
+      },
+      {
+        "index": 15,
+        "name": "disk-index",
+        "seconds": 0.03
+      },
+      {
+        "index": 16,
+        "name": "disk-store",
+        "seconds": 14.39
+      },
+      {
+        "index": 17,
+        "name": "generation-stream",
+        "seconds": 0.04
+      },
+      {
+        "index": 18,
+        "name": "backend-group",
+        "seconds": 0.57
+      },
+      {
+        "index": 19,
+        "name": "fused-dot-overflow",
+        "seconds": 0.03
+      },
+      {
+        "index": 20,
+        "name": "quantize-range",
+        "seconds": 0.04
+      },
+      {
+        "index": 21,
+        "name": "q8-dots",
+        "seconds": 0.51
+      },
+      {
+        "index": 22,
+        "name": "qwen35-ops",
+        "seconds": 0.67
+      },
+      {
+        "index": 23,
+        "name": "backend-errors",
+        "seconds": 1.06
+      },
+      {
+        "index": 24,
+        "name": "prefill-scope",
+        "seconds": 0.06
+      },
+      {
+        "index": 25,
+        "name": "prefill-placement",
+        "seconds": 0.04
+      },
+      {
+        "index": 26,
+        "name": "chat-template",
+        "seconds": 0.4
+      },
+      {
+        "index": 27,
+        "name": "mxfp4",
+        "seconds": 0.08
+      },
+      {
+        "index": 28,
+        "name": "q5-0",
+        "seconds": 0.21
+      },
+      {
+        "index": 29,
+        "name": "q2-k-vulkan",
+        "seconds": 6.94
+      },
+      {
+        "index": 30,
+        "name": "q2-k",
+        "seconds": 4.83
+      },
+      {
+        "index": 31,
+        "name": "q3-k-vulkan",
+        "seconds": 3.96
+      },
+      {
+        "index": 32,
+        "name": "q3-k",
+        "seconds": 1.87
+      },
+      {
+        "index": 33,
+        "name": "iq4-nl",
+        "seconds": 3.28
+      },
+      {
+        "index": 34,
+        "name": "dtype",
+        "seconds": 0.05
+      },
+      {
+        "index": 35,
+        "name": "fp16",
+        "seconds": 0.06
+      },
+      {
+        "index": 36,
+        "name": "half-weights",
+        "seconds": 1.56
+      },
+      {
+        "index": 37,
+        "name": "cpus",
+        "seconds": 0.03
+      },
+      {
+        "index": 38,
+        "name": "host-memory",
+        "seconds": 0.02
+      },
+      {
+        "index": 39,
+        "name": "sampler",
+        "seconds": 2.31
+      },
+      {
+        "index": 40,
+        "name": "logprobs",
+        "seconds": 0.79
+      },
+      {
+        "index": 41,
+        "name": "server-resume",
+        "seconds": 129.11
+      },
+      {
+        "index": 42,
+        "name": "server-resume-cache",
+        "seconds": 114.52
+      },
+      {
+        "index": 43,
+        "name": "server-resume-device",
+        "seconds": 10.19
+      },
+      {
+        "index": 44,
+        "name": "cache-scenario",
+        "seconds": 66.17
+      },
+      {
+        "index": 45,
+        "name": "cache-scenario-production",
+        "seconds": 14.85
+      },
+      {
+        "index": 46,
+        "name": "server-spec",
+        "seconds": 22.62
+      },
+      {
+        "index": 47,
+        "name": "server-passes",
+        "seconds": 4.8
+      },
+      {
+        "index": 48,
+        "name": "job-threads",
+        "seconds": 1.66
+      },
+      {
+        "index": 49,
+        "name": "server-passes-cpu",
+        "seconds": 286.84
+      },
+      {
+        "index": 50,
+        "name": "spec",
+        "seconds": 15.62
+      },
+      {
+        "index": 51,
+        "name": "kv-cache",
+        "seconds": 0.21
+      },
+      {
+        "index": 52,
+        "name": "arch-qwen35",
+        "seconds": 0.63
+      },
+      {
+        "index": 53,
+        "name": "arch-qwen35-fit",
+        "seconds": 50.57
+      },
+      {
+        "index": 54,
+        "name": "placement",
+        "seconds": 63.18
+      },
+      {
+        "index": 55,
+        "name": "http",
+        "seconds": 0.33
+      },
+      {
+        "index": 56,
+        "name": "server-utf8",
+        "seconds": 0.02
+      },
+      {
+        "index": 57,
+        "name": "mxfp4-vulkan",
+        "seconds": 6.66
+      },
+      {
+        "index": 58,
+        "name": "iq4-nl-vulkan",
+        "seconds": 8.88
+      },
+      {
+        "index": 59,
+        "name": "backend-vulkan",
+        "seconds": 37.05
+      },
+      {
+        "index": 60,
+        "name": "vulkan-buffer",
+        "seconds": 0.04
+      },
+      {
+        "index": 61,
+        "name": "vulkan-lifetime",
+        "seconds": 3.5
+      },
+      {
+        "index": 62,
+        "name": "vulkan-quantization",
+        "seconds": 19.74
+      },
+      {
+        "index": 63,
+        "name": "weight-rows",
+        "seconds": 0.07
+      },
+      {
+        "index": 64,
+        "name": "stream-ops",
+        "seconds": 0.08
+      },
+      {
+        "index": 65,
+        "name": "dilated-conv",
+        "seconds": 0.08
+      },
+      {
+        "index": 66,
+        "name": "kv-auxiliary",
+        "seconds": 0.04
+      },
+      {
+        "index": 67,
+        "name": "kv-selection",
+        "seconds": 0.15
+      },
+      {
+        "index": 68,
+        "name": "sparse-attention",
+        "seconds": 0.13
+      },
+      {
+        "index": 69,
+        "name": "arch-qwen4exp",
+        "seconds": 0.09
+      },
+      {
+        "index": 70,
+        "name": "qwen4exp-mtp",
+        "seconds": 0.69
+      },
+      {
+        "index": 71,
+        "name": "qwen4exp-graph",
+        "seconds": 0.1
+      },
+      {
+        "index": 72,
+        "name": "iq3-s-vulkan",
+        "seconds": 1.92
+      },
+      {
+        "index": 73,
+        "name": "iq3-s",
+        "seconds": 1.64
+      },
+      {
+        "index": 74,
+        "name": "iq2-s-vulkan",
+        "seconds": 1.72
+      },
+      {
+        "index": 75,
+        "name": "iq2-s",
+        "seconds": 0.67
+      },
+      {
+        "index": 76,
+        "name": "iq3-xxs-vulkan",
+        "seconds": 1.07
+      },
+      {
+        "index": 77,
+        "name": "iq3-xxs",
+        "seconds": 0.03
+      },
+      {
+        "index": 78,
+        "name": "iq2-small-vulkan",
+        "seconds": 0.91
+      },
+      {
+        "index": 79,
+        "name": "iq2-small",
+        "seconds": 0.01
+      },
+      {
+        "index": 80,
+        "name": "iq1-vulkan",
+        "seconds": 1.13
+      },
+      {
+        "index": 81,
+        "name": "iq1",
+        "seconds": 2.74
+      }
+    ]
+  },
+  "scope_note": "Full Windows native CTest suite only. This records no HF-depth or timing outcome."
+}

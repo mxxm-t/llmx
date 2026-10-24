@@ -1,0 +1,143 @@
+{
+  "schema": "llmx-iq1-s-released-short-file-exact-v1",
+  "scope": "Short released-file F32 file-exact ranking and NLL checks on CPU and Radeon VII. This verifies runtime agreement with a reference generated from the same GGUF weights; it does not establish the pretrained weight quality or long-context correctness.",
+  "source_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "source_manifest_sha256": "772ea467647657a1b8fc167f98b0c0f2047282080d48469d56ffed6958c4070f",
+  "reference": {
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "weights_file": "Qwen3-0.6B-UD-IQ1_S.gguf",
+    "weights_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+    "weights_bytes": 214643392,
+    "tensor_count": 310,
+    "tensor_types": {
+      "F32": 113,
+      "IQ1_M": 36,
+      "IQ1_S": 84,
+      "IQ2_S": 5,
+      "IQ2_XXS": 43,
+      "IQ3_S": 5,
+      "IQ3_XXS": 5,
+      "Q2_K": 18,
+      "Q5_K": 1
+    },
+    "baseline_logits_sha256": "a7d6489543edb8bb0ea49aa229c2721d09ad340ff1003d4f205b2b7d85e97a10",
+    "baseline_perplexity_sha256": "984162199ef5e6da838ac7ecce5a4459be3e5c9e5c6cbf8c3efed264f23db1a8",
+    "baseline_mean_nll": 9.26463854352161,
+    "baseline_perplexity": 10557.993645543424,
+    "payload_result_sha256": "1c1bb41d2147d3716408ee5fd97fb58f7a11ed5d0b49103272bbc124f41534eb",
+    "execution_sha256": "4586c6bfe9fb62dbb34fa298f916adbe0f9fa8c7025a6081645c9a2baad7fb37",
+    "run_log_sha256": "73f6df5eadd5c7b2033c3c86ace44db09cd41897390fdbada3ded11338fa88fd",
+    "container_receipt_sha256": "c1dc3520db3f05f6cf049b25ebcb41a8e844293abd81f3b55c891d88e8d174c5",
+    "producer_sha256": "784d5bef3850fe4787668aa6f0f71de46c30f96d1114843b40a667ff8cc79082",
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "producer_passed": true,
+    "producer_exit": 0,
+    "container_exit": 0,
+    "oom_killed": false,
+    "removed": true
+  },
+  "tested_product": {
+    "binary_sha256": "d850a71de150ddc6b79568043df662d8e5483b51a6e0fca576144c68e1080454",
+    "version": "llmx 0.1.0+g10ac84660c34.dirty numerics e3011170275b2364",
+    "build_log": "build-integrated-vulkan/build-all-qualification.log",
+    "build_log_sha256": "3b059f8273f83108af052b4ab11a4cd32661c374eab4cad6d39e01c47dd3e005"
+  },
+  "model": {
+    "file": "Qwen3-0.6B-UD-IQ1_S.gguf",
+    "sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a"
+  },
+  "results": {
+    "cpu_f32": {
+      "path": "build-integrated-vulkan/released-iq1-s-short-cpu-f32.log",
+      "sha256": "9f79342a18b0e3b3285f789933676dcae3672fa09636bd826a75e7b077343704",
+      "logit_ranking": "top-1 6/6; top-5 set >=5 6/6; exact top-5 order 6/6",
+      "nll_deltas": {
+        "no_cache": {
+          "batched": 9e-06,
+          "per_token": 9e-06,
+          "limit": 0.01
+        },
+        "cache64_chunks4": {
+          "batched": 7e-06,
+          "per_token": 7e-06,
+          "limit": 0.02
+        },
+        "cache64_chunks2": {
+          "batched": 1.4e-05,
+          "per_token": 1.4e-05,
+          "limit": 0.02
+        },
+        "cache123_chunks2": {
+          "batched": 9e-06,
+          "per_token": 8e-06,
+          "limit": 0.02
+        }
+      },
+      "passed": true
+    },
+    "radeon_vii_f32": {
+      "path": "build-integrated-vulkan/released-iq1-s-short-f32.log",
+      "sha256": "2ed3dd7fb31a8dece2e7da6fb3a843f1377af2efdb0fd7c97672f57e56cbfbb5",
+      "logit_ranking": "top-1 6/6; top-5 set >=5 6/6; exact top-5 order 6/6",
+      "nll_deltas": {
+        "no_cache": {
+          "batched": 2e-06,
+          "per_token": 8e-06,
+          "limit": 0.01
+        },
+        "cache64_chunks4": {
+          "batched": 3.8e-05,
+          "per_token": 3e-06,
+          "limit": 0.02
+        },
+        "cache64_chunks2": {
+          "batched": 8.7e-05,
+          "per_token": 6e-06,
+          "limit": 0.02
+        },
+        "cache123_chunks2": {
+          "batched": 1.2e-05,
+          "per_token": 9e-06,
+          "limit": 0.02
+        }
+      },
+      "passed": true
+    }
+  },
+  "ppl_interpretation": "The approximately 10,558 PPL is the file-exact reference value for these released GGUF weights. Its close runtime agreement is not approval of original pretrained weight quality.",
+  "depth_followup": {
+    "first_guard_stop": {
+      "execution_path": "build-quant-resume-20261020/iq1-released-reference-prep-v1/depth-f16-first-execution.json",
+      "available_bytes": 14942564352,
+      "memory_current_bytes": 4232241152,
+      "memory_peak_bytes": 4309471232,
+      "oom_kill_count": 0
+    },
+    "resume_guard_stop": {
+      "execution_path": "build-quant-resume-20261020/iq1-released-reference-resume-v1/depth-f16-execution.json",
+      "sha256": "ff2d1ea3de28827cd58824ac19fb500f9f1319936673a872cee1c3f6b92d79cf",
+      "available_bytes": 14960537600,
+      "memory_current_bytes": 7601524736,
+      "memory_peak_bytes": 7635107840,
+      "oom_kill_count": 0
+    },
+    "policy": "Both runs stopped at the fixed 14 GiB host-availability guard before depth completion. The first completed the 64-token controls and reached 4096; the second stopped before producing a passing payload result. A new live-budget accounting run is active. It changes resource accounting only: the 14 GiB preflight cap and 10 GiB memory cap remain, live free memory is floored at 14 GiB less measured owned-container use, clamped to 4..14 GiB, and unavailable cgroup accounting falls back to 14 GiB. No numerical bounds or producer commands changed. No long-depth pass is claimed.",
+    "dynamic_budget_attempt": {
+      "execution_path": "build-quant-resume-20261020/iq1-released-reference-memory-v2/depth-f16-execution.json",
+      "execution_sha256": "73d5fb1f5be5aa171074adecf8202586cfac850b7df74e718c43bb8dd723097e",
+      "status": "stopped by resource guard, no payload pass",
+      "available_bytes": 9600458752,
+      "required_available_bytes": 9764229120,
+      "memory_current_bytes": 5268156416,
+      "memory_peak_bytes": 6753054720,
+      "oom_kill_count": 0,
+      "removed": true,
+      "error": "host_available_bytes was below required_host_available_bytes",
+      "policy": "The live-accounting version of the resource guard stopped this attempt because available host memory was 9,600,458,752 bytes and the measured requirement was 9,764,229,120 bytes. It retained the 14 GiB preflight and 10 GiB container caps. No numerical bound, source, or producer command changed. No further depth retry is planned until a stable host-memory window."
+    }
+  }
+}

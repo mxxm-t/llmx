@@ -1,0 +1,124 @@
+{
+  "schema": "llmx-iq1-hf-kv-f16-control-v1",
+  "scope": "Diagnostic raw 512-position comparison only; no inference, no changed reference policy, no gate substitution.",
+  "rule": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tie_margin": 0.1,
+    "original_gate_replaced": false
+  },
+  "matrix_path": {
+    "dtype": "f16",
+    "devices": [
+      [
+        "block-int16"
+      ]
+    ]
+  },
+  "comparisons": {
+    "preserved_original_vulkan_vs_f32kv_hf": {
+      "exact": 505,
+      "accepted_tie": 6,
+      "miss": 1,
+      "position_16883": {
+        "position": 16883,
+        "actual_top1": 17,
+        "hf_top2_ids": [
+          15,
+          17
+        ],
+        "hf_top2_logits": [
+          17.77855682373047,
+          17.647363662719727
+        ],
+        "hf_gap": 0.1311931610107422,
+        "verdict": "miss"
+      }
+    },
+    "same_vulkan_f16kv_vs_hf_f16kv": {
+      "exact": 506,
+      "accepted_tie": 6,
+      "miss": 0,
+      "position_16883": {
+        "position": 16883,
+        "actual_top1": 17,
+        "hf_top2_ids": [
+          15,
+          17
+        ],
+        "hf_top2_logits": [
+          17.738460540771484,
+          17.669889450073242
+        ],
+        "hf_gap": 0.06857109069824219,
+        "verdict": "accepted-tie"
+      }
+    },
+    "hf_f32kv_vs_hf_f16kv": {
+      "exact": 509,
+      "accepted_tie": 3,
+      "miss": 0
+    },
+    "hf_f16kv_vs_hf_f32kv": {
+      "exact": 509,
+      "accepted_tie": 3,
+      "miss": 0
+    }
+  },
+  "interpretation": "The F16KV-matched comparison turns the retained position-16883 miss into an accepted tie, not an exact match. The HF references themselves differ with KV policy. This is evidence of reference sensitivity to KV policy, not a qualification or permission to select expected tokens per position.",
+  "execution": {
+    "exit": 0,
+    "analysis_complete": true,
+    "container_exit": 0,
+    "container_removed": true,
+    "oom_killed": false,
+    "input_pins_before_after_equal": true,
+    "artifacts_verified": true
+  },
+  "source_artifacts": {
+    "directory": "build-quant-resume-20261020/iq1-hf-kv-f16-compare-v1/collected",
+    "comparison_json_sha256": "e00542d1bd60b475a20523aaaee976b5280ef2e6f55e28cc29c994ffa8b58a1c",
+    "execution_json_sha256": "28566c036f2622e9df8c58f5ccac48d71ece41a6506da48206b11e54d971614a",
+    "run_log_sha256": "f5e39b5c01d9872b943bea7055e8cd8fbce7bd584f8030de10a64e8955258711",
+    "comparison_json_embedded_input_pins": {
+      "/compare.py": "8192b0a73d62e119456737905c8f9359a10d9d4a9e59578cde48ca6c9a470b0b",
+      "/source/tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "/old-phase/execution.json": "37a442ad03ed9e06f0d68ec7924fc16fee0a28d5685529b66dcb7351dfd58167",
+      "/old-phase/payload-result.json": "8344aeb416ab6ec40ad3f984da777218a5ff600a360db03c2c27e17db728d99d",
+      "/new-run/summary.json": "3264281766dccc378b974697b1a74b5ea909d2d9778fa20d594f4aa0ceb3081b",
+      "/new-run/iq1-s/depth-f16/execution.json": "8bf8fb464f331bf9d55a3d1359a7d2d10a76211474f8845db6e594d8b2720f77",
+      "/new-run/iq1-s/depth-f16/payload-result.json": "7451ed10e39eff319166c32e8efb7b6082cefe56324e6d4c20fd5653643b095d",
+      "/old-phase/reference/report.json": "eab0f73ab8af4072fd71e9a3a295809ea6a21932fa59239ab09c277102150861",
+      "/source/tools/gen_baseline.py": "931d187938e70a1e4ceac69070e446bf4ec8f32bea44e0853949562b42c3ae22",
+      "/source/tools/calibrate_dtype.py": "eec6cf16d4fb91e61d29b3d61e12640d3a8422ed13d78b45e96d46355a2b3cec",
+      "/source/tests/spec_decode.py": "5e2d411e1641b7b95b9a83d71298afaea94b2525e6b219fb4b077a50b4597320",
+      "/old-phase/reference/raw.json": "32914c0aeb4d0e73410ceb39013d4bd81f8b86098a02aa590f0016e435682ee9",
+      "/old-phase/reference/raw.npy": "713956e8e8c154f0db4972dc068d547187e7a47e0c052cc9bec24a0fe3c4f8b7",
+      "/new-run/iq1-s/depth-f16/reference/report.json": "adc8a45b888c9d861545eb135a2a4c300dc5cebcdc189ef3e4a73ef22d66b0a5",
+      "/new-run/iq1-s/depth-f16/reference/raw.json": "f5cea9c13372d6a54b780bdcef74758468db3042d917402f12a6ceb3ccc1da05",
+      "/new-run/iq1-s/depth-f16/reference/raw.npy": "ee41e91c51aa5e547b8ed67081d4310d3e89b34afd26575b77c9cf937b8bc6f4",
+      "/captures/execution.json": "efe4c7e62c16f48da3da368b7775b2f95722d102716056f1ccb00adb94d45d93",
+      "/captures/report.json": "3e498a4a06725a43d967b867e9ee9993c46ce0eacb9de7f3d9cdd077444c2519",
+      "/captures/iq1-s-raw.stdout": "acd670af3f2ea95f9cd75811c108f879317e3d85f19a571c84790d2b20786dd7",
+      "/captures/iq1-s-raw.stderr": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578"
+    }
+  },
+  "conclusion": "No tolerance or reference-policy change. Any proposal to use fixture-specific F16KV HF references must go through explicit peer review under docs/PRECISION.md; no per-position expectation selection.",
+  "hf_reference_policy_delta": {
+    "direction": "logical-F16KV reference minus original F32KV reference",
+    "logit_values": 77791232,
+    "changed_values": 77790857,
+    "max_abs_delta": 0.38309812545776367,
+    "mean_abs_delta": 0.017360278436825395,
+    "rms_delta": 0.02327728027911751,
+    "mean_signed_delta": -0.0022568278083898545,
+    "nll": {
+      "old_f32kv_mean": 9.931406021118164,
+      "new_f16kv_mean": 9.931761741638184,
+      "mean_signed_delta": 0.00035657547414302826,
+      "max_abs_delta": 0.14125633239746094,
+      "mean_abs_delta": 0.01706244982779026,
+      "rms_delta": 0.02341105700119873
+    }
+  }
+}

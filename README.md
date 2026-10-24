@@ -33,6 +33,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `Q5_0`, `Q5_1`, `Q5_K` | Supported | Supported | No |
 | `Q6_K` | Supported | Supported | No |
 | `Q8_0` | Supported | Supported | `Q8_0` |
+| `IQ1_S`, `IQ1_M` | Supported | Supported | No |
 | `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | No |
 | `IQ3_XXS`, `IQ3_S` | Supported | Supported | No |
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | No |

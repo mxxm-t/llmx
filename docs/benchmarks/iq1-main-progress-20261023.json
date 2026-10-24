@@ -1,0 +1,310 @@
+{
+  "schema": "iq1-main-progress-v1",
+  "date": "2026-10-23",
+  "scope": "Intermediate current-main build/test and released-depth checkpoint. No completed numerical gate, merge, publication, budget change or proven depth-miss cause.",
+  "integration": {
+    "base_main": "58d505f3e698685669753b20ce1710795ec6fc44",
+    "iq1_carry_range": "ca4fd2e1a..7a1857899",
+    "staged_tree_at_build": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "state": "Current-main integration checkpoint; numerical and publication gates remain open.",
+    "frozen_runtime_reference_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+    "current_main_source_includes_server_cache_pacing_delta": true
+  },
+  "windows_build": {
+    "passed": true,
+    "actual_commands": [
+      {
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-main-20261023",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-main-20261023\\build-main-vulkan",
+          "-G",
+          "Visual Studio 18 2026",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "exit": 0
+      },
+      {
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-main-20261023\\build-main-vulkan",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-model-logits",
+          "llmx-iq1-test",
+          "llmx-iq2-small-test",
+          "llmx-vulkan-lifetime-test"
+        ],
+        "exit": 0
+      }
+    ],
+    "version": "llmx 0.1.0+g58d505f3e698.dirty numerics e3011170275b2364",
+    "artifacts": {
+      "llmx-iq1-test.exe": "4fab18596da91d22c122f19397eb2b4cb5df825d346b49a63df042ac601d8e08",
+      "llmx-iq2-small-test.exe": "ad3026ea6c8e7f6d063a3dac4afa8e8c46082a74d14f9ac324238e7efe90090a",
+      "llmx-model-logits.exe": "1d154ee361d6ab6ebb3744ed50bce485906245b042444469713458c3007f1944",
+      "llmx-vulkan-lifetime-test.exe": "eaa6247fab954c3e305d0faf29852daefd3a565ff0da87c7ab567c7acf87b769",
+      "llmx-vulkan.lib": "bb1a4649d563999991c5c3ad76acb938506d6178b7318caf689e079a47052afd",
+      "llmx.exe": "4b29dfb151f4f9e545f6c48a01f5070e9b0da75b3f04557f0e1edcb40bde5d98"
+    },
+    "inputs_unchanged_during_build": true,
+    "non_document_build_source_files_reverified_after_build": 413,
+    "warnings": [
+      {
+        "code": "C4457",
+        "file": "src/server/cache.hpp",
+        "line": 445,
+        "description": "h hides function parameter"
+      },
+      {
+        "code": "C4456",
+        "file": "src/server/cache.hpp",
+        "line": 2310,
+        "description": "held hides previous local declaration"
+      }
+    ],
+    "warning_provenance": "cache.hpp is exact published-main blob; warnings retained, no IQ1 source repair claimed."
+  },
+  "windows_checks": {
+    "native_cpu": {
+      "tests": [
+        "iq2-small",
+        "iq1"
+      ],
+      "passed": 2,
+      "failed": 0,
+      "seconds": 2.83,
+      "evidence": "Pinned native-cpu.log; no broader suite claim."
+    },
+    "initial_python_selection": {
+      "tool_session": 15087,
+      "observed_overall_exit": 1,
+      "docs_component": "PASS",
+      "dead_code_component": "PASS",
+      "iq1_failure": "Temporary CLI conversion filesystem error 5 inside sandbox.",
+      "receipt_kind": "Parent tool-observed result; no stdout artifact supplied or invented."
+    },
+    "focused_iq1_unrestricted_rerun": {
+      "tool_session": 70408,
+      "observed_actual_exit": 0,
+      "receipt_kind": "Parent tool-observed terminal result; no stdout file supplied or invented.",
+      "formats": {
+        "IQ1_S": {
+          "converted_field_values": 180224,
+          "full_logit_cases": 150,
+          "nll_checks": 12,
+          "max_logit_error": 1.25e-06,
+          "max_nll_error": 6e-08
+        },
+        "IQ1_M": {
+          "converted_field_values": 180224,
+          "full_logit_cases": 150,
+          "nll_checks": 12,
+          "max_logit_error": 1.39e-06,
+          "max_nll_error": 5e-08
+        }
+      }
+    }
+  },
+  "released_depth": {
+    "runtime": "Frozen integrated10ac Linux166dd7a9; separate from current-main Windows build.",
+    "iq1_s_f16_producer": {
+      "passed": true,
+      "removed": true,
+      "process_exit": 0,
+      "oom_killed": false,
+      "execution_receipt_sha256": "37a442ad03ed9e06f0d68ec7924fc16fee0a28d5685529b66dcb7351dfd58167",
+      "raw_chat_complete": true
+    },
+    "selected_f16_comparison": {
+      "passed": false,
+      "exit": 1,
+      "removed": true,
+      "top_two_tie_margin": 0.1,
+      "cells": [
+        {
+          "variant": "raw",
+          "counts": {
+            "exact": 505,
+            "accepted-tie": 6,
+            "miss": 1
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        },
+        {
+          "variant": "chat",
+          "counts": {
+            "exact": 506,
+            "accepted-tie": 6,
+            "miss": 0
+          },
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          }
+        }
+      ],
+      "misses": [
+        {
+          "variant": "raw",
+          "position": 16883,
+          "actual_top1": 17,
+          "hf_top2_ids": [
+            15,
+            17
+          ],
+          "hf_top2_logits": [
+            17.77855682373047,
+            17.647363662719727
+          ],
+          "hf_gap": 0.1311931610107422,
+          "verdict": "miss"
+        }
+      ],
+      "no_amendment": true,
+      "confound": "Default capture KV is F16; independent HF reference KV is F32. KV-only control being prepared; no proven cause."
+    },
+    "v3_remaining_phases": {
+      "iq1_s_f32": "Refused before container creation for explicit peer CPU6-13 overlap.",
+      "iq1_m_f16_f32": "Not started in v3.",
+      "receipt_kind": "Parent tool-observed terminal phase outcome."
+    },
+    "v4_continuation": {
+      "run": "released-depth-v4/released-reference-20261023T201948Z-2941854",
+      "cpu_set": "0-3",
+      "phases": [
+        "iq1-s/depth-f32",
+        "iq1-m/depth-f16",
+        "iq1-m/depth-f32"
+      ],
+      "status": "TERMINAL resource-guard failure during S F32; M F16/F32 not started. Not a numerical failure or completed reference.",
+      "parent_poll_tool_session": 33203,
+      "parent_poll_observed_exit": 1,
+      "phase_execution_sha256": "d9147eba1e64b7c3550dab34e26a4234905e392d1c31f7f01bc05db6681b8897",
+      "phase_passed": false,
+      "removed": true,
+      "process_exit": null,
+      "process_exit_note": "Producer process_exit was not recorded because the host guard interrupted the phase; terminal runner exit1 separately tool-observed by parent.",
+      "oom_killed_at_recorded_inspection": false,
+      "memory_guard": {
+        "host_available_bytes": 8600817664,
+        "required_host_available_bytes": 8744718336,
+        "container_current_bytes": 6287667200,
+        "container_peak_bytes": 9399947264,
+        "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0"
+      },
+      "not_started": [
+        "iq1-m/depth-f16",
+        "iq1-m/depth-f32"
+      ],
+      "not_started_provenance": "Parent terminal runner observation; no fabricated phase receipts.",
+      "limits_unchanged": true
+    }
+  },
+  "linux_current_main_build": {
+    "root": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/main-58-v1",
+    "cpu_set": "14-15",
+    "status": "PASS; terminal exit0, removed without OOM.",
+    "source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "source_manifest_sha256": "7f750b969f2f97a1fcaf2621d759843c7495c327969332eeff7267aa67893a9c",
+    "source_unchanged": true,
+    "bundle_unchanged": true,
+    "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+    "artifacts": {
+      "llmx": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+      "llmx-model-logits": "3146871679f4a1c918c09e1a01f9a97d391ea48e88d42e21444b5e3b3b12c670",
+      "llmx-iq1-test": "a5ef49b2a1c5208c79b61727b1df189b47d26e706434b920047be5840fb8f5e1",
+      "llmx-iq2-small-test": "e1b018082999fd43062a2dd72aa3ec845b2b9983b6f2070b7cb55d4d70b6af08",
+      "llmx-vulkan-lifetime-test": "94c152eaf463724e0398d97a15a2d342355847eccc7870c979c6398c88196cfc",
+      "libllmx-vulkan.a": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+      "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "generated/llmx-build-info.hpp": "e4964475505d413254056da9c863a8e60cf63571acb9afec20a6108a54447693",
+      "CMakeCache.txt": "f8d25ac98ac31a69273520a42cf918cf66aa981065b0e6233398f4d646efb90d",
+      "compile_commands.json": "5a758395ee42a65199224060338af54e23f94c0a159828b2bd1f598d96f24926",
+      "CMakeFiles/llmx.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+      "CMakeFiles/llmx-model-logits.dir/flags.make": "bf46841f4f06e6f46fa00826dfd7f314cbe95051db66efcf4e08efeb4bb7d08e",
+      "selected-tests.json": "d4a03a4a74fb3be1f385f6063392f0c0831230dbc8c00699e324e48ebba02c33",
+      "ctest-results.xml": "1f8cab957a95eef9190550ee3f4b5bd79ddb1e68ec75bf91029204e23c3d1022",
+      "Testing/Temporary/LastTest.log": "3514e79d4fbf978e3fc5404cb995712df0667388633edd382184c48d3b281311",
+      "CTestTestfile.cmake": "205d3b28f2ea2fdc662f5c755c82326479d71c556ff15aa5e80f980907f307ab"
+    },
+    "compiled_shader_count": 245,
+    "ctest_summary": {
+      "expected": 2,
+      "reported": 2,
+      "names": [
+        "iq2-small",
+        "iq1"
+      ],
+      "passed": 2,
+      "skipped": 0
+    },
+    "memory_peak_bytes": 1728708608,
+    "memory_events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "log_sha256": "735f043400412bd557d1dbc258e6a9e3d83eb1fdbf3013ba9a43adb5d881c6ef",
+    "scope": "Product, helper, focused native targets and245shader compilation; only iq1/iq2-small CPU CTests run, not full suite or device gate."
+  },
+  "markdown_review": {
+    "tracked_markdown_pages": 131,
+    "parents": [
+      "58d505f3e698685669753b20ce1710795ec6fc44",
+      "7a1857899"
+    ],
+    "exact_git_blob_matches": {
+      "58d505f3e698685669753b20ce1710795ec6fc44": 120,
+      "7a1857899": 122
+    },
+    "exact_match_to_at_least_one_parent": 128,
+    "semantic_review_required": [
+      "AGENTS.md",
+      "README.md",
+      "docs/STATUS.md"
+    ],
+    "semantic_review": {
+      "AGENTS.md": "Merged current-main guidance with IQ1 decoder/operator/dictionary test descriptions; registry list includes both IQ2 and IQ1. No support promotion.",
+      "README.md": "Current-main IQ2 supported row preserved; IQ1 remains format decoder/qualification pending and Vulkan in development.",
+      "docs/STATUS.md": "Build/focused tests and failed first depth comparison retained; Linux current-main build now passed2/2CPU checks, v4S F32 retained as host-memory guard stop and bothM phases notstarted. No support or numerical-gate promotion."
+    },
+    "carry_method": "Actual working-file Git blob IDs after repository filters compared with both integration parents; exact parent pages carried without semantic re-review.",
+    "checks_run_this_task": "None. Root will run docs checks; no test or commit performed."
+  },
+  "evidence_sha256": {
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/result.json": "99b2f99cad811925d48998747820b83d90379ad1323fb35f56a4fd990d12c6ba",
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/0.stdout": "d9948a51397b0c62c2be31147c7f883d02eed9f4fdb08c38216a967c6ee79807",
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/1.stdout": "5ea33fda6c935c5bd47db99cab7cb7aef70a71f6a38bc80de1cc700df49b4a94",
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-quant-resume-20261020/iq1-main-windows-build-v1/native-cpu.log": "abd10ae69ea191683d490d476249cc90851e134ae7299a9f5a803a2e3ba5f133",
+    "build-quant-resume-20261020/iq1-main-integration-prep-20261023/report.json": "78960ef5e250ea414151ffceb47596b335868b89538f76d58bcc5f2293ffeb97",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/comparison.json": "7ca1d67645b7659311b5cfaaccdb19631accf2e294cadd112da159d48497fb8e",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/execution.json": "867760caa72ed0237929081a0c22498f72f2fe44b9887eb8bca8426ccfe75aa3",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/hf-execution.json": "37a442ad03ed9e06f0d68ec7924fc16fee0a28d5685529b66dcb7351dfd58167",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/report.json": "eab0f73ab8af4072fd71e9a3a295809ea6a21932fa59239ab09c277102150861",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/raw.json": "32914c0aeb4d0e73410ceb39013d4bd81f8b86098a02aa590f0016e435682ee9",
+    "build-quant-resume-20261020/iq1-s-selected-f16-result-v2/run.log": "6aad18ac54d077e2a367da7dcf8eefbf8f881ac79b0fb5c5d0860af46e2298af",
+    "build-quant-resume-20261020/iq1-main-58-build-v1/build-execution.json": "98ec270535267e646027304c5969cb73ddca040c94675ccc3154000adc0d7eff",
+    "build-quant-resume-20261020/iq1-released-depth-v4/terminal-results/iq1-s-depth-f32-execution.json": "d9147eba1e64b7c3550dab34e26a4234905e392d1c31f7f01bc05db6681b8897"
+  },
+  "kv_isolation_record": {
+    "path": "iq1-kv-isolation-20261023.json",
+    "sha256": "a51ecbe9bfdffdfe1151fb12d6c9eb3e6ca9b447f70bb8a09968a2bce036a5f4"
+  }
+}

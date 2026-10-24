@@ -1,0 +1,65 @@
+{
+  "scope": "Ordinary narrowed IQ1_S and IQ1_M tiny-fixture HF checks only. These are preintegration feature-source results using the retained earlier-built product; they do not qualify the integrated source, released models, performance, or landing.",
+  "feature_source_checkpoint": "08cb08e7",
+  "product": {
+    "path": "worktrees/iq1-pair-20261023/build-iq1-vulkan/Release/llmx.exe",
+    "sha256": "7ee3bf514da567de4e3ab1123706fea631179e8b9525963f6e691bb0be19205c",
+    "version": "llmx 0.1.0+ga93d7925de32.dirty numerics 8a0e906cc0750fb6",
+    "note": "Retained binary built before integration. The embedded version is not an exact source-revision proof; the product hash identifies the tested executable."
+  },
+  "case_counts": "Each format in each run: 150 full-logit cases and 12 NLL checks across dense-untied, dense-tied and MoE fixtures.",
+  "runs": [
+    {
+      "backend": "CPU",
+      "requested_policy": "bf16",
+      "result": "PASS",
+      "formats": {
+        "IQ1_S": {"max_logit_error": 0.00825313, "logit_bound": 0.03918862342834473, "max_nll_error": 0.00052555, "nll_bound": 0.0035877505345052185},
+        "IQ1_M": {"max_logit_error": 0.00615063, "logit_bound": 0.0448300838470459, "max_nll_error": 0.00066511, "nll_bound": 0.004950393863618174}
+      },
+      "log": "worktrees/iq1-pair-20261023/build-iq1-cpu/hf-bf16-v1.log",
+      "log_sha256": "3d8e506214cfc031c5a6e3765512ba578cc1e1e91dcc68c736ed45dc468f284b"
+    },
+    {
+      "backend": "Radeon VII",
+      "requested_policy": "f16",
+      "result": "PASS",
+      "formats": {
+        "IQ1_S": {"max_logit_error": 0.00007728, "logit_bound": 0.004492044448852539, "max_nll_error": 0.00001235, "nll_bound": 0.000491284823700866},
+        "IQ1_M": {"max_logit_error": 0.00007932, "logit_bound": 0.0043315887451171875, "max_nll_error": 0.00001296, "nll_bound": 0.000720869337754948}
+      },
+      "log": "worktrees/iq1-pair-20261023/build-iq1-vulkan/hf-f16-v1.log",
+      "log_sha256": "9a38b5f54dbbd5517af0a018305b6a0ac91fbe0475375e810abc8654ba86348a"
+    },
+    {
+      "backend": "Radeon VII",
+      "requested_policy": "bf16",
+      "result": "PASS",
+      "formats": {
+        "IQ1_S": {"max_logit_error": 0.00611220, "logit_bound": 0.03918862342834473, "max_nll_error": 0.00044834, "nll_bound": 0.0035877505345052185},
+        "IQ1_M": {"max_logit_error": 0.00580671, "logit_bound": 0.0448300838470459, "max_nll_error": 0.00068629, "nll_bound": 0.004950393863618174}
+      },
+      "log": "worktrees/iq1-pair-20261023/build-iq1-vulkan/hf-bf16-v1.log",
+      "log_sha256": "83a400d9c0b2a3c75c9780bcddb88fe806e1ca5df616e86ce251b2910f229265"
+    },
+    {
+      "backend": "Radeon VII",
+      "requested_policy": "int8",
+      "result": "PASS",
+      "formats": {
+        "IQ1_S": {"max_logit_error": 0.00007728, "logit_bound": 0.004492044448852539, "max_nll_error": 0.00001235, "nll_bound": 0.000491284823700866},
+        "IQ1_M": {"max_logit_error": 0.00007932, "logit_bound": 0.0043315887451171875, "max_nll_error": 0.00001296, "nll_bound": 0.000720869337754948}
+      },
+      "log": "worktrees/iq1-pair-20261023/build-iq1-vulkan/hf-int8-v1.log",
+      "log_sha256": "9a38b5f54dbbd5517af0a018305b6a0ac91fbe0475375e810abc8654ba86348a",
+      "interpretation": "The output uses the f16-family bounds, and the HF test policy falls back to those bounds for an int8 request without a block-int8 witness. This log does not itself serialize the matrix-path witness, so it is not evidence of native block-int8 execution."
+    }
+  ],
+  "shared_output": "Each HF log also reports exact IQ1_S and IQ1_M CLI conversion for 180,224 field values per format, including multi-block rows and empty rows/models.",
+  "preserved_f32_evidence": "The earlier ordinary F32 results remain in iq1-initial-operators-20261023.json; this record does not replace them.",
+  "limitations": [
+    "No split-placement run is included.",
+    "No released-model, long-context, MX Vulkan, performance, or existing-path regression qualification is included.",
+    "No current integrated-source build or test result is claimed."
+  ]
+}

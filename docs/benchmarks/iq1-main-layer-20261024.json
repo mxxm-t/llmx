@@ -1,0 +1,257 @@
+{
+  "schema": "llmx-iq1-main-layer-v4-evidence-v1",
+  "scope": "Focused synthetic layer-split numerical qualification for three IQ1_S and three IQ1_M fixtures under four requested dtype policies. This does not qualify TP2, released-model depth, serving or performance.",
+  "status": "passed",
+  "source_and_runtime": {
+    "source_revision": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "source_manifest_sha256": "d623e8a81b5b26dcda8ee11612c59870632d587e997157471788b3ee48cc2ed2",
+    "binary_sha256": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+    "build_pins_unchanged": true,
+    "source_pins_unchanged": true,
+    "bundle_pins_unchanged": true
+  },
+  "execution": {
+    "execution_sha256": "d0df4ca45799244944ddd3b44b7e589dd07521621d05ba6815380404aafe2bb9",
+    "result_sha256": "24308018801d4767eee76261baeccf4a68f02bfa60f8fea88b3d0acc50d748a7",
+    "passed": true,
+    "planned_children": 144,
+    "completed_children": 144,
+    "started_children": 144,
+    "not_started_children": 0,
+    "unique_call_indices": 144,
+    "call_indices": "0..143, no duplicates",
+    "all_calls_passed": true,
+    "diagnostic_exit": 0,
+    "container_exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "actual_files_hash_verified": 299,
+    "execution_artifact_hash_map_sha256": "e377ef7f33d847a427e8a766b9cec4a5c268b5f78f04cccc8dc76182b88b43fe",
+    "result_artifact_count": 296,
+    "execution_embedded_result_matches_file": true
+  },
+  "device_and_resources": {
+    "device_request": "vulkan:0,vulkan:1",
+    "physical_devices": [
+      {
+        "device_name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+        "device_id": "0x66a1",
+        "uuid": "00000000-c600-0000-0000-000000000000"
+      },
+      {
+        "device_name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+        "device_id": "0x66a1",
+        "uuid": "00000000-c900-0000-0000-000000000000"
+      }
+    ],
+    "device_guards": [
+      {
+        "pci": "0000:c6:00.0",
+        "busy": 0,
+        "vram": 10919936,
+        "power": "auto"
+      },
+      {
+        "pci": "0000:c9:00.0",
+        "busy": 0,
+        "vram": 10932224,
+        "power": "auto"
+      }
+    ],
+    "cpu_set": "14-15",
+    "cpu_quota": 2,
+    "memory_bytes": 6442450944,
+    "memory_swap_bytes": 6442450944,
+    "network": "none"
+  },
+  "checks": {
+    "policies": [
+      {
+        "requested_policy": "auto",
+        "passed": true,
+        "formats": [
+          {
+            "format": "IQ1_S",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "block-int16",
+              "f32"
+            ],
+            "max_logit_error": 0.0001451067180633578,
+            "max_nll_error": 7.978885841808392e-06
+          },
+          {
+            "format": "IQ1_M",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "block-int16",
+              "f32"
+            ],
+            "max_logit_error": 0.00013561321258548364,
+            "max_nll_error": 2.0775939396422416e-05
+          }
+        ]
+      },
+      {
+        "requested_policy": "f32",
+        "passed": true,
+        "formats": [
+          {
+            "format": "IQ1_S",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "f32"
+            ],
+            "max_logit_error": 2.5028686523320687e-06,
+            "max_nll_error": 1.8988584216117488e-07
+          },
+          {
+            "format": "IQ1_M",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "f32"
+            ],
+            "max_logit_error": 2.520607948308662e-06,
+            "max_nll_error": 1.9479931179233745e-07
+          }
+        ]
+      },
+      {
+        "requested_policy": "bf16",
+        "passed": true,
+        "formats": [
+          {
+            "format": "IQ1_S",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "bf16",
+              "f32"
+            ],
+            "max_logit_error": 0.009517458581924432,
+            "max_nll_error": 0.0005998807128078099
+          },
+          {
+            "format": "IQ1_M",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "bf16",
+              "f32"
+            ],
+            "max_logit_error": 0.01307549867630009,
+            "max_nll_error": 0.0014221480999001557
+          }
+        ]
+      },
+      {
+        "requested_policy": "int8",
+        "passed": true,
+        "formats": [
+          {
+            "format": "IQ1_S",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "block-int16",
+              "f32"
+            ],
+            "max_logit_error": 0.0001451067180633578,
+            "max_nll_error": 7.978885841808392e-06
+          },
+          {
+            "format": "IQ1_M",
+            "passed": true,
+            "full_vocabulary_logits": 12,
+            "nll_checks": 6,
+            "calls": 18,
+            "executed_paths": [
+              "block-int16",
+              "f32"
+            ],
+            "max_logit_error": 0.00013561321258548364,
+            "max_nll_error": 2.0775939396422416e-05
+          }
+        ]
+      }
+    ],
+    "fixture_sets": [
+      {
+        "format": "IQ1_S",
+        "golden_sha256": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "model_sha256": "7971ce671f9ab55b60508363a76714dfc9164c818fd1a5f37a260e155dd24ad6",
+            "weights_sha256": "dc0725d98ef7cfae9079ff790032505b328c2ad6a80592d8130ff8f86015dcaf",
+            "packed_sha256": "26a030f230ed322663b8cdc65bb2327ba3753abd34a7a6abe8780f2251023f5b"
+          },
+          {
+            "name": "dense-tied",
+            "model_sha256": "fbf93c6bc6e2c68f3bae2df756c17007780755aca5b4fd3ce2a3ef790111865c",
+            "weights_sha256": "921bdf03605c55a271d6a9d13c998f19fe507a3131649ac44464f0b2bdc2eeb1",
+            "packed_sha256": "3f965c01b216312f81ab97c6603fd723c22a9fe2a8c91b1eb1e31a3fa84d405c"
+          },
+          {
+            "name": "moe",
+            "model_sha256": "c4229bfe4c68a474c266d29a581c069cf2958c389bb84b989d0294bed42a5a8b",
+            "weights_sha256": "731bd433d75811f6c5423f3a3cd5639ef5b08d1099e8fde8386d0b5ca472d496",
+            "packed_sha256": "c694833ed547341f09dc3ddff7d6cbef01e8e36665e4cb98edb3cac6d01fe26a"
+          }
+        ]
+      },
+      {
+        "format": "IQ1_M",
+        "golden_sha256": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "model_sha256": "6e318959b0c4abad0e83e8c0209e690c4a05486b518e19ce2acd0847b6d44ea3",
+            "weights_sha256": "2a35b8cf911c204a2685f0b237d39ee60a17e49104c3a51d761f342a08e8cb7b",
+            "packed_sha256": "98e108fa22553814fd36daa25f20f59b25b5abae0628db1c49dc691f343c77b7"
+          },
+          {
+            "name": "dense-tied",
+            "model_sha256": "81ea4d9525049ef377b570f0fe9c045d454ec9b24373a42c544b04bbc479853f",
+            "weights_sha256": "4a954ec5ea4dd38defad50c90ee10ac901e1e6173acbc10aa5f072196b3b54ca",
+            "packed_sha256": "fd889689f28cfdcf78832d8b36efacb22e6b257bc0a598600fab3971d5c080b8"
+          },
+          {
+            "name": "moe",
+            "model_sha256": "9896f5888edbe4ff1a801f409c9fa0f8161602af54d6826a7ba826829ea83083",
+            "weights_sha256": "07af81a0d3c75aca63407e77f515c669fa1d77e3c399e1bd6bf26fab2e04a58f",
+            "packed_sha256": "fc42de3622dd232dd08863d6719a3fa932438294ebe3c023918171769127a487"
+          }
+        ]
+      }
+    ],
+    "qualification_shape": "Per format and requested policy: 12 full-vocabulary logits plus 6 NLL checks across dense untied, dense tied and MoE fixtures.",
+    "policy_note": "The requested int8 policy executed block-int16 and F32 paths for these IQ1 fixtures; no native IQ1 int8 path is claimed.",
+    "performance_claim": false
+  },
+  "limitations": [
+    "Selected synthetic layer fixtures only.",
+    "No released-model HF depth comparison, full-model serving claim, or performance evidence is included.",
+    "TP2 evidence is separate and not included in this record."
+  ]
+}

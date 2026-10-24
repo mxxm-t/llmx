@@ -1,0 +1,39 @@
+{
+  "scope": "CPU IQ1_M F32/F32-KV chat 16K prompt and512-position independent full-F32 HF depth qualification",
+  "capture_remote": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/cpu-eight-f32-v1/results/iq1-m-f32-chat",
+  "comparison_remote": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/comparison-results/cpu-eight-f32-compare-mchat-v1",
+  "capture_execution_sha256": "bdc73cc8b940983ded739425281472b056d9157609f925f398d36c85018242e2",
+  "comparison_execution_sha256": "bf6de844ec50addf2aff6e4b89b9d90481860311d2f634b2f88505e8805928f4",
+  "comparison_sha256": "01c20de1798430e4f569447ebe64830692ecf5e7ae4e9a4f0ffbd962fbc837ab",
+  "capture_artifacts": {
+    "iq1-m-chat.stdout": "0307a60b07cce8039ca8dae7da3f57356211c3b2441506411f67698fea757840",
+    "container.cid": "b77b0f9962d4062e684175026dcfbddd8c944f5ca4188bdd6046d920ff505029",
+    "report.json": "e855eab2cf73dfd912d8ce9194cfe352615f9bcb46b9adc9cf5c23315cb60ad0",
+    "activity.jsonl": "cacc8f9dc2804271275acb29cc20d4497463eea07ca1914da75ed7fab3a373af",
+    "run.log": "faa251400c7fef62804df42eeb3eb0927ed1d5e2ce4b98a15cf8f0819ef05e25",
+    "iq1-m-chat.stderr": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c"
+  },
+  "counts": {
+    "exact": 512,
+    "accepted-tie": 0,
+    "miss": 0
+  },
+  "matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "capture_seconds": 1747.1344892978668,
+  "capture_and_comparison_passed_removed_exit_zero_non_oom": true,
+  "source_build_model_input_pins_unchanged": true,
+  "comparison_scope": "Retained-output comparison preserves diagnostic_only/gate_replaced fields; root accepts the completed capture plus unchanged full512-position rule, not an overall-feature pass.",
+  "numerical_policy_and_limits_changed": false,
+  "remaining_cpu_depth_cells": [
+    "iq1-s-default-chat",
+    "iq1-m-default-raw",
+    "iq1-m-default-chat"
+  ]
+}

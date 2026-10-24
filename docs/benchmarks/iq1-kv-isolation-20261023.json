@@ -1,0 +1,61 @@
+{
+  "schema": "iq1-kv-isolation-v1",
+  "scope": "Diagnostic only. Changing only KV precision removes the observed raw-depth miss; default F16-KV qualification remains open.",
+  "model": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+  "numerical_source_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "matrix_policy": "auto/F16 with witnessed block-int16",
+  "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+  "probe_sha256": "6622caf9f8867daf0bb6d4c2e7432ac76f9dd49740034f1c7d5175d4a195a3c1",
+  "changed_cpp": "options.kv_k = options.kv_v = backend::KVType::f32 instead of f16",
+  "control_bundle_sha256": "9ca2a075697ba7bec02cbcda80272f13d942477c4de7ec22812bd76496f2ac15",
+  "original_counts": {
+    "exact": 505,
+    "accepted-tie": 6,
+    "miss": 1
+  },
+  "control_counts": {
+    "exact": 511,
+    "accepted-tie": 1,
+    "miss": 0
+  },
+  "control_at_original_miss": {
+    "position": 16883,
+    "actual_top1": 15,
+    "hf_top2_ids": [
+      15,
+      17
+    ],
+    "hf_top2_logits": [
+      17.77855682373047,
+      17.647363662719727
+    ],
+    "hf_gap": 0.1311931610107422,
+    "verdict": "exact"
+  },
+  "control_top_logits_at_16883": {
+    "15": 17.7721481,
+    "17": 17.6576309
+  },
+  "original_top_logits_at_16883": {
+    "17": 17.7381954,
+    "15": 17.7090721
+  },
+  "rule": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "top_two_margin": 0.1,
+    "changed": false
+  },
+  "next": "Independent HF control rounding incoming K/V to F16 before cache update and attention, with F32 attention arithmetic. No limit change or default gate waiver.",
+  "runtime_and_inputs_unchanged": true,
+  "owned_capture_and_comparison_containers_removed": true,
+  "remote_root": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/kv-f32-control-v1",
+  "artifacts": {
+    "probe-source.diff": "456650f2b4994fc14f18eaf2181c85b4912acbed0b5287a723f07f1f9e5a3fdb",
+    "capture/execution.json": "18c286b01120dc95eb583dfbed2ba8ab9caf1a5b52c36b43f4cde683e3eb3666",
+    "capture/report.json": "5b89dea5fef2bd75d5547279563e785186a80ad1dc6eb0f79570ec1ad09e8405",
+    "capture/iq1-s-raw.stdout": "459610fc53860a76dc889d8b4fa59471b0ba7aafd0de70e1ee3b8c3c0fd02e26",
+    "capture/iq1-s-raw.stderr": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+    "comparison/execution.json": "07233e3e09a4cd62489d7bd91908480a1fe7cabe316478e2317a28868934cc65",
+    "comparison/comparison.json": "277d152f8e42b3b9a949523f3841ca04a7e1a6e833709ffd0f5f98b8a85848a6"
+  }
+}

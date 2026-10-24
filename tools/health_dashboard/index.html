@@ -540,11 +540,15 @@ p {
 .topology-table th, .topology-table td { text-align: left; vertical-align: top; border-bottom: 1px solid #1e2a37; padding: 7px 8px }
 .topology-table th { color: #8293a8; font-weight: 500 }
 .topology-empty { color: var(--muted); padding: 10px 0; font-size: 11px }
-.lookup-card { padding: 18px 22px; margin-bottom: 18px }
-.lookup-card p { margin-top: 5px }
+.lookup-card { margin-bottom: 18px }
+.lookup-card .card-head { padding: 0 }
+.lookup-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11px }
 .lookup-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(230px,1fr)); gap: 9px; margin-top: 12px }
 .lookup-item { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #0e151e; padding: 12px 14px }
-.lookup-item strong { display: block; color: #e4edf8; font-size: 12px; margin-bottom: 7px }
+.lookup-item-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px }
+.lookup-item strong { display: block; color: #e4edf8; font-size: 14px }
+.lookup-size { margin-top: 0; font-size: 26px; white-space: nowrap }
+.lookup-size .unit { display: inline; font-size: 11px }
 .lookup-item span { display: block; color: var(--muted); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere }
 .lookup-empty { color: var(--muted); padding: 9px 0 1px; font-size: 11px }
 @media(max-width:760px) {
@@ -2044,13 +2048,15 @@ button[hidden] {
    <section class="card topology-card" aria-live="polite">
     <div id="topology-view"></div>
    </section>
-   <div class="section-title">
-    <h2>Lookup storage</h2>
-    <span>STATIC MODEL TABLES</span>
-   </div>
-   <section class="card lookup-card" aria-live="polite">
-    <p>Logical table bytes are not total replicated allocation; CPU backend is host RAM; file page residency is unknown.</p>
+   <section class="card pad lookup-card" id="lookup-storage-card" aria-labelledby="lookup-storage-title" aria-live="polite">
+    <div class="card-head">
+     <div>
+      <h2 id="lookup-storage-title">Lookup storage</h2>
+      <p>Where the model's lookup tables are stored.</p>
+     </div>
+    </div>
     <div id="lookup-storage-view"><p class="lookup-empty">Waiting for health data.</p></div>
+    <p class="lookup-note">Logical size excludes replicated copies. CPU backend storage is host RAM. File page residency is unknown.</p>
    </section>
    <div class="section-title">
     <h2>
@@ -3462,18 +3468,23 @@ function renderLookupStorage(raw) {
   for (const lookup of topology.lookups) {
     const item = element('article', 'lookup-item');
     const layer = Number.isSafeInteger(lookup?.layer) && lookup.layer >= 0 ? 'Layer ' + (lookup.layer + 1) : 'Layer unavailable';
-    item.append(element('strong', '', layer));
     const count = value => Number.isSafeInteger(value) && value >= 0 ? fmt(value) : 'Unavailable';
     const size = value => Number.isSafeInteger(value) && value >= 0 ? bytes(value) : 'Unavailable';
     const type = typeof lookup?.type === 'string' && lookup.type ? lookup.type : 'Unavailable';
+    const headline = element('div', 'lookup-item-head');
+    const location = lookup?.storage === 'file' ? 'File-backed' : lookup?.storage === 'device' ? 'Backend storage' : 'Storage unavailable';
+    headline.append(element('strong', '', location));
+    const logicalSize = element('div', 'big lookup-size', size(lookup?.bytes));
+    logicalSize.append(element('span', 'unit', 'Logical size'));
+    headline.append(logicalSize);
+    item.append(headline);
+    item.append(element('span', '', layer + ' / ' + type));
     item.append(element('span', '', count(lookup?.rows) + ' rows / ' + size(lookup?.row_bytes) + ' per row'));
-    item.append(element('span', '', size(lookup?.bytes) + ' logical table / ' + type));
     const ids = Array.isArray(lookup?.members) && lookup.members.every(id => Number.isSafeInteger(id) && id >= 0) ? lookup.members : null;
     const members = ids === null ? 'Unavailable' : ids.length ? ids.map(id => deviceNames.get(id) || ('Backend ' + id)).join(' + ') : 'None';
     if (lookup?.storage === 'device') {
       item.append(element('span', '', 'Stored in backend allocation(s): ' + members));
     } else if (lookup?.storage === 'file') {
-      item.append(element('span', '', 'File-backed / physical page residency unknown'));
       item.append(element('span', '', 'Row upload backends: ' + members));
     } else {
       item.append(element('span', '', 'Storage unavailable'));

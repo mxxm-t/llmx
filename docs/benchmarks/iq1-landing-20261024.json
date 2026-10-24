@@ -1,0 +1,79 @@
+{
+  "tested_revision": "be31833fce69b28f22ec6de5930247f635e9cc03",
+  "base_main": "5ab233d3258a7c6a5cabc41d9ea0284811db6be6",
+  "landing_delta": "Documentation only. Runtime, tests, fixtures, tools, CMake and hosted workflow match the successful candidate.",
+  "ordinary_ci": {
+    "run": 40076591180,
+    "jobs": 7,
+    "passed": 7,
+    "snapshot": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-5ab-ci-observations\\20261024T094209701068Z-jobs.json",
+    "sha256": "793edd851edbfea745e6a1968969ccf6c99656881862a46beb074d04d707bdbf"
+  },
+  "cpu_depth": {
+    "run": 40080899030,
+    "jobs": 3,
+    "passed": 3,
+    "snapshot": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\observations\\20261024T094208Z-jobs.json",
+    "sha256": "549895b4e9c6f97d74801d6a6de9c6053fa73bc834d46913b3948bde02dd494e",
+    "cells": {
+      "s-chat": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\comparison-3f2270460de0.json",
+        "sha256": "ceb99bd7f654dc91f7a4ea9fce283884c23628264e0a7e01a72fcc6543dfe2c3",
+        "selected": {
+          "exact": 509,
+          "accepted-tie": 3,
+          "miss": 0
+        },
+        "original_f32_informational": {
+          "exact": 509,
+          "accepted-tie": 3,
+          "miss": 0
+        },
+        "artifact_id": 12556030228,
+        "artifact_sha256": "10dfc5f15bb74d4cac5258ae8a39189107c603d5a7c2433d98f1178eb22ad47a"
+      },
+      "m-chat": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-chat\\comparison-3f2270460de0.json",
+        "sha256": "5c72c6c0e79522539e39806dbada44e25acd8846f4e70a038ce3562b36635ab1",
+        "selected": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "original_f32_informational": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "artifact_id": 12555309658,
+        "artifact_sha256": "f4a54773cae59830e37f23ef4092c064f58c215e7000daee4d06ae1a750638bd"
+      },
+      "m-raw": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-raw\\comparison-3f2270460de0.json",
+        "sha256": "1c08668c2fc9b1550ac1ae8939e6085ac947f0d4a297b263bb5dcfd2fef852b8",
+        "selected": {
+          "exact": 511,
+          "accepted-tie": 1,
+          "miss": 0
+        },
+        "original_f32_informational": {
+          "exact": 510,
+          "accepted-tie": 2,
+          "miss": 0
+        },
+        "artifact_id": 12555618730,
+        "artifact_sha256": "1845750b9b158cace559e195fb57b1f15dd4e23ad99545d3a2c7209071f9e543"
+      }
+    }
+  },
+  "final_focused_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe ../iq1-matched-candidate-20261024/build-vulkan/Release/llmx.exe --only docs,dead-code",
+    "tool_session": 52809,
+    "exit_code": 0,
+    "dead_code": "PASS; 5 expected findings; 18 planted faults; 19.0 seconds",
+    "docs": "PASS; 0 findings; 21 planted faults; 15.4 seconds",
+    "post_check_delta": "This evidence receipt and prose recording completion were added after the checks. No runtime, test, flag, documentation link or build input changed."
+  },
+  "numerical_policy": "Unchanged. Selected operation-policy HF gates the narrowed path; original F32 remains informational. Existing tie allowance is not exact equality.",
+  "remaining_work": "Publishing and owned temporary branch cleanup. TQ1_0/TQ2_0 and the later mx ROCm performance phase remain separate work."
+}

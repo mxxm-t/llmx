@@ -6,6 +6,9 @@
 #include "q.glsl"
 #include "iq2_layout.glsl"
 #include "tq_layout.glsl"
+#ifdef LLMX_IQ1
+#include "iq1_layout.glsl"
+#endif
 #ifdef LLMX_MXFP4
 #extension GL_ARB_gpu_shader_fp64 : require
 #extension GL_EXT_spirv_intrinsics : require
@@ -60,6 +63,12 @@ layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
 #include "lookup_cache.glsl"
 #define IQ2_GRID_WORD(i) lookup_words[i]
 #include "iq2_small.glsl"
+#elif defined(LLMX_IQ1)
+#define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
+#define LOOKUP_GRID_SIZE 1024u
+#include "lookup_cache.glsl"
+#define IQ1_GRID_WORD(i) lookup_words[i]
+#include "iq1.glsl"
 #elif defined(LLMX_IQ2_S)
 #define LOOKUP_GRID_SOURCE(i) floatBitsToUint(wf[i])
 #define LOOKUP_GRID_SIZE 2048u
@@ -132,6 +141,9 @@ void main() {
 #elif defined(LLMX_IQ2_SMALL)
     lookup_init();
     const uint type = IQ2_SMALL_TYPE;
+#elif defined(LLMX_IQ1)
+    lookup_init();
+    const uint type = IQ1_TYPE;
 #elif defined(LLMX_IQ2_S)
     lookup_init();
     const uint type = TYPE_IQ2_S;
@@ -276,6 +288,13 @@ void main() {
                             (signs >> (position & 7u)) & 1u, scaled);
                     }
                 }
+#elif defined(LLMX_IQ1)
+            } else if (type == IQ1_TYPE) {
+                uint o = (wr * (p.nin / 256u) + k0 / 256u) * IQ1_BYTES;
+                float d = iq1_scale(IQ1_TYPE, o);
+                uint first = k0 % 256u + wseg * WVALS;
+                for (uint i = 0u; i < WVALS; ++i)
+                    ws[wseg * WVALS + i][wrow] = iq1_at(IQ1_TYPE, o, first + i, d);
 #endif
 #ifdef LLMX_IQ2_S
             } else if (type == TYPE_IQ2_S) {

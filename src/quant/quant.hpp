@@ -13,6 +13,7 @@
 #include "quant/iq3_xxs.hpp"
 #include "quant/iq3_s.hpp"
 #include "quant/iq2_s.hpp"
+#include "quant/iq1.hpp"
 #include "quant/mxfp4.hpp"
 #include "quant/tq.hpp"
 #include "quant/types.hpp"
@@ -248,6 +249,10 @@ private:
           { *storage_type(GGML_TYPE_F16), nullptr, dequantize_row_f16 } },
         { GGML_TYPE_BF16,
           { *storage_type(GGML_TYPE_BF16), nullptr, dequantize_row_bf16 } },
+        { GGML_TYPE_IQ1_S,
+          { *storage_type(GGML_TYPE_IQ1_S), nullptr, dequantize_row_iq1_s } },
+        { GGML_TYPE_IQ1_M,
+          { *storage_type(GGML_TYPE_IQ1_M), nullptr, dequantize_row_iq1_m } },
         { GGML_TYPE_IQ4_NL,
           { *storage_type(GGML_TYPE_IQ4_NL), nullptr, dequantize_row_iq4_nl } },
         { GGML_TYPE_IQ3_S,

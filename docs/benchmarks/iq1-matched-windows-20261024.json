@@ -1,0 +1,1122 @@
+{
+ "date": "2026-10-24",
+ "scope": "Matched Windows existing-format checkpoint only; IQ1 remains unmerged.",
+ "receipt_policy": "Concise summaries reference retained source receipts by exact path and hash. Original failures, all calls and full activity records remain in those receipts.",
+ "source_receipts": {
+  "main_build": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-builds-20261024\\main\\result.json",
+   "sha256": "895ef774de58cd8f119aad3f667242d83d940da755039d238e5bfbed162e765e"
+  },
+  "candidate_build": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-builds-20261024\\candidate-retry-v2\\result.json",
+   "sha256": "532becee5a75dc85b1808fddc7d5417bfe1851f01e96d151141753523e18a1f9"
+  },
+  "build_review": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-builds-20261024\\root-review.json",
+   "sha256": "6ef2008a76cf9fd5b53bd9e6081fde2e3daca8aaac135d9f0cde1db4299b3ff0"
+  },
+  "q8_identity": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-direct-main-vulkan-q8-20261024\\comparison-audit-v2.json",
+   "sha256": "34754dc16c6cea40e22767d3385f7c2fb00692733dae3352f3ae99bb34f6b9c9"
+  },
+  "shader_audit": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-shader-audit-20261024\\report.json",
+   "sha256": "ff993ab80d36db998d63776463749d34ac11b4923baaa66ef4cf3efc39c170ea"
+  },
+  "complete": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\results-v1\\complete.json",
+   "sha256": "03026926a68aaca6600079eae6188868759e000d0146c335baf7f5c669efa6f4"
+  },
+  "paired-rate-summary": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\results-v1\\paired-rate-summary.json",
+   "sha256": "d804be917b90e57fa106fd4efe8c5c63f399a0077a41eaca5a8e7dec38695037"
+  },
+  "activity-summary": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\results-v1\\activity-summary.json",
+   "sha256": "9375ab1d10b105db21bc83558141170c9f9731b3ce89d47eda5c315f440c70d1"
+  },
+  "artifact-hashes": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\results-v1\\artifact-hashes.json",
+   "sha256": "7e90d61c8fdcd0a1ce8ba3ebb39132cf15ef86b72a7b9dd870bc93596248ab63"
+  },
+  "runtime-plan": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\results-v1\\runtime-plan.json",
+   "sha256": "fc9ed0749c98328af0406823ccda9ccbd0a59aa76bd45aa8f179a269ee838476"
+  },
+  "root_timing_review": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-matched-windows-timing-20261024\\root-result-review.json",
+   "sha256": "d913249d38257f8a2efcbd4d750d21479046a1694ad033ba00f3285f62c27777"
+  },
+  "remaining_identity_aggregate": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-direct-main-remaining-20261024\\aggregate.json",
+   "sha256": "070df69ac61fdc59ded22179bc60a804fc78a3d2a030b4fb31c010ba6c6dc08f"
+  },
+  "omitted_family_carry": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-landing-carry-review-20261024\\carry-decision.json",
+   "sha256": "b6fe3f35509759d89025db44ba66f25a2b02e3a0f3aabea8f22159a51e9c9c93"
+  }
+ },
+ "checkpoint_limits": [
+  "The current clean-main six CPU/eight Vulkan subset is complete; omitted cases retain their historical source/config coverage as recorded below, not fresh Windows captures.",
+  "The source carry does not assert executable, all-module SPIR-V or cross-OS raw-byte identity.",
+  "No mx arm or matched layout-control arm. Two measured samples per arm/model do not establish speed gains, equivalence or zero regression.",
+  "Ordinary CI 40076591180 passes 7/7; all three temporary hosted CPU default depth cells pass. Exact capture/validation evidence is in iq1-hosted-depth-20261024.json. Public publication is separate."
+ ],
+ "root_validation": {
+  "timing_artifact_manifest_entries_verified": 158,
+  "mismatches": 0,
+  "source": "Root independently checked all manifest entries during this checkpoint.",
+  "measured_activity_calls_by_arm": {
+   "base": {
+    "calls": 16,
+    "unrelated_cpu": 16,
+    "unrelated_gpu": 16,
+    "unknown_counter": 16,
+    "unknown_process": 16,
+    "disk_busy": 0,
+    "disk_rate": 8,
+    "uncovered": 0
+   },
+   "candidate": {
+    "calls": 16,
+    "unrelated_cpu": 16,
+    "unrelated_gpu": 16,
+    "unknown_counter": 16,
+    "unknown_process": 16,
+    "disk_busy": 0,
+    "disk_rate": 4,
+    "uncovered": 0
+   }
+  }
+ },
+ "builds": {
+  "main_build": {
+   "revision": "5ab233d3258a7c6a5cabc41d9ea0284811db6be6",
+   "status": "passed",
+   "version": "llmx 0.1.0+g5ab233d3258a numerics 155077245a67b31d",
+   "clean_before": true,
+   "clean_after": true,
+   "artifacts": {
+    "llmx.exe": {
+     "bytes": 9556480,
+     "sha256": "4c29db463c77bc82dec8541a2b8731f683d60770d2d0eba8f3d7bd91469d0c11"
+    },
+    "llmx-model-logits.exe": {
+     "bytes": 8253952,
+     "sha256": "44b1c214754cd5c8204e508988feb1a9157c4950696ffc8604b431e641e52db7"
+    }
+   },
+   "configure_exit": 0,
+   "compile_exit": 0
+  },
+  "candidate_build": {
+   "revision": "be31833fce69b28f22ec6de5930247f635e9cc03",
+   "status": "passed",
+   "version": "llmx 0.1.0+gbe31833fce69 numerics 98bf6b691a333807",
+   "clean_before": true,
+   "clean_after": true,
+   "artifacts": {
+    "llmx.exe": {
+     "bytes": 9798656,
+     "sha256": "ef0d041b997fe640f7bd44f4260679068e1c2ab464806b497bf1bbe4c48b30b3"
+    },
+    "llmx-model-logits.exe": {
+     "bytes": 8495616,
+     "sha256": "9c58623cad60a8bccea5190ed23085acbeb892880ae28b2fb4166b5fefd0e0d8"
+    }
+   },
+   "configure_exit": 0,
+   "compile_exit": 0
+  }
+ },
+ "build_kind": "fresh detached worktrees; Release x64 Visual Studio18; identical Vulkan config/compilerflags/shadercompiler",
+ "q8_identity": {
+  "status": "passed",
+  "scope": "Single Q8_0 direct-main full original-workload Vulkan identity case. This does not establish the remaining model cases, a full integration gate, or performance.",
+  "capture_wrapper_status": "failed_after_capture",
+  "capture_wrapper_failure": "The initial postcheck compared path-bearing dictionaries, so different arm output paths caused a false mismatch despite equal bytes. Capture commands themselves all exited 0. This audit compares contents and hashes without paths.",
+  "capture_wrapper_result": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-direct-main-vulkan-q8-20261024\\result.json",
+  "capture_wrapper_result_sha256": "5bf31a06f8eff55be2dd53682ae0d761cc1168caefda71c372be197c665057fb",
+  "model": {
+   "path": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+   "bytes": 639446688,
+   "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+  },
+  "prompt": {
+   "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-matched-candidate-20261024\\tests\\data\\baseline_perplexity.json",
+   "sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+  },
+  "tokens": 247,
+  "ids_sha256": "e68287079c102f53893ada2d7913acd00abd0ad2f8238e14c1318826a152793a",
+  "dtype": "f16",
+  "vocab": 151936,
+  "greedy_tokens": 64,
+  "execution_metadata_equal_except_version_numerics": true,
+  "matrix_paths": {
+   "batched": [
+    [
+     "f32"
+    ]
+   ],
+   "decode": [
+    [
+     "block-int16"
+    ]
+   ],
+   "greedy": [
+    [
+     "f32",
+     "block-int16"
+    ]
+   ]
+  },
+  "full_vocabulary_rows": 558,
+  "phases": {
+   "batched": {
+    "bytes": 150112768,
+    "sha256": "52de33798ac7e0bffe674ec1cf01b389e8fe913cb3db70445d9b408cef10b3d2",
+    "exact_bytewise": true
+   },
+   "decode": {
+    "bytes": 150112768,
+    "sha256": "5a7643733ba9b52e1e1964ec0f12806e23b6167016a7b42a0f93d6d3454f02dc",
+    "exact_bytewise": true
+   },
+   "greedy": {
+    "bytes": 38895616,
+    "sha256": "8a49f366e97967e56acca92da8ffdc833b94df36e306908233241dcf31aa4198",
+    "exact_bytewise": true
+   }
+  }
+ },
+ "shader_audit": {
+  "scope": "SPIR-V provenance normalization only; no shader rebuild/runtime/inference/timing or general semantic-equivalence claim.",
+  "passes_in_order": [
+   "--strip-debug",
+   "--eliminate-dead-const",
+   "--compact-ids"
+  ],
+  "common_modules": 229,
+  "different_inc_modules": 148,
+  "unchanged_inc_modules": 81,
+  "status": "difference retained",
+  "checked_modules": 3,
+  "different_checked_modules": 3,
+  "all_differing_common_normalized_identical": false,
+  "interpretation": "matmul_row and matmul_tile_q8 byte-identical after the requested passes. embed retains real IQ1 format selection, layout and decode operations; no broader normalization was attempted after this nonidentity.",
+  "source_diff_sha256": "a91a3e6d8220dc5bf9b5a57a1ee31151c0e390a628f3c2041534ef7927004bf4",
+  "checked_module_results": [
+   {
+    "module": "matmul_row.inc",
+    "normalized_identical": true
+   },
+   {
+    "module": "matmul_tile_q8.inc",
+    "normalized_identical": true
+   },
+   {
+    "module": "embed.inc",
+    "normalized_identical": false
+   }
+  ]
+ },
+ "timing": {
+  "complete": {
+   "success": true,
+   "ended": "2026-10-24T08:27:52.373295+00:00",
+   "calls": 48,
+   "measured": 32,
+   "warmup": 16,
+   "monitor_returncode": 0
+  },
+  "heads": {
+   "base": "5ab233d3258a7c6a5cabc41d9ea0284811db6be6",
+   "candidate": "be31833fce69b28f22ec6de5930247f635e9cc03"
+  },
+  "models": {
+   "Q8_0": {
+    "file": "Qwen3-0.6B-Q8_0.gguf",
+    "bytes": 639446688,
+    "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+   },
+   "Q4_0": {
+    "file": "Qwen3-0.6B-Q4_0.gguf",
+    "bytes": 382156480,
+    "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+   },
+   "IQ4_NL": {
+    "file": "Qwen3-0.6B-IQ4_NL.gguf",
+    "bytes": 381566656,
+    "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+   },
+   "IQ4_XS": {
+    "file": "Qwen3-0.6B-IQ4_XS.gguf",
+    "bytes": 367804096,
+    "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+   },
+   "Q2_K": {
+    "file": "Qwen3-0.6B-Q2_K.gguf",
+    "bytes": 296238784,
+    "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d"
+   },
+   "Q3_K_S": {
+    "file": "Qwen3-0.6B-Q3_K_S.gguf",
+    "bytes": 323075776,
+    "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67"
+   },
+   "Q5_K_M": {
+    "file": "Qwen3-0.6B-Q5_K_M.gguf",
+    "bytes": 444415680,
+    "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+   },
+   "Q4_K_M": {
+    "file": "Qwen3-0.6B-Q4_K_M.gguf",
+    "bytes": 396705472,
+    "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+   }
+  },
+  "device": "Radeon VII",
+  "device_uuid": "00000000-2d00-0000-0000-000000000000",
+  "threads": 6,
+  "ubatch": 512,
+  "dtype_requested": "auto",
+  "dtype_selected": "f16",
+  "kv": "f32",
+  "load_mode": "auto",
+  "prompt_tokens": 512,
+  "generated_tokens": 128,
+  "order": "One warmup per arm then measured ABBA per model; all calls retained.",
+  "measured_processes_per_arm_model": 2,
+  "internal_repeats": 1,
+  "warmup_calls_retained": [
+   {
+    "name": "call-01-Q8_0-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 3134.44,
+     "tg": 207.07
+    }
+   },
+   {
+    "name": "call-02-Q8_0-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 3140.04,
+     "tg": 206.14
+    }
+   },
+   {
+    "name": "call-07-Q4_0-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2504.24,
+     "tg": 225.65
+    }
+   },
+   {
+    "name": "call-08-Q4_0-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2433.3,
+     "tg": 224.95
+    }
+   },
+   {
+    "name": "call-13-IQ4_NL-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2663.25,
+     "tg": 189.35
+    }
+   },
+   {
+    "name": "call-14-IQ4_NL-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2651.6,
+     "tg": 190.17
+    }
+   },
+   {
+    "name": "call-19-IQ4_XS-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2397.64,
+     "tg": 182.19
+    }
+   },
+   {
+    "name": "call-20-IQ4_XS-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2418.9,
+     "tg": 182.2
+    }
+   },
+   {
+    "name": "call-25-Q2_K-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2468.67,
+     "tg": 139.44
+    }
+   },
+   {
+    "name": "call-26-Q2_K-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2478.01,
+     "tg": 139.42
+    }
+   },
+   {
+    "name": "call-31-Q3_K_S-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2266.24,
+     "tg": 124.13
+    }
+   },
+   {
+    "name": "call-32-Q3_K_S-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2241.16,
+     "tg": 124.61
+    }
+   },
+   {
+    "name": "call-37-Q5_K_M-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2647.25,
+     "tg": 221.51
+    }
+   },
+   {
+    "name": "call-38-Q5_K_M-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2659.27,
+     "tg": 221.21
+    }
+   },
+   {
+    "name": "call-43-Q4_K_M-base-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2720.39,
+     "tg": 231.29
+    }
+   },
+   {
+    "name": "call-44-Q4_K_M-candidate-warmup",
+    "rates_tokens_per_second": {
+     "pp": 2739.05,
+     "tg": 234.12
+    }
+   }
+  ],
+  "activity_flags_predeclared": {
+   "unrelated_cpu_percent_one_core": 25,
+   "disk_busy_percent": 80,
+   "disk_bytes_per_second": 104857600,
+   "unrelated_gpu_engine_percent": 10,
+   "unknown": "Missing counters, inaccessible/new process deltas and invalid samples are unknown, never zero"
+  },
+  "monitor_metadata": {
+   "kind": "metadata",
+   "pid": 54644,
+   "logical_cpus": 16,
+   "interval_seconds": 1.0,
+   "initial_counter_collection_bracket": [
+    2326086.3059572,
+    2326086.306714
+   ],
+   "counters": {
+    "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+    "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+    "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+    "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+   },
+   "unavailable": {},
+   "process_cpu_units": "100 percent equals one logical CPU",
+   "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "monitor_end": {
+   "kind": "end",
+   "elapsed_seconds": 130.02770659979433,
+   "monitor_cpu_seconds": 4.734375
+  },
+  "maximum_monitor_collection_seconds": 0.07061069970950484,
+  "limitations": [
+   "Two measured processes per arm/model; one internal repeat per process. No robust gain, exact nonregression or layout-band claim.",
+   "Warmup calls are retained and monitored but excluded from measured means.",
+   "Monitor intervals include model loading and internal warmups and cannot attribute exact PP/TG phase activity.",
+   "Disk activity is aggregate; unavailable counters/process deltas and intervals without samples remain unknown.",
+   "Windows clock/tuning policy is not verified; no controls changed.",
+   "Every planned measured call is retained, including slow and activity-flagged samples. Activity flags do not stop, discard or replace calls.",
+   "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive.",
+   "Disk counters are aggregate and cannot assign activity to the benchmark or background processes.",
+   "Samples spanning a process boundary may count in both adjacent calls; no sample was discarded."
+  ],
+  "raw_evidence_retention": "All 48 calls, full per-call activity, unknown process observations, timestamps, argv, model pins and artifact hashes remain in the source receipts and their referenced artifacts. No measured sample was removed.",
+  "measured_phase_samples": [
+   {
+    "model": "Q8_0",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      3144.87,
+      3013.5
+     ],
+     "candidate": [
+      3119.2,
+      3136.6
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 3079.185,
+     "candidate": 3127.8999999999996
+    },
+    "candidate_percent": 1.5820744774997175,
+    "pair_percent_AB_then_BA": [
+     -0.8162499562780035,
+     4.084951053592167
+    ]
+   },
+   {
+    "model": "Q8_0",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      207.89,
+      204.96
+     ],
+     "candidate": [
+      207.58,
+      205.71
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 206.425,
+     "candidate": 206.645
+    },
+    "candidate_percent": 0.1065762383432256,
+    "pair_percent_AB_then_BA": [
+     -0.14911732166048575,
+     0.36592505854800006
+    ]
+   },
+   {
+    "model": "Q4_0",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2511.96,
+      2508.71
+     ],
+     "candidate": [
+      2502.29,
+      2491.67
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2510.335,
+     "candidate": 2496.98
+    },
+    "candidate_percent": -0.532000709068714,
+    "pair_percent_AB_then_BA": [
+     -0.3849583592095418,
+     -0.6792335503107205
+    ]
+   },
+   {
+    "model": "Q4_0",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      224.57,
+      223.03
+     ],
+     "candidate": [
+      220.9,
+      225.1
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 223.8,
+     "candidate": 223.0
+    },
+    "candidate_percent": -0.357462019660415,
+    "pair_percent_AB_then_BA": [
+     -1.634234314467642,
+     0.9281262610411067
+    ]
+   },
+   {
+    "model": "IQ4_NL",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2668.32,
+      2556.41
+     ],
+     "candidate": [
+      2562.62,
+      2658.33
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2612.365,
+     "candidate": 2610.475
+    },
+    "candidate_percent": -0.0723482361767891,
+    "pair_percent_AB_then_BA": [
+     -3.9612939977214268,
+     3.9868409214484313
+    ]
+   },
+   {
+    "model": "IQ4_NL",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      189.36,
+      190.97
+     ],
+     "candidate": [
+      191.51,
+      189.99
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 190.16500000000002,
+     "candidate": 190.75
+    },
+    "candidate_percent": 0.3076275865695477,
+    "pair_percent_AB_then_BA": [
+     1.1354034643007882,
+     -0.5131696077917969
+    ]
+   },
+   {
+    "model": "IQ4_XS",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2404.36,
+      2392.14
+     ],
+     "candidate": [
+      2367.36,
+      2412.2
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2398.25,
+     "candidate": 2389.7799999999997
+    },
+    "candidate_percent": -0.35317418951319457,
+    "pair_percent_AB_then_BA": [
+     -1.538871050924151,
+     0.8385796817911961
+    ]
+   },
+   {
+    "model": "IQ4_XS",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      181.63,
+      181.76
+     ],
+     "candidate": [
+      182.06,
+      181.77
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 181.695,
+     "candidate": 181.91500000000002
+    },
+    "candidate_percent": 0.12108203307743537,
+    "pair_percent_AB_then_BA": [
+     0.23674503110719947,
+     0.005501760563397795
+    ]
+   },
+   {
+    "model": "Q2_K",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2456.22,
+      2479.16
+     ],
+     "candidate": [
+      2484.23,
+      2494.25
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2467.6899999999996,
+     "candidate": 2489.24
+    },
+    "candidate_percent": 0.8732863528239099,
+    "pair_percent_AB_then_BA": [
+     1.1403701622818785,
+     0.6086739056777368
+    ]
+   },
+   {
+    "model": "Q2_K",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      139.18,
+      139.27
+     ],
+     "candidate": [
+      138.66,
+      139.07
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 139.22500000000002,
+     "candidate": 138.865
+    },
+    "candidate_percent": -0.2585742503142474,
+    "pair_percent_AB_then_BA": [
+     -0.37361689897974504,
+     -0.14360594528615156
+    ]
+   },
+   {
+    "model": "Q3_K_S",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2247.03,
+      2250.2
+     ],
+     "candidate": [
+      2248.61,
+      2258.23
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2248.615,
+     "candidate": 2253.42
+    },
+    "candidate_percent": 0.21368709183209322,
+    "pair_percent_AB_then_BA": [
+     0.07031503807246597,
+     0.3568571682517119
+    ]
+   },
+   {
+    "model": "Q3_K_S",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      124.48,
+      124.96
+     ],
+     "candidate": [
+      122.94,
+      124.96
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 124.72,
+     "candidate": 123.94999999999999
+    },
+    "candidate_percent": -0.6173829377806417,
+    "pair_percent_AB_then_BA": [
+     -1.2371465295629824,
+     0.0
+    ]
+   },
+   {
+    "model": "Q5_K_M",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2614.46,
+      2635.01
+     ],
+     "candidate": [
+      2624.41,
+      2630.22
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2624.735,
+     "candidate": 2627.3149999999996
+    },
+    "candidate_percent": 0.09829563746432957,
+    "pair_percent_AB_then_BA": [
+     0.3805757211814198,
+     -0.18178299133591036
+    ]
+   },
+   {
+    "model": "Q5_K_M",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      216.01,
+      221.97
+     ],
+     "candidate": [
+      221.66,
+      219.08
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 218.99,
+     "candidate": 220.37
+    },
+    "candidate_percent": 0.6301657609936395,
+    "pair_percent_AB_then_BA": [
+     2.615619647238554,
+     -1.3019777447402792
+    ]
+   },
+   {
+    "model": "Q4_K_M",
+    "phase": "pp",
+    "samples_tokens_per_second": {
+     "base": [
+      2753.92,
+      2736.7
+     ],
+     "candidate": [
+      2742.63,
+      2749.03
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 2745.31,
+     "candidate": 2745.83
+    },
+    "candidate_percent": 0.018941394596594385,
+    "pair_percent_AB_then_BA": [
+     -0.40996107366952916,
+     0.45054262432857595
+    ]
+   },
+   {
+    "model": "Q4_K_M",
+    "phase": "tg",
+    "samples_tokens_per_second": {
+     "base": [
+      230.01,
+      232.98
+     ],
+     "candidate": [
+      232.81,
+      229.52
+     ]
+    },
+    "means_tokens_per_second": {
+     "base": 231.495,
+     "candidate": 231.16500000000002
+    },
+    "candidate_percent": -0.14255167498217203,
+    "pair_percent_AB_then_BA": [
+     1.2173383765923251,
+     -1.4851060176839126
+    ]
+   }
+  ],
+  "measured_scope": "Two samples per arm; retain all wins/losses and activity unknowns. No acceptance or layout-band inference."
+ },
+ "documentation_review": {
+  "markdown_files": 131,
+  "unchanged_from_checkpoint_3d254a491": 130,
+  "changed_reviewed": [
+   "docs/STATUS.md"
+  ],
+  "new_evidence_file": "docs/benchmarks/iq1-matched-windows-20261024.json",
+  "scope": "Only STATUS prose and this evidence record changed. Prior reviewed Markdown content is retained byte for byte after newline normalization."
+ },
+ "direct_main_identity_subset": {
+  "status": "passed",
+  "new_cases": 13,
+  "combined_model_sets": {
+   "cpu": [
+    "Q8_0",
+    "Q4_0",
+    "IQ4_NL",
+    "IQ4_XS",
+    "Q2_K",
+    "Q3_K_S"
+   ],
+   "vulkan": [
+    "Q8_0",
+    "Q4_0",
+    "IQ4_NL",
+    "IQ4_XS",
+    "Q2_K",
+    "Q3_K_S",
+    "Q5_K_M",
+    "Q4_K_M"
+   ]
+  },
+  "full_vocabulary_rows_per_model": 558,
+  "paired_full_vocabulary_rows": {
+   "cpu": 3348,
+   "vulkan": 4464
+  },
+  "greedy_ids_per_model": 64,
+  "scope": "Six CPU and eight Vulkan models, including the earlier Q8_0 Vulkan audit; exact batched, per-token and greedy output bytes. Not the entire original 11 CPU/19 Vulkan set. Omitted-family historical source/config carry is recorded separately below; no full-gate claim."
+ },
+ "omitted_family_carry": {
+  "schema": "iq1-omitted-existing-path-source-carry-v1",
+  "decision": "Valid historical source/config/fixture carry for all five omitted CPU and eleven omitted Vulkan cases. No additional fresh case identified by this audit. Not a fresh raw-output comparison or cross-OS identity claim.",
+  "revisions": {
+   "original_parent": "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+   "original_iq1": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+   "main": "5ab233d3258a7c6a5cabc41d9ea0284811db6be6",
+   "candidate": "be31833fce69b28f22ec6de5930247f635e9cc03"
+  },
+  "proof": {
+   "identical_git_blob_inputs": 80,
+   "identical_old_registry_entries": 21,
+   "identical_old_weight_descriptors": 21,
+   "identical_old_kernel_declarations": 206,
+   "identical_explicit_shader_specs": 197,
+   "old_storage_constants_and_rows_unchanged": true,
+   "parse_ids_ast_unchanged": true,
+   "qwen3_qwen35_plans_unchanged_and_no_lookup": true,
+   "helper_source_and_baseline_prompt_blob_unchanged": true,
+   "fixture_ids_flags": "Original recorded fixtures/model hashes, IDs,6threads,auto->F16 policy,F32KV,ubatch512,cpu_experts0 and64greedy. Original Qwen35 prompts have243rows; Qwen3 prompts247.",
+   "current_direct_subset": "Separate fresh clean-main5ab versus be318 six CPU/eight Vulkan identity completed. Its exact results do not relabel the omitted historical captures."
+  },
+  "changed_reached_code": {
+   "generic_embedding": "New IQ1 comparison/decoder is guarded by type19/29; every omitted recorded model storage-type set excludes both. Old decoder expressions, layout constants and bindings unchanged. F16/BF16 embed uses compile-time half-storage branch outside quant switch.",
+   "dictionary_upload": "First lookup now scans for an existing buffer with equal source pointer AND byte count. A reused buffer therefore represents the identical immutable bytes; otherwise the unchanged adopt executes. Old descriptors, pointer objects and byte counts are unchanged.",
+   "dispatch": "Only IQ1 kernel/type cases are added to row/tile/dictionary conditions; old symbol-keyed descriptors, kernels and specialization constants remain equal. Runtime indices are derived consistently from the current table, not persisted across builds.",
+   "shared_main_lookup_and_metadata": "Original-to-current load/model changes affect lookup-bearing layers or pipeline metadata. Qwen3/qwen35 plans never populate optional LayerPlan.lookup, so lookup start/finish, scratch and lookup-memory changes return/skip without changing arithmetic. Pipelined-split metadata is not used by this single-device helper.",
+   "shader_wrappers": "Old specialization defines do not set LLMX_IQ1. Newly guarded IQ1 cache/decode/dot branches and LDS/barrier additions are preprocessed out. q.glsl retains identical old type results."
+  },
+  "named_fixture_groups": {
+   "Qwen3-0.6B-IQ3_S-Mungert-905efeec.gguf": {
+    "model_sha256": "87f84723db733ec6fed8288b875ddbb0990dfafeb3961cba48927a671a65abf3",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     13,
+     21
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "cpu",
+     "vulkan"
+    ]
+   },
+   "Qwen_Qwen3-0.6B-IQ2_M.gguf": {
+    "model_sha256": "d129244d6f5285594084390f05ca5c3f7d194fd82f9d63f76c47e64725cf3b07",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     13,
+     21,
+     22
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "cpu",
+     "vulkan"
+    ]
+   },
+   "Qwen_Qwen3-0.6B-IQ3_XXS.gguf": {
+    "model_sha256": "4553e20544d2667785db4e48b5556d02e70989234be5853b8bf200d65381d701",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     13,
+     18,
+     21,
+     22
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "cpu",
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B.i1-IQ2_XXS.gguf": {
+    "model_sha256": "563c13d4984fc8f48cc55c1d1296cdb10a814ce765b16b6ad759208773e47961",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     10,
+     13,
+     16
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "cpu",
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B.i1-IQ2_XS.gguf": {
+    "model_sha256": "2fbf69f0227914d0d2e39d8c01f0d37d2ea424f6f9dad010a7e19c987338cd2b",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     10,
+     13,
+     17
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "cpu",
+     "vulkan"
+    ]
+   },
+   "Qwen3.5-0.8B-Q8_0.gguf": {
+    "model_sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+    "architecture": "qwen35",
+    "storage_types": [
+     0,
+     8
+    ],
+    "original_prompt_rows": 243,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   },
+   "Qwen3.5-0.8B-Q4_K_M.gguf": {
+    "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+    "architecture": "qwen35",
+    "storage_types": [
+     0,
+     8,
+     12,
+     13,
+     14
+    ],
+    "original_prompt_rows": 243,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B-Q5_1.gguf": {
+    "model_sha256": "10a55cebb3d4d17c89d570de9aab45cb5577584a2deb73cce9f60a5351ef4460",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     7
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B-F16-converted.gguf": {
+    "model_sha256": "75f93a0c1122bf99ec17712fbcf34397689480c801fe4d1884f4d55d17191be2",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     1
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B-BF16.gguf": {
+    "model_sha256": "f9c9f1d3c1e21755b82d4e165f88dbbbd4355646d632fb5d6cef7c66ed4ee04e",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     30
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   },
+   "Qwen3-0.6B-Q5_0-converted.gguf": {
+    "model_sha256": "f4c47da009634e667ab016c9053b519500cf93290f1da989095fd32d711acf89",
+    "architecture": "qwen3",
+    "storage_types": [
+     0,
+     6
+    ],
+    "original_prompt_rows": 247,
+    "greedy_rows": 64,
+    "backends": [
+     "vulkan"
+    ]
+   }
+  },
+  "required_additional_fresh_cases": [],
+  "limits": [
+   "Source/config carry preserves historical numerical-regression coverage at its original CPU/MI50 environment; no new Windows raw bytes are invented.",
+   "Current helper/binary hashes differ; no executable identity is claimed. Compiler/platform differences are retained, not treated as same-environment results.",
+   "Only two probe modules were shown equal by the separate SPIR-V normalization audit. Generic embed is genuinely different; this decision uses explicit source/type reachability, not a false all-shader equality claim.",
+   "This does not close three pending CPU default depth cells, hosted CI or final landing by itself."
+  ],
+  "references": [
+   {
+    "path": "worktrees/iq1-d0c-20261024/docs/benchmarks/iq1-parent-identity-20261023.json",
+    "sha256": "348e34c73dad33a5be97eb4d2f5b21ebc077e7afb5a97ae03571919f5fd44326"
+   },
+   {
+    "path": "worktrees/iq1-d0c-20261024/docs/benchmarks/iq1-main-inference-identity-20261024.json",
+    "sha256": "af82cbbbbce3656e6cff19e47c8be53f956b91393e5cfe55392da967fc390e9c"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-parent-identity-results/cpu/result.json",
+    "sha256": "3dd0300c2e0160901affa9f9867ea7dd5f587dd2705ec076a0ef61d9f0fb4da4"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-parent-identity-results/vulkan/result.json",
+    "sha256": "6886bcc3f197ff6d3e3c87d58260082853a774aa2d240e4870b7b12ec45cdd38"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-direct-main-remaining-20261024/aggregate.json",
+    "sha256": "070df69ac61fdc59ded22179bc60a804fc78a3d2a030b4fb31c010ba6c6dc08f"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-parent-identity-prep-v2/fixtures-cpu.json",
+    "sha256": "aa65cc358dad1993f8058816c505e6680b8480ab9d704ea88a3d1f80bada9dfd"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-parent-identity-prep-v2/fixtures-vulkan.json",
+    "sha256": "2823e4de6a06f1d32008b2700935da5c3afbe8e4e4fd68af4ffe5680d6042d46"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-matched-builds-20261024/main/result.json",
+    "sha256": "895ef774de58cd8f119aad3f667242d83d940da755039d238e5bfbed162e765e"
+   },
+   {
+    "path": "build-quant-resume-20261020/iq1-matched-builds-20261024/candidate-retry-v2/result.json",
+    "sha256": "532becee5a75dc85b1808fddc7d5417bfe1851f01e96d151141753523e18a1f9"
+   }
+  ],
+  "source_manifest": {
+   "path": "build-quant-resume-20261020/iq1-landing-carry-review-20261024/source-closure.json",
+   "sha256": "54a1b32773872a56da869b7f39ff4731cf82d1495bc2238c659528613fa78281"
+  },
+  "entry_manifest": {
+   "path": "build-quant-resume-20261020/iq1-landing-carry-review-20261024/extracted-entry-manifest.json",
+   "sha256": "d6d582e9130926ac8a7c7426b7c632a882c9bf0488e1d444cba9b69a28b1bfac"
+  }
+ },
+ "omitted_family_carry_root_review": {
+  "status": "passed",
+  "git_blob_entries_verified": 320,
+  "fixture_groups": 11,
+  "cpu_cases": 5,
+  "vulkan_cases": 11,
+  "scope": "Source and fixture manifest review, not another capture or executable-equivalence claim."
+ },
+ "hosted_ci_completion": {
+  "run": 40076591180,
+  "head": "be31833fce69b28f22ec6de5930247f635e9cc03",
+  "jobs_passed": 7,
+  "jobs_total": 7,
+  "receipt": "iq1-hosted-depth-20261024.json"
+ }
+}

@@ -1,0 +1,41 @@
+{
+  "scope": "CPU F32/F32-KV IQ1_S chat-template depth, 16384 prompt tokens and all 512 fixed-history scored positions.",
+  "accepted": true,
+  "counts": {
+    "exact": 512,
+    "accepted-tie": 0,
+    "miss": 0
+  },
+  "rule_owner": "tests/common.py:hf_depth_top1",
+  "rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "top_two_tie_margin": 0.1,
+  "capture_execution_sha256": "be9c903cc65c00c5996543680b7dae5377b7b3995a2d1f6ee68cd1a05318d361",
+  "capture_report_sha256": "e65d177cc074cd6b779cd8e71d581a99018a968e64f85bb5191399fefdf37cec",
+  "capture_stdout_sha256": "3ea6e82866a32638058658941ca36b4fd3a6f8b452b6ce2b9a828ad0097d6d00",
+  "capture_matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+  "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+  "reference_json_sha256": "be09eb0204135848bd5efc2683ce99279ea4e712d0988a4dce0a378e3c1cd9ab",
+  "reference_report_sha256": "e7f27fd603f337a8e4939203fb730536aceb579a1eb03abfa77ed2731e1791a4",
+  "comparison_execution_sha256": "db114a43c47a179990c0ecb663b90d533933093b26a66603840111061522c66b",
+  "comparison_sha256": "a980d22b6eca7c771951faa7234c012ff2973e99e59fae6347fb9ae8bc216ab1",
+  "all_position_results": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/comparison-results/iq1-cpu-f32-depth-compare-schat-v3/iq1-s-chat-20261023T234510Z/comparison.json",
+  "capture_and_comparison_exit_zero_removed_non_oom": true,
+  "input_pins_unchanged": true,
+  "shared_default_probe_build": {
+    "execution_sha256": "e9e5fde82d97fd22640ccb6a177fdce5c1d7e37b266f3d90657c66bf62e06131",
+    "record_sha256": "705749b247288468a82a49946ec7969e18debbee9fc7ed33f6df3b51c9268aad",
+    "binary_sha256": "c52a9c134404e0d3c45922e8050532128931c938776e7f68dea99334e52e0bcb",
+    "source_sha256": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+    "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+    "exit_zero_removed_non_oom": true,
+    "scope": "Build only. S/raw default capture is active; no default numerical pass is claimed."
+  }
+}

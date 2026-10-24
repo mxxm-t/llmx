@@ -1,0 +1,197 @@
+{
+  "schema": "llmx-iq1-m-depth-f32-and-quality-20261024",
+  "scope": "512 forced-continuation positions after raw and chat 16K prompts. Explicit Vulkan F32/F32 KV is compared with the full-F32 HF reference. Default Vulkan F16/F16-KV is a separate quality companion. This is not a CPU depth pass or overall default-policy qualification.",
+  "explicit_vulkan_f32": [
+    {
+      "model_id": "iq1-m",
+      "variant": "raw",
+      "cell_source": "successful continuation cell",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "reference_report_sha256": "adc8dee97ae29a903f33693f1ddbee206813bbf76604909814bd79a150c0d683",
+      "reference_json_sha256": "36a20128973744868aa386a078aba78749a6c34b41ff567c5f0a1b63172e8c6d",
+      "reference_npy_sha256": "14b2c921ad11dcfe4339cda819e139d99d84914b62a686c1aae85f8d40a5e79f",
+      "capture_report_sha256": "9e60d3975edca99c4ae2e4125d549104779ad007474fe2ed2dbc58deca0913e8",
+      "capture_stdout_sha256": "bb3418ba64a5f67776bdf0129cf4049258cc261db2a394ecdef1b6d7b9a8b896",
+      "capture_matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "positions": 512,
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      }
+    },
+    {
+      "model_id": "iq1-m",
+      "variant": "chat",
+      "cell_source": "successful continuation cell",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "reference_report_sha256": "e9b5735d605242d3b6f09ed949c2af53401884d3e07c1819eefe205da9460085",
+      "reference_json_sha256": "ed46ff74f5347e1d0abd3361c013f7e6ef6e9882a48d5c2f073b475053686127",
+      "reference_npy_sha256": "aa597009240d1a1e3aff1167002bbbf1fd2e90ade2cc8db6782b9958c749fb97",
+      "capture_report_sha256": "9e60d3975edca99c4ae2e4125d549104779ad007474fe2ed2dbc58deca0913e8",
+      "capture_stdout_sha256": "c8d27ebf5f44112535c23d023962b6d8508de12d697690141ada8a68f867d7bc",
+      "capture_matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "positions": 512,
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      }
+    }
+  ],
+  "default_f16_quality_companion": [
+    {
+      "model_id": "iq1-m",
+      "variant": "raw",
+      "positions": 512,
+      "counts": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "capture_stdout_sha256": "88a9b39bfb1220fb96defd854441a92d89b60e5dfbf042d5b2ca3e6357d8791d",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      }
+    },
+    {
+      "model_id": "iq1-m",
+      "variant": "chat",
+      "positions": 512,
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "capture_stdout_sha256": "73fe5b41043c33e129b212447d4b58543dd448caee50d072dc97328620f78e30",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      }
+    }
+  ],
+  "inputs": {
+    "model_file_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "fixtures": {
+      "raw": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+      "chat": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
+    },
+    "hf_reference": {
+      "repo": "Qwen/Qwen3-0.6B",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "config_sha256": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+      "reference_file_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b"
+    }
+  },
+  "source_and_binary_pins": {
+    "capture_runtime_source": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1/source",
+    "capture_runtime_checkpoint": "integrated-v1/recovery-v1/build",
+    "capture_runtime_cli_sha256": "166c219585c2025d9dd4c6e586f572394ef0a5834f465034b373c2969602119e",
+    "capture_runtime_vulkan_library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+    "capture_f32_probe_sha256": "af93fa0d41d7185805b7bbe466e1155b8f4b6ef05e484bc0030a8a0d518fdfa1",
+    "capture_default_probe_sha256": "7c22169190ecb6e7b6152dc2e98a64c91814396cfa7c17f8df98b87abe692d72",
+    "generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "hf_depth_rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "reference_producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+    "reference_source_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+    "reference_source_manifest_sha256": "772ea467647657a1b8fc167f98b0c0f2047282080d48469d56ffed6958c4070f",
+    "reference_source_files": {
+      "tools/gen_baseline.py": "931d187938e70a1e4ceac69070e446bf4ec8f32bea44e0853949562b42c3ae22",
+      "tools/calibrate_dtype.py": "eec6cf16d4fb91e61d29b3d61e12640d3a8422ed13d78b45e96d46355a2b3cec",
+      "tests/spec_decode.py": "5e2d411e1641b7b95b9a83d71298afaea94b2525e6b219fb4b077a50b4597320"
+    },
+    "current_main_candidate_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "current_main_library_carry_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f"
+  },
+  "capture_receipts": {
+    "f32_execution_sha256": "17d242e1ef393ac0b179197966bd41863602bdce343c3f76aa19821fd578ac8a",
+    "f32_report_sha256": "9e60d3975edca99c4ae2e4125d549104779ad007474fe2ed2dbc58deca0913e8",
+    "default_execution_sha256": "f7837586d633ad56c91e40b5d3206b5107252c38c58a568eb119790932b74a9d",
+    "default_report_sha256": "36bffe96ee4ef80c8d133444660a899b1584b62dc099f37cd5e84ad5df3d7c5f"
+  },
+  "reference_cells": {
+    "raw": {
+      "execution_sha256": "b1d742258b1e9d7cf5f79fcf79a714ea7b9c9e86d69fe1609a7e4f395e044115",
+      "payload_result_sha256": "f3fb0a5b1ebcb1ea98ccc09131aba840c3b5b647dd3e0cf41424c7a1e15765ae",
+      "report_sha256": "adc8dee97ae29a903f33693f1ddbee206813bbf76604909814bd79a150c0d683",
+      "json_sha256": "36a20128973744868aa386a078aba78749a6c34b41ff567c5f0a1b63172e8c6d",
+      "npy_sha256": "14b2c921ad11dcfe4339cda819e139d99d84914b62a686c1aae85f8d40a5e79f",
+      "passed": true,
+      "removed": true,
+      "exit": 0,
+      "oom_killed": false,
+      "positions": 512,
+      "dtype": "f32",
+      "variant": "raw"
+    },
+    "chat": {
+      "execution_sha256": "94f78273f71b2e3f5e36d1f270a2958f42aeca2293aad95bb6a74a06e3ecc47e",
+      "payload_result_sha256": "1955ae8af9c99448e94315cbf9fb1b81af895c51b0136673f01622c44169eb63",
+      "report_sha256": "e9b5735d605242d3b6f09ed949c2af53401884d3e07c1819eefe205da9460085",
+      "json_sha256": "ed46ff74f5347e1d0abd3361c013f7e6ef6e9882a48d5c2f073b475053686127",
+      "npy_sha256": "aa597009240d1a1e3aff1167002bbbf1fd2e90ade2cc8db6782b9958c749fb97",
+      "passed": true,
+      "removed": true,
+      "exit": 0,
+      "oom_killed": false,
+      "positions": 512,
+      "dtype": "f32",
+      "variant": "chat"
+    }
+  },
+  "comparison": {
+    "script_sha256": "464033c8eb755b2ad86d497ed444db0ba5636403f0a0478e9804dcea95edeef8",
+    "launcher_sha256": "a45f6742b9b723c66748a6efdbca4b5ce4152e3f17e77a9f7e044c8a1506e0fc",
+    "bundle_pins_sha256": "73ee6c5285c470a2260515759338e1a425eae1fb7ef3a39c4a97f8ade82f64b2",
+    "comparison_sha256": "6e5892739cfbbafc91d1238d75883cfd9ed83ce1e7f464438805960021924277",
+    "execution_sha256": "f13fbf29dc46daba59279ba357ee1748181677f7def89296f459ed5ef968cb5d",
+    "container_log_sha256": "dd90e2ac721e9ce77dc9909e554f8c90543c24706e4d34d0c2bf586be419cdf6",
+    "remote_output": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/comparison-results/iq1-f32-depth-compare-m-v1/m-only-20261023T215908Z",
+    "passed": true,
+    "exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "input_pins_rechecked": true,
+    "cpu_set": "14-15",
+    "cpu_quota": 2,
+    "memory_cap_bytes": 2147483648,
+    "network": "none",
+    "gpu_devices": "none"
+  },
+  "preserved_history": {
+    "s_original_failed_phase_unchanged": true,
+    "s_raw_repeated_read_only_in_this_comparison": true,
+    "prior_m_raw_v3_attempt_resource_stopped_at_10240_tokens_without_oom": true,
+    "new_v3_m_raw_and_chat_completed_successfully": true
+  },
+  "limitations": [
+    "All depth captures currently recorded for IQ1_S and IQ1_M are Vulkan captures. No CPU 16K capture or CPU depth comparison is included; a CPU 16K plan is being prepared.",
+    "Default F16/F16-KV is a quality companion against the original F32 HF reference. It is not an overall default-policy pass.",
+    "The S/raw original failure remains in its own record. M depth comparison does not change it or any numerical bound.",
+    "This record does not establish CPU 16K correctness, full released-model qualification, TP2 qualification or a performance result."
+  ]
+}

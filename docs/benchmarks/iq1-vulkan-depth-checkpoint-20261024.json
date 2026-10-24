@@ -1,0 +1,306 @@
+{
+  "schema": "llmx-iq1-vulkan-depth-checkpoint-v1",
+  "date": "2026-10-24",
+  "scope": "Released IQ1_S and IQ1_M Vulkan default F16/F16KV raw/chat independent 16K depth acceptance under the reviewed uniform actual-KV reference correction; separate explicit Vulkan F32/F32KV depth gates already complete.",
+  "status": "All four default Vulkan selected-policy cells meet the unchanged depth rule. This is not overall IQ1 landing qualification.",
+  "base": {
+    "commit": "f5bc503e1401035bb4073dc42eaa615809240c4d",
+    "status_sha256": "85047c79cd1cced141f759b8ed6f4e80e7b48a04543a804bc8e2b16c61d403a3",
+    "precision_sha256": "9faf27c5834768849e0986abbc3be3617cc6f4a10a63e4547506174d2169b77a"
+  },
+  "policy": {
+    "owner": "tests/common.py:hf_depth_top1",
+    "tie_margin": 0.1,
+    "reference": "Exact decoded weights, fixed selected-F16 matrix hooks, incoming K and V rounded F16 then widened F32 before current attention. One uniform workload policy.",
+    "review": "Root reports interpretation reviewed against the independently recovered October 1 08:31/08:40/13:56 delegated agreement; see iq1-depth-reference-policy-20261024.json.",
+    "retrospective_discovery": true,
+    "limits_changed": false,
+    "per_position_reference_selection": false,
+    "original_comparison_files_modified": false,
+    "narrowed_path_original_f32_companion": "Required quality information, not a second depth gate. F32 execution remains gated F32."
+  },
+  "continuation": {
+    "hf_host_session": 18634,
+    "hf_terminal_exit": 0,
+    "successful_cells": 3,
+    "comparison_cpuset": "6-7",
+    "bundle_pins_sha256": "e2c5ffba63304c254320d065aeb661a072f6ba73715d719eea76b180922f70ff",
+    "source": "Parent supplied terminal HF status and bundle pin; each genuine comparison receipt independently checked locally."
+  },
+  "cells": [
+    {
+      "model": "iq1-s",
+      "variant": "raw",
+      "counts": {
+        "exact": 506,
+        "accepted-tie": 6,
+        "miss": 0
+      },
+      "positions": 512,
+      "first_position": 16383,
+      "last_position": 16894,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "comparison_sha256": "e00542d1bd60b475a20523aaaee976b5280ef2e6f55e28cc29c994ffa8b58a1c",
+      "execution_sha256": "28566c036f2622e9df8c58f5ccac48d71ece41a6506da48206b11e54d971614a",
+      "directory": "build-quant-resume-20261020/iq1-hf-kv-f16-compare-v1/collected",
+      "reference_execution_sha256": null,
+      "execution": {
+        "exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "input_pins_before_after_equal": true
+      },
+      "artifact_pins": [
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-kv-f16-compare-v1/collected/run.log",
+          "sha256": "f5e39b5c01d9872b943bea7055e8cd8fbce7bd584f8030de10a64e8955258711"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-kv-f16-compare-v1/collected/comparison.json",
+          "sha256": "e00542d1bd60b475a20523aaaee976b5280ef2e6f55e28cc29c994ffa8b58a1c"
+        }
+      ],
+      "original_receipt_flags_preserved": {
+        "diagnostic_only": true,
+        "original_gate_replaced": false
+      }
+    },
+    {
+      "model": "iq1-s",
+      "variant": "chat",
+      "counts": {
+        "exact": 509,
+        "accepted-tie": 3,
+        "miss": 0
+      },
+      "positions": 512,
+      "first_position": 16383,
+      "last_position": 16894,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "comparison_sha256": "d6dc98194f1fd12fa8b8db613334d623b0ad2b419a7ced9478304d736054b791",
+      "execution_sha256": "a71e6081578b4f02b8cded2b74c2282886fd2259eeb3bb614a20c59aa3fe3e99",
+      "directory": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-s-chat",
+      "reference_execution_sha256": "3a0eeb35f35a82354ef5c5f5d04143b0b5871977191575fdaac423468c4078f9",
+      "execution": {
+        "exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "input_pins_before_after_equal": true
+      },
+      "artifact_pins": [
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-s-chat/container.cid",
+          "sha256": "218e343afb2dc5713a1a2b9d686fbef819427cb32bfb6e0cc0578737c7c92efb"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-s-chat/run.log",
+          "sha256": "58adcd41c5812491b122898b5d5d6224cbdf5ab7a2fc6f594a4413733bc21407"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-s-chat/comparison.json",
+          "sha256": "d6dc98194f1fd12fa8b8db613334d623b0ad2b419a7ced9478304d736054b791"
+        }
+      ],
+      "original_receipt_flags_preserved": {
+        "diagnostic_only": true,
+        "original_gate_replaced": false,
+        "policy_acceptance_pending": true
+      }
+    },
+    {
+      "model": "iq1-m",
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "positions": 512,
+      "first_position": 16383,
+      "last_position": 16894,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "comparison_sha256": "225ad273e8b741d559eb5d04e66b13903e80d7e349d03c3f5cc6992caf10a91e",
+      "execution_sha256": "6be18a5b9692b4c00c0feeff5c11a7947e507afa101f3c5b9ce4915d86443002",
+      "directory": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-raw",
+      "reference_execution_sha256": "f35db796bb845501f891b538900c672e9260b6927e72584c8f525bff2c2762c0",
+      "execution": {
+        "exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "input_pins_before_after_equal": true
+      },
+      "artifact_pins": [
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-raw/comparison.json",
+          "sha256": "225ad273e8b741d559eb5d04e66b13903e80d7e349d03c3f5cc6992caf10a91e"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-raw/container.cid",
+          "sha256": "a57cd066c663a9b2dc309a9a377fabe096a510d2fb84c1a49fabab241ca6a38c"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-raw/run.log",
+          "sha256": "819cc8ae7a83ae11f72ae7c3dc68faec9d730f0bf58a6b117c7e23e31cc1c50d"
+        }
+      ],
+      "original_receipt_flags_preserved": {
+        "diagnostic_only": true,
+        "original_gate_replaced": false,
+        "policy_acceptance_pending": true
+      }
+    },
+    {
+      "model": "iq1-m",
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "positions": 512,
+      "first_position": 16383,
+      "last_position": 16894,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "comparison_sha256": "3ca24b805dae5c623f6c7b9e127a465ce6aeb6f3c384ae9554aeec0367ab8672",
+      "execution_sha256": "e9f7aa2b2de683c3f0b1aa22db4f1f1890e3ddeaa9fe243ccdf4f3cc2a59595b",
+      "directory": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-chat",
+      "reference_execution_sha256": "b17346dbae772adbfacde160748c26d9bd2403e26f32839f08eea041d5d5ba0f",
+      "execution": {
+        "exit": 0,
+        "removed": true,
+        "oom_killed": false,
+        "input_pins_before_after_equal": true
+      },
+      "artifact_pins": [
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-chat/run.log",
+          "sha256": "819cc8ae7a83ae11f72ae7c3dc68faec9d730f0bf58a6b117c7e23e31cc1c50d"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-chat/container.cid",
+          "sha256": "f5ef055047c1027c95b40248917f828a188551eb1e0546e3768fb918f163b2cc"
+        },
+        {
+          "path": "build-quant-resume-20261020/iq1-hf-f16kv-compare-continuation-v1/result-m-chat/comparison.json",
+          "sha256": "3ca24b805dae5c623f6c7b9e127a465ce6aeb6f3c384ae9554aeec0367ab8672"
+        }
+      ],
+      "original_receipt_flags_preserved": {
+        "diagnostic_only": true,
+        "original_gate_replaced": false,
+        "policy_acceptance_pending": true
+      }
+    }
+  ],
+  "explicit_vulkan_f32": {
+    "iq1-s": {
+      "raw": {
+        "exact": 512,
+        "accepted_tie": 0,
+        "miss": 0
+      },
+      "chat": {
+        "exact": 512,
+        "accepted_tie": 0,
+        "miss": 0
+      }
+    },
+    "iq1-m": {
+      "raw": {
+        "exact": 512,
+        "accepted_tie": 0,
+        "miss": 0
+      },
+      "chat": {
+        "exact": 512,
+        "accepted_tie": 0,
+        "miss": 0
+      }
+    },
+    "evidence": [
+      {
+        "path": "docs/benchmarks/iq1-s-depth-f32-20261024.json",
+        "sha256": "109592efd2f81892458714c08e12faadf443317a641a76d81a1232e8c9aa33a1"
+      },
+      {
+        "path": "docs/benchmarks/iq1-m-depth-f32-20261024.json",
+        "sha256": "d1b24ecfc440ff603c2ccca86b1ae97d6dac81bdebabccd57b66950bed253fc5"
+      }
+    ]
+  },
+  "preserved_history": {
+    "original_selected_f16_f32kv_s_raw": {
+      "exact": 505,
+      "accepted_tie": 6,
+      "miss": 1,
+      "position": 16883,
+      "hf_gap": 0.1311931610107422
+    },
+    "full_f32_quality_companion_default_s_raw": {
+      "exact": 506,
+      "accepted_tie": 5,
+      "miss": 1,
+      "position": 16883,
+      "hf_gap": 0.10200119018554688
+    },
+    "matched_f16kv_s_raw_position_16883": "Candidate17 vs HF15; HFgap0.06857109069824219 is an accepted tie, not exact.",
+    "failed_receipts": "Original producer/resource/harness failures and diagnostic receipt flags remain untouched; this checkpoint records acceptance separately."
+  },
+  "pending": {
+    "cpu_explicit_f32_raw_chat": "Captures live; no completed four-cell CPU gate claimed.",
+    "cpu_default": "Preparation pending; distinct Q5_K decode-class head and F16KV, not assumed equal to explicit F32.",
+    "tp2": "Live, last parent status91/144; no TP2 pass claimed.",
+    "hosted_ci": {
+      "run_id": 40032647038,
+      "status": "in progress"
+    },
+    "published_to_main": false
+  },
+  "checkpoint_review": {
+    "markdown_pages": 131,
+    "changed_pages": [
+      "docs/PRECISION.md",
+      "docs/STATUS.md"
+    ],
+    "unchanged_pages": 129,
+    "runtime_tests_fixtures_build_inputs": "Unchanged from hosted candidate f5bc503e1401035bb4073dc42eaa615809240c4d",
+    "docs_check": {
+      "passed": true,
+      "findings": 0,
+      "planted_faults": 21
+    },
+    "dead_code_check": {
+      "passed": true,
+      "known_findings": 5,
+      "planted_faults": 18
+    }
+  }
+}

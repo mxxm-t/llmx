@@ -1,0 +1,131 @@
+{
+  "schema": "llmx-iq1-device-suite-qualification-v1",
+  "source_checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "product": {
+    "binary_sha256": "d850a71de150ddc6b79568043df662d8e5483b51a6e0fca576144c68e1080454",
+    "version": "llmx 0.1.0+g10ac84660c34.dirty numerics e3011170275b2364",
+    "build_log": "build-integrated-vulkan/build-all-qualification.log",
+    "build_log_sha256": "3b059f8273f83108af052b4ab11a4cd32661c374eab4cad6d39e01c47dd3e005"
+  },
+  "platform": "Windows; local Vulkan device vulkan:0",
+  "full_suite_summary": {
+    "log": "build-integrated-vulkan/python-device-qualification.log",
+    "log_sha256": "e25493a5ddb926c9755c1e756159131ac59615665bec4b1d179cd3744eb876af",
+    "passed_components": 41,
+    "failed_components": 0,
+    "component_results": {
+      "dead-code": "PASS",
+      "docs": "PASS",
+      "arch-boundary": "PASS",
+      "version": "PASS",
+      "cli": "PASS",
+      "reference-generator": "PASS",
+      "reference-consumer": "PASS",
+      "device-reference": "PASS",
+      "roundtrip": "PASS",
+      "raw-blocks": "PASS",
+      "perf": "PASS",
+      "tokenizer": "PASS",
+      "perplexity": "PASS",
+      "f32": "PASS",
+      "half-weights": "PASS",
+      "moe": "PASS",
+      "int8": "PASS",
+      "mxfp4": "PASS",
+      "q5-0": "PASS",
+      "q2-k": "PASS",
+      "q3-k": "PASS",
+      "q5-1": "PASS",
+      "iq4-nl": "PASS",
+      "iq4-xs": "PASS",
+      "iq3-s": "PASS",
+      "iq2-s": "PASS",
+      "iq2-xxs": "PASS",
+      "iq2-xs": "PASS",
+      "iq3-xxs": "PASS",
+      "iq1": "PASS",
+      "qwen35": "PASS",
+      "split": "PASS",
+      "tensor-split": "PASS",
+      "decode-probe": "PASS",
+      "drafters": "PASS",
+      "shards": "PASS",
+      "server": "PASS",
+      "server-load": "PASS",
+      "chat": "PASS",
+      "threads": "PASS",
+      "baseline": "PASS"
+    },
+    "reported_powershell_exit": 1,
+    "original_python_child_exit_captured": false,
+    "inferred_original_python_child_exit": 0,
+    "inference": "Pinned run_tests.main returns1 only for a nonempty failed list after printing component results; complete original summary has41PASS/0FAIL. This is an inference, not a captured original Python exit code."
+  },
+  "focused_replay": {
+    "scope": "Only reference-generator; full suite not repeated",
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "-u",
+      "tests/run_tests.py",
+      "--exe",
+      "build-integrated-vulkan/Release/llmx.exe",
+      "--device",
+      "vulkan:0",
+      "--only",
+      "reference-generator"
+    ],
+    "actual_child_exit": 0,
+    "unit_tests": 83,
+    "unit_test_seconds": 71.003,
+    "wrapper_seconds": 71.49420666694641,
+    "stdout": "build-quant-resume-20261020/iq1-suite-shell-audit/reference-generator.stdout",
+    "stdout_sha256": "9a882cb0b15a289c38823f245c0c8c09763c9cdd616fcbab1682104fde3cc1ce",
+    "stderr": "build-quant-resume-20261020/iq1-suite-shell-audit/reference-generator.stderr",
+    "stderr_sha256": "df36f992752b89a4aada5e148cb36e5a03516ddba301f9bf98113b5cde320374",
+    "expected_argparse_stderr": true,
+    "explanation": "tests/reference_generator.py:181-182 catches SystemExit from tools/gen_baseline.py parse_args([iq3-s,--threads,2]); argparse writes stderr before the caught exception"
+  },
+  "audit_receipt": {
+    "path": "build-quant-resume-20261020/iq1-suite-shell-audit/receipt.json",
+    "sha256": "087fcac70a73d23dbc1e99767ac2489907c948230671557f25431c97b9c3053c"
+  },
+  "retained_subcase_omissions": [
+    {
+      "component": "reference-consumer",
+      "unit_tests": 73,
+      "skipped": 2,
+      "names_not_printed_in_original_summary": true,
+      "configuration_and_platform_guards": [
+        "Width-two server fixture requires two configured devices; this run selects vulkan:0 only.",
+        "SIGTERM disk-persistence fixture is POSIX-only."
+      ]
+    },
+    {
+      "component": "roundtrip",
+      "skip": "File-size-limit injection unavailable on this platform."
+    },
+    {
+      "component": "server",
+      "skips": [
+        "Disk-tier exit checks require SIGTERM, absent on Windows.",
+        "Disk-tier keep check requires SIGTERM, absent on Windows."
+      ]
+    }
+  ],
+  "performance_floor": "Hardware-specific floors disabled; suite timings are diagnostic, not performance qualification",
+  "native_evidence": {
+    "record": "iq1-windows-native-20261023.json",
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 1035.86
+  },
+  "limitations": [
+    "Original PowerShell shell exit1 is retained; focused child exit0 does not replace an uncaptured original process status.",
+    "Component PASS does not mean every platform/configuration-specific subcase executed.",
+    "This is integrated-source development evidence, not complete released-model/depth/split/performance or final-head hosted qualification."
+  ],
+  "tracked_runtime_or_numerical_changes": false
+}

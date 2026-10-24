@@ -1,0 +1,232 @@
+{
+  "schema": "llmx-iq1-current-main-server-bridge-20261024-v1",
+  "scope": "Focused current-main candidate HTTP server bridge for two released IQ1 files. Tests tokenize, HF next-token top-1 prefix, and generated text against candidate CLI. This is not the full server suite, a full-logit server check, an HF depth/tail comparison, or performance evidence.",
+  "result": "passed",
+  "source_and_runtime": {
+    "source_tree_sha256": "98ec270535267e646027304c5969cb73ddca040c94675ccc3154000adc0d7eff",
+    "runtime_sha256": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+    "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+    "device": "vulkan:0",
+    "requested_dtype": "f32",
+    "cache_type_k": "f32",
+    "cache_type_v": "f32",
+    "generated_tokens_requested": 16
+  },
+  "execution": {
+    "receipt_sha256": "f3362d9ed69dcac1d6afe0c7736c65b674344fe8b744a37455ab23836701812b",
+    "result_sha256": "83ceaa1314f99fd2d31bdb0655d54aa7ba63d4782e0dc39188f88570308461a3",
+    "result_declared_sha256": "83ceaa1314f99fd2d31bdb0655d54aa7ba63d4782e0dc39188f88570308461a3",
+    "bundle_pins_sha256": "247c9f62aa7c3d98ad4988223fc12efdac2d4a7dc1ff95bec17154f16f2b3db3",
+    "passed": true,
+    "payload_exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "artifact_files_verified": 82,
+    "artifact_hash_map_sha256": "8d062bcc33a8ea9a8bba3b35e161a2a810290217e00d58920fb815b97cda742e",
+    "cli_calls_count": 37,
+    "cli_calls_sha256": "f3f0d2cdaccdac7daca622545900caf263cd7c094932d1e05b2297253fb18e2b",
+    "cli_calls_all_exit_zero": true,
+    "server_log_hashes": {
+      "server-46.log": "190f155f6734785331b50d5908949fca8f3bf26b9a8266f8d46e10de2ced0031",
+      "server-137.log": "bc5690f7096c0b4a40629f258712dd90722dc0ee75fadca80e7e787e8e789283"
+    },
+    "stderr_error_markers": [],
+    "server_log_error_markers": false
+  },
+  "summary": {
+    "cases": 12,
+    "cases_passed": 12,
+    "http_tokenize_status_200": 12,
+    "http_generate_status_200": 12,
+    "hf_top1_prefix_matches": 12,
+    "generated_token_count": 16,
+    "candidate_cli_text_matches_http": 12,
+    "native_f32_path_witnesses": 2,
+    "full_server_suite": false,
+    "hf_tail_claim": false
+  },
+  "models": [
+    {
+      "id": "iq1-s",
+      "filename": "Qwen3-0.6B-UD-IQ1_S.gguf",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "hf_short_golden_sha256": "a7d6489543edb8bb0ea49aa229c2721d09ad340ff1003d4f205b2b7d85e97a10",
+      "effective_path": {
+        "requested": "f32",
+        "declared": "bf16",
+        "effective": "f32",
+        "devices": [
+          {
+            "device": "vulkan:0",
+            "how": "native",
+            "paths": "f32",
+            "effective": "f32"
+          }
+        ]
+      },
+      "passed_cases": 6,
+      "cases": [
+        {
+          "prompt": "The capital of France is",
+          "prompt_tokens": 5,
+          "tokenize_status": 200,
+          "hf_top1_id": 220,
+          "http_first_id": 220,
+          "generated_ids": 16,
+          "http_ids_sha256": "da9ccbc279c272f7f41d77734f964511b85db8b7acbd081efacd66a12cdec4fd",
+          "http_text_sha256": "9d3b7e2fb78bbe4a6ee3bee202b32138745310edf0d67f87a5437d0f58d1ff24",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "Machine learning is",
+          "prompt_tokens": 3,
+          "tokenize_status": 200,
+          "hf_top1_id": 220,
+          "http_first_id": 220,
+          "generated_ids": 16,
+          "http_ids_sha256": "a20b033d29ac71a83e710bf6b3beb481382b9488b3ac56ea648426147b259638",
+          "http_text_sha256": "fbb1e71aecfda21bdf380f43d18f51d82005861a2dee8b0816181b5dff499954",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "def add(a, b):",
+          "prompt_tokens": 6,
+          "tokenize_status": 200,
+          "hf_top1_id": 23,
+          "http_first_id": 23,
+          "generated_ids": 16,
+          "http_ids_sha256": "cbee0334c6c153fae192449ca81e8113cdb366acbc533bf12ccee0efb5a17620",
+          "http_text_sha256": "ba5b5bdd119859dcc1621c948baed85385291dcc5c08f88b645f0e7302109633",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "The three primary colors are red,",
+          "prompt_tokens": 7,
+          "tokenize_status": 200,
+          "hf_top1_id": 2924,
+          "http_first_id": 2924,
+          "generated_ids": 16,
+          "http_ids_sha256": "41c74a7bde22108c93314f83f9235cae4fb78375c71f3a067699ea7e609086e0",
+          "http_text_sha256": "be3496185e1026a07884683615f1569a1575634d6e67a49b393bc897d66f2045",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "In 1969, humans first walked on the",
+          "prompt_tokens": 12,
+          "tokenize_status": 200,
+          "hf_top1_id": 320,
+          "http_first_id": 320,
+          "generated_ids": 16,
+          "http_ids_sha256": "5af8f461ff48269888956d4972b8d778d70920ea0f7b15f7ce937df148676c64",
+          "http_text_sha256": "ddc27eb54f3da7d656af21a6734d00039e455c68b4553430603a43c896072de7",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "prompt_tokens": 17,
+          "tokenize_status": 200,
+          "hf_top1_id": 13,
+          "http_first_id": 13,
+          "generated_ids": 16,
+          "http_ids_sha256": "17596c364afc35ce75cc2e14d8baf51c781a2cb6071bf6dc7ff38153cab7d15b",
+          "http_text_sha256": "9481248f218fe69f198928d116d4ec35ba924788e70eba999ab9c745c38685a2",
+          "cli_text_matches_http": true
+        }
+      ]
+    },
+    {
+      "id": "iq1-m",
+      "filename": "Qwen3-0.6B-UD-IQ1_M.gguf",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "hf_short_golden_sha256": "a688bb5fca6c927518cfe004a4cf008c6967dfdedfcb3936da2c78627d174dad",
+      "effective_path": {
+        "requested": "f32",
+        "declared": "bf16",
+        "effective": "f32",
+        "devices": [
+          {
+            "device": "vulkan:0",
+            "how": "native",
+            "paths": "f32",
+            "effective": "f32"
+          }
+        ]
+      },
+      "passed_cases": 6,
+      "cases": [
+        {
+          "prompt": "The capital of France is",
+          "prompt_tokens": 5,
+          "tokenize_status": 200,
+          "hf_top1_id": 374,
+          "http_first_id": 374,
+          "generated_ids": 16,
+          "http_ids_sha256": "868103419581762be8cf0337c4931367431b75118447c5fb166b72d37b982074",
+          "http_text_sha256": "81e7c921218bdf1522b1e2e5a16bb8c91d08cfce62293cbc8d42a208cabee0cc",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "Machine learning is",
+          "prompt_tokens": 3,
+          "tokenize_status": 200,
+          "hf_top1_id": 264,
+          "http_first_id": 264,
+          "generated_ids": 16,
+          "http_ids_sha256": "db133ffdddc2f494a149c1b20701a49d1e3265a7eb04b8add3e0a0425c4fbb9b",
+          "http_text_sha256": "011ea05d490258d37019eef6af4d3f352ac397d9a6dedd725fabce894ea86a8b",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "def add(a, b):",
+          "prompt_tokens": 6,
+          "tokenize_status": 200,
+          "hf_top1_id": 198,
+          "http_first_id": 198,
+          "generated_ids": 16,
+          "http_ids_sha256": "61a95a6457ead62371051cd101ec4cf7dff8a6916ea5f28dc6fdd39706ab5936",
+          "http_text_sha256": "98598584ac4fbca11aa18ae413f743ba8e37bfe0f262b1334e860a50066db310",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "The three primary colors are red,",
+          "prompt_tokens": 7,
+          "tokenize_status": 200,
+          "hf_top1_id": 30903,
+          "http_first_id": 30903,
+          "generated_ids": 16,
+          "http_ids_sha256": "97f1e53027ea70dcbc41ba7a89a66c197f5973a042ac0a1fbe27394a242369b4",
+          "http_text_sha256": "8f696ada1d0bc17bae007c01f6a98ebb90b1e1f34dc53b692960e5dbc5ddcd44",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "In 1969, humans first walked on the",
+          "prompt_tokens": 12,
+          "tokenize_status": 200,
+          "hf_top1_id": 10603,
+          "http_first_id": 10603,
+          "generated_ids": 16,
+          "http_ids_sha256": "3e807297321369c41cad877c313d0be66bc322a4a2fe46ef98192b15bb101018",
+          "http_text_sha256": "d73d04f3d688845812b2a25a29a1945002b55736b21d207df1cbf7d856f9164e",
+          "cli_text_matches_http": true
+        },
+        {
+          "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+          "prompt_tokens": 17,
+          "tokenize_status": 200,
+          "hf_top1_id": 279,
+          "http_first_id": 279,
+          "generated_ids": 16,
+          "http_ids_sha256": "d3b2fb6f5f32da335a9414bb46e081ddf761e7afa04143ad7c1d9cd7618b6776",
+          "http_text_sha256": "e3caaef9ea948436faebb2473c688ba3fbbd502e0cf47500db9dd4dd1162f00e",
+          "cli_text_matches_http": true
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Two released models and six prompts per model only.",
+    "HTTP generation produced 16 tokens per request.",
+    "No HF depth/tail comparison or server performance measurement.",
+    "No full server suite claim."
+  ]
+}

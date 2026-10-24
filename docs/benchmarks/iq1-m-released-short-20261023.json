@@ -1,0 +1,204 @@
+{
+  "schema": "llmx-iq1-m-released-short-file-exact-v1",
+  "scope": "Short same-file F32 ranking/NLL runtime agreement on CPU and Radeon VII; no original-weight quality, long-context or complete model qualification",
+  "source_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "source_manifest_sha256": "772ea467647657a1b8fc167f98b0c0f2047282080d48469d56ffed6958c4070f",
+  "reference": {
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "versions": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "tokenizers": "0.21.4"
+    },
+    "weights": {
+      "file": "Qwen3-0.6B-UD-IQ1_M.gguf",
+      "sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "bytes": 220754624,
+      "repo": null,
+      "revision": null,
+      "types": {
+        "F32": 113,
+        "IQ1_M": 90,
+        "IQ1_S": 20,
+        "IQ2_S": 5,
+        "IQ2_XS": 5,
+        "IQ2_XXS": 48,
+        "IQ3_S": 5,
+        "IQ3_XXS": 5,
+        "Q2_K": 18,
+        "Q5_K": 1
+      },
+      "decoder": "tests/spec_decode.py, numpy form",
+      "tensors": 310,
+      "tensors_equal_to_reference": 113
+    },
+    "baseline_logits_sha256": "a688bb5fca6c927518cfe004a4cf008c6967dfdedfcb3936da2c78627d174dad",
+    "baseline_perplexity_sha256": "ed5c8495b06a3881c00b9dc621e66b4f2dc71feeef1f2c9a4ee69b93e0c6342e",
+    "baseline_mean_nll": 6.600233211072231,
+    "baseline_perplexity": 735.2666415707615,
+    "payload_result_sha256": "99d6630a8f09539963bf38aedb57d9d1b939fcefe570bb04ba01004f3d5781b8",
+    "execution_sha256": "86673ef54320cbb8d6baf23794fc9dbdb8f8dff902c746fbb37d2fcf1e2e97c3",
+    "run_log_sha256": "9075a06cb9bebd6b2f86c34efeb30ff6a5c119c7637aab718a7e3f7c4ba53b81",
+    "container_receipt_sha256": "fddfb39dcdeb4b9f6c0beacc4f79bbc6b6dad384846495804558fb1a4bb3907c",
+    "producer_sha256": "784d5bef3850fe4787668aa6f0f71de46c30f96d1114843b40a667ff8cc79082",
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "producer_passed": true,
+    "producer_exit": 0,
+    "container_exit": 0,
+    "oom_killed": false,
+    "removed": true,
+    "memory_cap_bytes": 6442450944
+  },
+  "tested_product": {
+    "binary_sha256": "d850a71de150ddc6b79568043df662d8e5483b51a6e0fca576144c68e1080454",
+    "version": "llmx 0.1.0+g10ac84660c34.dirty numerics e3011170275b2364",
+    "build_log": "build-integrated-vulkan/build-all-qualification.log",
+    "build_log_sha256": "3b059f8273f83108af052b4ab11a4cd32661c374eab4cad6d39e01c47dd3e005"
+  },
+  "model": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-models\\Qwen3-0.6B-UD-IQ1_M.gguf",
+    "bytes": 220754624,
+    "sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b"
+  },
+  "results": {
+    "cpu-f32": {
+      "device": "cpu",
+      "passed": true,
+      "actual_child_exit": 0,
+      "seconds_including_preflight": 136.1264898777008,
+      "ranking_prompts": 6,
+      "top1_matches": 6,
+      "top5_set_matches": 6,
+      "exact_top5_order": 6,
+      "nll_checks": 8,
+      "nll_deltas_as_printed": {
+        "no_cache": {
+          "limit": 0.01,
+          "batched": 3e-06,
+          "per_token": 3e-06
+        },
+        "cache64_chunks4": {
+          "limit": 0.02,
+          "batched": 2e-06,
+          "per_token": 2e-06
+        },
+        "cache64_chunks2": {
+          "limit": 0.02,
+          "batched": 2e-06,
+          "per_token": 2e-06
+        },
+        "cache123_chunks2": {
+          "limit": 0.02,
+          "batched": 2e-06,
+          "per_token": 2e-06
+        }
+      },
+      "maximum_printed_absolute_nll_delta": 3e-06,
+      "stdout": "build-quant-resume-20261020/iq1-m-released-short-consumers-v1/cpu-f32.stdout",
+      "stdout_sha256": "47a6becea970b676269bfe8b6da9826a98d4dd3fb6ed2e2de5b9456d4636ca58",
+      "stderr": "build-quant-resume-20261020/iq1-m-released-short-consumers-v1/cpu-f32.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "tests/baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-integrated-20261023\\build-integrated-vulkan\\Release\\llmx.exe",
+        "--device",
+        "cpu",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-m-short-6g-v1\\completed\\short-f32",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-models\\Qwen3-0.6B-UD-IQ1_M.gguf"
+      ],
+      "test_configuration": {
+        "LLMX_DEVICE": "cpu",
+        "LLMX_DTYPE": "f32",
+        "LLMX_CACHE_TYPE": "f32",
+        "LLMX_LOAD_MODE": null,
+        "LLMX_LAYER_SHARES": null,
+        "LLMX_TENSOR_WIDTH": null
+      }
+    },
+    "radeon-vii-f32": {
+      "device": "vulkan:0",
+      "passed": true,
+      "actual_child_exit": 0,
+      "seconds_including_preflight": 26.576544046401978,
+      "ranking_prompts": 6,
+      "top1_matches": 6,
+      "top5_set_matches": 6,
+      "exact_top5_order": 6,
+      "nll_checks": 8,
+      "nll_deltas_as_printed": {
+        "no_cache": {
+          "limit": 0.01,
+          "batched": 4e-06,
+          "per_token": 2e-06
+        },
+        "cache64_chunks4": {
+          "limit": 0.02,
+          "batched": 2e-06,
+          "per_token": 1e-06
+        },
+        "cache64_chunks2": {
+          "limit": 0.02,
+          "batched": 1e-06,
+          "per_token": 3e-06
+        },
+        "cache123_chunks2": {
+          "limit": 0.02,
+          "batched": 2e-06,
+          "per_token": 4e-06
+        }
+      },
+      "maximum_printed_absolute_nll_delta": 4e-06,
+      "stdout": "build-quant-resume-20261020/iq1-m-released-short-consumers-v1/radeon-vii-f32.stdout",
+      "stdout_sha256": "9ebccf02a88b8c6277d3ca832965751909f5530d646cb1da95dcdaf8183eff5c",
+      "stderr": "build-quant-resume-20261020/iq1-m-released-short-consumers-v1/radeon-vii-f32.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "tests/baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-integrated-20261023\\build-integrated-vulkan\\Release\\llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-m-short-6g-v1\\completed\\short-f32",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-models\\Qwen3-0.6B-UD-IQ1_M.gguf"
+      ],
+      "test_configuration": {
+        "LLMX_DEVICE": "vulkan:0",
+        "LLMX_DTYPE": "f32",
+        "LLMX_CACHE_TYPE": "f32",
+        "LLMX_LOAD_MODE": null,
+        "LLMX_LAYER_SHARES": null,
+        "LLMX_TENSOR_WIDTH": null
+      }
+    }
+  },
+  "limits": "Unchanged tests/baseline.py FILE_EXACT_BOUNDS from the Q8_0 fixture:0.010 no-cache NLL and0.020 cache NLL; no calibration or widening",
+  "consumer_receipt": {
+    "path": "build-quant-resume-20261020/iq1-m-released-short-consumers-v1/receipt.json",
+    "sha256": "0f087cff446102321ce3ef865146dde271d988e445fd59b9a8fdcdf2365770ba",
+    "actual_subprocess_exits_captured": true,
+    "product_model_references_source_limits_unchanged": true
+  },
+  "local_radeon_availability": {
+    "no_preexisting_llmx_or_llama_process": true,
+    "vulkaninfo_gpu0": "AMD Radeon VII",
+    "counter_available": true,
+    "observation": "Compute entries0 in retained top12 engine samples; highest desktop3D sample2.447716percent. This is a preflight snapshot, not performance measurement."
+  },
+  "ppl_interpretation": "735.2666415707615 is the independent file-exact HF reference PPL of these released quantized GGUF weights. Runtime agreement does not establish original pretrained-weight quality.",
+  "left": "Raw/chat16K F16/F32 references and later qualification remain incomplete; retained depth resource stops are not passes."
+}

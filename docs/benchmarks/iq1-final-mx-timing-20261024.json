@@ -1,0 +1,706 @@
+{
+  "status_counts": {
+    "passed": 40
+  },
+  "cells": {
+    "IQ1_S/P128/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.027060912134395605,
+            "min": 0.02699675827988467,
+            "max": 0.0271485534911343
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9413335363618185,
+            "min": 0.9319935925440512,
+            "max": 0.9677907152578256
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.9683944484962141,
+            "min": 0.9589903508239359,
+            "max": 0.9948720650938565
+          },
+          "pp128": {
+            "mean": 4730.092500000001,
+            "min": 4714.8,
+            "max": 4741.31
+          },
+          "tg256": {
+            "mean": 272.025,
+            "min": 264.52,
+            "max": 274.68
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.04760563110242596,
+            "min": 0.047474046902874774,
+            "max": 0.04768592855306736
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0453400504884152,
+            "min": 1.04247261473307,
+            "max": 1.0486645911846633
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.0929456815908412,
+            "min": 1.0901585432861374,
+            "max": 1.0962978153585246
+          },
+          "pp128": {
+            "mean": 2688.765,
+            "min": 2684.23,
+            "max": 2696.21
+          },
+          "tg256": {
+            "mean": 244.8975,
+            "min": 244.12,
+            "max": 245.57
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            2,
+            3
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 76.63575774058111,
+            "tg256": 11.854053833937384
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020689170273182688,
+            "tg_phase_seconds": -0.11047902218901884,
+            "pp_plus_tg_phase_seconds": -0.13116819246220146
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -12.032029035594437
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            4,
+            5
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 75.71925035512812,
+            "tg256": 12.049618476353707
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020457059972342203,
+            "tg_phase_seconds": -0.11233438929157147,
+            "pp_plus_tg_phase_seconds": -0.13279144926391362
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -12.159570147547416
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            6,
+            7
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 75.45400416790713,
+            "tg256": 12.362772407012956
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020484670682726976,
+            "tg_phase_seconds": -0.11537986643074427,
+            "pp_plus_tg_phase_seconds": -0.13586453711347124
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -12.39303182128838
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            8,
+            9
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 75.87500279078074,
+            "tg256": 8.042315075766847
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020547974943869535,
+            "tg_phase_seconds": -0.07783277859505189,
+            "pp_plus_tg_phase_seconds": -0.0983807535389214
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -8.998902345566906
+        }
+      ]
+    },
+    "IQ1_S/P4096/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.0533359834163414,
+            "min": 1.0526072330769487,
+            "max": 1.054650788542002
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9340262565367968,
+            "min": 0.9301987573125977,
+            "max": 0.938519631924332
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.9873622399531383,
+            "min": 1.983057618703317,
+            "max": 1.9917466825800276
+          },
+          "pp4096": {
+            "mean": 3888.6,
+            "min": 3883.75,
+            "max": 3891.29
+          },
+          "tg256": {
+            "mean": 274.085,
+            "min": 272.77,
+            "max": 275.21
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.7482782604482359,
+            "min": 1.735622637671825,
+            "max": 1.755167803640602
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0430483007742475,
+            "min": 1.0376976084312932,
+            "max": 1.0506012229654862
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.7913265612224833,
+            "min": 2.779838659861415,
+            "max": 2.8007742747442874
+          },
+          "pp4096": {
+            "mean": 2342.92,
+            "min": 2333.68,
+            "max": 2359.96
+          },
+          "tg256": {
+            "mean": 245.44,
+            "min": 243.67,
+            "max": 246.7
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            12,
+            13
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 66.2702855140706,
+            "tg256": 12.479993433742354
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6975658187018525,
+            "tg_phase_seconds": -0.11656736423810732,
+            "pp_plus_tg_phase_seconds": -0.8141331829399598
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -29.06814698640042
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            14,
+            15
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 66.360097531762,
+            "tg256": 10.778540389067137
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.69892249804602,
+            "tg_phase_seconds": -0.10115871758628814,
+            "pp_plus_tg_phase_seconds": -0.800081215632308
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.65797050543898
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            16,
+            17
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 66.70494669363411,
+            "tg256": 11.55654641264694
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.7023089422498825,
+            "tg_phase_seconds": -0.1074988511186955,
+            "pp_plus_tg_phase_seconds": -0.8098077933685781
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.995589614460503
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            18,
+            19
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 64.56846726215699,
+            "tg256": 11.87795725240659
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6809718491298229,
+            "tg_phase_seconds": -0.11086324400671155,
+            "pp_plus_tg_phase_seconds": -0.7918350931365343
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.484929883521016
+        }
+      ]
+    },
+    "IQ1_M/P128/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.027105683125946408,
+            "min": 0.02705238864137832,
+            "max": 0.02714060956112786
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9581015984155694,
+            "min": 0.9489916963226572,
+            "max": 0.9679370840895342
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.9852072815415158,
+            "min": 0.9760440849640355,
+            "max": 0.9950718250375542
+          },
+          "pp128": {
+            "mean": 4722.265,
+            "min": 4716.18,
+            "max": 4731.56
+          },
+          "tg256": {
+            "mean": 267.21000000000004,
+            "min": 264.48,
+            "max": 269.76
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.048428984851661264,
+            "min": 0.047824543705281254,
+            "max": 0.04926563414108446
+          },
+          "tg_phase_seconds": {
+            "mean": 1.056329863581447,
+            "min": 1.052718151163747,
+            "max": 1.0591642532064542
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.1047588484331086,
+            "min": 1.101284679719348,
+            "max": 1.1076416883828573
+          },
+          "pp128": {
+            "mean": 2643.3875,
+            "min": 2598.16,
+            "max": 2676.45
+          },
+          "tg256": {
+            "mean": 242.35,
+            "min": 241.7,
+            "max": 243.18
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            22,
+            23
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 81.55925732056532,
+            "tg256": 9.343476103853154
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.022130893193064445,
+            "tg_phase_seconds": -0.09043897015223867,
+            "pp_plus_tg_phase_seconds": -0.11256986334530306
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -10.16302153719526
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            24,
+            25
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 78.9441333151209,
+            "tg256": 9.507360802697583
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02142591899447323,
+            "tg_phase_seconds": -0.09139633366468569,
+            "pp_plus_tg_phase_seconds": -0.11282225265915902
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -10.244603846474165
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            26,
+            27
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 76.78492032356297,
+            "tg256": 11.177052423343238
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020772155063902936,
+            "tg_phase_seconds": -0.10606929939115761,
+            "pp_plus_tg_phase_seconds": -0.12684145445506068
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.500872023570974
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            28,
+            29
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 77.37311236098489,
+            "tg256": 11.005378568473322
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02096423965141882,
+            "tg_phase_seconds": -0.1050084574554293,
+            "pp_plus_tg_phase_seconds": -0.1259726971068481
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.377350523688834
+        }
+      ]
+    },
+    "IQ1_M/P4096/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.0571633214869234,
+            "min": 1.0566750337305324,
+            "max": 1.0575835661428667
+          },
+          "tg_phase_seconds": {
+            "mean": 0.945953920678144,
+            "min": 0.9435005344045996,
+            "max": 0.9487103468722207
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.0031172421650676,
+            "min": 2.000862962414378,
+            "max": 2.0053853806027533
+          },
+          "pp4096": {
+            "mean": 3874.52,
+            "min": 3872.98,
+            "max": 3876.31
+          },
+          "tg256": {
+            "mean": 270.6275,
+            "min": 269.84,
+            "max": 271.33
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.7502539117808507,
+            "min": 1.7454743803906863,
+            "max": 1.7542957975707114
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0515943341231,
+            "min": 1.0509462621618293,
+            "max": 1.0528047376213192
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.8018482459039507,
+            "min": 2.7970250068026807,
+            "max": 2.805371507867969
+          },
+          "pp4096": {
+            "mean": 2340.24,
+            "min": 2334.84,
+            "max": 2346.64
+          },
+          "tg256": {
+            "mean": 243.44,
+            "min": 243.16,
+            "max": 243.59
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            32,
+            33
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.1297173831521,
+            "tg256": 11.30827685356337
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6884421223261701,
+            "tg_phase_seconds": -0.10683145894576063,
+            "pp_plus_tg_phase_seconds": -0.7952735812719309
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.432837723571858
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            34,
+            35
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.6471735476393,
+            "tg256": 10.989777905496956
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6942737190771204,
+            "tg_phase_seconds": -0.10406062819230721,
+            "pp_plus_tg_phase_seconds": -0.7983343472694275
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.48342146616647
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            36,
+            37
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.55593045156938,
+            "tg256": 10.972199374897173
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6927131502114849,
+            "tg_phase_seconds": -0.10409439074909854,
+            "pp_plus_tg_phase_seconds": -0.7968075409605833
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.43514216416071
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            38,
+            39
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.91243939627553,
+            "tg256": 11.40170799802922
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6969333695609328,
+            "tg_phase_seconds": -0.10757517589265786,
+            "pp_plus_tg_phase_seconds": -0.804508545453591
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.67743338795804
+        }
+      ]
+    }
+  },
+  "activity": {
+    "sample_count": 176,
+    "interval_count": 175,
+    "flag_interval_counts": {
+      "unrelated_cpu": 115,
+      "disk": 122,
+      "iowait": 30
+    },
+    "raw_monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "available": true,
+    "measured_flag_counts": {
+      "candidate": {
+        "unrelated_cpu": 13,
+        "disk": 12,
+        "iowait": 3
+      },
+      "mx": {
+        "unrelated_cpu": 12,
+        "disk": 12,
+        "iowait": 3
+      }
+    },
+    "uncovered_seconds": 0
+  },
+  "inputs": {
+    "models": [
+      {
+        "label": "IQ1_S",
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1/models/Qwen3-0.6B-UD-IQ1_S.gguf",
+        "sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+        "bytes": 214643392
+      },
+      {
+        "label": "IQ1_M",
+        "path": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1/models/Qwen3-0.6B-UD-IQ1_M.gguf",
+        "sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+        "bytes": 220754624
+      }
+    ],
+    "candidate": {
+      "root": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/main-58-v1",
+      "build": "build",
+      "source": "source",
+      "execution": "build-execution.json",
+      "execution_sha256": "98ec270535267e646027304c5969cb73ddca040c94675ccc3154000adc0d7eff",
+      "source_manifest_sha256": "7f750b969f2f97a1fcaf2621d759843c7495c327969332eeff7267aa67893a9c",
+      "binary_sha256": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+      "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+      "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+      "source_manifest": "source-pins.json",
+      "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+      "source_revision": "fc6ee3b558c38c364829147da66ac014f040459b"
+    },
+    "reference": {
+      "root": "/zpool1/llmx-xdev-quant-20261020/iq3-xxs-20261023/mx-current-v1",
+      "execution": "build-execution-r2.json",
+      "execution_sha256": "5b5aadfbf902887eb403854c99291e6befc555c7000c26ed49f0501153c8da4f",
+      "head": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "source_manifest_sha256": "642cd49e8794e32fc0942d15ba7984bf4b04b914d22650767a15ff62f753ad0e",
+      "wrapper_sha256": "f619ba8b88db666dce12946d50c6fbd175e4dea442fdfa5e9322bcd36b2aa126",
+      "binary_sha256": "02a7c23e0304a71bd8af815892f0015ee75ea9fe0b3a526386188745567268a2",
+      "artifacts": {
+        "bin/libllama-bench-impl.so": "52f283d8f2b89f5588b0c887fe788b4e5b4ae7ae4de1bdd3e6821b5ae020c769",
+        "bin/libggml-base.so": "c6686e22f8fce083e03e8df0150d71bbdc50f99cb1894094179e9aab2d3bf2ce",
+        "bin/libggml.so.0.26.0": "dd98d446a8632da3a45c817aec93948e88c5e2d82bd02e78a9458cd21cd8f908",
+        "bin/libllama-common.so.0.6.0": "a5f4f772d03e7e8f6c4a8421949a2a7440933ac09b831ce7e650dfeb13ed635e",
+        "bin/libggml-cpu.so": "bd725c298f5d79c1eb649425811c08c217a0742b0d190f5700fd2003bb80f62b",
+        "bin/libggml-vulkan.so.0": "ec1a816096707eedfd91ab381ed2f6b391f9a9e8d8aa0269b3ae6f721bb357c3",
+        "bin/libggml.so": "dd98d446a8632da3a45c817aec93948e88c5e2d82bd02e78a9458cd21cd8f908",
+        "bin/libggml-vulkan.so": "ec1a816096707eedfd91ab381ed2f6b391f9a9e8d8aa0269b3ae6f721bb357c3",
+        "bin/libggml-cpu.so.0": "bd725c298f5d79c1eb649425811c08c217a0742b0d190f5700fd2003bb80f62b",
+        "bin/libllama-common.so": "a5f4f772d03e7e8f6c4a8421949a2a7440933ac09b831ce7e650dfeb13ed635e",
+        "bin/libggml-base.so.0": "c6686e22f8fce083e03e8df0150d71bbdc50f99cb1894094179e9aab2d3bf2ce",
+        "bin/libllama.so.0": "630db4c632238b79767d8cb600f3b055248cfc7087a51de9392de298d5a426af",
+        "bin/libggml-vulkan.so.0.26.0": "ec1a816096707eedfd91ab381ed2f6b391f9a9e8d8aa0269b3ae6f721bb357c3",
+        "bin/libggml.so.0": "dd98d446a8632da3a45c817aec93948e88c5e2d82bd02e78a9458cd21cd8f908",
+        "bin/libllama.so": "630db4c632238b79767d8cb600f3b055248cfc7087a51de9392de298d5a426af",
+        "bin/libllama-common.so.0": "a5f4f772d03e7e8f6c4a8421949a2a7440933ac09b831ce7e650dfeb13ed635e",
+        "bin/libggml-base.so.0.26.0": "c6686e22f8fce083e03e8df0150d71bbdc50f99cb1894094179e9aab2d3bf2ce",
+        "bin/llama-bench": "940ad3c64eb69d7158bd7f998e8909fdb39e9b86da0df481bfb964e8ff4c03f1",
+        "bin/libggml-cpu.so.0.26.0": "bd725c298f5d79c1eb649425811c08c217a0742b0d190f5700fd2003bb80f62b",
+        "bin/libllama.so.0.6.0": "630db4c632238b79767d8cb600f3b055248cfc7087a51de9392de298d5a426af",
+        "mx-cli-bench-vulkan": "02a7c23e0304a71bd8af815892f0015ee75ea9fe0b3a526386188745567268a2",
+        "CMakeCache.txt": "1f09789e8ad625d3f7d1c681cbae664e5106f2b3be6741ca1eb3f5d086cf9b71",
+        "compile_commands.json": "cb54989f629d66c86e478dbf544be514db88bae987c79c57d1d6d2d431762431"
+      }
+    },
+    "manifest_sha256": "d27e361f8fcf050ed4109c575c2b1f7ed3d2a23a38fdb208df02c922c85e9cc8",
+    "guard": {
+      "pci": "0000:c9:00.0",
+      "busy": 0,
+      "vram": 10932224,
+      "power": "auto"
+    }
+  },
+  "limitations": [
+    "PP and TG both reset before execution. P/PP + G/TG sums separate empty-history microbench phases; it is NOT decode after that prompt or request/server latency. Load/startup are excluded.",
+    "mx n_ctx=max(512,P,G); llmx reach=max(P,G). Allocated KV layouts need not match. Identical token-stream seeds: PP12345 and TG777. F32 K/V; llmx auto F16 arithmetic; ubatch512; threads4.",
+    "Four matched blocks per cell; no measured layout noise band, both-phase floor verdict, or automatic acceptance/rejection.",
+    "All warmups and samples retained. Activity flags describe overlapping monitor intervals, not proven causation. Whole-disk counters are not process-attributed. Short-lived processes may escape sampling; unavailable counters are unknown, not zero."
+  ],
+  "scope": "Current-main IQ1 candidate versus mx Vulkan on one MI50; four measured pairs per cell, all 40 calls retained.",
+  "assessment": "Both quant files exceed mx Vulkan PP and TG in all four measured cells. This satisfies the measured performance comparison, not the remaining numerical, split, server or hosted gates. No claim about mx ROCm or server latency.",
+  "execution": {
+    "passed": true,
+    "removed": true,
+    "pins_unchanged": true,
+    "monitor_exit": 0
+  },
+  "evidence": {
+    "summary.json": "13638434c5180d319e73ffec161b8673088f9ee78c957c874f8be6b025347a72",
+    "execution.json": "3399bf0ba36977a0886306f6d820cfa8b8ab3b1cf2f99b28615b687a26de83c8",
+    "activity.jsonl": "5a775d7b56ce70196f2540aebe9ba4a9e5e7a6aaefaa5df1225eeb318d8f1927"
+  },
+  "rig_results": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/main-final-mx-timing-v1/results"
+}

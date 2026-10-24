@@ -249,11 +249,11 @@ renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
   {layer: 2, rows: 10, row_bytes: 128, bytes: 1280, type: 'Q4_K', storage: 'device', members: [0]}
 ]}});
 check('resident lookup names backend allocation without calling it VRAM', $('lookup-storage-view').textContent.includes('Stored in backend allocation(s): CPU'));
-check('lookup table bytes are labeled as logical size', $('lookup-storage-view').textContent.includes('logical table / Q4_K'));
+check('lookup table bytes are labeled as logical size', $('lookup-storage-view').querySelector('.lookup-size').firstChild.textContent === '1.3 KiB' && $('lookup-storage-view').querySelector('.lookup-size').textContent.includes('Logical size') && $('lookup-storage-view').textContent.includes('Layer 3 / Q4_K'));
 renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: [
   {layer: 2, rows: 10, row_bytes: 128, bytes: 1280, type: 'Q4_K', storage: 'file', members: [0]}
 ]}});
-check('file lookup reports unknown physical page residency and upload target', $('lookup-storage-view').textContent.includes('File-backed / physical page residency unknown') && $('lookup-storage-view').textContent.includes('Row upload backends: CPU'));
+check('file lookup reports unknown physical page residency and upload target', $('lookup-storage-view').querySelector('.lookup-item-head strong').textContent === 'File-backed' && document.querySelector('.lookup-note').textContent.includes('File page residency is unknown.') && $('lookup-storage-view').textContent.includes('Row upload backends: CPU'));
 renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}], lookups: []}});
 check('model without bounded lookups has an explicit empty state', $('lookup-storage-view').textContent.includes('No bounded lookup tables'));
 renderLookupStorage({topology: {devices: [{index: 0, name: 'CPU'}]}});

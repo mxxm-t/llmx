@@ -25,7 +25,7 @@ Weight decoders, block quantization kernels and their registry, in namespace `qu
   (de)quantize routines. The registry takes its name and sizes from
   `storage_type`, so it defines no second storage layout.
 - `Registry::instance().get(id)`: the implemented type for a GGML id, or null when llmx has no decoder for it.
-  The one registry fills itself with `F32`, `F16`, `BF16`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ2_XXS`, `IQ2_XS`, `IQ3_XXS`, `IQ2_S`, `IQ3_S`, `IQ4_NL`, `IQ4_XS`, `TQ1_0`, `TQ2_0` and `MXFP4` on first use and never changes after, so no caller sets it up and any thread may read it. The [README support matrix](../../README.md#quantization-types) distinguishes those decoders from backend support and quantize writers.
+  The one registry fills itself with `F32`, `F16`, `BF16`, `Q4_0`, `Q4_1`, `Q5_0`, `Q5_1`, `Q8_0`, `Q2_K`, `Q3_K`, `Q4_K`, `Q5_K`, `Q6_K`, `IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ3_XXS`, `IQ2_S`, `IQ3_S`, `IQ4_NL`, `IQ4_XS`, `TQ1_0`, `TQ2_0` and `MXFP4` on first use and never changes after, so no caller sets it up and any thread may read it. The [README support matrix](../../README.md#quantization-types) distinguishes those decoders from backend support and quantize writers.
   `F32` is registered as a block of one value in 4 bytes.
 - `row_bytes(type, nin, rows = 1)` is owned by `types.hpp` and remains available
   through this header. It sizes any known storage layout, including types
@@ -64,7 +64,8 @@ is the read-only `dequantize_row_iq3_xxs` entry from `iq3_xxs.hpp`
 new specialized path. Completed qualification and remaining follow-ups are
 recorded in [STATUS](../STATUS.md).
 
-
 IQ2_XXS and IQ2_XS are read-only registry decoders in `iq2_xxs.hpp` and `iq2_xs.hpp` ([IQ2_XXS](quant-iq2-xxs.md), [IQ2_XS](quant-iq2-xs.md)). Both use the shared even-parity sign expansion in `iq_signs.hpp`; the CPU registry path widens their decoded weights for existing products. No quantizer or specialized CPU dot is added. Published CPU/Vulkan inference support and completed qualification are recorded in [STATUS](../STATUS.md).
+
+IQ1_S and IQ1_M add read-only entries from `iq1.hpp` ([family owner](quant-iq1.md)). Read-only CPU/Vulkan qualification is complete, including format/operator, HF, raw/chat 16K, split, integration, timing and hosted checks recorded in [STATUS](../STATUS.md).
 
 TQ1_0 and TQ2_0 are read-only registry decoders in `tq.hpp` ([format owner](quant-tq.md)). The CPU registry path widens their decoded weights for existing products. Vulkan uses the shared TQ decoder through its existing embedding, row and tile owners. No quantizer or specialized CPU dot is added; remaining model qualification is recorded in [STATUS](../STATUS.md).

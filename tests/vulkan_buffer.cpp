@@ -43,6 +43,13 @@ struct VulkanLifetimeTest {
     static VkDescriptorBufferInfo args(VulkanBackend& b, const void* data, size_t bytes) {
         return b.args(data, bytes);
     }
+    static BufferPtr dictionary(VulkanBackend& b, uint32_t type) {
+        const auto view = b.lookup_grid(type, {});
+        const auto& owner = b.lookup_grids_[size_t(weight_kernels(type) - weight_formats)];
+        if (!owner || as_vulkan(*owner).handle() != view.buffer)
+            throw std::runtime_error("dictionary descriptor differs from its owner");
+        return owner;
+    }
     static VkPipeline kernel(VulkanBackend& b) { return b.kernel(K_ADD).pipeline; }
     static bool query_empty(VulkanBackend& b) { return b.queries_.empty(); }
     static void clear_query(VulkanBackend& b) { b.queries_.clear(); }
@@ -203,6 +210,33 @@ int scratch_reserve_checks() {
         }
     }
     dev->profile = saved;
+    return failures;
+}
+
+int dictionary_checks() {
+    int failures = 0;
+    for (const bool medium_first : {false, true}) {
+        backend::VulkanBackend b(0);
+        const uint32_t first_type = medium_first ? quant::GGML_TYPE_IQ1_M : quant::GGML_TYPE_IQ1_S;
+        const uint32_t second_type = medium_first ? quant::GGML_TYPE_IQ1_S : quant::GGML_TYPE_IQ1_M;
+        const auto first = backend::VulkanLifetimeTest::dictionary(b, first_type);
+        const auto repeated = backend::VulkanLifetimeTest::dictionary(b, first_type);
+        const auto second = backend::VulkanLifetimeTest::dictionary(b, second_type);
+        const auto other = backend::VulkanLifetimeTest::dictionary(b, quant::GGML_TYPE_IQ2_XXS);
+        const bool reused = first == repeated && first == second &&
+                            first == backend::VulkanLifetimeTest::dictionary(b, first_type) &&
+                            second == backend::VulkanLifetimeTest::dictionary(b, second_type);
+        const bool distinct = other != first && other == backend::VulkanLifetimeTest::dictionary(b, quant::GGML_TYPE_IQ2_XXS);
+        std::array<uint32_t, 1024> copied{};
+        b.read(*first, 0, copied.data(), sizeof copied);
+        const bool intact = first->size() == sizeof(quant::IQ1_GRID) &&
+                            std::memcmp(copied.data(), quant::IQ1_GRID, sizeof copied) == 0;
+        const bool ok = reused && distinct && intact;
+        std::cout << "dictionary first=" << (medium_first ? "IQ1_M" : "IQ1_S")
+                  << " shared=" << reused << " distinct_IQ2=" << distinct << " bytes=" << intact
+                  << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
     return failures;
 }
 
@@ -1329,7 +1363,7 @@ int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
-            const int failures = queue_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
+            const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
                                  loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording();
             return failures ? 1 : 0;
         }

@@ -1,0 +1,7293 @@
+{
+  "scope": "CPU F32/F32-KV IQ1_S raw depth only, 16384 prompt tokens and 512 fixed-history scored positions.",
+  "qualification": "Accepted after separate retained-output validation and unchanged full-F32 HF comparison. Original wrapper failure and diagnostic flags are preserved, not rewritten.",
+  "basis": [
+    "The original inference process exited 0 and emitted every ordered finite output row.",
+    "Its wrapper failed only by comparing the short probe version with the full CLI banner.",
+    "Pinned generated headers establish the correct probe banner and separate CLI identity.",
+    "The separate validator checked 2380 source, build, model, input and output files unchanged at validation time.",
+    "The successful separate comparison checked the genuine full-F32 HF reference and all 512 rows with the existing common.hf_depth_top1 rule.",
+    "All 512 IDs match exactly. No reference policy, numerical bound, input or runtime changed."
+  ],
+  "limitation": "Original runtime after-checks are absent. New checks occur at validation time and do not claim the historical wrapper passed.",
+  "original_execution": {
+    "sha256": "87266eb976677c09157b3480980aed9c341a9ab16d553ac5caf430fce68acdbe",
+    "passed": false,
+    "process_exit": 1,
+    "removed": true,
+    "oom_killed": false,
+    "wrapper_error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/cpu-depth-v2/run-cpu-depth.py\", line 192, in main\n    assert child.returncode == 0\n           ^^^^^^^^^^^^^^^^^^^^^\nAssertionError\n",
+    "container_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 1,
+      "Error": "",
+      "StartedAt": "2026-10-23T22:53:14.517838911Z",
+      "FinishedAt": "2026-10-23T23:12:26.38372295Z"
+    }
+  },
+  "original_report": {
+    "sha256": "736a68175981afb41af3e23f604fd8855fd36ebd30fcaba1a115a4bdf5606206",
+    "capture_complete": false,
+    "runtime_files_after_absent": true,
+    "probe_exit": 0,
+    "probe_seconds": 1150.896823167801
+  },
+  "validation_sha256": "07dfb6e5c1008d362cf5287aa9459f710434fbdd554cb6226bfc006863d16ae2",
+  "validation_input_tree_sha256": "87ab6a647199990dea3eb3466a43cbecdd48349f5d4d8ceef198f735d6fc3df1",
+  "validation_input_count": 2380,
+  "comparison_execution_sha256": "f6122008c44a033355da5a1fb06da476fdff3b0622dbca4ee3446d63cf944852",
+  "comparison_sha256": "6b6614dc6173736101c9f3de55af8c13c67a5e5c052bb45a301101f78d2264af",
+  "comparison_exit": 0,
+  "comparison_container_removed": true,
+  "comparison_oom_killed": false,
+  "cell": {
+    "model_id": "iq1-s",
+    "variant": "raw",
+    "cell_source": "retained raw cell from failed v4 phase",
+    "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+    "reference_report_sha256": "734fb8a8f7d210e146845adf8abb78a79c1a71a0b76eadac06020adbfe396788",
+    "reference_json_sha256": "3568783e68b6ea4582e9e0e3084293b463b01d687e22e12181e3edcde581c4dc",
+    "reference_npy_sha256": "0d52a5458e6f4bb4b45b93cb91521233fe1e804b079db6ad59663d04967795ed",
+    "capture_execution_sha256": "87266eb976677c09157b3480980aed9c341a9ab16d553ac5caf430fce68acdbe",
+    "capture_report_sha256": "736a68175981afb41af3e23f604fd8855fd36ebd30fcaba1a115a4bdf5606206",
+    "capture_protocol_complete": false,
+    "capture_process_exit": 1,
+    "capture_stdout_sha256": "141d5717a393d6e8afa7430307494e119932eea552f5ae903736b7bff240d52f",
+    "capture_matrix_paths": {
+      "dtype": "f32",
+      "devices": [
+        [
+          "f32"
+        ]
+      ]
+    },
+    "positions": 512,
+    "counts": {
+      "exact": 512,
+      "accepted-tie": 0,
+      "miss": 0
+    },
+    "rows": [
+      {
+        "position": 16383,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          2895
+        ],
+        "hf_top2_logits": [
+          17.85749626159668,
+          15.756826400756836
+        ],
+        "hf_gap": 2.1006698608398438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16384,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          646
+        ],
+        "hf_top2_logits": [
+          15.888659477233887,
+          15.308011054992676
+        ],
+        "hf_gap": 0.5806484222412109,
+        "verdict": "exact"
+      },
+      {
+        "position": 16385,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          1098
+        ],
+        "hf_top2_logits": [
+          16.7955322265625,
+          15.969964981079102
+        ],
+        "hf_gap": 0.8255672454833984,
+        "verdict": "exact"
+      },
+      {
+        "position": 16386,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          47771
+        ],
+        "hf_top2_logits": [
+          18.178691864013672,
+          14.93682861328125
+        ],
+        "hf_gap": 3.241863250732422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16387,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          18.524415969848633,
+          16.15046501159668
+        ],
+        "hf_gap": 2.373950958251953,
+        "verdict": "exact"
+      },
+      {
+        "position": 16388,
+        "actual_top1": 18,
+        "hf_top2_ids": [
+          18,
+          16
+        ],
+        "hf_top2_logits": [
+          15.869731903076172,
+          15.654438972473145
+        ],
+        "hf_gap": 0.21529293060302734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16389,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          686
+        ],
+        "hf_top2_logits": [
+          17.647119522094727,
+          14.915875434875488
+        ],
+        "hf_gap": 2.7312440872192383,
+        "verdict": "exact"
+      },
+      {
+        "position": 16390,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          50
+        ],
+        "hf_top2_logits": [
+          17.353492736816406,
+          16.358638763427734
+        ],
+        "hf_gap": 0.9948539733886719,
+        "verdict": "exact"
+      },
+      {
+        "position": 16391,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          16.54928207397461,
+          15.970788955688477
+        ],
+        "hf_gap": 0.5784931182861328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16392,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          15
+        ],
+        "hf_top2_logits": [
+          15.495758056640625,
+          13.471914291381836
+        ],
+        "hf_gap": 2.023843765258789,
+        "verdict": "exact"
+      },
+      {
+        "position": 16393,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          18.835132598876953,
+          15.276714324951172
+        ],
+        "hf_gap": 3.5584182739257812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16394,
+        "actual_top1": 1103,
+        "hf_top2_ids": [
+          1103,
+          374
+        ],
+        "hf_top2_logits": [
+          14.87507152557373,
+          14.37313175201416
+        ],
+        "hf_gap": 0.5019397735595703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16395,
+        "actual_top1": 13088,
+        "hf_top2_ids": [
+          13088,
+          374
+        ],
+        "hf_top2_logits": [
+          15.299517631530762,
+          15.066256523132324
+        ],
+        "hf_gap": 0.2332611083984375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16396,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          17.303312301635742,
+          16.54486656188965
+        ],
+        "hf_gap": 0.7584457397460938,
+        "verdict": "exact"
+      },
+      {
+        "position": 16397,
+        "actual_top1": 15770,
+        "hf_top2_ids": [
+          15770,
+          328
+        ],
+        "hf_top2_logits": [
+          14.519865989685059,
+          13.902962684631348
+        ],
+        "hf_gap": 0.6169033050537109,
+        "verdict": "exact"
+      },
+      {
+        "position": 16398,
+        "actual_top1": 643,
+        "hf_top2_ids": [
+          643,
+          374
+        ],
+        "hf_top2_logits": [
+          17.041318893432617,
+          16.74468994140625
+        ],
+        "hf_gap": 0.2966289520263672,
+        "verdict": "exact"
+      },
+      {
+        "position": 16399,
+        "actual_top1": 24823,
+        "hf_top2_ids": [
+          24823,
+          26051
+        ],
+        "hf_top2_logits": [
+          17.6931209564209,
+          17.386276245117188
+        ],
+        "hf_gap": 0.30684471130371094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16400,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          14.183234214782715,
+          13.970996856689453
+        ],
+        "hf_gap": 0.21223735809326172,
+        "verdict": "exact"
+      },
+      {
+        "position": 16401,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          220
+        ],
+        "hf_top2_logits": [
+          19.07611083984375,
+          15.051299095153809
+        ],
+        "hf_gap": 4.024811744689941,
+        "verdict": "exact"
+      },
+      {
+        "position": 16402,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          19
+        ],
+        "hf_top2_logits": [
+          16.10535430908203,
+          15.417745590209961
+        ],
+        "hf_gap": 0.6876087188720703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16403,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          33
+        ],
+        "hf_top2_logits": [
+          17.575960159301758,
+          17.28933334350586
+        ],
+        "hf_gap": 0.28662681579589844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16404,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          33
+        ],
+        "hf_top2_logits": [
+          19.157730102539062,
+          18.938997268676758
+        ],
+        "hf_gap": 0.2187328338623047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16405,
+        "actual_top1": 320,
+        "hf_top2_ids": [
+          320,
+          7
+        ],
+        "hf_top2_logits": [
+          19.519023895263672,
+          17.443145751953125
+        ],
+        "hf_gap": 2.075878143310547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16406,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          643
+        ],
+        "hf_top2_logits": [
+          14.41175651550293,
+          14.401886940002441
+        ],
+        "hf_gap": 0.009869575500488281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16407,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          6148
+        ],
+        "hf_top2_logits": [
+          14.695935249328613,
+          14.54080581665039
+        ],
+        "hf_gap": 0.15512943267822266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16408,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          19
+        ],
+        "hf_top2_logits": [
+          17.876068115234375,
+          14.90542984008789
+        ],
+        "hf_gap": 2.9706382751464844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16409,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.952959060668945,
+          17.87432861328125
+        ],
+        "hf_gap": 0.07863044738769531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16410,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          425
+        ],
+        "hf_top2_logits": [
+          15.707475662231445,
+          15.345046997070312
+        ],
+        "hf_gap": 0.3624286651611328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16411,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          19
+        ],
+        "hf_top2_logits": [
+          18.7746524810791,
+          18.236907958984375
+        ],
+        "hf_gap": 0.5377445220947266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16412,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          6148
+        ],
+        "hf_top2_logits": [
+          15.791213989257812,
+          15.138660430908203
+        ],
+        "hf_gap": 0.6525535583496094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16413,
+        "actual_top1": 2143,
+        "hf_top2_ids": [
+          2143,
+          643
+        ],
+        "hf_top2_logits": [
+          17.116296768188477,
+          16.428998947143555
+        ],
+        "hf_gap": 0.6872978210449219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16414,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          17.806589126586914,
+          14.633413314819336
+        ],
+        "hf_gap": 3.173175811767578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16415,
+        "actual_top1": 3853,
+        "hf_top2_ids": [
+          3853,
+          374
+        ],
+        "hf_top2_logits": [
+          14.482717514038086,
+          14.005353927612305
+        ],
+        "hf_gap": 0.47736358642578125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16416,
+        "actual_top1": 355,
+        "hf_top2_ids": [
+          355,
+          3506
+        ],
+        "hf_top2_logits": [
+          15.667159080505371,
+          14.565159797668457
+        ],
+        "hf_gap": 1.101999282836914,
+        "verdict": "exact"
+      },
+      {
+        "position": 16417,
+        "actual_top1": 35155,
+        "hf_top2_ids": [
+          35155,
+          59740
+        ],
+        "hf_top2_logits": [
+          15.468015670776367,
+          14.3573579788208
+        ],
+        "hf_gap": 1.1106576919555664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16418,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          643
+        ],
+        "hf_top2_logits": [
+          17.94021987915039,
+          17.866130828857422
+        ],
+        "hf_gap": 0.07408905029296875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16419,
+        "actual_top1": 55,
+        "hf_top2_ids": [
+          55,
+          392
+        ],
+        "hf_top2_logits": [
+          14.793081283569336,
+          14.22716236114502
+        ],
+        "hf_gap": 0.5659189224243164,
+        "verdict": "exact"
+      },
+      {
+        "position": 16420,
+        "actual_top1": 643,
+        "hf_top2_ids": [
+          643,
+          1098
+        ],
+        "hf_top2_logits": [
+          18.52695655822754,
+          16.641998291015625
+        ],
+        "hf_gap": 1.884958267211914,
+        "verdict": "exact"
+      },
+      {
+        "position": 16421,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          14.843856811523438,
+          14.083318710327148
+        ],
+        "hf_gap": 0.7605381011962891,
+        "verdict": "exact"
+      },
+      {
+        "position": 16422,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          835
+        ],
+        "hf_top2_logits": [
+          15.264321327209473,
+          14.620124816894531
+        ],
+        "hf_gap": 0.6441965103149414,
+        "verdict": "exact"
+      },
+      {
+        "position": 16423,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          21
+        ],
+        "hf_top2_logits": [
+          14.663812637329102,
+          14.407937049865723
+        ],
+        "hf_gap": 0.2558755874633789,
+        "verdict": "exact"
+      },
+      {
+        "position": 16424,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          16629
+        ],
+        "hf_top2_logits": [
+          19.33677864074707,
+          17.526647567749023
+        ],
+        "hf_gap": 1.8101310729980469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16425,
+        "actual_top1": 43,
+        "hf_top2_ids": [
+          43,
+          33
+        ],
+        "hf_top2_logits": [
+          18.759733200073242,
+          17.885234832763672
+        ],
+        "hf_gap": 0.8744983673095703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16426,
+        "actual_top1": 784,
+        "hf_top2_ids": [
+          784,
+          47461
+        ],
+        "hf_top2_logits": [
+          15.820496559143066,
+          14.452230453491211
+        ],
+        "hf_gap": 1.3682661056518555,
+        "verdict": "exact"
+      },
+      {
+        "position": 16427,
+        "actual_top1": 2272,
+        "hf_top2_ids": [
+          2272,
+          374
+        ],
+        "hf_top2_logits": [
+          16.001508712768555,
+          15.440295219421387
+        ],
+        "hf_gap": 0.561213493347168,
+        "verdict": "exact"
+      },
+      {
+        "position": 16428,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          55
+        ],
+        "hf_top2_logits": [
+          16.271608352661133,
+          16.087791442871094
+        ],
+        "hf_gap": 0.18381690979003906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16429,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          16.322725296020508,
+          15.861571311950684
+        ],
+        "hf_gap": 0.4611539840698242,
+        "verdict": "exact"
+      },
+      {
+        "position": 16430,
+        "actual_top1": 862,
+        "hf_top2_ids": [
+          862,
+          323
+        ],
+        "hf_top2_logits": [
+          17.521482467651367,
+          15.072121620178223
+        ],
+        "hf_gap": 2.4493608474731445,
+        "verdict": "exact"
+      },
+      {
+        "position": 16431,
+        "actual_top1": 60,
+        "hf_top2_ids": [
+          60,
+          8
+        ],
+        "hf_top2_logits": [
+          16.580541610717773,
+          16.192623138427734
+        ],
+        "hf_gap": 0.38791847229003906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16432,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          19.037952423095703,
+          18.317562103271484
+        ],
+        "hf_gap": 0.7203903198242188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16433,
+        "actual_top1": 1103,
+        "hf_top2_ids": [
+          1103,
+          15
+        ],
+        "hf_top2_logits": [
+          17.32152557373047,
+          16.984996795654297
+        ],
+        "hf_gap": 0.3365287780761719,
+        "verdict": "exact"
+      },
+      {
+        "position": 16434,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          18.72597312927246,
+          16.85963249206543
+        ],
+        "hf_gap": 1.8663406372070312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16435,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.462688446044922,
+          17.02962875366211
+        ],
+        "hf_gap": 0.4330596923828125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16436,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.334346771240234,
+          17.33312225341797
+        ],
+        "hf_gap": 1.0012245178222656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16437,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          35
+        ],
+        "hf_top2_logits": [
+          16.07826042175293,
+          14.722155570983887
+        ],
+        "hf_gap": 1.356104850769043,
+        "verdict": "exact"
+      },
+      {
+        "position": 16438,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          20.163270950317383,
+          18.44831657409668
+        ],
+        "hf_gap": 1.7149543762207031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16439,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          21.2154598236084,
+          17.47541618347168
+        ],
+        "hf_gap": 3.7400436401367188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16440,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          12411
+        ],
+        "hf_top2_logits": [
+          15.712532997131348,
+          14.590625762939453
+        ],
+        "hf_gap": 1.1219072341918945,
+        "verdict": "exact"
+      },
+      {
+        "position": 16441,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.256052017211914,
+          17.20100212097168
+        ],
+        "hf_gap": 1.0550498962402344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16442,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          374
+        ],
+        "hf_top2_logits": [
+          15.422637939453125,
+          15.270492553710938
+        ],
+        "hf_gap": 0.1521453857421875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16443,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          15.974899291992188,
+          15.729310035705566
+        ],
+        "hf_gap": 0.2455892562866211,
+        "verdict": "exact"
+      },
+      {
+        "position": 16444,
+        "actual_top1": 311,
+        "hf_top2_ids": [
+          311,
+          374
+        ],
+        "hf_top2_logits": [
+          19.179258346557617,
+          18.736698150634766
+        ],
+        "hf_gap": 0.44256019592285156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16445,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          21
+        ],
+        "hf_top2_logits": [
+          16.708154678344727,
+          15.736408233642578
+        ],
+        "hf_gap": 0.9717464447021484,
+        "verdict": "exact"
+      },
+      {
+        "position": 16446,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          311
+        ],
+        "hf_top2_logits": [
+          19.1983585357666,
+          18.19627571105957
+        ],
+        "hf_gap": 1.0020828247070312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16447,
+        "actual_top1": 55,
+        "hf_top2_ids": [
+          55,
+          374
+        ],
+        "hf_top2_logits": [
+          14.696928024291992,
+          14.610837936401367
+        ],
+        "hf_gap": 0.086090087890625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16448,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          220
+        ],
+        "hf_top2_logits": [
+          15.382572174072266,
+          15.268250465393066
+        ],
+        "hf_gap": 0.11432170867919922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16449,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          1790
+        ],
+        "hf_top2_logits": [
+          14.746274948120117,
+          14.600589752197266
+        ],
+        "hf_gap": 0.14568519592285156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16450,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.33353042602539,
+          14.868450164794922
+        ],
+        "hf_gap": 1.4650802612304688,
+        "verdict": "exact"
+      },
+      {
+        "position": 16451,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          374
+        ],
+        "hf_top2_logits": [
+          16.28514862060547,
+          15.194622039794922
+        ],
+        "hf_gap": 1.0905265808105469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16452,
+        "actual_top1": 7783,
+        "hf_top2_ids": [
+          7783,
+          323
+        ],
+        "hf_top2_logits": [
+          14.28831958770752,
+          14.122241973876953
+        ],
+        "hf_gap": 0.1660776138305664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16453,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          17.333539962768555,
+          15.602387428283691
+        ],
+        "hf_gap": 1.7311525344848633,
+        "verdict": "exact"
+      },
+      {
+        "position": 16454,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          646
+        ],
+        "hf_top2_logits": [
+          23.79615020751953,
+          16.537334442138672
+        ],
+        "hf_gap": 7.258815765380859,
+        "verdict": "exact"
+      },
+      {
+        "position": 16455,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          50
+        ],
+        "hf_top2_logits": [
+          16.432435989379883,
+          15.412641525268555
+        ],
+        "hf_gap": 1.0197944641113281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16456,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          643
+        ],
+        "hf_top2_logits": [
+          17.529930114746094,
+          15.656899452209473
+        ],
+        "hf_gap": 1.873030662536621,
+        "verdict": "exact"
+      },
+      {
+        "position": 16457,
+        "actual_top1": 814,
+        "hf_top2_ids": [
+          814,
+          323
+        ],
+        "hf_top2_logits": [
+          18.531089782714844,
+          17.05457305908203
+        ],
+        "hf_gap": 1.4765167236328125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16458,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          16.078224182128906,
+          15.91916275024414
+        ],
+        "hf_gap": 0.15906143188476562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16459,
+        "actual_top1": 9,
+        "hf_top2_ids": [
+          9,
+          19551
+        ],
+        "hf_top2_logits": [
+          16.90896224975586,
+          15.816508293151855
+        ],
+        "hf_gap": 1.092453956604004,
+        "verdict": "exact"
+      },
+      {
+        "position": 16460,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1261
+        ],
+        "hf_top2_logits": [
+          17.019670486450195,
+          16.54901695251465
+        ],
+        "hf_gap": 0.4706535339355469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16461,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          16.057931900024414,
+          15.71701431274414
+        ],
+        "hf_gap": 0.34091758728027344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16462,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          16.08221435546875,
+          15.486607551574707
+        ],
+        "hf_gap": 0.595606803894043,
+        "verdict": "exact"
+      },
+      {
+        "position": 16463,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          35
+        ],
+        "hf_top2_logits": [
+          16.63093376159668,
+          16.357330322265625
+        ],
+        "hf_gap": 0.2736034393310547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16464,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          4138
+        ],
+        "hf_top2_logits": [
+          20.96812629699707,
+          14.882720947265625
+        ],
+        "hf_gap": 6.085405349731445,
+        "verdict": "exact"
+      },
+      {
+        "position": 16465,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          16.110118865966797,
+          15.510072708129883
+        ],
+        "hf_gap": 0.6000461578369141,
+        "verdict": "exact"
+      },
+      {
+        "position": 16466,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          220
+        ],
+        "hf_top2_logits": [
+          16.851409912109375,
+          16.215269088745117
+        ],
+        "hf_gap": 0.6361408233642578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16467,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          17.973901748657227,
+          15.584683418273926
+        ],
+        "hf_gap": 2.389218330383301,
+        "verdict": "exact"
+      },
+      {
+        "position": 16468,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          62
+        ],
+        "hf_top2_logits": [
+          14.679317474365234,
+          14.60512638092041
+        ],
+        "hf_gap": 0.07419109344482422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16469,
+        "actual_top1": 919,
+        "hf_top2_ids": [
+          919,
+          604
+        ],
+        "hf_top2_logits": [
+          15.808058738708496,
+          14.472311973571777
+        ],
+        "hf_gap": 1.3357467651367188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16470,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          50
+        ],
+        "hf_top2_logits": [
+          14.28191089630127,
+          13.541977882385254
+        ],
+        "hf_gap": 0.7399330139160156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16471,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          35
+        ],
+        "hf_top2_logits": [
+          14.770684242248535,
+          14.538060188293457
+        ],
+        "hf_gap": 0.23262405395507812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16472,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          17.421972274780273,
+          17.22081756591797
+        ],
+        "hf_gap": 0.2011547088623047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16473,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          16
+        ],
+        "hf_top2_logits": [
+          16.053556442260742,
+          14.999267578125
+        ],
+        "hf_gap": 1.0542888641357422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16474,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          62
+        ],
+        "hf_top2_logits": [
+          15.830384254455566,
+          15.22127628326416
+        ],
+        "hf_gap": 0.6091079711914062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16475,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          17895
+        ],
+        "hf_top2_logits": [
+          19.90065574645996,
+          16.448619842529297
+        ],
+        "hf_gap": 3.452035903930664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16476,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          18.633041381835938,
+          17.498855590820312
+        ],
+        "hf_gap": 1.134185791015625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16477,
+        "actual_top1": 279,
+        "hf_top2_ids": [
+          279,
+          220
+        ],
+        "hf_top2_logits": [
+          17.736934661865234,
+          17.450056076049805
+        ],
+        "hf_gap": 0.2868785858154297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16478,
+        "actual_top1": 481,
+        "hf_top2_ids": [
+          481,
+          323
+        ],
+        "hf_top2_logits": [
+          16.256742477416992,
+          16.239398956298828
+        ],
+        "hf_gap": 0.017343521118164062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16479,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          17.582870483398438,
+          15.887619018554688
+        ],
+        "hf_gap": 1.69525146484375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16480,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          19.497751235961914,
+          16.90101432800293
+        ],
+        "hf_gap": 2.5967369079589844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16481,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          643
+        ],
+        "hf_top2_logits": [
+          17.45787811279297,
+          17.314462661743164
+        ],
+        "hf_gap": 0.1434154510498047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16482,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          17.749143600463867,
+          15.6643648147583
+        ],
+        "hf_gap": 2.0847787857055664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16483,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          15.773147583007812,
+          14.890925407409668
+        ],
+        "hf_gap": 0.8822221755981445,
+        "verdict": "exact"
+      },
+      {
+        "position": 16484,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          18.165000915527344,
+          17.0319881439209
+        ],
+        "hf_gap": 1.1330127716064453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16485,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          18.037830352783203,
+          17.58258056640625
+        ],
+        "hf_gap": 0.4552497863769531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16486,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.679332733154297,
+          17.83591651916504
+        ],
+        "hf_gap": 0.8434162139892578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16487,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          35
+        ],
+        "hf_top2_logits": [
+          17.46653175354004,
+          16.919633865356445
+        ],
+        "hf_gap": 0.5468978881835938,
+        "verdict": "exact"
+      },
+      {
+        "position": 16488,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          8
+        ],
+        "hf_top2_logits": [
+          17.791860580444336,
+          14.968330383300781
+        ],
+        "hf_gap": 2.8235301971435547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16489,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.75006675720215,
+          15.416837692260742
+        ],
+        "hf_gap": 1.3332290649414062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16490,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          17.078935623168945,
+          16.341018676757812
+        ],
+        "hf_gap": 0.7379169464111328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16491,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          17.689746856689453,
+          14.976186752319336
+        ],
+        "hf_gap": 2.713560104370117,
+        "verdict": "exact"
+      },
+      {
+        "position": 16492,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          17.85023307800293,
+          15.31346321105957
+        ],
+        "hf_gap": 2.5367698669433594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16493,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          880
+        ],
+        "hf_top2_logits": [
+          16.878726959228516,
+          16.77077865600586
+        ],
+        "hf_gap": 0.10794830322265625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16494,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          16.61110496520996,
+          16.020946502685547
+        ],
+        "hf_gap": 0.5901584625244141,
+        "verdict": "exact"
+      },
+      {
+        "position": 16495,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1790
+        ],
+        "hf_top2_logits": [
+          19.27075958251953,
+          18.17559814453125
+        ],
+        "hf_gap": 1.0951614379882812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16496,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1261
+        ],
+        "hf_top2_logits": [
+          20.518692016601562,
+          16.932565689086914
+        ],
+        "hf_gap": 3.5861263275146484,
+        "verdict": "exact"
+      },
+      {
+        "position": 16497,
+        "actual_top1": 87,
+        "hf_top2_ids": [
+          87,
+          82
+        ],
+        "hf_top2_logits": [
+          15.246574401855469,
+          14.5866117477417
+        ],
+        "hf_gap": 0.6599626541137695,
+        "verdict": "exact"
+      },
+      {
+        "position": 16498,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          15.082414627075195,
+          14.45981216430664
+        ],
+        "hf_gap": 0.6226024627685547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16499,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          16
+        ],
+        "hf_top2_logits": [
+          16.114492416381836,
+          15.769301414489746
+        ],
+        "hf_gap": 0.34519100189208984,
+        "verdict": "exact"
+      },
+      {
+        "position": 16500,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          16
+        ],
+        "hf_top2_logits": [
+          16.054716110229492,
+          15.018917083740234
+        ],
+        "hf_gap": 1.0357990264892578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16501,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          18.391122817993164,
+          17.793445587158203
+        ],
+        "hf_gap": 0.5976772308349609,
+        "verdict": "exact"
+      },
+      {
+        "position": 16502,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          1098
+        ],
+        "hf_top2_logits": [
+          16.442962646484375,
+          16.2585391998291
+        ],
+        "hf_gap": 0.18442344665527344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16503,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          19.789859771728516,
+          17.298175811767578
+        ],
+        "hf_gap": 2.4916839599609375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16504,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.38106346130371,
+          15.253005027770996
+        ],
+        "hf_gap": 1.1280584335327148,
+        "verdict": "exact"
+      },
+      {
+        "position": 16505,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          643
+        ],
+        "hf_top2_logits": [
+          19.287242889404297,
+          15.653233528137207
+        ],
+        "hf_gap": 3.63400936126709,
+        "verdict": "exact"
+      },
+      {
+        "position": 16506,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          279
+        ],
+        "hf_top2_logits": [
+          17.35860252380371,
+          14.005074501037598
+        ],
+        "hf_gap": 3.3535280227661133,
+        "verdict": "exact"
+      },
+      {
+        "position": 16507,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          374
+        ],
+        "hf_top2_logits": [
+          16.54717445373535,
+          16.424888610839844
+        ],
+        "hf_gap": 0.12228584289550781,
+        "verdict": "exact"
+      },
+      {
+        "position": 16508,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.12216567993164,
+          15.678962707519531
+        ],
+        "hf_gap": 1.4432029724121094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16509,
+        "actual_top1": 1098,
+        "hf_top2_ids": [
+          1098,
+          374
+        ],
+        "hf_top2_logits": [
+          15.474133491516113,
+          15.098658561706543
+        ],
+        "hf_gap": 0.3754749298095703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16510,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          17.54751968383789,
+          14.134299278259277
+        ],
+        "hf_gap": 3.4132204055786133,
+        "verdict": "exact"
+      },
+      {
+        "position": 16511,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          19.269941329956055,
+          16.70347785949707
+        ],
+        "hf_gap": 2.5664634704589844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16512,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          18.212398529052734,
+          16.70033836364746
+        ],
+        "hf_gap": 1.5120601654052734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16513,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          220
+        ],
+        "hf_top2_logits": [
+          17.360319137573242,
+          17.124134063720703
+        ],
+        "hf_gap": 0.23618507385253906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16514,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          374
+        ],
+        "hf_top2_logits": [
+          16.252426147460938,
+          15.547632217407227
+        ],
+        "hf_gap": 0.7047939300537109,
+        "verdict": "exact"
+      },
+      {
+        "position": 16515,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          979
+        ],
+        "hf_top2_logits": [
+          16.934982299804688,
+          16.195859909057617
+        ],
+        "hf_gap": 0.7391223907470703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16516,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          14.98863697052002,
+          14.724637031555176
+        ],
+        "hf_gap": 0.26399993896484375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16517,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          1261
+        ],
+        "hf_top2_logits": [
+          17.50443458557129,
+          16.486169815063477
+        ],
+        "hf_gap": 1.0182647705078125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16518,
+        "actual_top1": 5186,
+        "hf_top2_ids": [
+          5186,
+          19
+        ],
+        "hf_top2_logits": [
+          17.044231414794922,
+          16.648359298706055
+        ],
+        "hf_gap": 0.3958721160888672,
+        "verdict": "exact"
+      },
+      {
+        "position": 16519,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          8471
+        ],
+        "hf_top2_logits": [
+          18.4248046875,
+          16.675554275512695
+        ],
+        "hf_gap": 1.7492504119873047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16520,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          880
+        ],
+        "hf_top2_logits": [
+          16.79526710510254,
+          15.387051582336426
+        ],
+        "hf_gap": 1.4082155227661133,
+        "verdict": "exact"
+      },
+      {
+        "position": 16521,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          18.90451431274414,
+          17.65958595275879
+        ],
+        "hf_gap": 1.2449283599853516,
+        "verdict": "exact"
+      },
+      {
+        "position": 16522,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          374
+        ],
+        "hf_top2_logits": [
+          17.905872344970703,
+          17.230493545532227
+        ],
+        "hf_gap": 0.6753787994384766,
+        "verdict": "exact"
+      },
+      {
+        "position": 16523,
+        "actual_top1": 12411,
+        "hf_top2_ids": [
+          12411,
+          374
+        ],
+        "hf_top2_logits": [
+          15.055131912231445,
+          14.948322296142578
+        ],
+        "hf_gap": 0.10680961608886719,
+        "verdict": "exact"
+      },
+      {
+        "position": 16524,
+        "actual_top1": 814,
+        "hf_top2_ids": [
+          814,
+          1261
+        ],
+        "hf_top2_logits": [
+          18.687496185302734,
+          18.171314239501953
+        ],
+        "hf_gap": 0.5161819458007812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16525,
+        "actual_top1": 13,
+        "hf_top2_ids": [
+          13,
+          1261
+        ],
+        "hf_top2_logits": [
+          16.995563507080078,
+          15.686476707458496
+        ],
+        "hf_gap": 1.309086799621582,
+        "verdict": "exact"
+      },
+      {
+        "position": 16526,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          17
+        ],
+        "hf_top2_logits": [
+          19.28342628479004,
+          17.971208572387695
+        ],
+        "hf_gap": 1.3122177124023438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16527,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          16
+        ],
+        "hf_top2_logits": [
+          18.934219360351562,
+          16.299062728881836
+        ],
+        "hf_gap": 2.6351566314697266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16528,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          15
+        ],
+        "hf_top2_logits": [
+          15.230816841125488,
+          15.153437614440918
+        ],
+        "hf_gap": 0.07737922668457031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16529,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          15.850672721862793,
+          15.514181137084961
+        ],
+        "hf_gap": 0.33649158477783203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16530,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          481
+        ],
+        "hf_top2_logits": [
+          18.772165298461914,
+          15.620744705200195
+        ],
+        "hf_gap": 3.1514205932617188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16531,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          21
+        ],
+        "hf_top2_logits": [
+          15.027801513671875,
+          14.919394493103027
+        ],
+        "hf_gap": 0.10840702056884766,
+        "verdict": "exact"
+      },
+      {
+        "position": 16532,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          702
+        ],
+        "hf_top2_logits": [
+          19.428722381591797,
+          14.924117088317871
+        ],
+        "hf_gap": 4.504605293273926,
+        "verdict": "exact"
+      },
+      {
+        "position": 16533,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          17.407197952270508,
+          16.974334716796875
+        ],
+        "hf_gap": 0.4328632354736328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16534,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.11368179321289,
+          16.011249542236328
+        ],
+        "hf_gap": 2.1024322509765625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16535,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          374
+        ],
+        "hf_top2_logits": [
+          16.497440338134766,
+          16.278959274291992
+        ],
+        "hf_gap": 0.21848106384277344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16536,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          320
+        ],
+        "hf_top2_logits": [
+          15.873507499694824,
+          15.067255020141602
+        ],
+        "hf_gap": 0.8062524795532227,
+        "verdict": "exact"
+      },
+      {
+        "position": 16537,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          43
+        ],
+        "hf_top2_logits": [
+          15.93179702758789,
+          15.12016487121582
+        ],
+        "hf_gap": 0.8116321563720703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16538,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          220
+        ],
+        "hf_top2_logits": [
+          17.71790885925293,
+          16.758230209350586
+        ],
+        "hf_gap": 0.9596786499023438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16539,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          374
+        ],
+        "hf_top2_logits": [
+          17.95663070678711,
+          17.94239616394043
+        ],
+        "hf_gap": 0.014234542846679688,
+        "verdict": "exact"
+      },
+      {
+        "position": 16540,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          17.141948699951172,
+          16.62498664855957
+        ],
+        "hf_gap": 0.5169620513916016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16541,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          19
+        ],
+        "hf_top2_logits": [
+          17.233802795410156,
+          16.606489181518555
+        ],
+        "hf_gap": 0.6273136138916016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16542,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          20
+        ],
+        "hf_top2_logits": [
+          18.265233993530273,
+          15.571600914001465
+        ],
+        "hf_gap": 2.6936330795288086,
+        "verdict": "exact"
+      },
+      {
+        "position": 16543,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1531
+        ],
+        "hf_top2_logits": [
+          17.44036865234375,
+          14.029768943786621
+        ],
+        "hf_gap": 3.410599708557129,
+        "verdict": "exact"
+      },
+      {
+        "position": 16544,
+        "actual_top1": 53256,
+        "hf_top2_ids": [
+          53256,
+          880
+        ],
+        "hf_top2_logits": [
+          16.65275764465332,
+          15.779773712158203
+        ],
+        "hf_gap": 0.8729839324951172,
+        "verdict": "exact"
+      },
+      {
+        "position": 16545,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          17.671911239624023,
+          16.95572853088379
+        ],
+        "hf_gap": 0.7161827087402344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16546,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          220
+        ],
+        "hf_top2_logits": [
+          19.15351676940918,
+          17.684816360473633
+        ],
+        "hf_gap": 1.4687004089355469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16547,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          20.73832893371582,
+          19.233211517333984
+        ],
+        "hf_gap": 1.505117416381836,
+        "verdict": "exact"
+      },
+      {
+        "position": 16548,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          19.642173767089844,
+          17.90032386779785
+        ],
+        "hf_gap": 1.7418498992919922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16549,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          17.547271728515625,
+          16.654653549194336
+        ],
+        "hf_gap": 0.8926181793212891,
+        "verdict": "exact"
+      },
+      {
+        "position": 16550,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          16.455768585205078,
+          15.356322288513184
+        ],
+        "hf_gap": 1.0994462966918945,
+        "verdict": "exact"
+      },
+      {
+        "position": 16551,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.26199722290039,
+          16.486398696899414
+        ],
+        "hf_gap": 0.7755985260009766,
+        "verdict": "exact"
+      },
+      {
+        "position": 16552,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          8
+        ],
+        "hf_top2_logits": [
+          18.92529296875,
+          15.350748062133789
+        ],
+        "hf_gap": 3.574544906616211,
+        "verdict": "exact"
+      },
+      {
+        "position": 16553,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          15
+        ],
+        "hf_top2_logits": [
+          18.240135192871094,
+          17.861948013305664
+        ],
+        "hf_gap": 0.3781871795654297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16554,
+        "actual_top1": 35155,
+        "hf_top2_ids": [
+          35155,
+          374
+        ],
+        "hf_top2_logits": [
+          17.181396484375,
+          15.21932601928711
+        ],
+        "hf_gap": 1.9620704650878906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16555,
+        "actual_top1": 814,
+        "hf_top2_ids": [
+          814,
+          374
+        ],
+        "hf_top2_logits": [
+          14.941617965698242,
+          14.212703704833984
+        ],
+        "hf_gap": 0.7289142608642578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16556,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          35
+        ],
+        "hf_top2_logits": [
+          16.332775115966797,
+          16.166677474975586
+        ],
+        "hf_gap": 0.16609764099121094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16557,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          425
+        ],
+        "hf_top2_logits": [
+          16.24045181274414,
+          16.097471237182617
+        ],
+        "hf_gap": 0.14298057556152344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16558,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          17
+        ],
+        "hf_top2_logits": [
+          17.361936569213867,
+          16.99897003173828
+        ],
+        "hf_gap": 0.36296653747558594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16559,
+        "actual_top1": 814,
+        "hf_top2_ids": [
+          814,
+          374
+        ],
+        "hf_top2_logits": [
+          16.470373153686523,
+          16.28657341003418
+        ],
+        "hf_gap": 0.18379974365234375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16560,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          425
+        ],
+        "hf_top2_logits": [
+          16.09263801574707,
+          15.117424011230469
+        ],
+        "hf_gap": 0.9752140045166016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16561,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          2696
+        ],
+        "hf_top2_logits": [
+          13.949459075927734,
+          13.529964447021484
+        ],
+        "hf_gap": 0.41949462890625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16562,
+        "actual_top1": 20,
+        "hf_top2_ids": [
+          20,
+          17
+        ],
+        "hf_top2_logits": [
+          18.050962448120117,
+          16.874656677246094
+        ],
+        "hf_gap": 1.1763057708740234,
+        "verdict": "exact"
+      },
+      {
+        "position": 16563,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          18.20749282836914,
+          17.232757568359375
+        ],
+        "hf_gap": 0.9747352600097656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16564,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          55
+        ],
+        "hf_top2_logits": [
+          18.0859375,
+          16.186016082763672
+        ],
+        "hf_gap": 1.8999214172363281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16565,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          374
+        ],
+        "hf_top2_logits": [
+          17.18461036682129,
+          15.915054321289062
+        ],
+        "hf_gap": 1.2695560455322266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16566,
+        "actual_top1": 8,
+        "hf_top2_ids": [
+          8,
+          335
+        ],
+        "hf_top2_logits": [
+          17.874345779418945,
+          16.561004638671875
+        ],
+        "hf_gap": 1.3133411407470703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16567,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          374
+        ],
+        "hf_top2_logits": [
+          14.626291275024414,
+          14.281048774719238
+        ],
+        "hf_gap": 0.3452425003051758,
+        "verdict": "exact"
+      },
+      {
+        "position": 16568,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          17.819063186645508,
+          16.941387176513672
+        ],
+        "hf_gap": 0.8776760101318359,
+        "verdict": "exact"
+      },
+      {
+        "position": 16569,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          19
+        ],
+        "hf_top2_logits": [
+          18.161386489868164,
+          17.34805679321289
+        ],
+        "hf_gap": 0.8133296966552734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16570,
+        "actual_top1": 315,
+        "hf_top2_ids": [
+          315,
+          19
+        ],
+        "hf_top2_logits": [
+          17.82213592529297,
+          17.224773406982422
+        ],
+        "hf_gap": 0.5973625183105469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16571,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          374
+        ],
+        "hf_top2_logits": [
+          16.388914108276367,
+          16.13764762878418
+        ],
+        "hf_gap": 0.2512664794921875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16572,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          17
+        ],
+        "hf_top2_logits": [
+          18.521759033203125,
+          18.314096450805664
+        ],
+        "hf_gap": 0.20766258239746094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16573,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          17.36513900756836,
+          17.27794075012207
+        ],
+        "hf_gap": 0.08719825744628906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16574,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          15.571571350097656,
+          15.403986930847168
+        ],
+        "hf_gap": 0.16758441925048828,
+        "verdict": "exact"
+      },
+      {
+        "position": 16575,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          315
+        ],
+        "hf_top2_logits": [
+          16.426841735839844,
+          15.97316837310791
+        ],
+        "hf_gap": 0.4536733627319336,
+        "verdict": "exact"
+      },
+      {
+        "position": 16576,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          21
+        ],
+        "hf_top2_logits": [
+          15.99711799621582,
+          14.904098510742188
+        ],
+        "hf_gap": 1.0930194854736328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16577,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          16.47711753845215,
+          16.3768253326416
+        ],
+        "hf_gap": 0.10029220581054688,
+        "verdict": "exact"
+      },
+      {
+        "position": 16578,
+        "actual_top1": 425,
+        "hf_top2_ids": [
+          425,
+          374
+        ],
+        "hf_top2_logits": [
+          16.71459197998047,
+          16.48748207092285
+        ],
+        "hf_gap": 0.2271099090576172,
+        "verdict": "exact"
+      },
+      {
+        "position": 16579,
+        "actual_top1": 425,
+        "hf_top2_ids": [
+          425,
+          422
+        ],
+        "hf_top2_logits": [
+          14.570723533630371,
+          14.405620574951172
+        ],
+        "hf_gap": 0.16510295867919922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16580,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          16.726539611816406,
+          14.111994743347168
+        ],
+        "hf_gap": 2.6145448684692383,
+        "verdict": "exact"
+      },
+      {
+        "position": 16581,
+        "actual_top1": 702,
+        "hf_top2_ids": [
+          702,
+          220
+        ],
+        "hf_top2_logits": [
+          15.285815238952637,
+          14.619738578796387
+        ],
+        "hf_gap": 0.66607666015625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16582,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          19.603633880615234,
+          19.27766227722168
+        ],
+        "hf_gap": 0.3259716033935547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16583,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          33
+        ],
+        "hf_top2_logits": [
+          18.21220588684082,
+          18.007747650146484
+        ],
+        "hf_gap": 0.20445823669433594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16584,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          21
+        ],
+        "hf_top2_logits": [
+          16.629039764404297,
+          15.07442569732666
+        ],
+        "hf_gap": 1.5546140670776367,
+        "verdict": "exact"
+      },
+      {
+        "position": 16585,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          62
+        ],
+        "hf_top2_logits": [
+          17.86435890197754,
+          16.43639373779297
+        ],
+        "hf_gap": 1.4279651641845703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16586,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          16
+        ],
+        "hf_top2_logits": [
+          15.121556282043457,
+          14.252302169799805
+        ],
+        "hf_gap": 0.8692541122436523,
+        "verdict": "exact"
+      },
+      {
+        "position": 16587,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          43
+        ],
+        "hf_top2_logits": [
+          16.16152572631836,
+          15.560060501098633
+        ],
+        "hf_gap": 0.6014652252197266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16588,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1261
+        ],
+        "hf_top2_logits": [
+          17.0458927154541,
+          16.3553466796875
+        ],
+        "hf_gap": 0.6905460357666016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16589,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          2965
+        ],
+        "hf_top2_logits": [
+          17.623260498046875,
+          16.842565536499023
+        ],
+        "hf_gap": 0.7806949615478516,
+        "verdict": "exact"
+      },
+      {
+        "position": 16590,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          18
+        ],
+        "hf_top2_logits": [
+          17.11443328857422,
+          15.617300987243652
+        ],
+        "hf_gap": 1.4971323013305664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16591,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          62
+        ],
+        "hf_top2_logits": [
+          12.791319847106934,
+          12.640071868896484
+        ],
+        "hf_gap": 0.15124797821044922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16592,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          880
+        ],
+        "hf_top2_logits": [
+          15.393208503723145,
+          13.648560523986816
+        ],
+        "hf_gap": 1.7446479797363281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16593,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          880
+        ],
+        "hf_top2_logits": [
+          20.37285041809082,
+          20.05345344543457
+        ],
+        "hf_gap": 0.31939697265625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16594,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          16.913681030273438,
+          15.865001678466797
+        ],
+        "hf_gap": 1.0486793518066406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16595,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          23
+        ],
+        "hf_top2_logits": [
+          17.278045654296875,
+          16.419944763183594
+        ],
+        "hf_gap": 0.8581008911132812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16596,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          1261
+        ],
+        "hf_top2_logits": [
+          17.33092498779297,
+          16.670778274536133
+        ],
+        "hf_gap": 0.6601467132568359,
+        "verdict": "exact"
+      },
+      {
+        "position": 16597,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          16
+        ],
+        "hf_top2_logits": [
+          16.482059478759766,
+          16.47013282775879
+        ],
+        "hf_gap": 0.011926651000976562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16598,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          220
+        ],
+        "hf_top2_logits": [
+          17.001928329467773,
+          16.88127326965332
+        ],
+        "hf_gap": 0.12065505981445312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16599,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          6148
+        ],
+        "hf_top2_logits": [
+          15.118548393249512,
+          14.642449378967285
+        ],
+        "hf_gap": 0.47609901428222656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16600,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          19.3957576751709,
+          14.65231990814209
+        ],
+        "hf_gap": 4.743437767028809,
+        "verdict": "exact"
+      },
+      {
+        "position": 16601,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          15.600937843322754,
+          15.412564277648926
+        ],
+        "hf_gap": 0.18837356567382812,
+        "verdict": "exact"
+      },
+      {
+        "position": 16602,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          1852
+        ],
+        "hf_top2_logits": [
+          15.274833679199219,
+          15.154876708984375
+        ],
+        "hf_gap": 0.11995697021484375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16603,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          17.464948654174805,
+          15.476362228393555
+        ],
+        "hf_gap": 1.98858642578125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16604,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          374
+        ],
+        "hf_top2_logits": [
+          15.93380069732666,
+          15.776491165161133
+        ],
+        "hf_gap": 0.15730953216552734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16605,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          702
+        ],
+        "hf_top2_logits": [
+          22.510515213012695,
+          17.455331802368164
+        ],
+        "hf_gap": 5.055183410644531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16606,
+        "actual_top1": 20,
+        "hf_top2_ids": [
+          20,
+          16
+        ],
+        "hf_top2_logits": [
+          18.708227157592773,
+          16.940196990966797
+        ],
+        "hf_gap": 1.7680301666259766,
+        "verdict": "exact"
+      },
+      {
+        "position": 16607,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          16.024091720581055,
+          14.75129508972168
+        ],
+        "hf_gap": 1.272796630859375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16608,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          22.358718872070312,
+          17.729522705078125
+        ],
+        "hf_gap": 4.6291961669921875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16609,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          374
+        ],
+        "hf_top2_logits": [
+          18.06946563720703,
+          17.824554443359375
+        ],
+        "hf_gap": 0.24491119384765625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16610,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          18.9841365814209,
+          17.55868148803711
+        ],
+        "hf_gap": 1.425455093383789,
+        "verdict": "exact"
+      },
+      {
+        "position": 16611,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          15.784250259399414,
+          14.577751159667969
+        ],
+        "hf_gap": 1.2064990997314453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16612,
+        "actual_top1": 481,
+        "hf_top2_ids": [
+          481,
+          220
+        ],
+        "hf_top2_logits": [
+          16.874486923217773,
+          16.86812973022461
+        ],
+        "hf_gap": 0.0063571929931640625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16613,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          835
+        ],
+        "hf_top2_logits": [
+          16.29119110107422,
+          16.113161087036133
+        ],
+        "hf_gap": 0.17803001403808594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16614,
+        "actual_top1": 315,
+        "hf_top2_ids": [
+          315,
+          323
+        ],
+        "hf_top2_logits": [
+          19.175493240356445,
+          17.35874366760254
+        ],
+        "hf_gap": 1.8167495727539062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16615,
+        "actual_top1": 814,
+        "hf_top2_ids": [
+          814,
+          62
+        ],
+        "hf_top2_logits": [
+          14.338760375976562,
+          14.177434921264648
+        ],
+        "hf_gap": 0.16132545471191406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16616,
+        "actual_top1": 1098,
+        "hf_top2_ids": [
+          1098,
+          880
+        ],
+        "hf_top2_logits": [
+          16.34868621826172,
+          16.24933433532715
+        ],
+        "hf_gap": 0.09935188293457031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16617,
+        "actual_top1": 643,
+        "hf_top2_ids": [
+          643,
+          69415
+        ],
+        "hf_top2_logits": [
+          15.918682098388672,
+          15.557116508483887
+        ],
+        "hf_gap": 0.36156558990478516,
+        "verdict": "exact"
+      },
+      {
+        "position": 16618,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          374
+        ],
+        "hf_top2_logits": [
+          16.895933151245117,
+          16.10508918762207
+        ],
+        "hf_gap": 0.7908439636230469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16619,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          15.099493980407715,
+          14.146163940429688
+        ],
+        "hf_gap": 0.9533300399780273,
+        "verdict": "exact"
+      },
+      {
+        "position": 16620,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.848793029785156,
+          15.222774505615234
+        ],
+        "hf_gap": 1.6260185241699219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16621,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          20
+        ],
+        "hf_top2_logits": [
+          17.549057006835938,
+          16.114099502563477
+        ],
+        "hf_gap": 1.434957504272461,
+        "verdict": "exact"
+      },
+      {
+        "position": 16622,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          13352
+        ],
+        "hf_top2_logits": [
+          15.305023193359375,
+          14.52841854095459
+        ],
+        "hf_gap": 0.7766046524047852,
+        "verdict": "exact"
+      },
+      {
+        "position": 16623,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          880
+        ],
+        "hf_top2_logits": [
+          19.924274444580078,
+          18.553150177001953
+        ],
+        "hf_gap": 1.371124267578125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16624,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          6305
+        ],
+        "hf_top2_logits": [
+          21.805320739746094,
+          17.657865524291992
+        ],
+        "hf_gap": 4.147455215454102,
+        "verdict": "exact"
+      },
+      {
+        "position": 16625,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.87346076965332,
+          17.573318481445312
+        ],
+        "hf_gap": 0.3001422882080078,
+        "verdict": "exact"
+      },
+      {
+        "position": 16626,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          16.841480255126953,
+          15.415765762329102
+        ],
+        "hf_gap": 1.4257144927978516,
+        "verdict": "exact"
+      },
+      {
+        "position": 16627,
+        "actual_top1": 256,
+        "hf_top2_ids": [
+          256,
+          400
+        ],
+        "hf_top2_logits": [
+          15.089645385742188,
+          13.818591117858887
+        ],
+        "hf_gap": 1.2710542678833008,
+        "verdict": "exact"
+      },
+      {
+        "position": 16628,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          19.16997718811035,
+          17.252397537231445
+        ],
+        "hf_gap": 1.9175796508789062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16629,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          220
+        ],
+        "hf_top2_logits": [
+          19.904577255249023,
+          17.364887237548828
+        ],
+        "hf_gap": 2.5396900177001953,
+        "verdict": "exact"
+      },
+      {
+        "position": 16630,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          62
+        ],
+        "hf_top2_logits": [
+          17.442302703857422,
+          14.479377746582031
+        ],
+        "hf_gap": 2.9629249572753906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16631,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          220
+        ],
+        "hf_top2_logits": [
+          17.174509048461914,
+          15.808432579040527
+        ],
+        "hf_gap": 1.3660764694213867,
+        "verdict": "exact"
+      },
+      {
+        "position": 16632,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          659
+        ],
+        "hf_top2_logits": [
+          18.81529426574707,
+          15.914043426513672
+        ],
+        "hf_gap": 2.9012508392333984,
+        "verdict": "exact"
+      },
+      {
+        "position": 16633,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          19
+        ],
+        "hf_top2_logits": [
+          15.623010635375977,
+          15.511061668395996
+        ],
+        "hf_gap": 0.11194896697998047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16634,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          23
+        ],
+        "hf_top2_logits": [
+          15.946844100952148,
+          14.324443817138672
+        ],
+        "hf_gap": 1.6224002838134766,
+        "verdict": "exact"
+      },
+      {
+        "position": 16635,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          16.703371047973633,
+          14.771352767944336
+        ],
+        "hf_gap": 1.9320182800292969,
+        "verdict": "exact"
+      },
+      {
+        "position": 16636,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          18.011035919189453,
+          15.249861717224121
+        ],
+        "hf_gap": 2.761174201965332,
+        "verdict": "exact"
+      },
+      {
+        "position": 16637,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          62
+        ],
+        "hf_top2_logits": [
+          18.39663314819336,
+          17.636343002319336
+        ],
+        "hf_gap": 0.7602901458740234,
+        "verdict": "exact"
+      },
+      {
+        "position": 16638,
+        "actual_top1": 481,
+        "hf_top2_ids": [
+          481,
+          60
+        ],
+        "hf_top2_logits": [
+          17.5500545501709,
+          17.21872901916504
+        ],
+        "hf_gap": 0.3313255310058594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16639,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          16.382545471191406,
+          15.371724128723145
+        ],
+        "hf_gap": 1.0108213424682617,
+        "verdict": "exact"
+      },
+      {
+        "position": 16640,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          19.2871036529541,
+          15.656770706176758
+        ],
+        "hf_gap": 3.6303329467773438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16641,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          19
+        ],
+        "hf_top2_logits": [
+          15.44476318359375,
+          15.074315071105957
+        ],
+        "hf_gap": 0.37044811248779297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16642,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          19.75066566467285,
+          15.790485382080078
+        ],
+        "hf_gap": 3.9601802825927734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16643,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          15.240069389343262,
+          14.681583404541016
+        ],
+        "hf_gap": 0.5584859848022461,
+        "verdict": "exact"
+      },
+      {
+        "position": 16644,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          23
+        ],
+        "hf_top2_logits": [
+          15.721680641174316,
+          15.169315338134766
+        ],
+        "hf_gap": 0.5523653030395508,
+        "verdict": "exact"
+      },
+      {
+        "position": 16645,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          16.61469268798828,
+          14.462533950805664
+        ],
+        "hf_gap": 2.152158737182617,
+        "verdict": "exact"
+      },
+      {
+        "position": 16646,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          14.726005554199219,
+          14.52189826965332
+        ],
+        "hf_gap": 0.20410728454589844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16647,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          18.841642379760742,
+          18.637483596801758
+        ],
+        "hf_gap": 0.20415878295898438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16648,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          17.26888084411621,
+          16.828319549560547
+        ],
+        "hf_gap": 0.44056129455566406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16649,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          19.673925399780273,
+          17.4639949798584
+        ],
+        "hf_gap": 2.209930419921875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16650,
+        "actual_top1": 353,
+        "hf_top2_ids": [
+          353,
+          9
+        ],
+        "hf_top2_logits": [
+          16.847850799560547,
+          16.626129150390625
+        ],
+        "hf_gap": 0.22172164916992188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16651,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          19
+        ],
+        "hf_top2_logits": [
+          16.330875396728516,
+          15.454066276550293
+        ],
+        "hf_gap": 0.8768091201782227,
+        "verdict": "exact"
+      },
+      {
+        "position": 16652,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          35
+        ],
+        "hf_top2_logits": [
+          19.032611846923828,
+          18.357934951782227
+        ],
+        "hf_gap": 0.6746768951416016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16653,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          374
+        ],
+        "hf_top2_logits": [
+          16.255874633789062,
+          15.76988697052002
+        ],
+        "hf_gap": 0.48598766326904297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16654,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          323
+        ],
+        "hf_top2_logits": [
+          16.487445831298828,
+          16.220298767089844
+        ],
+        "hf_gap": 0.2671470642089844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16655,
+        "actual_top1": 13095,
+        "hf_top2_ids": [
+          13095,
+          425
+        ],
+        "hf_top2_logits": [
+          16.750457763671875,
+          15.043110847473145
+        ],
+        "hf_gap": 1.7073469161987305,
+        "verdict": "exact"
+      },
+      {
+        "position": 16656,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          19.26803970336914,
+          17.069963455200195
+        ],
+        "hf_gap": 2.1980762481689453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16657,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          18.961923599243164,
+          18.036531448364258
+        ],
+        "hf_gap": 0.9253921508789062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16658,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          16.090370178222656,
+          15.968929290771484
+        ],
+        "hf_gap": 0.12144088745117188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16659,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          13
+        ],
+        "hf_top2_logits": [
+          16.41236686706543,
+          16.221290588378906
+        ],
+        "hf_gap": 0.19107627868652344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16660,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          16.809356689453125,
+          15.43185806274414
+        ],
+        "hf_gap": 1.3774986267089844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16661,
+        "actual_top1": 3118,
+        "hf_top2_ids": [
+          3118,
+          19
+        ],
+        "hf_top2_logits": [
+          14.162110328674316,
+          14.014358520507812
+        ],
+        "hf_gap": 0.1477518081665039,
+        "verdict": "exact"
+      },
+      {
+        "position": 16662,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          23.209285736083984,
+          19.69997787475586
+        ],
+        "hf_gap": 3.509307861328125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16663,
+        "actual_top1": 92,
+        "hf_top2_ids": [
+          92,
+          335
+        ],
+        "hf_top2_logits": [
+          21.939607620239258,
+          18.955875396728516
+        ],
+        "hf_gap": 2.983732223510742,
+        "verdict": "exact"
+      },
+      {
+        "position": 16664,
+        "actual_top1": 20,
+        "hf_top2_ids": [
+          20,
+          15
+        ],
+        "hf_top2_logits": [
+          19.089441299438477,
+          18.770061492919922
+        ],
+        "hf_gap": 0.3193798065185547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16665,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          17
+        ],
+        "hf_top2_logits": [
+          21.628406524658203,
+          19.942567825317383
+        ],
+        "hf_gap": 1.6858386993408203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16666,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          17.44026756286621,
+          15.611648559570312
+        ],
+        "hf_gap": 1.8286190032958984,
+        "verdict": "exact"
+      },
+      {
+        "position": 16667,
+        "actual_top1": 8,
+        "hf_top2_ids": [
+          8,
+          92
+        ],
+        "hf_top2_logits": [
+          19.24831199645996,
+          18.87077522277832
+        ],
+        "hf_gap": 0.3775367736816406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16668,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          19
+        ],
+        "hf_top2_logits": [
+          17.9058895111084,
+          17.103145599365234
+        ],
+        "hf_gap": 0.8027439117431641,
+        "verdict": "exact"
+      },
+      {
+        "position": 16669,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          18.139402389526367,
+          17.635208129882812
+        ],
+        "hf_gap": 0.5041942596435547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16670,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          92
+        ],
+        "hf_top2_logits": [
+          18.504501342773438,
+          17.69488525390625
+        ],
+        "hf_gap": 0.8096160888671875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16671,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          21
+        ],
+        "hf_top2_logits": [
+          16.655118942260742,
+          15.838530540466309
+        ],
+        "hf_gap": 0.8165884017944336,
+        "verdict": "exact"
+      },
+      {
+        "position": 16672,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          16.373167037963867,
+          16.129972457885742
+        ],
+        "hf_gap": 0.243194580078125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16673,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          16.729412078857422,
+          15.305789947509766
+        ],
+        "hf_gap": 1.4236221313476562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16674,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          256
+        ],
+        "hf_top2_logits": [
+          13.740748405456543,
+          12.58813190460205
+        ],
+        "hf_gap": 1.1526165008544922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16675,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          10596
+        ],
+        "hf_top2_logits": [
+          16.331510543823242,
+          15.620719909667969
+        ],
+        "hf_gap": 0.7107906341552734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16676,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          18.544246673583984,
+          17.07517433166504
+        ],
+        "hf_gap": 1.4690723419189453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16677,
+        "actual_top1": 8,
+        "hf_top2_ids": [
+          8,
+          60
+        ],
+        "hf_top2_logits": [
+          16.50383758544922,
+          15.542269706726074
+        ],
+        "hf_gap": 0.9615678787231445,
+        "verdict": "exact"
+      },
+      {
+        "position": 16678,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          62
+        ],
+        "hf_top2_logits": [
+          14.674922943115234,
+          14.415366172790527
+        ],
+        "hf_gap": 0.25955677032470703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16679,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          220
+        ],
+        "hf_top2_logits": [
+          14.620917320251465,
+          14.121371269226074
+        ],
+        "hf_gap": 0.4995460510253906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16680,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          20.268936157226562,
+          18.85617446899414
+        ],
+        "hf_gap": 1.4127616882324219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16681,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          702
+        ],
+        "hf_top2_logits": [
+          19.72376251220703,
+          17.726318359375
+        ],
+        "hf_gap": 1.9974441528320312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16682,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          374
+        ],
+        "hf_top2_logits": [
+          15.628759384155273,
+          14.353721618652344
+        ],
+        "hf_gap": 1.2750377655029297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16683,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          16
+        ],
+        "hf_top2_logits": [
+          17.611238479614258,
+          15.98769474029541
+        ],
+        "hf_gap": 1.6235437393188477,
+        "verdict": "exact"
+      },
+      {
+        "position": 16684,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          16.124643325805664,
+          15.325430870056152
+        ],
+        "hf_gap": 0.7992124557495117,
+        "verdict": "exact"
+      },
+      {
+        "position": 16685,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          62
+        ],
+        "hf_top2_logits": [
+          18.76053237915039,
+          17.08407974243164
+        ],
+        "hf_gap": 1.67645263671875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16686,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          6148
+        ],
+        "hf_top2_logits": [
+          17.232162475585938,
+          16.278827667236328
+        ],
+        "hf_gap": 0.9533348083496094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16687,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.721731185913086,
+          16.764562606811523
+        ],
+        "hf_gap": 0.9571685791015625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16688,
+        "actual_top1": 320,
+        "hf_top2_ids": [
+          320,
+          659
+        ],
+        "hf_top2_logits": [
+          14.438895225524902,
+          13.69001579284668
+        ],
+        "hf_gap": 0.7488794326782227,
+        "verdict": "exact"
+      },
+      {
+        "position": 16689,
+        "actual_top1": 43,
+        "hf_top2_ids": [
+          43,
+          33
+        ],
+        "hf_top2_logits": [
+          15.9473876953125,
+          15.148784637451172
+        ],
+        "hf_gap": 0.7986030578613281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16690,
+        "actual_top1": 320,
+        "hf_top2_ids": [
+          320,
+          659
+        ],
+        "hf_top2_logits": [
+          16.021278381347656,
+          16.01696014404297
+        ],
+        "hf_gap": 0.0043182373046875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16691,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          96175
+        ],
+        "hf_top2_logits": [
+          16.730600357055664,
+          15.007242202758789
+        ],
+        "hf_gap": 1.723358154296875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16692,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          880
+        ],
+        "hf_top2_logits": [
+          17.251279830932617,
+          16.79410171508789
+        ],
+        "hf_gap": 0.45717811584472656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16693,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          880
+        ],
+        "hf_top2_logits": [
+          17.516141891479492,
+          15.458300590515137
+        ],
+        "hf_gap": 2.0578413009643555,
+        "verdict": "exact"
+      },
+      {
+        "position": 16694,
+        "actual_top1": 28842,
+        "hf_top2_ids": [
+          28842,
+          5312
+        ],
+        "hf_top2_logits": [
+          15.733716011047363,
+          14.621129035949707
+        ],
+        "hf_gap": 1.1125869750976562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16695,
+        "actual_top1": 50,
+        "hf_top2_ids": [
+          50,
+          32
+        ],
+        "hf_top2_logits": [
+          17.31715965270996,
+          16.003990173339844
+        ],
+        "hf_gap": 1.3131694793701172,
+        "verdict": "exact"
+      },
+      {
+        "position": 16696,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          20
+        ],
+        "hf_top2_logits": [
+          18.405540466308594,
+          16.766738891601562
+        ],
+        "hf_gap": 1.6388015747070312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16697,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          15
+        ],
+        "hf_top2_logits": [
+          16.24451446533203,
+          16.01130485534668
+        ],
+        "hf_gap": 0.23320960998535156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16698,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          14.50794792175293,
+          14.315276145935059
+        ],
+        "hf_gap": 0.1926717758178711,
+        "verdict": "exact"
+      },
+      {
+        "position": 16699,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          55
+        ],
+        "hf_top2_logits": [
+          15.559088706970215,
+          14.522977828979492
+        ],
+        "hf_gap": 1.0361108779907227,
+        "verdict": "exact"
+      },
+      {
+        "position": 16700,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          320
+        ],
+        "hf_top2_logits": [
+          18.15831184387207,
+          15.648541450500488
+        ],
+        "hf_gap": 2.509770393371582,
+        "verdict": "exact"
+      },
+      {
+        "position": 16701,
+        "actual_top1": 13,
+        "hf_top2_ids": [
+          13,
+          33
+        ],
+        "hf_top2_logits": [
+          16.859020233154297,
+          16.819385528564453
+        ],
+        "hf_gap": 0.03963470458984375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16702,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          717
+        ],
+        "hf_top2_logits": [
+          16.360918045043945,
+          16.31045913696289
+        ],
+        "hf_gap": 0.05045890808105469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16703,
+        "actual_top1": 13,
+        "hf_top2_ids": [
+          13,
+          659
+        ],
+        "hf_top2_logits": [
+          16.835681915283203,
+          15.876471519470215
+        ],
+        "hf_gap": 0.9592103958129883,
+        "verdict": "exact"
+      },
+      {
+        "position": 16704,
+        "actual_top1": 4138,
+        "hf_top2_ids": [
+          4138,
+          659
+        ],
+        "hf_top2_logits": [
+          15.960887908935547,
+          15.803711891174316
+        ],
+        "hf_gap": 0.15717601776123047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16705,
+        "actual_top1": 525,
+        "hf_top2_ids": [
+          525,
+          374
+        ],
+        "hf_top2_logits": [
+          13.890329360961914,
+          13.283270835876465
+        ],
+        "hf_gap": 0.6070585250854492,
+        "verdict": "exact"
+      },
+      {
+        "position": 16706,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.213706970214844,
+          15.798644065856934
+        ],
+        "hf_gap": 0.41506290435791016,
+        "verdict": "exact"
+      },
+      {
+        "position": 16707,
+        "actual_top1": 20,
+        "hf_top2_ids": [
+          20,
+          19
+        ],
+        "hf_top2_logits": [
+          16.39982795715332,
+          15.912677764892578
+        ],
+        "hf_gap": 0.4871501922607422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16708,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          18.394704818725586,
+          16.87973976135254
+        ],
+        "hf_gap": 1.5149650573730469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16709,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          15.619067192077637,
+          14.65553092956543
+        ],
+        "hf_gap": 0.963536262512207,
+        "verdict": "exact"
+      },
+      {
+        "position": 16710,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          43
+        ],
+        "hf_top2_logits": [
+          19.045372009277344,
+          17.45724868774414
+        ],
+        "hf_gap": 1.5881233215332031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16711,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          320
+        ],
+        "hf_top2_logits": [
+          14.758391380310059,
+          13.596542358398438
+        ],
+        "hf_gap": 1.161849021911621,
+        "verdict": "exact"
+      },
+      {
+        "position": 16712,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          43
+        ],
+        "hf_top2_logits": [
+          15.44894790649414,
+          14.730379104614258
+        ],
+        "hf_gap": 0.7185688018798828,
+        "verdict": "exact"
+      },
+      {
+        "position": 16713,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          13095
+        ],
+        "hf_top2_logits": [
+          16.14388084411621,
+          15.170511245727539
+        ],
+        "hf_gap": 0.9733695983886719,
+        "verdict": "exact"
+      },
+      {
+        "position": 16714,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          35
+        ],
+        "hf_top2_logits": [
+          16.58465003967285,
+          16.38374137878418
+        ],
+        "hf_gap": 0.20090866088867188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16715,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          15
+        ],
+        "hf_top2_logits": [
+          17.564218521118164,
+          16.91500473022461
+        ],
+        "hf_gap": 0.6492137908935547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16716,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.38821792602539,
+          16.65424156188965
+        ],
+        "hf_gap": 0.7339763641357422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16717,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          525
+        ],
+        "hf_top2_logits": [
+          16.204891204833984,
+          16.175891876220703
+        ],
+        "hf_gap": 0.02899932861328125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16718,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          70630
+        ],
+        "hf_top2_logits": [
+          13.182697296142578,
+          13.051106452941895
+        ],
+        "hf_gap": 0.1315908432006836,
+        "verdict": "exact"
+      },
+      {
+        "position": 16719,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.715747833251953,
+          17.967676162719727
+        ],
+        "hf_gap": 0.7480716705322266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16720,
+        "actual_top1": 18,
+        "hf_top2_ids": [
+          18,
+          374
+        ],
+        "hf_top2_logits": [
+          16.88179588317871,
+          16.54523277282715
+        ],
+        "hf_gap": 0.3365631103515625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16721,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          21.088523864746094,
+          16.822134017944336
+        ],
+        "hf_gap": 4.266389846801758,
+        "verdict": "exact"
+      },
+      {
+        "position": 16722,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          62
+        ],
+        "hf_top2_logits": [
+          14.328085899353027,
+          13.862489700317383
+        ],
+        "hf_gap": 0.46559619903564453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16723,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          19
+        ],
+        "hf_top2_logits": [
+          17.390470504760742,
+          16.024625778198242
+        ],
+        "hf_gap": 1.3658447265625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16724,
+        "actual_top1": 17,
+        "hf_top2_ids": [
+          17,
+          19
+        ],
+        "hf_top2_logits": [
+          16.558778762817383,
+          16.496091842651367
+        ],
+        "hf_gap": 0.06268692016601562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16725,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          60
+        ],
+        "hf_top2_logits": [
+          17.12786102294922,
+          15.516127586364746
+        ],
+        "hf_gap": 1.6117334365844727,
+        "verdict": "exact"
+      },
+      {
+        "position": 16726,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          43
+        ],
+        "hf_top2_logits": [
+          18.59158706665039,
+          17.535982131958008
+        ],
+        "hf_gap": 1.0556049346923828,
+        "verdict": "exact"
+      },
+      {
+        "position": 16727,
+        "actual_top1": 50,
+        "hf_top2_ids": [
+          50,
+          21
+        ],
+        "hf_top2_logits": [
+          15.59993839263916,
+          15.299229621887207
+        ],
+        "hf_gap": 0.3007087707519531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16728,
+        "actual_top1": 92,
+        "hf_top2_ids": [
+          92,
+          87
+        ],
+        "hf_top2_logits": [
+          17.53086280822754,
+          17.08443260192871
+        ],
+        "hf_gap": 0.4464302062988281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16729,
+        "actual_top1": 525,
+        "hf_top2_ids": [
+          525,
+          374
+        ],
+        "hf_top2_logits": [
+          17.199357986450195,
+          15.358916282653809
+        ],
+        "hf_gap": 1.8404417037963867,
+        "verdict": "exact"
+      },
+      {
+        "position": 16730,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          15.691274642944336,
+          15.645359992980957
+        ],
+        "hf_gap": 0.045914649963378906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16731,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          16.34228515625,
+          15.653459548950195
+        ],
+        "hf_gap": 0.6888256072998047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16732,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          19.743667602539062,
+          17.368680953979492
+        ],
+        "hf_gap": 2.3749866485595703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16733,
+        "actual_top1": 335,
+        "hf_top2_ids": [
+          335,
+          92
+        ],
+        "hf_top2_logits": [
+          18.250282287597656,
+          16.46653938293457
+        ],
+        "hf_gap": 1.783742904663086,
+        "verdict": "exact"
+      },
+      {
+        "position": 16734,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          422
+        ],
+        "hf_top2_logits": [
+          15.791133880615234,
+          15.476649284362793
+        ],
+        "hf_gap": 0.3144845962524414,
+        "verdict": "exact"
+      },
+      {
+        "position": 16735,
+        "actual_top1": 55,
+        "hf_top2_ids": [
+          55,
+          16
+        ],
+        "hf_top2_logits": [
+          15.02000617980957,
+          14.676831245422363
+        ],
+        "hf_gap": 0.34317493438720703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16736,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          19
+        ],
+        "hf_top2_logits": [
+          17.191307067871094,
+          16.41107177734375
+        ],
+        "hf_gap": 0.7802352905273438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16737,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1261
+        ],
+        "hf_top2_logits": [
+          17.347640991210938,
+          15.381343841552734
+        ],
+        "hf_gap": 1.9662971496582031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16738,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          18.24560546875,
+          15.68265151977539
+        ],
+        "hf_gap": 2.5629539489746094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16739,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          19.847232818603516,
+          18.079744338989258
+        ],
+        "hf_gap": 1.7674884796142578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16740,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          19
+        ],
+        "hf_top2_logits": [
+          18.483535766601562,
+          18.126428604125977
+        ],
+        "hf_gap": 0.35710716247558594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16741,
+        "actual_top1": 7,
+        "hf_top2_ids": [
+          7,
+          62
+        ],
+        "hf_top2_logits": [
+          15.955755233764648,
+          14.5574369430542
+        ],
+        "hf_gap": 1.3983182907104492,
+        "verdict": "exact"
+      },
+      {
+        "position": 16742,
+        "actual_top1": 9,
+        "hf_top2_ids": [
+          9,
+          353
+        ],
+        "hf_top2_logits": [
+          16.2271671295166,
+          16.000152587890625
+        ],
+        "hf_gap": 0.22701454162597656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16743,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          17.187795639038086,
+          16.214235305786133
+        ],
+        "hf_gap": 0.9735603332519531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16744,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          43
+        ],
+        "hf_top2_logits": [
+          17.144725799560547,
+          15.22049331665039
+        ],
+        "hf_gap": 1.9242324829101562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16745,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          33
+        ],
+        "hf_top2_logits": [
+          19.939239501953125,
+          17.715167999267578
+        ],
+        "hf_gap": 2.224071502685547,
+        "verdict": "exact"
+      },
+      {
+        "position": 16746,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          62
+        ],
+        "hf_top2_logits": [
+          17.056804656982422,
+          14.963611602783203
+        ],
+        "hf_gap": 2.0931930541992188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16747,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          16
+        ],
+        "hf_top2_logits": [
+          18.457000732421875,
+          17.387296676635742
+        ],
+        "hf_gap": 1.0697040557861328,
+        "verdict": "exact"
+      },
+      {
+        "position": 16748,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          19.710678100585938,
+          19.49323272705078
+        ],
+        "hf_gap": 0.21744537353515625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16749,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          19
+        ],
+        "hf_top2_logits": [
+          17.406845092773438,
+          17.061237335205078
+        ],
+        "hf_gap": 0.3456077575683594,
+        "verdict": "exact"
+      },
+      {
+        "position": 16750,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          48
+        ],
+        "hf_top2_logits": [
+          17.808921813964844,
+          16.335697174072266
+        ],
+        "hf_gap": 1.4732246398925781,
+        "verdict": "exact"
+      },
+      {
+        "position": 16751,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          8
+        ],
+        "hf_top2_logits": [
+          16.719951629638672,
+          16.680522918701172
+        ],
+        "hf_gap": 0.0394287109375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16752,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          20.843385696411133,
+          19.450176239013672
+        ],
+        "hf_gap": 1.393209457397461,
+        "verdict": "exact"
+      },
+      {
+        "position": 16753,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          18.38611602783203,
+          16.961179733276367
+        ],
+        "hf_gap": 1.424936294555664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16754,
+        "actual_top1": 8,
+        "hf_top2_ids": [
+          8,
+          568
+        ],
+        "hf_top2_logits": [
+          20.646503448486328,
+          16.648691177368164
+        ],
+        "hf_gap": 3.997812271118164,
+        "verdict": "exact"
+      },
+      {
+        "position": 16755,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          16.384109497070312,
+          15.358686447143555
+        ],
+        "hf_gap": 1.0254230499267578,
+        "verdict": "exact"
+      },
+      {
+        "position": 16756,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.478513717651367,
+          16.64179039001465
+        ],
+        "hf_gap": 0.8367233276367188,
+        "verdict": "exact"
+      },
+      {
+        "position": 16757,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          14.875337600708008,
+          14.445758819580078
+        ],
+        "hf_gap": 0.4295787811279297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16758,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          17.681730270385742,
+          16.072895050048828
+        ],
+        "hf_gap": 1.608835220336914,
+        "verdict": "exact"
+      },
+      {
+        "position": 16759,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          15.673392295837402,
+          15.268479347229004
+        ],
+        "hf_gap": 0.40491294860839844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16760,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          17.793813705444336,
+          15.947391510009766
+        ],
+        "hf_gap": 1.8464221954345703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16761,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          15.983076095581055,
+          14.379318237304688
+        ],
+        "hf_gap": 1.6037578582763672,
+        "verdict": "exact"
+      },
+      {
+        "position": 16762,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          374
+        ],
+        "hf_top2_logits": [
+          18.051029205322266,
+          17.243572235107422
+        ],
+        "hf_gap": 0.8074569702148438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16763,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          30
+        ],
+        "hf_top2_logits": [
+          21.905017852783203,
+          16.077741622924805
+        ],
+        "hf_gap": 5.827276229858398,
+        "verdict": "exact"
+      },
+      {
+        "position": 16764,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          19
+        ],
+        "hf_top2_logits": [
+          16.766338348388672,
+          15.23204517364502
+        ],
+        "hf_gap": 1.5342931747436523,
+        "verdict": "exact"
+      },
+      {
+        "position": 16765,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          21
+        ],
+        "hf_top2_logits": [
+          15.81956958770752,
+          14.230752944946289
+        ],
+        "hf_gap": 1.5888166427612305,
+        "verdict": "exact"
+      },
+      {
+        "position": 16766,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          30
+        ],
+        "hf_top2_logits": [
+          14.998148918151855,
+          14.616484642028809
+        ],
+        "hf_gap": 0.3816642761230469,
+        "verdict": "exact"
+      },
+      {
+        "position": 16767,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          374
+        ],
+        "hf_top2_logits": [
+          14.077783584594727,
+          13.93445110321045
+        ],
+        "hf_gap": 0.14333248138427734,
+        "verdict": "exact"
+      },
+      {
+        "position": 16768,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          14.069902420043945,
+          13.746833801269531
+        ],
+        "hf_gap": 0.32306861877441406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16769,
+        "actual_top1": 310,
+        "hf_top2_ids": [
+          310,
+          19
+        ],
+        "hf_top2_logits": [
+          15.695669174194336,
+          14.870403289794922
+        ],
+        "hf_gap": 0.8252658843994141,
+        "verdict": "exact"
+      },
+      {
+        "position": 16770,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          16.8684024810791,
+          16.388233184814453
+        ],
+        "hf_gap": 0.48016929626464844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16771,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          15.46851921081543,
+          14.377389907836914
+        ],
+        "hf_gap": 1.0911293029785156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16772,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          17.061779022216797,
+          15.700788497924805
+        ],
+        "hf_gap": 1.3609905242919922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16773,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          18.040897369384766,
+          17.31594467163086
+        ],
+        "hf_gap": 0.7249526977539062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16774,
+        "actual_top1": 369,
+        "hf_top2_ids": [
+          369,
+          21
+        ],
+        "hf_top2_logits": [
+          16.66803741455078,
+          15.704023361206055
+        ],
+        "hf_gap": 0.9640140533447266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16775,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          18.222509384155273,
+          17.05997657775879
+        ],
+        "hf_gap": 1.1625328063964844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16776,
+        "actual_top1": 7,
+        "hf_top2_ids": [
+          7,
+          320
+        ],
+        "hf_top2_logits": [
+          16.816591262817383,
+          14.8856201171875
+        ],
+        "hf_gap": 1.9309711456298828,
+        "verdict": "exact"
+      },
+      {
+        "position": 16777,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          62
+        ],
+        "hf_top2_logits": [
+          15.408575057983398,
+          15.07768726348877
+        ],
+        "hf_gap": 0.3308877944946289,
+        "verdict": "exact"
+      },
+      {
+        "position": 16778,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          17
+        ],
+        "hf_top2_logits": [
+          17.4483585357666,
+          15.936847686767578
+        ],
+        "hf_gap": 1.5115108489990234,
+        "verdict": "exact"
+      },
+      {
+        "position": 16779,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          19.155542373657227,
+          16.743276596069336
+        ],
+        "hf_gap": 2.4122657775878906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16780,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          13
+        ],
+        "hf_top2_logits": [
+          18.85414695739746,
+          16.086353302001953
+        ],
+        "hf_gap": 2.767793655395508,
+        "verdict": "exact"
+      },
+      {
+        "position": 16781,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          62
+        ],
+        "hf_top2_logits": [
+          16.255891799926758,
+          14.4889497756958
+        ],
+        "hf_gap": 1.766942024230957,
+        "verdict": "exact"
+      },
+      {
+        "position": 16782,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          15
+        ],
+        "hf_top2_logits": [
+          16.74690055847168,
+          15.944273948669434
+        ],
+        "hf_gap": 0.8026266098022461,
+        "verdict": "exact"
+      },
+      {
+        "position": 16783,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          19.91927146911621,
+          17.759389877319336
+        ],
+        "hf_gap": 2.159881591796875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16784,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          18
+        ],
+        "hf_top2_logits": [
+          17.62737274169922,
+          16.14664077758789
+        ],
+        "hf_gap": 1.4807319641113281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16785,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          15
+        ],
+        "hf_top2_logits": [
+          17.423397064208984,
+          16.030956268310547
+        ],
+        "hf_gap": 1.3924407958984375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16786,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          55
+        ],
+        "hf_top2_logits": [
+          14.794605255126953,
+          14.697196960449219
+        ],
+        "hf_gap": 0.09740829467773438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16787,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          8
+        ],
+        "hf_top2_logits": [
+          17.5220947265625,
+          16.118488311767578
+        ],
+        "hf_gap": 1.4036064147949219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16788,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.169179916381836,
+          17.763235092163086
+        ],
+        "hf_gap": 0.40594482421875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16789,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          19.330608367919922,
+          19.083498001098633
+        ],
+        "hf_gap": 0.24711036682128906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16790,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          374
+        ],
+        "hf_top2_logits": [
+          18.771148681640625,
+          18.184213638305664
+        ],
+        "hf_gap": 0.5869350433349609,
+        "verdict": "exact"
+      },
+      {
+        "position": 16791,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          16.967405319213867,
+          16.84868812561035
+        ],
+        "hf_gap": 0.11871719360351562,
+        "verdict": "exact"
+      },
+      {
+        "position": 16792,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          18.412853240966797,
+          15.174909591674805
+        ],
+        "hf_gap": 3.237943649291992,
+        "verdict": "exact"
+      },
+      {
+        "position": 16793,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          15.601615905761719,
+          13.429454803466797
+        ],
+        "hf_gap": 2.172161102294922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16794,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          374
+        ],
+        "hf_top2_logits": [
+          18.625202178955078,
+          16.043777465820312
+        ],
+        "hf_gap": 2.5814247131347656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16795,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          17
+        ],
+        "hf_top2_logits": [
+          14.866537094116211,
+          14.03193187713623
+        ],
+        "hf_gap": 0.8346052169799805,
+        "verdict": "exact"
+      },
+      {
+        "position": 16796,
+        "actual_top1": 37745,
+        "hf_top2_ids": [
+          37745,
+          26051
+        ],
+        "hf_top2_logits": [
+          16.428924560546875,
+          16.358488082885742
+        ],
+        "hf_gap": 0.07043647766113281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16797,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          17.110960006713867,
+          14.81882095336914
+        ],
+        "hf_gap": 2.2921390533447266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16798,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          374
+        ],
+        "hf_top2_logits": [
+          15.68338680267334,
+          15.357791900634766
+        ],
+        "hf_gap": 0.3255949020385742,
+        "verdict": "exact"
+      },
+      {
+        "position": 16799,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          16.058307647705078,
+          15.422475814819336
+        ],
+        "hf_gap": 0.6358318328857422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16800,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          17.663740158081055,
+          17.05352783203125
+        ],
+        "hf_gap": 0.6102123260498047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16801,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          34
+        ],
+        "hf_top2_logits": [
+          18.389583587646484,
+          17.07858657836914
+        ],
+        "hf_gap": 1.3109970092773438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16802,
+        "actual_top1": 7,
+        "hf_top2_ids": [
+          7,
+          33
+        ],
+        "hf_top2_logits": [
+          17.301546096801758,
+          14.333077430725098
+        ],
+        "hf_gap": 2.96846866607666,
+        "verdict": "exact"
+      },
+      {
+        "position": 16803,
+        "actual_top1": 320,
+        "hf_top2_ids": [
+          320,
+          7
+        ],
+        "hf_top2_logits": [
+          16.06772232055664,
+          15.431596755981445
+        ],
+        "hf_gap": 0.6361255645751953,
+        "verdict": "exact"
+      },
+      {
+        "position": 16804,
+        "actual_top1": 18,
+        "hf_top2_ids": [
+          18,
+          19
+        ],
+        "hf_top2_logits": [
+          16.21898078918457,
+          16.147079467773438
+        ],
+        "hf_gap": 0.07190132141113281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16805,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.954376220703125,
+          14.980494499206543
+        ],
+        "hf_gap": 2.973881721496582,
+        "verdict": "exact"
+      },
+      {
+        "position": 16806,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          19
+        ],
+        "hf_top2_logits": [
+          19.735416412353516,
+          18.71854019165039
+        ],
+        "hf_gap": 1.016876220703125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16807,
+        "actual_top1": 92,
+        "hf_top2_ids": [
+          92,
+          60
+        ],
+        "hf_top2_logits": [
+          16.053573608398438,
+          13.807526588439941
+        ],
+        "hf_gap": 2.246047019958496,
+        "verdict": "exact"
+      },
+      {
+        "position": 16808,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          15
+        ],
+        "hf_top2_logits": [
+          16.757863998413086,
+          16.517154693603516
+        ],
+        "hf_gap": 0.2407093048095703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16809,
+        "actual_top1": 18,
+        "hf_top2_ids": [
+          18,
+          16
+        ],
+        "hf_top2_logits": [
+          16.557924270629883,
+          16.539525985717773
+        ],
+        "hf_gap": 0.018398284912109375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16810,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          19.752792358398438,
+          17.366748809814453
+        ],
+        "hf_gap": 2.3860435485839844,
+        "verdict": "exact"
+      },
+      {
+        "position": 16811,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          16.911928176879883,
+          16.495119094848633
+        ],
+        "hf_gap": 0.41680908203125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16812,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          21
+        ],
+        "hf_top2_logits": [
+          17.36823844909668,
+          17.33030128479004
+        ],
+        "hf_gap": 0.037937164306640625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16813,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          19
+        ],
+        "hf_top2_logits": [
+          16.048877716064453,
+          14.822267532348633
+        ],
+        "hf_gap": 1.2266101837158203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16814,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          21
+        ],
+        "hf_top2_logits": [
+          18.631711959838867,
+          15.67725658416748
+        ],
+        "hf_gap": 2.9544553756713867,
+        "verdict": "exact"
+      },
+      {
+        "position": 16815,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          374
+        ],
+        "hf_top2_logits": [
+          16.426990509033203,
+          16.019893646240234
+        ],
+        "hf_gap": 0.40709686279296875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16816,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          374
+        ],
+        "hf_top2_logits": [
+          14.90568733215332,
+          13.559028625488281
+        ],
+        "hf_gap": 1.346658706665039,
+        "verdict": "exact"
+      },
+      {
+        "position": 16817,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          21
+        ],
+        "hf_top2_logits": [
+          16.357595443725586,
+          16.141271591186523
+        ],
+        "hf_gap": 0.2163238525390625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16818,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          21
+        ],
+        "hf_top2_logits": [
+          16.20607566833496,
+          14.600119590759277
+        ],
+        "hf_gap": 1.6059560775756836,
+        "verdict": "exact"
+      },
+      {
+        "position": 16819,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          21
+        ],
+        "hf_top2_logits": [
+          18.27049446105957,
+          16.398359298706055
+        ],
+        "hf_gap": 1.8721351623535156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16820,
+        "actual_top1": 323,
+        "hf_top2_ids": [
+          323,
+          16
+        ],
+        "hf_top2_logits": [
+          14.533690452575684,
+          14.393264770507812
+        ],
+        "hf_gap": 0.1404256820678711,
+        "verdict": "exact"
+      },
+      {
+        "position": 16821,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          320
+        ],
+        "hf_top2_logits": [
+          16.16754150390625,
+          14.90780258178711
+        ],
+        "hf_gap": 1.2597389221191406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16822,
+        "actual_top1": 1668,
+        "hf_top2_ids": [
+          1668,
+          1098
+        ],
+        "hf_top2_logits": [
+          17.089570999145508,
+          16.642711639404297
+        ],
+        "hf_gap": 0.44685935974121094,
+        "verdict": "exact"
+      },
+      {
+        "position": 16823,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          16.548391342163086,
+          15.944680213928223
+        ],
+        "hf_gap": 0.6037111282348633,
+        "verdict": "exact"
+      },
+      {
+        "position": 16824,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          15
+        ],
+        "hf_top2_logits": [
+          18.491493225097656,
+          16.716745376586914
+        ],
+        "hf_gap": 1.7747478485107422,
+        "verdict": "exact"
+      },
+      {
+        "position": 16825,
+        "actual_top1": 5435,
+        "hf_top2_ids": [
+          5435,
+          6148
+        ],
+        "hf_top2_logits": [
+          15.559223175048828,
+          14.735993385314941
+        ],
+        "hf_gap": 0.8232297897338867,
+        "verdict": "exact"
+      },
+      {
+        "position": 16826,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          16.551116943359375,
+          14.85671615600586
+        ],
+        "hf_gap": 1.6944007873535156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16827,
+        "actual_top1": 2034,
+        "hf_top2_ids": [
+          2034,
+          35
+        ],
+        "hf_top2_logits": [
+          17.19265365600586,
+          17.129528045654297
+        ],
+        "hf_gap": 0.0631256103515625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16828,
+        "actual_top1": 8030,
+        "hf_top2_ids": [
+          8030,
+          30548
+        ],
+        "hf_top2_logits": [
+          16.771221160888672,
+          16.147239685058594
+        ],
+        "hf_gap": 0.6239814758300781,
+        "verdict": "exact"
+      },
+      {
+        "position": 16829,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          16.806915283203125,
+          16.20606231689453
+        ],
+        "hf_gap": 0.6008529663085938,
+        "verdict": "exact"
+      },
+      {
+        "position": 16830,
+        "actual_top1": 320,
+        "hf_top2_ids": [
+          320,
+          19
+        ],
+        "hf_top2_logits": [
+          16.646709442138672,
+          15.854971885681152
+        ],
+        "hf_gap": 0.7917375564575195,
+        "verdict": "exact"
+      },
+      {
+        "position": 16831,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          3506
+        ],
+        "hf_top2_logits": [
+          15.106767654418945,
+          14.273040771484375
+        ],
+        "hf_gap": 0.8337268829345703,
+        "verdict": "exact"
+      },
+      {
+        "position": 16832,
+        "actual_top1": 1557,
+        "hf_top2_ids": [
+          1557,
+          62
+        ],
+        "hf_top2_logits": [
+          18.58704948425293,
+          15.578373908996582
+        ],
+        "hf_gap": 3.0086755752563477,
+        "verdict": "exact"
+      },
+      {
+        "position": 16833,
+        "actual_top1": 14718,
+        "hf_top2_ids": [
+          14718,
+          31362
+        ],
+        "hf_top2_logits": [
+          15.932662963867188,
+          15.296268463134766
+        ],
+        "hf_gap": 0.6363945007324219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16834,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          389
+        ],
+        "hf_top2_logits": [
+          17.894140243530273,
+          15.103764533996582
+        ],
+        "hf_gap": 2.7903757095336914,
+        "verdict": "exact"
+      },
+      {
+        "position": 16835,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          17.271249771118164,
+          17.236968994140625
+        ],
+        "hf_gap": 0.03428077697753906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16836,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          15
+        ],
+        "hf_top2_logits": [
+          14.785562515258789,
+          14.247468948364258
+        ],
+        "hf_gap": 0.5380935668945312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16837,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          18.141050338745117,
+          17.62798500061035
+        ],
+        "hf_gap": 0.5130653381347656,
+        "verdict": "exact"
+      },
+      {
+        "position": 16838,
+        "actual_top1": 26680,
+        "hf_top2_ids": [
+          26680,
+          643
+        ],
+        "hf_top2_logits": [
+          18.756824493408203,
+          17.236845016479492
+        ],
+        "hf_gap": 1.519979476928711,
+        "verdict": "exact"
+      },
+      {
+        "position": 16839,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          6148
+        ],
+        "hf_top2_logits": [
+          14.511066436767578,
+          14.496062278747559
+        ],
+        "hf_gap": 0.015004158020019531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16840,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          17.14541244506836,
+          16.359712600708008
+        ],
+        "hf_gap": 0.7856998443603516,
+        "verdict": "exact"
+      },
+      {
+        "position": 16841,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          62
+        ],
+        "hf_top2_logits": [
+          15.920672416687012,
+          15.809398651123047
+        ],
+        "hf_gap": 0.11127376556396484,
+        "verdict": "exact"
+      },
+      {
+        "position": 16842,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          220
+        ],
+        "hf_top2_logits": [
+          14.405045509338379,
+          14.161042213439941
+        ],
+        "hf_gap": 0.2440032958984375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16843,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          17
+        ],
+        "hf_top2_logits": [
+          17.699621200561523,
+          16.511159896850586
+        ],
+        "hf_gap": 1.1884613037109375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16844,
+        "actual_top1": 21,
+        "hf_top2_ids": [
+          21,
+          19
+        ],
+        "hf_top2_logits": [
+          16.984521865844727,
+          16.492116928100586
+        ],
+        "hf_gap": 0.4924049377441406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16845,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          15
+        ],
+        "hf_top2_logits": [
+          16.568986892700195,
+          16.216522216796875
+        ],
+        "hf_gap": 0.3524646759033203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16846,
+        "actual_top1": 318,
+        "hf_top2_ids": [
+          318,
+          422
+        ],
+        "hf_top2_logits": [
+          16.59783363342285,
+          15.770359992980957
+        ],
+        "hf_gap": 0.8274736404418945,
+        "verdict": "exact"
+      },
+      {
+        "position": 16847,
+        "actual_top1": 62,
+        "hf_top2_ids": [
+          62,
+          1098
+        ],
+        "hf_top2_logits": [
+          16.85916519165039,
+          16.137222290039062
+        ],
+        "hf_gap": 0.7219429016113281,
+        "verdict": "exact"
+      },
+      {
+        "position": 16848,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          374
+        ],
+        "hf_top2_logits": [
+          16.6997013092041,
+          16.58690071105957
+        ],
+        "hf_gap": 0.11280059814453125,
+        "verdict": "exact"
+      },
+      {
+        "position": 16849,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          18.57036590576172,
+          15.678146362304688
+        ],
+        "hf_gap": 2.8922195434570312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16850,
+        "actual_top1": 1557,
+        "hf_top2_ids": [
+          1557,
+          35
+        ],
+        "hf_top2_logits": [
+          15.433541297912598,
+          15.135869979858398
+        ],
+        "hf_gap": 0.2976713180541992,
+        "verdict": "exact"
+      },
+      {
+        "position": 16851,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          220
+        ],
+        "hf_top2_logits": [
+          17.30838394165039,
+          16.169687271118164
+        ],
+        "hf_gap": 1.1386966705322266,
+        "verdict": "exact"
+      },
+      {
+        "position": 16852,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          17
+        ],
+        "hf_top2_logits": [
+          17.94713592529297,
+          16.153770446777344
+        ],
+        "hf_gap": 1.793365478515625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16853,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          1261
+        ],
+        "hf_top2_logits": [
+          15.982976913452148,
+          15.211674690246582
+        ],
+        "hf_gap": 0.7713022232055664,
+        "verdict": "exact"
+      },
+      {
+        "position": 16854,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          17.865278244018555,
+          14.580132484436035
+        ],
+        "hf_gap": 3.2851457595825195,
+        "verdict": "exact"
+      },
+      {
+        "position": 16855,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          14.183423042297363,
+          14.163912773132324
+        ],
+        "hf_gap": 0.019510269165039062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16856,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          16.173593521118164,
+          15.104939460754395
+        ],
+        "hf_gap": 1.0686540603637695,
+        "verdict": "exact"
+      },
+      {
+        "position": 16857,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          17.20722198486328,
+          14.601031303405762
+        ],
+        "hf_gap": 2.6061906814575195,
+        "verdict": "exact"
+      },
+      {
+        "position": 16858,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          33
+        ],
+        "hf_top2_logits": [
+          14.076297760009766,
+          14.06437873840332
+        ],
+        "hf_gap": 0.011919021606445312,
+        "verdict": "exact"
+      },
+      {
+        "position": 16859,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          15
+        ],
+        "hf_top2_logits": [
+          16.38034439086914,
+          15.12455940246582
+        ],
+        "hf_gap": 1.2557849884033203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16860,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          16
+        ],
+        "hf_top2_logits": [
+          18.062124252319336,
+          14.13077163696289
+        ],
+        "hf_gap": 3.9313526153564453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16861,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          16
+        ],
+        "hf_top2_logits": [
+          17.501127243041992,
+          17.199966430664062
+        ],
+        "hf_gap": 0.3011608123779297,
+        "verdict": "exact"
+      },
+      {
+        "position": 16862,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          16
+        ],
+        "hf_top2_logits": [
+          16.435813903808594,
+          15.889837265014648
+        ],
+        "hf_gap": 0.5459766387939453,
+        "verdict": "exact"
+      },
+      {
+        "position": 16863,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          702
+        ],
+        "hf_top2_logits": [
+          15.570965766906738,
+          14.377280235290527
+        ],
+        "hf_gap": 1.193685531616211,
+        "verdict": "exact"
+      },
+      {
+        "position": 16864,
+        "actual_top1": 1261,
+        "hf_top2_ids": [
+          1261,
+          374
+        ],
+        "hf_top2_logits": [
+          17.806034088134766,
+          16.83420181274414
+        ],
+        "hf_gap": 0.971832275390625,
+        "verdict": "exact"
+      },
+      {
+        "position": 16865,
+        "actual_top1": 659,
+        "hf_top2_ids": [
+          659,
+          1261
+        ],
+        "hf_top2_logits": [
+          16.9414119720459,
+          15.78435230255127
+        ],
+        "hf_gap": 1.157059669494629,
+        "verdict": "exact"
+      },
+      {
+        "position": 16866,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          18
+        ],
+        "hf_top2_logits": [
+          17.1291446685791,
+          17.116596221923828
+        ],
+        "hf_gap": 0.012548446655273438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16867,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          66679
+        ],
+        "hf_top2_logits": [
+          16.922203063964844,
+          15.20853042602539
+        ],
+        "hf_gap": 1.7136726379394531,
+        "verdict": "exact"
+      },
+      {
+        "position": 16868,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          19
+        ],
+        "hf_top2_logits": [
+          15.762688636779785,
+          15.558247566223145
+        ],
+        "hf_gap": 0.20444107055664062,
+        "verdict": "exact"
+      },
+      {
+        "position": 16869,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          315
+        ],
+        "hf_top2_logits": [
+          19.25284767150879,
+          17.816410064697266
+        ],
+        "hf_gap": 1.4364376068115234,
+        "verdict": "exact"
+      },
+      {
+        "position": 16870,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          19
+        ],
+        "hf_top2_logits": [
+          16.40540313720703,
+          15.711073875427246
+        ],
+        "hf_gap": 0.6943292617797852,
+        "verdict": "exact"
+      },
+      {
+        "position": 16871,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          880
+        ],
+        "hf_top2_logits": [
+          15.481669425964355,
+          15.301671981811523
+        ],
+        "hf_gap": 0.17999744415283203,
+        "verdict": "exact"
+      },
+      {
+        "position": 16872,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          17
+        ],
+        "hf_top2_logits": [
+          18.74134635925293,
+          18.36136245727539
+        ],
+        "hf_gap": 0.37998390197753906,
+        "verdict": "exact"
+      },
+      {
+        "position": 16873,
+        "actual_top1": 17,
+        "hf_top2_ids": [
+          17,
+          15
+        ],
+        "hf_top2_logits": [
+          18.53178596496582,
+          17.85826301574707
+        ],
+        "hf_gap": 0.67352294921875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16874,
+        "actual_top1": 220,
+        "hf_top2_ids": [
+          220,
+          36
+        ],
+        "hf_top2_logits": [
+          16.462703704833984,
+          15.754142761230469
+        ],
+        "hf_gap": 0.7085609436035156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16875,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          323
+        ],
+        "hf_top2_logits": [
+          16.846336364746094,
+          16.05105972290039
+        ],
+        "hf_gap": 0.7952766418457031,
+        "verdict": "exact"
+      },
+      {
+        "position": 16876,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          220
+        ],
+        "hf_top2_logits": [
+          17.265029907226562,
+          14.78403091430664
+        ],
+        "hf_gap": 2.480998992919922,
+        "verdict": "exact"
+      },
+      {
+        "position": 16877,
+        "actual_top1": 880,
+        "hf_top2_ids": [
+          880,
+          374
+        ],
+        "hf_top2_logits": [
+          21.286361694335938,
+          19.357566833496094
+        ],
+        "hf_gap": 1.9287948608398438,
+        "verdict": "exact"
+      },
+      {
+        "position": 16878,
+        "actual_top1": 16,
+        "hf_top2_ids": [
+          16,
+          19
+        ],
+        "hf_top2_logits": [
+          16.402393341064453,
+          16.300466537475586
+        ],
+        "hf_gap": 0.10192680358886719,
+        "verdict": "exact"
+      },
+      {
+        "position": 16879,
+        "actual_top1": 35,
+        "hf_top2_ids": [
+          35,
+          19
+        ],
+        "hf_top2_logits": [
+          16.911890029907227,
+          16.559186935424805
+        ],
+        "hf_gap": 0.3527030944824219,
+        "verdict": "exact"
+      },
+      {
+        "position": 16880,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          374
+        ],
+        "hf_top2_logits": [
+          15.944154739379883,
+          15.563911437988281
+        ],
+        "hf_gap": 0.38024330139160156,
+        "verdict": "exact"
+      },
+      {
+        "position": 16881,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          15
+        ],
+        "hf_top2_logits": [
+          16.621444702148438,
+          15.51767635345459
+        ],
+        "hf_gap": 1.1037683486938477,
+        "verdict": "exact"
+      },
+      {
+        "position": 16882,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          16
+        ],
+        "hf_top2_logits": [
+          19.59250831604004,
+          17.88210105895996
+        ],
+        "hf_gap": 1.7104072570800781,
+        "verdict": "exact"
+      },
+      {
+        "position": 16883,
+        "actual_top1": 15,
+        "hf_top2_ids": [
+          15,
+          17
+        ],
+        "hf_top2_logits": [
+          17.767051696777344,
+          17.665050506591797
+        ],
+        "hf_gap": 0.10200119018554688,
+        "verdict": "exact"
+      },
+      {
+        "position": 16884,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          20
+        ],
+        "hf_top2_logits": [
+          16.631107330322266,
+          15.418334007263184
+        ],
+        "hf_gap": 1.212773323059082,
+        "verdict": "exact"
+      },
+      {
+        "position": 16885,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          220
+        ],
+        "hf_top2_logits": [
+          16.524803161621094,
+          15.858924865722656
+        ],
+        "hf_gap": 0.6658782958984375,
+        "verdict": "exact"
+      },
+      {
+        "position": 16886,
+        "actual_top1": 33,
+        "hf_top2_ids": [
+          33,
+          19
+        ],
+        "hf_top2_logits": [
+          17.55827522277832,
+          15.597859382629395
+        ],
+        "hf_gap": 1.9604158401489258,
+        "verdict": "exact"
+      },
+      {
+        "position": 16887,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          33
+        ],
+        "hf_top2_logits": [
+          15.934361457824707,
+          15.210777282714844
+        ],
+        "hf_gap": 0.7235841751098633,
+        "verdict": "exact"
+      },
+      {
+        "position": 16888,
+        "actual_top1": 425,
+        "hf_top2_ids": [
+          425,
+          33
+        ],
+        "hf_top2_logits": [
+          18.791168212890625,
+          16.74846076965332
+        ],
+        "hf_gap": 2.0427074432373047,
+        "verdict": "exact"
+      },
+      {
+        "position": 16889,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          16.123376846313477,
+          15.304104804992676
+        ],
+        "hf_gap": 0.8192720413208008,
+        "verdict": "exact"
+      },
+      {
+        "position": 16890,
+        "actual_top1": 19,
+        "hf_top2_ids": [
+          19,
+          315
+        ],
+        "hf_top2_logits": [
+          16.7524356842041,
+          16.482175827026367
+        ],
+        "hf_gap": 0.2702598571777344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16891,
+        "actual_top1": 2965,
+        "hf_top2_ids": [
+          2965,
+          659
+        ],
+        "hf_top2_logits": [
+          15.951869010925293,
+          15.849360466003418
+        ],
+        "hf_gap": 0.102508544921875,
+        "verdict": "exact"
+      },
+      {
+        "position": 16892,
+        "actual_top1": 271,
+        "hf_top2_ids": [
+          271,
+          374
+        ],
+        "hf_top2_logits": [
+          16.39596176147461,
+          16.085927963256836
+        ],
+        "hf_gap": 0.31003379821777344,
+        "verdict": "exact"
+      },
+      {
+        "position": 16893,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          62
+        ],
+        "hf_top2_logits": [
+          18.27996253967285,
+          17.54121971130371
+        ],
+        "hf_gap": 0.7387428283691406,
+        "verdict": "exact"
+      },
+      {
+        "position": 16894,
+        "actual_top1": 374,
+        "hf_top2_ids": [
+          374,
+          814
+        ],
+        "hf_top2_logits": [
+          14.2491455078125,
+          14.06483268737793
+        ],
+        "hf_gap": 0.1843128204345703,
+        "verdict": "exact"
+      }
+    ]
+  },
+  "hf_default_references": {
+    "summary_sha256": "c3b0a7d36f3cab1e622f9e2b68857fd2bdfcfc4f177c6ccde1c4005f899fe6ad",
+    "phases": [
+      {
+        "model_id": "iq1-s",
+        "name": "control-head-kv",
+        "passed": true,
+        "execution_sha256": "2c004adf0245c258022159cacb7e027b5fc66f01aa64c02320047d9ee0c26c4d"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "control-head-kv",
+        "passed": true,
+        "execution_sha256": "30ca18694d0bb82790d11c478495fa6fbad2b31715b03f70eb82f8cc52ccb2fc"
+      },
+      {
+        "model_id": "iq1-s",
+        "name": "depth-cpu-default-raw",
+        "passed": true,
+        "execution_sha256": "bb24d3a64f4bb8514302003b5190023a33da651edf0812d3ca2c74f96b5ef76c"
+      },
+      {
+        "model_id": "iq1-s",
+        "name": "depth-cpu-default-chat",
+        "passed": true,
+        "execution_sha256": "1fc47f55fc4a5e2fe996216c67d3d3aeb2199e4a11b3294bb85ced831f150521"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-cpu-default-raw",
+        "passed": true,
+        "execution_sha256": "1fa7560e23a48e1ea4f94d12ffc239c35a3a13d95b7ecef0c90e51ea9ff45adf"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-cpu-default-chat",
+        "passed": true,
+        "execution_sha256": "6ffa285a9b09cb722dad9de66c1323b33a79da17b76504e759ce6f997cd4dac9"
+      }
+    ],
+    "scope": "Both controls and all four reference cells completed. Candidate default captures remain pending."
+  },
+  "preserved_harness_attempts": [
+    "Retained validator v1 refused the missing trailing newline in its expected traceback. Corrected v2 matches the exact original text.",
+    "Comparison v1 used the runtime source for the frozen HF rule. Corrected v2 separately pins the runtime and reference source owners."
+  ]
+}

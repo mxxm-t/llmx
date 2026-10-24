@@ -1,0 +1,325 @@
+{
+  "exe_sha256": "4a2faf6e7076f1db563dcd16d1f8467b008024f79774f61db1d8a38c24af2354",
+  "version": "llmx 0.1.0+gca4fd2e1a5ef.dirty numerics e3011170275b2364",
+  "base": "ca4fd2e1a5ef232ba5283eb33832f0b39a483898",
+  "delta": "IQ1 checkpoint08cb08e7d integrated onto IQ2 ca4fd2e1a with generic shared dictionary ownership and focused regression",
+  "native_tests": {
+    "passed": 8,
+    "total": 8,
+    "seconds": 51.11,
+    "log_sha256": "ca0a54ccb45530ca63a8581a8a5f57b3f2a1d674e8adf2743b2d362efc971120"
+  },
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "960e8e4c1c0c604f5ce1177e9399f51dd173a63fc5cd3cb921ff160b6d358670",
+    "tests/vulkan_buffer.cpp": "efa45997ca4a17553d29db720c1adf1ba81f59f10db65df3fb1e0474202aeff7"
+  },
+  "scope": "development integration checkpoint; no full landing, released HF/depth or matched performance claim",
+  "hf_f32": {
+    "backend": "Radeon VII vulkan:0",
+    "cases_per_format": 150,
+    "nll_checks_per_format": 12,
+    "rows": [
+      {
+        "format": "IQ2_XXS",
+        "fixture": "dense-untied",
+        "max_logit_error": 5.3e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 2e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ2_XXS",
+        "fixture": "dense-tied",
+        "max_logit_error": 5.6e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 1e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ2_XXS",
+        "fixture": "moe",
+        "max_logit_error": 5.6e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 0.0,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "dense-untied",
+        "max_logit_error": 5.7e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 2e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "dense-tied",
+        "max_logit_error": 6.1e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 2e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ2_XS",
+        "fixture": "moe",
+        "max_logit_error": 5.6e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 2e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_S",
+        "fixture": "dense-untied",
+        "max_logit_error": 9.6e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 5e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_S",
+        "fixture": "dense-tied",
+        "max_logit_error": 8.6e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 1e-07,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_S",
+        "fixture": "moe",
+        "max_logit_error": 1.18e-06,
+        "logit_limit": 2e-05,
+        "max_nll_error": 1e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_M",
+        "fixture": "dense-untied",
+        "max_logit_error": 9.9e-07,
+        "logit_limit": 2e-05,
+        "max_nll_error": 3e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_M",
+        "fixture": "dense-tied",
+        "max_logit_error": 1.21e-06,
+        "logit_limit": 2e-05,
+        "max_nll_error": 5e-08,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_M",
+        "fixture": "moe",
+        "max_logit_error": 1.07e-06,
+        "logit_limit": 2e-05,
+        "max_nll_error": 1e-08,
+        "nll_limit": 1e-05
+      }
+    ],
+    "raw_types": 23
+  },
+  "released_smoke": [
+    {
+      "file": "Qwen3-0.6B-UD-IQ1_S.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-integrated-20261023\\build-integrated-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-models\\Qwen3-0.6B-UD-IQ1_S.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "6",
+        "--dtype",
+        "f16",
+        "--p",
+        "64",
+        "--n",
+        "16",
+        "--r",
+        "1"
+      ],
+      "exit": 0,
+      "seconds": 2.084439277648926,
+      "purpose": "mixed-format loading and prompt/decode smoke only, not a correctness or performance gate"
+    },
+    {
+      "file": "Qwen3-0.6B-UD-IQ1_M.gguf",
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-integrated-20261023\\build-integrated-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-released-models\\Qwen3-0.6B-UD-IQ1_M.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "6",
+        "--dtype",
+        "f16",
+        "--p",
+        "64",
+        "--n",
+        "16",
+        "--r",
+        "1"
+      ],
+      "exit": 0,
+      "seconds": 1.0376121997833252,
+      "purpose": "mixed-format loading and prompt/decode smoke only, not a correctness or performance gate"
+    }
+  ],
+  "released_models": {
+    "revision": "50968a4468ef4233ed78cd7c3de230dd1d61a56b",
+    "files": [
+      {
+        "file": "Qwen3-0.6B-UD-IQ1_S.gguf",
+        "bytes": 214643392,
+        "sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+        "seconds": 17.10967230796814,
+        "cached": false
+      },
+      {
+        "file": "Qwen3-0.6B-UD-IQ1_M.gguf",
+        "bytes": 220754624,
+        "sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+        "seconds": 16.11504626274109,
+        "cached": false
+      }
+    ]
+  },
+  "logs": {
+    "build-focused.log": "70ed0c0dd4d1c46862a66249aa562204f469734618d9732e9dc1db6458655b9c",
+    "build-dictionary.log": "1375e50e3d25f254f8787f53ffbaff43cda5281e9eacf8c10b59c5f103b1ef0c",
+    "build-lifetime.log": "e1bfb99ca78ad65c138fc496ad9aa653b11af6f9d21c5b98145a7ed7c38732ae",
+    "ctest-focused.log": "ca0a54ccb45530ca63a8581a8a5f57b3f2a1d674e8adf2743b2d362efc971120",
+    "integrated-hf-f32.log": "2d1d751d85b6b40a777f57658e3af68408893e84e971f4824abfd842a82241a3",
+    "integrated-hf-f32-recovery.log": "5281f51957d985b3c5d3b65b0a955c7d85fc6c80f6a3c63972684d115b4d37e0",
+    "Qwen3-0.6B-UD-IQ1_S.gguf.smoke.log": "aef156f4aceb373ba0d048718d11f19af79103af624ba875ec99d0350608cf6a",
+    "Qwen3-0.6B-UD-IQ1_M.gguf.smoke.log": "bb7617918a1d15dbf9a9fc24eb53fb72cd5f9e0d5414348d0bcc5b9c5204c921"
+  },
+  "retained_setup_failures": [
+    "Combined rebuild selected nonexistent llmx-vulkan-buffer-test target after other requested targets built; correct llmx-vulkan-lifetime-test then built successfully.",
+    "First HF command used native iq2-small name as Python component; parser refused before tests. Recovery names iq2-xxs and iq2-xs pass unchanged source/binary.",
+    "Initial Linux bundle omitted build.bat, which numerics fingerprint reads. Failed before C++ compilation. Recovery adds only this unchanged build input and preserves original logs."
+  ],
+  "shader_comparison": {
+    "raw_identity": "all16 IQ1 modules differ after merging IQ2 declarations",
+    "compact_ids_identity": 8,
+    "total": 16,
+    "remaining": "eight float/BF16 tile modules differ also after compact IDs; no byte-identity carry claim. Integrated operator and HF checks rerun."
+  },
+  "linux_build": {
+    "result": {
+      "started": 1792776377.6232023,
+      "calls": [
+        {
+          "name": "configure",
+          "argv": [
+            "cmake",
+            "-S",
+            "/bundle/source",
+            "-B",
+            "/bundle/recovery-v1/build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=ON"
+          ],
+          "exit": 0,
+          "seconds": 1.0199909210205078
+        },
+        {
+          "name": "build",
+          "argv": [
+            "cmake",
+            "--build",
+            "/bundle/recovery-v1/build",
+            "-j2",
+            "--target",
+            "llmx",
+            "llmx-iq1-test",
+            "llmx-iq2-small-test",
+            "llmx-vulkan-lifetime-test"
+          ],
+          "exit": 0,
+          "seconds": 178.15767693519592
+        },
+        {
+          "name": "cpu-tests",
+          "argv": [
+            "ctest",
+            "--test-dir",
+            "/bundle/recovery-v1/build",
+            "--output-on-failure",
+            "-R",
+            "^(iq1|iq2-small|vulkan-buffer)$"
+          ],
+          "exit": 0,
+          "seconds": 1.668241024017334
+        }
+      ],
+      "passed": true,
+      "binary_sha256": "166dd7a9d4ab1ccb9a2e94e5a9666cc6001918ab999c1d1c2666ea20c6d0f8d8",
+      "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+      "finished": 1792776558.4922934
+    },
+    "execution": {
+      "started": 1792776376.6053827,
+      "container": "llmx-iq1-integrated-build-recovery-v1-20261023",
+      "passed": true,
+      "removed": true,
+      "command": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-iq1-integrated-build-recovery-v1-20261023",
+        "--network",
+        "none",
+        "--cpuset-cpus",
+        "14-15",
+        "--cpus",
+        "2",
+        "--memory",
+        "6g",
+        "--memory-swap",
+        "6g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,size=256m",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1:/bundle",
+        "-w",
+        "/bundle/source",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "-u",
+        "/bundle/payload-recovery.py"
+      ],
+      "container_id": "f1fff5709b998fb4c1ed4e1dc337fa8a3def055b8b94d5a25cd4196b77dae4a5",
+      "source_pins_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-23T17:26:17.443831505Z",
+        "FinishedAt": "2026-10-23T17:29:18.505520829Z"
+      },
+      "finished": 1792776558.9137294
+    },
+    "logs": {
+      "out/build.log": "b4149df58ec404fa89ce9c2e904e9607cf1466a5bfd085dacb89e8845a241cf3",
+      "recovery-v1/build.log": "bddcbdd9572db93fc9e459fa9a13d78b42fb076274fd254ee41093804863c21c",
+      "recovery-v1/cpu-tests.log": "e4485752d90c6e5555221b26517aa09ce95461ffee9ec8017aa305f200adca09"
+    },
+    "warning": "GCC14 emitted Wfree-nonheap-object in existing server/cache.hpp/model/history.hpp inlining; build completed. No warning-free claim."
+  }
+}

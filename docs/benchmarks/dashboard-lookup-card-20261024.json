@@ -1,0 +1,43 @@
+{
+  "scope": "Dashboard static presentation only; no metric/collector/API/runtime change or inference/performance claim",
+  "base": "d0c09440b745baec91c85dda646a7a3e240727ef",
+  "files": [
+    "tools/health_dashboard/index.html",
+    "tools/health_dashboard/test_ui_rates.py",
+    "tools/health_dashboard/README.md",
+    "docs/STATUS.md"
+  ],
+  "production_topology_sha256": "8f1a4a013b373263663d66e1da91ebced09ab0ba034c7f942b62828a72cbd130",
+  "logical_table_bytes": 28800138240,
+  "display_size": "26.8 GiB",
+  "formatting": "Existing bytes()/fmt() unchanged; not measured RAM/VRAM/file residency",
+  "checks": {
+    "focused_browser": "PASS: 19 assertions at each of 1440 and 390 pixels",
+    "production_topology_visual": "PASS: 1440, 390 and 320 pixels, no horizontal overflow",
+    "fallback_states": "PASS: empty, older-API and incomplete",
+    "python_syntax": "AST pass",
+    "javascript_syntax": "Full inline script parsed and renderers executed in Chrome",
+    "docs_dead_code": "PASS: focused invocation, original log retained"
+  },
+  "markdown_review": {
+    "pages": 129,
+    "changed": 2,
+    "unchanged_parent_blobs": 127,
+    "inventory_sha256": "22272d6df7dff68ba3508ebd36bc24b715bc70428127425ca984f3b13bc0eecc"
+  },
+  "evidence_sha256": {
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/focused-browser-exact-size-v2.log": "e46fd56d8aa8509c40419daaa1016a10db854ddae7067942100c3c51f3bf28a7",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/visual-results.json": "aa57e800a78002721e0d79f1d793b61c39971567072afe1ad543930ed1c94ffe",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/after-desktop.png": "478d23221047041db6d0092517e80340755d1a757cf7b4de20b6d4f80691802e",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/after-narrow.png": "fc5789ee130a571037088e6d2ad9cbf60a62b8ff7d9a79299792371df912d69d",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/after-small.png": "2d1a80a8267a6809062151297463a62bb1edd2a9b9b2ce081b599d6f8af960a2",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/before-desktop.png": "09557a92a040a066d6e30051cd5e8124b85e13a9675f66c32c4d617eed991d11",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/before-narrow.png": "a8e167ff513ace265c8bf3ce8d2c9da9696403eccd8df247bec644cd448a1337",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/before-small.png": "5b1fbf1ea82d8296d56384212ef1a05447519f92c48a179985a0d8f458ae91ce",
+    "build-quant-resume-20261020/dashboard-lookup-card-20261024/docs-dead.log": "8b70312a87b74ee780e6bae384fc8d3fd199d4fbe185479af3bfc5ef86f475e9"
+  },
+  "retained_failures": "Initial browser startup was blocked by the outer sandbox. New Layer 2 and 1.25 KiB assertion mistakes were corrected to the existing Layer 3 and 1.3 KiB behavior. Failed logs are retained. No formatter or numerical bound changed.",
+  "remaining": [
+    "Publication and static-page rollout follow source validation."
+  ]
+}

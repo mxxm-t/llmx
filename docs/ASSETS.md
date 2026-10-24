@@ -319,7 +319,7 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ2_XXS / IQ2_XS / IQ2_S / IQ3_XXS / IQ3_S / IQ4_NL / IQ4_XS / TQ1_0 / TQ2_0 / MXFP4** tensors (see
+llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ1_S / IQ1_M / IQ2_XXS / IQ2_XS / IQ2_S / IQ3_XXS / IQ3_S / IQ4_NL / IQ4_XS / TQ1_0 / TQ2_0 / MXFP4** tensors (see
 `docs/src/quant-quant.md`). The [README support matrix](../README.md#quantization-types) separates CPU and Vulkan inference from quantize writers. GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
 IQ2_XXS, IQ2_XS and IQ3_XXS have published read-only CPU/Vulkan inference support; completed qualification and remaining follow-ups are recorded in [STATUS](STATUS.md).
 TQ1_0 and TQ2_0 currently have CPU format/conversion and focused Vulkan operator checks on the development branch; released-model qualification remains pending. The [candidate inventory](benchmarks/tq-candidate-headers-20261024.json) records their revisions, verified complete payload hashes and companion tensor types.
@@ -4199,3 +4199,10 @@ Generation uses the same pinned CPU HF environment as Q5. Both Q5 reference file
 `tests/data/baseline_iq4_xs_split.json` holds the same three variants at embedding and intermediate width 1024, four query heads, two KV heads of width 256 and vocabulary 260. Tensor widths two and four preserve whole 256-value quant blocks; the MoE selects all four experts. The ordinary golden and all existing families are unchanged.
 
 The pinned HF environment measures each new family precision on ordinary and split shapes at seeds 12345, 0, 1, 2 and 3, before candidate execution. F16 and BF16 keep 30 stable cases each; int8 keeps 28, with ordinary MoE seeds 1 and 3 retained as refused routing turnovers. The fixed 2x margin gives logit/NLL limits of 0.0585652/0.00599106 for F16, 0.486957/0.0639013 for BF16 and 1.04758/0.175938 for int8. These describe these synthetic fixtures, not released-model error limits. Existing budgets and F32 bounds are unchanged. Exact values, identities and provenance are in [the calibration record](benchmarks/iq4-xs-calibration-20261020.json).
+
+IQ1_S and IQ1_M use a shared ternary dictionary and separate scale/shift
+field layouts ([format owner](src/quant-iq1.md)). Read-only CPU/Vulkan inference is supported. Released-file short and raw/chat 16K checks, split, integration, timing and hosted evidence are recorded in [STATUS](STATUS.md).
+
+IQ2_XXS and IQ2_XS have published read-only CPU/Vulkan inference support.
+Completed qualification is recorded in [STATUS](STATUS.md); their format owners
+are [IQ2_XXS](src/quant-iq2-xxs.md) and [IQ2_XS](src/quant-iq2-xs.md).

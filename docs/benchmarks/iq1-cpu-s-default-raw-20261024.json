@@ -1,0 +1,70 @@
+{
+  "scope": "CPU default F16 policy, F16 KV, IQ1_S raw 16K prompt and 512 fixed-history positions.",
+  "accepted": true,
+  "policy": "F32 internal matrix inputs, literal F16 tied-head inputs and F32 sums, logical F16 K/V before attention. Fixed before the capture.",
+  "rule_owner": "tests/common.py:hf_depth_top1",
+  "tie_margin": 0.1,
+  "counts": {
+    "exact": 510,
+    "accepted-tie": 2,
+    "miss": 0
+  },
+  "accepted_ties": [
+    {
+      "position": 16597,
+      "actual_top1": 21,
+      "hf_top2_ids": [
+        16,
+        21
+      ],
+      "hf_top2_logits": [
+        16.447336196899414,
+        16.44317054748535
+      ],
+      "hf_gap": 0.0041656494140625,
+      "verdict": "accepted-tie"
+    },
+    {
+      "position": 16804,
+      "actual_top1": 19,
+      "hf_top2_ids": [
+        18,
+        19
+      ],
+      "hf_top2_logits": [
+        16.224637985229492,
+        16.163658142089844
+      ],
+      "hf_gap": 0.06097984313964844,
+      "verdict": "accepted-tie"
+    }
+  ],
+  "original_f32_quality_informational": {
+    "exact": 508,
+    "accepted-tie": 4,
+    "miss": 0
+  },
+  "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+      [
+        "f32",
+        "block-int16"
+      ]
+    ]
+  },
+  "probe": {
+    "probe_build_sha256": "705749b247288468a82a49946ec7969e18debbee9fc7ed33f6df3b51c9268aad",
+    "probe_sha256": "c52a9c134404e0d3c45922e8050532128931c938776e7f68dea99334e52e0bcb"
+  },
+  "source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+  "reference_execution_sha256": "bb24d3a64f4bb8514302003b5190023a33da651edf0812d3ca2c74f96b5ef76c",
+  "capture_execution_sha256": "3fcd40a2f65352bf2795754c77e9b00eb363f11f4fa979f7103f339e353d4684",
+  "capture_report_sha256": "67dcd7dadbd4bb2fb17da918f9893e8237c14b34476e626976f1da681348357b",
+  "comparison_execution_sha256": "d72832c7d30dd33fb9487fd3caf265a4d666c7adb3a1eb965e9244c174b8e5b5",
+  "comparison_sha256": "188692d88e8585a75ecbf578b7110190f971ab030cece9d659c157d84e4dfea1",
+  "complete_rows": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/cpu-default-compare-s-lane-v1/result-s-raw/comparison.json",
+  "capture_and_comparison_exit_zero_removed_non_oom": true,
+  "input_pins_unchanged": true,
+  "capture_seconds": 1227.12664103508
+}

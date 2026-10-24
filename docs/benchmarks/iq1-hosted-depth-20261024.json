@@ -1,0 +1,277 @@
+{
+  "date": "2026-10-24",
+  "scope": "Ordinary current-main CI completion and temporary hosted capture checkpoint; no quant merge or completed depth claim.",
+  "source_receipts": {
+    "ordinary_ci_jobs": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-5ab-ci-observations\\20261024T091037008868Z-jobs.json",
+      "sha256": "793edd851edbfea745e6a1968969ccf6c99656881862a46beb074d04d707bdbf"
+    },
+    "capture_jobs": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\observations\\20261024T091427Z-jobs.json",
+      "sha256": "f4caacdfae50309c7955e2e5f4f3dc2e90c3dfa50fd3655776a12db122ca7925"
+    },
+    "staging_audit": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\staging-audit.json",
+      "sha256": "6a623687aefd25267ba0ea88756da649ace6f64dc656ffeb76975d59efb7f8ee"
+    },
+    "reference_metadata": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\metadata-validation.json",
+      "sha256": "1bee6fc8f48323ab40328e58b3b163f3584adaf18862319eba8fb36941728d24"
+    },
+    "reference-validation-proof": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\reference-validation-proof.json",
+      "sha256": "6d2f858ea8865e016ef9cd450729fa2bdadeabecc45d28ef00737b17c55eda05"
+    },
+    "frozen-depth-references": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\frozen-depth-references.json",
+      "sha256": "8aa35bc40660e116c03a13bf6c18d3054b065e12ea9b31d4d0568a525b92c4ca"
+    },
+    "reference-validation-reuse-review": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\reference-validation-reuse-review.md",
+      "sha256": "bd1b6811052636e0d6e6c2abc73e72ba87fc1545c1d9fa16797a550933220e0c"
+    },
+    "reference_validation_reuse_review_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\reference-validation-reuse-review.json",
+      "sha256": "7b040c5269c5c05976f4acd8bc56a717a0f5ef9597d7167104b8148f0a66ed41"
+    },
+    "s_chat_comparison_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\comparison.json",
+      "sha256": "9d46c694cadd29a7b1e8bc016b86057a08d3378d6f8d292111cc5b72623cf808"
+    },
+    "s_chat_execution_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\execution.json",
+      "sha256": "ea0a2a3c3c1502c30bf9f0cf113954f81abb8807a9f06d875c5688e87afffb7e"
+    },
+    "s_chat_stdout_txt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\stdout.txt",
+      "sha256": "918c4cec767bd30f32782acf21f55c18898becd85c50513233ff5fb88dbb70b4"
+    },
+    "s_chat_artifact-metadata_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\artifact-metadata.json",
+      "sha256": "a9630ced55c4da39ef6f74f64b6e7581ff23164cd96fdce8937014e2e77b2912"
+    },
+    "m_chat_comparison-3f2270460de0_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-chat\\comparison-3f2270460de0.json",
+      "sha256": "5c72c6c0e79522539e39806dbada44e25acd8846f4e70a038ce3562b36635ab1"
+    },
+    "m_chat_execution_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-chat\\execution.json",
+      "sha256": "27dec3935a7ce15dbb05f6e620f251cc2f619492f687746a5488c70d1362fa37"
+    },
+    "m_chat_stdout_txt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-chat\\stdout.txt",
+      "sha256": "a842dd74b1b8f869387ddf65787905ba4bfff92691c497828b4ce169b8bb0277"
+    },
+    "m_chat_artifact-metadata_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-chat\\artifact-metadata.json",
+      "sha256": "d98657ffdcff955b855db39ebbbcc9e5259046fd55ec1d8765ff8ed0c70ffbac"
+    },
+    "s_chat_comparison-3f2270460de0_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\s-chat\\comparison-3f2270460de0.json",
+      "sha256": "ceb99bd7f654dc91f7a4ea9fce283884c23628264e0a7e01a72fcc6543dfe2c3"
+    },
+    "m_raw_comparison-3f2270460de0_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-raw\\comparison-3f2270460de0.json",
+      "sha256": "1c08668c2fc9b1550ac1ae8939e6085ac947f0d4a297b263bb5dcfd2fef852b8"
+    },
+    "m_raw_execution_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-raw\\execution.json",
+      "sha256": "b8387f68b73bda87388bc6245ac60fffac37bf2d0ed297743ad5946189a775cb"
+    },
+    "m_raw_stdout_txt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-raw\\stdout.txt",
+      "sha256": "1c043dc63bc19d30c7db475e762beb9a5fc0cebe6305d18bc865e1b3435db6fd"
+    },
+    "m_raw_artifact-metadata_json": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\ci-iq1-cpu-depth-feasibility-20261024\\hosted-results\\m-raw\\artifact-metadata.json",
+      "sha256": "8d4d5641d0664c8645078f4c8c35c78a95461abe2addbe13ae84f0252a51d1dd"
+    }
+  },
+  "ordinary_ci": {
+    "run": 40076591180,
+    "head": "be31833fce69b28f22ec6de5930247f635e9cc03",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "temporary_capture": {
+    "branch": "gate/iq1-depth-hosted-20261024",
+    "head": "86401d2f123f496f88c86767cb9a04daffd8fda8",
+    "run": 40080899030,
+    "last_observed": "All three captures and independent selected-policy 512-row comparisons pass; collector exits 0 with complete=true and passed=true.",
+    "cells": [
+      "S/chat",
+      "M/raw",
+      "M/chat"
+    ],
+    "runtime_and_cmake_identical_to": "be31833fce69b28f22ec6de5930247f635e9cc03",
+    "frozen_helper_sha256": "f4efa76d2d2a59dfff35a4dd7bd78e3bd11cae406d6f72ecdf75c873fbf53651",
+    "threads": 8,
+    "prompt_tokens": 16384,
+    "scored_rows": 512,
+    "admission_gib": 14,
+    "container_cap_gib": 10,
+    "live_reserve_gib": 4,
+    "child_timeout_seconds": 3600,
+    "outer_timeout_seconds": 3900,
+    "landing_policy": "Temporary workflow and helper never land.",
+    "retained_preflight_incident": "Initial Git newline normalization changed fixture hashes; scoped -text attributes preserve exact staged bytes.",
+    "remaining": [],
+    "rig": "No rig jobs; active peer benchmark spans all physical cores.",
+    "live_floor": "4 GiB plus the unused portion of the 10 GiB container cap"
+  },
+  "markdown_review": {
+    "baseline": "6b4d7e4fb",
+    "tracked_pages": 131,
+    "scope": "Final read-only support promotion reconciles all 131 Markdown pages against the successful CI runtime and completed hosted depth evidence. Only support/status prose and three scoped evidence records change; no runtime, workflow, tests, tools, fixtures or numerical policy changes.",
+    "validation": "Historical checkpoint session 34764 passed docs/dead-code. Latest focused session 25973 passed dead-code in 14.4 seconds and docs in 11.6 seconds; root retains its validation receipt."
+  },
+  "reference_metadata": "Six selected-policy/original-F32 references have completed producer validation of full-array binary32 shape and finiteness, with exact receipt/report/detail/NPY provenance reuse. No fresh NPY readback or current rig-byte revalidation is claimed. Producer hashes retain their original CRLF source pins.",
+  "reference_validation_reuse": {
+    "scope": "Exactly S/chat, M/raw and M/chat under selected CPU policy and original-F32 quality roles.",
+    "cells": 6,
+    "completed_at_producer": {
+      "shape": [
+        512,
+        151936
+      ],
+      "dtype": "float32",
+      "all_values_finite": true,
+      "assertions_enabled": true,
+      "same_values_serialized_to_npy_and_top50_detail": true,
+      "original_receipt_report_detail_npy_hashes_pinned": true
+    },
+    "fresh_npy_readback": false,
+    "current_rig_npy_bytes_revalidated": false,
+    "policy": "Freeze exact original top-two IDs/logits and position order with full provenance; no rounding, resorting, per-position selection or replacement. Keep selected/quality roles separate and use unchanged hf_depth_top1 margin 0.1. Missing or inconsistent provenance fails.",
+    "candidate_verdict": "All three named hosted CPU default depth cells pass; selected and original-F32 informational results remain separate.",
+    "rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "rule_ast_equal_current": true
+  },
+  "s_chat_completion": {
+    "cell": "s-chat",
+    "capture_verified": true,
+    "full_reference_arrays_validated": true,
+    "numerical_gate_complete": true,
+    "selected_gate_passed": true,
+    "qualification_note": "Reuses completed full-array producer validation by exact provenance. Original F32 companion is informational. No fresh NPY readback.",
+    "frozen_references_sha256": "8aa35bc40660e116c03a13bf6c18d3054b065e12ea9b31d4d0568a525b92c4ca",
+    "reference_validation_proof_sha256": "6d2f858ea8865e016ef9cd450729fa2bdadeabecc45d28ef00737b17c55eda05",
+    "comparison_source_sha256": "3f2270460de0721839a26e21f757be84b1fe3dc7f2767cabf748dc8f9d6c3835",
+    "artifact_sha256": "10dfc5f15bb74d4cac5258ae8a39189107c603d5a7c2433d98f1178eb22ad47a",
+    "artifact_id": 12556030228,
+    "archive_compressed_sha256": "08eacec5f55cac7e9ce5b893490a5091232f2a9d6635a3943c7472e5ff4c5322",
+    "run": 40080899030,
+    "diagnostic_revision": "86401d2f123f496f88c86767cb9a04daffd8fda8",
+    "comparisons": {
+      "selected": {
+        "exact": 509,
+        "accepted-tie": 3,
+        "miss": 0
+      },
+      "quality_informational": {
+        "exact": 509,
+        "accepted-tie": 3,
+        "miss": 0
+      }
+    }
+  },
+  "m_chat_completion": {
+    "cell": "m-chat",
+    "capture_verified": true,
+    "full_reference_arrays_validated": true,
+    "numerical_gate_complete": true,
+    "selected_gate_passed": true,
+    "qualification_note": "Reuses completed full-array producer validation by exact provenance. Original F32 companion is informational. No fresh NPY readback.",
+    "frozen_references_sha256": "8aa35bc40660e116c03a13bf6c18d3054b065e12ea9b31d4d0568a525b92c4ca",
+    "reference_validation_proof_sha256": "6d2f858ea8865e016ef9cd450729fa2bdadeabecc45d28ef00737b17c55eda05",
+    "comparison_source_sha256": "3f2270460de0721839a26e21f757be84b1fe3dc7f2767cabf748dc8f9d6c3835",
+    "artifact_sha256": "f4a54773cae59830e37f23ef4092c064f58c215e7000daee4d06ae1a750638bd",
+    "artifact_id": 12555309658,
+    "archive_compressed_sha256": "5f0b21831e29961247e4eab58a196321844313a6edabd4de34787a88db57d00d",
+    "run": 40080899030,
+    "diagnostic_revision": "86401d2f123f496f88c86767cb9a04daffd8fda8",
+    "comparisons": {
+      "selected": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "quality_informational": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      }
+    }
+  },
+  "complete": true,
+  "passed": true,
+  "m_raw_completion": {
+    "cell": "m-raw",
+    "capture_verified": true,
+    "full_reference_arrays_validated": true,
+    "numerical_gate_complete": true,
+    "selected_gate_passed": true,
+    "qualification_note": "Reuses completed full-array producer validation by exact provenance. Original F32 companion is informational. No fresh NPY readback.",
+    "frozen_references_sha256": "8aa35bc40660e116c03a13bf6c18d3054b065e12ea9b31d4d0568a525b92c4ca",
+    "reference_validation_proof_sha256": "6d2f858ea8865e016ef9cd450729fa2bdadeabecc45d28ef00737b17c55eda05",
+    "comparison_source_sha256": "3f2270460de0721839a26e21f757be84b1fe3dc7f2767cabf748dc8f9d6c3835",
+    "artifact_sha256": "1845750b9b158cace559e195fb57b1f15dd4e23ad99545d3a2c7209071f9e543",
+    "artifact_id": 12555618730,
+    "archive_compressed_sha256": "bce77eb999108a6041a123de5b87734981265c243c2bffb61049f5d1154de587",
+    "run": 40080899030,
+    "diagnostic_revision": "86401d2f123f496f88c86767cb9a04daffd8fda8",
+    "comparisons": {
+      "selected": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "quality_informational": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      }
+    }
+  },
+  "collection_incidents": [
+    "Annotations truncated at 4096 bytes; full artifacts recovered through nightly.link and verified against official GitHub digests.",
+    "Initial Git-LF/local-CRLF collector manifest pin corrected without rerunning inference or changing limits."
+  ]
+}

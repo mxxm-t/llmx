@@ -1,0 +1,185 @@
+{
+  "scope": "Windows CPU and Vulkan focused current-main integration checkpoint. Not a complete landing gate.",
+  "feature_parent": "e8e1dacc817cb289e26510f06a851ad0f6159e42",
+  "main_parent": "d0c09440b745baec91c85dda646a7a3e240727ef",
+  "build_state": "Merge in progress, tracked-dirty at compilation. The subsequent checkpoint does not relabel these binaries.",
+  "version": "llmx 0.1.0+ge8e1dacc817c.dirty numerics 98bf6b691a333807",
+  "binaries": {
+    "llmx.exe": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-d0c-20261024\\build-integration\\Release\\llmx.exe",
+      "sha256": "0d64e13e1e86d5f771641363de1fd2d3fc4c50d03a11601f4973533a8da37706"
+    },
+    "llmx-model-logits.exe": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-d0c-20261024\\build-integration\\Release\\llmx-model-logits.exe",
+      "sha256": "e3734e2f9aad5cfe50cb377eef0d17ada30a2b959a4c78a18cda474a209f9e16"
+    }
+  },
+  "configure": {
+    "generator": "Visual Studio 18 2026",
+    "platform": "x64",
+    "vulkan": false,
+    "fresh_directory": true
+  },
+  "build": {
+    "configuration": "Release",
+    "parallel": 1
+  },
+  "ctest": {
+    "passed": 5,
+    "failed": 0,
+    "tests": [
+      "model-validation",
+      "server-passes-cpu",
+      "placement",
+      "weight-rows",
+      "iq1"
+    ]
+  },
+  "evidence_sha256": {
+    "build-quant-resume-20261020/iq1-d0c-build-20261024.log": "fbe65f68c19b5bcc53ecec436c6329837df2b254df1dfca6b5f9cffa2e4c06d6",
+    "build-quant-resume-20261020/iq1-d0c-helper-build-20261024.log": "e7ac457793a7c8ae3b7f1ca173b27a2bef62238bde11cf344f97a81494855239",
+    "build-quant-resume-20261020/iq1-d0c-ctest-20261024.log": "b024aad320a7e8d66c47b0e6f669864f494ce31311d3062c5867bddbfc716b7d",
+    "build-quant-resume-20261020/iq1-d0c-docs-20261024.log": "a56a25b0c252898f08c56f9f4284bc7e09003fa4441b92158856b3d024dd111b",
+    "worktrees/iq1-d0c-20261024/build-integration/CMakeCache.txt": "8ef515fb328ba20562b5a5c24f59cba598d914c27f202ca328c02ac53736c674",
+    "worktrees/iq1-d0c-20261024/build-integration/generated/llmx-build-info.hpp": "c5f4926e4d893b5cf33bc29f6d77f9aeab547c9f038dfbf926bf52ed2f88fe29"
+  },
+  "source_audit": {
+    "path": "build-quant-resume-20261020\\quant-d0c-source-audit-20261024.json",
+    "sha256": "08b44bd18271fa82b4cdd0ce2876738abcb8894ca5bafbeed563d9ab45b08d24"
+  },
+  "markdown_review": {
+    "path": "build-quant-resume-20261020\\quant-d0c-doc-review-20261024\\review.md",
+    "sha256": "9d44889c42276e0a1d1dc19ac907d0aa50b58bf74bc4fedc305fc4faff4ddc13",
+    "pages": 131,
+    "checkpoint_delta": "STATUS and this evidence record now also include the short Windows Vulkan integration checks. All other130 Markdown pages retain their reviewed blobs."
+  },
+  "limits": [
+    "No performance measurement",
+    "No fresh hosted pass",
+    "Prior numerical and timing records retain their original binary identity"
+  ],
+  "remaining": [
+    "Three default CPU 16K depth cells",
+    "Current-main device/identity and timing qualification",
+    "Hosted integration checks"
+  ],
+  "short_identity": {
+    "scope": "Fixed-input CPU integration identity only, with auto dtype and F32 KV. Not HF, 16K depth or performance qualification.",
+    "report_path": "build-quant-resume-20261020\\quant-d0c-short-identity-20261024\\results.json",
+    "report_sha256": "78052e85a69d1840b1caa28a9b4cfd00e0b672359e7653ddfb936531f16678d3",
+    "provenance_sha256": "141ece15c4fb5cd20df49216f759c5fbcbeca897fc71274db7332c1ab767414b",
+    "comparisons": [
+      {
+        "name": "IQ1_S",
+        "versions": [
+          "0.1.0+g58d505f3e698.dirty",
+          "0.1.0+ge8e1dacc817c.dirty"
+        ],
+        "metadata_exclusion": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "full_vocabulary_rows": 90,
+        "phases": {
+          "batched": {
+            "size": 7900672,
+            "sha256": "e61f1c1a7dbe29838dab120aab85a0d084d6ad5e0c914251ffe76ecfe1352910",
+            "exact_bytes": true
+          },
+          "decode": {
+            "size": 7900672,
+            "sha256": "9cf8d3a065727943c3201311a5757107086136bd398c161bde44f0df0b89c4a8",
+            "exact_bytes": true
+          },
+          "greedy": {
+            "size": 38895616,
+            "sha256": "8768f4c60f488dcf5cd00486686322a8777230d96e30d49d27bf0a62374e4441",
+            "exact_bytes": true
+          }
+        }
+      },
+      {
+        "name": "IQ1_M",
+        "versions": [
+          "0.1.0+g58d505f3e698.dirty",
+          "0.1.0+ge8e1dacc817c.dirty"
+        ],
+        "metadata_exclusion": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "full_vocabulary_rows": 90,
+        "phases": {
+          "batched": {
+            "size": 7900672,
+            "sha256": "ed5fa3187698d39b8f37f5c38788fb42e1b969c47d665f6f9acc3b63f37272c2",
+            "exact_bytes": true
+          },
+          "decode": {
+            "size": 7900672,
+            "sha256": "40dec35eff247f26c5377ae49a511040797dedf27dc34d78ca882fe4ca8a9571",
+            "exact_bytes": true
+          },
+          "greedy": {
+            "size": 38895616,
+            "sha256": "40fdac77a2598491efa63c6d15c66f88610b7d72143022af55e9132fabb6e3ce",
+            "exact_bytes": true
+          }
+        }
+      }
+    ]
+  },
+  "short_vulkan_identity": {
+    "scope": "Fixed 13 IDs, 13 batched + 13 decode + 64 greedy rows per model, auto effective f16, F32 KV, ubatch 3 and 6 helper threads. Compiled versions/numerics differ and remain recorded. Short Vulkan integration identity only; no HF, depth, performance or whole-runtime binary equality claim.",
+    "summary": {
+      "status": "passed",
+      "comparisons": [
+        {
+          "name": "IQ1_S",
+          "versions": [
+            "0.1.0+g58d505f3e698.dirty",
+            "0.1.0+g41e31ea5a0e6"
+          ],
+          "metadata_equal": true,
+          "all_bytes_equal": true
+        },
+        {
+          "name": "IQ1_M",
+          "versions": [
+            "0.1.0+g58d505f3e698.dirty",
+            "0.1.0+g41e31ea5a0e6"
+          ],
+          "metadata_equal": true,
+          "all_bytes_equal": true
+        }
+      ],
+      "capture_exits": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "versions": {
+        "exit_code": 0,
+        "stdout": "llmx 0.1.0+g41e31ea5a0e6 numerics 98bf6b691a333807\r\n",
+        "stderr": ""
+      },
+      "shader_counts": {
+        "before": 245,
+        "after": 245
+      },
+      "shader_bytes_identical": true,
+      "identity_sha256": "e8d05d862e57e61e6f9707101da7967a4b6cd957d6f2af26b4f16d319c6c43ee",
+      "limitations": "Fixed 13 IDs, 13 batched + 13 decode + 64 greedy rows per model, auto effective f16, F32 KV, ubatch 3 and 6 helper threads. Compiled versions/numerics differ and remain recorded. Short Vulkan integration identity only; no HF, depth, performance or whole-runtime binary equality claim."
+    },
+    "evidence": {
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\summary.json": "788e3c2962b9ca9e9e357bf0dfed67e26163bb96a2f731c04b66ff7cf192afd4",
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\identity.json": "e8d05d862e57e61e6f9707101da7967a4b6cd957d6f2af26b4f16d319c6c43ee",
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\result.json": "fe811ddf7cdbb99786699e79a3e311a4c5bde0995114367be46ced62cff6b57d",
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\compile.log": "b97ae8379847af544f171f38d50ce21a73a2c527ba19a958674c42fa5166b39c",
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\gpu-before-captures.json": "c6f0afce4cb702ed88b9f87d950f915414d41467658cbc97f742ac0e10737503",
+      "build-quant-resume-20261020\\iq1-d0c-windows-vulkan-20261024\\gpu-after-captures.json": "33ee2af749a2f192057773faa8c842ae8c6a9f17d2bd4d8488c7e3bae1b15d4c"
+    },
+    "activity": "Ordinary desktop RuneLite GPU activity recorded, no idle/performance claim."
+  }
+}

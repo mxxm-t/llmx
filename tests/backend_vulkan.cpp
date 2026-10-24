@@ -322,11 +322,11 @@ size_t check_matrix_witness(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
-    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
+    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
             "device int8 catalog does not name the TQ path");
     const std::string half_paths = integer
-        ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
-        : "block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+        ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+        : "block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");

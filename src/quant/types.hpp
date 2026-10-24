@@ -26,10 +26,12 @@ constexpr uint32_t GGML_TYPE_Q6_K = 14;
 constexpr uint32_t GGML_TYPE_IQ2_XXS = 16;
 constexpr uint32_t GGML_TYPE_IQ2_XS = 17;
 constexpr uint32_t GGML_TYPE_IQ3_XXS = 18;
+constexpr uint32_t GGML_TYPE_IQ1_S = 19;
 constexpr uint32_t GGML_TYPE_IQ4_NL = 20;
 constexpr uint32_t GGML_TYPE_IQ3_S = 21;
 constexpr uint32_t GGML_TYPE_IQ2_S = 22;
 constexpr uint32_t GGML_TYPE_IQ4_XS = 23;
+constexpr uint32_t GGML_TYPE_IQ1_M = 29;
 constexpr uint32_t GGML_TYPE_BF16 = 30;
 constexpr uint32_t GGML_TYPE_TQ1_0 = 34;
 constexpr uint32_t GGML_TYPE_TQ2_0 = 35;
@@ -63,6 +65,10 @@ constexpr size_t   IQ2_XXS_BLOCK = 256;
 constexpr size_t   IQ2_XXS_TYPESIZE = 66; // f16 + 32 packed index/sign words
 constexpr size_t   IQ2_XS_BLOCK = 256;
 constexpr size_t   IQ2_XS_TYPESIZE = 74; // f16 + 32 index/sign words + 8 scale bytes
+constexpr size_t   IQ1_S_BLOCK = 256;
+constexpr size_t   IQ1_S_TYPESIZE = 50; // f16 + 32 indices + eight scale/shift/high-index words
+constexpr size_t   IQ1_M_BLOCK = 256;
+constexpr size_t   IQ1_M_TYPESIZE = 56; // 32 indices + 16 high-index/shift bytes + eight scale bytes
 constexpr size_t   IQ4_NL_BLOCK = 32;
 constexpr size_t   IQ3_XXS_BLOCK = 256;
 constexpr size_t   IQ3_XXS_TYPESIZE = 98; // f16 + 64 indices + eight packed scale/sign words
@@ -94,10 +100,10 @@ inline const StorageType* storage_type(uint32_t id) {
         {"Q2_K", Q2_K_BLOCK, Q2_K_TYPESIZE}, {"Q3_K", Q3_K_BLOCK, Q3_K_TYPESIZE},
         {"Q4_K", Q4_K_BLOCK, Q4_K_TYPESIZE}, {"Q5_K", Q5_K_BLOCK, Q5_K_TYPESIZE},
         {"Q6_K", Q6_K_BLOCK, Q6_K_TYPESIZE}, {"Q8_K", 256, 292},
-        {"IQ2_XXS", IQ2_XXS_BLOCK, IQ2_XXS_TYPESIZE}, {"IQ2_XS", IQ2_XS_BLOCK, IQ2_XS_TYPESIZE}, {"IQ3_XXS", IQ3_XXS_BLOCK, IQ3_XXS_TYPESIZE}, {"IQ1_S", 256, 50},
+        {"IQ2_XXS", IQ2_XXS_BLOCK, IQ2_XXS_TYPESIZE}, {"IQ2_XS", IQ2_XS_BLOCK, IQ2_XS_TYPESIZE}, {"IQ3_XXS", IQ3_XXS_BLOCK, IQ3_XXS_TYPESIZE}, {"IQ1_S", IQ1_S_BLOCK, IQ1_S_TYPESIZE},
         {"IQ4_NL", IQ4_NL_BLOCK, IQ4_NL_TYPESIZE}, {"IQ3_S", IQ3_S_BLOCK, IQ3_S_TYPESIZE}, {"IQ2_S", IQ2_S_BLOCK, IQ2_S_TYPESIZE}, {"IQ4_XS", IQ4_XS_BLOCK, IQ4_XS_TYPESIZE},
         {"I8", 1, 1}, {"I16", 1, 2}, {"I32", 1, 4}, {"I64", 1, 8}, {"F64", 1, 8},
-        {"IQ1_M", 256, 56}, {"BF16", 1, 2},
+        {"IQ1_M", IQ1_M_BLOCK, IQ1_M_TYPESIZE}, {"BF16", 1, 2},
         {}, {}, {},
         {"TQ1_0", TQ1_0_BLOCK, TQ1_0_TYPESIZE}, {"TQ2_0", TQ2_0_BLOCK, TQ2_0_TYPESIZE},
         {}, {}, {},

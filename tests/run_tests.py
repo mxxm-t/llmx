@@ -30,6 +30,7 @@ import iq3_s
 import iq2_s
 import iq3_xxs
 import iq2_small
+import iq1
 import tq
 import qwen35
 import split
@@ -134,6 +135,7 @@ def main():
                   ("iq2-xxs", iq2_small.run_xxs),
                   ("iq2-xs", iq2_small.run_xs),
                   ("iq3-xxs", iq3_xxs.run),
+                  ("iq1", iq1.run),
                   ("tq1-0", tq.run_tq1),
                   ("tq2-0", tq.run_tq2),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),

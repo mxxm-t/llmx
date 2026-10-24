@@ -8,7 +8,7 @@ IQ2_XXS and IQ2_XS have published read-only CPU/Vulkan inference support. `iq2_s
 
 `iq2_layout.glsl` selects the packed size, type and dictionary size for the matrix shader builds. These build definitions stay out of `q.glsl`, whose constants and runtime block sizing are also used by unrelated shaders. Both IQ2 includes are explicit shader build dependencies.
 
-Each lookup format's `WeightKernels` row holds its immutable dictionary pointer and byte count. `lookup_grid` lazily adopts that data into one buffer per descriptor. The backend drains work before those buffers are released. Formats without a dictionary retain their supplied binding. Model, loading and server code do not select or upload these dictionaries.
+IQ1_S and IQ1_M support read-only inference. `iq1_layout.glsl` owns their compile-time type and block selectors and is included only by the row, float-tile and integer-tile matrix owners. `iq1.glsl` owns their shared ternary lookup and separate field layouts; `iq1_dot.glsl` adapts both formats to the existing 16-bit lookup dot and range repair. Each format's immutable dictionary pointer and byte count live in its `WeightKernels` descriptor. The generic `lookup_grid` path lazily adopts a per-format buffer in `lookup_grids_`, shared with other lookup formats; IQ1 has no separate dictionary-buffer owner. Embedding reads the dictionary buffer directly. Float and integer row/tile variants stage it through `lookup_cache.glsl` in shared memory before early returns. IQ1_S keeps its 50-byte block stride, and IQ1_M reads its distributed half scale through `iq1_scale`. Explicit F32/BF16 keep float paths; F16/int8 requests reuse lookup-dot profile selection with signed int16 codes of magnitude at most 135 and common d/8 scale. The 32-value integer sum is bounded by 141553440 for activation magnitude 32767, within int32. CPU/Vulkan qualification is complete, with numerical, integration, timing and hosted evidence in [STATUS](../STATUS.md).
 
 IQ3_XXS has read-only CPU/Vulkan inference support. Its `iq3_xxs.glsl` owns the unaligned block layout, four-value dictionary indices, parity signs and odd subscales. The backend uploads the 256-word dictionary once. Embedding and integer rows read it directly, while float rows and tiles reuse the shared lookup cache. `iq3_xxs_dot.glsl` adapts 32-value groups to the existing packed-dot and range-repair owner. Folding the odd subscale into signed weights leaves an exact d/4 scale and magnitudes at most 1922. Even 32 products with activation magnitude 32768 fit int32. Explicit F32 and BF16 retain float paths, while F16/int8 reuse the existing profile preferences. No model, loader or server dispatch is added. Qualification is recorded in STATUS.
 
@@ -125,6 +125,8 @@ The lifetime and packed-quantization tests include the implementation and use te
   entry is published after completion. Diagnostic query pools are destroyed
   after device idle. The [backend audit](../benchmarks/backend-audit-20260925/README.md)
   retains the original failures and probe scope.
+The real-device `vulkan-lifetime` check uses its existing private test friend to require one shared IQ1 dictionary buffer in S-to-M and M-to-S order, stable repeat lookups, distinct IQ2_XXS storage and exact uploaded IQ1 bytes. It adds no runtime diagnostics or configuration.
+
 - `adopt` copies weights through two staging halves and returns after consuming
   the source, with device copies still ordered on the queue. If a later upload
   chunk fails, it drains the queue before releasing the local destination.

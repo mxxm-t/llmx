@@ -1,0 +1,69 @@
+{
+  "scope": "Fresh Windows CPU build and focused native integration checkpoint. Not a complete landing gate.",
+  "feature_parent": "c1cea7360c25d32de5638e7c9d9d9db9db9217a8",
+  "main_parent": "d0c09440b745baec91c85dda646a7a3e240727ef",
+  "build_state": "Merge in progress, tracked-dirty at compilation. The subsequent checkpoint does not relabel these binaries.",
+  "version": "llmx 0.1.0+gc1cea7360c25.dirty numerics 92fcef24750c8730",
+  "binaries": {
+    "llmx.exe": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-integration\\Release\\llmx.exe",
+      "sha256": "7a1bbcb3a94bf1bf5341efd8cc2aecaab8072fa1bd23d9b0ccd16c1305bbbd8b"
+    },
+    "llmx-model-logits.exe": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-integration\\Release\\llmx-model-logits.exe",
+      "sha256": "010226656a164f29b33acac3836309f8291abedc54336cf40391123f5e6c8ab4"
+    }
+  },
+  "configure": {
+    "generator": "Visual Studio 18 2026",
+    "platform": "x64",
+    "vulkan": false,
+    "fresh_directory": true
+  },
+  "build": {
+    "configuration": "Release",
+    "parallel": 1
+  },
+  "ctest": {
+    "passed": 4,
+    "failed": 0,
+    "tests": [
+      "model-validation",
+      "placement",
+      "weight-rows",
+      "tq-format"
+    ]
+  },
+  "evidence_sha256": {
+    "build-quant-resume-20261020/tq-d0c-build-20261024.log": "7d17aff76accb4f8351a98462c26d90846f88ef87a30defd6a3c2ca9758795a6",
+    "build-quant-resume-20261020/tq-d0c-helper-build-20261024.log": "c87f3165498c9875f172fc3efe7231df0c32383eb01f77f94d892d86f75c2936",
+    "build-quant-resume-20261020/tq-d0c-ctest-20261024.log": "30d6f97557b63ebd1af505bc9210701e66099dc839770c89e6723edb1b721cd1",
+    "build-quant-resume-20261020/tq-d0c-docs-20261024.log": "461c3f9615b1bd0457067892e4828f7fe478f14acb047041361019db268b21d1",
+    "worktrees/tq-d0c-20261024/build-integration/CMakeCache.txt": "a89f68fccbcbc38926b36218c057888fd114fe73eefe60fd9feb6d8a4de95f45",
+    "worktrees/tq-d0c-20261024/build-integration/generated/llmx-build-info.hpp": "fdadc85e0d13ae5d17eac3e1736ebf8fccb27fc436de9f12be1c9181a8b01355"
+  },
+  "source_audit": {
+    "path": "build-quant-resume-20261020\\quant-d0c-source-audit-20261024.json",
+    "sha256": "08b44bd18271fa82b4cdd0ce2876738abcb8894ca5bafbeed563d9ab45b08d24"
+  },
+  "markdown_review": {
+    "path": "build-quant-resume-20261020\\quant-d0c-doc-review-20261024\\review.md",
+    "sha256": "9d44889c42276e0a1d1dc19ac907d0aa50b58bf74bc4fedc305fc4faff4ddc13",
+    "pages": 130,
+    "checkpoint_delta": "Only this evidence record and the STATUS native-checkpoint paragraph are added after the review."
+  },
+  "limits": [
+    "CPU only",
+    "No performance measurement",
+    "Short released-file identity remains pending",
+    "No fresh hosted pass",
+    "Prior numerical and timing records retain their original binary identity"
+  ],
+  "remaining": [
+    "Linux and MI50 qualification",
+    "Released-file HF and 16K depth",
+    "Current-main identity and timing",
+    "Matched mx Vulkan timing",
+    "Hosted integration checks"
+  ]
+}

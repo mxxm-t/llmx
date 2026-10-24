@@ -77,7 +77,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             if (lookup_role && lookup_role->tensor) {
                 const TensorView& source = weights.tensors[*lookup_role->tensor];
                 if (source.row_source)
-                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->io_bytes()};
+                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->staging_bytes()};
             }
         }
         for (const Role& role : layer.roles)
@@ -370,6 +370,7 @@ struct PlacedModel {
     size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
     std::string kv_kept_context;       // why an automatic budget (PlacementRequest::kv_auto) kept the model's context, empty where it read the devices
     std::string unpaced;               // why no stage of it is fed in pieces (unpaced), empty where one is
+    bool pipelined_split = false;      // it is a layer split whose stages take passes in flight (Model::pipelined), which the server serves by the interleaved rule
 };
 
 // A placement without model buffers: the loader attaches the selected row sources before constructing it once.
@@ -866,6 +867,7 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
     placed.checkpoint_kv_tokens = planned.checkpoint_kv_tokens;
     placed.kv_kept_context = std::move(planned.kv_kept_context);
     placed.unpaced = std::move(planned.unpaced);
+    placed.pipelined_split = placed.model->pipelined() && placed.model->stage_count() > 1;
     return placed;
 }
 

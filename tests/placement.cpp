@@ -351,9 +351,11 @@ void external_lookup_fits() {
     const auto host_capacity = [&](size_t token_rows) {
         if (!token_rows) return size_t(0);
         const size_t count = token_rows * 2;
-        return rounded(count * row_bytes) + count * (2 * sizeof(size_t) + 2 * sizeof(uint32_t)) + rounded(page + 1);
+        return rounded(count * row_bytes) + count * (2 * sizeof(size_t) + 2 * sizeof(uint32_t));
     };
-    const size_t host_capacity_total = host_capacity(normal_rows) + host_capacity(apart_rows);
+    // The table's read windows are counted once, whatever scratches read it (WeightRows::staging_bytes).
+    const size_t windows = rounded(page + 1);
+    const size_t host_capacity_total = host_capacity(normal_rows) + host_capacity(apart_rows) + windows;
     auto device = [](size_t bytes) {
         infer::DeviceBudget d;
         d.name = "device";
@@ -361,13 +363,13 @@ void external_lookup_fits() {
         return d;
     };
     const auto normal_only = infer::split_layers(fit, {device(normal_rows * 2 * row_bytes), device(size_t(1) << 20)}, normal_rows,
-                                                 {1, 1}, host_capacity(normal_rows), 1, size_t(0));
-    require(normal_only.stages[0].other == normal_rows * 2 * row_bytes && normal_only.host == host_capacity(normal_rows),
-            "a normal-only lookup did not fit its own rounded host window");
+                                                 {1, 1}, host_capacity(normal_rows) + windows, 1, size_t(0));
+    require(normal_only.stages[0].other == normal_rows * 2 * row_bytes && normal_only.host == host_capacity(normal_rows) + windows,
+            "a normal-only lookup did not fit its rows and the table's rounded read windows");
     const auto split = infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, 5, {1, 1},
                                            host_capacity_total, 1, size_t(0), apart_rows);
     require(split.stages[0].other == device_capacity && split.stages[1].other == 0 && split.host == host_capacity_total,
-            "external lookup memory was not charged to its layer device and separate host windows");
+            "external lookup memory was not charged to its layer device, separate host rows and the table's windows once");
     bool device_short = false;
     try {
         infer::split_layers(fit, {device(device_capacity - 1), device(size_t(1) << 20)}, 5, {1, 1},

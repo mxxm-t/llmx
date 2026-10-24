@@ -187,7 +187,7 @@ HF top-k tie behavior is unspecified, so the tests claim no HF tie-membership pa
 | Shared graph math | `src/model/arch/blocks.hpp` and the existing delta-net and MoE operations, where their math matches |
 | Numerical operations | Mathematical contracts in `src/backends/backend.hpp`; CPU implementations under `src/backends/cpu/`, Vulkan implementations and shaders under `src/backends/vulkan/` |
 | Persistent sequence state and rollback | The shared runtime, history and backend storage, extended by declared state requirements (section 4) rather than architecture-name branches |
-| Immutable lookup rows | `src/model/weight_rows.hpp` (`WeightRows`) reads bounded rows from memory or a file; `TensorView::row_source` connects a declared lookup to the runtime, and `Model::prepare_lookup` in `src/model/passes.hpp` stages each pass's rows |
+| Immutable lookup rows | `src/model/weight_rows.hpp` (`WeightRows`) reads bounded rows from memory or a file; `TensorView::row_source` connects a declared lookup to the runtime, and `Model::start_lookup` and `Model::finish_lookup` in `src/model/passes.hpp` stage each pass's rows |
 | Lookup storage | `src/model/place.hpp`: `PlacementRequest::lookup_storage` and the fit choose `device` or `file` for each table (section 3) |
 | File opening, model spans and loading progress | `src/inference/load.hpp` builds each table's row source over its exact `format::FileSpan` before placement, and holds the mapping or the direct reader the chosen storage reads through |
 | Memory fit and placement | `src/model/place.hpp`, `layer_split.hpp` and `shard.hpp` over the module's declarations |
@@ -209,7 +209,7 @@ Hashing, row layout interpretation and the learned operations stay in the archit
 The loader (`src/inference/load.hpp`) builds a `WeightRows` source over each table's exact file span, and placement (`plan_placement` in `src/model/place.hpp`) chooses each table's storage before the loader reads any whole table.
 A table read from its file is counted in the fit by its host and device row staging alone, and never joins the load's stream or the warming of `mapped`.
 
-Each pass, `Model::prepare_lookup` has the architecture compute the row ids on the group's first member, reads each distinct row once (`WeightRows::read` sorts and deduplicates the ids, coalesces contiguous rows and returns an ordered remap), and uploads the packed rows to each member of the group.
+Each pass, `Model::start_lookup` has the architecture compute the row ids on the group's first member as the stage begins and starts reading each distinct row once on the reader's threads (`WeightRows::start` sorts and deduplicates the ids, coalesces contiguous rows and keeps an ordered remap), and `Model::finish_lookup` takes them just before the layer and uploads the packed rows to each member of the group.
 The backend's gather then reads them in the request's order, duplicates included.
 Ordinary passes and passes recorded apart have separate row staging and remap storage, since the ordinary embedding reuses its index scratch.
 The recurrent rerun after a retract uses the saved PLE inputs and reads no rows again.

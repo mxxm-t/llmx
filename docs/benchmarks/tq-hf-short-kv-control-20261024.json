@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-24",
+  "scope": "Cache-only 247-token batched diagnosis, not full default, per-token, windowed, depth or quant qualification. No limits changed.",
+  "audit_receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hf-short-kv-control-prep-v1\\run-40086709967\\control-audit.json",
+    "sha256": "de5c99a679a27ab8bb44b836f60f000f1f8d0ff307e6694806f097eea4fbd233"
+  },
+  "run": 40086709967,
+  "temporary_head": "f77552ca4b181885e1cff87aaffb84b9393247ef",
+  "ci_status": "failed",
+  "metadata_correction": "Validate the producer's actual hf.revision field. Original failed receipts and CI result remain unchanged. No inference rerun.",
+  "original_failures_and_references_untouched": true,
+  "cells": [
+    {
+      "cell": "tq1-0",
+      "artifact_id": 12557516871,
+      "artifact_sha256": "a3875be23ce8bb620dfb7f2eec6a692f1988d9d7c608c0b270801b4187924130",
+      "execution_sha256": "a84bd9aff5b6bf3db4799e07aeb0bae04bbb37d51a673900dea4b5489702e515",
+      "manifest_sha256": "d0b7782ecc61bb1f61ce21e3e8eae175211fde827e5c5659472e3c1597bf898a",
+      "control_sha256": "3ab2c18c5f8f6a3c641b02af606824ad4189c744b4298f1fb179b802a8020e65",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "hf_f32_nll": 16.524822722948823,
+      "hf_f16_kv_nll": 16.492855670544838,
+      "hf_storage_effect": -0.03196705240398501,
+      "cpu_f16_kv_nll": 16.494195567,
+      "cpu_same_kv_delta": 0.0013398964551605275,
+      "radeon_f16_kv_nll": 16.493630537,
+      "radeon_same_kv_delta": 0.0007748664551634477,
+      "existing_continuous_bound": 0.01,
+      "container_peak_bytes": 4303048704,
+      "inference_exit_zero_no_oom_removed": true,
+      "ci_status": "failed",
+      "ci_error": "KeyError('reference_revision')",
+      "control_receipt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hf-short-kv-control-prep-v1\\run-40086709967\\tq-kv-control-tq1-0\\tq1-0\\tq1-0-file-exact\\kv-storage-control.json",
+        "sha256": "3ab2c18c5f8f6a3c641b02af606824ad4189c744b4298f1fb179b802a8020e65"
+      },
+      "source": {
+        "gen_baseline_sha256": "f1e39139100cc994839d9007c0477a36b3fb9f84808fb55a7ca17bdee12a17f6",
+        "loader_closure_sha256": {
+          "tests/spec_decode.py": "6b59a45a5fccc361b9aa17112f5f3047ede8b27fa76c8701d66b2fbd36cc2f43",
+          "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+          "tests/baseline.py": "d3e86488fa24356d8d4e93972b5765df1072e1cb8c0f1e8ec8fa4b0a43bf5111",
+          "tests/baseline_8b.py": "5458095d73e4a17316d39d0ba546ccad1d7cb300500b4811e99c0a0b7a01e1f3"
+        },
+        "kv_control_sha256": "29df1a5dd0c3122dadbf5f7093d6fbb0f05b908000c54e74d76c76db9f623b5d"
+      },
+      "hf": {
+        "repo": "Qwen/Qwen3-0.6B",
+        "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "attention": "eager",
+        "threads": 4
+      },
+      "input": {
+        "baseline_perplexity_sha256": "73b8d67ba958ca1226a6d93ea6986c89b8a0ed14f3cf656b9c7b8001222711ee",
+        "token_ids_sha256": "1d01931c58e23f6189cbd8a8f19d33e5c1c83ad106827d3253e9c1348869abb9",
+        "tokens": 247,
+        "scored_targets": 246
+      },
+      "operations": "F32 model weights, F32 Linear/head inputs and sums, eager attention; no lm_head rounding hook.",
+      "hf_result_hashes": {
+        "f32_no_cache": {
+          "mean_nll": 16.524822722948823,
+          "nll_sha256": "a2221e7924e7ecef091ba93ade143dbf84c9a2e6298a7b0f7b938834eee3d9bc",
+          "logits_sha256": "17d3a8f187dc880a2fd5774e52e723d3a6613860401ada47b38b93d738bc308c"
+        },
+        "f32_cache": {
+          "mean_nll": 16.524822722948823,
+          "nll_sha256": "a2221e7924e7ecef091ba93ade143dbf84c9a2e6298a7b0f7b938834eee3d9bc",
+          "logits_sha256": "17d3a8f187dc880a2fd5774e52e723d3a6613860401ada47b38b93d738bc308c"
+        },
+        "f16_storage_cache": {
+          "mean_nll": 16.492855670544838,
+          "nll_sha256": "48cafb99dbed5f04e73ffae17af0c561432f6782f566a85160175be65459f2d9",
+          "logits_sha256": "574cb51a2bb70b11eadfc401184c4c46fd3c9a37edef493a982ea4204e80b71d"
+        }
+      },
+      "f16_write_witnesses": "All 28 layers: one call, 247 rows each."
+    },
+    {
+      "cell": "tq2-0",
+      "artifact_id": 12557157405,
+      "artifact_sha256": "bb12b7a2b13935677fd917ba0091c517bc6e788776a1c14a33970ac45b578cba",
+      "execution_sha256": "5db631efb7fef9510db47034af4c1f8c1bed2cee0a9b5e25276a23e7e3da8136",
+      "manifest_sha256": "4cfdd19b549ecf6ae7df4d0b717b05ed3273d1c63b87271acb0420662793aee4",
+      "control_sha256": "ee340b8eb17779c7886a1cb9e38dbb741f168e3125bae2267569a186c84bac15",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "hf_f32_nll": 16.52482490256211,
+      "hf_f16_kv_nll": 16.496874901985624,
+      "hf_storage_effect": -0.027950000576485223,
+      "cpu_f16_kv_nll": 16.494195567,
+      "cpu_same_kv_delta": 0.002679334985625559,
+      "radeon_f16_kv_nll": null,
+      "radeon_same_kv_delta": null,
+      "existing_continuous_bound": 0.01,
+      "container_peak_bytes": 4217860096,
+      "inference_exit_zero_no_oom_removed": true,
+      "ci_status": "failed",
+      "ci_error": "KeyError('reference_revision')",
+      "control_receipt": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hf-short-kv-control-prep-v1\\run-40086709967\\tq-kv-control-tq2-0\\tq2-0\\tq2-0-file-exact\\kv-storage-control.json",
+        "sha256": "ee340b8eb17779c7886a1cb9e38dbb741f168e3125bae2267569a186c84bac15"
+      },
+      "source": {
+        "gen_baseline_sha256": "f1e39139100cc994839d9007c0477a36b3fb9f84808fb55a7ca17bdee12a17f6",
+        "loader_closure_sha256": {
+          "tests/spec_decode.py": "6b59a45a5fccc361b9aa17112f5f3047ede8b27fa76c8701d66b2fbd36cc2f43",
+          "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+          "tests/baseline.py": "d3e86488fa24356d8d4e93972b5765df1072e1cb8c0f1e8ec8fa4b0a43bf5111",
+          "tests/baseline_8b.py": "5458095d73e4a17316d39d0ba546ccad1d7cb300500b4811e99c0a0b7a01e1f3"
+        },
+        "kv_control_sha256": "29df1a5dd0c3122dadbf5f7093d6fbb0f05b908000c54e74d76c76db9f623b5d"
+      },
+      "hf": {
+        "repo": "Qwen/Qwen3-0.6B",
+        "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "attention": "eager",
+        "threads": 4
+      },
+      "input": {
+        "baseline_perplexity_sha256": "b8db3d5af0c1074393b16975fb975635a28a172d82cc266c3b06cb0dba274dff",
+        "token_ids_sha256": "1d01931c58e23f6189cbd8a8f19d33e5c1c83ad106827d3253e9c1348869abb9",
+        "tokens": 247,
+        "scored_targets": 246
+      },
+      "operations": "F32 model weights, F32 Linear/head inputs and sums, eager attention; no lm_head rounding hook.",
+      "hf_result_hashes": {
+        "f32_no_cache": {
+          "mean_nll": 16.52482490256211,
+          "nll_sha256": "7e5dcc3f9c65c67992997b1738632a6c69a202c3af2f061c6e0cceef614b5759",
+          "logits_sha256": "e8821216f46e4e4b66be47fb19e5392b2a33e4860e0137a0a199132dfde1e50c"
+        },
+        "f32_cache": {
+          "mean_nll": 16.52482490256211,
+          "nll_sha256": "7e5dcc3f9c65c67992997b1738632a6c69a202c3af2f061c6e0cceef614b5759",
+          "logits_sha256": "e8821216f46e4e4b66be47fb19e5392b2a33e4860e0137a0a199132dfde1e50c"
+        },
+        "f16_storage_cache": {
+          "mean_nll": 16.496874901985624,
+          "nll_sha256": "a36cfc796a8c02d3873c7c142a241171280b29aff630040a9aef0659375e2d9f",
+          "logits_sha256": "9ad2a02411327764d515a481160d22ab4794d772457e518ced651763a7db884c"
+        }
+      },
+      "f16_write_witnesses": "All 28 layers: one call, 247 rows each."
+    }
+  ],
+  "interpretation": "HF itself exhibits the cache-storage shift, so the first F32-reference/default-KV failure alone does not establish a TQ decoder or kernel defect. Same-F16-KV diagnostic gaps are inside 0.01 for the three measured candidate cases. Peer review remains pending; no full default or depth acceptance.",
+  "no_changes": [
+    "Runtime",
+    "Numerical limits",
+    "Original diagnostic failure evidence",
+    "Original file-exact references"
+  ],
+  "limitations": [
+    "Only one 247-token batched excerpt with 246 scored targets.",
+    "No per-token, windowed or 16K acceptance.",
+    "Radeon TQ2_0 default was not measured.",
+    "The HF control keeps F32 matrices and head; it is cache-only and does not emulate reduced matrix inputs or Q6_K decode head paths."
+  ]
+}

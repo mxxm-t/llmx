@@ -1,0 +1,73 @@
+{
+  "scope": "HF-only chunk256 diagnostic resource stop; no scored reference or numerical verdict.",
+  "progress_tokens": 14592,
+  "total_tokens": 16895,
+  "passed": false,
+  "removed": true,
+  "oom_killed": false,
+  "expected_input_pins": {
+    "bundle": {
+      "bundle_pin_files": 9,
+      "bundle_pins_sha256": "e0fd42fc269ea848bfffb5d08da4584acce41ccc0af9d67b8157ef5369ea45f7",
+      "runner_sha256": "3c81dd595205d2fbb694ff59bc45da4fb80539b8b21e0e818d3e53fa2756caa5"
+    },
+    "source_v2": {
+      "archive_sha256": "a3090986a7bad14fc300e91ee824cf463dbbfc6182ed3c3ed933229a98ffdb17",
+      "manifest_sha256": "abd14a9b2b48443c531f4a2841562c786dd3c61f681484ab5496491070d6472c",
+      "files": 2322,
+      "revision": "e32e5ae3d055918640e81f7afca4c2846af4aa0f"
+    },
+    "models": {
+      "tq1-0": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+    },
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "input_artifacts": 12,
+    "producer_sha256": "4a2b4e2679bd2c7a8f4217b5f37086acd6f296a4421944d1f69ea64b0e2cf2e8",
+    "image_id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "versions_expected": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "tokenizers": "0.21.4"
+    }
+  },
+  "guard": {
+    "at": 1792871734.0642447,
+    "host_available_bytes": 14531829760,
+    "required_host_available_bytes": 14587027456,
+    "memory.current": "7248158720",
+    "memory.peak": "7782244352",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+    "peer_memory_reservations": {
+      "/llmx-xdev-tq-cpu-f32-tq2-raw-2604799": {
+        "memory_cap_bytes": 10737418240,
+        "used_bytes": 4028260352,
+        "unused_reserved_bytes": 6709157888
+      },
+      "/llmx-health-dashboard": {
+        "memory_cap_bytes": 268435456,
+        "used_bytes": 174792704,
+        "unused_reserved_bytes": 93642752
+      }
+    },
+    "disappeared_container_ids": []
+  },
+  "dynamic_peer_tracking": "Fresh snapshot correctly includes active TQ2 raw peer. This does not establish causal blame for the host-memory shortfall.",
+  "limitations": [
+    "No scored reference.",
+    "Post-run input pins absent.",
+    "The recorded container_state is pre-removal running state; removed flag records subsequent cleanup."
+  ],
+  "next": "Retry waits for CPU continuation release; reserves, caps, producer arithmetic and frozen chunk-512 reference unchanged.",
+  "receipts": {
+    "build-quant-resume-20261020/tq-hf-chunk256-v2-collected-20261024/execution.json": "c4fba08657de5becc78288c18a9048205bbeaa88410a3993503004a6d46d03d5",
+    "build-quant-resume-20261020/tq-hf-chunk256-v2-collected-20261024/run.log": "74b83f6b86cc42ab23eeb80218dfb02c25da915b9ccc3850553bf1ad1f014c00"
+  },
+  "artifact_verification": {
+    "receipt_artifacts": 6,
+    "all_sha256_verified_by_root": true,
+    "execution_sha256": "c4fba08657de5becc78288c18a9048205bbeaa88410a3993503004a6d46d03d5",
+    "partial_report": "chunk256 recorded; no complete or completed_variants; payload passed false; no scored array.",
+    "post_run_pins_present": false
+  }
+}

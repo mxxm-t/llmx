@@ -1,0 +1,98 @@
+{
+  "scope": "Hosted CI for the TQ integration candidate only. No released TQ HF/depth, GPU runtime or performance pass is implied.",
+  "run_id": 40072900319,
+  "url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319",
+  "head": "823c222fd287d9912793d372fb1efa0a51ffbb40",
+  "branch": "gate/tq-pair-20261024",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 120809984205,
+      "name": "CPU (Linux TSan)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984205",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:33Z",
+      "completed_at": "2026-10-24T07:31:15Z"
+    },
+    {
+      "id": 120809984313,
+      "name": "CPU (Linux UBSan)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984313",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:33Z",
+      "completed_at": "2026-10-24T07:48:06Z"
+    },
+    {
+      "id": 120809984340,
+      "name": "CPU (macos-15-intel)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984340",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:35Z",
+      "completed_at": "2026-10-24T08:03:34Z"
+    },
+    {
+      "id": 120809984354,
+      "name": "HF reference (CPU)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984354",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:34Z",
+      "completed_at": "2026-10-24T08:02:27Z"
+    },
+    {
+      "id": 120809984372,
+      "name": "CPU (ubuntu-24.04)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984372",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:34Z",
+      "completed_at": "2026-10-24T07:38:36Z"
+    },
+    {
+      "id": 120809984381,
+      "name": "CPU (windows-2022)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984381",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:33Z",
+      "completed_at": "2026-10-24T07:56:31Z"
+    },
+    {
+      "id": 120809984428,
+      "name": "Vulkan backend (build, Linux)",
+      "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40072900319/job/120809984428",
+      "conclusion": "success",
+      "started_at": "2026-10-24T07:07:33Z",
+      "completed_at": "2026-10-24T07:37:49Z"
+    }
+  ],
+  "source_checkpoint": "cefc480aea6c0ad6fdd02cf4f771d7efbd9fa270",
+  "source_test_fixture_build_delta": [],
+  "workflow_difference": "Hosted head includes the separate HF whole-job budget change60 to75 minutes. Inner timeouts, test steps and numerical limits remain unchanged. This local feature tree does not yet include that workflow commit.",
+  "retained_api_records": [
+    {
+      "path": "build-quant-resume-20261020/tq-d0c-ci-observations/20261024T080734243042Z.json",
+      "sha256": "8481a57d86cf8052034d552a2c466b538479b0f94ff96ed86e9a9c036392d621"
+    },
+    {
+      "path": "build-quant-resume-20261020/tq-d0c-ci-observations/20261024T080734243042Z-jobs.json",
+      "sha256": "9fd522833a2430be12d65a10ae81cc95a0708c0beeda32c726a56caa2bfae53f"
+    }
+  ],
+  "limits": [
+    "Hosted Vulkan job builds and tests on CPU; no physical GPU is available.",
+    "Released TQ file-exact HF,raw/chat16K,MI50 split and matched mx Vulkan speed remain pending.",
+    "Current public main5ab233d32 differs from integration main d0c09440b only in dashboard presentation,its browser test and docs.",
+    "No main merge or full quant gate pass."
+  ],
+  "checkpoint_checks": {
+    "components": [
+      "docs",
+      "dead-code"
+    ],
+    "status": "passed",
+    "log_path": "build-quant-resume-20261020/tq-hosted-checkpoint-docs-20261024.log",
+    "log_sha256": "391fb5cf6719489a1409b974f2cee2f2def57d588a7e8eb367079d74d0813e6a",
+    "markdown_pages": 130,
+    "changed_markdown": [
+      "docs/STATUS.md"
+    ]
+  }
+}

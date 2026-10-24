@@ -1,0 +1,687 @@
+{
+  "scope": "Reference artifacts, probe compilation and partial TP2 progress. No candidate depth or merge qualification.",
+  "probe_run": 40106666694,
+  "probe_head": "48c0a0fb55b67485183f074176aef1439bdffb37",
+  "probe_artifact": {
+    "id": 12564704111,
+    "node_id": "MDg6QXJ0aWZhY3QxMjU2NDcwNDExMQ==",
+    "name": "tq-probes-40106666694",
+    "size_in_bytes": 6066391,
+    "url": "https://api.github.com/repos/mxxm-t/llmx/actions/artifacts/12564704111",
+    "archive_download_url": "https://api.github.com/repos/mxxm-t/llmx/actions/artifacts/12564704111/zip",
+    "expired": false,
+    "digest": "sha256:0fa344713bf84d30bc5a78fab86a305be3e7d139258ddb93311f40183835448e",
+    "created_at": "2026-10-24T15:26:43Z",
+    "updated_at": "2026-10-24T15:26:43Z",
+    "expires_at": "2026-11-23T15:26:41Z",
+    "workflow_run": {
+      "id": 40106666694,
+      "repository_id": 1376477851,
+      "head_repository_id": 1376477851,
+      "head_branch": "diag/tq-probe-build-20261024",
+      "head_sha": "48c0a0fb55b67485183f074176aef1439bdffb37"
+    }
+  },
+  "probe_execution_sha256": "eee77f67d6e6382ac05ee16cc6c9d1c57d382148b950a86521b56721e7a0c95f",
+  "probe_execution": {
+    "schema": "tq-hosted-probe-build-execution-v1",
+    "status": "passed",
+    "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+    "candidate_tree": "2f66f4090866e2a0733d504f7d3526540a63f020",
+    "hosted_build_run_id": 40101812090,
+    "hosted_artifact_id": 12563587325,
+    "hosted_artifact_digest": "c2d855a5f83f7c0d9f75c18f35dd4cabdd63882a21c32b7efb3bf938836fbeaa",
+    "hosted_image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "started_unix": 1792855534.9260302,
+    "verify_only": false,
+    "artifact_files": {
+      "build-output.tar.gz": {
+        "bytes": 140262357,
+        "sha256": "5ef6296d36ca6e7d4b013de8382b403fcf6e7cf21d3d415cf572c0435f9fe75d"
+      },
+      "build-image.tar.gz": {
+        "bytes": 301327989,
+        "sha256": "01f3a7d1383ac58b92c79b6130492b7b15b6916d64fca754e45f866c478b75c0"
+      },
+      "image-id.txt": {
+        "bytes": 71,
+        "sha256": "886300658f77fd632dd306822c521326bff57e494afad5abc1f2c4d2c63f791f"
+      },
+      "image-inspect.json": {
+        "bytes": 2140,
+        "sha256": "72e8e4f25f0a0f9bebe16432f49417998357fb1b6affb6f16d23f17d61b623f1"
+      },
+      "dockerfile-sha256.txt": {
+        "bytes": 101,
+        "sha256": "5be8422216778707bbcdce60a87ce3c0be787a50ac81f26b4f4e60bd137fe433"
+      },
+      "image-build.log": {
+        "bytes": 62250,
+        "sha256": "4b99a5deb937d4d757d4d866e3146c40184a7d764f35af2bc5750314c190e6a7"
+      }
+    },
+    "candidate_build": {
+      "receipt_sha256": "c6499c89ea22838acefac41d41bc36fdd2dd20f11fe1fa704983e1d64140f030",
+      "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e",
+      "generated_file_count": 263,
+      "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183",
+      "version_sha256": "fdcd5e11e5fd3b10123b1c06c24be86546c2315d27e0d8fc11f08098c99f7586"
+    },
+    "source": {
+      "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "tree": "2f66f4090866e2a0733d504f7d3526540a63f020",
+      "git_archive_sha256": "b920b2f025f859b210c3186a9adc452445740a5182fa005b3262b6ba67079440",
+      "file_count": 2405
+    },
+    "docker_load_exit_code": 0,
+    "docker_load_log_sha256": "b8eef977587852109e083e5a346e6e03aa825cc4afcc8d087709062479b30f0b",
+    "loaded_image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "probe_source_hashes": {
+      "build-probes.py": "229d390ac7bb8e43ab97edb38a53a50e775b4ec14342a41f81c1ec4950ad3e57",
+      "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+      "quant-depth-f32-probe.cpp": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b"
+    },
+    "container_id": "243ff7729ccdeb3b4a5b603b56200b53764e337a16ff013f3bf51b132522c56e",
+    "container_name": "llmx-tq-probes-40106666694",
+    "container_config": {
+      "image": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+      "cpu_quota": 0,
+      "memory_bytes": 4294967296,
+      "memory_swap_bytes": 4294967296,
+      "network_mode": "none",
+      "readonly_rootfs": true
+    },
+    "container_attach_exit_code": 0,
+    "compile_log_sha256": "67b8ab41e33c05f03cd12426ce297e8ab2ea2a76b1eb25b686ac3aa701450646",
+    "container_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-24T15:26:00.724114196Z",
+      "FinishedAt": "2026-10-24T15:26:40.247287333Z"
+    },
+    "probes": {
+      "default": {
+        "path": "default-probe",
+        "sha256": "2e5198b08e9064dcf3e33ecf8ce47d7f2f2b84d24cfa86a6f6c04225e3df045b"
+      },
+      "f32": {
+        "path": "f32-probe",
+        "sha256": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84"
+      }
+    },
+    "probe_build_receipt": {
+      "commands": [
+        [
+          "/usr/bin/c++",
+          "-I/b/generated",
+          "-I/source/src",
+          "-O3",
+          "-DNDEBUG",
+          "-std=c++17",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror=unused-function",
+          "-Werror=unused-variable",
+          "-Werror=unused-but-set-variable",
+          "/bundle/quant-depth-default-probe.cpp",
+          "/b/libllmx-vulkan.a",
+          "-ldl",
+          "-o",
+          "/out/default-probe"
+        ],
+        [
+          "/usr/bin/c++",
+          "-I/b/generated",
+          "-I/source/src",
+          "-O3",
+          "-DNDEBUG",
+          "-std=c++17",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror=unused-function",
+          "-Werror=unused-variable",
+          "-Werror=unused-but-set-variable",
+          "/bundle/quant-depth-f32-probe.cpp",
+          "/b/libllmx-vulkan.a",
+          "-ldl",
+          "-o",
+          "/out/f32-probe"
+        ]
+      ],
+      "probes": {
+        "default": "2e5198b08e9064dcf3e33ecf8ce47d7f2f2b84d24cfa86a6f6c04225e3df045b",
+        "f32": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84"
+      },
+      "sources": {
+        "quant-depth-f32-probe.cpp": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b",
+        "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6"
+      },
+      "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e"
+    },
+    "probe_build_receipt_sha256": "1559727f04938dc98975a85ae16ef260753ab61c497da8a3fbf46b9a64e2077c",
+    "container_state_final": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-24T15:26:00.724114196Z",
+      "FinishedAt": "2026-10-24T15:26:40.247287333Z"
+    },
+    "container_remove_exit_code": 0,
+    "container_absent_after_cleanup": true,
+    "ended_unix": 1792855600.4504793
+  },
+  "probe_receipt_limit": "cpu_quota records zero while --cpus=2 uses NanoCpus. NanoCpus was not retained; do not claim receipt verification of that quota.",
+  "initial_probe_failure": {
+    "run": 40106451979,
+    "cause": "Relative Docker volume path refused before compiler startup.",
+    "fix": "Resolve the diagnostic output root to an absolute path."
+  },
+  "f32_raw_retry_verified": [
+    {
+      "artifact": "tq-depth-tq2-0-f32-raw",
+      "artifact_digest": "sha256:262eb71786e53bbf38879e91401dabaac20f530a91cbd41890f17ced10509675",
+      "execution_sha256": "3309ca1b1d4df405f1fcfbe28ab90d96a31de548be8f027313d58100a7433b1e",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 8960974848,
+      "verified": true,
+      "scope": "Independent reference outputs only; no candidate comparison",
+      "policy": "F32"
+    }
+  ],
+  "selected_references_verified": [
+    {
+      "artifact": "tq-selected-depth-tq1-0-cpu-head-f16-f16kv-raw",
+      "artifact_digest": "sha256:f237270b173ca7fe14b64f1b1bd48b9403eec8960d1848eea158d656a6789ab5",
+      "execution_sha256": "32d4f50470c0c915dabbd4c0e69aa8b7df0bf65e86996ea62572137d399ca969",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "producer_sha256": "77c6d7491491bdac96d5db37637c859ff8601229bb01c8e0ddace5c0c32738e6",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 9138479104,
+      "verified": true,
+      "scope": "Independent reference outputs only; no candidate comparison",
+      "policy": "F32 model weights and internal matrix inputs; literal F16 input only to lm_head; F32 sums; logical F16 KV storage."
+    },
+    {
+      "artifact": "tq-selected-depth-tq1-0-device-all-linear-f16-f16kv-raw",
+      "artifact_digest": "sha256:1c276b74b738c6d3f6fd048517830b1c902d2d4f1b67dd8612334b39f8df0fee",
+      "execution_sha256": "b61994bc58101b640b7f1dc1aab44387c93c8aad7024426af5a339277c8bd7b6",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "producer_sha256": "8b0c5dbd8bd268945eeec00dd4ab11476dcb64ac6ef6aef6c738a6ad5ede093d",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 9110917120,
+      "verified": true,
+      "scope": "Independent reference outputs only; no candidate comparison",
+      "policy": "Literal F16 inputs to all Linear operations, including TQ matrices and lm_head; F32 sums; logical F16 KV storage."
+    },
+    {
+      "artifact": "tq-selected-depth-tq2-0-cpu-head-f16-f16kv-chat",
+      "artifact_digest": "sha256:425657f01c2741b63f9233ab9fcd2fac8f75bd74d84f23cd79461881d3a55717",
+      "execution_sha256": "bf98c72c2f51e84082fa9b52d490d397d250317a1697ba71e46fc1cf1c797ead",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "producer_sha256": "77c6d7491491bdac96d5db37637c859ff8601229bb01c8e0ddace5c0c32738e6",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 8961060864,
+      "verified": true,
+      "scope": "Independent reference outputs only; no candidate comparison",
+      "policy": "F32 model weights and internal matrix inputs; literal F16 input only to lm_head; F32 sums; logical F16 KV storage."
+    },
+    {
+      "artifact": "tq-selected-depth-tq2-0-cpu-head-f16-f16kv-raw",
+      "artifact_digest": "sha256:9a0202f41290a5f3f70538aa2b75cd969f61f223b24e0f46910b0bd36e5de3a6",
+      "execution_sha256": "072e45622e9573c36686a0825149ae306f148c9e875cf7b24326d188d8f630bc",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "producer_sha256": "77c6d7491491bdac96d5db37637c859ff8601229bb01c8e0ddace5c0c32738e6",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 9132707840,
+      "verified": true,
+      "scope": "Independent reference outputs only; no candidate comparison",
+      "policy": "F32 model weights and internal matrix inputs; literal F16 input only to lm_head; F32 sums; logical F16 KV storage."
+    }
+  ],
+  "selected_tq2_device_raw_failure": {
+    "artifact": {
+      "id": 12564018521,
+      "node_id": "MDg6QXJ0aWZhY3QxMjU2NDAxODUyMQ==",
+      "name": "tq-selected-depth-tq2-0-device-all-linear-f16-f16kv-raw",
+      "size_in_bytes": 19764382,
+      "url": "https://api.github.com/repos/mxxm-t/llmx/actions/artifacts/12564018521",
+      "archive_download_url": "https://api.github.com/repos/mxxm-t/llmx/actions/artifacts/12564018521/zip",
+      "expired": false,
+      "digest": "sha256:cfe2155dd89f5acb44def4ce56bbcd08ec9ac6e55d3c39613e0a8009feb5de70",
+      "created_at": "2026-10-24T14:59:56Z",
+      "updated_at": "2026-10-24T14:59:56Z",
+      "expires_at": "2026-11-23T14:59:53Z",
+      "workflow_run": {
+        "id": 40103188312,
+        "repository_id": 1376477851,
+        "head_repository_id": 1376477851,
+        "head_branch": "diag/tq-depth-reference-20261024",
+        "head_sha": "6129c8ab02a12167eeeb3577eef4e5f4dc02816e"
+      }
+    },
+    "execution_sha256": "54bad3e826b56f4fe38b724b2b9ae02f8cefa432d859487a137acaf0ccf380b5",
+    "error": "Traceback (most recent call last):\n  File \"/home/runner/work/llmx/llmx/.qualification/tq-selected-depth/run_hosted.py\", line 309, in phase\n    assert sample['host_available_bytes'] >= sample['required_host_available_bytes'], sample\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'at': 1792853991.578077, 'host_available_bytes': 8068902912, 'disk_free_bytes': 87912013824, 'memory.current': '6952398848', 'memory.peak': '7370801152', 'memory.events': 'low 0\\nhigh 0\\nmax 0\\noom 0\\noom_kill 0\\noom_group_kill 0', 'cpu.stat': 'usage_usec 835024705\\nuser_usec 771307272\\nsystem_usec 63717432\\nnice_usec 0\\ncore_sched.force_idle_usec 0\\nnr_periods 2288\\nnr_throttled 77\\nthrottled_usec 33505\\nnr_bursts 0\\nburst_usec 0', 'peer_memory_reservations': {}, 'required_host_available_bytes': 8079986688}\n",
+    "removed": true,
+    "oom_killed": false,
+    "last_reported_tokens": 11264,
+    "retry": {
+      "job": 120899357481,
+      "status": 201,
+      "body": "{}"
+    }
+  },
+  "control_method_experiment": {
+    "run": 40107180781,
+    "head": "37279ba682ad030c32a32e86f037e5d5ce67af23",
+    "cells": 4,
+    "max_parallel": 2,
+    "state": "All four artifacts independently verified. Short controls pass; original larger failures unresolved.",
+    "scope": "HF-only controls. No depth. Original unrounded driver and same-input rounding/cache checks remain fatal. Mixed-policy full/chunk sensitivity keeps original limits and pass/fail results but is not fatal in this diagnostic-only experiment.",
+    "local_preflight": "Eight generated commands parse, bundle pins verify and child exit 23 propagates.",
+    "candidate_budget_changed": false,
+    "verified_controls": [
+      {
+        "artifact": "tq-control-method-tq1-0-cpu-head-f16-f16kv-raw",
+        "artifact_id": 12564744298,
+        "artifact_digest": "sha256:1cccaa482249fa2d02e213e0fa6d3c2fd6867f03c03cadf5c439c57d2309649f",
+        "execution_sha256": "4efa97cb97f50dcc83515cdd895d93d2edc63368f1574040b75afb1d047c7b7f",
+        "report_sha256": "84b7856146a039f6e464505298af540e558b69e84624b6dd5f3cafcf056a7b39",
+        "removed": true,
+        "unrounded_driver": {
+          "tokens": 64,
+          "chunk": 17,
+          "matrix_inputs": "f32",
+          "kv_storage": "f32",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64,
+          "passed": true
+        },
+        "frozen_cache": {
+          "passed": true,
+          "rows": 129,
+          "chunk": 17,
+          "layers": 2,
+          "same_frozen_inputs": true,
+          "bitwise_full_chunk_and_struct_binary16": true,
+          "input_preserved": true,
+          "signed_zero_checked": true
+        },
+        "mixed_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "passed": true,
+          "role": "mixed-policy full/chunk sensitivity, not same-input accumulation",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64
+        },
+        "mixed_f16_kv_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "max_abs_logit_delta": 0.0,
+          "passed": true,
+          "exact_top1": 64,
+          "scope": "Same KV policy but independently computed and rounded model inputs; retained full/chunk sensitivity with the original limits."
+        }
+      },
+      {
+        "artifact": "tq-control-method-tq1-0-device-all-linear-f16-f16kv-raw",
+        "artifact_id": 12564229597,
+        "artifact_digest": "sha256:71fab4b698a4eecdd3877d2e668873724cec7516a6bfa2418da061271c409bce",
+        "execution_sha256": "5658ec98a2c111d013a4c9a3abeac326fb26ce210eb9313dd3d746e43b36eb62",
+        "report_sha256": "32b3ecb40b171644f56445b05ce6f5052f479a984198d65d05a78c35d51a0620",
+        "removed": true,
+        "unrounded_driver": {
+          "tokens": 64,
+          "chunk": 17,
+          "matrix_inputs": "f32",
+          "kv_storage": "f32",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64,
+          "passed": true
+        },
+        "frozen_cache": {
+          "passed": true,
+          "rows": 129,
+          "chunk": 17,
+          "layers": 2,
+          "same_frozen_inputs": true,
+          "bitwise_full_chunk_and_struct_binary16": true,
+          "input_preserved": true,
+          "signed_zero_checked": true
+        },
+        "mixed_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "passed": true,
+          "role": "mixed-policy full/chunk sensitivity, not same-input accumulation",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64
+        },
+        "mixed_f16_kv_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "max_abs_logit_delta": 0.0,
+          "passed": true,
+          "exact_top1": 64,
+          "scope": "Same KV policy but independently computed and rounded model inputs; retained full/chunk sensitivity with the original limits."
+        }
+      },
+      {
+        "artifact": "tq-control-method-tq2-0-cpu-head-f16-f16kv-raw",
+        "artifact_id": 12565650763,
+        "artifact_digest": "sha256:c791fe1418d78d1a6a21cd8d3d080b48bb8b4c42f7bf678051fe5e2ad8ed2464",
+        "execution_sha256": "d2ccfd0f04db21fa70d5241559f5460c7a33776b0f463b04b0cf477ccab69527",
+        "report_sha256": "a8ec8e9085f73a9a05911c070108d2da0c34e4c26f5e72bd3694ebbe9a897086",
+        "removed": true,
+        "unrounded_driver": {
+          "tokens": 64,
+          "chunk": 17,
+          "matrix_inputs": "f32",
+          "kv_storage": "f32",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64,
+          "passed": true
+        },
+        "frozen_cache": {
+          "passed": true,
+          "rows": 129,
+          "chunk": 17,
+          "layers": 2,
+          "same_frozen_inputs": true,
+          "bitwise_full_chunk_and_struct_binary16": true,
+          "input_preserved": true,
+          "signed_zero_checked": true
+        },
+        "mixed_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "passed": true,
+          "role": "mixed-policy full/chunk sensitivity, not same-input accumulation",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64
+        },
+        "mixed_f16_kv_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "max_abs_logit_delta": 0.0,
+          "passed": true,
+          "exact_top1": 64,
+          "scope": "Same KV policy but independently computed and rounded model inputs; retained full/chunk sensitivity with the original limits."
+        }
+      },
+      {
+        "artifact": "tq-control-method-tq2-0-device-all-linear-f16-f16kv-raw",
+        "artifact_id": 12565675740,
+        "artifact_digest": "sha256:e883fcd25abf132791a2941c5bf5648b3f18088ec3c689e09f58657ee95a267e",
+        "execution_sha256": "fb64203ab9edd6b6342cd98cfdd798ffa9e99f33ba6d32f3ab13118525a5eedb",
+        "report_sha256": "bd2a182f3642643a5b83c408a6372dfb7ada07e4669ffad4bcaa2771f3d60c71",
+        "removed": true,
+        "unrounded_driver": {
+          "tokens": 64,
+          "chunk": 17,
+          "matrix_inputs": "f32",
+          "kv_storage": "f32",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64,
+          "passed": true
+        },
+        "frozen_cache": {
+          "passed": true,
+          "rows": 129,
+          "chunk": 17,
+          "layers": 2,
+          "same_frozen_inputs": true,
+          "bitwise_full_chunk_and_struct_binary16": true,
+          "input_preserved": true,
+          "signed_zero_checked": true
+        },
+        "mixed_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "passed": true,
+          "role": "mixed-policy full/chunk sensitivity, not same-input accumulation",
+          "max_abs_logit_delta": 0.0,
+          "exact_top1": 64
+        },
+        "mixed_f16_kv_sensitivity": {
+          "tokens": 64,
+          "chunk": 17,
+          "max_abs_logit_delta": 0.0,
+          "passed": true,
+          "exact_top1": 64,
+          "scope": "Same KV policy but independently computed and rounded model inputs; retained full/chunk sensitivity with the original limits."
+        }
+      }
+    ],
+    "review": "Same-input decomposition tests the driver, rounding scope and cache adapter separately. All measured short full/chunk deltas are zero in this run. These checks do not explain prior .611/.966/.342 failures or prove equivalence of model-generated K/V; no blanket depth acceptance.",
+    "temporary_branch_deleted": true
+  },
+  "tp2": {
+    "binary_sha256": "f30572ae4bd3baf95a925cb428c59e4c4373793df8c61746018cf62725bea824",
+    "source_archive_sha256": "4ca007809f249f0d08a994801e35b205623048f72a0685f9dd66354001247e51",
+    "scope": "Two MI50 TQ tiny HF in the recorded placement under auto, F32, BF16 and int8 requests. F32 KV fixture owner; tensor mode selects independent split-compatible references. No released/depth claim.",
+    "calls": [
+      {
+        "dtype": "auto",
+        "family": "tq1-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "auto",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq1-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792850721.4509969,
+        "end": 1792851591.6565845,
+        "exit_code": 0
+      },
+      {
+        "dtype": "auto",
+        "family": "tq2-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "auto",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq2-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792851591.6569164,
+        "end": 1792852457.8978434,
+        "exit_code": 0
+      },
+      {
+        "dtype": "f32",
+        "family": "tq1-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "f32",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq1-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792852457.8980236,
+        "end": 1792853324.7458613,
+        "exit_code": 0
+      },
+      {
+        "dtype": "f32",
+        "family": "tq2-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "f32",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq2-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792853324.7461493,
+        "end": 1792854190.3843436,
+        "exit_code": 0
+      },
+      {
+        "dtype": "bf16",
+        "family": "tq1-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "bf16",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq1-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792854190.3846965,
+        "end": 1792855064.6499782,
+        "exit_code": 0
+      },
+      {
+        "dtype": "bf16",
+        "family": "tq2-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "bf16",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq2-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792855064.650201,
+        "end": 1792855932.1038623,
+        "exit_code": 0
+      },
+      {
+        "dtype": "int8",
+        "family": "tq1-0",
+        "command": [
+          "python3",
+          "-u",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "int8",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq1-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792855932.1040642
+      }
+    ]
+  },
+  "documentation_review": "Product source unchanged from prior 2749d8c5c checkpoint. Prior 132-page review carried for unchanged content. STATUS updated for new diagnostic evidence. Temporary workflows and scratch bundles do not land on main.",
+  "probe_branch_deleted": true,
+  "capture_bundle": {
+    "path": "tq-clean-depth-capture-prep-v2",
+    "plan_sha256": "cbb6224a96ca0512269ec3c1d68f16bf760921fab2944d2121e2fb93eca3b44a",
+    "bundle_pins_sha256": "0107b00bd38437b39fec6a990ca02f48d5db998513bf0118f1d995d0f1301849",
+    "checks": "binding, capture contract, runner refusal and Python syntax passed; no inference"
+  }
+}

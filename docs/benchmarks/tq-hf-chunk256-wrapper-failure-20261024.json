@@ -1,0 +1,56 @@
+{
+  "scope": "Diagnostic HF-only chunk-size sensitivity control: TQ1 chat, identical pinned inputs, file-exact weights, block-int16 reconstructed Linear inputs, F32 arithmetic and F16 KV. Only processing chunk changes from 512 to 256. Compare all 512 positions to frozen chunk512 HF and candidate; no reference replacement, gate acceptance or changed tolerance.",
+  "status": "resource-wrapper failure; no scored reference or numerical verdict",
+  "progress_tokens": 9984,
+  "total_tokens": 16895,
+  "head": "e32e5ae3d055918640e81f7afca4c2846af4aa0f",
+  "preflight": {
+    "bundle": {
+      "bundle_pin_files": 9,
+      "bundle_pins_sha256": "6624dba6c5c7cd4a350741fc643299e5166bd7825bd997b27276db72f1fa5274",
+      "runner_sha256": "a20a19cbcfbd07bb15ec90424891c6bd661e0851f65e5ce8377f041888f4ee4c"
+    },
+    "source_v2": {
+      "archive_sha256": "a3090986a7bad14fc300e91ee824cf463dbbfc6182ed3c3ed933229a98ffdb17",
+      "manifest_sha256": "abd14a9b2b48443c531f4a2841562c786dd3c61f681484ab5496491070d6472c",
+      "files": 2322,
+      "revision": "e32e5ae3d055918640e81f7afca4c2846af4aa0f"
+    },
+    "models": {
+      "tq1-0": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+    },
+    "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+    "producer_sha256": "4a2b4e2679bd2c7a8f4217b5f37086acd6f296a4421944d1f69ea64b0e2cf2e8",
+    "image_id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "versions_expected": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "tokenizers": "0.21.4"
+    }
+  },
+  "failure": {
+    "stale_peer_pid": 2548436,
+    "stale_peer_full_reservation_bytes": 10737418240,
+    "host_available_bytes": 18493960192,
+    "required_host_available_bytes": 19328745472,
+    "cause": "Startup peer snapshot retained already removed prior CPU raw container and did not refresh new CPU continuation.",
+    "oom": false,
+    "owned_container_removed": true
+  },
+  "next": "Corrected chunk256 control launched; no numerical verdict. Original wrapper failure retained.",
+  "receipts": {
+    "build-quant-resume-20261020/tq-hf-chunk256-failed-20261024/execution.json": "e6d71269f180a50599e0aa5a59a086c8b8833a6ee970cddeab82e349e87a0d66",
+    "build-quant-resume-20261020/tq-hf-chunk256-failed-20261024/summary.json": "cfae06dff31edadfffe4424cb9d9aa47b8ee60f275cb6b030e24f0f34b747b62"
+  },
+  "recovery": {
+    "status": "running; no numerical result",
+    "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/hf-chunk256-control-v2",
+    "prep": "build-quant-resume-20261020/tq-hf-chunk256-control-prep-20261024-v2",
+    "bundle_sha256": "e0fd42fc269ea848bfffb5d08da4584acce41ccc0af9d67b8157ef5369ea45f7",
+    "runner_sha256": "3c81dd595205d2fbb694ff59bc45da4fb80539b8b21e0e818d3e53fa2756caa5",
+    "guard_correction": "Fresh Docker peer snapshot each sample, exact owner ID excluded, disappearance confirmed, unknown cgroup reserves full cap.",
+    "offline_guard_cases_passed": 5,
+    "unchanged": "Producer, payload, source, inputs and cache policy byte-identical; resources and phases unchanged. Plan changes only root, producer path and execution status."
+  }
+}

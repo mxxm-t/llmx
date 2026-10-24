@@ -1,0 +1,360 @@
+{
+  "scope": "Approved selected-reference method continuation, not full TQ qualification",
+  "approval": {
+    "authority": "BOSS",
+    "date": "2026-10-24",
+    "text": "Approve scoped reference correction"
+  },
+  "runtime_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "producer_sha256": "ae7a0ae18960f81b7416ebf826092adb97c50d2aa75c315a83574e47b8508aec",
+  "resource_runner_sha256": "a20a19cbcfbd07bb15ec90424891c6bd661e0851f65e5ce8377f041888f4ee4c",
+  "bundle_pins_sha256": "17192c8c0510c9f642d3dc82551ca3fdf41a75bc56811f9b358aa85d93f0a80a",
+  "bundle_files": {
+    "cache-policy-selftest.py": "e4273e5c7dc527ea9bea03f68cb3bc9582cfb3c9665e05212fb2ebe0fe78072e",
+    "commands.json": "b5f76a6e7e590ea7498fc70aa1c2a81e58308aba606b9f57a90c383181f3a872",
+    "model-header-inventory.json": "4d5928f994d4b0f3a0056af85b57afaf6e01326bfc1cbd71562d67de89cc9b9e",
+    "payload.py": "83f2a98c21d25dea7e6e3608f1edcf42d7879eea999bb1200506675ffb47f22d",
+    "plan.json": "f47867ecdcd84ea893bda090286298e1f806f875d90d572935741d8c9a694704",
+    "quant-depth-reference.py": "ae7a0ae18960f81b7416ebf826092adb97c50d2aa75c315a83574e47b8508aec",
+    "producer.diff": "ed588823575feb6a61b66c6cbe6567538769aa7a4373f8c4087efffa66f4bc06",
+    "README.md": "42fe70dd8e55277df7726b598b173a79c818b67eac3c7f3b012376adf9c86fed",
+    "run.py": "a20a19cbcfbd07bb15ec90424891c6bd661e0851f65e5ce8377f041888f4ee4c",
+    "scalar-verification.json": "05055e05b6d53cab3c9724508ff716920aecd4071d468602eab1ac198c4a1032",
+    "source-v2.json": "abd14a9b2b48443c531f4a2841562c786dd3c61f681484ab5496491070d6472c"
+  },
+  "method_frozen_before_remaining_cells": true,
+  "numerical_limits_changed": false,
+  "completed_raw_cell": {
+    "scope": "BOSS-approved reference-method correction, two pinned TQ files only; no changed numerical limit.",
+    "approval": {
+      "authority": "BOSS",
+      "date": "2026-10-24",
+      "text": "Approve scoped reference correction"
+    },
+    "model": "tq1-0",
+    "variant": "raw",
+    "positions": 512,
+    "bounds_changed": false,
+    "tie_margin": 0.1,
+    "producer_sha256": "ae7a0ae18960f81b7416ebf826092adb97c50d2aa75c315a83574e47b8508aec",
+    "execution_sha256": "2002f13078331cbf199e956173b11dc62d0318a62ce6c3bf27a507f27b613063",
+    "bundle_sha256": "d3d62fd38eb48072146e35f9654fda1ba3c8df87de782d93d266a787442ba417",
+    "reference_array_sha256": "5ffdd634cf8f7bbecfe172570d8f65e41a90b91cb0a63cd19db95c30f1226cb8",
+    "capture_outer_sha256": "68189606d8ab61df845fb7446642b8bf3653ca64d9cda44be5b9d02dd7fb4464",
+    "capture_payload_sha256": "e18a2320421ba58ac6563e93a13e5f246a9fb22272eab88ffa38aa2dc4f1f5e7",
+    "original_literal_and_f32_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b",
+    "chunk_control": {
+      "policy": "F16KV for both independent arms",
+      "tokens": 64,
+      "chunk": 17,
+      "direct_cache_writes": {
+        "0": {
+          "calls": 1,
+          "rows": 64
+        },
+        "1": {
+          "calls": 1,
+          "rows": 64
+        },
+        "2": {
+          "calls": 1,
+          "rows": 64
+        },
+        "3": {
+          "calls": 1,
+          "rows": 64
+        },
+        "4": {
+          "calls": 1,
+          "rows": 64
+        },
+        "5": {
+          "calls": 1,
+          "rows": 64
+        },
+        "6": {
+          "calls": 1,
+          "rows": 64
+        },
+        "7": {
+          "calls": 1,
+          "rows": 64
+        },
+        "8": {
+          "calls": 1,
+          "rows": 64
+        },
+        "9": {
+          "calls": 1,
+          "rows": 64
+        },
+        "10": {
+          "calls": 1,
+          "rows": 64
+        },
+        "11": {
+          "calls": 1,
+          "rows": 64
+        },
+        "12": {
+          "calls": 1,
+          "rows": 64
+        },
+        "13": {
+          "calls": 1,
+          "rows": 64
+        },
+        "14": {
+          "calls": 1,
+          "rows": 64
+        },
+        "15": {
+          "calls": 1,
+          "rows": 64
+        },
+        "16": {
+          "calls": 1,
+          "rows": 64
+        },
+        "17": {
+          "calls": 1,
+          "rows": 64
+        },
+        "18": {
+          "calls": 1,
+          "rows": 64
+        },
+        "19": {
+          "calls": 1,
+          "rows": 64
+        },
+        "20": {
+          "calls": 1,
+          "rows": 64
+        },
+        "21": {
+          "calls": 1,
+          "rows": 64
+        },
+        "22": {
+          "calls": 1,
+          "rows": 64
+        },
+        "23": {
+          "calls": 1,
+          "rows": 64
+        },
+        "24": {
+          "calls": 1,
+          "rows": 64
+        },
+        "25": {
+          "calls": 1,
+          "rows": 64
+        },
+        "26": {
+          "calls": 1,
+          "rows": 64
+        },
+        "27": {
+          "calls": 1,
+          "rows": 64
+        }
+      },
+      "chunked_cache_writes": {
+        "0": {
+          "calls": 4,
+          "rows": 64
+        },
+        "1": {
+          "calls": 4,
+          "rows": 64
+        },
+        "2": {
+          "calls": 4,
+          "rows": 64
+        },
+        "3": {
+          "calls": 4,
+          "rows": 64
+        },
+        "4": {
+          "calls": 4,
+          "rows": 64
+        },
+        "5": {
+          "calls": 4,
+          "rows": 64
+        },
+        "6": {
+          "calls": 4,
+          "rows": 64
+        },
+        "7": {
+          "calls": 4,
+          "rows": 64
+        },
+        "8": {
+          "calls": 4,
+          "rows": 64
+        },
+        "9": {
+          "calls": 4,
+          "rows": 64
+        },
+        "10": {
+          "calls": 4,
+          "rows": 64
+        },
+        "11": {
+          "calls": 4,
+          "rows": 64
+        },
+        "12": {
+          "calls": 4,
+          "rows": 64
+        },
+        "13": {
+          "calls": 4,
+          "rows": 64
+        },
+        "14": {
+          "calls": 4,
+          "rows": 64
+        },
+        "15": {
+          "calls": 4,
+          "rows": 64
+        },
+        "16": {
+          "calls": 4,
+          "rows": 64
+        },
+        "17": {
+          "calls": 4,
+          "rows": 64
+        },
+        "18": {
+          "calls": 4,
+          "rows": 64
+        },
+        "19": {
+          "calls": 4,
+          "rows": 64
+        },
+        "20": {
+          "calls": 4,
+          "rows": 64
+        },
+        "21": {
+          "calls": 4,
+          "rows": 64
+        },
+        "22": {
+          "calls": 4,
+          "rows": 64
+        },
+        "23": {
+          "calls": 4,
+          "rows": 64
+        },
+        "24": {
+          "calls": 4,
+          "rows": 64
+        },
+        "25": {
+          "calls": 4,
+          "rows": 64
+        },
+        "26": {
+          "calls": 4,
+          "rows": 64
+        },
+        "27": {
+          "calls": 4,
+          "rows": 64
+        }
+      },
+      "max_abs_logit_delta": 0.0,
+      "exact_top1": 64
+    },
+    "comparison": {
+      "name": "Vulkan default versus approved HF block16/F16KV",
+      "counts": {
+        "exact": 507,
+        "accepted-tie": 5,
+        "miss": 0
+      },
+      "non_exact": [
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "chosen": 78372,
+          "reference_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.0017194747924804688
+        },
+        {
+          "position": 16571,
+          "classification": "accepted-tie",
+          "chosen": 110474,
+          "reference_top2": [
+            117048,
+            110474
+          ],
+          "gap": 0.0013446807861328125
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.005330085754394531
+        },
+        {
+          "position": 16719,
+          "classification": "accepted-tie",
+          "chosen": 26304,
+          "reference_top2": [
+            23129,
+            26304
+          ],
+          "gap": 0.0151519775390625
+        },
+        {
+          "position": 16810,
+          "classification": "accepted-tie",
+          "chosen": 105840,
+          "reference_top2": [
+            99416,
+            105840
+          ],
+          "gap": 0.03670501708984375
+        }
+      ]
+    },
+    "passed": true,
+    "limitation": "One depth cell only; remaining cells and independent operator/range, identity and performance gates are separate."
+  },
+  "remaining_run": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-block16-approved-remaining-v1/released-reference-20261024T180550Z-2365535",
+  "remaining_cells": [
+    "tq1-0/chat",
+    "tq2-0/raw",
+    "tq2-0/chat"
+  ],
+  "state_at_record": "Running; first chat container verified live, no remaining result claimed",
+  "resources": {
+    "cpus": "0-3",
+    "memory_gib": 10,
+    "initial_minimum_host_gib": 14,
+    "live_reserve_gib": 4,
+    "peer_caps_accounted": true,
+    "gpu_devices": []
+  },
+  "comparator_sha256": "d4c146681cce65b3e090b89c250fdd00acca257f8d24435772c47b9e1f2c3c6e"
+}

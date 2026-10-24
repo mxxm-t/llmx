@@ -18,14 +18,18 @@
 #if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
 #error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1) || defined(LLMX_K23))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1) || defined(LLMX_K23) || defined(LLMX_TQ))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
+#endif
+#if defined(LLMX_TQ) && defined(LLMX_DOT)
+#define LLMX_LOOKUP_DOT
 #endif
 #if defined(LLMX_IQ4) || ((defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)) && defined(LLMX_DOT))
 #define LLMX_LOOKUP_DOT
 #endif
 #include "q.glsl"
 #include "iq2_layout.glsl"
+#include "tq_layout.glsl"
 #ifdef LLMX_IQ1
 #include "iq1_layout.glsl"
 #endif
@@ -110,6 +114,9 @@ vec4 weight4(uint i) {
 #endif
 #if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_LOOKUP_DOT) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_TQ
+#define TQ_WORD(i) w32s[pi].w32[i]
+#endif
 #ifdef LLMX_IQ3_S
 // Float rows use the spare twin view; int16 rows use the spare F32 weight view.
 #ifdef LLMX_DOT
@@ -188,7 +195,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
 }
-#ifdef LLMX_IQ3_XXS
+#ifdef LLMX_TQ
+#include "tq_dot.glsl"
+#elif defined(LLMX_IQ3_XXS)
 #include "iq3_xxs_dot.glsl"
 #elif defined(LLMX_IQ1)
 #include "iq1_dot.glsl"
@@ -799,6 +808,9 @@ void main() {
 #elif defined(LLMX_Q3)
             uint o = (wrow * (p.nin / 256u) + b) * Q3_K_BYTES;
             float weight = q3_k_at(o, local);
+#elif defined(LLMX_TQ)
+            uint o = (wrow * (p.nin / 256u) + j / 256u) * TQ_BYTES;
+            float weight = tq_at(TQ_TYPE, o, j % 256u, tq_scale(TQ_TYPE, o));
 #elif defined(LLMX_IQ3_XXS)
             uint o = (wrow * (p.nin / IQ3_XXS_BLOCK) + j / IQ3_XXS_BLOCK) * IQ3_XXS_BYTES;
             float weight = iq3_xxs_at(o, j % IQ3_XXS_BLOCK, half_at(QBYTE(o), QBYTE(o + 1u)));

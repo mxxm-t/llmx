@@ -1,0 +1,278 @@
+{
+  "scope": "CPU fixed-history 16K/512 depth only, using the unchanged common.hf_depth_top1 rule. Short NLL and other gates remain separate.",
+  "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "common_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "expected_cells": [
+    [
+      "tq1-0",
+      "default",
+      "chat"
+    ],
+    [
+      "tq1-0",
+      "default",
+      "raw"
+    ],
+    [
+      "tq1-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq1-0",
+      "f32",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "raw"
+    ]
+  ],
+  "missing_cells": [
+    [
+      "tq1-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq1-0",
+      "f32",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "raw"
+    ]
+  ],
+  "complete": false,
+  "passed": false,
+  "partial_validation_passed": true,
+  "cells": [
+    {
+      "kind": "tq1-0",
+      "policy": "default",
+      "variant": "chat",
+      "counts": {
+        "exact": 505,
+        "accepted-tie": 7
+      },
+      "passed": true,
+      "differences": [
+        {
+          "position": 16454,
+          "classification": "accepted-tie",
+          "candidate": 6502,
+          "hf_top2": [
+            134528,
+            6502
+          ],
+          "hf_gap": 0.011260986328125
+        },
+        {
+          "position": 16458,
+          "classification": "accepted-tie",
+          "candidate": 27582,
+          "hf_top2": [
+            104327,
+            27582
+          ],
+          "hf_gap": 0.046596527099609375
+        },
+        {
+          "position": 16479,
+          "classification": "accepted-tie",
+          "candidate": 21360,
+          "hf_top2": [
+            104223,
+            21360
+          ],
+          "hf_gap": 0.05506420135498047
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate": 18194,
+          "hf_top2": [
+            80348,
+            18194
+          ],
+          "hf_gap": 0.013922691345214844
+        },
+        {
+          "position": 16648,
+          "classification": "accepted-tie",
+          "candidate": 64907,
+          "hf_top2": [
+            106445,
+            64907
+          ],
+          "hf_gap": 0.0037603378295898438
+        },
+        {
+          "position": 16670,
+          "classification": "accepted-tie",
+          "candidate": 99371,
+          "hf_top2": [
+            44489,
+            99371
+          ],
+          "hf_gap": 0.0043315887451171875
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate": 48799,
+          "hf_top2": [
+            77863,
+            48799
+          ],
+          "hf_gap": 0.009940147399902344
+        }
+      ],
+      "artifact_digest": "sha256:7af786d5b20920460bce5bf1890d68c908e92b035001bade41299114225eefb8",
+      "execution_sha256": "1703aff965d93542f6a582a9c5f740731acc99f3672e8798ecae96f0995d219b",
+      "capture_stdout_sha256": "3a13927f51a8fa6308ea5965b42317add00b373277fd5f2263e13b8364036bf1",
+      "reference": {
+        "artifact": "tq-chat-strict-depth-tq1-0-cpu-head-f16-f16kv-chat",
+        "artifact_digest": "sha256:4482e8da536f535c1c3e65a85700a0adb0184c31e617e74be405f9c13a5dccb2",
+        "execution_sha256": "0c6c21e695365724ff38b0b83a4b138963016fbff7a3ea37a587bb2797c20b49",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "producer_sha256": "e4419dd22a7c3a4ed49748736c4716d2c2e7ddd6930f9e6b4d55e52a779ee80e",
+        "positions": 512,
+        "vocabulary": 151936,
+        "cgroup_peak_bytes": 9115672576,
+        "verified": true,
+        "scope": "Independent reference outputs only; no candidate comparison",
+        "policy": "F32 model weights and internal matrix inputs; literal F16 input only to lm_head; F32 sums; logical F16 KV storage."
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      }
+    },
+    {
+      "kind": "tq1-0",
+      "policy": "default",
+      "variant": "raw",
+      "counts": {
+        "exact": 507,
+        "accepted-tie": 5
+      },
+      "passed": true,
+      "differences": [
+        {
+          "position": 16702,
+          "classification": "accepted-tie",
+          "candidate": 40170,
+          "hf_top2": [
+            10009,
+            40170
+          ],
+          "hf_gap": 0.000335693359375
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "candidate": 21243,
+          "hf_top2": [
+            69336,
+            21243
+          ],
+          "hf_gap": 0.004281044006347656
+        },
+        {
+          "position": 16719,
+          "classification": "accepted-tie",
+          "candidate": 26304,
+          "hf_top2": [
+            23129,
+            26304
+          ],
+          "hf_gap": 0.02756977081298828
+        },
+        {
+          "position": 16810,
+          "classification": "accepted-tie",
+          "candidate": 105840,
+          "hf_top2": [
+            99416,
+            105840
+          ],
+          "hf_gap": 0.007769584655761719
+        },
+        {
+          "position": 16869,
+          "classification": "accepted-tie",
+          "candidate": 125855,
+          "hf_top2": [
+            134267,
+            125855
+          ],
+          "hf_gap": 0.004752159118652344
+        }
+      ],
+      "artifact_digest": "sha256:7af786d5b20920460bce5bf1890d68c908e92b035001bade41299114225eefb8",
+      "execution_sha256": "1682812e6f8e5d68d35f0b4b73ace1abe5a64e410916c74c2f995f2dd7250d4f",
+      "capture_stdout_sha256": "9ba271234f1ee6fbdb87de25b6b35982db7951a6a9cbad8efcffcfab3f85f15c",
+      "reference": {
+        "artifact": "tq-selected-depth-tq1-0-cpu-head-f16-f16kv-raw",
+        "artifact_digest": "sha256:f237270b173ca7fe14b64f1b1bd48b9403eec8960d1848eea158d656a6789ab5",
+        "execution_sha256": "32d4f50470c0c915dabbd4c0e69aa8b7df0bf65e86996ea62572137d399ca969",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "producer_sha256": "77c6d7491491bdac96d5db37637c859ff8601229bb01c8e0ddace5c0c32738e6",
+        "positions": 512,
+        "vocabulary": 151936,
+        "cgroup_peak_bytes": 9138479104,
+        "verified": true,
+        "scope": "Independent reference outputs only; no candidate comparison",
+        "policy": "F32 model weights and internal matrix inputs; literal F16 input only to lm_head; F32 sums; logical F16 KV storage."
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      }
+    }
+  ]
+}

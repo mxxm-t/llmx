@@ -1,0 +1,853 @@
+{
+ "date": "2026-10-24",
+ "scope": "Packed-format owner relocation E2 versus retained E1 candidate, not original unpack baseline or mx. Developmental preservation screen only.",
+ "source_receipts": {
+  "execution.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\execution.json",
+   "sha256": "df88d63e1db549e8625ddaa284724d01f8654c9870f1ba5faa92f1638c47ce81"
+  },
+  "screen-pins.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\screen-pins.json",
+   "sha256": "457d7e23f029f4d2d9cabbaac79f0c9792954ad6e3d31c8d8552619d3eb38b70"
+  },
+  "source-delta.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\source-delta.json",
+   "sha256": "26f585761d0a71c36b4a6ead0380cc751f252ea36c24797d639dbfcc75407db3"
+  },
+  "plan.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\plan.json",
+   "sha256": "4d5c18a70788c86df15365c9559393244d233ed391f0b1ef5480577fe7d9ffc9"
+  },
+  "screen-identity/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\screen-identity\\receipt.json",
+   "sha256": "7ea36fbb78f58d9a74c57f7f3cf0004cbfdff657d2d92d13f8f779b8cfb149cf"
+  },
+  "screen-timing/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\screen-timing\\receipt.json",
+   "sha256": "8df9562831227b8e5a2af323bd78648d66b53c7b115c802aee85db906d30e721"
+  },
+  "screen-timing/analysis.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-owner-20261024\\screen-timing\\analysis.json",
+   "sha256": "aafd9e4947f5961e448e9d6291a08f5cccfbd7333dd79d185182c0bcbb56dac1"
+  }
+ },
+ "build": {
+  "admission_samples": "admission-samples.jsonl",
+  "admitted": true,
+  "arms": [
+   {
+    "archive_sha256": "7d1aded17bd39c8521ce9d411ced9a7ecd2ef80008f2eec4e420aa243a059e1d",
+    "arm": "candidate",
+    "cleanup_sha256": "80bb86cb2e1127a5cdcd8cfedd4b0a1cb5e220f9d48e9b48901580716a29ce9f",
+    "container_identity_sha256": "27e6cd8cb036a2d8de038f4503d00c816399bc222e75fc2183cf1a0d4ba95505",
+    "container_result_sha256": "792c2a31942e1dde4b1b5ee1eb25548222c148a3caa97fc641db34550e44ca4b",
+    "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+    "passed": true,
+    "resource_samples_sha256": "996ebf9010d1d414f0385af46026a5fd88173ec1d22fd8f90a89eaeb6941ead6",
+    "revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+    "tq_dot_sha256": "ce67903b081fe1034ebb9b322c01a0f4b23ad03996a17156e00e8d0f3f36bd50"
+   }
+  ],
+  "bundle_pins_sha256": "009a033432d58fc76a8998f9282ea6a1b088853847411910c4437cc9cb35cbd6",
+  "execution_image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "finished_utc": "2026-10-24T12:50:54.104733+00:00",
+  "image_proof_sha256": "e2a61e2e8ba2cf3b22a825620516154dd2dbe52a5c3ca3ab8e1b5a0d7ee793f3",
+  "passed": true,
+  "plan_sha256": "4d5c18a70788c86df15365c9559393244d233ed391f0b1ef5480577fe7d9ffc9",
+  "runner_sha256": "eda12998b127ce25a92e27f042669ed048cb17deeb637d4d820f7c9dc1c6644e",
+  "schema": "tq-unpack-experiment-execution-v1",
+  "started_utc": "2026-10-24T12:46:54.368667+00:00",
+  "terminal_reason": "candidate build completed"
+ },
+ "source_delta": {
+  "docs/src/backends-vulkan.md": {
+   "before": "da0b56cb33eca135356016706e542cdd57b8cf2dbf3324086d3088fab8a61c75",
+   "after": "5c9c0fce7375497577330eedc943c673ad1cc772224c4207e70d4c3dc8783a57"
+  },
+  "src/backends/vulkan/shaders/tq.glsl": {
+   "before": "e1fb16a51cd89e82117462f2608581a5c5f906bae0adb71862070d112147d590",
+   "after": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0"
+  },
+  "src/backends/vulkan/shaders/tq_dot.glsl": {
+   "before": "1ccd7b7c6647d331989ae60fe55c14e342dfde9d74667aeb9a86e018439705b1",
+   "after": "ce67903b081fe1034ebb9b322c01a0f4b23ad03996a17156e00e8d0f3f36bd50"
+  }
+ },
+ "versions": [
+  "llmx 0.1.0+unknown numerics abc75df35ad8d044",
+  "llmx 0.1.0+unknown numerics 08e3eb1c80297e4c"
+ ],
+ "selected_binary_pins": {
+  "../unpack-experiment-v1/candidate/build/llmx": "e787a33b81b680d781f8c89947d18fd76c58f2ee6900c44f964db1e823e468b7",
+  "../unpack-experiment-v1/candidate/build/llmx-model-logits": "a8758ac4bfcdc1acf9816cdddcfa75a23d966c572ba2726e0393b61f01075661",
+  "../unpack-experiment-v1/candidate/build/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+  "candidate/build/llmx": "d07bae199ee4dbc0413fd0e6cfbd94e378936f5deb9f126903775761f5b4d990",
+  "candidate/build/llmx-model-logits": "ae296816fbbf0c8b4210385468ca654a839014c23a24f57ee418ca35b1168327",
+  "candidate/build/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+ },
+ "identity": {
+  "passed": true,
+  "six_paired_full_logit_hashes": {
+   "TQ1_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ1_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ1_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731",
+   "TQ2_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ2_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ2_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731"
+  },
+  "native_tq_range_path_cases": 18,
+  "backend_log_sha256": "bac1d4604c6ef35be298b9b399c19b4d753ec82345a29c4a1ea488bb2c8fda05",
+  "input_ids_sha256": "e12a2132723f031b18135b69492012a5b77e3fa56c99842e4cc7b3c2a722701e",
+  "removed": true,
+  "pins_unchanged": true,
+  "call_exit_codes": [
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "timing": {
+  "call_count": 12,
+  "warmups": 4,
+  "measured": 8,
+  "order": "Per model warmups then measured ABBA, two pairs.",
+  "models": {
+   "TQ1_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4132.23,
+      "tg256": 243.94
+     },
+     "candidate": {
+      "pp4096": 4131.38,
+      "tg256": 243.915
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": -0.020570006993791967,
+     "tg256": -0.010248421743053182
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": -0.12758954828951952,
+       "tg256": -0.012307187397442299
+      },
+      "duration_sum_seconds": {
+       "base": 2.0399989113122423,
+       "candidate": 2.0413926552421233
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ1_0-2-base",
+       "TQ1_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 0.08676284902053855,
+       "tg256": -0.008192692118635936
+      },
+      "duration_sum_seconds": {
+       "base": 2.0413479140563684,
+       "candidate": 2.0405733012478033
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ1_0-4-candidate",
+       "TQ1_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": false,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ],
+    "mean_independent_phase_duration_sum_seconds": {
+     "base": 2.0406734126843054,
+     "candidate": 2.0409829782449633
+    }
+   },
+   "TQ2_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4072.725,
+      "tg256": 295.585
+     },
+     "candidate": {
+      "pp4096": 4068.46,
+      "tg256": 297.345
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": -0.10472104058093512,
+     "tg256": 0.5954294027098905
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": -0.04098964213832268,
+       "tg256": -0.18180593899399522
+      },
+      "duration_sum_seconds": {
+       "base": 1.8672455656018008,
+       "candidate": 1.8692276542755244
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ2_0-2-base",
+       "TQ2_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": -0.16849861836045754,
+       "tg256": 1.380248172700993
+      },
+      "duration_sum_seconds": {
+       "base": 1.8763834805312958,
+       "candidate": 1.8662327556921907
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ2_0-4-candidate",
+       "TQ2_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": false,
+      "missing_data_present": true,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ],
+    "mean_independent_phase_duration_sum_seconds": {
+     "base": 1.8718145230665484,
+     "candidate": 1.8677302049838576
+    }
+   }
+  },
+  "calls": [
+   {
+    "tag": "TQ1_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4141.25,
+     "tg256": 239.98
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4133.09,
+     "tg256": 243.42
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4138.27,
+     "tg256": 243.76
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4132.99,
+     "tg256": 243.73
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4129.77,
+     "tg256": 244.1
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4126.19,
+     "tg256": 244.12
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4073.23,
+     "tg256": 296.82
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4071.33,
+     "tg256": 289.91
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4074.2,
+     "tg256": 297.02
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4072.53,
+     "tg256": 296.48
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4064.39,
+     "tg256": 298.21
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4071.25,
+     "tg256": 294.15
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   }
+  ],
+  "activity": {
+   "flag_interval_counts": {
+    "disk": 54,
+    "iowait": 0,
+    "low_idle": 0,
+    "other_gpu": 13,
+    "sample_gap": 0,
+    "unrelated_cpu": 31
+   },
+   "intervals": 57,
+   "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+   "max_gap_seconds": 1.0030479228589684,
+   "missed_sample_intervals": 15,
+   "per_call": {
+    "TQ1_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 4,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    }
+   },
+   "samples": 58,
+   "unknown_gpu_intervals": 0
+  },
+  "artifact_hashes_checked_locally": 28,
+  "thresholds": {
+   "system_idle_below_percent": 25,
+   "iowait_above_percent": 5,
+   "unrelated_cpu_at_least_percent": 100,
+   "disk_bytes_per_second_above": 50000000,
+   "sample_gap_above_seconds": 2.5
+  },
+  "removed": true,
+  "monitor_exit": 0,
+  "pins_unchanged": true
+ },
+ "limits": [
+  "No meaningful additional speedup or final equivalence/qualification claim from two measured pairs.",
+  "No new profile run. Earlier mx results are historical targets, not a fresh comparison.",
+  "All calls, pair direction changes, activity imbalance and missing process coverage retained. No outlier removal.",
+  "PP and TG histories are independent; phase sums are not request latency.",
+  "Production format helper now lives in tq.glsl with a thin tq_dot.glsl adapter; broader landing qualification remains pending."
+ ]
+}

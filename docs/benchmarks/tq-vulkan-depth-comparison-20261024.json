@@ -1,0 +1,2625 @@
+{
+  "schema": "tq-vulkan-r2-comparison-audit-v1",
+  "source_comparison_sha256": "0ba01dd8fd22c20e3875b1302499fb19d1172a255593663d84d8c46d67bd89fd",
+  "source_comparison": "tq-vulkan-r2-comparison-20261024.json",
+  "captures_root": "tq-vulkan-captures-r2-20261024",
+  "capture_keys": [
+    [
+      "tq1-0",
+      "default",
+      "chat"
+    ],
+    [
+      "tq1-0",
+      "default",
+      "raw"
+    ],
+    [
+      "tq1-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq1-0",
+      "f32",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "default",
+      "raw"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "chat"
+    ],
+    [
+      "tq2-0",
+      "f32",
+      "raw"
+    ]
+  ],
+  "candidate": {
+    "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+    "cli_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+    "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e",
+    "build_image_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "loaded_execution_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "uniform_capture_image": true,
+    "image_provenance_note": "Retain both build config ID and loaded execution image ID; link root-verified config/OCI-manifest equivalence proof before final checkpoint.",
+    "expected_matrix_paths": {
+      "default": [
+        "block-int16"
+      ],
+      "f32": [
+        "f32"
+      ]
+    },
+    "common_py_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "image_provenance": {
+    "config_sha256": "e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "manifest_sha256": "f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "execution_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "config_digest_link": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "rootfs_diff_ids": [
+      "sha256:a70f6272827f64e1427d048ced77491aab5d64ab95725e56920802ff391197d7",
+      "sha256:54c9895fdbc0a98398119f43e830695138765205827ea8d9716c06e7a9d102a0",
+      "sha256:e0dcea673a7ff445e7215c941c58d5e26a311a7cc90131f23b6285c467a4627f"
+    ]
+  },
+  "rule_owner": "tests/common.py:hf_depth_top1",
+  "rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+  "tie_margin": 0.1,
+  "selected_policy_cells": [
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-chat",
+      "model": "tq1-0",
+      "comparison_role": "selected-policy",
+      "policy": "default",
+      "capture_policy": "default",
+      "variant": "chat",
+      "counts": {
+        "exact": 480,
+        "accepted-tie": 19,
+        "miss": 13
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16388,
+          "classification": "accepted-tie",
+          "candidate_top1": 111979,
+          "hf_top2_ids": [
+            58437,
+            111979
+          ],
+          "hf_gap": 0.01220703125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.018558526306152956
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            104005,
+            53930
+          ],
+          "hf_gap": 0.029232025146484375,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": -0.053083376953125594
+        },
+        {
+          "position": 16421,
+          "classification": "miss",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            44769,
+            64907
+          ],
+          "hf_gap": 0.24274444580078125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.12453652739257848
+        },
+        {
+          "position": 16430,
+          "classification": "accepted-tie",
+          "candidate_top1": 107080,
+          "hf_top2_ids": [
+            45653,
+            107080
+          ],
+          "hf_gap": 0.037749290466308594,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.03883744250488341
+        },
+        {
+          "position": 16439,
+          "classification": "miss",
+          "candidate_top1": 86688,
+          "hf_top2_ids": [
+            18192,
+            86688
+          ],
+          "hf_gap": 0.1249094009399414,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.20338149184570398
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 131603,
+          "hf_top2_ids": [
+            8916,
+            131603
+          ],
+          "hf_gap": 0.09592056274414062,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.0887031119873054
+        },
+        {
+          "position": 16451,
+          "classification": "miss",
+          "candidate_top1": 146840,
+          "hf_top2_ids": [
+            96321,
+            146840
+          ],
+          "hf_gap": 0.4726600646972656,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.13072776601562452
+        },
+        {
+          "position": 16462,
+          "classification": "accepted-tie",
+          "candidate_top1": 104464,
+          "hf_top2_ids": [
+            42694,
+            104464
+          ],
+          "hf_gap": 0.014148712158203125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.06901355786132868
+        },
+        {
+          "position": 16519,
+          "classification": "accepted-tie",
+          "candidate_top1": 37148,
+          "hf_top2_ids": [
+            104818,
+            37148
+          ],
+          "hf_gap": 0.02138519287109375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.01731583111572199
+        },
+        {
+          "position": 16535,
+          "classification": "accepted-tie",
+          "candidate_top1": 28412,
+          "hf_top2_ids": [
+            25136,
+            28412
+          ],
+          "hf_gap": 0.05169677734375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.14596846230468685
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate_top1": 80348,
+          "hf_top2_ids": [
+            18194,
+            80348
+          ],
+          "hf_gap": 0.031658172607421875,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.04202463952636748
+        },
+        {
+          "position": 16544,
+          "classification": "accepted-tie",
+          "candidate_top1": 91572,
+          "hf_top2_ids": [
+            17177,
+            91572
+          ],
+          "hf_gap": 0.00746917724609375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.17891697414550833
+        },
+        {
+          "position": 16548,
+          "classification": "miss",
+          "candidate_top1": 108544,
+          "hf_top2_ids": [
+            110624,
+            102889
+          ],
+          "hf_gap": 0.012188911437988281,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.14688777889404214
+        },
+        {
+          "position": 16549,
+          "classification": "miss",
+          "candidate_top1": 2908,
+          "hf_top2_ids": [
+            62297,
+            59846
+          ],
+          "hf_gap": 0.047245025634765625,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.7453575267211914
+        },
+        {
+          "position": 16555,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            70858,
+            63032
+          ],
+          "hf_gap": 0.11539554595947266,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.4618511666503906
+        },
+        {
+          "position": 16600,
+          "classification": "miss",
+          "candidate_top1": 104162,
+          "hf_top2_ids": [
+            44636,
+            104162
+          ],
+          "hf_gap": 0.4200296401977539,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.08240320437011661
+        },
+        {
+          "position": 16615,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2_ids": [
+            110678,
+            105947
+          ],
+          "hf_gap": 0.0717020034790039,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.06560995426025329
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2_ids": [
+            53930,
+            104197
+          ],
+          "hf_gap": 0.16965198516845703,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.09470654097900422
+        },
+        {
+          "position": 16623,
+          "classification": "accepted-tie",
+          "candidate_top1": 104162,
+          "hf_top2_ids": [
+            93149,
+            104162
+          ],
+          "hf_gap": 0.011620521545410156,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.013845422412108732
+        },
+        {
+          "position": 16636,
+          "classification": "accepted-tie",
+          "candidate_top1": 18794,
+          "hf_top2_ids": [
+            40303,
+            18794
+          ],
+          "hf_gap": 0.0666494369506836,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.16277406358642565
+        },
+        {
+          "position": 16639,
+          "classification": "accepted-tie",
+          "candidate_top1": 14273,
+          "hf_top2_ids": [
+            96972,
+            14273
+          ],
+          "hf_gap": 0.0011644363403320312,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.012071599157714274
+        },
+        {
+          "position": 16646,
+          "classification": "accepted-tie",
+          "candidate_top1": 70000,
+          "hf_top2_ids": [
+            52736,
+            70000
+          ],
+          "hf_gap": 0.037601470947265625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.005491278173828107
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2_ids": [
+            440,
+            133121
+          ],
+          "hf_gap": 0.14502525329589844,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.07998843005371015
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2_ids": [
+            104211,
+            110624
+          ],
+          "hf_gap": 0.01963043212890625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.0817012441650391
+        },
+        {
+          "position": 16731,
+          "classification": "miss",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            38840,
+            18194
+          ],
+          "hf_gap": 0.4394674301147461,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.21412185560302888
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2_ids": [
+            48799,
+            77863
+          ],
+          "hf_gap": 0.03850746154785156,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.003156668872069446
+        },
+        {
+          "position": 16777,
+          "classification": "miss",
+          "candidate_top1": 90447,
+          "hf_top2_ids": [
+            0,
+            101784
+          ],
+          "hf_gap": 0.4618701934814453,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.8140544595458987
+        },
+        {
+          "position": 16793,
+          "classification": "accepted-tie",
+          "candidate_top1": 40303,
+          "hf_top2_ids": [
+            25992,
+            40303
+          ],
+          "hf_gap": 0.019906997680664062,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.12484932133789073
+        },
+        {
+          "position": 16822,
+          "classification": "miss",
+          "candidate_top1": 85427,
+          "hf_top2_ids": [
+            66,
+            85427
+          ],
+          "hf_gap": 0.15436553955078125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.2343120452270515
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2_ids": [
+            79308,
+            65676
+          ],
+          "hf_gap": 0.0892324447631836,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.09649949068603547
+        },
+        {
+          "position": 16837,
+          "classification": "accepted-tie",
+          "candidate_top1": 440,
+          "hf_top2_ids": [
+            33693,
+            440
+          ],
+          "hf_gap": 0.02911376953125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.10343452585449242
+        },
+        {
+          "position": 16892,
+          "classification": "accepted-tie",
+          "candidate_top1": 27864,
+          "hf_top2_ids": [
+            125997,
+            27864
+          ],
+          "hf_gap": 0.021459579467773438,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.0022745211181636193
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:f3cd1e8660b506efb2185f29ebdd21f734c819e191f61e4d914f28a451d69629",
+        "execution_sha256": "5cdb9c3eabb32095a8fdf1f6ae2a1cc258979bc50d16bc76ceb2d5074e1dad4b",
+        "raw_sha256": "1555ce1e4c94debd4f3466e4facbba94af92e43e0db25ca77c9f533385590ae9",
+        "detail_json_sha256": "b2e505c88fc4a94b3dc095c0bab1bb0e6170eedca0fd328610fd8aae26d8f5fc",
+        "report_sha256": "b3be6a98126ea9a0a899d386f502a0e7f4fb789f6784e7d8b39cd29d3dd84dbf",
+        "producer_sha256": "7f053ecf259e0bcdb666620eb13df6bce582e8bf9d2e9309042c0b5d7e4a4e8b",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": "Literal F16 inputs to all Linear operations, including TQ matrices and lm_head; F32 sums; logical F16 KV storage."
+      },
+      "capture_outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+      "capture_payload_sha256": "14fb65b33e779d330e74ba06e0875976044e1e3ee8b5c9d7ba166889886887a8",
+      "capture_stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-raw",
+      "model": "tq1-0",
+      "comparison_role": "selected-policy",
+      "policy": "default",
+      "capture_policy": "default",
+      "variant": "raw",
+      "counts": {
+        "exact": 482,
+        "accepted-tie": 17,
+        "miss": 13
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            90447,
+            79308
+          ],
+          "hf_gap": 0.052338600158691406,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.2729825911499031
+        },
+        {
+          "position": 16445,
+          "classification": "accepted-tie",
+          "candidate_top1": 3440,
+          "hf_top2_ids": [
+            36409,
+            3440
+          ],
+          "hf_gap": 0.0028333663940429688,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.08300681810302812
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "candidate_top1": 28605,
+          "hf_top2_ids": [
+            45653,
+            28605
+          ],
+          "hf_gap": 0.12372779846191406,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.08552267066650465
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            21552,
+            79308
+          ],
+          "hf_gap": 0.03566932678222656,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.03356075421142535
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "candidate_top1": 100583,
+          "hf_top2_ids": [
+            41535,
+            100583
+          ],
+          "hf_gap": 0.27734375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.7092256479125982
+        },
+        {
+          "position": 16549,
+          "classification": "accepted-tie",
+          "candidate_top1": 53168,
+          "hf_top2_ids": [
+            46160,
+            53168
+          ],
+          "hf_gap": 0.04769325256347656,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.14034840168456952
+        },
+        {
+          "position": 16567,
+          "classification": "miss",
+          "candidate_top1": 39393,
+          "hf_top2_ids": [
+            54351,
+            39393
+          ],
+          "hf_gap": 0.12707805633544922,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.3342656671020503
+        },
+        {
+          "position": 16571,
+          "classification": "miss",
+          "candidate_top1": 110474,
+          "hf_top2_ids": [
+            117048,
+            110474
+          ],
+          "hf_gap": 0.15735435485839844,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.12690544626464906
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "candidate_top1": 35279,
+          "hf_top2_ids": [
+            24834,
+            35279
+          ],
+          "hf_gap": 0.2951850891113281,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.17881683096923773
+        },
+        {
+          "position": 16650,
+          "classification": "miss",
+          "candidate_top1": 91047,
+          "hf_top2_ids": [
+            94574,
+            21243
+          ],
+          "hf_gap": 0.0694742202758789,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.5712976289184581
+        },
+        {
+          "position": 16652,
+          "classification": "accepted-tie",
+          "candidate_top1": 23649,
+          "hf_top2_ids": [
+            84324,
+            23649
+          ],
+          "hf_gap": 0.01738452911376953,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.07089992148437574
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "candidate_top1": 1543,
+          "hf_top2_ids": [
+            14502,
+            1543
+          ],
+          "hf_gap": 0.027769088745117188,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.06842037501220766
+        },
+        {
+          "position": 16655,
+          "classification": "accepted-tie",
+          "candidate_top1": 75485,
+          "hf_top2_ids": [
+            40170,
+            75485
+          ],
+          "hf_gap": 0.008729934692382812,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.011283897753905592
+        },
+        {
+          "position": 16656,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            4676,
+            79308
+          ],
+          "hf_gap": 0.016326904296875,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.05475041787109447
+        },
+        {
+          "position": 16661,
+          "classification": "miss",
+          "candidate_top1": 73230,
+          "hf_top2_ids": [
+            75485,
+            41943
+          ],
+          "hf_gap": 0.045215606689453125,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.016900038647461813
+        },
+        {
+          "position": 16667,
+          "classification": "accepted-tie",
+          "candidate_top1": 129709,
+          "hf_top2_ids": [
+            95981,
+            129709
+          ],
+          "hf_gap": 0.07422161102294922,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.04480553157958944
+        },
+        {
+          "position": 16679,
+          "classification": "accepted-tie",
+          "candidate_top1": 13367,
+          "hf_top2_ids": [
+            39490,
+            13367
+          ],
+          "hf_gap": 0.012941360473632812,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.06992916054687548
+        },
+        {
+          "position": 16705,
+          "classification": "accepted-tie",
+          "candidate_top1": 60002,
+          "hf_top2_ids": [
+            16768,
+            60002
+          ],
+          "hf_gap": 0.053969383239746094,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.11720278448486354
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "candidate_top1": 21243,
+          "hf_top2_ids": [
+            69336,
+            21243
+          ],
+          "hf_gap": 0.05169868469238281,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.02010440960693316
+        },
+        {
+          "position": 16716,
+          "classification": "accepted-tie",
+          "candidate_top1": 44489,
+          "hf_top2_ids": [
+            18347,
+            44489
+          ],
+          "hf_gap": 0.023055076599121094,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.033252715209961536
+        },
+        {
+          "position": 16719,
+          "classification": "accepted-tie",
+          "candidate_top1": 26304,
+          "hf_top2_ids": [
+            23129,
+            26304
+          ],
+          "hf_gap": 0.021294593811035156,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.03189272902831952
+        },
+        {
+          "position": 16732,
+          "classification": "accepted-tie",
+          "candidate_top1": 74669,
+          "hf_top2_ids": [
+            63032,
+            74669
+          ],
+          "hf_gap": 0.009735107421875,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.1202478020385751
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            64907,
+            79308
+          ],
+          "hf_gap": 0.14731597900390625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.3902778945068359
+        },
+        {
+          "position": 16741,
+          "classification": "miss",
+          "candidate_top1": 60002,
+          "hf_top2_ids": [
+            27543,
+            60002
+          ],
+          "hf_gap": 0.14783763885498047,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.012149794396972169
+        },
+        {
+          "position": 16752,
+          "classification": "miss",
+          "candidate_top1": 132705,
+          "hf_top2_ids": [
+            27543,
+            45653
+          ],
+          "hf_gap": 0.2772188186645508,
+          "hf_top1_rank": 4,
+          "candidate_minus_hf_logit_same_id": 0.6445990094848639
+        },
+        {
+          "position": 16767,
+          "classification": "miss",
+          "candidate_top1": 19529,
+          "hf_top2_ids": [
+            62287,
+            2309
+          ],
+          "hf_gap": 0.2196941375732422,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.22455310087890545
+        },
+        {
+          "position": 16770,
+          "classification": "accepted-tie",
+          "candidate_top1": 99324,
+          "hf_top2_ids": [
+            36409,
+            99324
+          ],
+          "hf_gap": 0.044615745544433594,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.10043144538574289
+        },
+        {
+          "position": 16823,
+          "classification": "accepted-tie",
+          "candidate_top1": 35290,
+          "hf_top2_ids": [
+            97,
+            35290
+          ],
+          "hf_gap": 0.013109207153320312,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.030354525012207034
+        },
+        {
+          "position": 16827,
+          "classification": "miss",
+          "candidate_top1": 101646,
+          "hf_top2_ids": [
+            79732,
+            1776
+          ],
+          "hf_gap": 0.07966327667236328,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.08911896965332033
+        },
+        {
+          "position": 16876,
+          "classification": "miss",
+          "candidate_top1": 57825,
+          "hf_top2_ids": [
+            9379,
+            57825
+          ],
+          "hf_gap": 0.12161636352539062,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.10877040258788995
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:1c276b74b738c6d3f6fd048517830b1c902d2d4f1b67dd8612334b39f8df0fee",
+        "execution_sha256": "b61994bc58101b640b7f1dc1aab44387c93c8aad7024426af5a339277c8bd7b6",
+        "raw_sha256": "dc886bdd555905a1be9dea66d4be0cf548b4a2ca63dc132d7a46104e81597bd8",
+        "detail_json_sha256": "9b7331c5fa7c94729439fc2f95ffce9ae86a7c3a6421cf3c795cfbcc99ebb482",
+        "report_sha256": "6046763339e9b6bc0a51f3fc891397f40cea7d5cb657f75540d20124333c5825",
+        "producer_sha256": "8b0c5dbd8bd268945eeec00dd4ab11476dcb64ac6ef6aef6c738a6ad5ede093d",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": "Literal F16 inputs to all Linear operations, including TQ matrices and lm_head; F32 sums; logical F16 KV storage."
+      },
+      "capture_outer_sha256": "68189606d8ab61df845fb7446642b8bf3653ca64d9cda44be5b9d02dd7fb4464",
+      "capture_payload_sha256": "e18a2320421ba58ac6563e93a13e5f246a9fb22272eab88ffa38aa2dc4f1f5e7",
+      "capture_stdout_sha256": "855533a37443f20ab620c1b679d453febb816f354e74b693bad5d3eeae3f7734"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-chat",
+      "model": "tq1-0",
+      "comparison_role": "selected-policy",
+      "policy": "f32",
+      "capture_policy": "f32",
+      "variant": "chat",
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16526,
+          "classification": "accepted-tie",
+          "candidate_top1": 32040,
+          "hf_top2_ids": [
+            62658,
+            32040
+          ],
+          "hf_gap": 0.013367652893066406,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.004736879479979805
+        },
+        {
+          "position": 16621,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2_ids": [
+            92902,
+            40170
+          ],
+          "hf_gap": 0.0022687911987304688,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.00920773090820326
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:07dca8bb24bafacfa264370d74607a33502419425f3aa80e9dc2015c78f3bbbf",
+        "execution_sha256": "e20de165694883a817baaaa7738b5655ec5fb614e22ef33e8ac15a1242018530",
+        "raw_sha256": "1b172dae88f0a85269ce94bbbed7d3bc305253831e041778b0065f74f60c4a49",
+        "detail_json_sha256": "520b1537155c5124e6d67984b06a628ef23a8ce34fffb0f6cf37d2ae86414966",
+        "report_sha256": "441a88107d89ebc2a926136878c6b6ec2040f35a762524c8776561dbef477630",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": null
+      },
+      "capture_outer_sha256": "129aeda9f6bed092270a5d485c650227cc90313090e6140e6d29a7ebba8c69b8",
+      "capture_payload_sha256": "c75628525d78ae26b2fe75084b921342a1b7f7cc4b35e0786b497222cc19ccd7",
+      "capture_stdout_sha256": "45e1173e1c1deb1a87d8be87606fb85dc010c0af5716829b5d600e079060abc5"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-raw",
+      "model": "tq1-0",
+      "comparison_role": "selected-policy",
+      "policy": "f32",
+      "capture_policy": "f32",
+      "variant": "raw",
+      "counts": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2_ids": [
+            6791,
+            18397
+          ],
+          "hf_gap": 6.67572021484375e-05,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.005986167663573738
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:f212d2405370d3b59703c61d7a8b8a93eefd6c48df00c6a5de9acb79dbe00469",
+        "execution_sha256": "ac591e0bf0856bb0b7f26d2d1dcd650f5e5f0be26d138856c1b2df4b7ec7aaff",
+        "raw_sha256": "0a8ce84d46ec89e896f437721f351d40972a3d2e554e58e01a5a4bf237fc3dc5",
+        "detail_json_sha256": "157b2be22363723624a86d3722d0d96177d1ff553743727af754aca3750c6acd",
+        "report_sha256": "4edc6d5fb4698809c2104e7b463d5fbd0ebe9defc34959131387dc6b5725db6a",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": null
+      },
+      "capture_outer_sha256": "9d2a897c290680f6c99a52cc8d756026d83b9a0685b2da957d78d8b2a8ddcf7c",
+      "capture_payload_sha256": "8bde7aa9a2462ea2ad1276ccd5ed538a1f986477e9b0db7628318c4cddfa212d",
+      "capture_stdout_sha256": "3fa7f2c91a72979c3036298748f7c8c928b833022eaddfd87b075182afd7412e"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-chat",
+      "model": "tq2-0",
+      "comparison_role": "selected-policy",
+      "policy": "default",
+      "capture_policy": "default",
+      "variant": "chat",
+      "counts": {
+        "exact": 483,
+        "accepted-tie": 17,
+        "miss": 12
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16388,
+          "classification": "accepted-tie",
+          "candidate_top1": 111979,
+          "hf_top2_ids": [
+            58437,
+            111979
+          ],
+          "hf_gap": 0.05968189239501953,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.049121880798340456
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            104005,
+            53930
+          ],
+          "hf_gap": 0.025176048278808594,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": -0.0778026152343756
+        },
+        {
+          "position": 16421,
+          "classification": "miss",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            44769,
+            64907
+          ],
+          "hf_gap": 0.21664142608642578,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.11427785277099645
+        },
+        {
+          "position": 16430,
+          "classification": "accepted-tie",
+          "candidate_top1": 107080,
+          "hf_top2_ids": [
+            45653,
+            107080
+          ],
+          "hf_gap": 0.031528472900390625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.0035476588134759623
+        },
+        {
+          "position": 16439,
+          "classification": "miss",
+          "candidate_top1": 86688,
+          "hf_top2_ids": [
+            18192,
+            86688
+          ],
+          "hf_gap": 0.12791156768798828,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.183824492639161
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 131603,
+          "hf_top2_ids": [
+            8916,
+            131603
+          ],
+          "hf_gap": 0.0583953857421875,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.05743117747802806
+        },
+        {
+          "position": 16451,
+          "classification": "miss",
+          "candidate_top1": 146840,
+          "hf_top2_ids": [
+            96321,
+            146840
+          ],
+          "hf_gap": 0.37065601348876953,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.14350509450683546
+        },
+        {
+          "position": 16480,
+          "classification": "accepted-tie",
+          "candidate_top1": 70794,
+          "hf_top2_ids": [
+            26254,
+            70794
+          ],
+          "hf_gap": 0.00563812255859375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.03988833828125138
+        },
+        {
+          "position": 16519,
+          "classification": "accepted-tie",
+          "candidate_top1": 37148,
+          "hf_top2_ids": [
+            104818,
+            37148
+          ],
+          "hf_gap": 0.02961444854736328,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.023438420227050116
+        },
+        {
+          "position": 16535,
+          "classification": "accepted-tie",
+          "candidate_top1": 28412,
+          "hf_top2_ids": [
+            25136,
+            28412
+          ],
+          "hf_gap": 0.09785175323486328,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.1795292151733392
+        },
+        {
+          "position": 16544,
+          "classification": "accepted-tie",
+          "candidate_top1": 91572,
+          "hf_top2_ids": [
+            17177,
+            91572
+          ],
+          "hf_gap": 0.036041259765625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.2626553011718755
+        },
+        {
+          "position": 16549,
+          "classification": "miss",
+          "candidate_top1": 2908,
+          "hf_top2_ids": [
+            59846,
+            62297
+          ],
+          "hf_gap": 0.003742218017578125,
+          "hf_top1_rank": 4,
+          "candidate_minus_hf_logit_same_id": 0.7631044520751953
+        },
+        {
+          "position": 16555,
+          "classification": "accepted-tie",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            70858,
+            63032
+          ],
+          "hf_gap": 0.09482479095458984,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.45573906795654295
+        },
+        {
+          "position": 16600,
+          "classification": "miss",
+          "candidate_top1": 104162,
+          "hf_top2_ids": [
+            44636,
+            104162
+          ],
+          "hf_gap": 0.4278230667114258,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.12776853792724552
+        },
+        {
+          "position": 16615,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2_ids": [
+            110678,
+            105947
+          ],
+          "hf_gap": 0.0639810562133789,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.03589155521240173
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2_ids": [
+            53930,
+            104197
+          ],
+          "hf_gap": 0.10553550720214844,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.06704807845459015
+        },
+        {
+          "position": 16623,
+          "classification": "accepted-tie",
+          "candidate_top1": 104162,
+          "hf_top2_ids": [
+            93149,
+            104162
+          ],
+          "hf_gap": 0.015212059020996094,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.001158735607910799
+        },
+        {
+          "position": 16639,
+          "classification": "accepted-tie",
+          "candidate_top1": 14273,
+          "hf_top2_ids": [
+            96972,
+            14273
+          ],
+          "hf_gap": 0.030817031860351562,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.04368304172363224
+        },
+        {
+          "position": 16646,
+          "classification": "miss",
+          "candidate_top1": 70000,
+          "hf_top2_ids": [
+            52736,
+            70000
+          ],
+          "hf_gap": 0.16074371337890625,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.05351064443359377
+        },
+        {
+          "position": 16648,
+          "classification": "accepted-tie",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            106445,
+            64907
+          ],
+          "hf_gap": 0.05518817901611328,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.04421139830322218
+        },
+        {
+          "position": 16666,
+          "classification": "accepted-tie",
+          "candidate_top1": 5701,
+          "hf_top2_ids": [
+            26201,
+            5701
+          ],
+          "hf_gap": 0.0008106231689453125,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.08267597503662039
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2_ids": [
+            440,
+            133121
+          ],
+          "hf_gap": 0.10616874694824219,
+          "hf_top1_rank": 3,
+          "candidate_minus_hf_logit_same_id": 0.10422320178222577
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2_ids": [
+            104211,
+            110624
+          ],
+          "hf_gap": 0.04724693298339844,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.08890720729980472
+        },
+        {
+          "position": 16731,
+          "classification": "miss",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            38840,
+            18194
+          ],
+          "hf_gap": 0.42879676818847656,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.2519855869873062
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2_ids": [
+            48799,
+            77863
+          ],
+          "hf_gap": 0.027123451232910156,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": -0.009977347583006946
+        },
+        {
+          "position": 16777,
+          "classification": "miss",
+          "candidate_top1": 90447,
+          "hf_top2_ids": [
+            0,
+            101784
+          ],
+          "hf_gap": 0.45612049102783203,
+          "hf_top1_rank": 4,
+          "candidate_minus_hf_logit_same_id": 0.8787793817260745
+        },
+        {
+          "position": 16822,
+          "classification": "miss",
+          "candidate_top1": 85427,
+          "hf_top2_ids": [
+            66,
+            85427
+          ],
+          "hf_gap": 0.1965808868408203,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.28327082360839917
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2_ids": [
+            79308,
+            65676
+          ],
+          "hf_gap": 0.060482025146484375,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.08227829927978547
+        },
+        {
+          "position": 16892,
+          "classification": "accepted-tie",
+          "candidate_top1": 27864,
+          "hf_top2_ids": [
+            125997,
+            27864
+          ],
+          "hf_gap": 0.046830177307128906,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.05108643365478471
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:33cf165787d5e644537238702b258eb05ac9623baaf91ed2e485e5888f92d823",
+        "execution_sha256": "34d807f2492c3b38d89fa79fb5eb01db2cf608523898016d6117e146edd86dc8",
+        "raw_sha256": "053d26d926d690f05a5ccb5bac607b1584796239a50ebcb3feb9e542aabe629c",
+        "detail_json_sha256": "d1ebfc3f88fef764eb47d1fe337a574fc67873ef9f8d170111461045977aa941",
+        "report_sha256": "6620681eef25b8b44873025c1f531e72e9f04aa442b23015bd9dbdcfdfa27f3b",
+        "producer_sha256": "7f053ecf259e0bcdb666620eb13df6bce582e8bf9d2e9309042c0b5d7e4a4e8b",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "policy": "Literal F16 inputs to all Linear operations, including TQ matrices and lm_head; F32 sums; logical F16 KV storage."
+      },
+      "capture_outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+      "capture_payload_sha256": "9fc2c9c4643f9daf30be99c312e0cf85e896c8820ef745b3cdf2ef4c5a602fd9",
+      "capture_stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-chat",
+      "model": "tq2-0",
+      "comparison_role": "selected-policy",
+      "policy": "f32",
+      "capture_policy": "f32",
+      "variant": "chat",
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16526,
+          "classification": "accepted-tie",
+          "candidate_top1": 32040,
+          "hf_top2_ids": [
+            62658,
+            32040
+          ],
+          "hf_gap": 0.013367652893066406,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.004736879479979805
+        },
+        {
+          "position": 16621,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2_ids": [
+            92902,
+            40170
+          ],
+          "hf_gap": 0.0022687911987304688,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.00920773090820326
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:ac0ab76091776037363b896f94327b33552463807bfb2ab7a245372673ac8c46",
+        "execution_sha256": "2ae1d078d3e5c5234f3289573fa540aa3c7db6e5a3a94034e4b2d39257ac41c6",
+        "raw_sha256": "1b172dae88f0a85269ce94bbbed7d3bc305253831e041778b0065f74f60c4a49",
+        "detail_json_sha256": "63eab0866544090f8b2f1e5e4ead77e28d90ade2975a1040853e21255b2c60aa",
+        "report_sha256": "9441ea3ef4ff251551e86f20f41fdaa3b1e4e21165715a772b731df53db6d6c9",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "policy": null
+      },
+      "capture_outer_sha256": "7145e502713536a1aab821fd5949e694c5b46d707faaaaef52ecc212ed589e00",
+      "capture_payload_sha256": "4d2d25a4a77fec7e84ad5bf02dc11373af6dde996e66cc51bb164f5f042521ad",
+      "capture_stdout_sha256": "45e1173e1c1deb1a87d8be87606fb85dc010c0af5716829b5d600e079060abc5"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-raw",
+      "model": "tq2-0",
+      "comparison_role": "selected-policy",
+      "policy": "f32",
+      "capture_policy": "f32",
+      "variant": "raw",
+      "counts": {
+        "exact": 511,
+        "accepted-tie": 1,
+        "miss": 0
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2_ids": [
+            6791,
+            18397
+          ],
+          "hf_gap": 6.67572021484375e-05,
+          "hf_top1_rank": 2,
+          "candidate_minus_hf_logit_same_id": 0.005986167663573738
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:262eb71786e53bbf38879e91401dabaac20f530a91cbd41890f17ced10509675",
+        "execution_sha256": "3309ca1b1d4df405f1fcfbe28ab90d96a31de548be8f027313d58100a7433b1e",
+        "raw_sha256": "0a8ce84d46ec89e896f437721f351d40972a3d2e554e58e01a5a4bf237fc3dc5",
+        "detail_json_sha256": "b0eb6b5303c10527278c095ba89996e087f3516716f09aee3f2d2f64fcd86127",
+        "report_sha256": "c86b06481fd309f29e7bb4a8b6f4e09bd45487ce3ff10441317b198b176b2dfd",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "policy": "F32"
+      },
+      "capture_outer_sha256": "94b066bec61bade608783e1a00f538ec3c59a5f96d7556c778f27f848e4f929c",
+      "capture_payload_sha256": "bf314a60f1d4a503ef6bcc9f702fd0b5013b9510ffafe3e43cc22ee655fa46ea",
+      "capture_stdout_sha256": "3fa7f2c91a72979c3036298748f7c8c928b833022eaddfd87b075182afd7412e"
+    }
+  ],
+  "quality_companions": [
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-chat",
+      "model": "tq1-0",
+      "comparison_role": "quality-companion-only",
+      "policy": "f32",
+      "capture_policy": "default",
+      "variant": "chat",
+      "counts": {
+        "exact": 481,
+        "accepted-tie": 20,
+        "miss": 11
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16394,
+          "classification": "accepted-tie",
+          "candidate_top1": 55043,
+          "hf_top2_ids": [
+            26165,
+            55043
+          ],
+          "hf_gap": 0.0781097412109375
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            104005,
+            102407
+          ],
+          "hf_gap": 0.35782909393310547
+        },
+        {
+          "position": 16421,
+          "classification": "accepted-tie",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            44769,
+            64907
+          ],
+          "hf_gap": 0.015540122985839844
+        },
+        {
+          "position": 16468,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2_ids": [
+            104162,
+            105947
+          ],
+          "hf_gap": 0.021841049194335938
+        },
+        {
+          "position": 16516,
+          "classification": "accepted-tie",
+          "candidate_top1": 58357,
+          "hf_top2_ids": [
+            79308,
+            58357
+          ],
+          "hf_gap": 0.03565406799316406
+        },
+        {
+          "position": 16519,
+          "classification": "accepted-tie",
+          "candidate_top1": 37148,
+          "hf_top2_ids": [
+            104818,
+            37148
+          ],
+          "hf_gap": 0.050525665283203125
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 92541,
+          "hf_top2_ids": [
+            56115,
+            92541
+          ],
+          "hf_gap": 0.0046443939208984375
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate_top1": 80348,
+          "hf_top2_ids": [
+            18194,
+            80348
+          ],
+          "hf_gap": 0.013329505920410156
+        },
+        {
+          "position": 16555,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            70858,
+            42609
+          ],
+          "hf_gap": 0.2935943603515625
+        },
+        {
+          "position": 16609,
+          "classification": "miss",
+          "candidate_top1": 90160,
+          "hf_top2_ids": [
+            84324,
+            90160
+          ],
+          "hf_gap": 0.16445541381835938
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2_ids": [
+            53930,
+            104197
+          ],
+          "hf_gap": 0.10237503051757812
+        },
+        {
+          "position": 16639,
+          "classification": "miss",
+          "candidate_top1": 14273,
+          "hf_top2_ids": [
+            96972,
+            13032
+          ],
+          "hf_gap": 0.0451812744140625
+        },
+        {
+          "position": 16646,
+          "classification": "accepted-tie",
+          "candidate_top1": 70000,
+          "hf_top2_ids": [
+            52736,
+            70000
+          ],
+          "hf_gap": 0.0042514801025390625
+        },
+        {
+          "position": 16648,
+          "classification": "accepted-tie",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            106445,
+            64907
+          ],
+          "hf_gap": 0.0135650634765625
+        },
+        {
+          "position": 16655,
+          "classification": "miss",
+          "candidate_top1": 97350,
+          "hf_top2_ids": [
+            99371,
+            97350
+          ],
+          "hf_gap": 0.4715299606323242
+        },
+        {
+          "position": 16666,
+          "classification": "miss",
+          "candidate_top1": 5701,
+          "hf_top2_ids": [
+            26201,
+            1539
+          ],
+          "hf_gap": 0.06523418426513672
+        },
+        {
+          "position": 16675,
+          "classification": "accepted-tie",
+          "candidate_top1": 104351,
+          "hf_top2_ids": [
+            104563,
+            104351
+          ],
+          "hf_gap": 0.09745025634765625
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2_ids": [
+            440,
+            133121
+          ],
+          "hf_gap": 0.009668350219726562
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2_ids": [
+            104211,
+            110624
+          ],
+          "hf_gap": 0.0258026123046875
+        },
+        {
+          "position": 16707,
+          "classification": "accepted-tie",
+          "candidate_top1": 27543,
+          "hf_top2_ids": [
+            104432,
+            27543
+          ],
+          "hf_gap": 0.07071781158447266
+        },
+        {
+          "position": 16731,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            38840,
+            18194
+          ],
+          "hf_gap": 0.06294631958007812
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2_ids": [
+            48799,
+            77863
+          ],
+          "hf_gap": 0.015107154846191406
+        },
+        {
+          "position": 16755,
+          "classification": "accepted-tie",
+          "candidate_top1": 45796,
+          "hf_top2_ids": [
+            90700,
+            45796
+          ],
+          "hf_gap": 0.060149192810058594
+        },
+        {
+          "position": 16760,
+          "classification": "miss",
+          "candidate_top1": 84324,
+          "hf_top2_ids": [
+            102147,
+            138499
+          ],
+          "hf_gap": 0.13277626037597656
+        },
+        {
+          "position": 16766,
+          "classification": "accepted-tie",
+          "candidate_top1": 59779,
+          "hf_top2_ids": [
+            6907,
+            59779
+          ],
+          "hf_gap": 0.04623889923095703
+        },
+        {
+          "position": 16787,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            79818,
+            68247
+          ],
+          "hf_gap": 0.01604461669921875
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2_ids": [
+            79308,
+            65676
+          ],
+          "hf_gap": 0.00022792816162109375
+        },
+        {
+          "position": 16884,
+          "classification": "accepted-tie",
+          "candidate_top1": 104050,
+          "hf_top2_ids": [
+            35568,
+            104050
+          ],
+          "hf_gap": 0.013564109802246094
+        },
+        {
+          "position": 16888,
+          "classification": "accepted-tie",
+          "candidate_top1": 129154,
+          "hf_top2_ids": [
+            3717,
+            129154
+          ],
+          "hf_gap": 0.030384063720703125
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 2924,
+          "hf_top2_ids": [
+            106250,
+            2924
+          ],
+          "hf_gap": 0.029392242431640625
+        },
+        {
+          "position": 16892,
+          "classification": "miss",
+          "candidate_top1": 27864,
+          "hf_top2_ids": [
+            125997,
+            27864
+          ],
+          "hf_gap": 0.12997722625732422
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:07dca8bb24bafacfa264370d74607a33502419425f3aa80e9dc2015c78f3bbbf",
+        "execution_sha256": "e20de165694883a817baaaa7738b5655ec5fb614e22ef33e8ac15a1242018530",
+        "raw_sha256": "1b172dae88f0a85269ce94bbbed7d3bc305253831e041778b0065f74f60c4a49",
+        "detail_json_sha256": "520b1537155c5124e6d67984b06a628ef23a8ce34fffb0f6cf37d2ae86414966",
+        "report_sha256": "441a88107d89ebc2a926136878c6b6ec2040f35a762524c8776561dbef477630",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": null
+      },
+      "capture_outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+      "capture_payload_sha256": "14fb65b33e779d330e74ba06e0875976044e1e3ee8b5c9d7ba166889886887a8",
+      "capture_stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-raw",
+      "model": "tq1-0",
+      "comparison_role": "quality-companion-only",
+      "policy": "f32",
+      "capture_policy": "default",
+      "variant": "raw",
+      "counts": {
+        "exact": 490,
+        "accepted-tie": 13,
+        "miss": 9
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16387,
+          "classification": "miss",
+          "candidate_top1": 79732,
+          "hf_top2_ids": [
+            18729,
+            79732
+          ],
+          "hf_gap": 0.12761592864990234
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            90447,
+            79308
+          ],
+          "hf_gap": 0.033791542053222656
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "candidate_top1": 78372,
+          "hf_top2_ids": [
+            83864,
+            78372
+          ],
+          "hf_gap": 0.02428722381591797
+        },
+        {
+          "position": 16467,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            84324,
+            6502
+          ],
+          "hf_gap": 0.039600372314453125
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "candidate_top1": 100583,
+          "hf_top2_ids": [
+            41535,
+            100583
+          ],
+          "hf_gap": 0.2126455307006836
+        },
+        {
+          "position": 16505,
+          "classification": "accepted-tie",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            113365,
+            63032
+          ],
+          "hf_gap": 0.0658731460571289
+        },
+        {
+          "position": 16511,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            7247,
+            23956
+          ],
+          "hf_gap": 0.3851585388183594
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2_ids": [
+            103873,
+            40170
+          ],
+          "hf_gap": 0.0009393692016601562
+        },
+        {
+          "position": 16521,
+          "classification": "miss",
+          "candidate_top1": 124634,
+          "hf_top2_ids": [
+            54094,
+            4626
+          ],
+          "hf_gap": 0.10162639617919922
+        },
+        {
+          "position": 16595,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            34328,
+            18194
+          ],
+          "hf_gap": 0.06899452209472656
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "candidate_top1": 35279,
+          "hf_top2_ids": [
+            24834,
+            35279
+          ],
+          "hf_gap": 0.3023490905761719
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "candidate_top1": 1543,
+          "hf_top2_ids": [
+            14502,
+            1543
+          ],
+          "hf_gap": 0.09439659118652344
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "candidate_top1": 21243,
+          "hf_top2_ids": [
+            69336,
+            21243
+          ],
+          "hf_gap": 0.07151031494140625
+        },
+        {
+          "position": 16733,
+          "classification": "accepted-tie",
+          "candidate_top1": 20648,
+          "hf_top2_ids": [
+            63032,
+            20648
+          ],
+          "hf_gap": 0.002414703369140625
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            64907,
+            79308
+          ],
+          "hf_gap": 0.23178577423095703
+        },
+        {
+          "position": 16750,
+          "classification": "accepted-tie",
+          "candidate_top1": 1062,
+          "hf_top2_ids": [
+            1015,
+            1062
+          ],
+          "hf_gap": 0.05032157897949219
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 23666,
+          "hf_top2_ids": [
+            124634,
+            23666
+          ],
+          "hf_gap": 0.039872169494628906
+        },
+        {
+          "position": 16770,
+          "classification": "miss",
+          "candidate_top1": 99324,
+          "hf_top2_ids": [
+            36429,
+            99324
+          ],
+          "hf_gap": 0.17220401763916016
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2_ids": [
+            6791,
+            18397
+          ],
+          "hf_gap": 6.67572021484375e-05
+        },
+        {
+          "position": 16783,
+          "classification": "accepted-tie",
+          "candidate_top1": 90160,
+          "hf_top2_ids": [
+            27543,
+            90160
+          ],
+          "hf_gap": 0.06688213348388672
+        },
+        {
+          "position": 16881,
+          "classification": "miss",
+          "candidate_top1": 66838,
+          "hf_top2_ids": [
+            82714,
+            66838
+          ],
+          "hf_gap": 0.3068733215332031
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 134267,
+          "hf_top2_ids": [
+            79308,
+            134267
+          ],
+          "hf_gap": 0.00096893310546875
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:f212d2405370d3b59703c61d7a8b8a93eefd6c48df00c6a5de9acb79dbe00469",
+        "execution_sha256": "ac591e0bf0856bb0b7f26d2d1dcd650f5e5f0be26d138856c1b2df4b7ec7aaff",
+        "raw_sha256": "0a8ce84d46ec89e896f437721f351d40972a3d2e554e58e01a5a4bf237fc3dc5",
+        "detail_json_sha256": "157b2be22363723624a86d3722d0d96177d1ff553743727af754aca3750c6acd",
+        "report_sha256": "4edc6d5fb4698809c2104e7b463d5fbd0ebe9defc34959131387dc6b5725db6a",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "policy": null
+      },
+      "capture_outer_sha256": "68189606d8ab61df845fb7446642b8bf3653ca64d9cda44be5b9d02dd7fb4464",
+      "capture_payload_sha256": "e18a2320421ba58ac6563e93a13e5f246a9fb22272eab88ffa38aa2dc4f1f5e7",
+      "capture_stdout_sha256": "855533a37443f20ab620c1b679d453febb816f354e74b693bad5d3eeae3f7734"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-chat",
+      "model": "tq2-0",
+      "comparison_role": "quality-companion-only",
+      "policy": "f32",
+      "capture_policy": "default",
+      "variant": "chat",
+      "counts": {
+        "exact": 481,
+        "accepted-tie": 20,
+        "miss": 11
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16394,
+          "classification": "accepted-tie",
+          "candidate_top1": 55043,
+          "hf_top2_ids": [
+            26165,
+            55043
+          ],
+          "hf_gap": 0.0781097412109375
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            104005,
+            102407
+          ],
+          "hf_gap": 0.35782909393310547
+        },
+        {
+          "position": 16421,
+          "classification": "accepted-tie",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            44769,
+            64907
+          ],
+          "hf_gap": 0.015540122985839844
+        },
+        {
+          "position": 16468,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2_ids": [
+            104162,
+            105947
+          ],
+          "hf_gap": 0.021841049194335938
+        },
+        {
+          "position": 16516,
+          "classification": "accepted-tie",
+          "candidate_top1": 58357,
+          "hf_top2_ids": [
+            79308,
+            58357
+          ],
+          "hf_gap": 0.03565406799316406
+        },
+        {
+          "position": 16519,
+          "classification": "accepted-tie",
+          "candidate_top1": 37148,
+          "hf_top2_ids": [
+            104818,
+            37148
+          ],
+          "hf_gap": 0.050525665283203125
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 92541,
+          "hf_top2_ids": [
+            56115,
+            92541
+          ],
+          "hf_gap": 0.0046443939208984375
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate_top1": 80348,
+          "hf_top2_ids": [
+            18194,
+            80348
+          ],
+          "hf_gap": 0.013329505920410156
+        },
+        {
+          "position": 16555,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            70858,
+            42609
+          ],
+          "hf_gap": 0.2935943603515625
+        },
+        {
+          "position": 16609,
+          "classification": "miss",
+          "candidate_top1": 90160,
+          "hf_top2_ids": [
+            84324,
+            90160
+          ],
+          "hf_gap": 0.16445541381835938
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2_ids": [
+            53930,
+            104197
+          ],
+          "hf_gap": 0.10237503051757812
+        },
+        {
+          "position": 16639,
+          "classification": "miss",
+          "candidate_top1": 14273,
+          "hf_top2_ids": [
+            96972,
+            13032
+          ],
+          "hf_gap": 0.0451812744140625
+        },
+        {
+          "position": 16646,
+          "classification": "accepted-tie",
+          "candidate_top1": 70000,
+          "hf_top2_ids": [
+            52736,
+            70000
+          ],
+          "hf_gap": 0.0042514801025390625
+        },
+        {
+          "position": 16648,
+          "classification": "accepted-tie",
+          "candidate_top1": 64907,
+          "hf_top2_ids": [
+            106445,
+            64907
+          ],
+          "hf_gap": 0.0135650634765625
+        },
+        {
+          "position": 16655,
+          "classification": "miss",
+          "candidate_top1": 97350,
+          "hf_top2_ids": [
+            99371,
+            97350
+          ],
+          "hf_gap": 0.4715299606323242
+        },
+        {
+          "position": 16666,
+          "classification": "miss",
+          "candidate_top1": 5701,
+          "hf_top2_ids": [
+            26201,
+            1539
+          ],
+          "hf_gap": 0.06523418426513672
+        },
+        {
+          "position": 16675,
+          "classification": "accepted-tie",
+          "candidate_top1": 104351,
+          "hf_top2_ids": [
+            104563,
+            104351
+          ],
+          "hf_gap": 0.09745025634765625
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2_ids": [
+            440,
+            133121
+          ],
+          "hf_gap": 0.009668350219726562
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2_ids": [
+            104211,
+            110624
+          ],
+          "hf_gap": 0.0258026123046875
+        },
+        {
+          "position": 16707,
+          "classification": "accepted-tie",
+          "candidate_top1": 27543,
+          "hf_top2_ids": [
+            104432,
+            27543
+          ],
+          "hf_gap": 0.07071781158447266
+        },
+        {
+          "position": 16731,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            38840,
+            18194
+          ],
+          "hf_gap": 0.06294631958007812
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2_ids": [
+            48799,
+            77863
+          ],
+          "hf_gap": 0.015107154846191406
+        },
+        {
+          "position": 16755,
+          "classification": "accepted-tie",
+          "candidate_top1": 45796,
+          "hf_top2_ids": [
+            90700,
+            45796
+          ],
+          "hf_gap": 0.060149192810058594
+        },
+        {
+          "position": 16760,
+          "classification": "miss",
+          "candidate_top1": 84324,
+          "hf_top2_ids": [
+            102147,
+            138499
+          ],
+          "hf_gap": 0.13277626037597656
+        },
+        {
+          "position": 16766,
+          "classification": "accepted-tie",
+          "candidate_top1": 59779,
+          "hf_top2_ids": [
+            6907,
+            59779
+          ],
+          "hf_gap": 0.04623889923095703
+        },
+        {
+          "position": 16787,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            79818,
+            68247
+          ],
+          "hf_gap": 0.01604461669921875
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2_ids": [
+            79308,
+            65676
+          ],
+          "hf_gap": 0.00022792816162109375
+        },
+        {
+          "position": 16884,
+          "classification": "accepted-tie",
+          "candidate_top1": 104050,
+          "hf_top2_ids": [
+            35568,
+            104050
+          ],
+          "hf_gap": 0.013564109802246094
+        },
+        {
+          "position": 16888,
+          "classification": "accepted-tie",
+          "candidate_top1": 129154,
+          "hf_top2_ids": [
+            3717,
+            129154
+          ],
+          "hf_gap": 0.030384063720703125
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 2924,
+          "hf_top2_ids": [
+            106250,
+            2924
+          ],
+          "hf_gap": 0.029392242431640625
+        },
+        {
+          "position": 16892,
+          "classification": "miss",
+          "candidate_top1": 27864,
+          "hf_top2_ids": [
+            125997,
+            27864
+          ],
+          "hf_gap": 0.12997722625732422
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:ac0ab76091776037363b896f94327b33552463807bfb2ab7a245372673ac8c46",
+        "execution_sha256": "2ae1d078d3e5c5234f3289573fa540aa3c7db6e5a3a94034e4b2d39257ac41c6",
+        "raw_sha256": "1b172dae88f0a85269ce94bbbed7d3bc305253831e041778b0065f74f60c4a49",
+        "detail_json_sha256": "63eab0866544090f8b2f1e5e4ead77e28d90ade2975a1040853e21255b2c60aa",
+        "report_sha256": "9441ea3ef4ff251551e86f20f41fdaa3b1e4e21165715a772b731df53db6d6c9",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "policy": null
+      },
+      "capture_outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+      "capture_payload_sha256": "9fc2c9c4643f9daf30be99c312e0cf85e896c8820ef745b3cdf2ef4c5a602fd9",
+      "capture_stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-raw",
+      "model": "tq2-0",
+      "comparison_role": "quality-companion-only",
+      "policy": "f32",
+      "capture_policy": "default",
+      "variant": "raw",
+      "counts": {
+        "exact": 490,
+        "accepted-tie": 13,
+        "miss": 9
+      },
+      "per_position_non_exact": [
+        {
+          "position": 16387,
+          "classification": "miss",
+          "candidate_top1": 79732,
+          "hf_top2_ids": [
+            18729,
+            79732
+          ],
+          "hf_gap": 0.12761592864990234
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            90447,
+            79308
+          ],
+          "hf_gap": 0.033791542053222656
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "candidate_top1": 78372,
+          "hf_top2_ids": [
+            83864,
+            78372
+          ],
+          "hf_gap": 0.02428722381591797
+        },
+        {
+          "position": 16467,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2_ids": [
+            84324,
+            6502
+          ],
+          "hf_gap": 0.039600372314453125
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "candidate_top1": 100583,
+          "hf_top2_ids": [
+            41535,
+            100583
+          ],
+          "hf_gap": 0.2126455307006836
+        },
+        {
+          "position": 16505,
+          "classification": "accepted-tie",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            113365,
+            63032
+          ],
+          "hf_gap": 0.0658731460571289
+        },
+        {
+          "position": 16511,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2_ids": [
+            7247,
+            23956
+          ],
+          "hf_gap": 0.3851585388183594
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2_ids": [
+            103873,
+            40170
+          ],
+          "hf_gap": 0.0009393692016601562
+        },
+        {
+          "position": 16521,
+          "classification": "miss",
+          "candidate_top1": 124634,
+          "hf_top2_ids": [
+            54094,
+            4626
+          ],
+          "hf_gap": 0.10162639617919922
+        },
+        {
+          "position": 16595,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2_ids": [
+            34328,
+            18194
+          ],
+          "hf_gap": 0.06899452209472656
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "candidate_top1": 35279,
+          "hf_top2_ids": [
+            24834,
+            35279
+          ],
+          "hf_gap": 0.3023490905761719
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "candidate_top1": 1543,
+          "hf_top2_ids": [
+            14502,
+            1543
+          ],
+          "hf_gap": 0.09439659118652344
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "candidate_top1": 21243,
+          "hf_top2_ids": [
+            69336,
+            21243
+          ],
+          "hf_gap": 0.07151031494140625
+        },
+        {
+          "position": 16733,
+          "classification": "accepted-tie",
+          "candidate_top1": 20648,
+          "hf_top2_ids": [
+            63032,
+            20648
+          ],
+          "hf_gap": 0.002414703369140625
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "candidate_top1": 79308,
+          "hf_top2_ids": [
+            64907,
+            79308
+          ],
+          "hf_gap": 0.23178577423095703
+        },
+        {
+          "position": 16750,
+          "classification": "accepted-tie",
+          "candidate_top1": 1062,
+          "hf_top2_ids": [
+            1015,
+            1062
+          ],
+          "hf_gap": 0.05032157897949219
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 23666,
+          "hf_top2_ids": [
+            124634,
+            23666
+          ],
+          "hf_gap": 0.039872169494628906
+        },
+        {
+          "position": 16770,
+          "classification": "miss",
+          "candidate_top1": 99324,
+          "hf_top2_ids": [
+            36429,
+            99324
+          ],
+          "hf_gap": 0.17220401763916016
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2_ids": [
+            6791,
+            18397
+          ],
+          "hf_gap": 6.67572021484375e-05
+        },
+        {
+          "position": 16783,
+          "classification": "accepted-tie",
+          "candidate_top1": 90160,
+          "hf_top2_ids": [
+            27543,
+            90160
+          ],
+          "hf_gap": 0.06688213348388672
+        },
+        {
+          "position": 16881,
+          "classification": "miss",
+          "candidate_top1": 66838,
+          "hf_top2_ids": [
+            82714,
+            66838
+          ],
+          "hf_gap": 0.3068733215332031
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 134267,
+          "hf_top2_ids": [
+            79308,
+            134267
+          ],
+          "hf_gap": 0.00096893310546875
+        }
+      ],
+      "reference": {
+        "artifact_digest": "sha256:262eb71786e53bbf38879e91401dabaac20f530a91cbd41890f17ced10509675",
+        "execution_sha256": "3309ca1b1d4df405f1fcfbe28ab90d96a31de548be8f027313d58100a7433b1e",
+        "raw_sha256": "0a8ce84d46ec89e896f437721f351d40972a3d2e554e58e01a5a4bf237fc3dc5",
+        "detail_json_sha256": "b0eb6b5303c10527278c095ba89996e087f3516716f09aee3f2d2f64fcd86127",
+        "report_sha256": "c86b06481fd309f29e7bb4a8b6f4e09bd45487ce3ff10441317b198b176b2dfd",
+        "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "policy": "F32"
+      },
+      "capture_outer_sha256": "c2655f063bf7781ab391ab7feebb6e5e7c6fab2ad6156b336814e1fe6672e804",
+      "capture_payload_sha256": "151c3e65ade91f236819284b2cc34953b745de2fc5673bb3faa30bc69b4bb9f8",
+      "capture_stdout_sha256": "855533a37443f20ab620c1b679d453febb816f354e74b693bad5d3eeae3f7734"
+    }
+  ],
+  "missing_selected_reference": [
+    [
+      "tq2-0",
+      "default",
+      "raw"
+    ]
+  ],
+  "verified": true,
+  "interpretation": "Default-vs-F32 cells are quality companions only. The selected HF policy rounds all Linear inputs to literal F16 with F16 KV; Vulkan block-int16 consumes quantized original F32 inputs, so this is a precision-class comparison, not identical arithmetic."
+}

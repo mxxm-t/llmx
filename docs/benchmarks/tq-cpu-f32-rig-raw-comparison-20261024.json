@@ -1,0 +1,68 @@
+{
+  "scope": "One CPU F32/F32 KV fixed-history 16K depth cell, original independent HF and unchanged 0.1 rule",
+  "kind": "tq1-0",
+  "variant": "raw",
+  "matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "counts": {
+    "exact": 511,
+    "accepted-tie": 1,
+    "miss": 0
+  },
+  "differences": [
+    {
+      "position": 16771,
+      "classification": "accepted-tie",
+      "candidate": 18397,
+      "reference_top2": [
+        6791,
+        18397
+      ],
+      "gap": 6.67572021484375e-05
+    }
+  ],
+  "passed": true,
+  "reference": {
+    "artifact": "tq-depth-tq1-0-f32-raw",
+    "artifact_digest": "sha256:f212d2405370d3b59703c61d7a8b8a93eefd6c48df00c6a5de9acb79dbe00469",
+    "execution_sha256": "ac591e0bf0856bb0b7f26d2d1dcd650f5e5f0be26d138856c1b2df4b7ec7aaff",
+    "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+    "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+    "positions": 512,
+    "vocabulary": 151936,
+    "cgroup_peak_bytes": 9032474624,
+    "verified": true,
+    "scope": "Independent F32 reference outputs only; no candidate comparison"
+  },
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/probes/f32-probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ1_0.gguf": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/fixtures/depth-raw.json": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3"
+  },
+  "capture_sha256": "0a2e32996b7027d8040713a8026e411d9e978f78becfe03503036246baee4742",
+  "complete_sha256": "6aa08ba44d4d299254f948a22fde86d0a5a4597cdcc514d98ad10c59dc0da9f4",
+  "wall_seconds": 1151.1707379817963,
+  "numerical_limits_changed": false,
+  "remaining_cpu_f32_continuation": {
+    "status": "three cells running serially; no results",
+    "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/cpu-f32-rig-raw-v1/continuation-v2",
+    "cpu_set": "0-3",
+    "quota": 4,
+    "memory_cap_gib": 10,
+    "deadline_seconds_per_cell": 1800,
+    "deadline_basis": "Observed first raw cell elapsed 1151.1707 seconds.",
+    "prior_attempt": {
+      "name": "continuation-v1",
+      "child_started": false,
+      "failure": "Wrapper expected tmpfs in Docker Mounts; HostConfig.Tmpfs contains it but Mounts omits it.",
+      "owned_idle_container_removed": true,
+      "correction": "Docker inspection only; probe and numerical limits unchanged."
+    }
+  }
+}

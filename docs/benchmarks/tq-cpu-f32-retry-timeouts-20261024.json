@@ -1,0 +1,165 @@
+{
+  "scope": "Completed CPU F32 resource retry. Timeout before scored output, not a numerical comparison.",
+  "run": 40116479563,
+  "workflow_head": "393c65b237c6553aa1bb5c5126f6a59987eb6756",
+  "artifact_sha256": "a4a2122d0d172268b3db1a683d357e0da64f14e56d2e59855955181eb6b824e9",
+  "analyzer_sha256": "ae49a5b84bd3921cad594f3f04dd18821636435fe373d78c98cc25b82fe2e123",
+  "cells": [
+    {
+      "variant": "raw",
+      "outer_execution_sha256": "61f9a89aa76fcf4992324f7293605ab7a631e5d6ad3c307d5c864ed7cff8f154",
+      "capture_execution_sha256": "454c6adde8c29e509d81e4cfa893cfdcff65d2d1d859edd37ae5f9b4b8e78c9c",
+      "artifact_count_verified": 7,
+      "before_after_unchanged": true,
+      "post_run_pin_check": "verified",
+      "before": {
+        "source": {
+          "head": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+          "tree": "2f66f4090866e2a0733d504f7d3526540a63f020",
+          "clean": true
+        },
+        "build": {
+          "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+          "image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+          "artifact_count": 850,
+          "cli_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+          "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e"
+        },
+        "image": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+        "inputs": {
+          "models": {
+            "tq1-0": {
+              "bytes": 314252544,
+              "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+            },
+            "tq2-0": {
+              "bytes": 334896384,
+              "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a"
+            }
+          },
+          "manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "artifacts": {
+            "chat-template.jinja": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+            "raw/prompt16k.ids": "6ea2a4e937e24b57ca1b77cca9c883d4b5962d2feb8bbeb7418bbc0a646c4a06",
+            "raw/continuation512.ids": "a42ab6f8c95976f836f91edc769f95f04dffd9b5dfb0ec73af59eda84b796f69",
+            "raw/score16895.ids": "3d4adcf5b540238d13b9315242797f8a686b0f859ce3358a3b0345faf5a899a2",
+            "raw/prompt.txt": "26f2ffa98bd8bd43c805258ff1f5fb90bf33b3c62e04bfdaf0cb3e31841ee67e",
+            "raw/continuation.txt": "31967613352221b265cdff7846555fcd74d07f1fe777acefe61250cf8dadb5d6",
+            "chat/prompt16k.ids": "d5ff76845a241f5f360d1dc36679caa45a45c827e3bcb01d8b23638f38571346",
+            "chat/continuation512.ids": "f4d646252553512b0f92b617d15eca8745f071ef3753e5f2b806252c73f3e31d",
+            "chat/score16895.ids": "67a4428e13a85627103e4f133b16f608248b4c73269a742a4df566bb6d9b6289",
+            "chat/prompt.txt": "8e0f2976f8adecc708d4c3fb8916b23c39796bf2034df9fbae24d55c99f68ba1",
+            "chat/continuation.txt": "8bcb6fac6649fb01934cdb9ce2e3c5d1bab2c1ec6cc24559031e78ab51ae8f3d",
+            "chat/messages.json": "a53638edbd38b569a97ebb00b646a6ce3542d0e855e9cc4df7fb8b74d09e4bb5"
+          },
+          "fixtures": {
+            "raw": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+            "chat": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
+          },
+          "common_py_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+        },
+        "model": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "fixture": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+        "probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+        "probe_receipt": "1559727f04938dc98975a85ae16ef260753ab61c497da8a3fbf46b9a64e2077c"
+      },
+      "memory_cap": "10737418240",
+      "removed": true,
+      "oom_killed": false,
+      "container_state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 1,
+        "Error": "",
+        "StartedAt": "2026-10-24T17:33:42.017053743Z",
+        "FinishedAt": "2026-10-24T18:08:42.542224822Z"
+      },
+      "error": "TimeoutExpired(['/probes/f32-probe', '/model.gguf', '/fixtures/depth-raw.json', 'cpu'], 2099.999981452)",
+      "scored_stdout_bytes": 0
+    },
+    {
+      "variant": "chat",
+      "outer_execution_sha256": "a1db1e6e057873a54405db229b0afa544a25842f445712b8adde3ff44ee49757",
+      "capture_execution_sha256": "961a33fe6de5fad0c59ee19906cb43e7232a4234f9ac2f9c7427ef834d14fe07",
+      "artifact_count_verified": 7,
+      "before_after_unchanged": null,
+      "post_run_pin_check": "not recorded after outer timeout",
+      "before": {
+        "source": {
+          "head": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+          "tree": "2f66f4090866e2a0733d504f7d3526540a63f020",
+          "clean": true
+        },
+        "build": {
+          "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+          "image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+          "artifact_count": 850,
+          "cli_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+          "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e"
+        },
+        "image": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+        "inputs": {
+          "models": {
+            "tq1-0": {
+              "bytes": 314252544,
+              "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+            },
+            "tq2-0": {
+              "bytes": 334896384,
+              "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a"
+            }
+          },
+          "manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+          "artifacts": {
+            "chat-template.jinja": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+            "raw/prompt16k.ids": "6ea2a4e937e24b57ca1b77cca9c883d4b5962d2feb8bbeb7418bbc0a646c4a06",
+            "raw/continuation512.ids": "a42ab6f8c95976f836f91edc769f95f04dffd9b5dfb0ec73af59eda84b796f69",
+            "raw/score16895.ids": "3d4adcf5b540238d13b9315242797f8a686b0f859ce3358a3b0345faf5a899a2",
+            "raw/prompt.txt": "26f2ffa98bd8bd43c805258ff1f5fb90bf33b3c62e04bfdaf0cb3e31841ee67e",
+            "raw/continuation.txt": "31967613352221b265cdff7846555fcd74d07f1fe777acefe61250cf8dadb5d6",
+            "chat/prompt16k.ids": "d5ff76845a241f5f360d1dc36679caa45a45c827e3bcb01d8b23638f38571346",
+            "chat/continuation512.ids": "f4d646252553512b0f92b617d15eca8745f071ef3753e5f2b806252c73f3e31d",
+            "chat/score16895.ids": "67a4428e13a85627103e4f133b16f608248b4c73269a742a4df566bb6d9b6289",
+            "chat/prompt.txt": "8e0f2976f8adecc708d4c3fb8916b23c39796bf2034df9fbae24d55c99f68ba1",
+            "chat/continuation.txt": "8bcb6fac6649fb01934cdb9ce2e3c5d1bab2c1ec6cc24559031e78ab51ae8f3d",
+            "chat/messages.json": "a53638edbd38b569a97ebb00b646a6ce3542d0e855e9cc4df7fb8b74d09e4bb5"
+          },
+          "fixtures": {
+            "raw": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+            "chat": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
+          },
+          "common_py_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+        },
+        "model": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "fixture": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+        "probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+        "probe_receipt": "1559727f04938dc98975a85ae16ef260753ab61c497da8a3fbf46b9a64e2077c"
+      },
+      "memory_cap": "10737418240",
+      "removed": true,
+      "oom_killed": false,
+      "container_state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 137,
+        "Error": "",
+        "StartedAt": "2026-10-24T18:08:45.735574343Z",
+        "FinishedAt": "2026-10-24T18:43:46.140094119Z"
+      },
+      "error": "Traceback (most recent call last):\n  File \"/home/runner/work/_temp/tq-depth-tq1-0-f32/assets/bundle/run-capture.py\", line 463, in execute\n    raise TimeoutError(\"bounded outer stage exceeded its timeout\")\nTimeoutError: bounded outer stage exceeded its timeout\n",
+      "scored_stdout_bytes": 0
+    }
+  ],
+  "next": "Do not repeat this 35-minute hosted configuration. Diagnose the slow CPU path or qualify on a suitable host with measured resource/time requirements. TQ2 F32 remains pending.",
+  "numerical_limits_changed": false
+}

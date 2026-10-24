@@ -1,0 +1,544 @@
+{
+  "schema": "llmx-tq-tiny-dtypes-v1",
+  "date": "2026-10-24",
+  "scope": "Ordinary dense tied/untied and MoE tiny file-exact HF comparisons on CPU and Radeon VII; no split, released-model, MI50, depth, performance or landing qualification.",
+  "calibration": {
+    "record": "docs/benchmarks/tq-calibration-20261024.json",
+    "record_sha256": "4ca7635e230d944a780b84171af162c5d740c5731e048edc3e711ff30866cdee",
+    "budget_sha256": "a727a24d1325452488756812dfb1eb640fc1dd2ded8f3cec4cdc6906f709c0e5",
+    "families": [
+      "tq1-0",
+      "tq2-0"
+    ],
+    "rows": 120,
+    "accepted": 120,
+    "refused": 0,
+    "dtypes": [
+      "f16",
+      "bf16"
+    ],
+    "frozen_before_narrowed_candidates": true,
+    "existing_class_family_f32_released_limits_unchanged": true,
+    "int8": "No TQ block-int8 path; completed int8 fallback uses F16 bounds. No ordinary int8 model comparison claimed here."
+  },
+  "runs": [
+    {
+      "backend": "cpu",
+      "requested_dtype": "f32",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 9.6e-07,
+      "max_nll_error_printed": 6e-08,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 9.6e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 2e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 6.8e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 8.3e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 6e-08,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-f32.log",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "cpu",
+      "requested_dtype": "f32",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 1.43e-06,
+      "max_nll_error_printed": 1.3e-07,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 9.7e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1.3e-07,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 1.04e-06,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 8e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 1.43e-06,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1.1e-07,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-f32.log",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "cpu",
+      "requested_dtype": "auto",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 9.6e-07,
+      "max_nll_error_printed": 6e-08,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 9.6e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 2e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 6.8e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 8.3e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 6e-08,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-auto.log",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "cpu",
+      "requested_dtype": "auto",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 1.43e-06,
+      "max_nll_error_printed": 1.3e-07,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 9.7e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1.3e-07,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 1.04e-06,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 8e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 1.43e-06,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1.1e-07,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-auto.log",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "cpu",
+      "requested_dtype": "bf16",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 0.00501361,
+      "max_nll_error_printed": 0.00031211,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.00501361,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00031211,
+          "nll_bound": 0.002145107203572749
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.00424292,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00020708,
+          "nll_bound": 0.002145107203572749
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.00341506,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00021843,
+          "nll_bound": 0.002145107203572749
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-bf16.log",
+      "log_sha256": "bdedf7056301d3c92e7049b35f98556adf9bd5f214fec9d758b661c7dde9d775",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "BF16 input rounding with F32 sums"
+    },
+    {
+      "backend": "cpu",
+      "requested_dtype": "bf16",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 0.00604863,
+      "max_nll_error_printed": 0.00066707,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.00493697,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.00066707,
+          "nll_bound": 0.002438947624929355
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.00567709,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.00045752,
+          "nll_bound": 0.002438947624929355
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.00604863,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.00036205,
+          "nll_bound": 0.002438947624929355
+        }
+      ],
+      "log": "build-tq-cpu-stage/tq-hf-bf16.log",
+      "log_sha256": "bdedf7056301d3c92e7049b35f98556adf9bd5f214fec9d758b661c7dde9d775",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "BF16 input rounding with F32 sums"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "f32",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 8.3e-07,
+      "max_nll_error_printed": 3e-08,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 8.3e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 3e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 6.8e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 3e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 7.9e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 2e-08,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-f32.log",
+      "log_sha256": "8f659e4644867e6319f51741b050b5084ce375d93ee23e3f14a96f0752f88bd6",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "f32",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 1.47e-06,
+      "max_nll_error_printed": 1.6e-07,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 9.7e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 1.6e-07,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 9.1e-07,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 4e-08,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 1.47e-06,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 5e-08,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-f32.log",
+      "log_sha256": "8f659e4644867e6319f51741b050b5084ce375d93ee23e3f14a96f0752f88bd6",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "all F32"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "auto",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 4.996e-05,
+      "max_nll_error_printed": 7.49e-06,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 4.996e-05,
+          "logit_bound": 0.0020885169506073,
+          "max_nll_error_printed": 5.68e-06,
+          "nll_bound": 0.00037854403503168044
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 4.683e-05,
+          "logit_bound": 0.0020885169506073,
+          "max_nll_error_printed": 1.88e-06,
+          "nll_bound": 0.00037854403503168044
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 4.912e-05,
+          "logit_bound": 0.0020885169506073,
+          "max_nll_error_printed": 7.49e-06,
+          "nll_bound": 0.00037854403503168044
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-auto.log",
+      "log_sha256": "4a3e37bd1f26d64b89644714dae27f8aa2568f9c97bd7557790435466dd74a18",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "block-int16 TQ products with retained F32 operations"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "auto",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 7.205e-05,
+      "max_nll_error_printed": 5.24e-06,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 5.822e-05,
+          "logit_bound": 0.002446979284286499,
+          "max_nll_error_printed": 5.24e-06,
+          "nll_bound": 0.00034499947367727657
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 6.323e-05,
+          "logit_bound": 0.002446979284286499,
+          "max_nll_error_printed": 1.59e-06,
+          "nll_bound": 0.00034499947367727657
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 7.205e-05,
+          "logit_bound": 0.002446979284286499,
+          "max_nll_error_printed": 2.4e-06,
+          "nll_bound": 0.00034499947367727657
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-auto.log",
+      "log_sha256": "4a3e37bd1f26d64b89644714dae27f8aa2568f9c97bd7557790435466dd74a18",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "block-int16 TQ products with retained F32 operations"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "bf16",
+      "family": "tq1-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 0.00501361,
+      "max_nll_error_printed": 0.00025731,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.00501361,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00025361,
+          "nll_bound": 0.002145107203572749
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.00415592,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00025731,
+          "nll_bound": 0.002145107203572749
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.00341506,
+          "logit_bound": 0.015545427799224854,
+          "max_nll_error_printed": 0.00023608,
+          "nll_bound": 0.002145107203572749
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-bf16.log",
+      "log_sha256": "0ee28927453707dc2a89c1f642b1fb1b2616fbbbdda33b3e7ffd7f751fc0d845",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "BF16 input rounding with F32 sums"
+    },
+    {
+      "backend": "vulkan",
+      "requested_dtype": "bf16",
+      "family": "tq2-0",
+      "full_vocabulary_comparisons": 150,
+      "nll_checks": 12,
+      "max_logit_error_printed": 0.00604863,
+      "max_nll_error_printed": 0.0006669,
+      "fixtures": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 0.00492497,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.0006669,
+          "nll_bound": 0.002438947624929355
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 0.00567109,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.00045734,
+          "nll_bound": 0.002438947624929355
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 0.00604863,
+          "logit_bound": 0.021499216556549072,
+          "max_nll_error_printed": 0.00036204,
+          "nll_bound": 0.002438947624929355
+        }
+      ],
+      "log": "build-tq-vulkan-stage/tq-hf-bf16.log",
+      "log_sha256": "0ee28927453707dc2a89c1f642b1fb1b2616fbbbdda33b3e7ffd7f751fc0d845",
+      "log_encoding": "UTF-16 LE with BOM",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "passed_component_summary": true,
+      "process_exit": "0 observed by root; text log has no standalone child-exit receipt",
+      "execution_policy": "BF16 input rounding with F32 sums"
+    }
+  ],
+  "counts": {
+    "backend_policy_family_cells": 12,
+    "full_vocabulary_comparisons": 1800,
+    "nll_checks": 144
+  },
+  "provenance_limits": "Printed maxima are rounded observations. The common checker requires completed matrix-path witnesses; these summary logs do not retain raw witness JSON. Path interpretation is corroborated by runtime dispatch and root observation. Versions carry by exact binary identity to the prior F32 record; no binary invoked for documentation.",
+  "retained_history": {
+    "original_hf_seed_refusal": "TQ2 seed12345 ordinary MoE routing-gap refusal retained; seed12346 chosen by HF-only screening before candidate comparison.",
+    "initial_record": "docs/benchmarks/tq-implementation-20261024.json",
+    "prior_f32_record": "docs/benchmarks/tq-tiny-hf-20261024.json",
+    "original_records_modified": false
+  },
+  "source_pins": {
+    "tests/tq.py": "cb564e3422f6c8278a3360a5249ec2751802c61d11e6c9376f2393b2bea3f6f7",
+    "tests/block_fixture.py": "ce327e86c1941a36c120b43bd2241db958fc3abcf713b408009fd48c27f64a90",
+    "tests/spec_decode.py": "5060e3275158515d07c112c7d012b2f5be685a3fee651844c24a204d61e55f8f",
+    "tools/calibrate_dtype.py": "76a166534b0a87b931612f050009192cdc3e73a42ac5db3e069abf5171006109",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "pending": [
+    "Split runtime HF comparisons",
+    "Released-file independent HF and raw/chat16K depth",
+    "MI50 integer-tile and int8-request witnesses",
+    "Integration and applicable hosted gates",
+    "Matched performance and profiling"
+  ]
+}

@@ -1,0 +1,242 @@
+{
+  "schema": "tq-existing-path-identity-cpu-audit-v1",
+  "scope": "Three existing-format CPU identity cases; not broad TQ qualification and not performance evidence.",
+  "source": {
+    "execution_sha256": "c88212f410661173923040ed6659a332b4a0aa16460a2f712e4fa8c22fca44a5",
+    "result_sha256": "e42c01d9bf693a87dc6de786bda73292bf0e48f8d5501d66f853855e2ef72d81",
+    "source_pins_sha256": "c92dae4a42192668ce8e9cc84a5e2156ba0fbe05b8ee85ce1924ccd0245a0460",
+    "bundle_pins_sha256": "c6a15583fdd448fa1debd916c3a91565dc10adcdaf10b6f3b864b0b51b22cd7c",
+    "pin_preparation_sha256": "7fd085a0a0fbd0ed03610c483c369e1f2cdc69ed9ee73bb6314e1df92e7b9b15",
+    "remote_artifact_count": 55,
+    "remote_artifact_hash_listing_sha256": "8da51f928684c4c1e123fa402bc96c9df96ff7779a9c54c48fe3d1740a857d97",
+    "artifact_hashes_match_execution": true,
+    "source_pins_sha256_matches_result_and_prep": true,
+    "rig_controls_verify_passed": true
+  },
+  "environment": {
+    "execution_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "build_image_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "image_equivalence_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b",
+    "cpuset": "4-5",
+    "quota": 2,
+    "helper_threads": 6,
+    "purpose": "correctness identity only; no performance claim",
+    "container_exit": 0,
+    "container_oom_killed": false,
+    "container_removed": true,
+    "activity_samples": 154,
+    "host_available_min_bytes": 23672389632,
+    "required_host_available_max_bytes": 21281562624,
+    "disk_free_min_bytes": 348701851648,
+    "container_memory_current_max_bytes": 1860374528,
+    "container_memory_peak_max_bytes": 1890258944,
+    "sampled_oom_events": false
+  },
+  "arms": {
+    "main": {
+      "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+      "cli_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+      "tool_sha256": "43f28606690df696594d9c953576ab7836e4411f384e2241fe32f6ddedf257fc",
+      "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+      "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+      "verified_source_files": 2366
+    },
+    "candidate": {
+      "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "cli_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+      "tool_sha256": "533ec6b3a0f4064ce42ac7fcf50a84d869a76fc37556da4f0bb655311852aaf9",
+      "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e",
+      "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183",
+      "verified_source_files": 2405
+    }
+  },
+  "cases": [
+    {
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "tokens": 247,
+      "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "storage_types": [
+        0,
+        8
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "f32"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "exact_phase_pairs": {
+        "batched": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "79c778e9bec45620dc1183b7640fd682deddb035c71886ada00a463f7aae8b96"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "79c778e9bec45620dc1183b7640fd682deddb035c71886ada00a463f7aae8b96"
+          }
+        },
+        "decode": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "ce95e28250a8c27600b220e3f913a91da9ba249f3b69ca3d8974dabe2642ef89"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "ce95e28250a8c27600b220e3f913a91da9ba249f3b69ca3d8974dabe2642ef89"
+          }
+        },
+        "greedy": {
+          "main": {
+            "bytes": 38895616,
+            "sha256": "1f3d4f24668d88cb72a00604a4e427d20b39f8109d2ec3f3462f75d168fc5335"
+          },
+          "candidate": {
+            "bytes": 38895616,
+            "sha256": "1f3d4f24668d88cb72a00604a4e427d20b39f8109d2ec3f3462f75d168fc5335"
+          }
+        }
+      }
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_0.gguf",
+      "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "tokens": 247,
+      "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "storage_types": [
+        0,
+        2,
+        3,
+        14
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "exact_phase_pairs": {
+        "batched": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "6a43b9bd9e9de43debb16db393bb95be0b4b008277979bebe2b2dac6679df29e"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "6a43b9bd9e9de43debb16db393bb95be0b4b008277979bebe2b2dac6679df29e"
+          }
+        },
+        "decode": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "428f65d1946ad21cdafe3083c3ecf0632a3504eabb054a8ef4708680803f8994"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "428f65d1946ad21cdafe3083c3ecf0632a3504eabb054a8ef4708680803f8994"
+          }
+        },
+        "greedy": {
+          "main": {
+            "bytes": 38895616,
+            "sha256": "1b0506180903737ed1a7bdb2025d2c8c09c7b376eec67628a5a1365b0acbc813"
+          },
+          "candidate": {
+            "bytes": 38895616,
+            "sha256": "1b0506180903737ed1a7bdb2025d2c8c09c7b376eec67628a5a1365b0acbc813"
+          }
+        }
+      }
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_K_M.gguf",
+      "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "tokens": 247,
+      "ids_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+      "storage_types": [
+        0,
+        12,
+        14
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "exact_phase_pairs": {
+        "batched": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "27d5d818fd0be951b2c7b1727ebd305008d814bee99c30181b6afdf76f4cf16b"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "27d5d818fd0be951b2c7b1727ebd305008d814bee99c30181b6afdf76f4cf16b"
+          }
+        },
+        "decode": {
+          "main": {
+            "bytes": 150112768,
+            "sha256": "8a019c2b244f2ca480b36b57d7f81a5cb09518114a64b641eb0b4c50fc7c16ab"
+          },
+          "candidate": {
+            "bytes": 150112768,
+            "sha256": "8a019c2b244f2ca480b36b57d7f81a5cb09518114a64b641eb0b4c50fc7c16ab"
+          }
+        },
+        "greedy": {
+          "main": {
+            "bytes": 38895616,
+            "sha256": "7c3571a4a2d0a87fbe09f2ace88cd1c8f2f64e67e6fb766c7b741855c8042b41"
+          },
+          "candidate": {
+            "bytes": 38895616,
+            "sha256": "7c3571a4a2d0a87fbe09f2ace88cd1c8f2f64e67e6fb766c7b741855c8042b41"
+          }
+        }
+      }
+    }
+  ],
+  "verdict": "All nine batched/decode/greedy raw output pairs were byte-identical between the pinned main and candidate binaries for these three files.",
+  "limitations": [
+    "Only Q8_0, Q4_0 and Q4_K_M were covered; Q4_K_M inventory includes Q6_K tensors, but this is not standalone Q6_K coverage.",
+    "This is CPU identity correctness evidence only; it makes no timing claim and does not establish full TQ coverage."
+  ]
+}

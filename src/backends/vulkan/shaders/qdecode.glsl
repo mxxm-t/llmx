@@ -2,6 +2,7 @@
 // Each returns value j of the block at byte o in the CPU decoders' arithmetic order (quant/), so embed matches the CPU exactly, except q4_0_at, which only the float tile uses; embed decodes Q4_0 through q4_0_exact.
 #ifndef LLMX_QDECODE_GLSL
 #define LLMX_QDECODE_GLSL
+#include "tq.glsl"
 
 int mxfp4_value(uint code) {
     int magnitude = int(code & 7u);
@@ -210,6 +211,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     }
     uint block = block_values(type), j = column % block;
     uint o = (row * (width / block) + column / block) * block_bytes(type);
+    if (type == TYPE_TQ1_0 || type == TYPE_TQ2_0) return tq_at(type, o, j, tq_scale(type, o));
     if (type == TYPE_Q2_K) return q2_k_at(o, j);
     if (type == TYPE_Q3_K) return q3_k_at(o, j);
     uint scale = o + (type == TYPE_Q6_K ? 208u : 0u);

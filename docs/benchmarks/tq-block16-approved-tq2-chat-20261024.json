@@ -1,0 +1,327 @@
+{
+  "scope": "BOSS-approved reference-method correction, two pinned TQ files only; no changed numerical limit.",
+  "approval": {
+    "authority": "BOSS",
+    "date": "2026-10-24",
+    "text": "Approve scoped reference correction"
+  },
+  "model": "tq2-0",
+  "variant": "chat",
+  "positions": 512,
+  "bounds_changed": false,
+  "tie_margin": 0.1,
+  "producer_sha256": "ae7a0ae18960f81b7416ebf826092adb97c50d2aa75c315a83574e47b8508aec",
+  "execution_sha256": "3c3b1dcd0684eb287babd6c7db0f8a0231d29ccc4f01b095ae97f4955964ef90",
+  "bundle_sha256": "17192c8c0510c9f642d3dc82551ca3fdf41a75bc56811f9b358aa85d93f0a80a",
+  "reference_array_sha256": "465ccb227d6023e4e658dff0fec2f312d463611960e09d1c93984a7b0156c682",
+  "capture_outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+  "capture_payload_sha256": "9fc2c9c4643f9daf30be99c312e0cf85e896c8820ef745b3cdf2ef4c5a602fd9",
+  "original_literal_and_f32_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b",
+  "chunk_control": {
+    "policy": "F16KV for both independent arms",
+    "tokens": 64,
+    "chunk": 17,
+    "direct_cache_writes": {
+      "0": {
+        "calls": 1,
+        "rows": 64
+      },
+      "1": {
+        "calls": 1,
+        "rows": 64
+      },
+      "2": {
+        "calls": 1,
+        "rows": 64
+      },
+      "3": {
+        "calls": 1,
+        "rows": 64
+      },
+      "4": {
+        "calls": 1,
+        "rows": 64
+      },
+      "5": {
+        "calls": 1,
+        "rows": 64
+      },
+      "6": {
+        "calls": 1,
+        "rows": 64
+      },
+      "7": {
+        "calls": 1,
+        "rows": 64
+      },
+      "8": {
+        "calls": 1,
+        "rows": 64
+      },
+      "9": {
+        "calls": 1,
+        "rows": 64
+      },
+      "10": {
+        "calls": 1,
+        "rows": 64
+      },
+      "11": {
+        "calls": 1,
+        "rows": 64
+      },
+      "12": {
+        "calls": 1,
+        "rows": 64
+      },
+      "13": {
+        "calls": 1,
+        "rows": 64
+      },
+      "14": {
+        "calls": 1,
+        "rows": 64
+      },
+      "15": {
+        "calls": 1,
+        "rows": 64
+      },
+      "16": {
+        "calls": 1,
+        "rows": 64
+      },
+      "17": {
+        "calls": 1,
+        "rows": 64
+      },
+      "18": {
+        "calls": 1,
+        "rows": 64
+      },
+      "19": {
+        "calls": 1,
+        "rows": 64
+      },
+      "20": {
+        "calls": 1,
+        "rows": 64
+      },
+      "21": {
+        "calls": 1,
+        "rows": 64
+      },
+      "22": {
+        "calls": 1,
+        "rows": 64
+      },
+      "23": {
+        "calls": 1,
+        "rows": 64
+      },
+      "24": {
+        "calls": 1,
+        "rows": 64
+      },
+      "25": {
+        "calls": 1,
+        "rows": 64
+      },
+      "26": {
+        "calls": 1,
+        "rows": 64
+      },
+      "27": {
+        "calls": 1,
+        "rows": 64
+      }
+    },
+    "chunked_cache_writes": {
+      "0": {
+        "calls": 4,
+        "rows": 64
+      },
+      "1": {
+        "calls": 4,
+        "rows": 64
+      },
+      "2": {
+        "calls": 4,
+        "rows": 64
+      },
+      "3": {
+        "calls": 4,
+        "rows": 64
+      },
+      "4": {
+        "calls": 4,
+        "rows": 64
+      },
+      "5": {
+        "calls": 4,
+        "rows": 64
+      },
+      "6": {
+        "calls": 4,
+        "rows": 64
+      },
+      "7": {
+        "calls": 4,
+        "rows": 64
+      },
+      "8": {
+        "calls": 4,
+        "rows": 64
+      },
+      "9": {
+        "calls": 4,
+        "rows": 64
+      },
+      "10": {
+        "calls": 4,
+        "rows": 64
+      },
+      "11": {
+        "calls": 4,
+        "rows": 64
+      },
+      "12": {
+        "calls": 4,
+        "rows": 64
+      },
+      "13": {
+        "calls": 4,
+        "rows": 64
+      },
+      "14": {
+        "calls": 4,
+        "rows": 64
+      },
+      "15": {
+        "calls": 4,
+        "rows": 64
+      },
+      "16": {
+        "calls": 4,
+        "rows": 64
+      },
+      "17": {
+        "calls": 4,
+        "rows": 64
+      },
+      "18": {
+        "calls": 4,
+        "rows": 64
+      },
+      "19": {
+        "calls": 4,
+        "rows": 64
+      },
+      "20": {
+        "calls": 4,
+        "rows": 64
+      },
+      "21": {
+        "calls": 4,
+        "rows": 64
+      },
+      "22": {
+        "calls": 4,
+        "rows": 64
+      },
+      "23": {
+        "calls": 4,
+        "rows": 64
+      },
+      "24": {
+        "calls": 4,
+        "rows": 64
+      },
+      "25": {
+        "calls": 4,
+        "rows": 64
+      },
+      "26": {
+        "calls": 4,
+        "rows": 64
+      },
+      "27": {
+        "calls": 4,
+        "rows": 64
+      }
+    },
+    "max_abs_logit_delta": 0.0,
+    "exact_top1": 64
+  },
+  "comparison": {
+    "name": "Vulkan default versus approved HF block16/F16KV",
+    "counts": {
+      "exact": 506,
+      "accepted-tie": 5,
+      "miss": 1
+    },
+    "non_exact": [
+      {
+        "position": 16454,
+        "classification": "accepted-tie",
+        "chosen": 6502,
+        "reference_top2": [
+          134528,
+          6502
+        ],
+        "gap": 0.00032520294189453125
+      },
+      {
+        "position": 16457,
+        "classification": "accepted-tie",
+        "chosen": 101646,
+        "reference_top2": [
+          75444,
+          101646
+        ],
+        "gap": 0.016672134399414062
+      },
+      {
+        "position": 16458,
+        "classification": "accepted-tie",
+        "chosen": 27582,
+        "reference_top2": [
+          104327,
+          27582
+        ],
+        "gap": 0.024827957153320312
+      },
+      {
+        "position": 16479,
+        "classification": "miss",
+        "chosen": 21360,
+        "reference_top2": [
+          104223,
+          21360
+        ],
+        "gap": 0.1220388412475586
+      },
+      {
+        "position": 16621,
+        "classification": "accepted-tie",
+        "chosen": 92902,
+        "reference_top2": [
+          40170,
+          92902
+        ],
+        "gap": 0.002918243408203125
+      },
+      {
+        "position": 16702,
+        "classification": "accepted-tie",
+        "chosen": 70886,
+        "reference_top2": [
+          67150,
+          70886
+        ],
+        "gap": 0.018631935119628906
+      }
+    ]
+  },
+  "passed": false,
+  "limitation": "One depth cell only; remaining cells and independent operator/range, identity and performance gates are separate."
+}

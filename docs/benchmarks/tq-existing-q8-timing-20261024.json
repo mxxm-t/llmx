@@ -1,0 +1,2393 @@
+{
+  "scope": "Matched Q8_0 existing-path main/candidate timing only. No mx timing in this round.",
+  "verified_execution": true,
+  "analyzer_sha256": "edca224a020da008fa2389fd411502d8eed5978fdaa6b35ba26561947570e182",
+  "activity_owner_sha256": "efd93309f7f2986919904055942cf2461cb6a3fc0b72decaa0aed3768c81b4d1",
+  "artifacts": {
+    "00-base-q8-p128-g256-warm.stderr": "dc0ba360f88132cb7591ad51d965e568d9e0ca7e5c86dc3c63c59f9a3a940793",
+    "00-base-q8-p128-g256-warm.stdout": "4996783e1e6eaa47e46983713e56c3f2a147aa9028ce1677536af472ebd8ca67",
+    "00-base-q8-p128-g256-warm.usage.json": "152317c0d45614b3f5fca41e8a985782efc6b1151082b66c9619228875ad323b",
+    "01-candidate-q8-p128-g256-warm.stderr": "0231cd31e6436e5d889e89312c6cec590043ab5e9d0b2df20a53f9a4edd3ea94",
+    "01-candidate-q8-p128-g256-warm.stdout": "0246175bc126c77562c888c98b01f56c8ffe108212e60efed14516283ad37cf8",
+    "01-candidate-q8-p128-g256-warm.usage.json": "99992e9d4ef967d16fcf0cbf28dfc422554cb9f0a3255963877e9d6b677320b2",
+    "02-base-q8-p128-g256-pair0.stderr": "dc0ba360f88132cb7591ad51d965e568d9e0ca7e5c86dc3c63c59f9a3a940793",
+    "02-base-q8-p128-g256-pair0.stdout": "3869212c23ff1e08919a91d5e8c54c9c447ec793e13c6e84f203c5b9620f361b",
+    "02-base-q8-p128-g256-pair0.usage.json": "79acd0004f8bc7242224e53e243c66be67740546304c9914ff09f895dcdbdf45",
+    "03-candidate-q8-p128-g256-pair0.stderr": "b8867e004703e5dc501e249005c5875a45ea25530d23e1f4cb4757dc99871ee5",
+    "03-candidate-q8-p128-g256-pair0.stdout": "b74ed4cb0137452be5aebe18990154bbb90a799a2d38bd54e3cbad31ad9c770f",
+    "03-candidate-q8-p128-g256-pair0.usage.json": "d9ef0534db2ac35c0b7a5ed39e5edb16b908530cfe6df4ed3d569842e547063e",
+    "04-candidate-q8-p128-g256-pair1.stderr": "7e1da550e76cafc18944f73f8351b9a6e7886f3ed243ce4f87673f33fe2170eb",
+    "04-candidate-q8-p128-g256-pair1.stdout": "9c9c81d0e2699e57feb96855ae2579b3a0e1635cd64741ae8eca8f2d352fe630",
+    "04-candidate-q8-p128-g256-pair1.usage.json": "ec3b8303684807a7e777570bb362ed198c1c2efeadd52de6897d0ce524fbfdb0",
+    "05-base-q8-p128-g256-pair1.stderr": "904817570f6616544ca3d433519c47efa73604388e58a27173af99cbaff01ab1",
+    "05-base-q8-p128-g256-pair1.stdout": "876097716e241cb341562feb998c7affae677904d1bdf26aed83439cf5dd5f84",
+    "05-base-q8-p128-g256-pair1.usage.json": "c4d24a7836567f88b2998113fd7bc1a47d27b9c55fa6b7a10b1c28a3b2db9b65",
+    "06-base-q8-p128-g256-pair2.stderr": "3f72f06d03c057092ea72543a46aaad7b57258d78aa1896b89b4b6c91d841803",
+    "06-base-q8-p128-g256-pair2.stdout": "a9135ab5512064e96306ef25fda48b929ba6089648e1942ccdf9ad6695e74b65",
+    "06-base-q8-p128-g256-pair2.usage.json": "c96ed35049dd5c7de33f14681641ffd27d7f3d879a5f0850109ec28432bd82d2",
+    "07-candidate-q8-p128-g256-pair2.stderr": "382c6a6d3c8662a8b46b444084df03d8896d3c7f7b37fbd7b51c47871379690a",
+    "07-candidate-q8-p128-g256-pair2.stdout": "f8bf5579200442470ef06f942419aff8336618c2f2cd617056f5acb7be14d59b",
+    "07-candidate-q8-p128-g256-pair2.usage.json": "facbcfa0fc5b2f06e6d99c8df715bd4e6403dd1df790e23e7946e268f6eae46a",
+    "08-candidate-q8-p128-g256-pair3.stderr": "b8867e004703e5dc501e249005c5875a45ea25530d23e1f4cb4757dc99871ee5",
+    "08-candidate-q8-p128-g256-pair3.stdout": "6d3cc81aee26e67d7ed9ff4b412bfa56fa1ec9c267b067eea9ca34a8eb71e06f",
+    "08-candidate-q8-p128-g256-pair3.usage.json": "a42c2ca30f180c3c5bb6bc2195c7fe9c9185b506d2f365c32494013fb4a0315e",
+    "09-base-q8-p128-g256-pair3.stderr": "0b11bfcf3b726cf08600a10dbd94079c9b8445d339fa8521d084386d3b2cbc27",
+    "09-base-q8-p128-g256-pair3.stdout": "78d6a51ea7aeb289baba2300afe2291c496a8d251e196a62b09c52c30e6b600f",
+    "09-base-q8-p128-g256-pair3.usage.json": "946b65b1f916a9c0066a840629771dc25e0d5f45d6796d81e2f7070e5e82812f",
+    "10-base-q8-p4096-g256-warm.stderr": "442ffe8886fa1f4cea4703838cebdc02125ad4ef52e022679e340d6b4458d0fe",
+    "10-base-q8-p4096-g256-warm.stdout": "6c9d7206de4ee5fa441b02be7d7807ddd4028c57086c0e571db50df3898c7a23",
+    "10-base-q8-p4096-g256-warm.usage.json": "6a4a58a84082c28a7b015377239a925365411abf8b2915f8c41bc8de329bf071",
+    "11-candidate-q8-p4096-g256-warm.stderr": "b928f1ed80dcfc8b4585eedddb3218cc535ec1c4f288183a6145403b6323378b",
+    "11-candidate-q8-p4096-g256-warm.stdout": "32b890295f811173eb1fb79a3d9e5cd6740619b83448739f9bb0e6bef23eecb5",
+    "11-candidate-q8-p4096-g256-warm.usage.json": "54a5a5689a3b61e170da657bf29e9177c4aae5a7643f79b5e3e89ae67455f18d",
+    "12-base-q8-p4096-g256-pair0.stderr": "0d4bfd71e19f48804dad11bf444d4ec487ce83193b81f1bf463112960acbd08b",
+    "12-base-q8-p4096-g256-pair0.stdout": "1ba53cc6f4d6e6f15e049991ef7b3e90b82d8bb9b80c607eb6088175723541d9",
+    "12-base-q8-p4096-g256-pair0.usage.json": "c0b9e033e1ee9554ee0cdc28d02fa6a92669ffea054790833ba42fb59a0753d7",
+    "13-candidate-q8-p4096-g256-pair0.stderr": "63d0dd5a15f0905c225b0e95f7c46f0091ae131e94956dc485945de5c5341721",
+    "13-candidate-q8-p4096-g256-pair0.stdout": "00abfcb1ad81d57367140b43882b13d78c245b39b265389fdc94a73b6460757b",
+    "13-candidate-q8-p4096-g256-pair0.usage.json": "8d9701d4dbfe9dbc9b3fdbed6939372dd95d9153705e2bf83ab6a4e3260e975b",
+    "14-candidate-q8-p4096-g256-pair1.stderr": "e7d2a8c282f569933528131cb6ad1861afcbcf1045cd85046592dbe0d5e15428",
+    "14-candidate-q8-p4096-g256-pair1.stdout": "900714a7725e4e014d693ea393c2fff01f7f8c5d1542a3cd51d63072c60b16b4",
+    "14-candidate-q8-p4096-g256-pair1.usage.json": "e85c65e2410899929feb4d67a33035aed6a0a349a560a26fe442f56ea409ebbb",
+    "15-base-q8-p4096-g256-pair1.stderr": "50d6a483cdad23b3cfc3305175000600d5360748dad08c6fbbb879be058b4bbe",
+    "15-base-q8-p4096-g256-pair1.stdout": "094123428402cfc61d04b9b779efb001b47f744f1621e4ecf59cb3bacf28bad7",
+    "15-base-q8-p4096-g256-pair1.usage.json": "942552ee3667fed9aa4970b37ebf6498f2af5db5b7b03f6ea2f933b9e390f126",
+    "16-base-q8-p4096-g256-pair2.stderr": "a2a4dff2ac76f70c8f7d357a4fa8914106edf85fbebd43d5960bd23e200dbd45",
+    "16-base-q8-p4096-g256-pair2.stdout": "5677e6649b917d506ccdec159749eac83e141aa20d5237a6abd4f7ea474c8cec",
+    "16-base-q8-p4096-g256-pair2.usage.json": "fb79d6af5a42b86d104bd2644802d40cca971524cfc98c15c2c9513979a06687",
+    "17-candidate-q8-p4096-g256-pair2.stderr": "a9a145f2cd45cdf75ef3f04af973fcc0dcdf9121118ce2bd5bd1d300b2992da6",
+    "17-candidate-q8-p4096-g256-pair2.stdout": "49d061b927ccf99b23aae023bb1a6df335c153235d15f3f945aa423f8771c8fa",
+    "17-candidate-q8-p4096-g256-pair2.usage.json": "ac4856ad008fc60886e233afcea431411aaaf8fa12f7633356792f7578333f8d",
+    "18-candidate-q8-p4096-g256-pair3.stderr": "e3f478488aab0b63fe8764940c4dc560c7a82bac4f87fded1732f3da3697176e",
+    "18-candidate-q8-p4096-g256-pair3.stdout": "360817259486ca0f553609e6883f420e74a097eb2f8fcfe43f84c58308483c4b",
+    "18-candidate-q8-p4096-g256-pair3.usage.json": "869493b302f9090e3be33c5cfeac842d8cf48024e690bb8b9f63eed90373f124",
+    "19-base-q8-p4096-g256-pair3.stderr": "8ff557bf6681f7a1522cb3548ec84b72024c870a181ed06dd0354c13cb1bafb9",
+    "19-base-q8-p4096-g256-pair3.stdout": "a2eff57053aebe5ff051a51adfc627d6c71c0c1152ac4dca7b62ed20c4025319",
+    "19-base-q8-p4096-g256-pair3.usage.json": "9a108a63ff8046c5d5ee5545c6029252aa9468edcc4a36df9d0fb0a12ebc4c7c",
+    "activity.jsonl": "1ec0f916af05d2c560c719e8d76e442c8022d7b405da9490c0ece54ae1496c7e",
+    "base-version.json": "98854a1909a9dbd1224245da72f7eb830c739cbae450c7e8510f4069cf2e2d47",
+    "build-flags.json": "4cf7ba3f0eb750f41474389e361abd67eed3be92bd17e3eebbd87c84c27d458c",
+    "candidate-version.json": "7d2ffb67f88642b60c1cf08e7ed6aab102cb7b4320085e991a8fa873086b17b2",
+    "complete.json": "17aeababf1a0804e446bc19cf34bb2ab426df601245d520536bb5bde9db7c561",
+    "concurrent-owned-containers.json": "936a1552a111d1b3b354a647a53efdebfb011ccf24ccd7f097948958858f466d",
+    "end-verification.json": "f44dea42921d7cfd9f0d99d769d0a831a1ef40f5f207735cd5cdc4d44a4722af",
+    "gpu-after.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "gpu-before.json": "071cf2f5d8fdf4fa9f6eed374cd3d12897a90bab3183127cfb58988ea03910f4",
+    "launch-result.json": "dec1802d61e9133fc51b7d3b6d47018303c51a03de0a16b590db1aabc69e9604",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "plan.json": "2ffb673d548b99f94fdf7cf31ed152fe5ad15369cb015af56d2c62d487e104c0",
+    "preflight.json": "e3f15e0632e88cf6b934debb05611dc5ddaf0567bfff7fe153ed29502cba66e4",
+    "progress.json": "fecddaa5cea606dfbd1e9f7e04460467a1c535896ad62e919c57f64e14e13eb1",
+    "qwen3-q8_0-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "qwen3-q8_0-info.stdout": "a22cc53bd2f00831c45672ef901265ac3f03540c4c89843adf43c1fed1ac12ae",
+    "source-verification.json": "cb69763e891b16635bc1f71e509daf3f64908b795b50ed59a96d7dd47bea8b80",
+    "vulkan-summary.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "vulkan-summary.txt": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb"
+  },
+  "source": {
+    "base": {
+      "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+      "files": 2366,
+      "manifest_sha256": "4d33ac99a7da6f9f6300d92ecabecf856bf04d88a4ba5c545f8ed70e8d4068b0"
+    },
+    "candidate": {
+      "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "files": 2405,
+      "manifest_sha256": "4d33ac99a7da6f9f6300d92ecabecf856bf04d88a4ba5c545f8ed70e8d4068b0"
+    }
+  },
+  "executables": {
+    "base": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/arms/main-build/llmx",
+      "sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+      "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1"
+    },
+    "candidate": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/arms/candidate-build/llmx",
+      "sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+      "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183"
+    }
+  },
+  "settings": {
+    "threads": 4,
+    "ubatch": 512,
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "dtype": "auto",
+    "load_mode": "auto",
+    "cpu_set": "0-3"
+  },
+  "calls_completed": 20,
+  "warmups": 4,
+  "measured_pairs": 8,
+  "container_removed": true,
+  "oom": false,
+  "cells": [
+    {
+      "prompt": 128,
+      "decode": 256,
+      "means": {
+        "base": {
+          "pp128": 6599.59,
+          "tg256": 393.3575
+        },
+        "candidate": {
+          "pp128": 6597.5725,
+          "tg256": 393.53499999999997
+        }
+      },
+      "pairs": [
+        {
+          "block": "p128-pair0",
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "rates": {
+            "base": {
+              "pp128": 6605.95,
+              "tg256": 393.13
+            },
+            "candidate": {
+              "pp128": 6590.36,
+              "tg256": 391.5
+            }
+          },
+          "candidate_percent": {
+            "pp128": -0.23599936420953815,
+            "tg256": -0.4146211176964343
+          }
+        },
+        {
+          "block": "p128-pair1",
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 6604.73,
+              "tg256": 393.64
+            },
+            "base": {
+              "pp128": 6606.44,
+              "tg256": 394.42
+            }
+          },
+          "candidate_percent": {
+            "pp128": -0.02588383456142429,
+            "tg256": -0.19775873434411118
+          }
+        },
+        {
+          "block": "p128-pair2",
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "rates": {
+            "base": {
+              "pp128": 6598.23,
+              "tg256": 393.95
+            },
+            "candidate": {
+              "pp128": 6596.94,
+              "tg256": 394.37
+            }
+          },
+          "candidate_percent": {
+            "pp128": -0.019550697687109597,
+            "tg256": 0.10661251427845908
+          }
+        },
+        {
+          "block": "p128-pair3",
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 6598.26,
+              "tg256": 394.63
+            },
+            "base": {
+              "pp128": 6587.74,
+              "tg256": 391.93
+            }
+          },
+          "candidate_percent": {
+            "pp128": 0.15969057673801412,
+            "tg256": 0.6888985277983206
+          }
+        }
+      ],
+      "candidate_percent": {
+        "pp128": -0.03057008086866375,
+        "tg256": 0.04512434617363059
+      }
+    },
+    {
+      "prompt": 4096,
+      "decode": 256,
+      "means": {
+        "base": {
+          "pp4096": 4725.67,
+          "tg256": 395.06
+        },
+        "candidate": {
+          "pp4096": 4733.2575,
+          "tg256": 393.5625
+        }
+      },
+      "pairs": [
+        {
+          "block": "p4096-pair0",
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "rates": {
+            "base": {
+              "pp4096": 4726.9,
+              "tg256": 395.83
+            },
+            "candidate": {
+              "pp4096": 4742.62,
+              "tg256": 395.39
+            }
+          },
+          "candidate_percent": {
+            "pp4096": 0.33256468298461517,
+            "tg256": -0.11115883081120881
+          }
+        },
+        {
+          "block": "p4096-pair1",
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4758.74,
+              "tg256": 391.39
+            },
+            "base": {
+              "pp4096": 4761.02,
+              "tg256": 394.48
+            }
+          },
+          "candidate_percent": {
+            "pp4096": -0.04788889775722005,
+            "tg256": -0.7833096734942258
+          }
+        },
+        {
+          "block": "p4096-pair2",
+          "order": [
+            "base",
+            "candidate"
+          ],
+          "rates": {
+            "base": {
+              "pp4096": 4735.73,
+              "tg256": 395.8
+            },
+            "candidate": {
+              "pp4096": 4672.6,
+              "tg256": 392.33
+            }
+          },
+          "candidate_percent": {
+            "pp4096": -1.3330574167023768,
+            "tg256": -0.8767054067711055
+          }
+        },
+        {
+          "block": "p4096-pair3",
+          "order": [
+            "candidate",
+            "base"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4759.07,
+              "tg256": 395.14
+            },
+            "base": {
+              "pp4096": 4679.03,
+              "tg256": 394.13
+            }
+          },
+          "candidate_percent": {
+            "pp4096": 1.7106109599639208,
+            "tg256": 0.25626062466699295
+          }
+        }
+      ],
+      "candidate_percent": {
+        "pp4096": 0.1605592434511749,
+        "tg256": -0.37905634587150905
+      }
+    }
+  ],
+  "all_calls": [
+    {
+      "number": 1,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866979.0213842,
+      "end": 1792866981.2519548,
+      "rates_tok_s": {
+        "pp128": 6602.05,
+        "tg256": 392.53
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 4,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 2.2305705547332764,
+      "call_seconds": 2.2305705547332764,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:18.099187+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:22.101091+00:00",
+      "unbracketed_start_seconds": 0.9221973419189453,
+      "unbracketed_end_seconds": 0.8491361141204834,
+      "intervals": [
+        {
+          "start": 1792866978.099187,
+          "end": 1792866979.115665,
+          "start_utc": "2026-10-24T18:36:18.099187+00:00",
+          "end_utc": "2026-10-24T18:36:19.115665+00:00",
+          "overlap_seconds": 0.09428071975708008,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 97.24655819774718,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 12.989693224479662,
+          "disk_aggregate_bytes_per_second": 102318.81432205519,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866979.115665,
+          "end": 1792866980.102262,
+          "start_utc": "2026-10-24T18:36:19.115665+00:00",
+          "end_utc": "2026-10-24T18:36:20.102262+00:00",
+          "overlap_seconds": 0.9865970611572266,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 88.51944792973651,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 28.98748389879686,
+          "disk_aggregate_bytes_per_second": 429894.38190326054,
+          "target_gpu_busy_percent": 94.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866980.102262,
+          "end": 1792866981.10269,
+          "start_utc": "2026-10-24T18:36:20.102262+00:00",
+          "end_utc": "2026-10-24T18:36:21.102690+00:00",
+          "overlap_seconds": 1.0004279613494873,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 92.58793969849246,
+          "system_iowait_percent": 0.314070351758794,
+          "unrelated_cpu_percent_observed": 24.986510282501524,
+          "disk_aggregate_bytes_per_second": 6148872.346716945,
+          "target_gpu_busy_percent": 94.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866981.10269,
+          "end": 1792866982.101091,
+          "start_utc": "2026-10-24T18:36:21.102690+00:00",
+          "end_utc": "2026-10-24T18:36:22.101091+00:00",
+          "overlap_seconds": 0.14926481246948242,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.94339622641509,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 21.988833898089187,
+          "disk_aggregate_bytes_per_second": 4978208.027010597,
+          "target_gpu_busy_percent": 96.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866981.2532225,
+      "end": 1792866983.2774022,
+      "rates_tok_s": {
+        "pp128": 6599.53,
+        "tg256": 394.03
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 2.024179697036743,
+      "call_seconds": 2.024179697036743,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:21.102690+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:24.103048+00:00",
+      "unbracketed_start_seconds": 0.15053248405456543,
+      "unbracketed_end_seconds": 0.825645923614502,
+      "intervals": [
+        {
+          "start": 1792866981.10269,
+          "end": 1792866982.101091,
+          "start_utc": "2026-10-24T18:36:21.102690+00:00",
+          "end_utc": "2026-10-24T18:36:22.101091+00:00",
+          "overlap_seconds": 0.8478684425354004,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.94339622641509,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 21.988833898089187,
+          "disk_aggregate_bytes_per_second": 4978208.027010597,
+          "target_gpu_busy_percent": 96.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866982.101091,
+          "end": 1792866983.101883,
+          "start_utc": "2026-10-24T18:36:22.101091+00:00",
+          "end_utc": "2026-10-24T18:36:23.101883+00:00",
+          "overlap_seconds": 1.0007920265197754,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.22613065326634,
+          "system_iowait_percent": 0.1884422110552764,
+          "unrelated_cpu_percent_observed": 28.985117328029045,
+          "disk_aggregate_bytes_per_second": 9211270.389486749,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866983.101883,
+          "end": 1792866984.103048,
+          "start_utc": "2026-10-24T18:36:23.101883+00:00",
+          "end_utc": "2026-10-24T18:36:24.103048+00:00",
+          "overlap_seconds": 0.17551922798156738,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.71859296482413,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.991437690226373,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 85.0,
+          "other_gpu_busy_percent_max": 99.0
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866983.2783508,
+      "end": 1792866985.2533984,
+      "rates_tok_s": {
+        "pp128": 6605.95,
+        "tg256": 393.13
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9750475883483887,
+      "call_seconds": 1.9750475883483887,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:23.101883+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:26.113124+00:00",
+      "unbracketed_start_seconds": 0.1764678955078125,
+      "unbracketed_end_seconds": 0.8597254753112793,
+      "intervals": [
+        {
+          "start": 1792866983.101883,
+          "end": 1792866984.103048,
+          "start_utc": "2026-10-24T18:36:23.101883+00:00",
+          "end_utc": "2026-10-24T18:36:24.103048+00:00",
+          "overlap_seconds": 0.8246972560882568,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.71859296482413,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.991437690226373,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 85.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792866984.103048,
+          "end": 1792866985.102435,
+          "start_utc": "2026-10-24T18:36:24.103048+00:00",
+          "end_utc": "2026-10-24T18:36:25.102435+00:00",
+          "overlap_seconds": 0.9993870258331299,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.61016949152543,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 14.992729905332542,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 93.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866985.102435,
+          "end": 1792866986.113124,
+          "start_utc": "2026-10-24T18:36:25.102435+00:00",
+          "end_utc": "2026-10-24T18:36:26.113124+00:00",
+          "overlap_seconds": 0.15096330642700195,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.38906348208674,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 33.984741668497485,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866985.2544036,
+      "end": 1792866987.2292163,
+      "rates_tok_s": {
+        "pp128": 6590.36,
+        "tg256": 391.5
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9748127460479736,
+      "call_seconds": 1.9748127460479736,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:25.102435+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:28.110850+00:00",
+      "unbracketed_start_seconds": 0.15196847915649414,
+      "unbracketed_end_seconds": 0.8816337585449219,
+      "intervals": [
+        {
+          "start": 1792866985.102435,
+          "end": 1792866986.113124,
+          "start_utc": "2026-10-24T18:36:25.102435+00:00",
+          "end_utc": "2026-10-24T18:36:26.113124+00:00",
+          "overlap_seconds": 0.8587203025817871,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.38906348208674,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 33.984741668497485,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866986.113124,
+          "end": 1792866987.104253,
+          "start_utc": "2026-10-24T18:36:26.113124+00:00",
+          "end_utc": "2026-10-24T18:36:27.104253+00:00",
+          "overlap_seconds": 0.9911291599273682,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.60577526679222,
+          "system_iowait_percent": 0.06277463904582549,
+          "unrelated_cpu_percent_observed": 22.986861835344374,
+          "disk_aggregate_bytes_per_second": 2644504.53070046,
+          "target_gpu_busy_percent": 84.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866987.104253,
+          "end": 1792866988.11085,
+          "start_utc": "2026-10-24T18:36:27.104253+00:00",
+          "end_utc": "2026-10-24T18:36:28.110850+00:00",
+          "overlap_seconds": 0.12496328353881836,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.02325581395348,
+          "system_iowait_percent": 0.251414204902577,
+          "unrelated_cpu_percent_observed": 18.990426567882835,
+          "disk_aggregate_bytes_per_second": 876102.3402904365,
+          "target_gpu_busy_percent": 94.0,
+          "other_gpu_busy_percent_max": 99.0
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866987.2302349,
+      "end": 1792866989.2075908,
+      "rates_tok_s": {
+        "pp128": 6604.73,
+        "tg256": 393.64
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.97735595703125,
+      "call_seconds": 1.97735595703125,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:27.104253+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:30.105638+00:00",
+      "unbracketed_start_seconds": 0.12598180770874023,
+      "unbracketed_end_seconds": 0.8980472087860107,
+      "intervals": [
+        {
+          "start": 1792866987.104253,
+          "end": 1792866988.11085,
+          "start_utc": "2026-10-24T18:36:27.104253+00:00",
+          "end_utc": "2026-10-24T18:36:28.110850+00:00",
+          "overlap_seconds": 0.880615234375,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.02325581395348,
+          "system_iowait_percent": 0.251414204902577,
+          "unrelated_cpu_percent_observed": 18.990426567882835,
+          "disk_aggregate_bytes_per_second": 876102.3402904365,
+          "target_gpu_busy_percent": 94.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792866988.11085,
+          "end": 1792866989.104636,
+          "start_utc": "2026-10-24T18:36:28.110850+00:00",
+          "end_utc": "2026-10-24T18:36:29.104636+00:00",
+          "overlap_seconds": 0.9937858581542969,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.67398119122257,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 13.992338649208547,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 86.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866989.104636,
+          "end": 1792866990.105638,
+          "start_utc": "2026-10-24T18:36:29.104636+00:00",
+          "end_utc": "2026-10-24T18:36:30.105638+00:00",
+          "overlap_seconds": 0.10295486450195312,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.62893081761007,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 35.983366761038695,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 86.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866989.2089977,
+      "end": 1792866991.1858807,
+      "rates_tok_s": {
+        "pp128": 6606.44,
+        "tg256": 394.42
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9768829345703125,
+      "call_seconds": 1.9768829345703125,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:29.104636+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:32.121482+00:00",
+      "unbracketed_start_seconds": 0.10436177253723145,
+      "unbracketed_end_seconds": 0.9356012344360352,
+      "intervals": [
+        {
+          "start": 1792866989.104636,
+          "end": 1792866990.105638,
+          "start_utc": "2026-10-24T18:36:29.104636+00:00",
+          "end_utc": "2026-10-24T18:36:30.105638+00:00",
+          "overlap_seconds": 0.8966403007507324,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.62893081761007,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 35.983366761038695,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 86.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866990.105638,
+          "end": 1792866991.106979,
+          "start_utc": "2026-10-24T18:36:30.105638+00:00",
+          "end_utc": "2026-10-24T18:36:31.106979+00:00",
+          "overlap_seconds": 1.0013408660888672,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.79409918392969,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 13.992492760338957,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 93.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866991.106979,
+          "end": 1792866992.121482,
+          "start_utc": "2026-10-24T18:36:31.106979+00:00",
+          "end_utc": "2026-10-24T18:36:32.121482+00:00",
+          "overlap_seconds": 0.07890176773071289,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.81360201511335,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 23.989822892254896,
+          "disk_aggregate_bytes_per_second": 2333729.970958555,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866991.1869628,
+      "end": 1792866993.1114838,
+      "rates_tok_s": {
+        "pp128": 6598.23,
+        "tg256": 393.95
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9245209693908691,
+      "call_seconds": 1.9245209693908691,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:31.106979+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:34.108713+00:00",
+      "unbracketed_start_seconds": 0.07998394966125488,
+      "unbracketed_end_seconds": 0.9972290992736816,
+      "intervals": [
+        {
+          "start": 1792866991.106979,
+          "end": 1792866992.121482,
+          "start_utc": "2026-10-24T18:36:31.106979+00:00",
+          "end_utc": "2026-10-24T18:36:32.121482+00:00",
+          "overlap_seconds": 0.9345190525054932,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.81360201511335,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 23.989822892254896,
+          "disk_aggregate_bytes_per_second": 2333729.970958555,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866992.121482,
+          "end": 1792866993.106418,
+          "start_utc": "2026-10-24T18:36:32.121482+00:00",
+          "end_utc": "2026-10-24T18:36:33.106418+00:00",
+          "overlap_seconds": 0.984935998916626,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.47553324968632,
+          "system_iowait_percent": 0.37641154328732745,
+          "unrelated_cpu_percent_observed": 21.98342148719902,
+          "disk_aggregate_bytes_per_second": 941370.0779391116,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866993.106418,
+          "end": 1792866994.108713,
+          "start_utc": "2026-10-24T18:36:33.106418+00:00",
+          "end_utc": "2026-10-24T18:36:34.108713+00:00",
+          "overlap_seconds": 0.00506591796875,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.16614420062696,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 20.988326506884484,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 93.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 8,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866993.1125784,
+      "end": 1792866995.087666,
+      "rates_tok_s": {
+        "pp128": 6596.94,
+        "tg256": 394.37
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 2,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9750876426696777,
+      "call_seconds": 1.9750876426696777,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:33.106418+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:35.107113+00:00",
+      "unbracketed_start_seconds": 0.0061604976654052734,
+      "unbracketed_end_seconds": 0.019446849822998047,
+      "intervals": [
+        {
+          "start": 1792866993.106418,
+          "end": 1792866994.108713,
+          "start_utc": "2026-10-24T18:36:33.106418+00:00",
+          "end_utc": "2026-10-24T18:36:34.108713+00:00",
+          "overlap_seconds": 0.9961345195770264,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.16614420062696,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 20.988326506884484,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 93.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866994.108713,
+          "end": 1792866995.107113,
+          "start_utc": "2026-10-24T18:36:34.108713+00:00",
+          "end_utc": "2026-10-24T18:36:35.107113+00:00",
+          "overlap_seconds": 0.9789531230926514,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.54020100502512,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 17.99227976186941,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 9,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866995.0887861,
+      "end": 1792866997.0637634,
+      "rates_tok_s": {
+        "pp128": 6598.26,
+        "tg256": 394.63
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9749772548675537,
+      "call_seconds": 1.9749772548675537,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:34.108713+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:37.109014+00:00",
+      "unbracketed_start_seconds": 0.9800732135772705,
+      "unbracketed_end_seconds": 0.045250654220581055,
+      "intervals": [
+        {
+          "start": 1792866994.108713,
+          "end": 1792866995.107113,
+          "start_utc": "2026-10-24T18:36:34.108713+00:00",
+          "end_utc": "2026-10-24T18:36:35.107113+00:00",
+          "overlap_seconds": 0.018326759338378906,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.54020100502512,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 17.99227976186941,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866995.107113,
+          "end": 1792866996.112363,
+          "start_utc": "2026-10-24T18:36:35.107113+00:00",
+          "end_utc": "2026-10-24T18:36:36.112363+00:00",
+          "overlap_seconds": 1.0052502155303955,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.80604534005037,
+          "system_iowait_percent": 0.1889168765743073,
+          "unrelated_cpu_percent_observed": 62.97484375566516,
+          "disk_aggregate_bytes_per_second": 8188.7288896255395,
+          "target_gpu_busy_percent": 89.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866996.112363,
+          "end": 1792866997.109014,
+          "start_utc": "2026-10-24T18:36:36.112363+00:00",
+          "end_utc": "2026-10-24T18:36:37.109014+00:00",
+          "overlap_seconds": 0.9514002799987793,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.05015673981191,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 15.991680487346732,
+          "disk_aggregate_bytes_per_second": 2640546.282070692,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 10,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866997.0648973,
+      "end": 1792866999.04118,
+      "rates_tok_s": {
+        "pp128": 6587.74,
+        "tg256": 391.93
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 3,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 1.9762825965881348,
+      "call_seconds": 1.9762825965881348,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:36.112363+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:39.114278+00:00",
+      "unbracketed_start_seconds": 0.9525341987609863,
+      "unbracketed_end_seconds": 0.07309818267822266,
+      "intervals": [
+        {
+          "start": 1792866996.112363,
+          "end": 1792866997.109014,
+          "start_utc": "2026-10-24T18:36:36.112363+00:00",
+          "end_utc": "2026-10-24T18:36:37.109014+00:00",
+          "overlap_seconds": 0.04411673545837402,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.05015673981191,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 15.991680487346732,
+          "disk_aggregate_bytes_per_second": 2640546.282070692,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866997.109014,
+          "end": 1792866998.110765,
+          "start_utc": "2026-10-24T18:36:37.109014+00:00",
+          "end_utc": "2026-10-24T18:36:38.110765+00:00",
+          "overlap_seconds": 1.0017509460449219,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.2245922208281,
+          "system_iowait_percent": 0.18820577164366373,
+          "unrelated_cpu_percent_observed": 25.986292776601196,
+          "disk_aggregate_bytes_per_second": 9301205.809378525,
+          "target_gpu_busy_percent": 86.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792866998.110765,
+          "end": 1792866999.114278,
+          "start_utc": "2026-10-24T18:36:38.110765+00:00",
+          "end_utc": "2026-10-24T18:36:39.114278+00:00",
+          "overlap_seconds": 0.9304149150848389,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.93954659949623,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 20.991249465890004,
+          "disk_aggregate_bytes_per_second": 3676675.3197824922,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 11,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792866999.042333,
+      "end": 1792867002.719489,
+      "rates_tok_s": {
+        "pp4096": 4689.76,
+        "tg256": 391.23
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.6771562099456787,
+      "call_seconds": 3.6771562099456787,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:38.110765+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:43.120926+00:00",
+      "unbracketed_start_seconds": 0.931567907333374,
+      "unbracketed_end_seconds": 0.40143680572509766,
+      "intervals": [
+        {
+          "start": 1792866998.110765,
+          "end": 1792866999.114278,
+          "start_utc": "2026-10-24T18:36:38.110765+00:00",
+          "end_utc": "2026-10-24T18:36:39.114278+00:00",
+          "overlap_seconds": 0.0719451904296875,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.93954659949623,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 20.991249465890004,
+          "disk_aggregate_bytes_per_second": 3676675.3197824922,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792866999.114278,
+          "end": 1792867000.131975,
+          "start_utc": "2026-10-24T18:36:39.114278+00:00",
+          "end_utc": "2026-10-24T18:36:40.131975+00:00",
+          "overlap_seconds": 1.0176968574523926,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 92.96040226272784,
+          "system_iowait_percent": 0.06285355122564425,
+          "unrelated_cpu_percent_observed": 27.980342295040113,
+          "disk_aggregate_bytes_per_second": 8186.248717177449,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867000.131975,
+          "end": 1792867001.129257,
+          "start_utc": "2026-10-24T18:36:40.131975+00:00",
+          "end_utc": "2026-10-24T18:36:41.129257+00:00",
+          "overlap_seconds": 0.9972820281982422,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.05015673981191,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 11.988917062001406,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 84.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867001.129257,
+          "end": 1792867002.130337,
+          "start_utc": "2026-10-24T18:36:41.129257+00:00",
+          "end_utc": "2026-10-24T18:36:42.130337+00:00",
+          "overlap_seconds": 1.00108003616333,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.49342517219787,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 24.984669854110905,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 79.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867002.130337,
+          "end": 1792867003.120926,
+          "start_utc": "2026-10-24T18:36:42.130337+00:00",
+          "end_utc": "2026-10-24T18:36:43.120926+00:00",
+          "overlap_seconds": 0.5891520977020264,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.06918238993711,
+          "system_iowait_percent": 0.31446540880503143,
+          "unrelated_cpu_percent_observed": 24.986580684498165,
+          "disk_aggregate_bytes_per_second": 3467449.7683079066,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 12,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867002.7207613,
+      "end": 1792867006.6488297,
+      "rates_tok_s": {
+        "pp4096": 4655.31,
+        "tg256": 392.39
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.9280683994293213,
+      "call_seconds": 3.9280683994293213,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:42.130337+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:47.156479+00:00",
+      "unbracketed_start_seconds": 0.5904242992401123,
+      "unbracketed_end_seconds": 0.5076491832733154,
+      "intervals": [
+        {
+          "start": 1792867002.130337,
+          "end": 1792867003.120926,
+          "start_utc": "2026-10-24T18:36:42.130337+00:00",
+          "end_utc": "2026-10-24T18:36:43.120926+00:00",
+          "overlap_seconds": 0.4001646041870117,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.06918238993711,
+          "system_iowait_percent": 0.31446540880503143,
+          "unrelated_cpu_percent_observed": 24.986580684498165,
+          "disk_aggregate_bytes_per_second": 3467449.7683079066,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867003.120926,
+          "end": 1792867004.143681,
+          "start_utc": "2026-10-24T18:36:43.120926+00:00",
+          "end_utc": "2026-10-24T18:36:44.143681+00:00",
+          "overlap_seconds": 1.0227551460266113,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.6608040201005,
+          "system_iowait_percent": 0.1884422110552764,
+          "unrelated_cpu_percent_observed": 35.973303995266676,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867004.143681,
+          "end": 1792867005.136212,
+          "start_utc": "2026-10-24T18:36:44.143681+00:00",
+          "end_utc": "2026-10-24T18:36:45.136212+00:00",
+          "overlap_seconds": 0.9925310611724854,
+          "flags": [],
+          "unknown": [],
+          "system_idle_percent": 97.24310776942356,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 12.988431852028432,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867005.136212,
+          "end": 1792867006.147525,
+          "start_utc": "2026-10-24T18:36:45.136212+00:00",
+          "end_utc": "2026-10-24T18:36:46.147525+00:00",
+          "overlap_seconds": 1.0113129615783691,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 97.4342928660826,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 21.98645124664328,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 91.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867006.147525,
+          "end": 1792867007.156479,
+          "start_utc": "2026-10-24T18:36:46.147525+00:00",
+          "end_utc": "2026-10-24T18:36:47.156479+00:00",
+          "overlap_seconds": 0.5013046264648438,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.97363465160075,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.9888623730163,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 46.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 13,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867006.650067,
+      "end": 1792867010.3274496,
+      "rates_tok_s": {
+        "pp4096": 4726.9,
+        "tg256": 395.83
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.677382469177246,
+      "call_seconds": 3.677382469177246,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:46.147525+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:51.139771+00:00",
+      "unbracketed_start_seconds": 0.5025420188903809,
+      "unbracketed_end_seconds": 0.8123214244842529,
+      "intervals": [
+        {
+          "start": 1792867006.147525,
+          "end": 1792867007.156479,
+          "start_utc": "2026-10-24T18:36:46.147525+00:00",
+          "end_utc": "2026-10-24T18:36:47.156479+00:00",
+          "overlap_seconds": 0.5064117908477783,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.97363465160075,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.9888623730163,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 46.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867007.156479,
+          "end": 1792867008.134438,
+          "start_utc": "2026-10-24T18:36:47.156479+00:00",
+          "end_utc": "2026-10-24T18:36:48.134438+00:00",
+          "overlap_seconds": 0.977959156036377,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.67711598746081,
+          "system_iowait_percent": 0.3761755485893417,
+          "unrelated_cpu_percent_observed": 17.99071049815602,
+          "disk_aggregate_bytes_per_second": 3025381.8443405763,
+          "target_gpu_busy_percent": 85.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867008.134438,
+          "end": 1792867009.133753,
+          "start_utc": "2026-10-24T18:36:48.134438+00:00",
+          "end_utc": "2026-10-24T18:36:49.133753+00:00",
+          "overlap_seconds": 0.9993150234222412,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.42633228840126,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 9.99372541905848,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792867009.133753,
+          "end": 1792867010.137438,
+          "start_utc": "2026-10-24T18:36:49.133753+00:00",
+          "end_utc": "2026-10-24T18:36:50.137438+00:00",
+          "overlap_seconds": 1.0036849975585938,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.23212045169385,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 30.98179815957963,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 96.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867010.137438,
+          "end": 1792867011.139771,
+          "start_utc": "2026-10-24T18:36:50.137438+00:00",
+          "end_utc": "2026-10-24T18:36:51.139771+00:00",
+          "overlap_seconds": 0.19001150131225586,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.90207156308851,
+          "system_iowait_percent": 0.31387319522912743,
+          "unrelated_cpu_percent_observed": 17.990337569531988,
+          "disk_aggregate_bytes_per_second": 1244515.5831211177,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 14,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867010.328774,
+      "end": 1792867014.0563161,
+      "rates_tok_s": {
+        "pp4096": 4742.62,
+        "tg256": 395.39
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 4,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.7275421619415283,
+      "call_seconds": 3.7275421619415283,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:50.137438+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:54.140487+00:00",
+      "unbracketed_start_seconds": 0.19133591651916504,
+      "unbracketed_end_seconds": 0.08417081832885742,
+      "intervals": [
+        {
+          "start": 1792867010.137438,
+          "end": 1792867011.139771,
+          "start_utc": "2026-10-24T18:36:50.137438+00:00",
+          "end_utc": "2026-10-24T18:36:51.139771+00:00",
+          "overlap_seconds": 0.8109970092773438,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 91.90207156308851,
+          "system_iowait_percent": 0.31387319522912743,
+          "unrelated_cpu_percent_observed": 17.990337569531988,
+          "disk_aggregate_bytes_per_second": 1244515.5831211177,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867011.139771,
+          "end": 1792867012.141724,
+          "start_utc": "2026-10-24T18:36:51.139771+00:00",
+          "end_utc": "2026-10-24T18:36:52.141724+00:00",
+          "overlap_seconds": 1.001953125,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 97.99498746867168,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 12.992747060604202,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 93.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867012.141724,
+          "end": 1792867013.139854,
+          "start_utc": "2026-10-24T18:36:52.141724+00:00",
+          "end_utc": "2026-10-24T18:36:53.139854+00:00",
+          "overlap_seconds": 0.9981298446655273,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.08176100628931,
+          "system_iowait_percent": 0.44025157232704404,
+          "unrelated_cpu_percent_observed": 20.9861186444471,
+          "disk_aggregate_bytes_per_second": 9471878.786340686,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867013.139854,
+          "end": 1792867014.140487,
+          "start_utc": "2026-10-24T18:36:53.139854+00:00",
+          "end_utc": "2026-10-24T18:36:54.140487+00:00",
+          "overlap_seconds": 0.9164621829986572,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.29629629629629,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 24.986592720558107,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 99.0
+        }
+      ]
+    },
+    {
+      "number": 15,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867014.0576594,
+      "end": 1792867017.6849277,
+      "rates_tok_s": {
+        "pp4096": 4758.74,
+        "tg256": 391.39
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.6272683143615723,
+      "call_seconds": 3.6272683143615723,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:53.139854+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:36:58.167384+00:00",
+      "unbracketed_start_seconds": 0.9178054332733154,
+      "unbracketed_end_seconds": 0.4824562072753906,
+      "intervals": [
+        {
+          "start": 1792867013.139854,
+          "end": 1792867014.140487,
+          "start_utc": "2026-10-24T18:36:53.139854+00:00",
+          "end_utc": "2026-10-24T18:36:54.140487+00:00",
+          "overlap_seconds": 0.08282756805419922,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.29629629629629,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 24.986592720558107,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792867014.140487,
+          "end": 1792867015.141413,
+          "start_utc": "2026-10-24T18:36:54.140487+00:00",
+          "end_utc": "2026-10-24T18:36:55.141413+00:00",
+          "overlap_seconds": 1.0009260177612305,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.80275516593613,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 11.993037551687207,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867015.141413,
+          "end": 1792867016.147449,
+          "start_utc": "2026-10-24T18:36:55.141413+00:00",
+          "end_utc": "2026-10-24T18:36:56.147449+00:00",
+          "overlap_seconds": 1.0060360431671143,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.98494353826851,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 25.987384991954325,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 89.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867016.147449,
+          "end": 1792867017.159693,
+          "start_utc": "2026-10-24T18:36:56.147449+00:00",
+          "end_utc": "2026-10-24T18:36:57.159693+00:00",
+          "overlap_seconds": 1.0122439861297607,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.36591478696742,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 18.990084915984713,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 80.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867017.159693,
+          "end": 1792867018.167384,
+          "start_utc": "2026-10-24T18:36:57.159693+00:00",
+          "end_utc": "2026-10-24T18:36:58.167384+00:00",
+          "overlap_seconds": 0.5252346992492676,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.27467001885607,
+          "system_iowait_percent": 0.3142677561282212,
+          "unrelated_cpu_percent_observed": 24.98407308184361,
+          "disk_aggregate_bytes_per_second": 3561249.7643444543,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 16,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867017.686347,
+      "end": 1792867021.36373,
+      "rates_tok_s": {
+        "pp4096": 4761.02,
+        "tg256": 394.48
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.6773829460144043,
+      "call_seconds": 3.6773829460144043,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:36:57.159693+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:37:02.157922+00:00",
+      "unbracketed_start_seconds": 0.5266540050506592,
+      "unbracketed_end_seconds": 0.7941920757293701,
+      "intervals": [
+        {
+          "start": 1792867017.159693,
+          "end": 1792867018.167384,
+          "start_utc": "2026-10-24T18:36:57.159693+00:00",
+          "end_utc": "2026-10-24T18:36:58.167384+00:00",
+          "overlap_seconds": 0.481036901473999,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.27467001885607,
+          "system_iowait_percent": 0.3142677561282212,
+          "unrelated_cpu_percent_observed": 24.98407308184361,
+          "disk_aggregate_bytes_per_second": 3561249.7643444543,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867018.167384,
+          "end": 1792867019.181384,
+          "start_utc": "2026-10-24T18:36:58.167384+00:00",
+          "end_utc": "2026-10-24T18:36:59.181384+00:00",
+          "overlap_seconds": 1.0140001773834229,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.80651221039449,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 10.988962530351081,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867019.181384,
+          "end": 1792867020.158111,
+          "start_utc": "2026-10-24T18:36:59.181384+00:00",
+          "end_utc": "2026-10-24T18:37:00.158111+00:00",
+          "overlap_seconds": 0.9767270088195801,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.65976145637163,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 27.970615859555682,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867020.158111,
+          "end": 1792867021.162653,
+          "start_utc": "2026-10-24T18:37:00.158111+00:00",
+          "end_utc": "2026-10-24T18:37:01.162653+00:00",
+          "overlap_seconds": 1.0045418739318848,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.9906073888541,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 12.992565134785803,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867021.162653,
+          "end": 1792867022.157922,
+          "start_utc": "2026-10-24T18:37:01.162653+00:00",
+          "end_utc": "2026-10-24T18:37:02.157922+00:00",
+          "overlap_seconds": 0.20107698440551758,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.27889447236181,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.989637816389745,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 17,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867021.365147,
+      "end": 1792867025.042541,
+      "rates_tok_s": {
+        "pp4096": 4735.73,
+        "tg256": 395.8
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 4,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.677393913269043,
+      "call_seconds": 3.677393913269043,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:37:01.162653+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:37:05.162681+00:00",
+      "unbracketed_start_seconds": 0.20249414443969727,
+      "unbracketed_end_seconds": 0.12014007568359375,
+      "intervals": [
+        {
+          "start": 1792867021.162653,
+          "end": 1792867022.157922,
+          "start_utc": "2026-10-24T18:37:01.162653+00:00",
+          "end_utc": "2026-10-24T18:37:02.157922+00:00",
+          "overlap_seconds": 0.7927749156951904,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.27889447236181,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.989637816389745,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867022.157922,
+          "end": 1792867023.160665,
+          "start_utc": "2026-10-24T18:37:02.157922+00:00",
+          "end_utc": "2026-10-24T18:37:03.160665+00:00",
+          "overlap_seconds": 1.0027430057525635,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.66415568110483,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 25.985059608326047,
+          "disk_aggregate_bytes_per_second": 2407064.032444371,
+          "target_gpu_busy_percent": 89.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867023.160665,
+          "end": 1792867024.158567,
+          "start_utc": "2026-10-24T18:37:03.160665+00:00",
+          "end_utc": "2026-10-24T18:37:04.158567+00:00",
+          "overlap_seconds": 0.9979019165039062,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.18033813400125,
+          "system_iowait_percent": 0.31308703819661865,
+          "unrelated_cpu_percent_observed": 17.98666727194089,
+          "disk_aggregate_bytes_per_second": 789942.4502862716,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867024.158567,
+          "end": 1792867025.162681,
+          "start_utc": "2026-10-24T18:37:04.158567+00:00",
+          "end_utc": "2026-10-24T18:37:05.162681+00:00",
+          "overlap_seconds": 0.8839740753173828,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.60301507537689,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.989528998629506,
+          "disk_aggregate_bytes_per_second": 8186.954209221937,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 18,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867025.0440006,
+      "end": 1792867028.7216012,
+      "rates_tok_s": {
+        "pp4096": 4672.6,
+        "tg256": 392.33
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.677600622177124,
+      "call_seconds": 3.677600622177124,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:37:04.158567+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:37:09.160889+00:00",
+      "unbracketed_start_seconds": 0.8854336738586426,
+      "unbracketed_end_seconds": 0.4392876625061035,
+      "intervals": [
+        {
+          "start": 1792867024.158567,
+          "end": 1792867025.162681,
+          "start_utc": "2026-10-24T18:37:04.158567+00:00",
+          "end_utc": "2026-10-24T18:37:05.162681+00:00",
+          "overlap_seconds": 0.11868047714233398,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.60301507537689,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.989528998629506,
+          "disk_aggregate_bytes_per_second": 8186.954209221937,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867025.162681,
+          "end": 1792867026.158506,
+          "start_utc": "2026-10-24T18:37:05.162681+00:00",
+          "end_utc": "2026-10-24T18:37:06.158506+00:00",
+          "overlap_seconds": 0.9958248138427734,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.7962382445141,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 16.988523672423884,
+          "disk_aggregate_bytes_per_second": 130983.51616423196,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867026.158506,
+          "end": 1792867027.162937,
+          "start_utc": "2026-10-24T18:37:06.158506+00:00",
+          "end_utc": "2026-10-24T18:37:07.162937+00:00",
+          "overlap_seconds": 1.0044310092926025,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 96.55388471177945,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 19.990958153431105,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867027.162937,
+          "end": 1792867028.17271,
+          "start_utc": "2026-10-24T18:37:07.162937+00:00",
+          "end_utc": "2026-10-24T18:37:08.172710+00:00",
+          "overlap_seconds": 1.0097730159759521,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 98.05764411027569,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 13.992021174048357,
+          "disk_aggregate_bytes_per_second": 2574915.6771771004,
+          "target_gpu_busy_percent": 92.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867028.17271,
+          "end": 1792867029.160889,
+          "start_utc": "2026-10-24T18:37:08.172710+00:00",
+          "end_utc": "2026-10-24T18:37:09.160889+00:00",
+          "overlap_seconds": 0.5488913059234619,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.65577889447236,
+          "system_iowait_percent": 0.314070351758794,
+          "unrelated_cpu_percent_observed": 21.985142573219342,
+          "disk_aggregate_bytes_per_second": 843206.1663573058,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 19,
+      "model": "qwen3-q8_0",
+      "arm": "candidate",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867028.7230346,
+      "end": 1792867032.4006486,
+      "rates_tok_s": {
+        "pp4096": 4759.07,
+        "tg256": 395.14
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 5,
+      "activity_flag_union": [
+        "unrelated_cpu"
+      ],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.6776139736175537,
+      "call_seconds": 3.6776139736175537,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:37:08.172710+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:37:13.166496+00:00",
+      "unbracketed_start_seconds": 0.5503246784210205,
+      "unbracketed_end_seconds": 0.7658474445343018,
+      "intervals": [
+        {
+          "start": 1792867028.17271,
+          "end": 1792867029.160889,
+          "start_utc": "2026-10-24T18:37:08.172710+00:00",
+          "end_utc": "2026-10-24T18:37:09.160889+00:00",
+          "overlap_seconds": 0.4378542900085449,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 93.65577889447236,
+          "system_iowait_percent": 0.314070351758794,
+          "unrelated_cpu_percent_observed": 21.985142573219342,
+          "disk_aggregate_bytes_per_second": 843206.1663573058,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867029.160889,
+          "end": 1792867030.165281,
+          "start_utc": "2026-10-24T18:37:09.160889+00:00",
+          "end_utc": "2026-10-24T18:37:10.165281+00:00",
+          "overlap_seconds": 1.004392147064209,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 94.05134627426425,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 21.972439286330694,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867030.165281,
+          "end": 1792867031.177685,
+          "start_utc": "2026-10-24T18:37:10.165281+00:00",
+          "end_utc": "2026-10-24T18:37:11.177685+00:00",
+          "overlap_seconds": 1.012403964996338,
+          "flags": [
+            "unrelated_cpu"
+          ],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 81.7546090273363,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 242.85085485310614,
+          "disk_aggregate_bytes_per_second": 1060212.877707348,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867031.177685,
+          "end": 1792867032.16481,
+          "start_utc": "2026-10-24T18:37:11.177685+00:00",
+          "end_utc": "2026-10-24T18:37:12.164810+00:00",
+          "overlap_seconds": 0.9871249198913574,
+          "flags": [
+            "unrelated_cpu"
+          ],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 83.6283185840708,
+          "system_iowait_percent": 0.0632111251580278,
+          "unrelated_cpu_percent_observed": 195.79733116939138,
+          "disk_aggregate_bytes_per_second": 576938.8135420696,
+          "target_gpu_busy_percent": 90.0,
+          "other_gpu_busy_percent_max": 99.0
+        },
+        {
+          "start": 1792867032.16481,
+          "end": 1792867033.166496,
+          "start_utc": "2026-10-24T18:37:12.164810+00:00",
+          "end_utc": "2026-10-24T18:37:13.166496+00:00",
+          "overlap_seconds": 0.2358386516571045,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.25157232704403,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 25.982252975831024,
+          "disk_aggregate_bytes_per_second": 2652396.296402866,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    },
+    {
+      "number": 20,
+      "model": "qwen3-q8_0",
+      "arm": "base",
+      "direction": "existing",
+      "status": "passed",
+      "returncode": 0,
+      "start": 1792867032.4021769,
+      "end": 1792867036.1302505,
+      "rates_tok_s": {
+        "pp4096": 4679.03,
+        "tg256": 394.13
+      },
+      "completed_matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "activity_interval_count": 4,
+      "activity_flag_union": [],
+      "unknown_union": [
+        "process_cpu_observation"
+      ],
+      "coverage_seconds_by_overlapping_samples": 3.7280735969543457,
+      "call_seconds": 3.7280735969543457,
+      "coverage_fraction": 1.0,
+      "nearest_sample_before_call_utc": "2026-10-24T18:37:12.164810+00:00",
+      "nearest_sample_after_call_utc": "2026-10-24T18:37:16.167813+00:00",
+      "unbracketed_start_seconds": 0.2373669147491455,
+      "unbracketed_end_seconds": 0.03756260871887207,
+      "intervals": [
+        {
+          "start": 1792867032.16481,
+          "end": 1792867033.166496,
+          "start_utc": "2026-10-24T18:37:12.164810+00:00",
+          "end_utc": "2026-10-24T18:37:13.166496+00:00",
+          "overlap_seconds": 0.7643191814422607,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 90.25157232704403,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 25.982252975831024,
+          "disk_aggregate_bytes_per_second": 2652396.296402866,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867033.166496,
+          "end": 1792867034.169505,
+          "start_utc": "2026-10-24T18:37:13.166496+00:00",
+          "end_utc": "2026-10-24T18:37:14.169505+00:00",
+          "overlap_seconds": 1.0030088424682617,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 97.68315591734502,
+          "system_iowait_percent": 0.06261740763932373,
+          "unrelated_cpu_percent_observed": 17.987925373896708,
+          "disk_aggregate_bytes_per_second": 1375332.7901876438,
+          "target_gpu_busy_percent": 85.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867034.169505,
+          "end": 1792867035.165137,
+          "start_utc": "2026-10-24T18:37:14.169505+00:00",
+          "end_utc": "2026-10-24T18:37:15.165137+00:00",
+          "overlap_seconds": 0.9956321716308594,
+          "flags": [],
+          "unknown": [],
+          "system_idle_percent": 97.93233082706767,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 8.99463666778447,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 100.0,
+          "other_gpu_busy_percent_max": 100.0
+        },
+        {
+          "start": 1792867035.165137,
+          "end": 1792867036.167813,
+          "start_utc": "2026-10-24T18:37:15.165137+00:00",
+          "end_utc": "2026-10-24T18:37:16.167813+00:00",
+          "overlap_seconds": 0.9651134014129639,
+          "flags": [],
+          "unknown": [
+            "process_cpu_observation"
+          ],
+          "system_idle_percent": 95.91964846202134,
+          "system_iowait_percent": 0.0,
+          "unrelated_cpu_percent_observed": 29.98388696230276,
+          "disk_aggregate_bytes_per_second": 0.0,
+          "target_gpu_busy_percent": 0.0,
+          "other_gpu_busy_percent_max": 100.0
+        }
+      ]
+    }
+  ],
+  "activity": {
+    "samples": 60,
+    "intervals": 59,
+    "thresholds": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    },
+    "flags": {
+      "unrelated_cpu": 2
+    },
+    "unknown": {
+      "process_cpu_observation": 57
+    }
+  },
+  "limitations": [
+    "Four measured observations per arm and workload. All calls retained, warmups excluded from means as planned.",
+    "Background activity is observed, not treated as absent or causal. Process observation gaps remain unknown.",
+    "A few-percent difference alone does not establish a regression or improvement; code-layout sensitivity remains applicable.",
+    "This record does not qualify TQ depth or grant a merge pass."
+  ]
+}

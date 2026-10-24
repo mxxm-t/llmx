@@ -1,0 +1,1276 @@
+{
+  "scope": "Independent block16 activation reconstruction diagnostic with HF F32 products and F16 KV. Not the selected reference or a GPU integer-accumulation oracle.",
+  "gate_replaced": false,
+  "bounds_changed": false,
+  "execution_sha256": "2002f13078331cbf199e956173b11dc62d0318a62ce6c3bf27a507f27b613063",
+  "bundle_sha256": "d3d62fd38eb48072146e35f9654fda1ba3c8df87de782d93d266a787442ba417",
+  "array_sha256": "5ffdd634cf8f7bbecfe172570d8f65e41a90b91cb0a63cd19db95c30f1226cb8",
+  "literal_reference": {
+    "artifact_digest": "sha256:1c276b74b738c6d3f6fd048517830b1c902d2d4f1b67dd8612334b39f8df0fee",
+    "execution_sha256": "b61994bc58101b640b7f1dc1aab44387c93c8aad7024426af5a339277c8bd7b6",
+    "raw_sha256": "dc886bdd555905a1be9dea66d4be0cf548b4a2ca63dc132d7a46104e81597bd8",
+    "detail_json_sha256": "9b7331c5fa7c94729439fc2f95ffce9ae86a7c3a6421cf3c795cfbcc99ebb482",
+    "report_sha256": "6046763339e9b6bc0a51f3fc891397f40cea7d5cb657f75540d20124333c5825",
+    "producer_sha256": "8b0c5dbd8bd268945eeec00dd4ab11476dcb64ac6ef6aef6c738a6ad5ede093d",
+    "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+    "policy": "Literal F16 inputs to all Linear operations, including TQ matrices and lm_head; F32 sums; logical F16 KV storage."
+  },
+  "f32_f16kv_execution_sha256": "228cec012ac352d7c0aac150f35a7fa761507549e51edaa93c9dbbd021a8e3eb",
+  "chunk_control": {
+    "policy": "F16KV for both independent arms",
+    "tokens": 64,
+    "chunk": 17,
+    "direct_cache_writes": {
+      "0": {
+        "calls": 1,
+        "rows": 64
+      },
+      "1": {
+        "calls": 1,
+        "rows": 64
+      },
+      "2": {
+        "calls": 1,
+        "rows": 64
+      },
+      "3": {
+        "calls": 1,
+        "rows": 64
+      },
+      "4": {
+        "calls": 1,
+        "rows": 64
+      },
+      "5": {
+        "calls": 1,
+        "rows": 64
+      },
+      "6": {
+        "calls": 1,
+        "rows": 64
+      },
+      "7": {
+        "calls": 1,
+        "rows": 64
+      },
+      "8": {
+        "calls": 1,
+        "rows": 64
+      },
+      "9": {
+        "calls": 1,
+        "rows": 64
+      },
+      "10": {
+        "calls": 1,
+        "rows": 64
+      },
+      "11": {
+        "calls": 1,
+        "rows": 64
+      },
+      "12": {
+        "calls": 1,
+        "rows": 64
+      },
+      "13": {
+        "calls": 1,
+        "rows": 64
+      },
+      "14": {
+        "calls": 1,
+        "rows": 64
+      },
+      "15": {
+        "calls": 1,
+        "rows": 64
+      },
+      "16": {
+        "calls": 1,
+        "rows": 64
+      },
+      "17": {
+        "calls": 1,
+        "rows": 64
+      },
+      "18": {
+        "calls": 1,
+        "rows": 64
+      },
+      "19": {
+        "calls": 1,
+        "rows": 64
+      },
+      "20": {
+        "calls": 1,
+        "rows": 64
+      },
+      "21": {
+        "calls": 1,
+        "rows": 64
+      },
+      "22": {
+        "calls": 1,
+        "rows": 64
+      },
+      "23": {
+        "calls": 1,
+        "rows": 64
+      },
+      "24": {
+        "calls": 1,
+        "rows": 64
+      },
+      "25": {
+        "calls": 1,
+        "rows": 64
+      },
+      "26": {
+        "calls": 1,
+        "rows": 64
+      },
+      "27": {
+        "calls": 1,
+        "rows": 64
+      }
+    },
+    "chunked_cache_writes": {
+      "0": {
+        "calls": 4,
+        "rows": 64
+      },
+      "1": {
+        "calls": 4,
+        "rows": 64
+      },
+      "2": {
+        "calls": 4,
+        "rows": 64
+      },
+      "3": {
+        "calls": 4,
+        "rows": 64
+      },
+      "4": {
+        "calls": 4,
+        "rows": 64
+      },
+      "5": {
+        "calls": 4,
+        "rows": 64
+      },
+      "6": {
+        "calls": 4,
+        "rows": 64
+      },
+      "7": {
+        "calls": 4,
+        "rows": 64
+      },
+      "8": {
+        "calls": 4,
+        "rows": 64
+      },
+      "9": {
+        "calls": 4,
+        "rows": 64
+      },
+      "10": {
+        "calls": 4,
+        "rows": 64
+      },
+      "11": {
+        "calls": 4,
+        "rows": 64
+      },
+      "12": {
+        "calls": 4,
+        "rows": 64
+      },
+      "13": {
+        "calls": 4,
+        "rows": 64
+      },
+      "14": {
+        "calls": 4,
+        "rows": 64
+      },
+      "15": {
+        "calls": 4,
+        "rows": 64
+      },
+      "16": {
+        "calls": 4,
+        "rows": 64
+      },
+      "17": {
+        "calls": 4,
+        "rows": 64
+      },
+      "18": {
+        "calls": 4,
+        "rows": 64
+      },
+      "19": {
+        "calls": 4,
+        "rows": 64
+      },
+      "20": {
+        "calls": 4,
+        "rows": 64
+      },
+      "21": {
+        "calls": 4,
+        "rows": 64
+      },
+      "22": {
+        "calls": 4,
+        "rows": 64
+      },
+      "23": {
+        "calls": 4,
+        "rows": 64
+      },
+      "24": {
+        "calls": 4,
+        "rows": 64
+      },
+      "25": {
+        "calls": 4,
+        "rows": 64
+      },
+      "26": {
+        "calls": 4,
+        "rows": 64
+      },
+      "27": {
+        "calls": 4,
+        "rows": 64
+      }
+    },
+    "max_abs_logit_delta": 0.0,
+    "exact_top1": 64
+  },
+  "comparisons": [
+    {
+      "name": "candidate F32/F16KV versus HF block16 diagnostic",
+      "counts": {
+        "exact": 499,
+        "accepted-tie": 10,
+        "miss": 3
+      },
+      "non_exact": [
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "chosen": 78372,
+          "reference_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.0017194747924804688
+        },
+        {
+          "position": 16467,
+          "classification": "accepted-tie",
+          "chosen": 6502,
+          "reference_top2": [
+            7247,
+            6502
+          ],
+          "gap": 0.01673603057861328
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "chosen": 45653,
+          "reference_top2": [
+            28605,
+            45653
+          ],
+          "gap": 0.11303424835205078
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "chosen": 21552,
+          "reference_top2": [
+            79308,
+            21552
+          ],
+          "gap": 0.0035390853881835938
+        },
+        {
+          "position": 16521,
+          "classification": "accepted-tie",
+          "chosen": 54094,
+          "reference_top2": [
+            124634,
+            54094
+          ],
+          "gap": 0.011278152465820312
+        },
+        {
+          "position": 16645,
+          "classification": "miss",
+          "chosen": 64153,
+          "reference_top2": [
+            27543,
+            64153
+          ],
+          "gap": 0.12958049774169922
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.005330085754394531
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "chosen": 69336,
+          "reference_top2": [
+            21243,
+            69336
+          ],
+          "gap": 0.006695747375488281
+        },
+        {
+          "position": 16719,
+          "classification": "accepted-tie",
+          "chosen": 26304,
+          "reference_top2": [
+            23129,
+            26304
+          ],
+          "gap": 0.0151519775390625
+        },
+        {
+          "position": 16750,
+          "classification": "accepted-tie",
+          "chosen": 1015,
+          "reference_top2": [
+            1062,
+            1015
+          ],
+          "gap": 0.0005931854248046875
+        },
+        {
+          "position": 16810,
+          "classification": "accepted-tie",
+          "chosen": 105840,
+          "reference_top2": [
+            99416,
+            105840
+          ],
+          "gap": 0.03670501708984375
+        },
+        {
+          "position": 16827,
+          "classification": "miss",
+          "chosen": 79732,
+          "reference_top2": [
+            101646,
+            1776
+          ],
+          "gap": 0.043540000915527344
+        },
+        {
+          "position": 16869,
+          "classification": "accepted-tie",
+          "chosen": 125855,
+          "reference_top2": [
+            134267,
+            125855
+          ],
+          "gap": 0.08149909973144531
+        }
+      ]
+    },
+    {
+      "name": "candidate auto/F16KV versus HF block16 diagnostic",
+      "counts": {
+        "exact": 507,
+        "accepted-tie": 5,
+        "miss": 0
+      },
+      "non_exact": [
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "chosen": 78372,
+          "reference_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.0017194747924804688
+        },
+        {
+          "position": 16571,
+          "classification": "accepted-tie",
+          "chosen": 110474,
+          "reference_top2": [
+            117048,
+            110474
+          ],
+          "gap": 0.0013446807861328125
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.005330085754394531
+        },
+        {
+          "position": 16719,
+          "classification": "accepted-tie",
+          "chosen": 26304,
+          "reference_top2": [
+            23129,
+            26304
+          ],
+          "gap": 0.0151519775390625
+        },
+        {
+          "position": 16810,
+          "classification": "accepted-tie",
+          "chosen": 105840,
+          "reference_top2": [
+            99416,
+            105840
+          ],
+          "gap": 0.03670501708984375
+        }
+      ]
+    },
+    {
+      "name": "HF literal-F16/F16KV versus HF block16 diagnostic",
+      "counts": {
+        "exact": 481,
+        "accepted-tie": 15,
+        "miss": 16
+      },
+      "non_exact": [
+        {
+          "position": 16440,
+          "classification": "miss",
+          "chosen": 90447,
+          "reference_top2": [
+            79308,
+            90447
+          ],
+          "gap": 0.5026454925537109
+        },
+        {
+          "position": 16445,
+          "classification": "miss",
+          "chosen": 36409,
+          "reference_top2": [
+            3440,
+            79531
+          ],
+          "gap": 0.19436168670654297
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "chosen": 78372,
+          "reference_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.0017194747924804688
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "chosen": 45653,
+          "reference_top2": [
+            28605,
+            45653
+          ],
+          "gap": 0.11303424835205078
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "chosen": 21552,
+          "reference_top2": [
+            79308,
+            21552
+          ],
+          "gap": 0.0035390853881835938
+        },
+        {
+          "position": 16503,
+          "classification": "accepted-tie",
+          "chosen": 41535,
+          "reference_top2": [
+            100583,
+            41535
+          ],
+          "gap": 0.06919574737548828
+        },
+        {
+          "position": 16549,
+          "classification": "miss",
+          "chosen": 46160,
+          "reference_top2": [
+            53168,
+            46160
+          ],
+          "gap": 0.11132240295410156
+        },
+        {
+          "position": 16567,
+          "classification": "accepted-tie",
+          "chosen": 54351,
+          "reference_top2": [
+            39393,
+            54351
+          ],
+          "gap": 0.06634998321533203
+        },
+        {
+          "position": 16601,
+          "classification": "accepted-tie",
+          "chosen": 24834,
+          "reference_top2": [
+            35279,
+            24834
+          ],
+          "gap": 0.051314353942871094
+        },
+        {
+          "position": 16650,
+          "classification": "miss",
+          "chosen": 94574,
+          "reference_top2": [
+            91047,
+            94574
+          ],
+          "gap": 0.3989524841308594
+        },
+        {
+          "position": 16652,
+          "classification": "miss",
+          "chosen": 84324,
+          "reference_top2": [
+            23649,
+            42513
+          ],
+          "gap": 0.04452323913574219
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "chosen": 14502,
+          "reference_top2": [
+            1543,
+            14502
+          ],
+          "gap": 0.020532608032226562
+        },
+        {
+          "position": 16655,
+          "classification": "accepted-tie",
+          "chosen": 40170,
+          "reference_top2": [
+            75485,
+            40170
+          ],
+          "gap": 0.09152030944824219
+        },
+        {
+          "position": 16656,
+          "classification": "miss",
+          "chosen": 4676,
+          "reference_top2": [
+            79308,
+            4676
+          ],
+          "gap": 0.25388240814208984
+        },
+        {
+          "position": 16661,
+          "classification": "miss",
+          "chosen": 75485,
+          "reference_top2": [
+            73230,
+            41943
+          ],
+          "gap": 0.03848838806152344
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.005330085754394531
+        },
+        {
+          "position": 16667,
+          "classification": "miss",
+          "chosen": 95981,
+          "reference_top2": [
+            129709,
+            95981
+          ],
+          "gap": 0.1529550552368164
+        },
+        {
+          "position": 16679,
+          "classification": "miss",
+          "chosen": 39490,
+          "reference_top2": [
+            13367,
+            39490
+          ],
+          "gap": 0.14290332794189453
+        },
+        {
+          "position": 16705,
+          "classification": "accepted-tie",
+          "chosen": 16768,
+          "reference_top2": [
+            60002,
+            16768
+          ],
+          "gap": 0.02895641326904297
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "chosen": 69336,
+          "reference_top2": [
+            21243,
+            69336
+          ],
+          "gap": 0.006695747375488281
+        },
+        {
+          "position": 16716,
+          "classification": "accepted-tie",
+          "chosen": 18347,
+          "reference_top2": [
+            44489,
+            18347
+          ],
+          "gap": 0.021373748779296875
+        },
+        {
+          "position": 16732,
+          "classification": "accepted-tie",
+          "chosen": 63032,
+          "reference_top2": [
+            74669,
+            63032
+          ],
+          "gap": 0.048004150390625
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "chosen": 64907,
+          "reference_top2": [
+            79308,
+            64907
+          ],
+          "gap": 0.11073589324951172
+        },
+        {
+          "position": 16741,
+          "classification": "accepted-tie",
+          "chosen": 27543,
+          "reference_top2": [
+            60002,
+            27543
+          ],
+          "gap": 0.03999519348144531
+        },
+        {
+          "position": 16752,
+          "classification": "miss",
+          "chosen": 27543,
+          "reference_top2": [
+            132705,
+            134267
+          ],
+          "gap": 0.11731147766113281
+        },
+        {
+          "position": 16767,
+          "classification": "miss",
+          "chosen": 62287,
+          "reference_top2": [
+            19529,
+            102706
+          ],
+          "gap": 0.051924705505371094
+        },
+        {
+          "position": 16770,
+          "classification": "miss",
+          "chosen": 36409,
+          "reference_top2": [
+            99324,
+            36409
+          ],
+          "gap": 0.10678958892822266
+        },
+        {
+          "position": 16810,
+          "classification": "accepted-tie",
+          "chosen": 105840,
+          "reference_top2": [
+            99416,
+            105840
+          ],
+          "gap": 0.03670501708984375
+        },
+        {
+          "position": 16823,
+          "classification": "accepted-tie",
+          "chosen": 97,
+          "reference_top2": [
+            35290,
+            97
+          ],
+          "gap": 0.06663322448730469
+        },
+        {
+          "position": 16827,
+          "classification": "miss",
+          "chosen": 79732,
+          "reference_top2": [
+            101646,
+            1776
+          ],
+          "gap": 0.043540000915527344
+        },
+        {
+          "position": 16876,
+          "classification": "miss",
+          "chosen": 9379,
+          "reference_top2": [
+            57825,
+            9379
+          ],
+          "gap": 0.10796642303466797
+        }
+      ]
+    },
+    {
+      "name": "HF block16 diagnostic versus HF literal-F16/F16KV",
+      "counts": {
+        "exact": 481,
+        "accepted-tie": 17,
+        "miss": 14
+      },
+      "non_exact": [
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "chosen": 79308,
+          "reference_top2": [
+            90447,
+            79308
+          ],
+          "gap": 0.052338600158691406
+        },
+        {
+          "position": 16445,
+          "classification": "accepted-tie",
+          "chosen": 3440,
+          "reference_top2": [
+            36409,
+            3440
+          ],
+          "gap": 0.0028333663940429688
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "chosen": 83864,
+          "reference_top2": [
+            78372,
+            83864
+          ],
+          "gap": 0.011474609375
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "chosen": 28605,
+          "reference_top2": [
+            45653,
+            28605
+          ],
+          "gap": 0.12372779846191406
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "chosen": 79308,
+          "reference_top2": [
+            21552,
+            79308
+          ],
+          "gap": 0.03566932678222656
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "chosen": 100583,
+          "reference_top2": [
+            41535,
+            100583
+          ],
+          "gap": 0.27734375
+        },
+        {
+          "position": 16549,
+          "classification": "accepted-tie",
+          "chosen": 53168,
+          "reference_top2": [
+            46160,
+            53168
+          ],
+          "gap": 0.04769325256347656
+        },
+        {
+          "position": 16567,
+          "classification": "miss",
+          "chosen": 39393,
+          "reference_top2": [
+            54351,
+            39393
+          ],
+          "gap": 0.12707805633544922
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "chosen": 35279,
+          "reference_top2": [
+            24834,
+            35279
+          ],
+          "gap": 0.2951850891113281
+        },
+        {
+          "position": 16650,
+          "classification": "miss",
+          "chosen": 91047,
+          "reference_top2": [
+            94574,
+            21243
+          ],
+          "gap": 0.0694742202758789
+        },
+        {
+          "position": 16652,
+          "classification": "accepted-tie",
+          "chosen": 23649,
+          "reference_top2": [
+            84324,
+            23649
+          ],
+          "gap": 0.01738452911376953
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "chosen": 1543,
+          "reference_top2": [
+            14502,
+            1543
+          ],
+          "gap": 0.027769088745117188
+        },
+        {
+          "position": 16655,
+          "classification": "accepted-tie",
+          "chosen": 75485,
+          "reference_top2": [
+            40170,
+            75485
+          ],
+          "gap": 0.008729934692382812
+        },
+        {
+          "position": 16656,
+          "classification": "accepted-tie",
+          "chosen": 79308,
+          "reference_top2": [
+            4676,
+            79308
+          ],
+          "gap": 0.016326904296875
+        },
+        {
+          "position": 16661,
+          "classification": "miss",
+          "chosen": 73230,
+          "reference_top2": [
+            75485,
+            41943
+          ],
+          "gap": 0.045215606689453125
+        },
+        {
+          "position": 16663,
+          "classification": "miss",
+          "chosen": 6502,
+          "reference_top2": [
+            7247,
+            6502
+          ],
+          "gap": 0.27735042572021484
+        },
+        {
+          "position": 16667,
+          "classification": "accepted-tie",
+          "chosen": 129709,
+          "reference_top2": [
+            95981,
+            129709
+          ],
+          "gap": 0.07422161102294922
+        },
+        {
+          "position": 16679,
+          "classification": "accepted-tie",
+          "chosen": 13367,
+          "reference_top2": [
+            39490,
+            13367
+          ],
+          "gap": 0.012941360473632812
+        },
+        {
+          "position": 16705,
+          "classification": "accepted-tie",
+          "chosen": 60002,
+          "reference_top2": [
+            16768,
+            60002
+          ],
+          "gap": 0.053969383239746094
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "chosen": 21243,
+          "reference_top2": [
+            69336,
+            21243
+          ],
+          "gap": 0.05169868469238281
+        },
+        {
+          "position": 16716,
+          "classification": "accepted-tie",
+          "chosen": 44489,
+          "reference_top2": [
+            18347,
+            44489
+          ],
+          "gap": 0.023055076599121094
+        },
+        {
+          "position": 16732,
+          "classification": "accepted-tie",
+          "chosen": 74669,
+          "reference_top2": [
+            63032,
+            74669
+          ],
+          "gap": 0.009735107421875
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "chosen": 79308,
+          "reference_top2": [
+            64907,
+            79308
+          ],
+          "gap": 0.14731597900390625
+        },
+        {
+          "position": 16741,
+          "classification": "miss",
+          "chosen": 60002,
+          "reference_top2": [
+            27543,
+            60002
+          ],
+          "gap": 0.14783763885498047
+        },
+        {
+          "position": 16752,
+          "classification": "miss",
+          "chosen": 132705,
+          "reference_top2": [
+            27543,
+            45653
+          ],
+          "gap": 0.2772188186645508
+        },
+        {
+          "position": 16767,
+          "classification": "miss",
+          "chosen": 19529,
+          "reference_top2": [
+            62287,
+            2309
+          ],
+          "gap": 0.2196941375732422
+        },
+        {
+          "position": 16770,
+          "classification": "accepted-tie",
+          "chosen": 99324,
+          "reference_top2": [
+            36409,
+            99324
+          ],
+          "gap": 0.044615745544433594
+        },
+        {
+          "position": 16810,
+          "classification": "miss",
+          "chosen": 99416,
+          "reference_top2": [
+            105840,
+            99416
+          ],
+          "gap": 0.124755859375
+        },
+        {
+          "position": 16823,
+          "classification": "accepted-tie",
+          "chosen": 35290,
+          "reference_top2": [
+            97,
+            35290
+          ],
+          "gap": 0.013109207153320312
+        },
+        {
+          "position": 16827,
+          "classification": "miss",
+          "chosen": 101646,
+          "reference_top2": [
+            79732,
+            1776
+          ],
+          "gap": 0.07966327667236328
+        },
+        {
+          "position": 16876,
+          "classification": "miss",
+          "chosen": 57825,
+          "reference_top2": [
+            9379,
+            57825
+          ],
+          "gap": 0.12161636352539062
+        }
+      ]
+    },
+    {
+      "name": "HF F32/F16KV versus HF block16 diagnostic",
+      "counts": {
+        "exact": 504,
+        "accepted-tie": 6,
+        "miss": 2
+      },
+      "non_exact": [
+        {
+          "position": 16467,
+          "classification": "accepted-tie",
+          "chosen": 6502,
+          "reference_top2": [
+            7247,
+            6502
+          ],
+          "gap": 0.01673603057861328
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "chosen": 21552,
+          "reference_top2": [
+            79308,
+            21552
+          ],
+          "gap": 0.0035390853881835938
+        },
+        {
+          "position": 16521,
+          "classification": "accepted-tie",
+          "chosen": 54094,
+          "reference_top2": [
+            124634,
+            54094
+          ],
+          "gap": 0.011278152465820312
+        },
+        {
+          "position": 16645,
+          "classification": "miss",
+          "chosen": 64153,
+          "reference_top2": [
+            27543,
+            64153
+          ],
+          "gap": 0.12958049774169922
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.005330085754394531
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "chosen": 69336,
+          "reference_top2": [
+            21243,
+            69336
+          ],
+          "gap": 0.006695747375488281
+        },
+        {
+          "position": 16750,
+          "classification": "accepted-tie",
+          "chosen": 1015,
+          "reference_top2": [
+            1062,
+            1015
+          ],
+          "gap": 0.0005931854248046875
+        },
+        {
+          "position": 16827,
+          "classification": "miss",
+          "chosen": 79732,
+          "reference_top2": [
+            101646,
+            1776
+          ],
+          "gap": 0.043540000915527344
+        }
+      ]
+    },
+    {
+      "name": "HF block16 diagnostic versus HF F32/F16KV",
+      "counts": {
+        "exact": 504,
+        "accepted-tie": 7,
+        "miss": 1
+      },
+      "non_exact": [
+        {
+          "position": 16467,
+          "classification": "accepted-tie",
+          "chosen": 7247,
+          "reference_top2": [
+            6502,
+            7247
+          ],
+          "gap": 0.012792587280273438
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "chosen": 79308,
+          "reference_top2": [
+            21552,
+            79308
+          ],
+          "gap": 0.03217601776123047
+        },
+        {
+          "position": 16521,
+          "classification": "accepted-tie",
+          "chosen": 124634,
+          "reference_top2": [
+            54094,
+            124634
+          ],
+          "gap": 0.022109031677246094
+        },
+        {
+          "position": 16645,
+          "classification": "miss",
+          "chosen": 27543,
+          "reference_top2": [
+            64153,
+            27543
+          ],
+          "gap": 0.5023555755615234
+        },
+        {
+          "position": 16663,
+          "classification": "accepted-tie",
+          "chosen": 6502,
+          "reference_top2": [
+            7247,
+            6502
+          ],
+          "gap": 0.014283180236816406
+        },
+        {
+          "position": 16715,
+          "classification": "accepted-tie",
+          "chosen": 21243,
+          "reference_top2": [
+            69336,
+            21243
+          ],
+          "gap": 0.004122734069824219
+        },
+        {
+          "position": 16750,
+          "classification": "accepted-tie",
+          "chosen": 1062,
+          "reference_top2": [
+            1015,
+            1062
+          ],
+          "gap": 0.009615898132324219
+        },
+        {
+          "position": 16827,
+          "classification": "accepted-tie",
+          "chosen": 101646,
+          "reference_top2": [
+            79732,
+            101646
+          ],
+          "gap": 0.0140533447265625
+        }
+      ]
+    }
+  ]
+}

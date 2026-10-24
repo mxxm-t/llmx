@@ -1,0 +1,126 @@
+{
+  "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "source_files": {
+    "src/backends/cpu/cpu_backend.hpp": "49c43bcec1545b5ca4e95ff6dc3838e1fdd4581153de0abdef2f937c96681bfa",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/vulkan/vulkan_backend.cpp": "c4303c7c35f1685c35e4609b7872e59ce90cfd58385c3154dec3d1108c19552b",
+    "src/model/passes.hpp": "cd1a298a5e95c3be7ba0b7367e1e33495a205baca030df997af61a55207c0503",
+    "docs/PRECISION.md": "9faf27c5834768849e0986abbc3be3617cc6f4a10a63e4547506174d2169b77a",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "scope": "Source-derived depth reference policy, before candidate depth captures or comparisons. No runtime or acceptance-limit change.",
+  "rule_owner": "docs/PRECISION.md Independent HF depth acceptance; tests/common.py hf_depth_top1",
+  "acceptance": {
+    "exact": "HF top-1",
+    "accepted_tie": "HF top-2 only when HF top-two gap <= 0.1",
+    "other": "miss"
+  },
+  "policies": {
+    "cpu-default": {
+      "body_linear_inputs": "F32",
+      "lm_head_input": "literal F16 widened to F32",
+      "kv_storage": "logical F16",
+      "sums": "F32",
+      "basis": "dtype_input rounds BF16 only. TQ is absent from q8::has_dot and uses F32 products. Q6_K head is present in q8::has_dot and takes block-int16 under effective F16. PRECISION models the F16-class input with literal F16, not a copy of the candidate integer quantizer."
+    },
+    "mi50-default": {
+      "body_linear_inputs": "literal F16 widened to F32",
+      "lm_head_input": "literal F16 widened to F32",
+      "kv_storage": "logical F16",
+      "sums": "F32",
+      "basis": "TQ WeightKernels selects lookup_integer_dot row/tile paths; Q6_K head also uses block-int16. F16-class independent reference follows the same predeclared PRECISION rule."
+    },
+    "explicit-f32": {
+      "body_linear_inputs": "F32",
+      "lm_head_input": "F32",
+      "kv_storage": "F32",
+      "sums": "F32"
+    }
+  },
+  "embedding": "Q4_K lookup decodes weights to F32; no matrix-input rounding hook applies.",
+  "head_extent": "The generic depth probes use prefill then single steps, not every_logits. passes.hpp assigns head extent 1 in that path.",
+  "execution_witness": "Pending fresh candidate captures. Source policy is frozen before comparison; witnesses must confirm paths.",
+  "original_reference_attempts": {
+    "run": 40101371045,
+    "head": "5d93844c14716a1708fdce1bfb512e91625dd43b",
+    "f32_tq1": "raw and chat jobs succeeded; artifact collection/validation underway",
+    "f16kv_tq1": "Both failed before inference: producer rejects --dtype f32, then payload reads nonexistent report.json.",
+    "f16kv_policy": "F32 matrices/head and logical F16 KV. Not the selected default policy for either backend; preserve attempts as controls, not qualification.",
+    "failed_artifact_digests": {
+      "raw": "e01f3c10c5ec35adbff10be0087b65d0f973917b57217e2747e8779e2b777892",
+      "chat": "989e452fb8f7b327e833d19a6c72d3cd60ddedabe324b7bce70e4e9a98608e99"
+    }
+  },
+  "next": "Prepare selected CPU head-only and device all-linear literal-F16 references using existing producers and F16KV owner. Check actual generated argv before publication. Reuse completed explicit-F32 references after artifact verification.",
+  "subsequent_checkpoint": {
+    "original_run_final": {
+      "id": 40101371045,
+      "f32_success_jobs": [
+        "tq1-0/raw",
+        "tq1-0/chat",
+        "tq2-0/chat"
+      ],
+      "f32_incomplete": "tq2-0/raw: unchanged live-memory guard, no OOM, removed",
+      "f16kv": "All four attempts failed before inference on unsupported --dtype f32."
+    },
+    "overlay": "6129c8ab02a12167eeeb3577eef4e5f4dc02816e",
+    "selected_reference_run": 40103188312,
+    "selected_cells": 8,
+    "f32_retry_run": 40103188201,
+    "f32_retry_cells": [
+      "tq2-0/raw"
+    ],
+    "preflight": "All eight generated commands parse before Torch import; old invocation fails argparse; child failure precedes report read; exact source/input export verified.",
+    "resource_limits": "Unchanged 10 GiB container cap, 4 GiB host reserve plus unused caps, four CPU threads, 3600 seconds per cell.",
+    "build_run": {
+      "id": 40101812090,
+      "head": "de43a67e819a1eeccf8d9ea10686167013c0628d",
+      "job_status": "success",
+      "artifact_audit": "pending",
+      "candidate": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494"
+    },
+    "temporary_branch_policy": "Qualification overlays only; delete after artifact collection. No main merge or production change."
+  },
+  "default_tp2_completed_cells": [
+    {
+      "family": "tq1-0",
+      "seconds": 870.2055876,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "stdout_sha256": "c172750dcb7aac8e6fd91b108a5e33da7bab217183b6df0de4d0fa8314cb5557",
+      "stdout": "TQ1_0 dense-untied HF: max logit error 0.00008041, bounds [0.0020885169506073]; max NLL error 0.00001045, bounds [0.00037854403503168044]\nTQ1_0 dense-tied HF: max logit error 0.00008596, bounds [0.0020885169506073]; max NLL error 0.00000926, bounds [0.00037854403503168044]\nTQ1_0 moe HF: max logit error 0.00008808, bounds [0.0020885169506073]; max NLL error 0.00000971, bounds [0.00037854403503168044]\ntq1-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00008808  [ok]\n\n  tq1-0      PASS\n"
+    },
+    {
+      "family": "tq2-0",
+      "seconds": 866.240927,
+      "full_logit_cases": 150,
+      "nll_checks": 12,
+      "stdout_sha256": "574fc6bdcb238025f8a879fded3d1f60ac0efc36cfc37a1c844cb4a11154aa2a",
+      "stdout": "TQ2_0 dense-untied HF: max logit error 0.00008597, bounds [0.002446979284286499]; max NLL error 0.00000725, bounds [0.00034499947367727657]\nTQ2_0 dense-tied HF: max logit error 0.00010336, bounds [0.002446979284286499]; max NLL error 0.00000754, bounds [0.00034499947367727657]\nTQ2_0 moe HF: max logit error 0.00008386, bounds [0.002446979284286499]; max NLL error 0.00000427, bounds [0.00034499947367727657]\ntq2-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00010336  [ok]\n\n  tq2-0      PASS\n"
+    }
+  ],
+  "default_tp2_scope": "Two completed auto-policy cells from eight; remaining policies continue. Partial progress, not a full split gate.",
+  "verified_f32_outputs_so_far": [
+    {
+      "artifact": "tq-depth-tq1-0-f32-chat",
+      "artifact_digest": "sha256:07dca8bb24bafacfa264370d74607a33502419425f3aa80e9dc2015c78f3bbbf",
+      "execution_sha256": "e20de165694883a817baaaa7738b5655ec5fb614e22ef33e8ac15a1242018530",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+      "positions": 512,
+      "vocabulary": 151936,
+      "cgroup_peak_bytes": 9061376000,
+      "verified": true,
+      "scope": "Independent F32 reference outputs only; no candidate comparison"
+    }
+  ],
+  "selected_cpu_control_failure": {
+    "run": 40103188312,
+    "cell": "tq1-0/cpu-head-f16-f16kv/chat",
+    "artifact_digest": "sha256:1e06ba1943f23f8ba4610e404760b33de1b60d6731fd3fd3946e795d64eaed7d",
+    "scope": "HF-only 64-token direct versus chunk17 F32-KV control with literal-F16 head inputs; no candidate comparison",
+    "max_abs_logit_delta": 0.6111435890197754,
+    "limits_changed": false,
+    "next": "Prepared head-input capture and F64 dot decomposition, not yet executed"
+  }
+}

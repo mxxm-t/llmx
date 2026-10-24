@@ -1,0 +1,701 @@
+{
+ "date": "2026-10-24",
+ "scope": "Frozen private unpack experiment; not promoted runtime, full qualification or a new matched mx result.",
+ "source_receipts": {
+  "screen-timing/analysis.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-timing\\analysis.json",
+   "sha256": "7dca25730bc14eab0f983b2e9b1296958df19ce93ad99d8296e4f2a9bb0d8fff"
+  },
+  "screen-timing/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-timing\\receipt.json",
+   "sha256": "9bc7285805091e7bf4790e47e1eb62c613934e16482cf8ac49c0ca8a22e36380"
+  },
+  "screen-profile/analysis.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-profile\\analysis.json",
+   "sha256": "7b7dbcef055dfd57e5a38b73c41a38a7646b40fde9722251696e6b62f253a785"
+  },
+  "screen-profile/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-profile\\receipt.json",
+   "sha256": "52c9607adc3c7535aa965f12cceebae16ef9b910401b29b76c2c131817ca9171"
+  },
+  "screen-identity/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-identity\\receipt.json",
+   "sha256": "9b98d9ddd92c214d9a4b96d261c514f1ae64a42ce9ce134e685fa4e2e0dc8f64"
+  },
+  "execution.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\execution.json",
+   "sha256": "c5a8b2fc3aea471a3b57a1333c8b400b683ef5137517774beba9ddaa68359c28"
+  },
+  "screen-pins.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\screen-pins.json",
+   "sha256": "cdc0cdf861d4dd803c00e9166ce2fe01cf17e4fc7ebbd4b98e4db69e53de715b"
+  },
+  "shader-review.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-unpack-experiment-20261024\\shader-review.json",
+   "sha256": "ea135b9073293f9cd34b0c30ff0359214c4369e3812d10a319f659530f9994da"
+  }
+ },
+ "builds": [
+  {
+   "archive_sha256": "2301fccea8c843fe0801fcfe4aeada06ee33b203849f16963de77ca211ade05b",
+   "arm": "base",
+   "cleanup_sha256": "e10e1d0d82e4e0aeec308012f0cd709be574594740500a076b65b98a86a704c0",
+   "container_identity_sha256": "1b18694ffdfd3af73b7a317e8f6a9c0a7e9688a2ebf5e6b4ffd06ccb8c7a41c7",
+   "container_result_sha256": "5a3021c92cc3b51b55fc9542f1999220431e54c613bd55cb7f753c53e080877c",
+   "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+   "passed": true,
+   "resource_samples_sha256": "af7100658358cca0cf55c8e45aab313c432c35acacaa6028981b62ed5c141221",
+   "revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+   "tq_dot_sha256": "a13ca8264582ff0bbbc8c5774ece192c165b21a3a2410e2644e8b3b12e5c0bd4"
+  },
+  {
+   "archive_sha256": "7ef2de3a12d312e82882b0850c5d6244d901e57d61bb7852ac26bdc17035406a",
+   "arm": "candidate",
+   "cleanup_sha256": "b6d337310fcd43606ab5b31a98af353267712c5462578c1bf49fa2bdbbb5bc29",
+   "container_identity_sha256": "6f7a19b8750f4af6c4976225e2c1a1a1ed2fe37a16be7605665d8fc70beb5c79",
+   "container_result_sha256": "7df1a0d2e76e949af8bfad4de886dfe53c97ed432420c3c7b2c335086a092bf1",
+   "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+   "passed": true,
+   "resource_samples_sha256": "5a504c50a7313b15730dc62c7ba7b3c46049ea79eb7dffb7594412d821b934e6",
+   "revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+   "tq_dot_sha256": "1ccd7b7c6647d331989ae60fe55c14e342dfde9d74667aeb9a86e018439705b1"
+  }
+ ],
+ "archive_build_identity": "Both archive builds report unknown Git version; exact parent 026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa, archive and shader delta hashes bind their actual sources.",
+ "binary_pins": {
+  "base/build/llmx": "e2ca3235c96fad0877a445b7d94d19d679c4d24323dbd3630f6c528fa5862a24",
+  "base/build/llmx-backend-vulkan-test": "2b503e226fd5c6b282dc0b9c8fd8abef4ee9ead15ad6c02dbefd3e51df26e4d0",
+  "base/build/llmx-model-logits": "55bb48d77a66e88d27350bf20db41d251de9435d850d85669144daf233ebd37e",
+  "base/build/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+  "base/build/generated/llmx-build-info.hpp": "e7d7b03bf86f28b29b2a64fb40f424c7789d5c9af7b10e072e75ac84cb35577d",
+  "candidate/build/llmx": "e787a33b81b680d781f8c89947d18fd76c58f2ee6900c44f964db1e823e468b7",
+  "candidate/build/llmx-backend-vulkan-test": "b8c253719153516d0662531b5985a62025d37a30ecfef07d6cf61ff557f66b3e",
+  "candidate/build/llmx-model-logits": "a8758ac4bfcdc1acf9816cdddcfa75a23d966c572ba2726e0393b61f01075661",
+  "candidate/build/generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+  "candidate/build/generated/llmx-build-info.hpp": "95ca5726f415ad1fe71f726ab43cfaac6e31b94dcdf4b5e16457bf359d971135"
+ },
+ "identity": {
+  "passed": true,
+  "removed": true,
+  "pins_unchanged": true,
+  "calls": [
+   {
+    "tag": "TQ1_0-base",
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-candidate",
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-base",
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-candidate",
+    "exit_code": 0
+   },
+   {
+    "tag": "backend",
+    "exit_code": 0
+   }
+  ],
+  "native_tq_range_path_cases": 18,
+  "input_ids_sha256": "e12a2132723f031b18135b69492012a5b77e3fa56c99842e4cc7b3c2a722701e",
+  "paired_logit_hashes": {
+   "TQ1_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ1_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ1_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731",
+   "TQ2_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ2_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ2_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731"
+  }
+ },
+ "timing": {
+  "settings": "P4096 and G256 independent empty-history phases; four threads, ubatch512, auto/F16 KV. Phase sums are not request latency.",
+  "call_count": 12,
+  "warmups": 4,
+  "measured": 8,
+  "order": "Per model warmups base/candidate, then measured ABBA, two pairs.",
+  "models": {
+   "TQ1_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 3786.685,
+      "tg256": 166.46
+     },
+     "candidate": {
+      "pp4096": 4124.035,
+      "tg256": 242.565
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 8.908847712445045,
+     "tg256": 45.71969241859905
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 8.934134518919045,
+       "tg256": 46.29440403918974
+      },
+      "duration_sum_seconds": {
+       "base": 2.6201282871812968,
+       "candidate": 2.044510016334407
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ1_0-2-base",
+       "TQ1_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 8.883547079101328,
+       "tg256": 45.145601921344934
+      },
+      "duration_sum_seconds": {
+       "base": 2.6190565905742673,
+       "candidate": 2.0526934324496886
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ1_0-4-candidate",
+       "TQ1_0-5-base"
+      ]
+     }
+    ],
+    "mean_independent_phase_duration_sum_seconds": {
+     "base": 2.619592438877782,
+     "candidate": 2.048601724392048
+    }
+   },
+   "TQ2_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 3994.955,
+      "tg256": 280.515
+     },
+     "candidate": {
+      "pp4096": 4065.205,
+      "tg256": 295.91499999999996
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 1.7584678675980125,
+     "tg256": 5.4899025007575375
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 1.8066754618074832,
+       "tg256": 5.419175544233434
+      },
+      "duration_sum_seconds": {
+       "base": 1.937479749715024,
+       "candidate": 1.872395720413265
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ2_0-2-base",
+       "TQ2_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 1.7102681163773337,
+       "tg256": 5.560707661577968
+      },
+      "duration_sum_seconds": {
+       "base": 1.9383214610132522,
+       "candidate": 1.8729817268088014
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ2_0-4-candidate",
+       "TQ2_0-5-base"
+      ]
+     }
+    ],
+    "mean_independent_phase_duration_sum_seconds": {
+     "base": 1.937900605364138,
+     "candidate": 1.8726887236110332
+    }
+   }
+  },
+  "calls": [
+   {
+    "tag": "TQ1_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 3792.45,
+     "tg256": 166.51
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4137.56,
+     "tg256": 243.39
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 3787.72,
+     "tg256": 166.37
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4126.12,
+     "tg256": 243.39
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4121.95,
+     "tg256": 241.74
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 3785.65,
+     "tg256": 166.55
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4002.16,
+     "tg256": 280.56
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4071.26,
+     "tg256": 296.3
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 3994.63,
+     "tg256": 280.67
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4066.8,
+     "tg256": 295.88
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4063.61,
+     "tg256": 295.95
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 3995.28,
+     "tg256": 280.36
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   }
+  ],
+  "activity": {
+   "flag_interval_counts": {
+    "disk": 60,
+    "iowait": 0,
+    "low_idle": 0,
+    "other_gpu": 20,
+    "sample_gap": 0,
+    "unrelated_cpu": 60
+   },
+   "intervals": 60,
+   "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+   "max_gap_seconds": 1.0040860739536583,
+   "missed_sample_intervals": 17,
+   "per_call": {
+    "TQ1_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 7,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 7,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 7,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 4,
+     "unknown_gpu_intervals": 0
+    }
+   },
+   "samples": 61,
+   "unknown_gpu_intervals": 0
+  },
+  "thresholds": {
+   "system_idle_below_percent": 25,
+   "iowait_above_percent": 5,
+   "unrelated_cpu_at_least_percent": 100,
+   "disk_bytes_per_second_above": 50000000,
+   "sample_gap_above_seconds": 2.5
+  },
+  "passed": true,
+  "removed": true,
+  "pins_unchanged": true,
+  "monitor_exit": 0
+ },
+ "profile": {
+  "scope": "Instrumented device times, not ordinary throughput",
+  "rows": {
+   "TQ1_0-0-base": {
+    "total_tg_ms": 1694.01,
+    "tq_row": {
+     "name": "matmul_row_tq1_0_dot_1col",
+     "ms": 1203.98,
+     "share": 71.0724
+    },
+    "row_statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=1778780497940028758 SGPRs=48 VGPRs=44 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3168 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2924523655 Instructions=588 Copies=76 Branches=36 Latency=62009 Inverse Throughput=18514 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=28 Pre-Sched VGPRs=33 VALU=322 SALU=163 VMEM=17 SMEM=20 VOPD=0"
+   },
+   "TQ1_0-1-candidate": {
+    "total_tg_ms": 1184.09,
+    "tq_row": {
+     "name": "matmul_row_tq1_0_dot_1col",
+     "ms": 725.478,
+     "share": 61.2689
+    },
+    "row_statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=18419335544111074647 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4960 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1594514823 Instructions=887 Copies=62 Branches=25 Latency=30809 Inverse Throughput=16737 VMEM Clause=18 SMEM Clause=16 Pre-Sched SGPRs=28 Pre-Sched VGPRs=30 VALU=608 SALU=131 VMEM=45 SMEM=20 VOPD=0"
+   },
+   "TQ2_0-0-base": {
+    "total_tg_ms": 1029.12,
+    "tq_row": {
+     "name": "matmul_row_tq2_0_dot_1col",
+     "ms": 577.87,
+     "share": 56.1518
+    },
+    "row_statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=10803872705509958402 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8604 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=973885075 Instructions=1600 Copies=56 Branches=24 Latency=103620 Inverse Throughput=82651 VMEM Clause=35 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1268 SALU=123 VMEM=76 SMEM=20 VOPD=0"
+   },
+   "TQ2_0-1-candidate": {
+    "total_tg_ms": 984.367,
+    "tq_row": {
+     "name": "matmul_row_tq2_0_dot_1col",
+     "ms": 532.228,
+     "share": 54.068
+    },
+    "row_statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=4509288401682730058 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7452 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2093168300 Instructions=1385 Copies=56 Branches=24 Latency=98868 Inverse Throughput=77923 VMEM Clause=25 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1071 SALU=124 VMEM=70 SMEM=20 VOPD=0"
+   }
+  }
+ },
+ "ownership_review": {
+  "scope": "Read-only review of frozen experiment, not product approval",
+  "findings": [
+   {
+    "severity": "ownership",
+    "detail": "Packed-four format decoding belongs in tq.glsl; tq_dot.glsl should retain thin adapter if candidate is promoted."
+   }
+  ],
+  "correctness": "No index/domain mismatch found for g=0..7 and word=0..7. Scalar/packed sign and range repair remain unchanged. GPU validation pending.",
+  "reviewed_candidate_sha256": "1ccd7b7c6647d331989ae60fe55c14e342dfde9d74667aeb9a86e018439705b1"
+ },
+ "limits": [
+  "All twelve timing calls retained, including all activity flags and missing-data intervals. Shared physical CPU/SMT contention and short-lived process coverage remain limitations.",
+  "Two measured pairs per model are a developmental screen, not a final layout-noise or full speed gate.",
+  "Earlier mx targets are historical context, not a fresh matched comparison. TQ2 decode remains below the earlier mx result.",
+  "If retained, move packed-four format helper into tq.glsl and keep tq_dot.glsl a thin adapter, then verify the cleanup.",
+  "No production runtime, numerical bound or qualification status changed."
+ ]
+}

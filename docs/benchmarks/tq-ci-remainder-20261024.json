@@ -1,0 +1,170 @@
+{
+  "head": "0474a45f692792011ee4e4a4b5b239c435624e43",
+  "branch": "gate/tq-ci-remainder-20261024",
+  "feature_checkpoint": "31b4bf9e3866bc5ebbaa3dd519d5a9f148c57261",
+  "base_main": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "original_integration_head": "c1d31364ae45e71d5dd7753373675f6484364718",
+  "original_integration_run": 40125669040,
+  "qualification_tree_difference": [
+    ".github/workflows/ci.yml"
+  ],
+  "relevant_change_since_original_ci": [
+    "tests/cli.py"
+  ],
+  "runtime_build_inputs_unchanged": true,
+  "workflow_sha256": "1fc885b747fadf997f1ba7124d68c1354ec2ca600e8b0b636dfff946f4f79a70",
+  "cli_test_sha256": "e744d4ad048da5a47d29407812983ec41388114c982a72ec5e4e64af59dc648f",
+  "scope": "Only previously skipped Windows plain full suite and HF F32-cache, CPU split and server-mix coverage. All five focused CLI jobs passed in run 40128390450. Completed original integration results carry on unchanged inputs. Temporary workflow is not part of the landing tree. No main merge.",
+  "run": {
+    "id": 40128953473,
+    "status": "completed",
+    "conclusion": "failure",
+    "reason": "Windows temporary-workflow composition failures retained; covered subsequently by successful restored-tree static run 40130076545.",
+    "hf_tail": "success"
+  },
+  "original_ci_snapshot": {
+    "at": "2026-10-24T20:16:08.130945+00:00",
+    "receipt_sha256": "b2f40e3b0caa7053ab6512fa7654f58a0411fec47746b7548770f507e861eb5e",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "failure",
+        "native_steps": [
+          {
+            "name": "Backend tests",
+            "conclusion": "success",
+            "started_at": "2026-10-24T19:48:12Z",
+            "completed_at": "2026-10-24T20:05:44Z"
+          }
+        ],
+        "failed_components": [
+          "cli"
+        ]
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "failure",
+        "native_steps": [
+          {
+            "name": "Backend tests",
+            "conclusion": "success",
+            "started_at": "2026-10-24T19:39:06Z",
+            "completed_at": "2026-10-24T19:53:42Z"
+          }
+        ],
+        "failed_components": [
+          "cli"
+        ]
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "status": "in_progress",
+        "conclusion": null,
+        "native_steps": [
+          {
+            "name": "Backend tests",
+            "conclusion": "success",
+            "started_at": "2026-10-24T19:44:54Z",
+            "completed_at": "2026-10-24T20:06:21Z"
+          }
+        ],
+        "failed_components": []
+      },
+      {
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "failure",
+        "native_steps": [],
+        "failed_components": [
+          "cli"
+        ]
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "failure",
+        "native_steps": [
+          {
+            "name": "Backend tests",
+            "conclusion": "success",
+            "started_at": "2026-10-24T19:41:43Z",
+            "completed_at": "2026-10-24T19:57:25Z"
+          }
+        ],
+        "failed_components": [
+          "cli"
+        ]
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "failure",
+        "native_steps": [
+          {
+            "name": "Backend tests",
+            "conclusion": "success",
+            "started_at": "2026-10-24T19:40:06Z",
+            "completed_at": "2026-10-24T19:58:32Z"
+          }
+        ],
+        "failed_components": [
+          "cli"
+        ]
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success",
+        "native_steps": [],
+        "failed_components": []
+      }
+    ]
+  },
+  "candidate_receipt_sha256": "ba95cc2363610440005191871fd2346d4ecef989ab081bea554758b5040a690f",
+  "windows_plain_result": {
+    "job_id": 120976340491,
+    "executable_components": "passed, including tq1 and tq2",
+    "failed_components": [
+      "dead-code",
+      "docs"
+    ],
+    "cause": "Temporary replacement workflow omitted tests/test_ci_annotations.py invocation, creating an unused-module finding, and the continue-on-error workflow token required by docs/CI.md:263.",
+    "scope": "Workflow composition failure; not runtime failure or complete suite pass.",
+    "log": "build-quant-resume-20261020/tq-integrated-job-120976340491.log",
+    "log_sha256": "9aa61d6257a0714bc48d9b0957cdeb4e2bb964be8f56eb9db5ecaaf894a4c6d9"
+  },
+  "hf_tail_result": {
+    "job_id": 120976340229,
+    "f32_cache_baselines": "passed",
+    "cpu_split_differing_rows": 0,
+    "server_mix_matching_requests": 8,
+    "cli_controls": 2,
+    "log": "build-quant-resume-20261020/tq-integrated-job-120976340229.log",
+    "log_sha256": "f5d8862bccf7351e51019af57b2c80dc787496dc03988297d7da02307a647e1e"
+  },
+  "remote_branch_deleted": {
+    "exact_lease": true,
+    "head": "0474a45f692792011ee4e4a4b5b239c435624e43",
+    "local_ref_retained": true,
+    "main_unchanged": "eaea90857"
+  },
+  "original_macos_terminal": {
+    "job_id": 120966424618,
+    "conclusion": "failure",
+    "failed_components": [
+      "cli"
+    ],
+    "native_tests_passed": 68,
+    "other_executable_components": "all passed, including TQ1/TQ2",
+    "log": "build-quant-resume-20261020/tq-integrated-job-120966424618.log",
+    "log_sha256": "a5832c6e3ef57c055592f2bf5cfcb4b032868e2acc82de1ccf688f3d95a1f511"
+  },
+  "coverage_disposition": "Required hosted coverage accounted for by original results plus focused CLI, restored-tree static and HF-tail passes. Original failed jobs remain failures; no numerical gate pass or merge.",
+  "remote_cleanup_final": {
+    "original_integration_branch_deleted_exact_lease": "c1d31364ae45e71d5dd7753373675f6484364718",
+    "local_ref_retained": true,
+    "remote_only_main": "eaea90857"
+  }
+}

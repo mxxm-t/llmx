@@ -1,0 +1,51 @@
+{
+  "scope": "Failed test orchestration, not a numerical pass or numerical mismatch.",
+  "source_checkpoint": "a3d21cdd573586689720711e3687970cbd8e8656",
+  "binary_sha256": "f30572ae4bd3baf95a925cb428c59e4c4373793df8c61746018cf62725bea824",
+  "source_archive_sha256": "4ca007809f249f0d08a994801e35b205623048f72a0685f9dd66354001247e51",
+  "receipt_sha256": "04aa8bf4c7293c9823abe9da199b9e9aafa89f836bb03826460ddad00692780a",
+  "remote_results": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/packed-module-v1/tensor-hf",
+  "original": {
+    "start": 1792849486.4915342,
+    "end": 1792850688.0309343,
+    "passed": false,
+    "removed": true,
+    "pins_unchanged": true,
+    "source_unchanged": true,
+    "calls": [
+      {
+        "dtype": "auto",
+        "command": [
+          "python3",
+          "-X",
+          "utf8",
+          "/source/tests/run_tests.py",
+          "--exe",
+          "/b/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--dtype",
+          "auto",
+          "--require-tools",
+          "--require-device-types",
+          "TQ1_0,TQ2_0",
+          "--only",
+          "tq1-0,tq2-0",
+          "--tensor-width",
+          "2"
+        ],
+        "start": 1792849486.7286701
+      }
+    ],
+    "files": {
+      "auto.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "progress.json": "25e511e9cac2428b70fd0b27d8a89b5a0fdc6def3fdc1463c68834ef4069d1dd",
+      "auto.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/packed-module-v1/run-split.py\", line 72, in <module>\n    result = subprocess.run(['docker', 'exec', cid] + cmd, stdout=stdout, stderr=stderr, timeout=1200)\n  File \"/usr/lib/python3.13/subprocess.py\", line 556, in run\n    stdout, stderr = process.communicate(input, timeout=timeout)\n                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 1222, in communicate\n    stdout, stderr = self._communicate(input, endtime, timeout)\n                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 2154, in _communicate\n    self.wait(timeout=self._remaining_time(endtime))\n    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 1280, in wait\n    return self._wait(timeout=timeout)\n           ~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.13/subprocess.py\", line 2058, in _wait\n    raise TimeoutExpired(self.args, timeout)\nsubprocess.TimeoutExpired: Command '['docker', 'exec', 'b65627ed42989295ef67312adce1a10746909a2325224d92a25bd7fab3be9934', 'python3', '-X', 'utf8', '/source/tests/run_tests.py', '--exe', '/b/llmx', '--device', 'vulkan:0,vulkan:1', '--dtype', 'auto', '--require-tools', '--require-device-types', 'TQ1_0,TQ2_0', '--only', 'tq1-0,tq2-0', '--tensor-width', '2']' timed out after 1200 seconds\n"
+  },
+  "oom_killed": false,
+  "observed_progress": "Process snapshots advanced through TQ1 dense untied, tied and MoE, then TQ2 dense untied. Buffered stdout/stderr were empty at timeout, so no completed numerical subset is claimed.",
+  "followup": "Same tests, fixtures, policies, binary and limits. Eight separate model/policy calls, each bounded by 1200 seconds, with Python unbuffered output. Fresh admission checks both GPUs. Follow-up execution is incomplete.",
+  "followup_runner_sha256": "7f9232f6cdcbd1fb475b95244fef0867bd23dd492c0c163a8107394f49fe422f"
+}

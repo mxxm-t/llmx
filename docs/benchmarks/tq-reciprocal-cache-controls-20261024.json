@@ -1,0 +1,1472 @@
+{
+  "scope": "Reciprocal matrix/cache diagnostics versus F32 HF and frozen candidate captures. Not selected-policy qualification.",
+  "cells_complete": 8,
+  "expected_cells": 8,
+  "cells": [
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-chat",
+      "control": "auto-f32kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 510,
+        "accepted-tie": 2
+      },
+      "differences": [
+        {
+          "position": 16526,
+          "classification": "accepted-tie",
+          "candidate_top1": 32040,
+          "hf_top2": [
+            62658,
+            32040
+          ],
+          "gap": 0.013367652893066406
+        },
+        {
+          "position": 16630,
+          "classification": "accepted-tie",
+          "candidate_top1": 141500,
+          "hf_top2": [
+            27543,
+            141500
+          ],
+          "gap": 0.0029144287109375
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 479,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 2.8547811099999993
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 510,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.17255970000000076
+        }
+      },
+      "outer_sha256": "33e1581fb3e32cc4b244e4f5b6b609edc6f62e862fc29371e1632c0a0ffbe4a4",
+      "payload_sha256": "4aa3981e40de382a6e5e3abcb30a52dc39381c6ee505d79bee298c6c77cd65fd",
+      "stdout_sha256": "8a46008bf7418aa35d89d1d3d5adec0c0f9ba457452594d32a777f9d4a277f26"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-raw",
+      "control": "auto-f32kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 509,
+        "accepted-tie": 3
+      },
+      "differences": [
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2": [
+            103873,
+            40170
+          ],
+          "gap": 0.0009393692016601562
+        },
+        {
+          "position": 16543,
+          "classification": "accepted-tie",
+          "candidate_top1": 10009,
+          "hf_top2": [
+            99371,
+            10009
+          ],
+          "gap": 0.04242992401123047
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2": [
+            6791,
+            18397
+          ],
+          "gap": 6.67572021484375e-05
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 491,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.655191499999999
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 510,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.10142130000000016
+        }
+      },
+      "outer_sha256": "6a0e3b1a94cb0df12c5e3fee051f429b82a98a152f2c17f4205622ffbdbe21bb",
+      "payload_sha256": "bfeb39db99e7e9e1ccdcd434bd20dacdf6766c5e667007a5a58a8817576dfd0d",
+      "stdout_sha256": "d3f7cbc0d2e114a87090d6b80deae5a3de63089abe44925d067c8c37a81bab1f"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-chat",
+      "control": "f32-f16kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 479,
+        "accepted-tie": 19,
+        "miss": 14
+      },
+      "differences": [
+        {
+          "position": 16394,
+          "classification": "accepted-tie",
+          "candidate_top1": 55043,
+          "hf_top2": [
+            26165,
+            55043
+          ],
+          "gap": 0.0781097412109375
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2": [
+            104005,
+            102407
+          ],
+          "gap": 0.35782909393310547
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 8916,
+          "hf_top2": [
+            131603,
+            8916
+          ],
+          "gap": 0.05053234100341797
+        },
+        {
+          "position": 16457,
+          "classification": "miss",
+          "candidate_top1": 75444,
+          "hf_top2": [
+            101646,
+            75444
+          ],
+          "gap": 0.18689346313476562
+        },
+        {
+          "position": 16468,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2": [
+            104162,
+            105947
+          ],
+          "gap": 0.021841049194335938
+        },
+        {
+          "position": 16479,
+          "classification": "miss",
+          "candidate_top1": 104223,
+          "hf_top2": [
+            21360,
+            44636
+          ],
+          "gap": 0.1675729751586914
+        },
+        {
+          "position": 16516,
+          "classification": "accepted-tie",
+          "candidate_top1": 58357,
+          "hf_top2": [
+            79308,
+            58357
+          ],
+          "gap": 0.03565406799316406
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 92541,
+          "hf_top2": [
+            56115,
+            92541
+          ],
+          "gap": 0.0046443939208984375
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate_top1": 80348,
+          "hf_top2": [
+            18194,
+            80348
+          ],
+          "gap": 0.013329505920410156
+        },
+        {
+          "position": 16555,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            70858,
+            42609
+          ],
+          "gap": 0.2935943603515625
+        },
+        {
+          "position": 16609,
+          "classification": "miss",
+          "candidate_top1": 90160,
+          "hf_top2": [
+            84324,
+            90160
+          ],
+          "gap": 0.16445541381835938
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2": [
+            53930,
+            104197
+          ],
+          "gap": 0.10237503051757812
+        },
+        {
+          "position": 16639,
+          "classification": "miss",
+          "candidate_top1": 14273,
+          "hf_top2": [
+            96972,
+            13032
+          ],
+          "gap": 0.0451812744140625
+        },
+        {
+          "position": 16646,
+          "classification": "accepted-tie",
+          "candidate_top1": 70000,
+          "hf_top2": [
+            52736,
+            70000
+          ],
+          "gap": 0.0042514801025390625
+        },
+        {
+          "position": 16655,
+          "classification": "miss",
+          "candidate_top1": 97350,
+          "hf_top2": [
+            99371,
+            97350
+          ],
+          "gap": 0.4715299606323242
+        },
+        {
+          "position": 16666,
+          "classification": "miss",
+          "candidate_top1": 5701,
+          "hf_top2": [
+            26201,
+            1539
+          ],
+          "gap": 0.06523418426513672
+        },
+        {
+          "position": 16670,
+          "classification": "miss",
+          "candidate_top1": 99371,
+          "hf_top2": [
+            44489,
+            99371
+          ],
+          "gap": 0.1646404266357422
+        },
+        {
+          "position": 16675,
+          "classification": "accepted-tie",
+          "candidate_top1": 104351,
+          "hf_top2": [
+            104563,
+            104351
+          ],
+          "gap": 0.09745025634765625
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2": [
+            440,
+            133121
+          ],
+          "gap": 0.009668350219726562
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2": [
+            104211,
+            110624
+          ],
+          "gap": 0.0258026123046875
+        },
+        {
+          "position": 16707,
+          "classification": "accepted-tie",
+          "candidate_top1": 27543,
+          "hf_top2": [
+            104432,
+            27543
+          ],
+          "gap": 0.07071781158447266
+        },
+        {
+          "position": 16731,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2": [
+            38840,
+            18194
+          ],
+          "gap": 0.06294631958007812
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2": [
+            48799,
+            77863
+          ],
+          "gap": 0.015107154846191406
+        },
+        {
+          "position": 16755,
+          "classification": "accepted-tie",
+          "candidate_top1": 45796,
+          "hf_top2": [
+            90700,
+            45796
+          ],
+          "gap": 0.060149192810058594
+        },
+        {
+          "position": 16760,
+          "classification": "miss",
+          "candidate_top1": 84324,
+          "hf_top2": [
+            102147,
+            138499
+          ],
+          "gap": 0.13277626037597656
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 104464,
+          "hf_top2": [
+            53930,
+            104464
+          ],
+          "gap": 0.010175704956054688
+        },
+        {
+          "position": 16766,
+          "classification": "accepted-tie",
+          "candidate_top1": 59779,
+          "hf_top2": [
+            6907,
+            59779
+          ],
+          "gap": 0.04623889923095703
+        },
+        {
+          "position": 16787,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            79818,
+            68247
+          ],
+          "gap": 0.01604461669921875
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2": [
+            79308,
+            65676
+          ],
+          "gap": 0.00022792816162109375
+        },
+        {
+          "position": 16884,
+          "classification": "accepted-tie",
+          "candidate_top1": 104050,
+          "hf_top2": [
+            35568,
+            104050
+          ],
+          "gap": 0.013564109802246094
+        },
+        {
+          "position": 16888,
+          "classification": "accepted-tie",
+          "candidate_top1": 129154,
+          "hf_top2": [
+            3717,
+            129154
+          ],
+          "gap": 0.030384063720703125
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 2924,
+          "hf_top2": [
+            106250,
+            2924
+          ],
+          "gap": 0.029392242431640625
+        },
+        {
+          "position": 16892,
+          "classification": "miss",
+          "candidate_top1": 27864,
+          "hf_top2": [
+            125997,
+            27864
+          ],
+          "gap": 0.12997722625732422
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 504,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.3050566000000003
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 477,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 2.35576438
+        }
+      },
+      "outer_sha256": "83d955761cfe73b112082b71d514739ac0cf2d2be3de2adb39070531e893339c",
+      "payload_sha256": "1c846000ea58489f147f7b05d923e70c3e544db3453ffc4f892d440a70b604f9",
+      "stdout_sha256": "6043305c62de216bc167a42a38a3c77695e868a00c08cdfb3eb5e8f30d5844b9"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-raw",
+      "control": "f32-f16kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 487,
+        "miss": 10,
+        "accepted-tie": 15
+      },
+      "differences": [
+        {
+          "position": 16387,
+          "classification": "miss",
+          "candidate_top1": 79732,
+          "hf_top2": [
+            18729,
+            79732
+          ],
+          "gap": 0.12761592864990234
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2": [
+            90447,
+            79308
+          ],
+          "gap": 0.033791542053222656
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "candidate_top1": 78372,
+          "hf_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.02428722381591797
+        },
+        {
+          "position": 16467,
+          "classification": "accepted-tie",
+          "candidate_top1": 6502,
+          "hf_top2": [
+            84324,
+            6502
+          ],
+          "gap": 0.039600372314453125
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "candidate_top1": 45653,
+          "hf_top2": [
+            28605,
+            45653
+          ],
+          "gap": 0.17183208465576172
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "candidate_top1": 21552,
+          "hf_top2": [
+            79308,
+            21552
+          ],
+          "gap": 0.025974273681640625
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "candidate_top1": 100583,
+          "hf_top2": [
+            41535,
+            100583
+          ],
+          "gap": 0.2126455307006836
+        },
+        {
+          "position": 16505,
+          "classification": "accepted-tie",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            113365,
+            63032
+          ],
+          "gap": 0.0658731460571289
+        },
+        {
+          "position": 16511,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            7247,
+            23956
+          ],
+          "gap": 0.3851585388183594
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2": [
+            103873,
+            40170
+          ],
+          "gap": 0.0009393692016601562
+        },
+        {
+          "position": 16571,
+          "classification": "accepted-tie",
+          "candidate_top1": 117048,
+          "hf_top2": [
+            110474,
+            117048
+          ],
+          "gap": 0.06503105163574219
+        },
+        {
+          "position": 16595,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2": [
+            34328,
+            18194
+          ],
+          "gap": 0.06899452209472656
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "candidate_top1": 35279,
+          "hf_top2": [
+            24834,
+            35279
+          ],
+          "gap": 0.3023490905761719
+        },
+        {
+          "position": 16645,
+          "classification": "miss",
+          "candidate_top1": 64153,
+          "hf_top2": [
+            27543,
+            64153
+          ],
+          "gap": 0.5369272232055664
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "candidate_top1": 1543,
+          "hf_top2": [
+            14502,
+            1543
+          ],
+          "gap": 0.09439659118652344
+        },
+        {
+          "position": 16733,
+          "classification": "accepted-tie",
+          "candidate_top1": 20648,
+          "hf_top2": [
+            63032,
+            20648
+          ],
+          "gap": 0.002414703369140625
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "candidate_top1": 79308,
+          "hf_top2": [
+            64907,
+            79308
+          ],
+          "gap": 0.23178577423095703
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 23666,
+          "hf_top2": [
+            124634,
+            23666
+          ],
+          "gap": 0.039872169494628906
+        },
+        {
+          "position": 16770,
+          "classification": "miss",
+          "candidate_top1": 99324,
+          "hf_top2": [
+            36429,
+            99324
+          ],
+          "gap": 0.17220401763916016
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2": [
+            6791,
+            18397
+          ],
+          "gap": 6.67572021484375e-05
+        },
+        {
+          "position": 16783,
+          "classification": "accepted-tie",
+          "candidate_top1": 90160,
+          "hf_top2": [
+            27543,
+            90160
+          ],
+          "gap": 0.06688213348388672
+        },
+        {
+          "position": 16827,
+          "classification": "accepted-tie",
+          "candidate_top1": 79732,
+          "hf_top2": [
+            101646,
+            79732
+          ],
+          "gap": 0.028420448303222656
+        },
+        {
+          "position": 16869,
+          "classification": "miss",
+          "candidate_top1": 125855,
+          "hf_top2": [
+            134267,
+            125855
+          ],
+          "gap": 0.23477935791015625
+        },
+        {
+          "position": 16881,
+          "classification": "miss",
+          "candidate_top1": 66838,
+          "hf_top2": [
+            82714,
+            66838
+          ],
+          "gap": 0.3068733215332031
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 134267,
+          "hf_top2": [
+            79308,
+            134267
+          ],
+          "gap": 0.00096893310546875
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 502,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.6363850000000006
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 488,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.7781219999999998
+        }
+      },
+      "outer_sha256": "9e44365365064f27dfaf36bd6542c07e879d48a01c932709a65443c2e9dea062",
+      "payload_sha256": "9be6d7f4493c0ebf3fdc51bbc56d225f6cc5d07678bcc9f332b77ea4599ac81d",
+      "stdout_sha256": "eaa304abb19aa824a1b611505e3d9d0cc8d1984667a0d23c322fdf00c932ca0a"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-chat",
+      "control": "auto-f32kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 510,
+        "accepted-tie": 2
+      },
+      "differences": [
+        {
+          "position": 16526,
+          "classification": "accepted-tie",
+          "candidate_top1": 32040,
+          "hf_top2": [
+            62658,
+            32040
+          ],
+          "gap": 0.013367652893066406
+        },
+        {
+          "position": 16630,
+          "classification": "accepted-tie",
+          "candidate_top1": 141500,
+          "hf_top2": [
+            27543,
+            141500
+          ],
+          "gap": 0.0029144287109375
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 479,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 2.8547811099999993
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 510,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.17255970000000076
+        }
+      },
+      "outer_sha256": "a6cd16e3a24a6b18acb369f466ecee9ea9fa0d2ba5d2392cd2753ece3dccb88c",
+      "payload_sha256": "ebac91f52bbe2dbe916cdeab088c90d2c98d8fcfbc617c9c21214512db1ebd57",
+      "stdout_sha256": "8a46008bf7418aa35d89d1d3d5adec0c0f9ba457452594d32a777f9d4a277f26"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-raw",
+      "control": "auto-f32kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 509,
+        "accepted-tie": 3
+      },
+      "differences": [
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2": [
+            103873,
+            40170
+          ],
+          "gap": 0.0009393692016601562
+        },
+        {
+          "position": 16543,
+          "classification": "accepted-tie",
+          "candidate_top1": 10009,
+          "hf_top2": [
+            99371,
+            10009
+          ],
+          "gap": 0.04242992401123047
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2": [
+            6791,
+            18397
+          ],
+          "gap": 6.67572021484375e-05
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 491,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.655191499999999
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 510,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.10142130000000016
+        }
+      },
+      "outer_sha256": "7fd8cc2e7aaf0a36ffba57b853a867b8ad34061fa85b83fb266e3ff29bad61d4",
+      "payload_sha256": "b77444569294bf314e786847ef5a8dec34e0fd814d9380d8705b55f23b286722",
+      "stdout_sha256": "d3f7cbc0d2e114a87090d6b80deae5a3de63089abe44925d067c8c37a81bab1f"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-chat",
+      "control": "f32-f16kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 479,
+        "accepted-tie": 19,
+        "miss": 14
+      },
+      "differences": [
+        {
+          "position": 16394,
+          "classification": "accepted-tie",
+          "candidate_top1": 55043,
+          "hf_top2": [
+            26165,
+            55043
+          ],
+          "gap": 0.0781097412109375
+        },
+        {
+          "position": 16412,
+          "classification": "miss",
+          "candidate_top1": 7247,
+          "hf_top2": [
+            104005,
+            102407
+          ],
+          "gap": 0.35782909393310547
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 8916,
+          "hf_top2": [
+            131603,
+            8916
+          ],
+          "gap": 0.05053234100341797
+        },
+        {
+          "position": 16457,
+          "classification": "miss",
+          "candidate_top1": 75444,
+          "hf_top2": [
+            101646,
+            75444
+          ],
+          "gap": 0.18689346313476562
+        },
+        {
+          "position": 16468,
+          "classification": "accepted-tie",
+          "candidate_top1": 105947,
+          "hf_top2": [
+            104162,
+            105947
+          ],
+          "gap": 0.021841049194335938
+        },
+        {
+          "position": 16479,
+          "classification": "miss",
+          "candidate_top1": 104223,
+          "hf_top2": [
+            21360,
+            44636
+          ],
+          "gap": 0.1675729751586914
+        },
+        {
+          "position": 16516,
+          "classification": "accepted-tie",
+          "candidate_top1": 58357,
+          "hf_top2": [
+            79308,
+            58357
+          ],
+          "gap": 0.03565406799316406
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 92541,
+          "hf_top2": [
+            56115,
+            92541
+          ],
+          "gap": 0.0046443939208984375
+        },
+        {
+          "position": 16541,
+          "classification": "accepted-tie",
+          "candidate_top1": 80348,
+          "hf_top2": [
+            18194,
+            80348
+          ],
+          "gap": 0.013329505920410156
+        },
+        {
+          "position": 16555,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            70858,
+            42609
+          ],
+          "gap": 0.2935943603515625
+        },
+        {
+          "position": 16609,
+          "classification": "miss",
+          "candidate_top1": 90160,
+          "hf_top2": [
+            84324,
+            90160
+          ],
+          "gap": 0.16445541381835938
+        },
+        {
+          "position": 16617,
+          "classification": "miss",
+          "candidate_top1": 104197,
+          "hf_top2": [
+            53930,
+            104197
+          ],
+          "gap": 0.10237503051757812
+        },
+        {
+          "position": 16639,
+          "classification": "miss",
+          "candidate_top1": 14273,
+          "hf_top2": [
+            96972,
+            13032
+          ],
+          "gap": 0.0451812744140625
+        },
+        {
+          "position": 16646,
+          "classification": "accepted-tie",
+          "candidate_top1": 70000,
+          "hf_top2": [
+            52736,
+            70000
+          ],
+          "gap": 0.0042514801025390625
+        },
+        {
+          "position": 16655,
+          "classification": "miss",
+          "candidate_top1": 97350,
+          "hf_top2": [
+            99371,
+            97350
+          ],
+          "gap": 0.4715299606323242
+        },
+        {
+          "position": 16666,
+          "classification": "miss",
+          "candidate_top1": 5701,
+          "hf_top2": [
+            26201,
+            1539
+          ],
+          "gap": 0.06523418426513672
+        },
+        {
+          "position": 16670,
+          "classification": "miss",
+          "candidate_top1": 99371,
+          "hf_top2": [
+            44489,
+            99371
+          ],
+          "gap": 0.1646404266357422
+        },
+        {
+          "position": 16675,
+          "classification": "accepted-tie",
+          "candidate_top1": 104351,
+          "hf_top2": [
+            104563,
+            104351
+          ],
+          "gap": 0.09745025634765625
+        },
+        {
+          "position": 16700,
+          "classification": "miss",
+          "candidate_top1": 27419,
+          "hf_top2": [
+            440,
+            133121
+          ],
+          "gap": 0.009668350219726562
+        },
+        {
+          "position": 16706,
+          "classification": "accepted-tie",
+          "candidate_top1": 110624,
+          "hf_top2": [
+            104211,
+            110624
+          ],
+          "gap": 0.0258026123046875
+        },
+        {
+          "position": 16707,
+          "classification": "accepted-tie",
+          "candidate_top1": 27543,
+          "hf_top2": [
+            104432,
+            27543
+          ],
+          "gap": 0.07071781158447266
+        },
+        {
+          "position": 16731,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2": [
+            38840,
+            18194
+          ],
+          "gap": 0.06294631958007812
+        },
+        {
+          "position": 16735,
+          "classification": "accepted-tie",
+          "candidate_top1": 77863,
+          "hf_top2": [
+            48799,
+            77863
+          ],
+          "gap": 0.015107154846191406
+        },
+        {
+          "position": 16755,
+          "classification": "accepted-tie",
+          "candidate_top1": 45796,
+          "hf_top2": [
+            90700,
+            45796
+          ],
+          "gap": 0.060149192810058594
+        },
+        {
+          "position": 16760,
+          "classification": "miss",
+          "candidate_top1": 84324,
+          "hf_top2": [
+            102147,
+            138499
+          ],
+          "gap": 0.13277626037597656
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 104464,
+          "hf_top2": [
+            53930,
+            104464
+          ],
+          "gap": 0.010175704956054688
+        },
+        {
+          "position": 16766,
+          "classification": "accepted-tie",
+          "candidate_top1": 59779,
+          "hf_top2": [
+            6907,
+            59779
+          ],
+          "gap": 0.04623889923095703
+        },
+        {
+          "position": 16787,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            79818,
+            68247
+          ],
+          "gap": 0.01604461669921875
+        },
+        {
+          "position": 16830,
+          "classification": "accepted-tie",
+          "candidate_top1": 65676,
+          "hf_top2": [
+            79308,
+            65676
+          ],
+          "gap": 0.00022792816162109375
+        },
+        {
+          "position": 16884,
+          "classification": "accepted-tie",
+          "candidate_top1": 104050,
+          "hf_top2": [
+            35568,
+            104050
+          ],
+          "gap": 0.013564109802246094
+        },
+        {
+          "position": 16888,
+          "classification": "accepted-tie",
+          "candidate_top1": 129154,
+          "hf_top2": [
+            3717,
+            129154
+          ],
+          "gap": 0.030384063720703125
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 2924,
+          "hf_top2": [
+            106250,
+            2924
+          ],
+          "gap": 0.029392242431640625
+        },
+        {
+          "position": 16892,
+          "classification": "miss",
+          "candidate_top1": 27864,
+          "hf_top2": [
+            125997,
+            27864
+          ],
+          "gap": 0.12997722625732422
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 504,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.3050566000000003
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 477,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 2.35576438
+        }
+      },
+      "outer_sha256": "fd317e9c97925319ca82db82f1ebcd704a05ee5604b08af732837e7894b15c4f",
+      "payload_sha256": "776f9781b98fd955140d5ad6e320fa93fa1f73780ae0815e7a48f949303d63cc",
+      "stdout_sha256": "6043305c62de216bc167a42a38a3c77695e868a00c08cdfb3eb5e8f30d5844b9"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-raw",
+      "control": "f32-f16kv",
+      "f32_hf_diagnostic_counts": {
+        "exact": 487,
+        "miss": 10,
+        "accepted-tie": 15
+      },
+      "differences": [
+        {
+          "position": 16387,
+          "classification": "miss",
+          "candidate_top1": 79732,
+          "hf_top2": [
+            18729,
+            79732
+          ],
+          "gap": 0.12761592864990234
+        },
+        {
+          "position": 16440,
+          "classification": "accepted-tie",
+          "candidate_top1": 79308,
+          "hf_top2": [
+            90447,
+            79308
+          ],
+          "gap": 0.033791542053222656
+        },
+        {
+          "position": 16455,
+          "classification": "accepted-tie",
+          "candidate_top1": 78372,
+          "hf_top2": [
+            83864,
+            78372
+          ],
+          "gap": 0.02428722381591797
+        },
+        {
+          "position": 16467,
+          "classification": "accepted-tie",
+          "candidate_top1": 6502,
+          "hf_top2": [
+            84324,
+            6502
+          ],
+          "gap": 0.039600372314453125
+        },
+        {
+          "position": 16481,
+          "classification": "miss",
+          "candidate_top1": 45653,
+          "hf_top2": [
+            28605,
+            45653
+          ],
+          "gap": 0.17183208465576172
+        },
+        {
+          "position": 16498,
+          "classification": "accepted-tie",
+          "candidate_top1": 21552,
+          "hf_top2": [
+            79308,
+            21552
+          ],
+          "gap": 0.025974273681640625
+        },
+        {
+          "position": 16503,
+          "classification": "miss",
+          "candidate_top1": 100583,
+          "hf_top2": [
+            41535,
+            100583
+          ],
+          "gap": 0.2126455307006836
+        },
+        {
+          "position": 16505,
+          "classification": "accepted-tie",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            113365,
+            63032
+          ],
+          "gap": 0.0658731460571289
+        },
+        {
+          "position": 16511,
+          "classification": "miss",
+          "candidate_top1": 63032,
+          "hf_top2": [
+            7247,
+            23956
+          ],
+          "gap": 0.3851585388183594
+        },
+        {
+          "position": 16520,
+          "classification": "accepted-tie",
+          "candidate_top1": 40170,
+          "hf_top2": [
+            103873,
+            40170
+          ],
+          "gap": 0.0009393692016601562
+        },
+        {
+          "position": 16571,
+          "classification": "accepted-tie",
+          "candidate_top1": 117048,
+          "hf_top2": [
+            110474,
+            117048
+          ],
+          "gap": 0.06503105163574219
+        },
+        {
+          "position": 16595,
+          "classification": "accepted-tie",
+          "candidate_top1": 18194,
+          "hf_top2": [
+            34328,
+            18194
+          ],
+          "gap": 0.06899452209472656
+        },
+        {
+          "position": 16601,
+          "classification": "miss",
+          "candidate_top1": 35279,
+          "hf_top2": [
+            24834,
+            35279
+          ],
+          "gap": 0.3023490905761719
+        },
+        {
+          "position": 16645,
+          "classification": "miss",
+          "candidate_top1": 64153,
+          "hf_top2": [
+            27543,
+            64153
+          ],
+          "gap": 0.5369272232055664
+        },
+        {
+          "position": 16654,
+          "classification": "accepted-tie",
+          "candidate_top1": 1543,
+          "hf_top2": [
+            14502,
+            1543
+          ],
+          "gap": 0.09439659118652344
+        },
+        {
+          "position": 16733,
+          "classification": "accepted-tie",
+          "candidate_top1": 20648,
+          "hf_top2": [
+            63032,
+            20648
+          ],
+          "gap": 0.002414703369140625
+        },
+        {
+          "position": 16738,
+          "classification": "miss",
+          "candidate_top1": 79308,
+          "hf_top2": [
+            64907,
+            79308
+          ],
+          "gap": 0.23178577423095703
+        },
+        {
+          "position": 16763,
+          "classification": "accepted-tie",
+          "candidate_top1": 23666,
+          "hf_top2": [
+            124634,
+            23666
+          ],
+          "gap": 0.039872169494628906
+        },
+        {
+          "position": 16770,
+          "classification": "miss",
+          "candidate_top1": 99324,
+          "hf_top2": [
+            36429,
+            99324
+          ],
+          "gap": 0.17220401763916016
+        },
+        {
+          "position": 16771,
+          "classification": "accepted-tie",
+          "candidate_top1": 18397,
+          "hf_top2": [
+            6791,
+            18397
+          ],
+          "gap": 6.67572021484375e-05
+        },
+        {
+          "position": 16783,
+          "classification": "accepted-tie",
+          "candidate_top1": 90160,
+          "hf_top2": [
+            27543,
+            90160
+          ],
+          "gap": 0.06688213348388672
+        },
+        {
+          "position": 16827,
+          "classification": "accepted-tie",
+          "candidate_top1": 79732,
+          "hf_top2": [
+            101646,
+            79732
+          ],
+          "gap": 0.028420448303222656
+        },
+        {
+          "position": 16869,
+          "classification": "miss",
+          "candidate_top1": 125855,
+          "hf_top2": [
+            134267,
+            125855
+          ],
+          "gap": 0.23477935791015625
+        },
+        {
+          "position": 16881,
+          "classification": "miss",
+          "candidate_top1": 66838,
+          "hf_top2": [
+            82714,
+            66838
+          ],
+          "gap": 0.3068733215332031
+        },
+        {
+          "position": 16889,
+          "classification": "accepted-tie",
+          "candidate_top1": 134267,
+          "hf_top2": [
+            79308,
+            134267
+          ],
+          "gap": 0.00096893310546875
+        }
+      ],
+      "candidate_pairs": {
+        "versus_original_auto_f16kv": {
+          "same_top1": 502,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 0.6363850000000006
+        },
+        "versus_original_f32_f32kv": {
+          "same_top1": 488,
+          "positions": 512,
+          "max_shared_top50_logit_delta": 1.7781219999999998
+        }
+      },
+      "outer_sha256": "a910d356a2b301fe5c2bd94e82ce7b46c491bbe96d096f1297cdfacfd8b9c58a",
+      "payload_sha256": "b3f7633b9ccd063d81836b043920b928e43bd7f63befcbcffa5e87f7c6dfe0b3",
+      "stdout_sha256": "eaa304abb19aa824a1b611505e3d9d0cc8d1984667a0d23c322fdf00c932ca0a"
+    }
+  ],
+  "bounds_changed": false
+}

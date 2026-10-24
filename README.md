@@ -37,10 +37,13 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `IQ2_XXS`, `IQ2_XS`, `IQ2_S` | Supported | Supported | No |
 | `IQ3_XXS`, `IQ3_S` | Supported | Supported | No |
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | No |
+| `TQ1_0`, `TQ2_0` | Supported | Supported | No |
 
 Vulkan `MXFP4` inference requires float-preservation and double-arithmetic support from the device. Each model tensor must be supported by its assigned backend; devices do not fall back to the CPU automatically.
 
 GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. `Q8_1` and `Q8_K` are auxiliary formats. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
+
+TQ read-only support is qualified with a user-approved baseline exception for one position in the two pinned released files' default Vulkan chat captures; original miss counts and the generic 0.1 rule remain unchanged. See [precision policy](docs/PRECISION.md#independent-hf-depth-acceptance-agreed-2026-10-01).
 
 Activation `--dtype` is independent of weight storage and KV-cache type. `auto` selects a backend policy; requested F16, BF16 or int8 paths may use a wider implementation or input rounding depending on the device. See [precision and dtype reporting](docs/USAGE.md#precision). F16 is the KV-cache default; F32 is also available.
 

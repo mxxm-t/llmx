@@ -1,0 +1,1348 @@
+{
+  "scope": "Final clean-build candidate versus mx Vulkan timing block: TQ1_0 and TQ2_0, P128/G256 and P4096/G256, four interleaved matched blocks per cell. Preserve all 40 planned calls, including eight warmups and 32 measured calls. This replaces the developmental E4 comparison only for this timing scope; it is not a correctness or full qualification claim.",
+  "verified_execution": true,
+  "calls_completed": 40,
+  "warmups": 8,
+  "analyzer_sha256": "decaac641741555c768e574af873afae62348156af1f15f2ee42a860b0a17b53",
+  "execution_sha256": "8ce9384f0c16fef702fcdc82883260e41416c2d11008121a51820787f8fd92ff",
+  "summary": {
+    "TQ1_0/P128/G256": {
+      "means": {
+        "candidate": {
+          "pp128": 5361.69,
+          "tg256": 283.42
+        },
+        "mx": {
+          "pp128": 2240.935,
+          "tg256": 195.29500000000002
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 5355.96,
+              "tg256": 282.73
+            },
+            "mx": {
+              "pp128": 2251.78,
+              "tg256": 195.18
+            }
+          },
+          "delta_percent": {
+            "pp128": 137.85449733100035,
+            "tg256": 44.85603033097654
+          }
+        },
+        {
+          "block": 1,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp128": 2235.22,
+              "tg256": 195.18
+            },
+            "candidate": {
+              "pp128": 5370.98,
+              "tg256": 283.41
+            }
+          },
+          "delta_percent": {
+            "pp128": 140.28865167634507,
+            "tg256": 45.2044266830618
+          }
+        },
+        {
+          "block": 2,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 5371.59,
+              "tg256": 283.89
+            },
+            "mx": {
+              "pp128": 2226.53,
+              "tg256": 195.34
+            }
+          },
+          "delta_percent": {
+            "pp128": 141.25387935487055,
+            "tg256": 45.33121736459505
+          }
+        },
+        {
+          "block": 3,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp128": 2250.21,
+              "tg256": 195.48
+            },
+            "candidate": {
+              "pp128": 5348.23,
+              "tg256": 283.65
+            }
+          },
+          "delta_percent": {
+            "pp128": 137.67692793117084,
+            "tg256": 45.10435850214856
+          }
+        }
+      ],
+      "delta_percent": {
+        "pp128": 139.2612904881221,
+        "tg256": 45.12404311426303
+      }
+    },
+    "TQ1_0/P4096/G256": {
+      "means": {
+        "candidate": {
+          "pp4096": 4209.2775,
+          "tg256": 283.7775
+        },
+        "mx": {
+          "pp4096": 2177.5575,
+          "tg256": 195.13
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp4096": 2178.49,
+              "tg256": 195.03
+            },
+            "candidate": {
+              "pp4096": 4210.59,
+              "tg256": 282.9
+            }
+          },
+          "delta_percent": {
+            "pp4096": 93.28020785039182,
+            "tg256": 45.05460698354098
+          }
+        },
+        {
+          "block": 1,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4212.0,
+              "tg256": 284.46
+            },
+            "mx": {
+              "pp4096": 2177.53,
+              "tg256": 195.44
+            }
+          },
+          "delta_percent": {
+            "pp4096": 93.43017088168703,
+            "tg256": 45.5485059353254
+          }
+        },
+        {
+          "block": 2,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp4096": 2178.87,
+              "tg256": 195.08
+            },
+            "candidate": {
+              "pp4096": 4209.79,
+              "tg256": 284.07
+            }
+          },
+          "delta_percent": {
+            "pp4096": 93.20978305268328,
+            "tg256": 45.61718269427926
+          }
+        },
+        {
+          "block": 3,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4204.73,
+              "tg256": 283.68
+            },
+            "mx": {
+              "pp4096": 2175.34,
+              "tg256": 194.97
+            }
+          },
+          "delta_percent": {
+            "pp4096": 93.29070398190625,
+            "tg256": 45.499307585782425
+          }
+        }
+      ],
+      "delta_percent": {
+        "pp4096": 93.30270268408529,
+        "tg256": 45.429969763747245
+      }
+    },
+    "TQ2_0/P128/G256": {
+      "means": {
+        "candidate": {
+          "pp128": 5448.7325,
+          "tg256": 322.5725
+        },
+        "mx": {
+          "pp128": 2648.3025,
+          "tg256": 323.56
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp128": 2683.93,
+              "tg256": 324.37
+            },
+            "candidate": {
+              "pp128": 5449.7,
+              "tg256": 318.33
+            }
+          },
+          "delta_percent": {
+            "pp128": 103.04925985402002,
+            "tg256": -1.8620710916545935
+          }
+        },
+        {
+          "block": 1,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 5448.06,
+              "tg256": 323.63
+            },
+            "mx": {
+              "pp128": 2632.59,
+              "tg256": 324.19
+            }
+          },
+          "delta_percent": {
+            "pp128": 106.94677105056236,
+            "tg256": -0.17273820907492965
+          }
+        },
+        {
+          "block": 2,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp128": 2640.35,
+              "tg256": 322.48
+            },
+            "candidate": {
+              "pp128": 5448.37,
+              "tg256": 324.82
+            }
+          },
+          "delta_percent": {
+            "pp128": 106.35029446853639,
+            "tg256": 0.7256263954353637
+          }
+        },
+        {
+          "block": 3,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp128": 5448.8,
+              "tg256": 323.51
+            },
+            "mx": {
+              "pp128": 2636.34,
+              "tg256": 323.2
+            }
+          },
+          "delta_percent": {
+            "pp128": 106.68047368700546,
+            "tg256": 0.09591584158414879
+          }
+        }
+      ],
+      "delta_percent": {
+        "pp128": 105.74434000647588,
+        "tg256": -0.3051984176041578
+      }
+    },
+    "TQ2_0/P4096/G256": {
+      "means": {
+        "candidate": {
+          "pp4096": 4257.7075,
+          "tg256": 323.5075
+        },
+        "mx": {
+          "pp4096": 2352.1225,
+          "tg256": 322.785
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4259.65,
+              "tg256": 324.6
+            },
+            "mx": {
+              "pp4096": 2356.8,
+              "tg256": 322.82
+            }
+          },
+          "delta_percent": {
+            "pp4096": 80.73871350984383,
+            "tg256": 0.551390867975976
+          }
+        },
+        {
+          "block": 1,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp4096": 2359.71,
+              "tg256": 322.04
+            },
+            "candidate": {
+              "pp4096": 4256.77,
+              "tg256": 324.96
+            }
+          },
+          "delta_percent": {
+            "pp4096": 80.3937772014358,
+            "tg256": 0.9067196621537654
+          }
+        },
+        {
+          "block": 2,
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "rates": {
+            "candidate": {
+              "pp4096": 4257.25,
+              "tg256": 319.33
+            },
+            "mx": {
+              "pp4096": 2344.79,
+              "tg256": 324.49
+            }
+          },
+          "delta_percent": {
+            "pp4096": 81.56210151015657,
+            "tg256": -1.590187679127253
+          }
+        },
+        {
+          "block": 3,
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "rates": {
+            "mx": {
+              "pp4096": 2347.19,
+              "tg256": 321.79
+            },
+            "candidate": {
+              "pp4096": 4257.16,
+              "tg256": 325.14
+            }
+          },
+          "delta_percent": {
+            "pp4096": 81.37262002649976,
+            "tg256": 1.0410516175145101
+          }
+        }
+      ],
+      "delta_percent": {
+        "pp4096": 81.01555084822327,
+        "tg256": 0.22383320166672327
+      }
+    }
+  },
+  "activity_calls": [
+    {
+      "index": 0,
+      "arm": "candidate",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": true,
+      "rates": {
+        "pp128": 5366.4,
+        "tg256": 283.09
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 3,
+        "unrelated_cpu": 3
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 240.90605383233208
+    },
+    {
+      "index": 1,
+      "arm": "mx",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": true,
+      "rates": {
+        "pp128": 2246.8,
+        "tg256": 195.53
+      },
+      "samples": 16,
+      "flags": {
+        "disk_activity": 16,
+        "unrelated_cpu": 14
+      },
+      "unknown": {
+        "process_coverage": 13
+      },
+      "max_unrelated_cpu_percent": 174.91563960129673
+    },
+    {
+      "index": 2,
+      "arm": "candidate",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5355.96,
+        "tg256": 282.73
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 4,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 155.9175269504178
+    },
+    {
+      "index": 3,
+      "arm": "mx",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2251.78,
+        "tg256": 195.18
+      },
+      "samples": 14,
+      "flags": {
+        "disk_activity": 14,
+        "unrelated_cpu": 13
+      },
+      "unknown": {
+        "process_coverage": 13
+      },
+      "max_unrelated_cpu_percent": 171.91347886964004
+    },
+    {
+      "index": 4,
+      "arm": "mx",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2235.22,
+        "tg256": 195.18
+      },
+      "samples": 15,
+      "flags": {
+        "disk_activity": 14,
+        "unrelated_cpu": 12
+      },
+      "unknown": {
+        "process_coverage": 14
+      },
+      "max_unrelated_cpu_percent": 165.92365155300453
+    },
+    {
+      "index": 5,
+      "arm": "candidate",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5370.98,
+        "tg256": 283.41
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 3,
+        "unrelated_cpu": 3
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 153.91992884567472
+    },
+    {
+      "index": 6,
+      "arm": "candidate",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5371.59,
+        "tg256": 283.89
+      },
+      "samples": 3,
+      "flags": {
+        "disk_activity": 3,
+        "unrelated_cpu": 3
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 153.91992884567472
+    },
+    {
+      "index": 7,
+      "arm": "mx",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2226.53,
+        "tg256": 195.34
+      },
+      "samples": 15,
+      "flags": {
+        "disk_activity": 5,
+        "unrelated_cpu": 8
+      },
+      "unknown": {
+        "process_coverage": 13
+      },
+      "max_unrelated_cpu_percent": 173.88309003888037
+    },
+    {
+      "index": 8,
+      "arm": "mx",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2250.21,
+        "tg256": 195.48
+      },
+      "samples": 15,
+      "flags": {
+        "unrelated_cpu": 2
+      },
+      "unknown": {
+        "process_coverage": 12
+      },
+      "max_unrelated_cpu_percent": 119.9206488657056
+    },
+    {
+      "index": 9,
+      "arm": "candidate",
+      "cell": "TQ1_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5348.23,
+        "tg256": 283.65
+      },
+      "samples": 3,
+      "flags": {
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 105.94148280722884
+    },
+    {
+      "index": 10,
+      "arm": "mx",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": true,
+      "rates": {
+        "pp4096": 2178.48,
+        "tg256": 195.41
+      },
+      "samples": 19,
+      "flags": {
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 16
+      },
+      "max_unrelated_cpu_percent": 133.92761691964864
+    },
+    {
+      "index": 11,
+      "arm": "candidate",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": true,
+      "rates": {
+        "pp4096": 4212.39,
+        "tg256": 284.35
+      },
+      "samples": 5,
+      "flags": {},
+      "unknown": {
+        "process_coverage": 5
+      },
+      "max_unrelated_cpu_percent": 83.964068422515
+    },
+    {
+      "index": 12,
+      "arm": "mx",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2178.49,
+        "tg256": 195.03
+      },
+      "samples": 19,
+      "flags": {
+        "disk_activity": 1,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 15
+      },
+      "max_unrelated_cpu_percent": 133.91362327807508
+    },
+    {
+      "index": 13,
+      "arm": "candidate",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4210.59,
+        "tg256": 282.9
+      },
+      "samples": 5,
+      "flags": {},
+      "unknown": {
+        "process_coverage": 5
+      },
+      "max_unrelated_cpu_percent": 89.957116351622
+    },
+    {
+      "index": 14,
+      "arm": "candidate",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4212.0,
+        "tg256": 284.46
+      },
+      "samples": 6,
+      "flags": {},
+      "unknown": {
+        "process_coverage": 5
+      },
+      "max_unrelated_cpu_percent": 89.96342088778289
+    },
+    {
+      "index": 15,
+      "arm": "mx",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2177.53,
+        "tg256": 195.44
+      },
+      "samples": 18,
+      "flags": {
+        "disk_activity": 4
+      },
+      "unknown": {
+        "process_coverage": 16
+      },
+      "max_unrelated_cpu_percent": 93.95271425604375
+    },
+    {
+      "index": 16,
+      "arm": "mx",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2178.87,
+        "tg256": 195.08
+      },
+      "samples": 18,
+      "flags": {
+        "disk_activity": 2,
+        "unrelated_cpu": 2
+      },
+      "unknown": {
+        "process_coverage": 17
+      },
+      "max_unrelated_cpu_percent": 116.94233666970585
+    },
+    {
+      "index": 17,
+      "arm": "candidate",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4209.79,
+        "tg256": 284.07
+      },
+      "samples": 6,
+      "flags": {
+        "disk_activity": 2,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 6
+      },
+      "max_unrelated_cpu_percent": 107.94166790363083
+    },
+    {
+      "index": 18,
+      "arm": "candidate",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4204.73,
+        "tg256": 283.68
+      },
+      "samples": 5,
+      "flags": {},
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 72.9637929667241
+    },
+    {
+      "index": 19,
+      "arm": "mx",
+      "cell": "TQ1_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2175.34,
+        "tg256": 194.97
+      },
+      "samples": 19,
+      "flags": {
+        "disk_activity": 5,
+        "unrelated_cpu": 2
+      },
+      "unknown": {
+        "process_coverage": 17
+      },
+      "max_unrelated_cpu_percent": 150.935850755844
+    },
+    {
+      "index": 20,
+      "arm": "mx",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": true,
+      "rates": {
+        "pp128": 2655.24,
+        "tg256": 323.92
+      },
+      "samples": 13,
+      "flags": {
+        "disk_activity": 6,
+        "unrelated_cpu": 2
+      },
+      "unknown": {
+        "process_coverage": 11
+      },
+      "max_unrelated_cpu_percent": 126.9485350562564
+    },
+    {
+      "index": 21,
+      "arm": "candidate",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": true,
+      "rates": {
+        "pp128": 5450.88,
+        "tg256": 323.35
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 1,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 102.95537913451419
+    },
+    {
+      "index": 22,
+      "arm": "mx",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2683.93,
+        "tg256": 324.37
+      },
+      "samples": 14,
+      "flags": {
+        "disk_activity": 5,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 13
+      },
+      "max_unrelated_cpu_percent": 269.80576142717086
+    },
+    {
+      "index": 23,
+      "arm": "candidate",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5449.7,
+        "tg256": 318.33
+      },
+      "samples": 3,
+      "flags": {
+        "disk_activity": 1
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 86.95576707647973
+    },
+    {
+      "index": 24,
+      "arm": "candidate",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5448.06,
+        "tg256": 323.63
+      },
+      "samples": 3,
+      "flags": {
+        "disk_activity": 1
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 85.96030336973472
+    },
+    {
+      "index": 25,
+      "arm": "mx",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2632.59,
+        "tg256": 324.19
+      },
+      "samples": 14,
+      "flags": {
+        "disk_activity": 4,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 13
+      },
+      "max_unrelated_cpu_percent": 141.92406013638225
+    },
+    {
+      "index": 26,
+      "arm": "mx",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2640.35,
+        "tg256": 322.48
+      },
+      "samples": 14,
+      "flags": {
+        "disk_activity": 5,
+        "unrelated_cpu": 3
+      },
+      "unknown": {
+        "process_coverage": 12
+      },
+      "max_unrelated_cpu_percent": 132.93695437825232
+    },
+    {
+      "index": 27,
+      "arm": "candidate",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5448.37,
+        "tg256": 324.82
+      },
+      "samples": 3,
+      "flags": {
+        "disk_activity": 1
+      },
+      "unknown": {
+        "process_coverage": 3
+      },
+      "max_unrelated_cpu_percent": 88.9472537319375
+    },
+    {
+      "index": 28,
+      "arm": "candidate",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 5448.8,
+        "tg256": 323.51
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 1,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 116.94091046516536
+    },
+    {
+      "index": 29,
+      "arm": "mx",
+      "cell": "TQ2_0/P128/G256",
+      "warmup": false,
+      "rates": {
+        "pp128": 2636.34,
+        "tg256": 323.2
+      },
+      "samples": 13,
+      "flags": {
+        "disk_activity": 4,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 11
+      },
+      "max_unrelated_cpu_percent": 150.92042975122348
+    },
+    {
+      "index": 30,
+      "arm": "candidate",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": true,
+      "rates": {
+        "pp4096": 4256.13,
+        "tg256": 324.49
+      },
+      "samples": 6,
+      "flags": {
+        "disk_activity": 3,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 6
+      },
+      "max_unrelated_cpu_percent": 111.95109295203369
+    },
+    {
+      "index": 31,
+      "arm": "mx",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": true,
+      "rates": {
+        "pp4096": 2344.7,
+        "tg256": 318.03
+      },
+      "samples": 17,
+      "flags": {
+        "disk_activity": 8,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 17
+      },
+      "max_unrelated_cpu_percent": 315.8244568857596
+    },
+    {
+      "index": 32,
+      "arm": "candidate",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4259.65,
+        "tg256": 324.6
+      },
+      "samples": 5,
+      "flags": {
+        "disk_activity": 2,
+        "unrelated_cpu": 4
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 315.8244568857596
+    },
+    {
+      "index": 33,
+      "arm": "mx",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2356.8,
+        "tg256": 322.82
+      },
+      "samples": 18,
+      "flags": {
+        "disk_activity": 6,
+        "unrelated_cpu": 5
+      },
+      "unknown": {
+        "process_coverage": 17
+      },
+      "max_unrelated_cpu_percent": 141.92479065547684
+    },
+    {
+      "index": 34,
+      "arm": "mx",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2359.71,
+        "tg256": 322.04
+      },
+      "samples": 17,
+      "flags": {
+        "disk_activity": 7,
+        "unrelated_cpu": 2
+      },
+      "unknown": {
+        "process_coverage": 16
+      },
+      "max_unrelated_cpu_percent": 103.95030624426728
+    },
+    {
+      "index": 35,
+      "arm": "candidate",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4256.77,
+        "tg256": 324.96
+      },
+      "samples": 5,
+      "flags": {
+        "disk_activity": 1,
+        "unrelated_cpu": 1
+      },
+      "unknown": {
+        "process_coverage": 5
+      },
+      "max_unrelated_cpu_percent": 106.94300750843273
+    },
+    {
+      "index": 36,
+      "arm": "candidate",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4257.25,
+        "tg256": 319.33
+      },
+      "samples": 5,
+      "flags": {
+        "disk_activity": 2
+      },
+      "unknown": {
+        "process_coverage": 5
+      },
+      "max_unrelated_cpu_percent": 83.94250291517561
+    },
+    {
+      "index": 37,
+      "arm": "mx",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2344.79,
+        "tg256": 324.49
+      },
+      "samples": 18,
+      "flags": {
+        "disk_activity": 9,
+        "unrelated_cpu": 5
+      },
+      "unknown": {
+        "process_coverage": 18
+      },
+      "max_unrelated_cpu_percent": 158.83522770281144
+    },
+    {
+      "index": 38,
+      "arm": "mx",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 2347.19,
+        "tg256": 321.79
+      },
+      "samples": 17,
+      "flags": {
+        "disk_activity": 12,
+        "unrelated_cpu": 3
+      },
+      "unknown": {
+        "process_coverage": 17
+      },
+      "max_unrelated_cpu_percent": 110.94620739278184
+    },
+    {
+      "index": 39,
+      "arm": "candidate",
+      "cell": "TQ2_0/P4096/G256",
+      "warmup": false,
+      "rates": {
+        "pp4096": 4257.16,
+        "tg256": 325.14
+      },
+      "samples": 4,
+      "flags": {
+        "disk_activity": 2
+      },
+      "unknown": {
+        "process_coverage": 4
+      },
+      "max_unrelated_cpu_percent": 93.94390460659127
+    }
+  ],
+  "container_removed": true,
+  "oom": false,
+  "limitations": [
+    "Four interleaved pairs per cell; every planned call retained.",
+    "PP and TG use separate empty histories, not end-to-end request latency.",
+    "Activity intervals cover each whole process call, including model loading.",
+    "Unpinned production and peer work remain present; activity is measured, not assumed absent.",
+    "New, exited or inaccessible processes limit per-process CPU attribution.",
+    "Disk totals may count stacked devices more than once; they are activity flags, not disk throughput claims.",
+    "Few-percent differences require noise and layout assessment, not automatic acceptance or rejection.",
+    "This timing record does not resolve the open correctness gate."
+  ],
+  "measured_calls": 32,
+  "analysis_sha256": "7e0784a404c9ba1bb234ba3b864152535350bffc3dcefc779c80886383414ac6",
+  "analysis_path": "build-quant-resume-20261020/tq-final-clean-mx-analysis-20261024.json",
+  "raw_remote_path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/tq-final-mx-v1/results",
+  "pins": {
+    "image": {
+      "build_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+      "execution_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+      "equivalence_audit": "tq-vulkan-r2-comparison-audit-20261024.json",
+      "equivalence_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b"
+    },
+    "clean_build": {
+      "run_id": 40101812090,
+      "workflow_head": "de43a67e819a1eeccf8d9ea10686167013c0628d",
+      "artifact_id": 12563587325,
+      "artifact_name": "tq-matched-linux-builds",
+      "artifact_sha256": "c2d855a5f83f7c0d9f75c18f35dd4cabdd63882a21c32b7efb3bf938836fbeaa",
+      "build_output_sha256": "5ef6296d36ca6e7d4b013de8382b403fcf6e7cf21d3d415cf572c0435f9fe75d",
+      "image_archive_sha256": "01f3a7d1383ac58b92c79b6130492b7b15b6916d64fca754e45f866c478b75c0",
+      "collection_sha256": "4356c8560b2427d377f9b71b22746c936506710ced95d2304711fe42326217db",
+      "audit_sha256": "0e01c790fecd870cc1503bf50b8437f09876ff386c0ff6774344591143ab26b8",
+      "build_result_sha256": {
+        "main": "d055ee025736801f2ae3bd0d3b755720e92a2e8c5034305759d632afafa47408",
+        "candidate": "c6499c89ea22838acefac41d41bc36fdd2dd20f11fe1fa704983e1d64140f030",
+        "mx": "23fd9af6bb49099659b7bfd6ef0b4482c3eaef3efe7042186aa32487642bf442"
+      },
+      "main": {
+        "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+        "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+        "binary_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8"
+      },
+      "candidate": {
+        "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+        "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183",
+        "binary_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8"
+      },
+      "mx": {
+        "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+        "targets": [
+          "llama",
+          "llama-bench"
+        ],
+        "build_result_sha256": "23fd9af6bb49099659b7bfd6ef0b4482c3eaef3efe7042186aa32487642bf442",
+        "binary_path": "arms/mx-build/bin/llama-bench",
+        "binary_sha256": "7c2420a363b3301183f40ccda8ff9cc0dc6176aaf076465fabbc6f217f6cdfd4",
+        "configure_image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+        "configure": [
+          "cmake",
+          "-S",
+          "/source",
+          "-B",
+          "/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DBUILD_SHARED_LIBS=ON",
+          "-DGGML_BACKEND_DL=OFF",
+          "-DGGML_NATIVE=OFF",
+          "-DGGML_AVX=ON",
+          "-DGGML_AVX2=ON",
+          "-DGGML_FMA=ON",
+          "-DGGML_F16C=ON",
+          "-DGGML_AVX512=OFF",
+          "-DGGML_AVX512_VBMI=OFF",
+          "-DGGML_AVX512_VNNI=OFF",
+          "-DGGML_AVX512_BF16=OFF",
+          "-DGGML_AVX_VNNI=OFF",
+          "-DGGML_BLAS=OFF",
+          "-DGGML_CUDA=OFF",
+          "-DGGML_HIP=OFF",
+          "-DGGML_SYCL=OFF",
+          "-DGGML_VULKAN=ON",
+          "-DLLAMA_BUILD_COMMON=ON",
+          "-DLLAMA_BUILD_TESTS=OFF",
+          "-DLLAMA_BUILD_TOOLS=ON",
+          "-DLLAMA_BUILD_EXAMPLES=OFF",
+          "-DLLAMA_BUILD_SERVER=OFF",
+          "-DLLAMA_BUILD_APP=OFF",
+          "-DLLAMA_OPENSSL=OFF",
+          "-DLLAMA_LLGUIDANCE=OFF",
+          "-DGGML_CCACHE=OFF",
+          "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+        ],
+        "linked_libraries": {
+          "bin/libggml-base.so": "1c211ff966816fdbbd0b9b65c34ecc6253fcec9a786bb4abccdf9175f30e78c8",
+          "bin/libggml-cpu.so": "700c79695a19889431b9e0b1253b5935a3f3150ad00cbaf1320fc4edc3e4b926",
+          "bin/libggml-vulkan.so": "c653698268e4410f60fd2d64c9b46ef90dab9ec66964f4cfdb9c90331a9a6299",
+          "bin/libggml.so": "86384d9664c020e3e114fbb821de019f5383f8e29298d5a3086dea668e0d73c9",
+          "bin/libllama-bench-impl.so": "fcecc49444848b84cc698b2ed9921b529494fddc2706bb1c2d071b080aab584a",
+          "bin/libllama-common.so": "7406c4537780c9b9cc4e01a335a7b5e4b049d55acd245e557ea9141d063faeaa",
+          "bin/libllama.so": "010735191aab5ba1abf864b2c40231da76965d62e8f465c40178cc101a6897a6"
+        }
+      }
+    },
+    "wrapper": {
+      "source_sha256": "4479cf5dc85d35970f99ebbbec833be55df16d732e9614bf65a0b87e113be2ab",
+      "header_manifest_sha256": "fe9d326207d727a5b14497c577c8f9a8711b93072138d8e7c8e1a7fbc4b673b9",
+      "header_archive_sha256": "6ce2deb08d203f482f8cfdf921bdfd1d5e4d69cfa499febde6fee23202fba2f9",
+      "header_source_archive_sha256": "deef5ae289239d8816d8db5cba845120c13a0bf7b7594a32ccadf1498b0efefa",
+      "mx_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "compiled_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+      "compile_command": [
+        "g++",
+        "-std=c++17",
+        "-O3",
+        "-mavx2",
+        "-mfma",
+        "-mf16c",
+        "-pthread",
+        "-I/headers/include",
+        "-I/headers/ggml/include",
+        "/inputs/wrapper.cpp",
+        "-L/ref/bin",
+        "-Wl,-rpath,/ref/bin",
+        "-lllama",
+        "-lggml",
+        "-lggml-base",
+        "-o",
+        "/out/mx-cli-bench-vulkan"
+      ],
+      "receipt_sha256": "4e4cec204721ddfa76e2a2d3df6d47c1a4a7998b3944c08d3393832eee94ac82",
+      "binary_sha256": "433f99767ea451942ec9a3a1bae99b7fb76bdc26009a6202c49608da941e90fc",
+      "compile_status": "passed and removed; receipt verified"
+    },
+    "models": [
+      {
+        "label": "TQ1_0",
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ1_0.gguf",
+        "bytes": 314252544,
+        "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+      },
+      {
+        "label": "TQ2_0",
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ2_0.gguf",
+        "bytes": 334896384,
+        "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a"
+      }
+    ],
+    "device": {
+      "gpu": "renderD130",
+      "pci": "0000:c9:00.0",
+      "uuid": "00000000-c900-0000-0000-000000000000",
+      "driver": "Mesa 25.0.7-2+deb13u1",
+      "name": "RADV VEGA20"
+    },
+    "resources": {
+      "cpu_set": "0-3",
+      "cpu_quota": 4,
+      "memory": "8g",
+      "memory_swap": "8g",
+      "minimum_host_available_bytes": 12884901888,
+      "minimum_disk_free_bytes": 3221225472,
+      "pids_limit": 256,
+      "child_timeout_seconds": 120,
+      "monitor_seconds": 5100
+    },
+    "activity_flags": {
+      "system_idle_below_percent": 25,
+      "iowait_above_percent": 5,
+      "unrelated_cpu_at_least_percent": 100,
+      "disk_bytes_per_second_above": 50000000,
+      "sample_gap_above_seconds": 2.5
+    }
+  },
+  "activity_aggregate": {
+    "samples": 373,
+    "intervals": 372,
+    "unrelated_cpu_flag_intervals": 99,
+    "disk_flag_intervals": 143,
+    "process_coverage_unknown_intervals": 335,
+    "maximum_gap_seconds": 1.0023797310423106,
+    "measured_flagged_calls": {
+      "candidate": "13/16",
+      "mx": "16/16"
+    },
+    "scope": "Peer/production GPU work present. No idle claim; full intervals retained in pinned analysis."
+  },
+  "assessment": "Root audited artifacts, commands, witnesses and activity. Sufficient first-stage Vulkan performance evidence: major prefill gains with small mixed-sign TQ2 decode differences; no demonstrated decode regression or justified further timing rerun. Not a correctness pass or merge.",
+  "build_incident": "Successful wrapper build retained; original missing-staging preflight failed before work and remains in root log."
+}

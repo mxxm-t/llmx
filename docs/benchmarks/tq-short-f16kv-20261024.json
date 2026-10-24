@@ -1,0 +1,401 @@
+{
+  "date": "2026-10-24",
+  "scope": "Released file-exact short correctness on CPU and Radeon VII, requested auto dtype and F16 KV, against independently produced F32-matrix/F16-KV HF. Diagnostic on the recorded pre-integration binary, not a new-head qualification. Not 16K depth or performance. Execution paths require separate witnesses.",
+  "status": "Four recorded-binary short consumers pass; peer policy review and full TQ qualification remain pending.",
+  "candidate_commit": "e2d7c5ccf077c451bad8e7b18ff0c990a3953dad",
+  "binary_sha256": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d",
+  "version": "llmx 0.1.0+g1edef79254d9.dirty numerics 7ce465b81f23850c",
+  "source_receipts": {
+    "reference_audit": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-reference-prep-v1\\run-40089929861\\reference-audit.json",
+      "sha256": "c8aee40213fd361391d5b6662d8774f7bc3f9e532d42c18d2e9dfea87dde296b"
+    },
+    "reference_source_review": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-reference-prep-v1\\root-review.json",
+      "sha256": "29b5591fc1d9980d6d4625dc8875617bff6ad30a175df16b3843e7f35132f4c8"
+    },
+    "consumer_results": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-consumer-20261024\\results.json",
+      "sha256": "4d851db58635385cdb0e239d9b40a66ef624ace0471baaf767407d029728cd75"
+    }
+  },
+  "reference_audit": {
+    "status": "passed",
+    "run": 40089929861,
+    "head": "8e01cac7625b5475b33e4b81785f4439789914d2",
+    "cells": [
+      {
+        "cell": "tq2-0",
+        "artifact_id": 12558437821,
+        "artifact_sha256": "8e4a25d008b65c34619ca35c9e60bdcd0108e96866565039287ac21a6821395d",
+        "execution_sha256": "fd48f3264f2c03295a33e8ff6b4b9ee27980021cf671967b150cf880b6ebe010",
+        "manifest_sha256": "93716b685c82eff11072f56267dabb207af283a08235ee40ce5187bf1f7073ab",
+        "outputs": {
+          "baseline_logits.json": "86f71b39883f9ee118d2379003ef1e112482b1f5a5a44141a20d032d7ee3f92a",
+          "baseline_perplexity.json": "f293a28c4d4a67ebb2cabc2118840161d34a22dde095cbe256189a2c98eaf489"
+        },
+        "storage_reference_sha256": "857eb6f8fa62a1ea489ca83d16d3f645d8d9278942a6670ba6991e0806e133f8",
+        "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+        "continuous_nll": 16.496874901985624,
+        "reference_calls": 15,
+        "image_id": "sha256:db03e0fe052d74c59b24077309568420f8fcd495874fa2e23aaf495da85f055f",
+        "container_removed": true
+      },
+      {
+        "cell": "tq1-0",
+        "artifact_id": 12558269011,
+        "artifact_sha256": "b64f89a1ecc69ca11b7cd6864af7a2c396f4df8919b4b0c4207ba318910c9650",
+        "execution_sha256": "e5affe36e758d4b8d412a4432a0113c4f5d96728c17308f094a38e2f02b9e3cf",
+        "manifest_sha256": "48dee78541bc337b2f45b6e331cb31c1f7f5c931ad74d8f8cdedad27ff716d09",
+        "outputs": {
+          "baseline_logits.json": "ca4c3475370c747e2a9544ec22bf8f57b145e87f8b78e55d03719ce68ba4afa0",
+          "baseline_perplexity.json": "4c6a3f9455a3fa95d04ed4068e060d778100e9bdfb97d33b77b080ddbe1ef772"
+        },
+        "storage_reference_sha256": "e0fe29b43e33eb1a25f437db039a33b085ddd8997f5c609979d88bea238bffc8",
+        "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+        "continuous_nll": 16.495020606382358,
+        "reference_calls": 15,
+        "image_id": "sha256:b8c11f9926ed751247321c1fc609f7e8937710102f72d15b04c149a1e8a3985c",
+        "container_removed": true
+      }
+    ],
+    "scope": "Independent F32-matrix/F16-KV short reference production and artifact/input validation. No candidate comparison or gate acceptance."
+  },
+  "reference_source_hashes": {
+    ".qualification/tq-short-f16kv/producer.py": "8c3f505b7e2bf069fe8b8df1d64bb2418fa0b8a968f329badfaaf818ce8a9463",
+    ".qualification/tq-short-f16kv/run_one.py": "01ab7d276cfa59907c5142b14c3fdf88e1dc78d3f9bd45140b97d7edbe4c1871",
+    ".qualification/tq-short-f16kv/prefetch.py": "f0b013110b732491ce174173b3ff5de3377f0c0dc18c40b8e477effa1e357682",
+    ".qualification/tq-short-f16kv/Dockerfile": "20ccf4b9124f856536c3cee40a4f7760053e78d4bd4469123f25bddc2b01657b",
+    ".qualification/tq-short-f16kv/requirements.txt": "9cf52b34149d860de70270f0648ebfad5dc0f2d9c1fdc95f1b0ccfbe0ad02cbf",
+    ".github/workflows/tq-short-f16kv.yml": "0c6374403df483754a20eb1c8ad25aa3a1992039030f39b84f772b876183d4fb"
+  },
+  "reference_policy": "Independent file-exact F32 matrices/head and logical F16 KV. No block-int16 activation emulation. Original F32 references and cross-cache failures are unchanged.",
+  "requested_dtype": "auto",
+  "kv": "f16/f16",
+  "bounds": {
+    "continuous_nll": 0.01,
+    "window_nll": 0.02,
+    "ranking_tie_rules": "Existing unchanged file-exact consumer rules."
+  },
+  "cells": [
+    {
+      "name": "tq1-0-cpu",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "reference_sha256": {
+        "baseline_logits.json": "ca4c3475370c747e2a9544ec22bf8f57b145e87f8b78e55d03719ce68ba4afa0",
+        "baseline_perplexity.json": "4c6a3f9455a3fa95d04ed4068e060d778100e9bdfb97d33b77b080ddbe1ef772"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 101.68800000008196,
+      "log_sha256": "635ce8b03764dc02fb5f6912ab06acbabab186e26e8db5e1157d5d54c1a1eab8",
+      "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-consumer-20261024\\tq1-0-cpu.log",
+      "ranking": {
+        "top1": 6,
+        "top5_set": 6,
+        "exact_top5_order": 6,
+        "cases": 6
+      },
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.000825,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000827,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.002266,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 0.00227,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.001931,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.001937,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.003412,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.003408,
+          "bound": 0.02
+        }
+      ],
+      "maximum_continuous_delta": 0.000827,
+      "maximum_window_delta": 0.003412
+    },
+    {
+      "name": "tq2-0-cpu",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "reference_sha256": {
+        "baseline_logits.json": "86f71b39883f9ee118d2379003ef1e112482b1f5a5a44141a20d032d7ee3f92a",
+        "baseline_perplexity.json": "f293a28c4d4a67ebb2cabc2118840161d34a22dde095cbe256189a2c98eaf489"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 78.875,
+      "log_sha256": "3828aa494829050334f605ea68426b666fd34932ba4bec385dcf303c3dc2ece7",
+      "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-consumer-20261024\\tq2-0-cpu.log",
+      "ranking": {
+        "top1": 6,
+        "top5_set": 6,
+        "exact_top5_order": 6,
+        "cases": 6
+      },
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.002679,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.002681,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.002175,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 0.002179,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.001508,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.001514,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.002189,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.002185,
+          "bound": 0.02
+        }
+      ],
+      "maximum_continuous_delta": 0.002681,
+      "maximum_window_delta": 0.002189
+    },
+    {
+      "name": "tq1-0-vulkan-0",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "reference_sha256": {
+        "baseline_logits.json": "ca4c3475370c747e2a9544ec22bf8f57b145e87f8b78e55d03719ce68ba4afa0",
+        "baseline_perplexity.json": "4c6a3f9455a3fa95d04ed4068e060d778100e9bdfb97d33b77b080ddbe1ef772"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 22.29700000025332,
+      "log_sha256": "09a6833c3217f80057a2d24600643a56d54f997c0b68d29ae7c2451110ae3d02",
+      "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-consumer-20261024\\tq1-0-vulkan-0.log",
+      "ranking": {
+        "top1": 6,
+        "top5_set": 6,
+        "exact_top5_order": 6,
+        "cases": 6
+      },
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.00139,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.001631,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.006853,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000578,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.003408,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000293,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 5e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.005154,
+          "bound": 0.02
+        }
+      ],
+      "maximum_continuous_delta": 0.001631,
+      "maximum_window_delta": 0.006853
+    },
+    {
+      "name": "tq2-0-vulkan-0",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "reference_sha256": {
+        "baseline_logits.json": "86f71b39883f9ee118d2379003ef1e112482b1f5a5a44141a20d032d7ee3f92a",
+        "baseline_perplexity.json": "f293a28c4d4a67ebb2cabc2118840161d34a22dde095cbe256189a2c98eaf489"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 19.108999999705702,
+      "log_sha256": "be178bf7faf1de3c77b920c8d27bcfbdcc22652ab18fb9ecdcb18112e35cf2c9",
+      "log_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-f16kv-consumer-20261024\\tq2-0-vulkan-0.log",
+      "ranking": {
+        "top1": 6,
+        "top5_set": 6,
+        "exact_top5_order": 6,
+        "cases": 6
+      },
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.003244,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.003486,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.006762,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000669,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.002985,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000716,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.001273,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.003931,
+          "bound": 0.02
+        }
+      ],
+      "maximum_continuous_delta": 0.003486,
+      "maximum_window_delta": 0.006762
+    }
+  ],
+  "limits": [
+    "Recorded old dirty 1edef integration binary, not current 01055654d source qualification.",
+    "Short rankings and continuous/per-token/window NLL only; not 16K, performance or full default acceptance.",
+    "Peer policy review remains pending.",
+    "Hosted matched-build run40088982736 succeeded; download active and build receipt not yet verified."
+  ],
+  "production_runtime_limits_changed": false
+}

@@ -1,0 +1,378 @@
+{
+  "scope": "Diagnostic HF chunk-size sensitivity only. Does not replace the frozen reference or pass the gate.",
+  "diagnostic_only": true,
+  "hf_controls": [
+    {
+      "name": "HF chunk256 versus frozen HF chunk512",
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "non_exact": [
+        {
+          "position": 16454,
+          "classification": "accepted-tie",
+          "chosen": 6502,
+          "reference_top2": [
+            134528,
+            6502
+          ],
+          "gap": 0.00032520294189453125
+        },
+        {
+          "position": 16621,
+          "classification": "accepted-tie",
+          "chosen": 92902,
+          "reference_top2": [
+            40170,
+            92902
+          ],
+          "gap": 0.002918243408203125
+        }
+      ]
+    },
+    {
+      "name": "HF chunk512 versus diagnostic HF chunk256",
+      "counts": {
+        "exact": 510,
+        "accepted-tie": 2,
+        "miss": 0
+      },
+      "non_exact": [
+        {
+          "position": 16454,
+          "classification": "accepted-tie",
+          "chosen": 134528,
+          "reference_top2": [
+            6502,
+            134528
+          ],
+          "gap": 0.007607460021972656
+        },
+        {
+          "position": 16621,
+          "classification": "accepted-tie",
+          "chosen": 40170,
+          "reference_top2": [
+            92902,
+            40170
+          ],
+          "gap": 0.0035343170166015625
+        }
+      ]
+    }
+  ],
+  "primary_json_sha256": "b791bdb5e954421e5f8c8e76e385829d47fe6e88cb7976b6ffa7084a4132d8aa",
+  "approval": {
+    "authority": "BOSS",
+    "date": "2026-10-24",
+    "text": "Approve scoped reference correction"
+  },
+  "model": "tq1-0",
+  "variant": "chat",
+  "positions": 512,
+  "bounds_changed": false,
+  "tie_margin": 0.1,
+  "producer_sha256": "4a2b4e2679bd2c7a8f4217b5f37086acd6f296a4421944d1f69ea64b0e2cf2e8",
+  "execution_sha256": "b90e28cc7742114e5c270b3c4b9dd8e95e6ef7889b236b0d4b51cf8993771d03",
+  "bundle_sha256": "e0fd42fc269ea848bfffb5d08da4584acce41ccc0af9d67b8157ef5369ea45f7",
+  "reference_array_sha256": "6dc28245597bae69c81d237832b39c586e21f42733b8154c862d2d4d2a5d6245",
+  "capture_outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+  "capture_payload_sha256": "14fb65b33e779d330e74ba06e0875976044e1e3ee8b5c9d7ba166889886887a8",
+  "original_literal_and_f32_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b",
+  "primary_execution_sha256": "71fd092ff2429177a5164af1e076c6b42e8aab1e82f73deee8cf982261194433",
+  "primary_reference_manifest_artifacts": {
+    "chat_json_sha256": "b791bdb5e954421e5f8c8e76e385829d47fe6e88cb7976b6ffa7084a4132d8aa",
+    "chat_npy_sha256": "465ccb227d6023e4e658dff0fec2f312d463611960e09d1c93984a7b0156c682",
+    "report_json_sha256": "868989cb3fdb317f2513b2642b3a311b7ec6c1bf46cb753058fb3aef1040f613"
+  },
+  "chunk_control": {
+    "policy": "F16KV for both independent arms",
+    "tokens": 64,
+    "chunk": 17,
+    "direct_cache_writes": {
+      "0": {
+        "calls": 1,
+        "rows": 64
+      },
+      "1": {
+        "calls": 1,
+        "rows": 64
+      },
+      "2": {
+        "calls": 1,
+        "rows": 64
+      },
+      "3": {
+        "calls": 1,
+        "rows": 64
+      },
+      "4": {
+        "calls": 1,
+        "rows": 64
+      },
+      "5": {
+        "calls": 1,
+        "rows": 64
+      },
+      "6": {
+        "calls": 1,
+        "rows": 64
+      },
+      "7": {
+        "calls": 1,
+        "rows": 64
+      },
+      "8": {
+        "calls": 1,
+        "rows": 64
+      },
+      "9": {
+        "calls": 1,
+        "rows": 64
+      },
+      "10": {
+        "calls": 1,
+        "rows": 64
+      },
+      "11": {
+        "calls": 1,
+        "rows": 64
+      },
+      "12": {
+        "calls": 1,
+        "rows": 64
+      },
+      "13": {
+        "calls": 1,
+        "rows": 64
+      },
+      "14": {
+        "calls": 1,
+        "rows": 64
+      },
+      "15": {
+        "calls": 1,
+        "rows": 64
+      },
+      "16": {
+        "calls": 1,
+        "rows": 64
+      },
+      "17": {
+        "calls": 1,
+        "rows": 64
+      },
+      "18": {
+        "calls": 1,
+        "rows": 64
+      },
+      "19": {
+        "calls": 1,
+        "rows": 64
+      },
+      "20": {
+        "calls": 1,
+        "rows": 64
+      },
+      "21": {
+        "calls": 1,
+        "rows": 64
+      },
+      "22": {
+        "calls": 1,
+        "rows": 64
+      },
+      "23": {
+        "calls": 1,
+        "rows": 64
+      },
+      "24": {
+        "calls": 1,
+        "rows": 64
+      },
+      "25": {
+        "calls": 1,
+        "rows": 64
+      },
+      "26": {
+        "calls": 1,
+        "rows": 64
+      },
+      "27": {
+        "calls": 1,
+        "rows": 64
+      }
+    },
+    "chunked_cache_writes": {
+      "0": {
+        "calls": 4,
+        "rows": 64
+      },
+      "1": {
+        "calls": 4,
+        "rows": 64
+      },
+      "2": {
+        "calls": 4,
+        "rows": 64
+      },
+      "3": {
+        "calls": 4,
+        "rows": 64
+      },
+      "4": {
+        "calls": 4,
+        "rows": 64
+      },
+      "5": {
+        "calls": 4,
+        "rows": 64
+      },
+      "6": {
+        "calls": 4,
+        "rows": 64
+      },
+      "7": {
+        "calls": 4,
+        "rows": 64
+      },
+      "8": {
+        "calls": 4,
+        "rows": 64
+      },
+      "9": {
+        "calls": 4,
+        "rows": 64
+      },
+      "10": {
+        "calls": 4,
+        "rows": 64
+      },
+      "11": {
+        "calls": 4,
+        "rows": 64
+      },
+      "12": {
+        "calls": 4,
+        "rows": 64
+      },
+      "13": {
+        "calls": 4,
+        "rows": 64
+      },
+      "14": {
+        "calls": 4,
+        "rows": 64
+      },
+      "15": {
+        "calls": 4,
+        "rows": 64
+      },
+      "16": {
+        "calls": 4,
+        "rows": 64
+      },
+      "17": {
+        "calls": 4,
+        "rows": 64
+      },
+      "18": {
+        "calls": 4,
+        "rows": 64
+      },
+      "19": {
+        "calls": 4,
+        "rows": 64
+      },
+      "20": {
+        "calls": 4,
+        "rows": 64
+      },
+      "21": {
+        "calls": 4,
+        "rows": 64
+      },
+      "22": {
+        "calls": 4,
+        "rows": 64
+      },
+      "23": {
+        "calls": 4,
+        "rows": 64
+      },
+      "24": {
+        "calls": 4,
+        "rows": 64
+      },
+      "25": {
+        "calls": 4,
+        "rows": 64
+      },
+      "26": {
+        "calls": 4,
+        "rows": 64
+      },
+      "27": {
+        "calls": 4,
+        "rows": 64
+      }
+    },
+    "max_abs_logit_delta": 0.0,
+    "exact_top1": 64
+  },
+  "comparison": {
+    "name": "Vulkan default versus diagnostic chunk256 HF",
+    "counts": {
+      "exact": 508,
+      "accepted-tie": 3,
+      "miss": 1
+    },
+    "non_exact": [
+      {
+        "position": 16457,
+        "classification": "accepted-tie",
+        "chosen": 101646,
+        "reference_top2": [
+          75444,
+          101646
+        ],
+        "gap": 0.01987457275390625
+      },
+      {
+        "position": 16458,
+        "classification": "accepted-tie",
+        "chosen": 27582,
+        "reference_top2": [
+          104327,
+          27582
+        ],
+        "gap": 0.03581714630126953
+      },
+      {
+        "position": 16479,
+        "classification": "miss",
+        "chosen": 21360,
+        "reference_top2": [
+          104223,
+          21360
+        ],
+        "gap": 0.11864376068115234
+      },
+      {
+        "position": 16702,
+        "classification": "accepted-tie",
+        "chosen": 70886,
+        "reference_top2": [
+          67150,
+          70886
+        ],
+        "gap": 0.028163909912109375
+      }
+    ]
+  },
+  "audit_complete": true,
+  "gate_pass_claimed": false,
+  "limitation": "One depth cell only; remaining cells and independent operator/range, identity and performance gates are separate."
+}

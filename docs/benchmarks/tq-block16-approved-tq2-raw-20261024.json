@@ -1,0 +1,317 @@
+{
+  "scope": "BOSS-approved reference-method correction, two pinned TQ files only; no changed numerical limit.",
+  "approval": {
+    "authority": "BOSS",
+    "date": "2026-10-24",
+    "text": "Approve scoped reference correction"
+  },
+  "model": "tq2-0",
+  "variant": "raw",
+  "positions": 512,
+  "bounds_changed": false,
+  "tie_margin": 0.1,
+  "producer_sha256": "ae7a0ae18960f81b7416ebf826092adb97c50d2aa75c315a83574e47b8508aec",
+  "execution_sha256": "f9cabe04ebc6de59bb2c83d96e503ff4b42df3bc4887dd608988491e677bd9a6",
+  "bundle_sha256": "17192c8c0510c9f642d3dc82551ca3fdf41a75bc56811f9b358aa85d93f0a80a",
+  "reference_array_sha256": "5ffdd634cf8f7bbecfe172570d8f65e41a90b91cb0a63cd19db95c30f1226cb8",
+  "capture_outer_sha256": "c2655f063bf7781ab391ab7feebb6e5e7c6fab2ad6156b336814e1fe6672e804",
+  "capture_payload_sha256": "151c3e65ade91f236819284b2cc34953b745de2fc5673bb3faa30bc69b4bb9f8",
+  "original_literal_and_f32_audit_sha256": "fee862ee2d3436a55b3a4791ea8595e33da1647709e99759bb7fd4b8a861e15b",
+  "chunk_control": {
+    "policy": "F16KV for both independent arms",
+    "tokens": 64,
+    "chunk": 17,
+    "direct_cache_writes": {
+      "0": {
+        "calls": 1,
+        "rows": 64
+      },
+      "1": {
+        "calls": 1,
+        "rows": 64
+      },
+      "2": {
+        "calls": 1,
+        "rows": 64
+      },
+      "3": {
+        "calls": 1,
+        "rows": 64
+      },
+      "4": {
+        "calls": 1,
+        "rows": 64
+      },
+      "5": {
+        "calls": 1,
+        "rows": 64
+      },
+      "6": {
+        "calls": 1,
+        "rows": 64
+      },
+      "7": {
+        "calls": 1,
+        "rows": 64
+      },
+      "8": {
+        "calls": 1,
+        "rows": 64
+      },
+      "9": {
+        "calls": 1,
+        "rows": 64
+      },
+      "10": {
+        "calls": 1,
+        "rows": 64
+      },
+      "11": {
+        "calls": 1,
+        "rows": 64
+      },
+      "12": {
+        "calls": 1,
+        "rows": 64
+      },
+      "13": {
+        "calls": 1,
+        "rows": 64
+      },
+      "14": {
+        "calls": 1,
+        "rows": 64
+      },
+      "15": {
+        "calls": 1,
+        "rows": 64
+      },
+      "16": {
+        "calls": 1,
+        "rows": 64
+      },
+      "17": {
+        "calls": 1,
+        "rows": 64
+      },
+      "18": {
+        "calls": 1,
+        "rows": 64
+      },
+      "19": {
+        "calls": 1,
+        "rows": 64
+      },
+      "20": {
+        "calls": 1,
+        "rows": 64
+      },
+      "21": {
+        "calls": 1,
+        "rows": 64
+      },
+      "22": {
+        "calls": 1,
+        "rows": 64
+      },
+      "23": {
+        "calls": 1,
+        "rows": 64
+      },
+      "24": {
+        "calls": 1,
+        "rows": 64
+      },
+      "25": {
+        "calls": 1,
+        "rows": 64
+      },
+      "26": {
+        "calls": 1,
+        "rows": 64
+      },
+      "27": {
+        "calls": 1,
+        "rows": 64
+      }
+    },
+    "chunked_cache_writes": {
+      "0": {
+        "calls": 4,
+        "rows": 64
+      },
+      "1": {
+        "calls": 4,
+        "rows": 64
+      },
+      "2": {
+        "calls": 4,
+        "rows": 64
+      },
+      "3": {
+        "calls": 4,
+        "rows": 64
+      },
+      "4": {
+        "calls": 4,
+        "rows": 64
+      },
+      "5": {
+        "calls": 4,
+        "rows": 64
+      },
+      "6": {
+        "calls": 4,
+        "rows": 64
+      },
+      "7": {
+        "calls": 4,
+        "rows": 64
+      },
+      "8": {
+        "calls": 4,
+        "rows": 64
+      },
+      "9": {
+        "calls": 4,
+        "rows": 64
+      },
+      "10": {
+        "calls": 4,
+        "rows": 64
+      },
+      "11": {
+        "calls": 4,
+        "rows": 64
+      },
+      "12": {
+        "calls": 4,
+        "rows": 64
+      },
+      "13": {
+        "calls": 4,
+        "rows": 64
+      },
+      "14": {
+        "calls": 4,
+        "rows": 64
+      },
+      "15": {
+        "calls": 4,
+        "rows": 64
+      },
+      "16": {
+        "calls": 4,
+        "rows": 64
+      },
+      "17": {
+        "calls": 4,
+        "rows": 64
+      },
+      "18": {
+        "calls": 4,
+        "rows": 64
+      },
+      "19": {
+        "calls": 4,
+        "rows": 64
+      },
+      "20": {
+        "calls": 4,
+        "rows": 64
+      },
+      "21": {
+        "calls": 4,
+        "rows": 64
+      },
+      "22": {
+        "calls": 4,
+        "rows": 64
+      },
+      "23": {
+        "calls": 4,
+        "rows": 64
+      },
+      "24": {
+        "calls": 4,
+        "rows": 64
+      },
+      "25": {
+        "calls": 4,
+        "rows": 64
+      },
+      "26": {
+        "calls": 4,
+        "rows": 64
+      },
+      "27": {
+        "calls": 4,
+        "rows": 64
+      }
+    },
+    "max_abs_logit_delta": 0.0,
+    "exact_top1": 64
+  },
+  "comparison": {
+    "name": "Vulkan default versus approved HF block16/F16KV",
+    "counts": {
+      "exact": 507,
+      "accepted-tie": 5,
+      "miss": 0
+    },
+    "non_exact": [
+      {
+        "position": 16455,
+        "classification": "accepted-tie",
+        "chosen": 78372,
+        "reference_top2": [
+          83864,
+          78372
+        ],
+        "gap": 0.0017194747924804688
+      },
+      {
+        "position": 16571,
+        "classification": "accepted-tie",
+        "chosen": 110474,
+        "reference_top2": [
+          117048,
+          110474
+        ],
+        "gap": 0.0013446807861328125
+      },
+      {
+        "position": 16663,
+        "classification": "accepted-tie",
+        "chosen": 7247,
+        "reference_top2": [
+          6502,
+          7247
+        ],
+        "gap": 0.005330085754394531
+      },
+      {
+        "position": 16719,
+        "classification": "accepted-tie",
+        "chosen": 26304,
+        "reference_top2": [
+          23129,
+          26304
+        ],
+        "gap": 0.0151519775390625
+      },
+      {
+        "position": 16810,
+        "classification": "accepted-tie",
+        "chosen": 105840,
+        "reference_top2": [
+          99416,
+          105840
+        ],
+        "gap": 0.03670501708984375
+      }
+    ]
+  },
+  "passed": true,
+  "limitation": "One depth cell only; remaining cells and independent operator/range, identity and performance gates are separate."
+}

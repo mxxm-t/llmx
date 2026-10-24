@@ -1,0 +1,112 @@
+{
+  "scope": "Bounded diagnostic and branch cleanup checkpoint only; no qualification or speed result.",
+  "cpu_profile": {
+    "capture_seconds": 90,
+    "samples": 67864,
+    "thread_samples": {
+      "2501720": 17464,
+      "2501788": 16708,
+      "2501789": 16893,
+      "2501787": 16799
+    },
+    "period_total": 1134810343249,
+    "exclusive_percent": {
+      "backend::CpuBackend::attention(backend::CSlice, unsigned long, backend::KVView const*, unsigned long, backend::Slice, int, int, int)::{lambda(int)#1}::operator()(int) const": 69.28861512451613,
+      "backend::CpuBackend::matmul_raw(unsigned int, unsigned char const*, float const*, float*, unsigned long, unsigned long, unsigned long, bool, backend::Dtype)::{lambda(int, unsigned long, unsigned long)#2}::operator()(int, unsigned long, unsigned long) const": 22.651138650804373,
+      "[unknown]": 3.816969748794028,
+      "quant::dequantize_row_tq1_0(unsigned char const*, float*, unsigned long)": 2.282905428745776
+    },
+    "pins": {
+      "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/probes/f32-probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+      "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ1_0.gguf": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/fixtures/depth-raw.json": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+      "/zpool1/llmx-xdev-validation/vulkan-weight-dispatch-20261002/cpu-perf-tool-20261003/root/usr/bin/perf": "b3d4e91e3ad2cd5003fea5de5386947a3f846346c7f8869577a603be1bf23d83"
+    },
+    "activity_samples": 49,
+    "monitor_returncode": 0,
+    "supervisor_passed": false,
+    "incident": "Supervisor asserted zero perf exit after SIGINT; exact perf exit not stored. Saved-data report/header/script all exit 0; zero lost samples.",
+    "container_removed": true,
+    "oom_killed": false,
+    "loop": "0x46800..0x46826: four resident ymm accumulators, four memory FMA per iteration, no stack spills inside loop.",
+    "limits": "Includes startup; sampled instruction skid precludes cache or latency diagnosis. Not CPU depth acceptance or speed measurement; no attention optimization added."
+  },
+  "observer_build": {
+    "passed": true,
+    "capture_run": "not run",
+    "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+    "artifacts": {
+      "observer": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/step-observer-v2/build/llmx-tq-step-observer",
+        "sha256": "60cf7065639893216032c64cefafda18ab2027813fdc0d316a09b4d112d0dcc6"
+      },
+      "vulkan_library": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/step-observer-v2/build/libllmx-vulkan.a",
+        "sha256": "73e990e3dd405287ea7c846364cb9508bc2fa2ad4023dbb48993b7e8c6cb7b61"
+      },
+      "config": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/step-observer-v2/build/generated/config.hpp",
+        "sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+      },
+      "build_info": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/step-observer-v2/build/generated/llmx-build-info.hpp",
+        "sha256": "4262880819f2614c6ee7b409ab466e6fc792c40c3d4f3697b1d76b342db4c24e"
+      },
+      "compile_commands": {
+        "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/step-observer-v2/build/compile_commands.json",
+        "sha256": "e72a0c5e2c1a103f05ff47f2baed0449ff9c47545a990e0ed2059f44997e6abd"
+      }
+    },
+    "scope": "Scratch observer build only; GPU capture preparation is not a capture result."
+  },
+  "branch_cleanup": {
+    "deleted_after_archive": [
+      "gate/split-pacing@9fb44709df079e06e2eabb086301c60d65274401",
+      "gate/stale-twin@69b26eef3166b2e5fa3a3250ff67f4e58bd30646"
+    ],
+    "archive_refs": "refs/archive/github-gates-20261024/*",
+    "bundle": "build-quant-resume-20261020/passed-github-gates-20261024.bundle",
+    "method": "Atomic exact-lease deletion after verified local archive/bundle; later stale dashboard branch removed separately after verifying its dashboard files match landing 5be5ee481 and both that commit and per-snapshot follow-up a7078f765 are ancestors of main.",
+    "not_in_main": true,
+    "failed_branches_retained": [],
+    "superseded_branch_deleted": {
+      "branch": "gate/dashboard-rate-windows",
+      "head": "01023d401c79bb62f7adf0da855a21737872bfae",
+      "archive_ref": "refs/archive/github-gates-20261024/dashboard-rate-windows",
+      "landing": "5be5ee481b91b3e9dccaa2c540cabd42f63c7085",
+      "followup": "a7078f765d7eecd8de00e0bc113afcad2b174bd6"
+    },
+    "lookup_prefetch_deleted": {
+      "branch": "gate/lookup-prefetch",
+      "head": "2cf5a995dac1b9e61e2bf49a06c0c07356013971",
+      "archive_ref": "refs/archive/github-gates-20261024/lookup-prefetch",
+      "method": "Exact-lease deletion after bounded superseded-work audit.",
+      "superseded_by": "d0c09440b",
+      "audit": "Runtime feature retained; landed version adds failed-start cleanup and removes unused read wrapper. No unique runtime/test work found.",
+      "remote_after": "Only main eaea90857 remains; main unchanged."
+    }
+  },
+  "receipt_sha256": {
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/analysis.json": "5f66b1ed0b8021d258cd0eb49920305c06077f74386e43fae1d27b4eaa0cc4c9",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/complete.json": "3813d934b5612e2db374579638464bf968188af1e28e7486ed95ef848a2d35a1",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/saved-data-receipt.json": "0df2eb441116363b8b41c71333fc48b696e910d225df57bf402d80c3228a129b",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/activity.jsonl": "54932f29e92af4b497782f8d91d1dc0f46e61928f18d3ef6f601beadcbb45aff",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/perf.stderr": "755a88116bfb08c86561df5260ede10fbefafdf3c13fa01f326f3b1fc27da1c7",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/header.txt": "0d1fea7522d2f4d7ccd4ec2a210c7a5431b0db34bba2d1cc178995116a52a465",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/hot-0.asm": "1ddd7f271c65fec63c8a19c3a96741845795ef4c288d8a44913f3c971a3adda2",
+    "build-quant-resume-20261020/tq-cpu-profile-collected-20261024/hot-3.asm": "8b7f224c11c77a106bcb9ffa374d9284e9cf6286e09097c096e0af5f261ea123",
+    "build-quant-resume-20261020/github-branch-cleanup-audit-20261024.json": "724d34ac4bc40925dafc40b2b182b65bf307bcaec369dcbb579e4f009d39a009",
+    "build-quant-resume-20261020/tq-step-capture-diagnostic-prep-20261024/rig-build-v2/build-audit.json": "c660aace572286995066f7aa3eecf887b14089904d4292030e05d5cc15ec1f3c"
+  },
+  "cpu_f32_rig_continuation": {
+    "status": "running; no result",
+    "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/cpu-f32-rig-raw-v1",
+    "cpu_set": "0-3",
+    "quota": 4,
+    "memory_cap_gib": 10,
+    "swap": false,
+    "deadline_seconds": 1200,
+    "gpu": false,
+    "probe": "exact frozen a0fa25492 F32 probe"
+  }
+}

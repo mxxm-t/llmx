@@ -1,0 +1,72 @@
+{
+  "scope": "One CPU F32/F32 KV fixed-history 16K depth cell, original independent HF and unchanged 0.1 rule",
+  "kind": "tq2-0",
+  "variant": "chat",
+  "matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "counts": {
+    "exact": 509,
+    "accepted-tie": 3,
+    "miss": 0
+  },
+  "differences": [
+    {
+      "position": 16526,
+      "classification": "accepted-tie",
+      "candidate": 32040,
+      "reference_top2": [
+        62658,
+        32040
+      ],
+      "gap": 0.013367652893066406
+    },
+    {
+      "position": 16621,
+      "classification": "accepted-tie",
+      "candidate": 40170,
+      "reference_top2": [
+        92902,
+        40170
+      ],
+      "gap": 0.0022687911987304688
+    },
+    {
+      "position": 16630,
+      "classification": "accepted-tie",
+      "candidate": 141500,
+      "reference_top2": [
+        27543,
+        141500
+      ],
+      "gap": 0.0029144287109375
+    }
+  ],
+  "passed": true,
+  "reference": {
+    "artifact": "tq-depth-tq2-0-f32-chat",
+    "artifact_digest": "sha256:ac0ab76091776037363b896f94327b33552463807bfb2ab7a245372673ac8c46",
+    "execution_sha256": "2ae1d078d3e5c5234f3289573fa540aa3c7db6e5a3a94034e4b2d39257ac41c6",
+    "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+    "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+    "positions": 512,
+    "vocabulary": 151936,
+    "cgroup_peak_bytes": 9133215744,
+    "verified": true,
+    "scope": "Independent F32 reference outputs only; no candidate comparison"
+  },
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/probes/f32-probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ2_0.gguf": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/fixtures/depth-chat.json": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
+  },
+  "capture_sha256": "95121c8ffda95d4df4d9cab8cb49fbf87bda3f5dc8886f755ac1b93500a5ae4f",
+  "complete_sha256": "21856270af1d37180d13df39987ec6be6bcefb9b8404e28d86669ddad0b64090",
+  "wall_seconds": 1291.33451628685,
+  "numerical_limits_changed": false
+}

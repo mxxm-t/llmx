@@ -127,6 +127,8 @@ std::vector<uint8_t> matrix(uint32_t type, size_t in, size_t rows, uint32_t seed
         }
     } else if (type == quant::GGML_TYPE_MXFP4) {
         bytes = testq::mxfp4_matrix(rows * in, seed);
+    } else if (type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0) {
+        bytes = testq::tq_matrix(type, rows * in, seed);
     } else if (type == quant::GGML_TYPE_Q5_0) {
         bytes.resize(rows * (in / 32) * 22, 0);
         for (size_t b = 0; b < rows * (in / 32); ++b) {
@@ -320,9 +322,11 @@ size_t check_matrix_witness(backend::Backend& vk) {
     const auto native = vk.native_dtypes();
     require(vk.dtype_path(backend::Dtype::f32) == "f32", "device F32 catalog claims a narrower path");
     require(vk.dtype_path(backend::Dtype::bf16) == "bf16 (matrix inputs), f32 (routers)", "device BF16 catalog hides retained F32 routers");
+    require(vk.dtype_path(backend::Dtype::int8) == "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)",
+            "device int8 catalog does not name the TQ path");
     const std::string half_paths = integer
-        ? "block-int16 (quantized rows and eligible tiles; IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
-        : "block-int16 (quantized rows except Q2_K/Q3_K; IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+        ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+        : "block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
     require(vk.dtype_path(backend::Dtype::f16) == half_paths, "device path catalog ignores the tile profile");
     require(vk.native_dtypes() == native, "device path catalog changed native policy preferences");
     require(testq::take_matrix_paths(vk).empty(), "device path catalog fabricated an execution witness");
@@ -445,7 +449,7 @@ size_t check_int8(backend::Backend& vk) {
             }
         }
     // Types without an 8-bit build: int8 gives f16's bits, decode and prompt.
-    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_MXFP4}) {
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
         if (!vk.supports_type(type)) continue;
         const size_t nin = 512, nout = 80;
         const auto w = matrix(type, nin, nout, 760 + type);
@@ -1827,8 +1831,9 @@ size_t check_kernels(backend::Backend& vk) {
             const auto x = uniform(rows * nin, 91), x2 = uniform(entries * nin, 92), y0 = uniform(rows * nout, 93);
             Pair::In xi = p.in(x), x2i = p.in(x2);
             for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1,
-                                  quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
-                from = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1 ? prof.moe_tile_from_q4
+                                  quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
+        from = type == quant::GGML_TYPE_Q4_0 || type == quant::GGML_TYPE_Q4_1 || type == quant::GGML_TYPE_Q5_0 || type == quant::GGML_TYPE_Q5_1 ||
+                       type == quant::GGML_TYPE_TQ1_0 || type == quant::GGML_TYPE_TQ2_0 ? prof.moe_tile_from_q4
                      : type == quant::GGML_TYPE_Q4_K ? prof.moe_tile_from_q4k
                      : type == quant::GGML_TYPE_Q5_K ? prof.moe_tile_from_q5k : prof.moe_tile_from;
                 // The row kernel reads the 16-bit twin; the tile reads the 16-bit twin where the integer dot takes quantized types, else floats.
@@ -1923,7 +1928,8 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     struct Case { uint32_t type; size_t nin; };
     for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
-                          Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280}}) {
+                          Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280},
+                          Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}}) {
         const uint32_t type = c.type;
         const size_t nin = c.nin, rows[3] = {nout, 37, 129};
         const auto x = uniform(widest * nin, 300 + uint32_t(nin)), base = uniform(widest * nout, 301);
@@ -1995,7 +2001,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
     for (size_t rin : {size_t(4096), size_t(1280)}) {
         const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312);
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
-        for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k}) {
+        for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
             try {
                 const auto g = matrix(type, rin, n_expert * nout, 314), u = matrix(type, rin, n_expert * nout, 315), d = matrix(type, rin, n_expert * nout, 316);
                 const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
@@ -2406,12 +2412,15 @@ size_t check_weight_dispatch() {
         {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
         {6, "matmul_row_q50", "matmul_tile_q50"}, {7, "matmul_row_q5", "matmul_tile_q5"},
+        {quant::GGML_TYPE_TQ1_0, "matmul_row_tq1_0", "matmul_tile_tq1_0_dot"},
+        {quant::GGML_TYPE_TQ2_0, "matmul_row_tq2_0", "matmul_tile_tq2_0_dot"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
     size_t checks = 0;
     for (const Expected& e : cases) {
         if (e.type == 39 && !vk.supports_type(e.type)) continue;
         require(vk.supports_type(e.type), "an implemented weight type lost device support");
+        const bool tq = e.type == quant::GGML_TYPE_TQ1_0 || e.type == quant::GGML_TYPE_TQ2_0;
         for (size_t nin : {size_t(96), size_t(256), size_t(4096)}) {
             if (nin == 96 && e.type != 2 && e.type != 6 && e.type != 7 && e.type != 8) continue;
             const size_t nout = 3;
@@ -2425,31 +2434,37 @@ size_t check_weight_dispatch() {
                 const bool fast = floating || e.type == 8;
                 const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
-                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 6 || e.type == 7 ? p.moe_tile_from_q4
+                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 6 || e.type == 7 || tq ? p.moe_tile_from_q4
                                   : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
                     // int8 reaches a device only where it is native; floating weights keep F32 products and MXFP4 keeps its 16-bit dot.
                     if (dtype == backend::Dtype::int8 && !p.prefer_integer_dot) continue;
-                    const bool i8 = dtype == backend::Dtype::int8 && !floating && e.type != 39;
-                    for (size_t extent : {size_t(1), from - 1, from}) {
+                    const bool i8 = dtype == backend::Dtype::int8 && !floating && e.type != 39 && !tq;
+                    std::vector<size_t> extents = {size_t(1), from - 1, from};
+                    if (tq) extents.push_back(from + 1);
+                    for (size_t extent : extents) {
                         const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
                         const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && !floating &&
                                              !(routed && e.type == 39);
                         std::string expected;
                         if (tile) {
-                            expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
-                                       e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
+                            if (tq)
+                                expected = integer ? e.integer_tile : e.type == quant::GGML_TYPE_TQ1_0 ? "matmul_tile_tq1_0" : "matmul_tile_tq2_0";
+                            else
+                                expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
+                                           e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";
                             if (i8) expected += "i8";
                         } else if (dtype == backend::Dtype::f32 && !floating) {
-                            expected = e.type == 39 ? "matmul_row_mxfp4_float_x" : "matmul_row_float_x";
+                            expected = e.type == 39 ? "matmul_row_mxfp4_float_x" :
+                                       tq ? e.row : "matmul_row_float_x";
                         } else if (i8) {
                             expected = e.type == 8 ? "matmul_vec_q8_i8" : std::string(e.row) + "_i8";
                         } else {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
-                            else if ((e.type == 39 && p.lookup_integer_dot) ||
-                                     (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39)) expected += "_dot";
+                            else if ((tq && p.lookup_integer_dot) || (e.type == 39 && p.lookup_integer_dot) ||
+                                     (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39 && !tq)) expected += "_dot";
                         }
                         (void)backend::vulkan_kernel_times(vk);
                         const backend::RowRun run{1, extent};
@@ -2963,7 +2978,7 @@ bool same_bits(const std::vector<float>& a, const std::vector<float>& b) {
 size_t check_row_classes(backend::Backend& vk) {
     return row_classes::check(vk,
                               {quant::GGML_TYPE_F32, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
-                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4},
+                               quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0},
                               [](uint32_t type, size_t nin, size_t rows, uint32_t seed) { return matrix(type, nin, rows, seed); });
 }
 
@@ -3328,7 +3343,7 @@ size_t check_drafter_ops(Pair& p) {
     // Every type the device embeds: embed_ids gives embed's rows for the ids inside the table, through the same decoding, and a zero row past it.
     const size_t wide = 256;
     for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
-                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4}) {
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_MXFP4, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
         if (!p.vk.supports_type(type)) continue;
         const std::vector<uint8_t> bytes = matrix(type, wide, vocab, 340 + type);
         const backend::BufferPtr tv = p.vk.adopt(bytes.data(), bytes.size()), iv = ids_on(p.vk, ids);
@@ -3387,7 +3402,7 @@ size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
     struct Case { uint32_t type; size_t nbatch; };
     std::vector<Case> cases;
     for (uint32_t type : {quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q4_1, quant::GGML_TYPE_Q5_0, quant::GGML_TYPE_Q5_1, quant::GGML_TYPE_Q4_K,
-                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K})
+                          quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0})
         for (size_t cols : {size_t(1), size_t(3), size_t(9), tile_cols})
             if (dtype != backend::Dtype::f16 || cols == 3 || cols == tile_cols) cases.push_back({type, cols});
     size_t values = 0;
@@ -3411,7 +3426,9 @@ size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
             case quant::GGML_TYPE_Q5_1: quant::dequantize_row_q5_1(src, dst, nin / 32); break;
             case quant::GGML_TYPE_Q4_K: quant::dequantize_row_q4_K(src, dst, nin / 256); break;
             case quant::GGML_TYPE_Q5_K: quant::dequantize_row_q5_K(src, dst, nin / 256); break;
-            default: quant::dequantize_row_q6_K(src, dst, nin / 256); break;
+            case quant::GGML_TYPE_Q6_K: quant::dequantize_row_q6_K(src, dst, nin / 256); break;
+            case quant::GGML_TYPE_TQ1_0: quant::dequantize_row_tq1_0(src, dst, nin / 256); break;
+            default: quant::dequantize_row_tq2_0(src, dst, nin / 256); break;
             }
         }
         const auto wd = vk.adopt(wb.data(), wb.size()), xd = vk.adopt(x.data(), x.size() * sizeof(float));
@@ -3459,6 +3476,118 @@ size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
         values += c.nbatch * nout;
     }
     return values;
+}
+
+size_t check_tq_range(backend::Backend& vk) {
+    constexpr size_t width = 256, rows = 8, decode_cols = 3;
+    const auto profile = backend::vulkan_device_profile(vk);
+    const size_t prompt_cols = std::max<size_t>(64, backend::tile_from_for(profile, false, width));
+    const uint16_t scales[rows] = {0x0000, 0x8000, 0x0001, 0x8001, 0x3c00, 0xbc00, 0x7bff, 0xfbff};
+    size_t checked = 0;
+    for (uint32_t type : {quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
+        const size_t block_bytes = type == quant::GGML_TYPE_TQ1_0 ? quant::TQ1_0_TYPESIZE : quant::TQ2_0_TYPESIZE;
+        std::vector<uint8_t> packed = testq::tq_matrix(type, width * rows, 0x53);
+        for (size_t r = 0; r < rows; ++r) {
+            uint8_t* block = packed.data() + r * block_bytes;
+            block[block_bytes - 2] = uint8_t(scales[r]);
+            block[block_bytes - 1] = uint8_t(scales[r] >> 8);
+        }
+        std::vector<float> weights(width * rows);
+        for (size_t r = 0; r < rows; ++r) {
+            const uint8_t* block = packed.data() + r * block_bytes;
+            const float d = f16_to_f32(scales[r]);
+            for (unsigned i = 0; i < width; ++i) {
+                unsigned code;
+                if (type == quant::GGML_TYPE_TQ1_0) {
+                    const unsigned plane = i < 160 ? i / 32 : i < 240 ? 5 + (i - 160) / 16 : 10 + (i - 240) / 4;
+                    const unsigned lane = i < 160 ? i % 32 : i < 240 ? (i - 160) % 16 : (i - 240) % 4;
+                    const unsigned byte = plane < 5 ? lane : plane < 10 ? 32 + lane : 48 + lane;
+                    const unsigned power = plane < 5 ? plane : plane < 10 ? plane - 5 : plane - 10;
+                    constexpr unsigned radix3[] = {1, 3, 9, 27, 81};
+                    code = (unsigned(uint8_t(block[byte] * radix3[power])) * 3) >> 8;
+                } else {
+                    const unsigned half = i / 128, plane = (i % 128) / 32, lane = i % 32;
+                    code = (block[half * 32 + lane] >> (2 * plane)) & 3;
+                }
+                weights[r * width + i] = float(int(code) - 1) * d;
+            }
+        }
+        const auto w = vk.adopt(packed.data(), packed.size());
+        for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::f16, backend::Dtype::int8}) {
+          for (size_t cols : {decode_cols, prompt_cols}) {
+            std::vector<float> x(cols * width);
+            for (size_t c = 0; c < cols; ++c) {
+                const float amplitude = c % 3 == 0 ? 1.0e-30f : c % 3 == 1 ? 1.0f : 1.0e30f;
+                for (size_t i = 0; i < width; ++i) {
+                    const float fraction = i % 32 == 0 ? 1.0f : i % 32 == 1 ? 0.137f : 0.625f;
+                    x[c * width + i] = ((i + c) & 1) ? -amplitude * fraction : amplitude * fraction;
+                }
+            }
+            std::vector<float> rounded = x;
+            if (dtype == backend::Dtype::bf16)
+                for (float& value : rounded) value = bf16_to_f32(f32_to_bf16(value));
+            const auto input = vk.adopt(x.data(), x.size() * sizeof(float));
+            std::vector<float> guarded(rows * cols + 2, 19.0f);
+            const auto output = vk.alloc(guarded.size() * sizeof(float));
+            vk.write(*output, 0, guarded.data(), guarded.size() * sizeof(float));
+            std::vector<backend::RowRun> runs;
+            if (cols == decode_cols) for (size_t r = 0; r < cols; ++r) runs.push_back({r + 1, 1});
+            else runs.push_back({cols, cols});
+            (void)testq::take_matrix_paths(vk);
+            vk.matmul(type, {w.get(), 0}, {input.get(), 0}, {output.get(), 1}, width, rows, cols,
+                      {runs.data(), runs.size()}, dtype);
+            const auto paths = testq::take_matrix_paths(vk);
+            const bool tile = dtype == backend::Dtype::bf16 || cols >= backend::tile_from_for(profile, false, width);
+            const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) &&
+                                 (tile ? profile.prefer_integer_dot : profile.lookup_integer_dot);
+            const std::string expected_path = dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32";
+            require(paths == std::vector<std::string>{expected_path}, "TQ range matrix did not witness its selected arithmetic path");
+            vk.read(*output, 0, guarded.data(), guarded.size() * sizeof(float));
+            require(guarded.front() == 19.0f && guarded.back() == 19.0f, "TQ range matrix overwrote an output guard");
+            const auto activations = integer ? testq::row_activations(rounded) : rounded;
+            for (size_t c = 0; c < cols; ++c) for (size_t r = 0; r < rows; ++r) {
+                double want = 0.0, magnitude = 0.0, weight_sum = 0.0, peak = 0.0;
+                for (size_t i = 0; i < width; ++i) {
+                    const double wi = weights[r * width + i], xi = activations[c * width + i];
+                    want += wi * xi;
+                    magnitude += std::fabs(wi * xi);
+                    weight_sum += std::fabs(wi);
+                    peak = std::max(peak, std::fabs(double(rounded[c * width + i])));
+                }
+                const float got = guarded[1 + c * rows + r];
+                require(std::isfinite(got), "TQ range matrix produced a nonfinite output");
+                if (scales[r] == 0x0000 || scales[r] == 0x8000)
+                    require(got == 0.0f, "TQ zero-scale matrix did not produce exact zero");
+                const double u = std::numeric_limits<float>::epsilon() / 2.0;
+                const double ops = double(width + 4) * u;
+                const double rounding = ops / (1.0 - ops) * magnitude + width * std::numeric_limits<float>::denorm_min();
+                const double quantization = integer ? peak / 32767.0 / 2.0 * weight_sum : 0.0;
+                require(std::fabs(double(got) - want) <= rounding + quantization,
+                        "TQ range matrix differs from the independent code-and-scale oracle");
+            }
+            ++checked;
+          }
+        }
+    }
+    for (uint32_t type : {quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
+        const size_t block_bytes = type == quant::GGML_TYPE_TQ1_0 ? quant::TQ1_0_TYPESIZE : quant::TQ2_0_TYPESIZE;
+        std::vector<uint8_t> packed(block_bytes, 0);
+        packed[block_bytes - 2] = 0x00; packed[block_bytes - 1] = 0x00;
+        const auto table = vk.adopt(packed.data(), packed.size());
+        const auto output = vk.alloc((width + 2) * sizeof(float));
+        const float guard = 19.0f;
+        vk.write(*output, 0, &guard, sizeof guard);
+        vk.write(*output, (width + 1) * sizeof(float), &guard, sizeof guard);
+        const uint32_t id = 0;
+        vk.embed({output.get(), 1}, type, {table.get(), 0}, width, 1, &id, 1);
+        std::vector<float> got(width + 2);
+        vk.read(*output, 0, got.data(), got.size() * sizeof(float));
+        require(got.front() == guard && got.back() == guard, "TQ embedding overwrote an output guard");
+        for (size_t i = 1; i <= width; ++i)
+            require(got[i] == 0.0f && std::signbit(got[i]), "TQ embedding lost the negative zero from zero scale and code zero");
+        ++checked;
+    }
+    return checked;
 }
 
 // BF16 uses a tile even for decode.
@@ -3930,6 +4059,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << precise << " outputs within the 16-bit activations' precision\n";
         std::cout << "backend-vulkan: " << check_activation_precision(*b, backend::Dtype::f32) << " F32 outputs against double dots and batch identity\n";
         std::cout << "backend-vulkan: " << check_activation_precision(*b, backend::Dtype::bf16) << " BF16 outputs against rounded-input double dots and batch identity\n";
+        std::cout << "backend-vulkan: " << check_tq_range(*b) << " TQ edge-scale matrix paths and signed-zero embeddings\n";
         std::cout << "backend-vulkan: " << q35::check_row_classes(*b) << " pairs of extents of one class with the same bits\n";
         std::cout << backend::vulkan_kernel_statistics(*b);
         if (!isa_dir.empty()) {

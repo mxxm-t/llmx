@@ -1,0 +1,47 @@
+{
+  "status": "passed",
+  "run": 40101812090,
+  "workflow_head": "de43a67e819a1eeccf8d9ea10686167013c0628d",
+  "artifact_sha256": "c2d855a5f83f7c0d9f75c18f35dd4cabdd63882a21c32b7efb3bf938836fbeaa",
+  "image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+  "build_output_sha256": "5ef6296d36ca6e7d4b013de8382b403fcf6e7cf21d3d415cf572c0435f9fe75d",
+  "image_archive_sha256": "01f3a7d1383ac58b92c79b6130492b7b15b6916d64fca754e45f866c478b75c0",
+  "arms": [
+    {
+      "arm": "main",
+      "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+      "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+      "binary": "arms/main-build/llmx",
+      "binary_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+      "receipt_sha256": "d055ee025736801f2ae3bd0d3b755720e92a2e8c5034305759d632afafa47408",
+      "inventoried_files_verified": 823,
+      "removed": true
+    },
+    {
+      "arm": "candidate",
+      "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183",
+      "binary": "arms/candidate-build/llmx",
+      "binary_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+      "receipt_sha256": "c6499c89ea22838acefac41d41bc36fdd2dd20f11fe1fa704983e1d64140f030",
+      "inventoried_files_verified": 850,
+      "removed": true
+    },
+    {
+      "arm": "mx",
+      "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "version": null,
+      "binary": "arms/mx-build/bin/llama-bench",
+      "binary_sha256": "7c2420a363b3301183f40ccda8ff9cc0dc6176aaf076465fabbc6f217f6cdfd4",
+      "receipt_sha256": "23fd9af6bb49099659b7bfd6ef0b4482c3eaef3efe7042186aa32487642bf442",
+      "inventoried_files_verified": 1786,
+      "removed": true
+    }
+  ],
+  "native_tests": [
+    "server-passes-cpu",
+    "spec",
+    "tq-format"
+  ],
+  "scope": "Matched clean-source builds and three focused CPU tests. No GPU correctness, performance or full CI qualification."
+}

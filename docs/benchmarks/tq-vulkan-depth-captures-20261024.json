@@ -1,0 +1,212 @@
+{
+  "scope": "Eight clean-source Vulkan depth captures completed. Captures alone do not qualify numerical agreement or a merge.",
+  "rig_root": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/captures/mi50-v3b-20261024",
+  "candidate": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "bundle_pins_sha256": "b4038e96c2a9f163bf8dd5f532ac5f68aad1748f2b4a20515735f58ac59a9293",
+  "captures": [
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-chat",
+      "outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+      "payload_sha256": "14fb65b33e779d330e74ba06e0875976044e1e3ee8b5c9d7ba166889886887a8",
+      "stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc",
+      "matrix_paths": [
+        "block-int16"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-auto-f16-raw",
+      "outer_sha256": "68189606d8ab61df845fb7446642b8bf3653ca64d9cda44be5b9d02dd7fb4464",
+      "payload_sha256": "e18a2320421ba58ac6563e93a13e5f246a9fb22272eab88ffa38aa2dc4f1f5e7",
+      "stdout_sha256": "855533a37443f20ab620c1b679d453febb816f354e74b693bad5d3eeae3f7734",
+      "matrix_paths": [
+        "block-int16"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-chat",
+      "outer_sha256": "129aeda9f6bed092270a5d485c650227cc90313090e6140e6d29a7ebba8c69b8",
+      "payload_sha256": "c75628525d78ae26b2fe75084b921342a1b7f7cc4b35e0786b497222cc19ccd7",
+      "stdout_sha256": "45e1173e1c1deb1a87d8be87606fb85dc010c0af5716829b5d600e079060abc5",
+      "matrix_paths": [
+        "f32"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq1-0-f32-raw",
+      "outer_sha256": "9d2a897c290680f6c99a52cc8d756026d83b9a0685b2da957d78d8b2a8ddcf7c",
+      "payload_sha256": "8bde7aa9a2462ea2ad1276ccd5ed538a1f986477e9b0db7628318c4cddfa212d",
+      "stdout_sha256": "3fa7f2c91a72979c3036298748f7c8c928b833022eaddfd87b075182afd7412e",
+      "matrix_paths": [
+        "f32"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-chat",
+      "outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+      "payload_sha256": "9fc2c9c4643f9daf30be99c312e0cf85e896c8820ef745b3cdf2ef4c5a602fd9",
+      "stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc",
+      "matrix_paths": [
+        "block-int16"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-auto-f16-raw",
+      "outer_sha256": "c2655f063bf7781ab391ab7feebb6e5e7c6fab2ad6156b336814e1fe6672e804",
+      "payload_sha256": "151c3e65ade91f236819284b2cc34953b745de2fc5673bb3faa30bc69b4bb9f8",
+      "stdout_sha256": "855533a37443f20ab620c1b679d453febb816f354e74b693bad5d3eeae3f7734",
+      "matrix_paths": [
+        "block-int16"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-chat",
+      "outer_sha256": "7145e502713536a1aab821fd5949e694c5b46d707faaaaef52ecc212ed589e00",
+      "payload_sha256": "4d2d25a4a77fec7e84ad5bf02dc11373af6dde996e66cc51bb164f5f042521ad",
+      "stdout_sha256": "45e1173e1c1deb1a87d8be87606fb85dc010c0af5716829b5d600e079060abc5",
+      "matrix_paths": [
+        "f32"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    },
+    {
+      "cell": "vulkan-0-tq2-0-f32-raw",
+      "outer_sha256": "94b066bec61bade608783e1a00f538ec3c59a5f96d7556c778f27f848e4f929c",
+      "payload_sha256": "bf314a60f1d4a503ef6bcc9f702fd0b5013b9510ffafe3e43cc22ee655fa46ea",
+      "stdout_sha256": "3fa7f2c91a72979c3036298748f7c8c928b833022eaddfd87b075182afd7412e",
+      "matrix_paths": [
+        "f32"
+      ],
+      "capture_passed": true,
+      "numerical_comparison": "recorded separately"
+    }
+  ],
+  "retained_first_failure": "Only block-int16 was witnessed, while the adapter incorrectly expected F32 plus block-int16. Matrix ownership review corrected the expectation. Original failure and outputs retained. No product arithmetic changed.",
+  "image_config_digest": "e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+  "rig_image_manifest_digest": "f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+  "raw_hf_diagnostic": {
+    "scope": "Raw 64-token F32 HF driver diagnostic only; not a depth or candidate qualification.",
+    "artifact_sha256": "d232fb4894debd3f0cac525935f9522cb5d14a976b648ca38b453c7650b2c58d",
+    "execution_sha256": "71246172576f38af71f80cc486f92864a34f36bbc7e82823b8a19d7bc92d98c1",
+    "diagnostic_sha256": "533b4bf8579197022de7b05c8a1c47533e830a1c4648efac6084684c3a3aaff6",
+    "arrays_verified": 12,
+    "all_arrays_bit_identical": true,
+    "max_absolute_difference": 0,
+    "top1_equal": 64,
+    "historical_failure_unresolved": 0.0006480216979980469,
+    "candidate_qualification": false
+  },
+  "raw_hf_run": 40112816323,
+  "raw_hf_temporary_branch_removed": "diag/tq-raw-f32-control-20261024 at f6b6907b3bc8dd682d7f2a6686282d8fa2cbaa4a",
+  "limits_changed": false,
+  "production_changed": false,
+  "outstanding": [
+    "selected-policy misses",
+    "TQ2 device raw selected reference",
+    "hosted CPU captures and comparisons",
+    "existing-path identity and timing",
+    "final applicable clean integration and hosted CI"
+  ],
+  "reciprocal_controls": {
+    "scope": "Only the KV storage assignment changes in each existing probe source. Diagnostic only.",
+    "plan": {
+      "scope": "Diagnostic reciprocal cache controls, not a replacement gate or product change.",
+      "candidate": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e",
+      "sources": {
+        "f32-f16kv": {
+          "source_sha256": "5cb757c6d814c150fdc78df13c882f7bc13e35b8049ea3b84fe2d06287bfcb01",
+          "base_source_sha256": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b",
+          "only_change": {
+            "before": "options.kv_k = options.kv_v = backend::KVType::f32;",
+            "after": "options.kv_k = options.kv_v = backend::KVType::f16;"
+          }
+        },
+        "auto-f32kv": {
+          "source_sha256": "766f69b7d52b2fc8841a4b2875c2a36dffb384e3cc0109cb3865ac69906534a8",
+          "base_source_sha256": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+          "only_change": {
+            "before": "options.kv_k = options.kv_v = backend::KVType::f16;",
+            "after": "options.kv_k = options.kv_v = backend::KVType::f32;"
+          }
+        }
+      },
+      "cells": [
+        {
+          "model": "tq1-0",
+          "variant": "raw",
+          "control": "f32-f16kv"
+        },
+        {
+          "model": "tq1-0",
+          "variant": "raw",
+          "control": "auto-f32kv"
+        },
+        {
+          "model": "tq1-0",
+          "variant": "chat",
+          "control": "f32-f16kv"
+        },
+        {
+          "model": "tq1-0",
+          "variant": "chat",
+          "control": "auto-f32kv"
+        },
+        {
+          "model": "tq2-0",
+          "variant": "raw",
+          "control": "f32-f16kv"
+        },
+        {
+          "model": "tq2-0",
+          "variant": "raw",
+          "control": "auto-f32kv"
+        },
+        {
+          "model": "tq2-0",
+          "variant": "chat",
+          "control": "f32-f16kv"
+        },
+        {
+          "model": "tq2-0",
+          "variant": "chat",
+          "control": "auto-f32kv"
+        }
+      ],
+      "fixed_inputs": "Same frozen 16384 prompt IDs and 511 forced continuations as completed captures.",
+      "comparison": [
+        "F32/F16KV against F32/F32KV isolates candidate cache policy.",
+        "Auto/F32KV against F32/F32KV isolates candidate matrix policy.",
+        "F32/F16KV against Auto/F16KV isolates candidate matrix policy at default cache.",
+        "Compare every cell with full-F32 HF as diagnostic quality information.",
+        "Retain selected literal-F16/F16KV reference comparisons and every miss unchanged."
+      ],
+      "execution": "Not built or run. Reuse audited image/library, bounded resource owner, fresh GPU/CPU admission and cleanup. Preserve original binaries and records.",
+      "decision": "No reference policy or numerical limit change without review under PRECISION.md."
+    },
+    "plan_sha256": "4e1acd3fca0eefed5c24f2c3dc3d33d0e1d6e7fff3950caf5a1ff9e2f506fa95",
+    "build_execution_sha256": "a17e0e33a27ba9e536a05583eba5107b0783fd94b3d5e13a788e74de3aa423d8",
+    "probe_build_receipt_sha256": "7b6e80f875efae8bb2295fdf4854ee2c078eae0fe0eb96d3d84f9af9977c43b3",
+    "probes": {
+      "default": "44072843502e1ac9e5f3dce75fda233ed65eddd7c980c82a79bc4e7bc62b573b",
+      "f32": "0ded1a45838ccc964c288b6bd7bf87ae4d2a290f4a1bac0286727e8e7402d212"
+    },
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/reciprocal-cache-controls-v1",
+    "run_id": "reciprocal-cache-20261024",
+    "build_passed": true,
+    "capture_state_at_checkpoint": "all eight completed and removed without OOM",
+    "retained_preflight": "First build refused container name outside required llmx-tq-clean-depth namespace. No compiler or container started. Corrected admission name, all guards unchanged."
+  }
+}

@@ -1,0 +1,1312 @@
+{
+ "date": "2026-10-24",
+ "scope": "TQ same-file matched MI50 Vulkan screen. All 40 planned calls retained. PP and TG have independent empty histories, so their summed times are not request latency. No ROCm, existing-path regression, or full qualification result.",
+ "source_receipts": {
+  "analysis": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\analysis.json",
+   "sha256": "07646f2695b75d86303a976da980e20152fdb9d606b9e161fe97efe11e3066ea"
+  },
+  "matched_build_audit": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-matched-build-prep-v1\\run-40088982736\\build-audit.json",
+   "sha256": "5e7121020502a074c7f06476a6687b6740c196cf36d8618a8da745b8ed472984"
+  }
+ },
+ "build_audit": {
+  "status": "passed",
+  "run": 40088982736,
+  "workflow_head": "5d07a89dbdd7c632566f3633e510b03a5fd4473f",
+  "artifact_sha256": "6745fc3614cfd03d46a0c6c9dc0f821a5d3ef23962c876595c49038114f40744",
+  "image_id": "sha256:38252a8194911be9d8e54b7504d30507c966477ec1dc75f84a1aad7febabb75f",
+  "build_output_sha256": "72fa8ead37405ef06e2a77ff3c328b660aeba47d06b3de5c0de59c2665d74866",
+  "image_archive_sha256": "42e41c707319161591fd9661ec52de2ceb64adb4c167e15d9f245015fa6245d3",
+  "arms": [
+   {
+    "arm": "main",
+    "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+    "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+    "binary": "arms/main-build/llmx",
+    "binary_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+    "receipt_sha256": "b9e34456a21f413ab064fb7fe3158b7580ad949431cc38c24d2fa9f39a0ad2f6",
+    "inventoried_files_verified": 822,
+    "removed": true
+   },
+   {
+    "arm": "candidate",
+    "revision": "01055654d462043cae8c30c4f600ba24398c6dfe",
+    "version": "llmx 0.1.0+g01055654d462 numerics 2aacccb3fc7894b1",
+    "binary": "arms/candidate-build/llmx",
+    "binary_sha256": "2dd8d7aabf4e0bb46d85f62de95f813c4cf2fc1b5dc8076c9e482225d747588e",
+    "receipt_sha256": "847ac2a50bfb5bd79907d2e4da2a710ede1136a89952cdbda38ab5f8e3262573",
+    "inventoried_files_verified": 848,
+    "removed": true
+   },
+   {
+    "arm": "mx",
+    "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "version": null,
+    "binary": "arms/mx-build/bin/llama-bench",
+    "binary_sha256": "7c2420a363b3301183f40ccda8ff9cc0dc6176aaf076465fabbc6f217f6cdfd4",
+    "receipt_sha256": "c1bee190087baa220361d1bca12975d87b59be239240e7fd1193398c88bc42b7",
+    "inventoried_files_verified": 1784,
+    "removed": true
+   }
+  ],
+  "native_tests": [
+   "server-passes-cpu",
+   "spec",
+   "tq-format"
+  ],
+  "scope": "Matched clean-source builds and three focused CPU tests. No GPU correctness, performance or full CI qualification."
+ },
+ "execution_proof": {
+  "manifest_sha256": "701c88ecb7204562e6f70c30b0f907aba2fd3cbb6b2820fb75c4e156571449b6",
+  "passed": true,
+  "removed": true,
+  "pins_unchanged": true,
+  "monitor_exit": 0,
+  "version": "llmx 0.1.0+g01055654d462 numerics 2aacccb3fc7894b1",
+  "start": 1792843041.976161,
+  "end": 1792843442.7768557
+ },
+ "oom_killed": false,
+ "execution_image": {
+  "id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "equivalence_receipt": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-build-40088982736/image-equivalence.json",
+  "equivalence_receipt_sha256": "e2a61e2e8ba2cf3b22a825620516154dd2dbe52a5c3ca3ab8e1b5a0d7ee793f3",
+  "proof": {
+   "loaded_manifest_sha256": "ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+   "hosted_config_sha256": "38252a8194911be9d8e54b7504d30507c966477ec1dc75f84a1aad7febabb75f",
+   "loaded_inspect_file_sha256": "5303a8180082d2e75228219582ed5908b609ebdbf26157254abc451b702feaaa"
+  },
+  "interpretation": "The rig-reported OCI manifest ID is distinct from the hosted config ID. The pinned equivalence receipt binds the manifest digest to the hosted config digest, hashes the exact config and manifest bytes, and matches all rootfs diff IDs and semantic execution configuration. This establishes identical image content for execution, not any performance conclusion."
+ },
+ "candidate": {
+  "root": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-build-40088982736/arms/candidate-build",
+  "build": ".",
+  "source": "source",
+  "execution": "build-result.json",
+  "execution_sha256": "847ac2a50bfb5bd79907d2e4da2a710ede1136a89952cdbda38ab5f8e3262573",
+  "source_revision": "01055654d462043cae8c30c4f600ba24398c6dfe",
+  "binary_sha256": "2dd8d7aabf4e0bb46d85f62de95f813c4cf2fc1b5dc8076c9e482225d747588e",
+  "version": "llmx 0.1.0+g01055654d462 numerics 2aacccb3fc7894b1",
+  "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+ },
+ "mx_wrapper": {
+  "receipt": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-wrapper-build-v1/compile-receipt.json",
+  "receipt_sha256": "b778b79daad6cc27a4d8e52c1d439b94a4ba4e058f02e53c9e3880a26ef7fd9c",
+  "binary": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-wrapper-build-v1/mx-cli-bench-vulkan",
+  "binary_sha256": "433f99767ea451942ec9a3a1bae99b7fb76bdc26009a6202c49608da941e90fc",
+  "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "mx_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "source_sha256": "4479cf5dc85d35970f99ebbbec833be55df16d732e9614bf65a0b87e113be2ab",
+  "linked_libraries": {
+   "bin/libggml-base.so": "1c211ff966816fdbbd0b9b65c34ecc6253fcec9a786bb4abccdf9175f30e78c8",
+   "bin/libggml-cpu.so": "700c79695a19889431b9e0b1253b5935a3f3150ad00cbaf1320fc4edc3e4b926",
+   "bin/libggml-vulkan.so": "c653698268e4410f60fd2d64c9b46ef90dab9ec66964f4cfdb9c90331a9a6299",
+   "bin/libggml.so": "86384d9664c020e3e114fbb821de019f5383f8e29298d5a3086dea668e0d73c9",
+   "bin/libllama-bench-impl.so": "fcecc49444848b84cc698b2ed9921b529494fddc2706bb1c2d071b080aab584a",
+   "bin/libllama-common.so": "7406c4537780c9b9cc4e01a335a7b5e4b049d55acd245e557ea9141d063faeaa",
+   "bin/libllama.so": "010735191aab5ba1abf864b2c40231da76965d62e8f465c40178cc101a6897a6"
+  },
+  "header_manifest": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-wrapper-build-v1/wrapper-headers.json",
+  "header_manifest_sha256": "fe9d326207d727a5b14497c577c8f9a8711b93072138d8e7c8e1a7fbc4b673b9",
+  "header_archive": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-wrapper-build-v1/wrapper-headers.tar",
+  "header_archive_sha256": "6ce2deb08d203f482f8cfdf921bdfd1d5e4d69cfa499febde6fee23202fba2f9",
+  "source_archive_sha256": "deef5ae289239d8816d8db5cba845120c13a0bf7b7594a32ccadf1498b0efefa"
+ },
+ "device": {
+  "node": "/dev/dri/renderD130",
+  "pci": "0000:c9:00.0",
+  "uuid": "00000000-c900-0000-0000-000000000000",
+  "driver": "Mesa 25.0.7-2+deb13u1",
+  "name": "RADV VEGA20",
+  "note": "Freshly verified physical GPU8 = PCI c9 = renderD130, default clocks and no clients. Exact-image enumeration confirms the UUID and driver. Production owns GPUs0-3, LDEV owns4-7."
+ },
+ "models": [
+  {
+   "label": "TQ1_0",
+   "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ1_0.gguf",
+   "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+   "bytes": 314252544
+  },
+  {
+   "label": "TQ2_0",
+   "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ2_0.gguf",
+   "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+   "bytes": 334896384
+  }
+ ],
+ "model_revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53",
+ "resources": {
+  "cpuset": "0-3",
+  "cpus": "4",
+  "memory": "8g",
+  "pids": 256,
+  "child_timeout_seconds": 120,
+  "monitor_seconds": 5100
+ },
+ "context_capacity_tokens": 40960,
+ "settings": {
+  "threads": 4,
+  "ubatch": 512,
+  "requested_dtype": "auto",
+  "kv": "f16/f16",
+  "load_mode": "auto",
+  "internal_repeats": 1,
+  "measured_pairs_per_cell": 4,
+  "warmup_calls": 8,
+  "measured_calls": 32,
+  "phases": "Independent empty-history PP and TG; sums are not request latency."
+ },
+ "summary": {
+  "TQ1_0/P128/G256": {
+   "means": {
+    "candidate": {
+     "pp128": 4652.2775,
+     "tg256": 165.31
+    },
+    "mx": {
+     "pp128": 2243.76,
+     "tg256": 195.0375
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "candidate": 2,
+      "mx": 3
+     },
+     "delta_percent": {
+      "pp128": 106.89681261070416,
+      "tg256": -15.766296277331149
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "mx": 4,
+      "candidate": 5
+     },
+     "delta_percent": {
+      "pp128": 108.45779831300702,
+      "tg256": -15.70320127434356
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "candidate": 6,
+      "mx": 7
+     },
+     "delta_percent": {
+      "pp128": 108.85461783939787,
+      "tg256": -15.040400940983945
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "mx": 8,
+      "candidate": 9
+     },
+     "delta_percent": {
+      "pp128": 105.2005065055967,
+      "tg256": -14.457398181911563
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp128": 107.34291992013402,
+    "tg256": -15.241940652438634
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 1.576182519398379,
+    "mx": 1.3696229103700868
+   },
+   "combined_time_delta_percent": 15.08149487456205
+  },
+  "TQ1_0/P4096/G256": {
+   "means": {
+    "candidate": {
+     "pp4096": 3782.5875,
+     "tg256": 165.4375
+    },
+    "mx": {
+     "pp4096": 2174.6625,
+     "tg256": 195.2925
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "mx": 12,
+      "candidate": 13
+     },
+     "delta_percent": {
+      "pp4096": 73.91886297778392,
+      "tg256": -15.116872511993474
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "candidate": 14,
+      "mx": 15
+     },
+     "delta_percent": {
+      "pp4096": 73.7540322210071,
+      "tg256": -14.574255395499058
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "mx": 16,
+      "candidate": 17
+     },
+     "delta_percent": {
+      "pp4096": 74.12101333603214,
+      "tg256": -16.567256273138632
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "candidate": 18,
+      "mx": 19
+     },
+     "delta_percent": {
+      "pp4096": 73.96252966171843,
+      "tg256": -14.896770237121837
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp4096": 73.93905950923421,
+    "tg256": -15.28732542212322
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 2.630462497956453,
+    "mx": 3.194376238731337
+   },
+   "combined_time_delta_percent": -17.653328807593592
+  },
+  "TQ2_0/P128/G256": {
+   "means": {
+    "candidate": {
+     "pp128": 5081.215,
+     "tg256": 280.9
+    },
+    "mx": {
+     "pp128": 2593.8275,
+     "tg256": 322.9875
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "mx": 22,
+      "candidate": 23
+     },
+     "delta_percent": {
+      "pp128": 93.32945068079646,
+      "tg256": -13.613539148223918
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "candidate": 24,
+      "mx": 25
+     },
+     "delta_percent": {
+      "pp128": 90.36514118792603,
+      "tg256": -12.570362307572703
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "mx": 26,
+      "candidate": 27
+     },
+     "delta_percent": {
+      "pp128": 102.44605291477677,
+      "tg256": -13.043478260869568
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "candidate": 28,
+      "mx": 29
+     },
+     "delta_percent": {
+      "pp128": 97.87396364485619,
+      "tg256": -12.893938455823161
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp128": 95.89641176986521,
+    "tg256": -13.0306900421843
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 0.9365685222337365,
+    "mx": 0.8419855750024521
+   },
+   "combined_time_delta_percent": 11.233321572166965
+  },
+  "TQ2_0/P4096/G256": {
+   "means": {
+    "candidate": {
+     "pp4096": 3998.795,
+     "tg256": 279.57
+    },
+    "mx": {
+     "pp4096": 2349.315,
+     "tg256": 323.6
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "candidate": 32,
+      "mx": 33
+     },
+     "delta_percent": {
+      "pp4096": 70.53938195639944,
+      "tg256": -15.73227425264001
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "mx": 34,
+      "candidate": 35
+     },
+     "delta_percent": {
+      "pp4096": 70.36576114288636,
+      "tg256": -11.996628582131475
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "candidate": 36,
+      "mx": 37
+     },
+     "delta_percent": {
+      "pp4096": 70.11712513358054,
+      "tg256": -13.568303653952785
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "mx": 38,
+      "candidate": 39
+     },
+     "delta_percent": {
+      "pp4096": 69.82368100399512,
+      "tg256": -13.105614932084887
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp4096": 70.21110408778728,
+    "tg256": -13.606304079110021
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 1.9401411781465983,
+    "mx": 2.534618196030314
+   },
+   "combined_time_delta_percent": -23.45430245923341
+  }
+ },
+ "calls": [
+  {
+   "index": 0,
+   "cell": "TQ1_0/P128/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp128": 4663.19,
+    "tg256": 166.46
+   }
+  },
+  {
+   "index": 1,
+   "cell": "TQ1_0/P128/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp128": 2251.36,
+    "tg256": 195.14
+   }
+  },
+  {
+   "index": 2,
+   "cell": "TQ1_0/P128/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 4648.93,
+    "tg256": 164.5
+   }
+  },
+  {
+   "index": 3,
+   "cell": "TQ1_0/P128/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2246.98,
+    "tg256": 195.29
+   }
+  },
+  {
+   "index": 4,
+   "cell": "TQ1_0/P128/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2233.56,
+    "tg256": 194.61
+   }
+  },
+  {
+   "index": 5,
+   "cell": "TQ1_0/P128/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 4656.03,
+    "tg256": 164.05
+   }
+  },
+  {
+   "index": 6,
+   "cell": "TQ1_0/P128/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 4653.26,
+    "tg256": 166.13
+   }
+  },
+  {
+   "index": 7,
+   "cell": "TQ1_0/P128/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2227.99,
+    "tg256": 195.54
+   }
+  },
+  {
+   "index": 8,
+   "cell": "TQ1_0/P128/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2266.51,
+    "tg256": 194.71
+   }
+  },
+  {
+   "index": 9,
+   "cell": "TQ1_0/P128/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 4650.89,
+    "tg256": 166.56
+   }
+  },
+  {
+   "index": 10,
+   "cell": "TQ1_0/P4096/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp4096": 2178.87,
+    "tg256": 194.88
+   }
+  },
+  {
+   "index": 11,
+   "cell": "TQ1_0/P4096/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp4096": 3787.26,
+    "tg256": 167.48
+   }
+  },
+  {
+   "index": 12,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2174.1,
+    "tg256": 195.94
+   }
+  },
+  {
+   "index": 13,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3781.17,
+    "tg256": 166.32
+   }
+  },
+  {
+   "index": 14,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3781.27,
+    "tg256": 166.64
+   }
+  },
+  {
+   "index": 15,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2176.22,
+    "tg256": 195.07
+   }
+  },
+  {
+   "index": 16,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2173.81,
+    "tg256": 194.48
+   }
+  },
+  {
+   "index": 17,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3785.06,
+    "tg256": 162.26
+   }
+  },
+  {
+   "index": 18,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3782.85,
+    "tg256": 166.53
+   }
+  },
+  {
+   "index": 19,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2174.52,
+    "tg256": 195.68
+   }
+  },
+  {
+   "index": 20,
+   "cell": "TQ2_0/P128/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp128": 2636.25,
+    "tg256": 323.46
+   }
+  },
+  {
+   "index": 21,
+   "cell": "TQ2_0/P128/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp128": 5075.56,
+    "tg256": 280.03
+   }
+  },
+  {
+   "index": 22,
+   "cell": "TQ2_0/P128/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2627.07,
+    "tg256": 322.62
+   }
+  },
+  {
+   "index": 23,
+   "cell": "TQ2_0/P128/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5078.9,
+    "tg256": 278.7
+   }
+  },
+  {
+   "index": 24,
+   "cell": "TQ2_0/P128/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5083.13,
+    "tg256": 281.13
+   }
+  },
+  {
+   "index": 25,
+   "cell": "TQ2_0/P128/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2670.2,
+    "tg256": 321.55
+   }
+  },
+  {
+   "index": 26,
+   "cell": "TQ2_0/P128/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2508.94,
+    "tg256": 324.76
+   }
+  },
+  {
+   "index": 27,
+   "cell": "TQ2_0/P128/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5079.25,
+    "tg256": 282.4
+   }
+  },
+  {
+   "index": 28,
+   "cell": "TQ2_0/P128/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5083.58,
+    "tg256": 281.37
+   }
+  },
+  {
+   "index": 29,
+   "cell": "TQ2_0/P128/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2569.1,
+    "tg256": 323.02
+   }
+  },
+  {
+   "index": 30,
+   "cell": "TQ2_0/P4096/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp4096": 4002.01,
+    "tg256": 280.25
+   }
+  },
+  {
+   "index": 31,
+   "cell": "TQ2_0/P4096/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp4096": 2344.55,
+    "tg256": 319.83
+   }
+  },
+  {
+   "index": 32,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4002.15,
+    "tg256": 273.71
+   }
+  },
+  {
+   "index": 33,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2346.76,
+    "tg256": 324.81
+   }
+  },
+  {
+   "index": 34,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2346.34,
+    "tg256": 320.34
+   }
+  },
+  {
+   "index": 35,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3997.36,
+    "tg256": 281.91
+   }
+  },
+  {
+   "index": 36,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 3995.66,
+    "tg256": 280.54
+   }
+  },
+  {
+   "index": 37,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2348.77,
+    "tg256": 324.58
+   }
+  },
+  {
+   "index": 38,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2355.39,
+    "tg256": 324.67
+   }
+  },
+  {
+   "index": 39,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4000.01,
+    "tg256": 282.12
+   }
+  }
+ ],
+ "activity": {
+  "samples": 392,
+  "max_gap": 1.0028721699491143,
+  "flags": {
+   "unrelated_cpu": 223,
+   "disk": 251,
+   "low_idle": 0,
+   "iowait": 2,
+   "gap": 0,
+   "other_gpu": 125
+  },
+  "calls": {
+   "0": {
+    "unrelated_cpu": 4,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "1": {
+    "unrelated_cpu": 13,
+    "disk": 6,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 7
+   },
+   "2": {
+    "unrelated_cpu": 5,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "3": {
+    "unrelated_cpu": 12,
+    "disk": 8,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "4": {
+    "unrelated_cpu": 12,
+    "disk": 8,
+    "low_idle": 0,
+    "iowait": 1,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "5": {
+    "unrelated_cpu": 5,
+    "disk": 2,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "6": {
+    "unrelated_cpu": 5,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "7": {
+    "unrelated_cpu": 6,
+    "disk": 12,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "8": {
+    "unrelated_cpu": 11,
+    "disk": 7,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 8
+   },
+   "9": {
+    "unrelated_cpu": 4,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "10": {
+    "unrelated_cpu": 13,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 10
+   },
+   "11": {
+    "unrelated_cpu": 4,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "12": {
+    "unrelated_cpu": 13,
+    "disk": 11,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 11
+   },
+   "13": {
+    "unrelated_cpu": 6,
+    "disk": 2,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "14": {
+    "unrelated_cpu": 7,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "15": {
+    "unrelated_cpu": 12,
+    "disk": 8,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "16": {
+    "unrelated_cpu": 11,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 9
+   },
+   "17": {
+    "unrelated_cpu": 6,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "18": {
+    "unrelated_cpu": 2,
+    "disk": 7,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "19": {
+    "unrelated_cpu": 13,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 7
+   },
+   "20": {
+    "unrelated_cpu": 12,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "21": {
+    "unrelated_cpu": 4,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "22": {
+    "unrelated_cpu": 7,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "23": {
+    "unrelated_cpu": 3,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 0
+   },
+   "24": {
+    "unrelated_cpu": 3,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "25": {
+    "unrelated_cpu": 8,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "26": {
+    "unrelated_cpu": 8,
+    "disk": 9,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "27": {
+    "unrelated_cpu": 3,
+    "disk": 4,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "28": {
+    "unrelated_cpu": 1,
+    "disk": 3,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 0
+   },
+   "29": {
+    "unrelated_cpu": 5,
+    "disk": 13,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "30": {
+    "unrelated_cpu": 2,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "31": {
+    "unrelated_cpu": 5,
+    "disk": 17,
+    "low_idle": 0,
+    "iowait": 1,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "32": {
+    "unrelated_cpu": 1,
+    "disk": 6,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "33": {
+    "unrelated_cpu": 6,
+    "disk": 17,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "34": {
+    "unrelated_cpu": 4,
+    "disk": 17,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "35": {
+    "unrelated_cpu": 1,
+    "disk": 6,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 1
+   },
+   "36": {
+    "unrelated_cpu": 1,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 2
+   },
+   "37": {
+    "unrelated_cpu": 6,
+    "disk": 17,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "38": {
+    "unrelated_cpu": 5,
+    "disk": 18,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "39": {
+    "unrelated_cpu": 0,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 0
+   }
+  },
+  "missed_samples": 79,
+  "unknown_gpu_samples": 0,
+  "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+ },
+ "activity_thresholds": {
+  "system_idle_below_percent": 25,
+  "iowait_above_percent": 5,
+  "unrelated_cpu_at_least_percent": 100,
+  "disk_bytes_per_second_above": 50000000,
+  "sample_gap_above_seconds": 2.5
+ },
+ "limits": [
+  "Candidate versus mx timing only. Main was built, not timed; existing-format main regression timing remains open.",
+  "All calls and activity flags retained; no outlier removal or idle-machine assumption.",
+  "CPU affinity0-3 shares physical cores through SMT with peer work; process sampling can miss short-lived/inaccessible processes.",
+  "No ROCm, correctness, full quant qualification or merge verdict."
+ ],
+ "artifact_retention": "Full commands, stdout/stderr, monitor samples and manifest hashes remain in the pinned analysis/execution receipts.",
+ "instrumented_profile": {
+  "scope": "Instrumented model TG256 GPU timing and static shader resource statistics, not uninstrumented speed or measured occupancy/bandwidth.",
+  "receipt_pins": {
+   "activity.jsonl": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\activity.jsonl",
+    "sha256": "c233533f100d7cec857c4791b5c69841e3d3d7ef6a5c7c8f5fe305bd06feb379"
+   },
+   "audit.json": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\audit.json",
+    "sha256": "c29e8f589f08c6223beb0f5c8d29a2f2a71a39ffd05ae8140f6d0ef22dbdd985"
+   },
+   "monitor.log": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\monitor.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   },
+   "monitor.stop": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\monitor.stop",
+    "sha256": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+   },
+   "receipt.json": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\receipt.json",
+    "sha256": "35e7158785872d0bff305812f986d548ee98e9f9c8da4d90663256f34644c005"
+   },
+   "TQ1_0.stderr": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\TQ1_0.stderr",
+    "sha256": "e8bb500dd7d5146ffcb5368b98e4463a35a217da79fb8e7ae873a1b9428d4045"
+   },
+   "TQ1_0.stdout": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\TQ1_0.stdout",
+    "sha256": "3ad1b4f7ac216a8e2daddf6f19befd479c1fa755465ce759eb38425f7f7104e2"
+   },
+   "TQ2_0.stderr": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\TQ2_0.stderr",
+    "sha256": "78e7775de861bf374de3952e85f563243cd5077c519c224d1d6c8d7e142afe71"
+   },
+   "TQ2_0.stdout": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-timing-prep-v1\\model-profile-v1\\TQ2_0.stdout",
+    "sha256": "7d78e8879798ad2e8cc9f39a7cd802f1200399c8db61ff13edfc59c60011cf51"
+   }
+  },
+  "summary": {
+   "TQ1_0": {
+    "tg_total_ms": 1684.95,
+    "row": {
+     "name": "matmul_row_tq1_0_dot_1col",
+     "ms": 1202.86,
+     "share_percent": 71.3887
+    },
+    "head": {
+     "name": "matmul_row_k_dot_1col head",
+     "ms": 100.05,
+     "share_percent": 5.93784
+    },
+    "static_row_statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=1778780497940028758 SGPRs=48 VGPRs=44 Spilled SGPRs=0 Spilled VGPRs=0 Code size=3168 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2924523655 Instructions=588 Copies=76 Branches=36 Latency=62009 Inverse Throughput=18514 VMEM Clause=12 SMEM Clause=15 Pre-Sched SGPRs=28 Pre-Sched VGPRs=33 VALU=322 SALU=163 VMEM=17 SMEM=20 VOPD=0",
+    "matrix_witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    }
+   },
+   "TQ2_0": {
+    "tg_total_ms": 1024.33,
+    "row": {
+     "name": "matmul_row_tq2_0_dot_1col",
+     "ms": 576.442,
+     "share_percent": 56.2751
+    },
+    "head": {
+     "name": "matmul_row_k_dot_1col head",
+     "ms": 78.0112,
+     "share_percent": 7.61584
+    },
+    "static_row_statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=10803872705509958402 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8604 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=973885075 Instructions=1600 Copies=56 Branches=24 Latency=103620 Inverse Throughput=82651 VMEM Clause=35 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1268 SALU=123 VMEM=76 SMEM=20 VOPD=0",
+    "matrix_witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    }
+   }
+  },
+  "next": "Bounded row-kernel optimization/profile investigation; no measured occupancy or bandwidth cause established."
+ }
+}

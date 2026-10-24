@@ -1,0 +1,116 @@
+{
+  "analyzer": {
+    "analyzer_source_sha256": "3c4015b67c0a765d32b5658f0d69acb642fde829375b7e437e7a704400a72bdd",
+    "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+    "image_id": "sha256:5ac05f53ab784b374a31bd9162ab12b2ae95c520d4a8a2c9035c743b40358914",
+    "max_absolute_projection_error": 4.016004618279112e-05,
+    "max_projection_error_over_envelope": 0.026568816603543547,
+    "model_level_gate_claim": false,
+    "sha256": "672ccb02d2c70603d4b0f45914dccb26fb041cff8a54569bb4bf61e2b1c3242a",
+    "spec_decode_sha256": "c7b777a702856e8cc8ca3d8b2c7513a3ba9ef1db233f7c884def0284209a5cd7",
+    "summary": {
+      "outside_rows": 0,
+      "projections": 197,
+      "twin_q_mismatches": 35,
+      "twin_scale_bit_mismatches": 52,
+      "twin_sum_bit_mismatches": 83,
+      "unsupported_rows": 0
+    }
+  },
+  "offline_containers": [
+    {
+      "container_id": "d8808d2a974d59bc20b6a3004e707c1c0eb9b6bce2f94b4ee4bdf962ca9c3aee",
+      "cpuset": "4-5",
+      "docker_start_exit": 0,
+      "exit_code": 0,
+      "finished_at": "2026-10-24T19:21:19.07300324Z",
+      "image_id": "sha256:5ac05f53ab784b374a31bd9162ab12b2ae95c520d4a8a2c9035c743b40358914",
+      "memory_bytes": 4294967296,
+      "memory_swap_bytes": 4294967296,
+      "network": "none",
+      "oom_killed": false,
+      "removed": true,
+      "schema": "tq-step-observer-offline-container-v1",
+      "started_at": "2026-10-24T19:21:12.272340863Z"
+    },
+    {
+      "container_id": "80b2be298d46081eb7b09ab9add533153eafa2fecadd95f3d3785e7e1983d8be",
+      "cpuset": "4-5",
+      "docker_start_exit": 0,
+      "exit_code": 0,
+      "image_id": "sha256:5ac05f53ab784b374a31bd9162ab12b2ae95c520d4a8a2c9035c743b40358914",
+      "memory_bytes": 2147483648,
+      "memory_swap_bytes": 2147483648,
+      "network": "none",
+      "oom_killed": false,
+      "removed": true,
+      "schema": "tq-step-observer-twin-arithmetic-container-v1"
+    }
+  ],
+  "offline_validation": {
+    "all_paths": "block-int16",
+    "calls": 113,
+    "capture_stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc",
+    "distinct_capture_files_hashed_and_reconciled": 676,
+    "positions": [
+      16383,
+      16894
+    ],
+    "projections": 197,
+    "rows": 512,
+    "rows_exact_baseline": true,
+    "sha256": "1faf746ca20b746c8f81cfa4a146718070cdf8dba13c4bcf5a6317addfb0284b",
+    "steps": 513,
+    "steps_exact_baseline": true,
+    "validator_sha256": "6d648c781678b286e5ef9427f22f22e85f0cb41213c3f45e5fb4b517b86a67f6"
+  },
+  "original_capture": {
+    "failed_validator_reason": "Original validator incorrectly required each projection TSV record ID to equal global row index; call IDs repeat for grouped projections.",
+    "observer_child_exit": 0,
+    "outer_attach_exit": 1,
+    "outer_container_exit": 1,
+    "outer_oom_killed": false,
+    "outer_passed": false,
+    "outer_receipt_sha256": "28787224cb19323773437ca6f2379b966a24010da3b648fc3efdd189efec2e3c",
+    "outer_removed": true,
+    "payload_error": "AssertionError()",
+    "payload_passed": false,
+    "remote_path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/step-observer-v1/observer-captures/tq1-chat-gpu8-v3"
+  },
+  "outer_inventory_reconciliation": {
+    "additional_capture_files_match": [
+      "matmuls.tsv",
+      "observer-result.json",
+      "probe.stderr",
+      "probe.stdout"
+    ],
+    "capture_artifact_count": 680,
+    "extra_non_capture_inventory": 4,
+    "outer_artifact_count": 684,
+    "referenced_files_match": true
+  },
+  "schema": "tq-step-observer-offline-audit-summary-v1",
+  "twin_arithmetic": {
+    "analyzer_source_sha256": "c5fe236ce13730dee972a676a819391baf74db555d9d2c0f2f2fdb47f2d0273b",
+    "report_sha256": "fb430f53006e1b23e414b076007352403afb7c290dcf3053db66983f62e89ba9",
+    "summary": {
+      "mismatch_half_distance_max": 0.001953125,
+      "mismatch_half_distance_median": 0.0009765625,
+      "mismatch_half_distance_min": 0.0,
+      "mismatches_within_1e-6_of_half": 15,
+      "q_mismatch_count": 35,
+      "q_mismatch_max_code_delta": 1,
+      "scale_bit_mismatch_count": 52,
+      "scale_relative_error_max": 1.1920657533933046e-07,
+      "scale_ulp_1_count": 52,
+      "scale_ulp_max": 1,
+      "scale_ulp_median": 0.0,
+      "scaled_sum_bit_mismatch_count": 0
+    }
+  },
+  "retained_audit": {
+    "path": "build-quant-resume-20261020/tq-step-capture-diagnostic-prep-20261024/observer-capture-v1/offline-analysis-collected-v1/audit-summary.json",
+    "sha256": "a8f8a9296a62312c6014868a6dfcbeac4adb5904fb8dd9e6ee0bf8a347e025d1"
+  },
+  "scope": "Scratch a0fa25492 observer diagnostic; no model-level acceptance or runtime source change."
+}

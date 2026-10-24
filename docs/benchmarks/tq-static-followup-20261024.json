@@ -1,0 +1,89 @@
+{
+  "head": "839ca8eac01912ef3efeb49da4c78e063071dc03",
+  "branch": "gate/tq-static-20261024",
+  "feature_checkpoint": "478816c52f8d67fa0523256ccc977b145626c964",
+  "feature_tree": "9d89efed31dddf6f6a38d6d451556042353c0e5b",
+  "base_main": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "original_integration_head": "c1d31364ae45e71d5dd7753373675f6484364718",
+  "qualification_tree_difference": [
+    ".github/workflows/ci.yml"
+  ],
+  "restored_audit_tree": "9d89efed31dddf6f6a38d6d451556042353c0e5b",
+  "workflow_sha256": "e53e10a589021cc1d3469132fbb22eb796aa8b450c0513b7973a08cb0350b9c7",
+  "runtime_build_inputs_unchanged": true,
+  "scope": "Windows source and complete documentation/help checks after restoring the original workflow, plus annotation tests. One plain build supplies the help executable. No inference reruns. Original temporary-workflow failures remain retained. No main merge.",
+  "run": {
+    "id": 40130076545,
+    "status": "completed",
+    "conclusion": "success",
+    "coverage": "All four steps passed, including exact restored-tree witness."
+  },
+  "local_checks": {
+    "dead-code": {
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/dead_code.py"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "cf277cde853b7c4ffb7cdc8f1009dbaaa92c08c557e5edbff9f27c405d048265",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "docs-check": {
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/docs_check.py",
+        "--exe",
+        "build-vulkan/Release/llmx.exe"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "4b7a837c2c793f5982b0b26ffcb777857b27904c958ff23041cde901f44e5123",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "ci-annotations": {
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "tests/test_ci_annotations.py"
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "8e7a7faa7a4eed2dd9def4fbeec8bf5384b5f7204f7bca87e775580e86669533"
+    }
+  },
+  "receipt_sha256": {
+    "build-quant-resume-20261020/tq-static-followup-candidate-20261024.json": "71a688f7688e01bb7fc3493b885cc1526e069e0c1375012f73ccd10e2b0e0bad",
+    "build-quant-resume-20261020/tq-static-followup-20261024/local-static-results.json": "cc6c0e797f597d1d87444718ae908fe460eca6eab239db26eea6bfc11cddc4fd"
+  },
+  "hosted_log": {
+    "path": "build-quant-resume-20261020/tq-integrated-job-120979718725.log",
+    "sha256": "da6f0e43e612fdf319be022e72d72627c69926ebd30f5067335ae328530a5fba"
+  },
+  "remote_branch_deleted": {
+    "exact_lease": true,
+    "head": "839ca8eac01912ef3efeb49da4c78e063071dc03",
+    "local_ref_retained": true,
+    "main_unchanged": "eaea90857"
+  },
+  "original_macos_terminal": {
+    "job_id": 120966424618,
+    "conclusion": "failure",
+    "failed_components": [
+      "cli"
+    ],
+    "native_tests_passed": 68,
+    "other_executable_components": "all passed, including TQ1/TQ2",
+    "log": "build-quant-resume-20261020/tq-integrated-job-120966424618.log",
+    "log_sha256": "a5832c6e3ef57c055592f2bf5cfcb4b032868e2acc82de1ccf688f3d95a1f511"
+  },
+  "coverage_disposition": "Required hosted coverage accounted for by original results plus focused CLI, restored-tree static and HF-tail passes. Original failed jobs remain failures; no numerical gate pass or merge.",
+  "remote_cleanup_final": {
+    "original_integration_branch_deleted_exact_lease": "c1d31364ae45e71d5dd7753373675f6484364718",
+    "local_ref_retained": true,
+    "remote_only_main": "eaea90857"
+  }
+}

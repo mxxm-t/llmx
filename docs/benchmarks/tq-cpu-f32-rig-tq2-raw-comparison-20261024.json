@@ -1,0 +1,53 @@
+{
+  "scope": "One CPU F32/F32 KV fixed-history 16K depth cell, original independent HF and unchanged 0.1 rule",
+  "kind": "tq2-0",
+  "variant": "raw",
+  "matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "counts": {
+    "exact": 511,
+    "accepted-tie": 1,
+    "miss": 0
+  },
+  "differences": [
+    {
+      "position": 16771,
+      "classification": "accepted-tie",
+      "candidate": 18397,
+      "reference_top2": [
+        6791,
+        18397
+      ],
+      "gap": 6.67572021484375e-05
+    }
+  ],
+  "passed": true,
+  "reference": {
+    "artifact": "tq-depth-tq2-0-f32-raw",
+    "artifact_digest": "sha256:262eb71786e53bbf38879e91401dabaac20f530a91cbd41890f17ced10509675",
+    "execution_sha256": "3309ca1b1d4df405f1fcfbe28ab90d96a31de548be8f027313d58100a7433b1e",
+    "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+    "producer_sha256": "949674445ad78f238e4248daf67001877c0a78b8a408dbf46d766a16ff5d6ad3",
+    "positions": 512,
+    "vocabulary": 151936,
+    "cgroup_peak_bytes": 8960974848,
+    "verified": true,
+    "scope": "Independent reference outputs only; no candidate comparison",
+    "policy": "F32"
+  },
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/probes/f32-probe": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ2_0.gguf": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/clean-depth-capture-v3/fixtures/depth-raw.json": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3"
+  },
+  "capture_sha256": "e3575072fa8b90a1a81fc8a3fad9404140c26b4e98f2e4ed127c2016e2e64caa",
+  "complete_sha256": "04cfd9a482ac9d67eb01d53c785bb36a7765ef7152373822722e05623cb2b6f9",
+  "wall_seconds": 906.3639328479767,
+  "numerical_limits_changed": false
+}

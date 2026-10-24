@@ -1,0 +1,190 @@
+{
+  "scope": "Focused Windows integration checkpoint only. Not a quant landing or performance gate.",
+  "tq_parent": "1edef79254d90fe8fd1bf20cba263872f4f132c4",
+  "main_parent": "3acbf483f5c498c51e2f66c91162ba5038355646",
+  "build_state": "Uncommitted merge at build time; fresh MSVC Visual Studio 18 2026 x64 Vulkan Release, parallel 1.",
+  "binary": {
+    "path": "worktrees/tq-3ac-integration-20261024/build-vulkan/Release/llmx.exe",
+    "sha256": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d"
+  },
+  "version": "llmx 0.1.0+g1edef79254d9.dirty numerics 7ce465b81f23850c",
+  "build_targets": [
+    "llmx",
+    "llmx-tq-test",
+    "llmx-iq1-test",
+    "llmx-backend-errors-test",
+    "llmx-backend-vulkan-test"
+  ],
+  "native_passed": [
+    "backend-errors",
+    "iq1",
+    "tq-format",
+    "backend-vulkan",
+    "iq1-vulkan"
+  ],
+  "hf_explicit_f32_with_f32_kv": {
+    "cpu": [
+      {
+        "format": "TQ1_0",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 9.6e-07,
+        "max_nll_error_rounded": 6e-08,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "TQ2_0",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.43e-06,
+        "max_nll_error_rounded": 1.3e-07,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_S",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.25e-06,
+        "max_nll_error_rounded": 6e-08,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_M",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.39e-06,
+        "max_nll_error_rounded": 4e-08,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      }
+    ],
+    "vulkan": [
+      {
+        "format": "TQ1_0",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 8.3e-07,
+        "max_nll_error_rounded": 3e-08,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "TQ2_0",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.47e-06,
+        "max_nll_error_rounded": 1.6e-07,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_S",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.18e-06,
+        "max_nll_error_rounded": 1e-07,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      },
+      {
+        "format": "IQ1_M",
+        "full_logit_cases": 150,
+        "nll_checks": 12,
+        "max_logit_error_rounded": 1.21e-06,
+        "max_nll_error_rounded": 5e-08,
+        "logit_limit": 2e-05,
+        "nll_limit": 1e-05
+      }
+    ]
+  },
+  "hf_full_logit_cases": 1200,
+  "hf_nll_checks": 96,
+  "failed_attempts": "Both first Python suites failed IQ1 conversion before HF with filesystem error 5 resolving an output path under the sandbox. Both TQ components passed in those runs. Only IQ1 was rerun outside the sandbox and passed on CPU/Vulkan. Every original log is retained.",
+  "local_gpu_availability": "No llmx process and no compute engine above 5 percent in the preflight two-sample counter observation. Video decode activity was present. These are correctness checks, not timing results.",
+  "source_test_build_inputs": {
+    "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/source-test-build-inputs.json",
+    "sha256": "18bee649e36eefc18fe7d3c1b722bc1928531d652be3bf9666b76696de5de29d"
+  },
+  "logs": {
+    "build-configure.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/build-configure.log",
+      "sha256": "3e8dee48a4e0dd2bb0e900cc82787d87c224f02e923dd7d5e9a19bfa0810c225"
+    },
+    "build-focused.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/build-focused.log",
+      "sha256": "acf4499816addc5e42f2ab4ab7f1a5da469b39be58595bc41e04e37007153801"
+    },
+    "focused-cpu.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-cpu.log",
+      "sha256": "07cb3d4fd657a4278f61338e046fc427cdafb62b2d0b57575a1d546fcfafa74e"
+    },
+    "focused-vulkan.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-vulkan.log",
+      "sha256": "e2635a8161317271f4871d52a40213a4f67788a27496d1d7c70f0b6f85895291"
+    },
+    "focused-hf-cpu.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-hf-cpu.log",
+      "sha256": "610dc06ffe83491865b8c4d8a316808f20fe6160b7b614bf4e75685426dff3f5"
+    },
+    "focused-hf-vulkan.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-hf-vulkan.log",
+      "sha256": "c0d7baddb9578b393dc6f657ec6ecf191ecefd94484968fef62efdaced8ab84d"
+    },
+    "focused-iq1-cpu-unsandboxed.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-iq1-cpu-unsandboxed.log",
+      "sha256": "771200870c3f2448044341cfa09361a1d5de3643d647b1c11fc0862984e65e1a"
+    },
+    "focused-iq1-vulkan-unsandboxed.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/focused-iq1-vulkan-unsandboxed.log",
+      "sha256": "a42124e96961ebf62eae39a768e77db5b98d9137eac9a9c27993519d6b3603f3"
+    },
+    "integration-docs-check.log": {
+      "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/integration-docs-check.log",
+      "sha256": "d14bfe3b7ef0e5569278178adf852ac8be42833bdc1cb24398594b85acde62c3"
+    }
+  },
+  "build_inputs": [
+    {
+      "path": "worktrees/tq-3ac-integration-20261024/build-vulkan/CMakeCache.txt",
+      "sha256": "23a75fbcdde37ab55b0e7c4f3de0aeec8cb9a9e80f2b5306d72e0eaefb9d0c97"
+    },
+    {
+      "path": "worktrees/tq-3ac-integration-20261024/build-vulkan/generated/llmx-build-info.hpp",
+      "sha256": "5854794d5edbf5eb6fa6d131e1430399eb69400f67d81efe0f0183cdc6c8c3d7"
+    }
+  ],
+  "shader_comparison": {
+    "path": "build-quant-resume-20261020/tq-family-spirv-normalized-20261024/report.json",
+    "sha256": "05de654bf8a62cc3cec4362dc88c5e38fb1b74db0dec2f3396e54aebcc15901b"
+  },
+  "shader_result": "All 16 TQ family shaders are identical to the TQ parent after stripping debug records and compacting IDs. Eight IQ1 family shaders are identical after those steps; the other eight differ only in constant declaration order in disassembly. No numerical or performance pass is inferred from this comparison.",
+  "markdown_review": {
+    "path": "build-quant-resume-20261020/tq-main-integration-md-review-20261024.json",
+    "sha256": "bf76c1afb10bddf2025c1a676cea63bb314a40147ca730376c1abf1489b5c49e"
+  },
+  "docs_dead_code": "Passed after final checkpoint prose and initial receipt; all 132 Markdown pages reviewed. Only this final validation receipt was then updated.",
+  "final_docs_log": {
+    "path": "build-quant-resume-20261020/tq-main-integrated-checkpoint-20261024/final-docs-check.log",
+    "sha256": "e868f4cde001b91d26e464f0e36747f64467cd1a170d5572a7ed388ba52f11a1"
+  },
+  "hosted_reference": {
+    "failed_initial_run": 40083666374,
+    "diagnostic_run": 40084364923,
+    "cause": "Missing hf-xet required by huggingface-hub under the no-deps pinned install.",
+    "fixed_head": "74e29e0907320f1d8eb26c176244cadf6e137d33",
+    "fixed_run": 40084648588,
+    "status": "in progress, not claimed passed"
+  },
+  "remaining": [
+    "Released-file HF short comparisons",
+    "Raw and chat 16K depth",
+    "Linux/MI50 and split qualification",
+    "Current-main identity and timing",
+    "Matched mx Vulkan timing",
+    "Applicable final hosted checks",
+    "Restack after queued draft-depth landing and validate its relevant delta"
+  ]
+}

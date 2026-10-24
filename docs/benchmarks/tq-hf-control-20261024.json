@@ -1,0 +1,419 @@
+{
+  "run": 40104062479,
+  "head": "f0aba3490b688c20bc4454e06c2a8b48fb64864f",
+  "scope": "Two identical HF-only raw64 direct/chunk17 controls on independently assigned hosted CPUs. Labels identify jobs, not different input sequences.",
+  "original_failures": {
+    "run": 40103188312,
+    "cpu_head_f16_chat_max_logit_delta": 0.6111435890197754,
+    "device_all_linear_f16_chat_max_logit_delta": 0.9655637741088867,
+    "meaning": "Both fail the HF driver control before depth and before any candidate comparison; no cause established."
+  },
+  "verified_diagnostics": [
+    {
+      "label": "raw",
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "artifact_digest": "sha256:1aeb1e9f79a42f3ecc5e759402c1913e590c27426e3cfcb9e07f05312ed25a78",
+      "execution_sha256": "342f35ce9573767d3922d3cc8de0aceeedd089f55874485dd75a3b126f285678",
+      "outer_passed": true,
+      "outer_error": null,
+      "payload_passed": true,
+      "removed": true,
+      "oom": false,
+      "diagnostic": {
+        "passed_original_control": true,
+        "worst_row": 0,
+        "worst_token": 0,
+        "max_logit_delta": 0.0,
+        "direct_logit": -3.337554454803467,
+        "chunked_logit": -3.337554454803467,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_row_original_input_dot_delta_f64": 0.0,
+        "worst_row_rounded_input_dot_delta_f64": 0.0,
+        "vectors": {
+          "original-direct": {
+            "sha256": "ac267a75803a693021e6056ac1020e72293b067905a6520ec6cdf4cabbf51c14",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "original-chunked": {
+            "sha256": "ac267a75803a693021e6056ac1020e72293b067905a6520ec6cdf4cabbf51c14",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "rounded-direct": {
+            "sha256": "c2d58c82e8419d8f71af001a3e298750dc7b7ef17d1f49a8cebc26bb2e30879a",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "rounded-chunked": {
+            "sha256": "c2d58c82e8419d8f71af001a3e298750dc7b7ef17d1f49a8cebc26bb2e30879a",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "worst-token-weight": {
+            "sha256": "1a310338dc7b04fa73564a18029d81f8c33e11f93596ac014280226bdbf1e0c5",
+            "shape": [
+              1024
+            ]
+          }
+        },
+        "numerical_limits_changed": false
+      }
+    },
+    {
+      "label": "chat",
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "artifact_digest": "sha256:27781d29a06fc102dfb51e84b0244e7b0887fafb44bd7827327722bd9fa67de2",
+      "execution_sha256": "6113433af39df67d95407cccb3d19589c4be6f42204962f343bae55595afdaa2",
+      "outer_passed": false,
+      "outer_error": "Traceback (most recent call last):\n  File \"/home/runner/work/llmx/llmx/.qualification/tq-selected-depth/run_hosted.py\", line 309, in phase\n    assert sample['host_available_bytes'] >= sample['required_host_available_bytes'], sample\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'at': 1792853340.8467712, 'host_available_bytes': 14791569408, 'disk_free_bytes': 87952211968, 'memory.current': '142315520', 'memory.peak': '4312596480', 'memory.events': 'low 0\\nhigh 0\\nmax 0\\noom 0\\noom_kill 0\\noom_group_kill 0', 'cpu.stat': 'usage_usec 17416323\\nuser_usec 15525374\\nsystem_usec 1890949\\nnice_usec 0\\ncore_sched.force_idle_usec 0\\nnr_periods 91\\nnr_throttled 0\\nthrottled_usec 0\\nnr_bursts 0\\nburst_usec 0', 'peer_memory_reservations': {}, 'required_host_available_bytes': 14890070016}\n",
+      "payload_passed": true,
+      "removed": true,
+      "oom": false,
+      "diagnostic": {
+        "passed_original_control": true,
+        "worst_row": 0,
+        "worst_token": 0,
+        "max_logit_delta": 0.0,
+        "direct_logit": -3.337554454803467,
+        "chunked_logit": -3.337554454803467,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_row_original_input_dot_delta_f64": 0.0,
+        "worst_row_rounded_input_dot_delta_f64": 0.0,
+        "vectors": {
+          "original-direct": {
+            "sha256": "3ff6ea34f1cc0b0e604529c60c865daca7f19681f1273e4ed2055dd14de3195e",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "original-chunked": {
+            "sha256": "3ff6ea34f1cc0b0e604529c60c865daca7f19681f1273e4ed2055dd14de3195e",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "rounded-direct": {
+            "sha256": "74b5864714b45c20b265543d9aa81115a467bb9b9e6afd52af637e56fde8c264",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "rounded-chunked": {
+            "sha256": "74b5864714b45c20b265543d9aa81115a467bb9b9e6afd52af637e56fde8c264",
+            "shape": [
+              64,
+              1024
+            ]
+          },
+          "worst-token-weight": {
+            "sha256": "1a310338dc7b04fa73564a18029d81f8c33e11f93596ac014280226bdbf1e0c5",
+            "shape": [
+              1024
+            ]
+          }
+        },
+        "numerical_limits_changed": false
+      }
+    }
+  ],
+  "cross_host_arrays": {
+    "original-direct": {
+      "max_abs_delta": 0.00244140625,
+      "different_values": 49063
+    },
+    "original-chunked": {
+      "max_abs_delta": 0.00244140625,
+      "different_values": 49063
+    },
+    "rounded-direct": {
+      "max_abs_delta": 0.015625,
+      "different_values": 3890
+    },
+    "rounded-chunked": {
+      "max_abs_delta": 0.015625,
+      "different_values": 3890
+    },
+    "worst-token-weight": {
+      "max_abs_delta": 0.0,
+      "different_values": 0
+    }
+  },
+  "next_diagnostic": {
+    "run": 40104893027,
+    "head": "1b50a6b9c6ae02e45a4dca4c3feace2dcb778ef7",
+    "matrix": {
+      "threads": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "tokens": [
+        64,
+        65,
+        128
+      ],
+      "chunk": 17
+    },
+    "purpose": "Compare original and instrumented controls on one host and capture original/rounded head inputs. Retain every outcome. Not a depth gate."
+  },
+  "limits_changed": false,
+  "qualification": "None. Diagnostic agreement does not erase original failures or establish reference depth validity.",
+  "shape_diagnostic_result": {
+    "run": 40104893027,
+    "artifact_digest": "sha256:fe2958d9ffcaab5b9bdf996aacd8aae599eeea89556858424205177955515dd9",
+    "execution_sha256": "03930667e1d84167c0dbd5dea1aa93b80f319870df19ab1aa96e827f66fd26ed",
+    "scope": "HF-only diagnostic. The job succeeds when all measurements are collected, including failed numerical controls.",
+    "passed_execution": true,
+    "removed": true,
+    "oom": false,
+    "trials": [
+      {
+        "threads": 1,
+        "tokens": 64,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 1,
+        "tokens": 65,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 1,
+        "tokens": 128,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 2,
+        "tokens": 64,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 2,
+        "tokens": 65,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 2,
+        "tokens": 128,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.001848459243774414,
+        "max_logit_delta": 0.001848459243774414,
+        "passed_original_control": false,
+        "plain_passed_original_control": false,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 127,
+        "worst_token": 11307,
+        "original_input_max_delta": 0.00046825408935546875,
+        "rounded_input_max_delta": 0.0078125,
+        "rounded_input_changed_elements": 70,
+        "worst_logit_signed_delta": -0.001848459243774414,
+        "original_input_dot_delta_f64": -0.00019896963842591653,
+        "rounded_input_dot_delta_f64": -0.0018483384274077252
+      },
+      {
+        "threads": 3,
+        "tokens": 64,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 3,
+        "tokens": 65,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 3,
+        "tokens": 128,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 4,
+        "tokens": 64,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 4,
+        "tokens": 65,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      },
+      {
+        "threads": 4,
+        "tokens": 128,
+        "chunk": 17,
+        "plain_max_logit_delta": 0.0,
+        "max_logit_delta": 0.0,
+        "passed_original_control": true,
+        "plain_passed_original_control": true,
+        "instrumentation_direct_delta": 0.0,
+        "instrumentation_chunked_delta": 0.0,
+        "worst_row": 0,
+        "worst_token": 0,
+        "original_input_max_delta": 0.0,
+        "rounded_input_max_delta": 0.0,
+        "rounded_input_changed_elements": 0,
+        "worst_logit_signed_delta": 0.0,
+        "original_input_dot_delta_f64": 0.0,
+        "rounded_input_dot_delta_f64": 0.0
+      }
+    ],
+    "finding": "One of 12 fixed controls fails. Its logit difference is explained by F16 head rounding of differing F32 body outputs; capture hooks do not change either side. The original larger 64-token discrepancies remain unexplained.",
+    "qualification": "No acceptance criteria changed and no candidate comparison performed."
+  }
+}

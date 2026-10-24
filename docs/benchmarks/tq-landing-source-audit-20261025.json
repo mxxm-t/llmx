@@ -1,0 +1,278 @@
+{
+  "scope": "Final source and hosted-coverage carry-forward audit; no inference rerun and no merge claim.",
+  "base": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "reviewed_checkpoint": "9fc31b261de2bace082b1a1385f3d62013c8283e",
+  "tested_runtime": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "relevant_path_deltas": {
+    "a0fa25492b3ec9badaa43f8cd489fbb68fe06494": [
+      "tests/cli.py"
+    ],
+    "c1d31364ae45e71d5dd7753373675f6484364718": [
+      "tests/cli.py"
+    ],
+    "69288d88ef2ad4b599c81a6f9646557d4e8460b1": [
+      ".github/workflows/ci.yml"
+    ],
+    "0474a45f692792011ee4e4a4b5b239c435624e43": [
+      ".github/workflows/ci.yml"
+    ],
+    "839ca8eac01912ef3efeb49da4c78e063071dc03": [
+      ".github/workflows/ci.yml"
+    ]
+  },
+  "restored_static_feature_source_unchanged": "478816c52f8d67fa0523256ccc977b145626c964",
+  "original_failed_logs": [
+    {
+      "job": "120966424493",
+      "path": "build-quant-resume-20261020\\tq-integrated-job-120966424493.log",
+      "sha256": "88cfa2180b15062ae699a765a91583945ddaff21361256297e62c91ede47bef8",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 68,
+      "tq_components_passed": true
+    },
+    {
+      "job": "120966424547",
+      "path": "build-quant-resume-20261020\\tq-integrated-ubuntu-job-120966424547.log",
+      "sha256": "20d71d0ebbeb0e3f89d33fd9d737826c06c1b3f37598c77f0ee95648c5bb5ec3",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 68,
+      "tq_components_passed": true
+    },
+    {
+      "job": "120966424618",
+      "path": "build-quant-resume-20261020\\tq-integrated-job-120966424618.log",
+      "sha256": "a5832c6e3ef57c055592f2bf5cfcb4b032868e2acc82de1ccf688f3d95a1f511",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 68,
+      "tq_components_passed": true
+    },
+    {
+      "job": "120966424643",
+      "path": "build-quant-resume-20261020\\tq-integrated-job-120966424643.log",
+      "sha256": "7703c99d05fc67b4c7b516b0a1884979968f188a27c100f6bdf71cc0b81ae861",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 0,
+      "tq_components_passed": true
+    },
+    {
+      "job": "120966424675",
+      "path": "build-quant-resume-20261020\\tq-integrated-job-120966424675.log",
+      "sha256": "f8c381360982c0a1f7d89209f1d9e807aad6d25d91bbcba43c05e971a958e66c",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 81,
+      "tq_components_passed": true
+    },
+    {
+      "job": "120966424677",
+      "path": "build-quant-resume-20261020\\tq-integrated-job-120966424677.log",
+      "sha256": "9fda8f641b7c1683f5e0d897d2231fbd5fe2126d5c120527e64ad84db93ee705",
+      "failed_components": [
+        "cli"
+      ],
+      "native_tests_passed": 69,
+      "tq_components_passed": true
+    }
+  ],
+  "hosted_snapshots": [
+    {
+      "run": 40125669040,
+      "head": "c1d31364ae45e71d5dd7753373675f6484364718",
+      "conclusion": "failure",
+      "snapshot_sha256": "c0bdda65c4b385b5bccd042e3888c5aa073d3ad02d0abc3bc8a2cd460a8c2015",
+      "jobs": [
+        {
+          "id": 120966424493,
+          "name": "CPU (Linux UBSan)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424547,
+          "name": "CPU (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424618,
+          "name": "CPU (macos-15-intel)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424643,
+          "name": "HF reference (CPU)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test with required HF fixtures",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424675,
+          "name": "Vulkan backend (build, Linux)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test on the CPU",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424677,
+          "name": "CPU (windows-2022)",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        },
+        {
+          "id": 120966424679,
+          "name": "CPU (Linux TSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "run": 40128390450,
+      "head": "69288d88ef2ad4b599c81a6f9646557d4e8460b1",
+      "conclusion": "success",
+      "snapshot_sha256": "e0191bb4e309d0463cdf0448787c7b724c5ebc06c7810a71149187b238b7ad00",
+      "jobs": [
+        {
+          "id": 120974630637,
+          "name": "CLI (Windows MSVC)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "id": 120974630729,
+          "name": "CLI (Ubuntu Vulkan build)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "id": 120974630769,
+          "name": "CLI (Ubuntu CPU)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "id": 120974630829,
+          "name": "CLI (Ubuntu GCC 14 UBSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "id": 120974630882,
+          "name": "CLI (macOS Intel)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    },
+    {
+      "run": 40128953473,
+      "head": "0474a45f692792011ee4e4a4b5b239c435624e43",
+      "conclusion": "failure",
+      "snapshot_sha256": "fbd9c960737928e812ae43431b6a02a1e26f0f94872e551c7b00c10472565845",
+      "jobs": [
+        {
+          "id": 120976340229,
+          "name": "Missing HF tail (CPU)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        },
+        {
+          "id": 120976340491,
+          "name": "Windows plain full suite",
+          "status": "completed",
+          "conclusion": "failure",
+          "steps": [
+            {
+              "name": "Plain build and full suite",
+              "status": "completed",
+              "conclusion": "failure"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "run": 40130076545,
+      "head": "839ca8eac01912ef3efeb49da4c78e063071dc03",
+      "conclusion": "success",
+      "snapshot_sha256": "6a577f37be1f4b8e917fc9d919b8cc4811ffe7913e29cb829046910da7d75b62",
+      "jobs": [
+        {
+          "id": 120979718725,
+          "name": "Windows static and documentation checks",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": []
+        }
+      ]
+    }
+  ],
+  "coverage": "Original native and non-CLI Python results plus successful five-configuration CLI follow-up, HF-tail/plain executable follow-up and restored-tree static follow-up. Original failures retained.",
+  "approved_depth_report_sha256": "5001abe163e54e600fce2737584f141d739e4fde58224eb11d28f16cc5d09674",
+  "final_static": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-vulkan/Release/llmx.exe --only docs,dead-code",
+    "log_sha256": "c8fb9b2934aadf456e26f2a2530b42ec21842430d088d5a3a708744559894f0e",
+    "docs": "PASS",
+    "dead-code": "PASS"
+  },
+  "audit_source_sha256": "06b9fba1c3d8bfdaf17d274cc9c03c01915949023b85625dc9cfe7f2322192cd",
+  "passed": true,
+  "remaining": "Single-commit squash, unchanged-main check and fast-forward publication."
+}

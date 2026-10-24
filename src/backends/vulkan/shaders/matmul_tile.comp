@@ -5,6 +5,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
 #include "q.glsl"
 #include "iq2_layout.glsl"
+#include "tq_layout.glsl"
 #ifdef LLMX_IQ1
 #include "iq1_layout.glsl"
 #endif
@@ -146,6 +147,8 @@ void main() {
 #elif defined(LLMX_IQ2_S)
     lookup_init();
     const uint type = TYPE_IQ2_S;
+#elif defined(LLMX_TQ)
+    const uint type = TQ_TYPE;
 #else
     uint type = p.type;
 #endif
@@ -328,6 +331,12 @@ void main() {
                     }
                 }
 #endif
+            } else if (type == TYPE_TQ1_0 || type == TYPE_TQ2_0) {
+                uint o = (wr * (p.nin / 256u) + k0 / 256u) * block_bytes(type);
+                float d = tq_scale(type, o);
+                uint first = k0 % 256u + wseg * WVALS;
+                for (uint i = 0u; i < WVALS; ++i)
+                    ws[wseg * WVALS + i][wrow] = tq_at(type, o, first + i, d);
             } else if (type == TYPE_IQ4_NL || type == TYPE_IQ4_XS) {
                 float d;
                 uint codes = iq4_group(type, wr, p.nin, k0 / 32u, d);

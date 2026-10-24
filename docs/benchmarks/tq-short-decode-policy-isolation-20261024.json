@@ -1,0 +1,265 @@
+{
+  "date": "2026-10-24",
+  "scope": "Diagnostic per-token 2x2 dtype/KV isolation on TQ1_0 continuous 247-token NLL. No changed acceptance criteria, performance or full qualification claim.",
+  "receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\results.json",
+    "sha256": "24a8d3d8e0bde84fd4cf0fae59130807799ad65025174403a1501e7a90c591e9"
+  },
+  "binary_model_reference_common_pins": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-3ac-integration-20261024\\build-vulkan\\Release\\llmx.exe": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-model-cache\\models--Majipa--Qwen3-0.6B-GGUF-Quantized\\snapshots\\6df0b3e98df0fd81c85f3eb94215c1aa50470b53\\Qwen3-0.6B-TQ1_0.gguf": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-hosted-short-ref-prep-v1\\run-40084648588\\tq1-0-unpacked\\tq1-0\\tq1-0-file-exact\\baseline_perplexity.json": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-3ac-integration-20261024\\tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "excerpt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\excerpt.txt",
+    "sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c"
+  },
+  "tokens": 247,
+  "scored_targets": 246,
+  "token_ids_count": 247,
+  "token_ids_source_reference_sha256": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8",
+  "token_ids_json_sha256": "1d01931c58e23f6189cbd8a8f19d33e5c1c83ad106827d3253e9c1348869abb9",
+  "threads": 6,
+  "per_token": true,
+  "hf_f32_mean_nll": 16.52482490256211,
+  "continuous_bound": 0.01,
+  "rows": [
+    {
+      "name": "cpu-f32-kv-f32",
+      "exit_code": 0,
+      "mean_nll": 16.524774145,
+      "witness": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 5.07575621107037e-05,
+      "within_existing_bound": true,
+      "device": "cpu",
+      "requested_dtype": "f32",
+      "kv": "f32",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-f32-kv-f32.stdout",
+          "sha256": "b2f06579625338573aa8b50a625e300ccca563ee9ae222bbc0650b057d15308b"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-f32-kv-f32.stderr",
+          "sha256": "21b4e9ab9e957f7eee7da5b2f7b1d09825cc8340d366f97205f8d9975c209d8e"
+        }
+      }
+    },
+    {
+      "name": "cpu-f32-kv-f16",
+      "exit_code": 0,
+      "mean_nll": 16.494195615,
+      "witness": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 0.030629287562110363,
+      "within_existing_bound": false,
+      "device": "cpu",
+      "requested_dtype": "f32",
+      "kv": "f16",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-f32-kv-f16.stdout",
+          "sha256": "c26c7d59dcfed078df1b4da248de63c5784882239a752689ae267c10a5828ce3"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-f32-kv-f16.stderr",
+          "sha256": "21b4e9ab9e957f7eee7da5b2f7b1d09825cc8340d366f97205f8d9975c209d8e"
+        }
+      }
+    },
+    {
+      "name": "cpu-auto-kv-f32",
+      "exit_code": 0,
+      "mean_nll": 16.524782569,
+      "witness": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 4.23335621100307e-05,
+      "within_existing_bound": true,
+      "device": "cpu",
+      "requested_dtype": "auto",
+      "kv": "f32",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-auto-kv-f32.stdout",
+          "sha256": "bd62b57a828213b08c498a83cf496c67dc7f12ac78c91925305f877544f53aef"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-auto-kv-f32.stderr",
+          "sha256": "7d336156a739937b4c7c61353fc2e2dc51aace1424b20ea398d26f6767720b32"
+        }
+      }
+    },
+    {
+      "name": "cpu-auto-kv-f16",
+      "exit_code": 0,
+      "mean_nll": 16.494193867,
+      "witness": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 0.030631035562109332,
+      "within_existing_bound": false,
+      "device": "cpu",
+      "requested_dtype": "auto",
+      "kv": "f16",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-auto-kv-f16.stdout",
+          "sha256": "3cc590c4592bb1178f856e04616fa29a8c88e90c7503ba043a9b2c0556066181"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\cpu-auto-kv-f16.stderr",
+          "sha256": "7d336156a739937b4c7c61353fc2e2dc51aace1424b20ea398d26f6767720b32"
+        }
+      }
+    },
+    {
+      "name": "vulkan-0-f32-kv-f32",
+      "exit_code": 0,
+      "mean_nll": 16.524802916,
+      "witness": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 2.1986562110498653e-05,
+      "within_existing_bound": true,
+      "device": "vulkan:0",
+      "requested_dtype": "f32",
+      "kv": "f32",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-f32-kv-f32.stdout",
+          "sha256": "12457af13e2f863b3ac2888a1b0df12e44ef0716db72bfdfb4cfc4d38347dfab"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-f32-kv-f32.stderr",
+          "sha256": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd"
+        }
+      }
+    },
+    {
+      "name": "vulkan-0-f32-kv-f16",
+      "exit_code": 0,
+      "mean_nll": 16.496169651,
+      "witness": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 0.02865525156211035,
+      "within_existing_bound": false,
+      "device": "vulkan:0",
+      "requested_dtype": "f32",
+      "kv": "f16",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-f32-kv-f16.stdout",
+          "sha256": "7f2c32f79a8c774cc08d79332feb8e3868128c2f9f0fe28d5b81a82fd9925252"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-f32-kv-f16.stderr",
+          "sha256": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd"
+        }
+      }
+    },
+    {
+      "name": "vulkan-0-auto-kv-f32",
+      "exit_code": 0,
+      "mean_nll": 16.520178309,
+      "witness": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 0.0046465935621107235,
+      "within_existing_bound": true,
+      "device": "vulkan:0",
+      "requested_dtype": "auto",
+      "kv": "f32",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-auto-kv-f32.stdout",
+          "sha256": "3b26e83ea0775eadc7a9cba2add25aecee168c8c62a9806f88890c9f92b471dc"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-auto-kv-f32.stderr",
+          "sha256": "bf414637e4a281264bfd21dada3c3427109674233c132bd5526f2879b36f6738"
+        }
+      }
+    },
+    {
+      "name": "vulkan-0-auto-kv-f16",
+      "exit_code": 0,
+      "mean_nll": 16.493389206,
+      "witness": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "absolute_nll_delta": 0.03143569656210943,
+      "within_existing_bound": false,
+      "device": "vulkan:0",
+      "requested_dtype": "auto",
+      "kv": "f16",
+      "logs": {
+        "stdout": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-auto-kv-f16.stdout",
+          "sha256": "f9585c26e5a0df6b0949a5704fb995336753e1c47f6c871180ca71ae419b2f5f"
+        },
+        "stderr": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-short-decode-policy-isolation-20261024\\vulkan-0-auto-kv-f16.stderr",
+          "sha256": "bf414637e4a281264bfd21dada3c3427109674233c132bd5526f2879b36f6738"
+        }
+      }
+    }
+  ],
+  "verified_log_files": 16,
+  "status": "Diagnostic complete; all calls exit 0. Four F32-KV comparisons inside 0.01 and four cross-cache F16-KV comparisons outside.",
+  "interpretation": "Requested auto resolves F16 but executes mixed F32/block-int16 on CPU and block-int16 on Radeon in these per-token calls. Explicit F32 uses F32 paths. The earlier independent HF batched cache-only control establishes a storage effect, not per-token default acceptance.",
+  "limits": [
+    "TQ1_0 only; no TQ2_0 diagnostic call.",
+    "Only one 247-token sequence, not full default/windowed/16K qualification.",
+    "Original HF F32 references and prior failures remain untouched.",
+    "No limits, runtime code or policy changed."
+  ],
+  "related_cache_control": "tq-hf-short-kv-control-20261024.json"
+}

@@ -1,0 +1,38 @@
+{
+  "scope": "Terminal TQ2 F32 hosted failures are resource failures before scored output, not numerical comparisons. No gate waived.",
+  "run": 40110762193,
+  "head": "4008f6bf11eaff8b0b9a393e1733888bbd9fb6af",
+  "artifact_sha256": "efd3bbaaa7579385089bf7cafe48b68bbf8b804192e7b373a0e90509fe44f392",
+  "candidate": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "cells": [
+    {
+      "cell": "cpu-tq2-0-f32-chat",
+      "outer_execution_sha256": "af576558ea02a7d0395a704f2ee4e2f5f7ae35f6d75bf7222d351dac56a1237d",
+      "capture_execution_sha256": "22d02603d9a7bbdc7eaf0872cb381168374a0731958eac40c35cfa52ac464a0d",
+      "before_after_unchanged": true,
+      "artifacts_verified": true,
+      "removed": true,
+      "docker_oom_killed": true,
+      "probe_exit": -9,
+      "stdout_bytes": 0,
+      "memory_cap_bytes": 6442450944,
+      "started": "2026-10-24T17:50:57.560604577Z",
+      "finished": "2026-10-24T18:19:42.025523685Z"
+    },
+    {
+      "cell": "cpu-tq2-0-f32-raw",
+      "outer_execution_sha256": "325125b8c11981f84b9720d46ed267d9272414e2be0485833b5f12fadb5db82a",
+      "capture_execution_sha256": "61d1d568462c11c3b376f1f4b1dcc769ef0816b5b047f4d92b9f3cab3f4cd918",
+      "before_after_unchanged": true,
+      "artifacts_verified": true,
+      "removed": true,
+      "docker_oom_killed": true,
+      "probe_exit": -9,
+      "stdout_bytes": 0,
+      "memory_cap_bytes": 6442450944,
+      "started": "2026-10-24T17:21:08.1464368Z",
+      "finished": "2026-10-24T17:50:54.261799528Z"
+    }
+  ],
+  "next": "Wait for the existing TQ1 F32 10GiB retry outcome before choosing TQ2 retry resources; do not repeat 6GiB cases."
+}

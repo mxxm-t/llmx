@@ -1,0 +1,46 @@
+{
+  "kind": "independent_streamed_released_weight_equivalence",
+  "date": "2026-10-24",
+  "status": "complete",
+  "purpose": "Compare the decoded weight tensors in two released Qwen3-0.6B TQ files. This is a file-content equivalence result, not an inference, HF-reference reuse, or model-quality result.",
+  "source": {
+    "repository": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+    "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53",
+    "decoder": "tests/spec_decode.py GGUF.raw/decode_span and NumPy specification decoders",
+    "decoder_sha256": "5060e3275158515d07c112c7d012b2f5be685a3fee651844c24a204d61e55f8f",
+    "comparator_sha256": "453726b73ccdf47e6313f3a93bcf6d0b24430f7ac309a749f975c7e229952f2e",
+    "result_sha256": "99cd21dfb523b13db570df23e73da405b437c10989fd07b333a82cae03ef52df",
+    "python": "3.12.1",
+    "numpy": "2.4.3",
+    "maximum_decoded_values_per_chunk": 1048576
+  },
+  "files": {
+    "tq1_0": {
+      "name": "Qwen3-0.6B-TQ1_0.gguf",
+      "size_bytes": 314252544,
+      "sha256_before_and_after": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+    },
+    "tq2_0": {
+      "name": "Qwen3-0.6B-TQ2_0.gguf",
+      "size_bytes": 334896384,
+      "sha256_before_and_after": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a"
+    }
+  },
+  "comparison": {
+    "gguf_version": 3,
+    "tensor_count_each": 311,
+    "tensor_names_and_shapes_equal": true,
+    "same_type_companion_tensors": 115,
+    "same_type_companion_raw_byte_exact": 115,
+    "tq_tensor_pairs_decoded": 196,
+    "tq_pairs_exact_float32_bits": 196,
+    "tq_mismatch_count": 0,
+    "metadata_equal_except": "general.file_type",
+    "general_file_type": {
+      "tq1_0": 36,
+      "tq2_0": 37
+    }
+  },
+  "result_artifact": "build-quant-resume-20261020/tq-released-weight-equivalence-20261024/result.json",
+  "limitation": "The diagnostic records spec_decode.py but not the full imported decoder source closure. It is not a reference-reuse qualification receipt. No reference or packed-file identity check has been changed."
+}

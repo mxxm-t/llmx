@@ -1,0 +1,65 @@
+{
+  "scope": "Initial paired TQ CPU/Vulkan implementation and operator checkpoint; not merge qualification",
+  "base": "15bc88f4252bdc20262bc5330ef56ba9db769500",
+  "artifacts": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-cpu-stage\\build-cli.log": "0f283f04cc3db21bb34075a62807ece34c69a2e41fedd1e67591993f36ab85b6",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-cpu-stage\\ctest-final.log": "f1a3cf8099f6dffda7cc8e6b1923e21f45174b86d6deb5b7d4d0ce1d82c6fffb",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-cpu-stage\\roundtrip-host.log": "c20eb344a6c93cfe98941aa2c87b4a59255ad40881722bb448ad121341b6e420",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-cpu-stage\\checkpoint-checks.log": "2d630105dc98e0787a0dea7d2b855bf72c04c423c3b12bb3c0194a0d6bcac3ca",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-vulkan-stage\\vulkan-build-final-execution.json": "7351ae1021ccb3af58e03009d6d57f725d291e1d4f93c73e66fa283a35ba698d",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-vulkan-stage\\tq-selector-review.json": "58c6df7bf9103310682e62e4415fb58c60ff03aec2639e012c39943062037710",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-vulkan-stage\\backend-vulkan-device.log": "4365b38e7ad92332cac49c8fc06183ff2ad8067cfa2154b857ba9035e73f09cd",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-vulkan-stage\\backend-vulkan-range-device.log": "25edb93058d9428b495e99a6f8aef9a4d70bd6d4a247afb8d16e55efab430f48",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-tq-vulkan-stage\\Testing\\Temporary\\LastTest.log": "b08a50845b63c71a645b8b247c472c0f6564b2d1da4e694e3b385c73e89705ef"
+  },
+  "fixture_preparation": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-tiny-fixture-prep-20261024\\fixture-pins.json",
+    "sha256": "a58c5eba6abed5c6b6b069fa0c607dae337a8cca4b05fc342482269e9f67dcf2",
+    "cases": 12
+  },
+  "cpu_native": {
+    "tests": [
+      "tq-format",
+      "backend-errors"
+    ],
+    "passed": 2
+  },
+  "cli_raw_values_per_type": 655360,
+  "vulkan_device": "AMD Radeon VII",
+  "driver": "31.0.21925.1001",
+  "vulkan_backend_checks": {
+    "initial_pass_seconds": 42.13,
+    "expanded_pass_seconds": 35.75,
+    "added_edge_scale_path_checks": 18
+  },
+  "timings_are_correctness_test_durations_not_performance_comparisons": true,
+  "background_observation": "Two RuneLite processes each around 2.4 percent GPU before tests; not a performance run.",
+  "shader_variants_added": 16,
+  "selector_refactor_all_245_shaders_byte_identical": true,
+  "kernel_statistics": {
+    "tq1_integer_row_generic_grouped_scratch_bytes": 192,
+    "tq2_integer_row_generic_grouped_scratch_bytes": 128,
+    "integer_row_one_column_scratch_bytes": 0,
+    "interpretation": "Profile actual released-model paths before choosing an optimization."
+  },
+  "limits_changed": false,
+  "pending": [
+    "independent HF goldens and F32 comparison",
+    "prospective narrowed calibration",
+    "released-file and depth checks",
+    "split/integration checks",
+    "matched timing and landing gates"
+  ],
+  "markdown_review": {
+    "existing_pages": 129,
+    "new_pages": [
+      "docs/src/quant-tq.md"
+    ],
+    "scope": "Changed build/test/quant/backend source pages and support claims checked against implementation and retained results; other pages keep the public main source correspondence. ROADMAP metadata count corrected from 35 to 37."
+  },
+  "final_static_checks": {
+    "build-tq-cpu-stage/checkpoint-docs-final.log": "d4829277ad25510acab371d06b70a116f4a81ae7a05b26668aa1d7746ed84d76",
+    "build-tq-cpu-stage/checkpoint-docs-reviewed.log": "17feede87b2eface4bbe8c88dfc0aae54a3b6e065db96f61ce321798c7c10544"
+  },
+  "retained_intermediate_failures": "Original docs/dead-code failures and sandboxed conversion failure retained in local logs. Final static checks pass; host conversion passes."
+}

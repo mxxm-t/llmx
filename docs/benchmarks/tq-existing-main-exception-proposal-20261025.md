@@ -1,0 +1,12 @@
+# TQ existing-main depth exception (2026-10-25)
+
+Status: user approved on 2026-10-25, with exact reply "Approve scoped baseline exception (Recommended)". The original proposed version is retained in commit `9fc31b261`. The recorded chat rows remain misses under the generic 0.1 rule; the approved disposition reports a separate baseline exception.
+
+The clean main `eaea90857` Q4_0 control uses the exact decoded TQ1 weights: 196 TQ tensors decode bit-identically, 115 companion tensors retain their raw bytes, and metadata is unchanged. Its all-block-int16 Vulkan capture gives 505 exact / 6 ties / 1 miss against the frozen approved HF reference. The miss is the same position 16479 as TQ's 506/5/1: both choose 21360 instead of HF first 104223, with HF gap 0.1220388412475586. Main's own token margin is about 0.0106325, versus TQ's 0.0107498. Main and TQ agree on 511/512 choices; their sole difference at 16451 is an accepted HF tie. Both TQ1/TQ2 captured outputs are byte-identical (the same stdout SHA256); each agrees with main on 511/512 choices, with only the original-rule accepted tie at 16451 differing. Decoded TQ1/TQ2 equivalence and identical chat reference arrays were already established.
+
+Approved scope: only the two released files pinned below, Vulkan default chat, position 16479, with candidate choice 21360 matching this main control, HF first 104223 and second 21360, and the original gap retained. Report it separately as one baseline exception, never as exact or an accepted tie. No additional miss is allowed; all other 511 rows retain the original rule. Raw, CPU, F32, tiny/short rankings and NLL, split, range, identity and performance requirements are unchanged. There is no automatic inheritance by later files, revisions or failures, and no wider generic budget.
+
+- TQ1 SHA256: `e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812`.
+- TQ2 SHA256: `047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a`.
+
+Decision basis: the user approved this narrowly documented baseline exception because the exact-weight control reproduces the failure on existing main. This evidence does not prove every numerical cause or authorize broader acceptance. The current [depth policy](../PRECISION.md#independent-hf-depth-acceptance-agreed-2026-10-01) includes only the scoped exception approved above. [Compact evidence and receipt pins](tq-existing-main-exception-proposal-20261025.json). Original failures remain retained.

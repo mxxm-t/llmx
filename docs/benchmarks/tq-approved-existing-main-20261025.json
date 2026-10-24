@@ -1,0 +1,69 @@
+{
+  "approval": {
+    "authority": "BOSS",
+    "date": "2026-10-25",
+    "text": "Approve scoped baseline exception (Recommended)"
+  },
+  "scope": "Only these exact model, input, reference and capture identities. One existing-main miss remains recorded per chat cell. No future inheritance.",
+  "generic_margin": 0.1,
+  "generic_rule_changed": false,
+  "runtime_changed": false,
+  "source_sha256": "a2ecacdaf5d189502955124212ef073d043eeec04f7fc776cee1ae93c70ed02a",
+  "main_control_sha256": "6bc2259d7d0920deb530ae6d83851f5c1316bc6d9470a7f166b7a4470383e1af",
+  "attribution_audit_sha256": "f69c8dd917fe1d1d5c5516edef06d856eeed446f770e16c1c9a67a716ac2cb2a",
+  "cells": [
+    {
+      "model": "tq1-0",
+      "model_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "capture_outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+      "reference_json_sha256": "b791bdb5e954421e5f8c8e76e385829d47fe6e88cb7976b6ffa7084a4132d8aa",
+      "original_counts": {
+        "exact": 506,
+        "accepted-tie": 5,
+        "miss": 1
+      },
+      "baseline_exceptions": [
+        {
+          "position": 16479,
+          "classification": "miss",
+          "chosen": 21360,
+          "hf_top_two": [
+            104223,
+            21360
+          ],
+          "hf_gap": 0.1220388412475586
+        }
+      ],
+      "unapproved_misses": 0,
+      "passed_under_scoped_approval": true,
+      "all_positions_sha256": "6dc4ad0c7fdc7d97a7ebc63fc6140c6525283362c6eaa1682771ee304384776a"
+    },
+    {
+      "model": "tq2-0",
+      "model_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "capture_outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+      "reference_json_sha256": "42ba7f9d3957607a5c7ba893a35432666111fe24601ac8090516d843654db655",
+      "original_counts": {
+        "exact": 506,
+        "accepted-tie": 5,
+        "miss": 1
+      },
+      "baseline_exceptions": [
+        {
+          "position": 16479,
+          "classification": "miss",
+          "chosen": 21360,
+          "hf_top_two": [
+            104223,
+            21360
+          ],
+          "hf_gap": 0.1220388412475586
+        }
+      ],
+      "unapproved_misses": 0,
+      "passed_under_scoped_approval": true,
+      "all_positions_sha256": "6dc4ad0c7fdc7d97a7ebc63fc6140c6525283362c6eaa1682771ee304384776a"
+    }
+  ],
+  "other_gates": "Unchanged and separately required; this report grants no blanket merge pass."
+}

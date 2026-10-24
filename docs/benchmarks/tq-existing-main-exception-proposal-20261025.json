@@ -1,0 +1,214 @@
+{
+  "status": "USER APPROVED scoped baseline exception",
+  "gate_waiver": false,
+  "main_revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "main_counts": {
+    "exact": 505,
+    "accepted-tie": 6,
+    "miss": 1
+  },
+  "tq_counts": {
+    "exact": 506,
+    "accepted-tie": 5,
+    "miss": 1
+  },
+  "disputed_position": {
+    "position": 16479,
+    "classification": "miss",
+    "hf_gap": 0.1220388412475586,
+    "chosen": 21360,
+    "hf_top_two": [
+      104223,
+      21360
+    ],
+    "hf_logits": [
+      14.709808349609375,
+      14.587769508361816
+    ],
+    "main_top_five": [
+      21360,
+      104223,
+      44636,
+      45,
+      39953
+    ],
+    "main_top_five_logits": [
+      14.6663723,
+      14.6557398,
+      14.432332,
+      14.1904888,
+      14.1464682
+    ],
+    "main_logits_for_hf_top_two": [
+      14.6557398,
+      14.6663723
+    ]
+  },
+  "main_token_margin": 0.0106325,
+  "tq_token_margin": 0.0107498,
+  "main_tq_top1_agreement": {
+    "agree": 511,
+    "total": 512,
+    "sole_difference": {
+      "position": 16451,
+      "main": 96321,
+      "tq": 146840,
+      "classification": "HF accepted tie"
+    }
+  },
+  "converted_model": {
+    "bytes": 469081344,
+    "sha256": "d33053c1a0094993a75b99cc9f51288afecbdb7b1d4541017f6504c100606818",
+    "tq_tensors_decoded_bit_identical": 196,
+    "companions_raw_identical": 115,
+    "metadata_unchanged": true
+  },
+  "conversion_proof": {
+    "source_model": {
+      "path": "/source.gguf",
+      "bytes": 314252544,
+      "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+    },
+    "converted_model": {
+      "path": "/output/converted.gguf",
+      "bytes": 469081344,
+      "sha256": "d33053c1a0094993a75b99cc9f51288afecbdb7b1d4541017f6504c100606818"
+    },
+    "tensor_counts": {
+      "tq1_0": 196,
+      "unchanged": 115
+    },
+    "metadata_preserved": true,
+    "decoded_bits_equal": true,
+    "conversion_proof_sha256": "5ad69b59d1d5fbdda80e51d25e92d99cefb4e3a051dec34e416cb4ca2816101e"
+  },
+  "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+      [
+        "block-int16"
+      ]
+    ]
+  },
+  "capture_contract_sha256": "94bcfff41553927c14ac72247deb80400f2df5cd68766f9b3332615e7c43b74c",
+  "comparison_source_sha256": "33cba10f5731ac45c70574cd860ac7364dc56bd446c2f7344aab485bf3d0a50b",
+  "reference_report_sha256": "868989cb3fdb317f2513b2642b3a311b7ec6c1bf46cb753058fb3aef1040f613",
+  "reference_array_sha256": "465ccb227d6023e4e658dff0fec2f312d463611960e09d1c93984a7b0156c682",
+  "root_audit": "Cleanup, nine capture artifact hashes and input pins verified. Conversion 14.25 s; compile/capture 61.13 s.",
+  "receipts": {
+    "build-quant-resume-20261020/tq-q4-main-comparison-20261025.json": "6bc2259d7d0920deb530ae6d83851f5c1316bc6d9470a7f166b7a4470383e1af",
+    "build-quant-resume-20261020/tq-q4-main-collected-20261025/outer-execution.json": "4ba7fa8021455965b2d2facea008f7e07c6b0da7e63821d0f734b0d06296210c",
+    "build-quant-resume-20261020/tq-q4-main-collected-20261025/stage-execution.json": "f58a3dd06e46022546fafba51d46a14b2bd0ef7b57c2020961c68aa8ab2075a1",
+    "build-quant-resume-20261020/tq-q4-main-collected-20261025/converted.gguf.conversion.json": "5ad69b59d1d5fbdda80e51d25e92d99cefb4e3a051dec34e416cb4ca2816101e"
+  },
+  "limitations": [
+    "Pre-existing main failure supports a scoped exception; complete numerical cause is not proven.",
+    "Exact decoded weights do not imply identical accumulation order.",
+    "No automatic future inheritance, tolerance increase, reference replacement, broader approval or merge claim."
+  ],
+  "main_binary_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+  "capture_stdout_sha256": "ef9b5f5e7bb5817a541e317aa84d86c8117f500dc1c81eb0850b1719922dc131",
+  "capture_stderr_sha256": "301ed8981c6f3b22922562323e880d3ac232d04a47a2c60e9e1168f9f9f34913",
+  "capture_pins": {
+    "main_revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+    "main_version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+    "main_cli_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+    "main_library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+    "main_probe_sha256": "663e19fdd5397197f52a7bae95f436b17dd975d35c54329dae46a21c2d095456",
+    "main_probe_source_sha256": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
+    "compiler_version": "c++ (Debian 14.2.0-19) 14.2.0",
+    "execution_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "execution_image_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+    "input_pins_before_after_equal": true
+  },
+  "independent_attribution_audit": {
+    "path": "build-quant-resume-20261020/tq-q4-main-attribution-audit-20261025.json",
+    "sha256": "f69c8dd917fe1d1d5c5516edef06d856eeed446f770e16c1c9a67a716ac2cb2a",
+    "all_capture_artifacts_verified": 9,
+    "input_pins_unchanged": true,
+    "removed": true,
+    "oom": false,
+    "controls": [
+      {
+        "model": "tq1-0",
+        "stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc",
+        "outer_sha256": "dcecf84cf33c5a9be0a5e31556739e1614ef90dc33356d9459fe24aef038a460",
+        "top1_equal": 511,
+        "top1_differences": [
+          {
+            "position": 16451,
+            "main_id": 96321,
+            "tq_id": 146840,
+            "main_top_two_logits": [
+              12.8222408,
+              12.8220711
+            ],
+            "tq_top_two_logits": [
+              12.8296299,
+              12.8213987
+            ]
+          }
+        ],
+        "shared_top50_logits_compared": 25549,
+        "max_shared_top50_abs_error": 0.04691880000000026,
+        "position16479": {
+          "top_two_ids": [
+            21360,
+            104223
+          ],
+          "top_two_logits": [
+            14.6650743,
+            14.6543245
+          ],
+          "chosen_margin": 0.01074980000000103
+        }
+      },
+      {
+        "model": "tq2-0",
+        "stdout_sha256": "75199960318b0f0473a0d1be451c7c6b0796344130c62695b7fc38024c58e0bc",
+        "outer_sha256": "b0542e0ba518de52f52e20a3cd518552a527c00164db440ba3ad822beba63044",
+        "top1_equal": 511,
+        "top1_differences": [
+          {
+            "position": 16451,
+            "main_id": 96321,
+            "tq_id": 146840,
+            "main_top_two_logits": [
+              12.8222408,
+              12.8220711
+            ],
+            "tq_top_two_logits": [
+              12.8296299,
+              12.8213987
+            ]
+          }
+        ],
+        "shared_top50_logits_compared": 25549,
+        "max_shared_top50_abs_error": 0.04691880000000026,
+        "position16479": {
+          "top_two_ids": [
+            21360,
+            104223
+          ],
+          "top_two_logits": [
+            14.6650743,
+            14.6543245
+          ],
+          "chosen_margin": 0.01074980000000103
+        }
+      }
+    ],
+    "candidate_captured_outputs_identical": true,
+    "sole_top1_difference_classification": "Position 16451 is accepted by original HF tie rule."
+  },
+  "approval": {
+    "date": "2026-10-25",
+    "authority": "user",
+    "exact_reply": "Approve scoped baseline exception (Recommended)",
+    "historical_proposal_commit": "9fc31b261"
+  },
+  "approved_baseline_exception": true,
+  "approved_classification": "Separate baseline exception, never exact or accepted tie. No additional misses; other 511 rows retain original rule."
+}

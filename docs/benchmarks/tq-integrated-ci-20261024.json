@@ -1,0 +1,21 @@
+{
+  "source_checkpoint": "5afb006d07521c547b1279d06405189852253dce",
+  "base": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "head": "c1d31364ae45e71d5dd7753373675f6484364718",
+  "tree": "ab6a28aad7f1291eef5d44e562750ed4f9865779",
+  "branch": "gate/tq-integration-20261024",
+  "tree_identical_to_checkpoint": true,
+  "runtime_inputs_unchanged_since": "a0fa25492",
+  "scope": "Hosted integration only. Remaining CPU depth and Vulkan chat diagnosis do not pass automatically. No main merge.",
+  "message": "Add TQ1_0 and TQ2_0 decoding\n\nDecode ternary GGUF weights through the shared CPU and Vulkan quant owners.\nCover packed blocks, matrix paths, model fixtures and dtype calibration.\n",
+  "hosted_run": {
+    "id": 40125669040,
+    "status": "running",
+    "jobs_running": 7,
+    "conclusion": null
+  },
+  "source_receipt": {
+    "path": "build-quant-resume-20261020/tq-integrated-ci-candidate-20261024.json",
+    "sha256": "82b67493eb7de05e3bc02538cef8e27e5063664d2e97a7ba559765a017b652d3"
+  }
+}

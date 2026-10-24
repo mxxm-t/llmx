@@ -1,0 +1,59 @@
+{
+  "head": "69288d88ef2ad4b599c81a6f9646557d4e8460b1",
+  "branch": "gate/tq-cli-fixture-20261024",
+  "feature_checkpoint": "4f7dfe780ca8ec4f89ec6f58830898847ec7c225",
+  "base_main": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+  "original_integration_head": "c1d31364ae45e71d5dd7753373675f6484364718",
+  "original_integration_run": 40125669040,
+  "qualification_tree_difference": [
+    ".github/workflows/ci.yml"
+  ],
+  "relevant_change_since_original_ci": [
+    "tests/cli.py"
+  ],
+  "runtime_build_inputs_unchanged": true,
+  "workflow_sha256": "1f6650b5677e477b898625cbfae44dbe7362094641b4ac262c421910920e79c4",
+  "cli_test_sha256": "e744d4ad048da5a47d29407812983ec41388114c982a72ec5e4e64af59dc648f",
+  "scope": "Focused CLI follow-up only. Original native, HF and other tests continue on unchanged inputs. Temporary workflow is not part of the landing tree. No main merge.",
+  "run": {
+    "id": 40128390450,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs_passed": 5
+  },
+  "receipt_sha256": "0d2d7fb7d6eb8875ece2267576f3c002df11418a17eaa28615626991c7f5cf67",
+  "remote_branch_deleted": {
+    "head": "69288d88ef2ad4b599c81a6f9646557d4e8460b1",
+    "exact_lease": true,
+    "main_unchanged": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+    "local_ref_retained": true
+  },
+  "linux_focused_check": {
+    "passed": true,
+    "scope": "Used and unused Q8_1 metadata, tokenization, execution/conversion refusal and output preservation",
+    "execution_sha256": "01389fa4c05581a3c1e44a4f33b84de84508c420b8fc54de5cb8a610eee86295",
+    "binary_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+    "artifact_hashes_verified": 4,
+    "no_oom": true,
+    "removed": true,
+    "retained_pretest_wrapper_failure_sha256": "d070ba2608453bc262d4a1003dc9a85cbd092dc754d74a0e9e02d6295818ef6d"
+  },
+  "remaining_hosted_coverage": [],
+  "original_macos_terminal": {
+    "job_id": 120966424618,
+    "conclusion": "failure",
+    "failed_components": [
+      "cli"
+    ],
+    "native_tests_passed": 68,
+    "other_executable_components": "all passed, including TQ1/TQ2",
+    "log": "build-quant-resume-20261020/tq-integrated-job-120966424618.log",
+    "log_sha256": "a5832c6e3ef57c055592f2bf5cfcb4b032868e2acc82de1ccf688f3d95a1f511"
+  },
+  "coverage_disposition": "Required hosted coverage accounted for by original results plus focused CLI, restored-tree static and HF-tail passes. Original failed jobs remain failures; no numerical gate pass or merge.",
+  "remote_cleanup_final": {
+    "original_integration_branch_deleted_exact_lease": "c1d31364ae45e71d5dd7753373675f6484364718",
+    "local_ref_retained": true,
+    "remote_only_main": "eaea90857"
+  }
+}

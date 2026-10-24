@@ -1,0 +1,196 @@
+{
+  "schema": "tq-existing-path-identity-vulkan-audit-v1",
+  "scope": "Three existing-format Vulkan identity cases only; this does not qualify TQ numerics, performance, or all GGUF formats.",
+  "execution": {
+    "passed": true,
+    "exit": 0,
+    "removed": true,
+    "oom_killed": false,
+    "device": "vulkan:0",
+    "container_image_id": "sha256:f1a98d3a520951f62a8588510cb33064be4c08cb33cc3101f94b14b4cdef7e07",
+    "placement": {
+      "cpuset": "0-3",
+      "quota": 4,
+      "helper_threads": 6,
+      "purpose": "device identity only"
+    },
+    "memory_plan_bytes": 6442450944,
+    "duration_seconds": 18.759,
+    "resource_activity_samples": 0,
+    "note": "The run receipt had no live resource samples; it is not an idle-machine or activity-balanced claim."
+  },
+  "pins": {
+    "result_sha256": "33993eb1a31ca8f0ddb99f492e8c45785cfff95e20a92d2767e3a9be1d2a50e7",
+    "execution_sha256": "61b5e81f79ea2ba7d6015d698e9fbb7681c14404b5addf2e23191fe6702ef093",
+    "source_pins_sha256": "c92dae4a42192668ce8e9cc84a5e2156ba0fbe05b8ee85ce1924ccd0245a0460",
+    "prep_expected_arms_sha256": "0e7eefd06f69842f916b369457fadf9e96d161c73e59b31f2c1261ba5c42d6f4",
+    "fixture_manifest_sha256": "4aabc30f760d8e9bcab59718b8e0bae22858e54aabf301f6cdf81c6cd0dc95a8",
+    "metadata_archive_sha256": "bd33eca33d0fe604a6a26271beec466b1a836605a5c652384c609524a607baae",
+    "fresh_remote_binary_sha256_listing": "dfb630d6a2063be570e49d97a0ebb04c55040f6ed6b66e10fe50bfad9b13f171",
+    "metadata_files_verified_against_execution_manifest": 37,
+    "raw_binary_captures_downloaded": false,
+    "binary_capture_verification": "All 18 files were freshly SHA-256 hashed on the rig and matched both result.json and execution.json; the large bytes were not transferred locally."
+  },
+  "arms": {
+    "main": {
+      "revision": "eaea90857b2ff1bb47037ea840a421f954fd30a6",
+      "version": "llmx 0.1.0+geaea90857b2f numerics 858ff6e3d04e18b1",
+      "cli_sha256": "817c146a09f165fe2e4a793c01f7e18293e7e12b95421fc6d000d1df496b24c8",
+      "model_logits_sha256": "43f28606690df696594d9c953576ab7836e4411f384e2241fe32f6ddedf257fc",
+      "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+      "image_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+      "verified_source_files": 2366,
+      "source_hashes_match_frozen_pin": true
+    },
+    "candidate": {
+      "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+      "version": "llmx 0.1.0+ga0fa25492b3e numerics 2eafd37875f29183",
+      "cli_sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8",
+      "model_logits_sha256": "533ec6b3a0f4064ce42ac7fcf50a84d869a76fc37556da4f0bb655311852aaf9",
+      "library_sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e",
+      "image_config_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+      "verified_source_files": 2405,
+      "source_hashes_match_frozen_pin": true
+    }
+  },
+  "cases": [
+    {
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bytes": 639446688,
+      "tokens": 247,
+      "greedy_tokens": 64,
+      "storage_types": [
+        0,
+        8
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exact_capture_hash_pairs": {
+        "batched": {
+          "main": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d",
+          "candidate": "57f0c53d940dbef70dae36f09ff56ce97df0a0285fcdf9f5d6b28b1f6142b63d"
+        },
+        "decode": {
+          "main": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af",
+          "candidate": "c436c0bfb6ef79ea4b8e11d07167fd24aff7fda9492e10e22f0e36363570e2af"
+        },
+        "greedy": {
+          "main": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378",
+          "candidate": "1dab7a6c3f187ba5d11ca312f02204b10843fcca91b48c251efbbcf0f558a378"
+        }
+      }
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_0.gguf",
+      "model_sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "bytes": 382156480,
+      "tokens": 247,
+      "greedy_tokens": 64,
+      "storage_types": [
+        0,
+        2,
+        3,
+        14
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exact_capture_hash_pairs": {
+        "batched": {
+          "main": "e1b09fc05dd16a796d12c5c0b24b155c45ac0c011e81dc5e8cdd217d56de68eb",
+          "candidate": "e1b09fc05dd16a796d12c5c0b24b155c45ac0c011e81dc5e8cdd217d56de68eb"
+        },
+        "decode": {
+          "main": "53cad540badb1ae002d398927133ed39c5d211b8067b9f31a240f5dde552f53f",
+          "candidate": "53cad540badb1ae002d398927133ed39c5d211b8067b9f31a240f5dde552f53f"
+        },
+        "greedy": {
+          "main": "88fde4a347e8f568b9a11c20f9d683a09fbaed70800b3169c9a1469f2247b339",
+          "candidate": "88fde4a347e8f568b9a11c20f9d683a09fbaed70800b3169c9a1469f2247b339"
+        }
+      }
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_K_M.gguf",
+      "model_sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "bytes": 396705472,
+      "tokens": 247,
+      "greedy_tokens": 64,
+      "storage_types": [
+        0,
+        12,
+        14
+      ],
+      "matrix_paths": {
+        "batched": [
+          [
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "exact_capture_hash_pairs": {
+        "batched": {
+          "main": "d2624217fac1668e733f90c31a3026a9810a4b2a9547cd86c5adfee5654d5dd2",
+          "candidate": "d2624217fac1668e733f90c31a3026a9810a4b2a9547cd86c5adfee5654d5dd2"
+        },
+        "decode": {
+          "main": "81e0eddbe00fabc0088baab2757bd775591c8f4a5215ed8ba672e07bb6ebf694",
+          "candidate": "81e0eddbe00fabc0088baab2757bd775591c8f4a5215ed8ba672e07bb6ebf694"
+        },
+        "greedy": {
+          "main": "74d7d0b760b05d6143830b7a4041dddfb45bacd70a78ee89eacfc6ec3f64b912",
+          "candidate": "74d7d0b760b05d6143830b7a4041dddfb45bacd70a78ee89eacfc6ec3f64b912"
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "case_count": 3,
+    "phase_pairs_identical": 9,
+    "full_vocabulary_batched_rows_per_case": 247,
+    "full_vocabulary_single_row_decode_steps_per_case": 247,
+    "greedy_tokens_per_case": 64,
+    "cache_type": "f16",
+    "claim": "All three measured existing-format fixtures produced matching main/candidate hashes for batched, single-row, and greedy captures."
+  }
+}

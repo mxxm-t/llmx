@@ -175,6 +175,8 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   `iq2_small.glsl` decodes IQ2_XXS/IQ2_XS, `iq2_s.glsl` decodes IQ2_S,
   `iq3_xxs.glsl` decodes IQ3_XXS, and `iq3_s.glsl` decodes IQ3_S. The lookup
   cache supplies their dictionary view where the selected kernel uses it.
+  `tq.glsl` decodes TQ1_0/TQ2_0 byte fields without a dictionary; `tq_dot.glsl`
+  supplies their 32-value signed groups to the existing integer-dot owner.
   The float tile takes its Q4_0 and Q4_1 decoders and the K-quant sub-scale reader, and decodes Q8_0 and the K-quant runs itself; the row kernels decode words in place. Types are
   keyed by the storage IDs in `quant/types.hpp`; `quant::Registry` names
   implemented C++ decoders, and the shader include supplies device decoders.

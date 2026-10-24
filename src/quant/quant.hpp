@@ -14,6 +14,7 @@
 #include "quant/iq3_s.hpp"
 #include "quant/iq2_s.hpp"
 #include "quant/mxfp4.hpp"
+#include "quant/tq.hpp"
 #include "quant/types.hpp"
 
 // Block quantizers, decoders and their registry; types.hpp owns storage metadata.
@@ -239,6 +240,10 @@ private:
           { *storage_type(GGML_TYPE_Q6_K), nullptr, dequantize_row_q6_K } },
         { GGML_TYPE_MXFP4,
           { *storage_type(GGML_TYPE_MXFP4), nullptr, dequantize_row_mxfp4 } },
+        { GGML_TYPE_TQ1_0,
+          { *storage_type(GGML_TYPE_TQ1_0), nullptr, dequantize_row_tq1_0 } },
+        { GGML_TYPE_TQ2_0,
+          { *storage_type(GGML_TYPE_TQ2_0), nullptr, dequantize_row_tq2_0 } },
         { GGML_TYPE_F16,
           { *storage_type(GGML_TYPE_F16), nullptr, dequantize_row_f16 } },
         { GGML_TYPE_BF16,

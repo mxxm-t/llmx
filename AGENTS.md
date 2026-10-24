@@ -151,7 +151,11 @@ On Windows with `LongPathsEnabled` set, the round-trip component also reads a GG
 
 ## Tests
 
+`tq1-0` and `tq2-0` compare independently spec-decoded tiny dense tied/untied and MoE fixtures through the shared HF consumer, selecting whole-block split references for tensor groups. `tools/gen_baseline.py tq` prepares their references; F32 keeps the existing limits, and narrowed execution requires prospective TQ-family calibration. Their reference generation and model qualification are pending in STATUS.
+
 `iq2-small` checks the IQ2_XXS and IQ2_XS read-only decoders and backend products against independent packed dictionaries and arithmetic. It covers unaligned blocks, source/output guards, reordered and invalid embedding IDs, F32 grouped/residual/routed products and plain products under F32/F16/BF16/int8 with actual arithmetic witnesses. The oracle rounds BF16 independently and reconstructs block-int16 inputs separately. Each format has 960 signed finite-half/activation-range controls. `iq2-small-vulkan` runs on the device and checks row/tile threshold edges with one-hot products and timestamped kernel families where timestamps are available. It skips with exit 77 only when Vulkan is unavailable. These operator checks do not establish model-level HF, long-context or performance qualification.
+
+`tq-format` checks the read-only TQ1_0 and TQ2_0 CPU block decoders against an independent field mapping. It covers every packed byte value, every finite binary16 scale, raw TQ2 code 3, unaligned consecutive blocks, source/output guards and generic CPU matrix products. It does not establish Vulkan inference or released-model qualification.
 
 The `iq2-xxs` and `iq2-xs` Python components share `tests/iq2_small.py` and the existing block-fixture consumer. Each uses its own packed layout and independently decoded weights for dense tied/untied and MoE models, including split-compatible shapes. `tools/gen_baseline.py iq2-xxs` and `iq2-xs` generate their HF references. Missing references fail. Narrowed arithmetic requires the separately frozen family calibration. Raw-field CLI conversion is covered by `raw-blocks` rather than repeated in these model consumers.
 

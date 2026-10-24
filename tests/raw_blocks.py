@@ -545,6 +545,89 @@ def check_q2_k(rng):
     print("raw-blocks: Q2_K %d values over every scale and min byte and every pairing of d and dmin  [ok]" % len(expected))
 
 
+def tq1_block(qs, qh, d):
+    assert len(qs) == 48 and len(qh) == 4
+    return bytes(qs) + bytes(qh) + struct.pack("<H", d)
+
+
+def tq2_block(qs, d):
+    assert len(qs) == 64
+    return bytes(qs) + struct.pack("<H", d)
+
+
+def tq1_expected(qs, qh, d):
+    out = []
+    for fields, digits in ((qs[:32], 5), (qs[32:], 5), (qh, 4)):
+        for n in range(digits):
+            for packed in fields:
+                fraction = Fraction(packed * 3 ** n, 256)
+                fraction -= fraction.numerator // fraction.denominator
+                trit = int(3 * fraction)
+                out.append(cell(lambda h, trit=trit: h(d) * (trit - 1)))
+    return out
+
+
+def tq2_expected(qs, d):
+    out = []
+    for start in (0, 32):
+        for plane in range(4):
+            for packed in qs[start:start + 32]:
+                code = packed >> (2 * plane) & 3
+                out.append(cell(lambda h, code=code: h(d) * (code - 1)))
+    return out
+
+
+# TQ1 fractional-base-3 digits and TQ2 bit planes, over every byte value at each packed offset and scale sign/extent cases.
+def check_tq():
+    tq1_payload, tq1_expected_values = bytearray(), []
+    tq2_payload, tq2_expected_values = bytearray(), []
+    for sweep in range(256):
+        qs1 = [(sweep + 73 * i) & 255 for i in range(48)]
+        qh1 = [(sweep + 73 * (48 + i)) & 255 for i in range(4)]
+        qs2 = [(sweep + 73 * i) & 255 for i in range(64)]
+        tq1_payload.extend(tq1_block(qs1, qh1, 0x3C00))
+        tq1_expected_values.extend(tq1_expected(qs1, qh1, 0x3C00))
+        tq2_payload.extend(tq2_block(qs2, 0x3C00))
+        tq2_expected_values.extend(tq2_expected(qs2, 0x3C00))
+
+    assert_values("TQ1_0 packed bytes", tq1_expected_values,
+                  sd.decode(sd.TQ1_0, tq1_payload, len(tq1_expected_values)))
+    assert_numpy_matches("TQ1_0 packed bytes", sd.TQ1_0, tq1_payload, len(tq1_expected_values))
+    assert_values("TQ2_0 packed bytes", tq2_expected_values,
+                  sd.decode(sd.TQ2_0, tq2_payload, len(tq2_expected_values)))
+    assert_numpy_matches("TQ2_0 packed bytes", sd.TQ2_0, tq2_payload, len(tq2_expected_values))
+
+    edge_halves = HALVES + (0x8001, 0xFBFF)
+    for d in edge_halves:
+        qs1, qh1 = [128] * 48, [128] * 4
+        qs2 = [0x55] * 64
+        p1, p2 = tq1_block(qs1, qh1, d), tq2_block(qs2, d)
+        e1, e2 = tq1_expected(qs1, qh1, d), tq2_expected(qs2, d)
+        assert_values("TQ1_0 scale %04x" % d, e1, sd.decode(sd.TQ1_0, p1, 256))
+        assert_numpy_matches("TQ1_0 scale %04x" % d, sd.TQ1_0, p1, 256)
+        assert_values("TQ2_0 scale %04x" % d, e2, sd.decode(sd.TQ2_0, p2, 256))
+        assert_numpy_matches("TQ2_0 scale %04x" % d, sd.TQ2_0, p2, 256)
+
+    negative_zero1 = sd.decode(sd.TQ1_0, tq1_block([128] * 48, [128] * 4, 0xBC00), 256)[0]
+    negative_zero2 = sd.decode(sd.TQ2_0, tq2_block([0x55] * 64, 0xBC00), 256)[0]
+    assert struct.pack("<f", negative_zero1) == b"\0\0\0\x80"
+    assert struct.pack("<f", negative_zero2) == b"\0\0\0\x80"
+    sample = sd.decode(sd.TQ2_0, tq2_block([0xE4] + [0] * 63, 0x3C00), 256)
+    assert [sample[i] for i in (0, 32, 64, 96)] == [-1.0, 0.0, 1.0, 2.0], sample[:97:32]
+
+    # Two consecutive blocks begin at an odd address and retain their ordering.
+    both1 = tq1_block([0] * 48, [0] * 4, 0x3C00) + tq1_block([255] * 48, [255] * 4, 0xBC00)
+    both2 = tq2_block([0] * 64, 0x3C00) + tq2_block([255] * 64, 0xBC00)
+    for type_id, payload in ((sd.TQ1_0, both1), (sd.TQ2_0, both2)):
+        count = 512
+        plain = sd.pack_f32(sd.decode(type_id, payload, count))
+        unaligned = memoryview(b"x" + payload + b"y")[1:-1]
+        assert_same_bits("%s consecutive unaligned blocks" % sd.type_name(type_id), plain,
+                         sd.pack_f32(sd.decode(type_id, unaligned, count)))
+        assert_numpy_matches("%s consecutive unaligned blocks" % sd.type_name(type_id), type_id, unaligned, count)
+    print("raw-blocks: TQ1_0 and TQ2_0 all byte values at every field offset, signed-zero and finite-scale edges, code 3, and unaligned consecutive blocks [ok]")
+
+
 def q8_0_block(d, q):
     return struct.pack("<H", d) + struct.pack("<32b", *q)
 
@@ -590,7 +673,8 @@ def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
     halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
-              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,)}.get(type_id, ())
+              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,),
+              sd.TQ1_0: (52,), sd.TQ2_0: (64,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
         block = bytearray(rng.getrandbits(8) for _ in range(size))
@@ -768,6 +852,7 @@ def run(require=False):
     check_mxfp4(rng)
     check_q3_k(rng)
     check_q2_k(rng)
+    check_tq()
     check_q4_0_q8_0(rng)
     check_zero_blocks()
     check_gguf_spans()

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 #include "core/fp16.hpp"
 #include "quant/quant.hpp"
@@ -16,6 +17,23 @@ inline std::vector<uint8_t> mxfp4_matrix(size_t n, uint32_t seed) {
     for (size_t b = 0; b < bytes.size() / quant::MXFP4_TYPESIZE; ++b) {
         bytes[b * quant::MXFP4_TYPESIZE] = uint8_t(124 + b % 7);
         for (size_t i = 1; i < quant::MXFP4_TYPESIZE; ++i) bytes[b * quant::MXFP4_TYPESIZE + i] = uint8_t(seed + b * 31 + i * 17);
+    }
+    return bytes;
+}
+
+// Deterministic raw TQ blocks for Vulkan's read-only format checks.
+inline std::vector<uint8_t> tq_matrix(uint32_t type, size_t values, uint32_t seed) {
+    const bool tq1 = type == quant::GGML_TYPE_TQ1_0;
+    const size_t block_bytes = tq1 ? quant::TQ1_0_TYPESIZE : quant::TQ2_0_TYPESIZE;
+    if ((type != quant::GGML_TYPE_TQ1_0 && type != quant::GGML_TYPE_TQ2_0) || values % 256)
+        throw std::runtime_error("testq: invalid TQ matrix shape");
+    std::vector<uint8_t> bytes(values / 256 * block_bytes);
+    for (size_t b = 0; b < bytes.size() / block_bytes; ++b) {
+        uint8_t* block = bytes.data() + b * block_bytes;
+        for (size_t i = 0; i < block_bytes - 2; ++i)
+            block[i] = uint8_t(seed + 73 * i + 41 * b + 19 * (i >> 2));
+        block[block_bytes - 2] = 0x00;
+        block[block_bytes - 1] = 0x3c;
     }
     return bytes;
 }

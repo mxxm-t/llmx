@@ -1,0 +1,95 @@
+{
+  "observed_utc": "2026-10-24T00:23:38.802217+00:00",
+  "repo": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+  "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53",
+  "scope": "Header inventory plus complete payload SHA256 verification and CLI metadata parsing. Inference qualification pending.",
+  "models": [
+    {
+      "file": "Qwen3-0.6B-TQ1_0.gguf",
+      "url": "https://huggingface.co/Majipa/Qwen3-0.6B-GGUF-Quantized/resolve/6df0b3e98df0fd81c85f3eb94215c1aa50470b53/Qwen3-0.6B-TQ1_0.gguf",
+      "advertised_size": 314252544,
+      "advertised_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "header_bytes": 8388608,
+      "header_sha256": "e3045f2a592df1d7b1ec2b77f5c8d840f1609c347f35ea3522c6f97d82c94ffa",
+      "content_range": "bytes 0-8388607/314252544",
+      "architecture": "qwen3",
+      "types": {
+        "F32": 113,
+        "Q4_K": 1,
+        "Q6_K": 1,
+        "TQ1_0": 196
+      },
+      "tensor_count": 311,
+      "non_ternary_matrices": [
+        {
+          "name": "output.weight",
+          "shape": [
+            1024,
+            151936
+          ],
+          "type": 14,
+          "offset": 5951744,
+          "bytes": 127626240
+        },
+        {
+          "name": "token_embd.weight",
+          "shape": [
+            1024,
+            151936
+          ],
+          "type": 12,
+          "offset": 133582080,
+          "bytes": 87515136
+        }
+      ],
+      "payload_qualification": "Downloaded with llmx pull --parallel 4, independently SHA256 verified, CPU CLI info passed. Runtime/HF checks pending.",
+      "local_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-model-cache\\models--Majipa--Qwen3-0.6B-GGUF-Quantized\\snapshots\\6df0b3e98df0fd81c85f3eb94215c1aa50470b53\\Qwen3-0.6B-TQ1_0.gguf",
+      "verified_payload_sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812"
+    },
+    {
+      "file": "Qwen3-0.6B-TQ2_0.gguf",
+      "url": "https://huggingface.co/Majipa/Qwen3-0.6B-GGUF-Quantized/resolve/6df0b3e98df0fd81c85f3eb94215c1aa50470b53/Qwen3-0.6B-TQ2_0.gguf",
+      "advertised_size": 334896384,
+      "advertised_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "header_bytes": 8388608,
+      "header_sha256": "c1b79c1dcda1a22646a5fb41acfe17cdd974a0c200dae6a03d542001cbd20220",
+      "content_range": "bytes 0-8388607/334896384",
+      "architecture": "qwen3",
+      "types": {
+        "F32": 113,
+        "Q4_K": 1,
+        "Q6_K": 1,
+        "TQ2_0": 196
+      },
+      "tensor_count": 311,
+      "non_ternary_matrices": [
+        {
+          "name": "output.weight",
+          "shape": [
+            1024,
+            151936
+          ],
+          "type": 14,
+          "offset": 5951744,
+          "bytes": 127626240
+        },
+        {
+          "name": "token_embd.weight",
+          "shape": [
+            1024,
+            151936
+          ],
+          "type": 12,
+          "offset": 133582080,
+          "bytes": 87515136
+        }
+      ],
+      "payload_qualification": "Downloaded with llmx pull --parallel 4, independently SHA256 verified, CPU CLI info passed. Runtime/HF checks pending.",
+      "local_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-model-cache\\models--Majipa--Qwen3-0.6B-GGUF-Quantized\\snapshots\\6df0b3e98df0fd81c85f3eb94215c1aa50470b53\\Qwen3-0.6B-TQ2_0.gguf",
+      "verified_payload_sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a"
+    }
+  ],
+  "raw_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-model-header-inventory-20261024\\inventory.json",
+  "raw_bytes": 135025,
+  "raw_sha256": "49df312fa90d3705c62a13afdbe9af75514e6e29b866b6ce3fdfca95bc3fcfe8"
+}

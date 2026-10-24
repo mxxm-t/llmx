@@ -31,7 +31,13 @@ constexpr uint32_t GGML_TYPE_IQ3_S = 21;
 constexpr uint32_t GGML_TYPE_IQ2_S = 22;
 constexpr uint32_t GGML_TYPE_IQ4_XS = 23;
 constexpr uint32_t GGML_TYPE_BF16 = 30;
+constexpr uint32_t GGML_TYPE_TQ1_0 = 34;
+constexpr uint32_t GGML_TYPE_TQ2_0 = 35;
 constexpr uint32_t GGML_TYPE_MXFP4 = 39;
+constexpr size_t   TQ1_0_BLOCK = 256;
+constexpr size_t   TQ1_0_TYPESIZE = 54;
+constexpr size_t   TQ2_0_BLOCK = 256;
+constexpr size_t   TQ2_0_TYPESIZE = 66;
 
 constexpr size_t   Q4_0_BLOCK    = 32;   // values per block
 constexpr size_t   Q4_0_TYPESIZE = 18;   // 2-byte f16 scale + 32 nibbles
@@ -93,7 +99,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {"I8", 1, 1}, {"I16", 1, 2}, {"I32", 1, 4}, {"I64", 1, 8}, {"F64", 1, 8},
         {"IQ1_M", 256, 56}, {"BF16", 1, 2},
         {}, {}, {},
-        {"TQ1_0", 256, 54}, {"TQ2_0", 256, 66},
+        {"TQ1_0", TQ1_0_BLOCK, TQ1_0_TYPESIZE}, {"TQ2_0", TQ2_0_BLOCK, TQ2_0_TYPESIZE},
         {}, {}, {},
         {"MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE}, {"NVFP4", 64, 36},
         {"Q1_0", 128, 18}, {"Q2_0", 64, 18},

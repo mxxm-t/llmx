@@ -20,6 +20,7 @@ F32, F16, Q4_0, Q4_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS, BF16, 
 Q5_0, Q5_1, IQ3_S, IQ2_S = 6, 7, 21, 22
 IQ2_XXS, IQ2_XS = 16, 17
 IQ3_XXS = 18
+TQ1_0, TQ2_0 = 34, 35
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -43,6 +44,8 @@ TYPES = {
     IQ4_NL: ("IQ4_NL", 32, 18),
     IQ4_XS: ("IQ4_XS", 256, 136),
     BF16: ("BF16", 1, 2),
+    TQ1_0: ("TQ1_0", 256, 54),
+    TQ2_0: ("TQ2_0", 256, 66),
     MXFP4: ("MXFP4", 32, 17),
 }
 
@@ -484,6 +487,34 @@ def q2_k(block):
     return out
 
 
+# TQ1_0: 48 bytes hold five fractional radix-3 digits each, four bytes hold four each, then the f16 scale.
+# For byte b and digit n, floor(3 * fractional_part(b * 3**n / 256)) preserves the format's byte wrap.
+def tq1_0(block):
+    d = f16(block, 52)
+    out = []
+    for start, end, digits in ((0, 32, 5), (32, 48, 5), (48, 52, 4)):
+        for n in range(digits):
+            power = 3 ** n
+            for b in block[start:end]:
+                remainder = (b * power) % 256
+                trit = (3 * remainder) // 256
+                out.append(d * (trit - 1))
+    return out
+
+
+# TQ2_0: four low-to-high 2-bit planes per 32-byte half, then an f16 scale.
+# Raw field value 3 maps to +2, though writers normally restrict codes to 0..2.
+def tq2_0(block):
+    d = f16(block, 64)
+    out = []
+    for start in (0, 32):
+        for plane in range(4):
+            for b in block[start:start + 32]:
+                code = (b >> (2 * plane)) & 3
+                out.append(d * (code - 1))
+    return out
+
+
 # The 6-bit scale of sub-block s (0 to 15) of Q3_K from its 12 scale bytes: the low four bits are nibble s // 8 of byte s % 8, and the high two bits are bits 2(s // 4) and 2(s // 4) + 1 of byte 8 + s % 4.
 def q3_k_scale(sc, s):
     return (sc[s % 8] >> 4 * (s // 8)) & 15 | ((sc[8 + s % 4] >> 2 * (s // 4)) & 3) << 4
@@ -638,7 +669,8 @@ PURE = {
     F16: lambda block: [f16(block, 0)],
     BF16: lambda block: [bf16(block, 0)],
     Q8_0: q8_0, Q4_0: q4_0, Q4_1: q4_1, Q5_0: q5_0, Q5_1: q5_1, Q4_K: q4_k, Q5_K: q5_k, Q6_K: q6_k,
-    Q2_K: q2_k, Q3_K: q3_k, IQ3_S: iq3_s, IQ2_S: iq2_s, IQ2_XXS: iq2_xxs, IQ2_XS: iq2_xs, IQ3_XXS: iq3_xxs, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs, MXFP4: mxfp4,
+    Q2_K: q2_k, Q3_K: q3_k, IQ3_S: iq3_s, IQ2_S: iq2_s, IQ2_XXS: iq2_xxs, IQ2_XS: iq2_xs, IQ3_XXS: iq3_xxs, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs,
+    TQ1_0: tq1_0, TQ2_0: tq2_0, MXFP4: mxfp4,
 }
 
 
@@ -775,6 +807,25 @@ def _np_q3_k(a):
     return np.repeat(_half(a, 108) * scales, 16, axis=1) * codes
 
 
+def _np_tq1_0(a):
+    out = np.empty((len(a), 256), dtype=np.float32)
+    d = _half(a, 52)
+    column = 0
+    for start, width, digits in ((0, 32, 5), (32, 16, 5), (48, 4, 4)):
+        packed = a[:, start:start + width].astype(np.uint16)
+        for n in range(digits):
+            wrapped = (packed * (3 ** n)) & 255
+            trits = (wrapped * 3) >> 8
+            out[:, column:column + width] = d * (trits.astype(np.float32) - 1.0)
+            column += width
+    return out
+
+
+def _np_tq2_0(a):
+    codes = _np_2bit_codes(a[:, :64]).astype(np.float32) - 1.0
+    return _half(a, 64) * codes
+
+
 def _np_iq4_xs(a):
     high = a[:, 2].astype(np.uint16) | a[:, 3].astype(np.uint16) << 8
     scales = np.stack([(a[:, 4 + b // 2] >> 4 * (b % 2)) & 15 | ((high >> 2 * b) & 3).astype(np.uint8) << 4
@@ -872,7 +923,8 @@ def _np_iq2_s(a):
 NUMPY = {
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
     Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q5_0: _np_q5_0, Q5_1: _np_q5_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
-    Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ2_XXS: _np_iq2_xxs, IQ2_XS: _np_iq2_xs, IQ3_XXS: _np_iq3_xxs, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
+    Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ2_XXS: _np_iq2_xxs, IQ2_XS: _np_iq2_xs, IQ3_XXS: _np_iq3_xxs, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs,
+    TQ1_0: _np_tq1_0, TQ2_0: _np_tq2_0, MXFP4: _np_mxfp4,
 }
 
 # Blocks decoded at once, which bounds the temporaries of a large tensor.

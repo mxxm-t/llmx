@@ -1,5 +1,5 @@
 #version 450
-#if defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)
+#if defined(LLMX_TQ) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL)
 #define LLMX_LOOKUP
 #endif
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
@@ -33,6 +33,7 @@ int dot_word(uvec2 w, uvec2 x, int acc) { return dot_pairs(w, x, acc); }
 #endif
 #include "q.glsl"
 #include "iq2_layout.glsl"
+#include "tq_layout.glsl"
 #ifdef LLMX_Q8MX
 #extension GL_ARB_gpu_shader_fp64 : require
 #extension GL_EXT_spirv_intrinsics : require
@@ -106,7 +107,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
 }
-#ifdef LLMX_IQ3_XXS
+#ifdef LLMX_TQ
+#include "tq_dot.glsl"
+#elif defined(LLMX_IQ3_XXS)
 #include "iq3_xxs_dot.glsl"
 #elif defined(LLMX_IQ2_S) || defined(LLMX_IQ2_SMALL)
 #include "iq2_dot.glsl"

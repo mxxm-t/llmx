@@ -45,7 +45,7 @@ format/        GGUF reader/writer (headers read, payload mapped and read
    |
    v
 quant/         storage metadata and checked row sizes, decoder registry;
-               Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ3_XXS / IQ2_S / IQ3_S / IQ4_NL / IQ4_XS / MXFP4 kernels
+               block encoders and decoders grouped by packed format family
    |
    v
 core/          fp16 and bf16 <-> f32, minimal JSON parser, UTF-8, file hashes, available

@@ -1,0 +1,846 @@
+{
+ "date": "2026-10-24",
+ "decision": "Leave scratch two-chain change out: useful kernel gain not demonstrated. Product checkpoint remains 3e718e5e6.",
+ "scope": "Scratch dot-dependency experiment only; no full qualification or matched mx claim.",
+ "source_receipts": {
+  "execution.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\execution.json",
+   "sha256": "2eada0c23d8862e3b9af6aea8ce33f40bede66c5ea0d4fc49584d4bc417564ba"
+  },
+  "plan.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\plan.json",
+   "sha256": "81cd77359f8a99f6dacead2fb64606ab926133435ab58846f6b28330d81742e7"
+  },
+  "source-delta.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\source-delta.json",
+   "sha256": "74532b14b59aeeccfadd8cf89d526f9cfc228144f4254f2b375ac1e9f242ed33"
+  },
+  "screen-pins.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\screen-pins.json",
+   "sha256": "81f1c71175c96c004d6563daee72ea6a2e13fcdb1baabdbbe0fed02e35b517fc"
+  },
+  "screen-identity/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\screen-identity\\receipt.json",
+   "sha256": "2c563e54a1b9aa013709e2a8d96d1e2dbd55a1845ccb289a9c932eac7e6c1341"
+  },
+  "screen-timing/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\screen-timing\\receipt.json",
+   "sha256": "94b48960a5a30f7b1b627b5337f0d46186f161bba540352770cbf11ffe84ec8c"
+  },
+  "screen-timing/analysis.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\screen-timing\\analysis.json",
+   "sha256": "fd52b6bcc5ff4b245ee7650d33d4f5abd5953c68d481d18a644cb15ad4c74fb0"
+  },
+  "screen-profile/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-dot-chains-20261024\\screen-profile\\receipt.json",
+   "sha256": "20ac46605dca52dff19e7a5fed95adaa20400c66f50248fdd22ee8f89ead25c2"
+  }
+ },
+ "build": {
+  "admission_samples": "admission-samples.jsonl",
+  "admitted": true,
+  "arms": [
+   {
+    "archive_sha256": "5af3d4b77a460c1eb1305d5bf9a249dd9cae326574dab1d5b6774ee8612a0663",
+    "arm": "candidate",
+    "cleanup_sha256": "de649b586b71ded74f3800cbe0f7058ab6be332540d6057ef42b569a5486b097",
+    "container_identity_sha256": "c8b69a49d1eee7e691706f958844e6218740dad8164df8321a73b80d800870ee",
+    "container_result_sha256": "a69656a0f82191f9290d4037c63c7643529f20802871a618b045b573c348c8de",
+    "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+    "passed": true,
+    "resource_samples_sha256": "b77fec3bb74b88177b67d974fdd6f41feed3c6ec5f30822565d969aaecb658aa",
+    "revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+    "tq_dot_sha256": "ce67903b081fe1034ebb9b322c01a0f4b23ad03996a17156e00e8d0f3f36bd50"
+   }
+  ],
+  "bundle_pins_sha256": "2253ca1cb02dec1c920fd1b890321de88a4062ddcad7fee73e1e31c9a6388a2b",
+  "execution_image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "finished_utc": "2026-10-24T13:00:44.303734+00:00",
+  "image_proof_sha256": "e2a61e2e8ba2cf3b22a825620516154dd2dbe52a5c3ca3ab8e1b5a0d7ee793f3",
+  "passed": true,
+  "plan_sha256": "81cd77359f8a99f6dacead2fb64606ab926133435ab58846f6b28330d81742e7",
+  "runner_sha256": "eda12998b127ce25a92e27f042669ed048cb17deeb637d4d820f7c9dc1c6644e",
+  "schema": "tq-unpack-experiment-execution-v1",
+  "started_utc": "2026-10-24T12:56:50.070309+00:00",
+  "terminal_reason": "candidate build completed"
+ },
+ "source_delta": {
+  "src/backends/vulkan/shaders/matmul_row.comp": {
+   "before": "5c3672be625d3505eb4a97964b7f09f9ee55ad4b8f5579513d7677fd8a352540",
+   "after": "33c287df6e1f1e874c073bfc8ed4186e177c6797a4eaa58e172dfa4a0fe59353"
+  }
+ },
+ "binary_pins": {
+  "../packed-owner-v1/candidate/build/llmx": "d07bae199ee4dbc0413fd0e6cfbd94e378936f5deb9f126903775761f5b4d990",
+  "../packed-owner-v1/candidate/build/llmx-model-logits": "ae296816fbbf0c8b4210385468ca654a839014c23a24f57ee418ca35b1168327",
+  "candidate/build/llmx": "55681dab5d3636a2d5bb3941a4b13d87b97550745147aade5174c8faf09ac972",
+  "candidate/build/llmx-model-logits": "0967547083654a18249aef543737df55ebd525d5e08825b5ac79047bec6c1e33"
+ },
+ "identity": {
+  "six_paired_logit_hashes": {
+   "TQ1_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ1_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ1_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731",
+   "TQ2_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ2_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ2_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731"
+  },
+  "native_tq_range_cases": 18,
+  "input_ids_sha256": "e12a2132723f031b18135b69492012a5b77e3fa56c99842e4cc7b3c2a722701e",
+  "passed": true
+ },
+ "timing": {
+  "call_count": 12,
+  "warmups": 4,
+  "measured": 8,
+  "order": "Measured ABBA, two pairs per file.",
+  "models": {
+   "TQ1_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4127.795,
+      "tg256": 243.93
+     },
+     "candidate": {
+      "pp4096": 4131.1849999999995,
+      "tg256": 243.695
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 0.08212617147895784,
+     "tg256": -0.09633911368015502
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": -0.0007260072745873813,
+       "tg256": -0.1638068716982688
+      },
+      "duration_sum_seconds": {
+       "base": 2.0396059111130747,
+       "candidate": 2.041333217549866
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ1_0-2-base",
+       "TQ1_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 0.16515496920017636,
+       "tg256": -0.02872737719046281
+      },
+      "duration_sum_seconds": {
+       "base": 2.043956221267858,
+       "candidate": 2.0426202480534026
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ1_0-4-candidate",
+       "TQ1_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": false,
+      "missing_data_present": false,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": false,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ]
+   },
+   "TQ2_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4066.3900000000003,
+      "tg256": 290.485
+     },
+     "candidate": {
+      "pp4096": 4067.13,
+      "tg256": 299.755
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 0.01819795936937041,
+     "tg256": 3.191214692669142
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": -0.0366313874445412,
+       "tg256": 6.46744930629668
+      },
+      "duration_sum_seconds": {
+       "base": 1.9177023154876505,
+       "candidate": 1.862749653913625
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ2_0-2-base",
+       "TQ2_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 0.07305859693054195,
+       "tg256": 0.12005202254310454
+      },
+      "duration_sum_seconds": {
+       "base": 1.8612723388504533,
+       "candidate": 1.8595131013095783
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ2_0-4-candidate",
+       "TQ2_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ]
+   }
+  },
+  "calls": [
+   {
+    "tag": "TQ1_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4140.63,
+     "tg256": 243.9
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4137.45,
+     "tg256": 235.48
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4132.19,
+     "tg256": 244.19
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4132.16,
+     "tg256": 243.79
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4130.21,
+     "tg256": 243.6
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4123.4,
+     "tg256": 243.67
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4075.38,
+     "tg256": 300.25
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4070.82,
+     "tg256": 293.62
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4067.55,
+     "tg256": 281.1
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4066.06,
+     "tg256": 299.28
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4068.2,
+     "tg256": 300.23
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4065.23,
+     "tg256": 299.87
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   }
+  ],
+  "activity": {
+   "flag_interval_counts": {
+    "disk": 57,
+    "iowait": 0,
+    "low_idle": 0,
+    "other_gpu": 10,
+    "sample_gap": 0,
+    "unrelated_cpu": 57
+   },
+   "intervals": 57,
+   "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+   "max_gap_seconds": 1.003563588950783,
+   "missed_sample_intervals": 9,
+   "per_call": {
+    "TQ1_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 7,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    }
+   },
+   "samples": 58,
+   "unknown_gpu_intervals": 0
+  },
+  "thresholds": {
+   "system_idle_below_percent": 25,
+   "iowait_above_percent": 5,
+   "unrelated_cpu_at_least_percent": 100,
+   "disk_bytes_per_second_above": 50000000,
+   "sample_gap_above_seconds": 2.5
+  },
+  "monitor_exit": 0
+ },
+ "instrumented_profile": {
+  "TQ1_0-0-base": {
+   "tg_total_ms": 1176.15,
+   "row_ms": 721.093,
+   "row_statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=3192908514419585402 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4896 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1437058641 Instructions=891 Copies=64 Branches=25 Latency=30497 Inverse Throughput=16762 VMEM Clause=18 SMEM Clause=16 Pre-Sched SGPRs=28 Pre-Sched VGPRs=31 VALU=609 SALU=132 VMEM=45 SMEM=20 VOPD=0"
+  },
+  "TQ1_0-1-candidate": {
+   "tg_total_ms": 1178.33,
+   "row_ms": 721.843,
+   "row_statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=13603750911056972932 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4896 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1065123652 Instructions=892 Copies=64 Branches=25 Latency=30497 Inverse Throughput=16786 VMEM Clause=18 SMEM Clause=16 Pre-Sched SGPRs=28 Pre-Sched VGPRs=31 VALU=610 SALU=132 VMEM=45 SMEM=20 VOPD=0"
+  },
+  "TQ2_0-0-base": {
+   "tg_total_ms": 962.812,
+   "row_ms": 516.207,
+   "row_statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=12655388947135704742 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7324 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1595521953 Instructions=1400 Copies=62 Branches=24 Latency=97740 Inverse Throughput=78019 VMEM Clause=24 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1075 SALU=126 VMEM=70 SMEM=20 VOPD=0"
+  },
+  "TQ2_0-1-candidate": {
+   "tg_total_ms": 962.847,
+   "row_ms": 516.337,
+   "row_statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=16065931477292044368 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7324 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2781923957 Instructions=1401 Copies=62 Branches=24 Latency=97740 Inverse Throughput=78043 VMEM Clause=24 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1076 SALU=126 VMEM=70 SMEM=20 VOPD=0"
+  }
+ },
+ "local_receipt_artifact_hashes_verified": 52,
+ "limits": [
+  "TQ2 mean TG gain is dominated by unequal pair results; no robust gain or proof that noise caused the difference.",
+  "All slow/flagged calls and missing-process intervals retained.",
+  "Profile device times are instrumented, not ordinary speed.",
+  "No measured occupancy/bandwidth claim or wider acceptance limit.",
+  "Next word-load experiment is building separately; no result recorded here."
+ ]
+}

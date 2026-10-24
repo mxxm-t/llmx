@@ -1,5 +1,5 @@
 {
-  "scope": "Fresh Windows CPU build and focused native integration checkpoint. Not a complete landing gate.",
+  "scope": "Windows CPU native integration and short CPU/Radeon VII before/after identity checkpoints. Not a complete landing gate.",
   "feature_parent": "c1cea7360c25d32de5638e7c9d9d9db9db9217a8",
   "main_parent": "d0c09440b745baec91c85dda646a7a3e240727ef",
   "build_state": "Merge in progress, tracked-dirty at compilation. The subsequent checkpoint does not relabel these binaries.",
@@ -50,18 +50,18 @@
     "path": "build-quant-resume-20261020\\quant-d0c-doc-review-20261024\\review.md",
     "sha256": "9d44889c42276e0a1d1dc19ac907d0aa50b58bf74bc4fedc305fc4faff4ddc13",
     "pages": 130,
-    "checkpoint_delta": "STATUS and this evidence record include the focused native checks and subsequent short CPU identity results. Other reviewed Markdown pages are unchanged."
+    "checkpoint_delta": "STATUS and this evidence record add the completed Windows Vulkan build and device identity. Other129 Markdown pages retain exact parent blobs."
   },
   "limits": [
-    "CPU only",
     "No performance measurement",
-    "No fresh hosted pass",
+    "No fresh complete hosted pass",
+    "No independent released-file HF or depth comparison claimed by these checks",
     "Prior numerical and timing records retain their original binary identity"
   ],
   "remaining": [
     "Linux and MI50 qualification",
-    "Released-file HF and 16K depth",
-    "Current-main identity and timing",
+    "Released-file HF and16K depth",
+    "Current-main timing and remaining integration checks",
     "Matched mx Vulkan timing",
     "Hosted integration checks"
   ],
@@ -130,5 +130,211 @@
         }
       }
     ]
+  },
+  "windows_vulkan_integration": {
+    "scope": "Two short released TQ Vulkan functional captures, auto dtype and F32 KV; no HF/depth/performance claim. Exact before/after identity is separate from HF qualification.",
+    "before_source": "c1cea7360c25d32de5638e7c9d9d9db9db9217a8",
+    "after_source": "91bfcbf562ae76d248674346b9c5ae0d4c83546a",
+    "build_status": "passed",
+    "configure_and_compile_commands": [
+      [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON"
+      ],
+      [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx",
+        "llmx-model-logits",
+        "llmx-tq-test",
+        "llmx-backend-vulkan-test"
+      ]
+    ],
+    "compiled_targets": [
+      "llmx",
+      "llmx-model-logits",
+      "llmx-tq-test",
+      "llmx-backend-vulkan-test"
+    ],
+    "ctest": {
+      "passed": 1,
+      "failed": 0,
+      "tests": [
+        "tq-format"
+      ],
+      "note": "CPU native format test in Vulkan-linked build; full backend-vulkan GPU test was not run by this receipt."
+    },
+    "after_version": "llmx 0.1.0+g91bfcbf562ae numerics 92fcef24750c8730",
+    "after_artifacts": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\Release\\llmx.exe": {
+        "sha256": "9d30c67a76f7277b9e80ac5f97b22981997b1ce308a2e08b59acf29accdb7f17",
+        "bytes": 9791488
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\Release\\llmx-model-logits.exe": {
+        "sha256": "e89b539524ebcdf8e6b3410cbdab022a863adf345106cef26e124c9c3dc1fbbe",
+        "bytes": 8488448
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\Release\\llmx-tq-test.exe": {
+        "sha256": "b76443de663013b988383e01af6b3ecb0cef8178221219948697342913251e16",
+        "bytes": 344064
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\Release\\llmx-backend-vulkan-test.exe": {
+        "sha256": "d822084f6deaccaca3c8be3292f212cce19947e5c35ef0bd000acc21476cba66",
+        "bytes": 8068096
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\generated\\config.hpp": {
+        "sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "bytes": 900
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-d0c-20261024\\build-vulkan-integration\\generated\\llmx-build-info.hpp": {
+        "sha256": "10a6caa444794d2da56d61af5987aa5cab3cea107cda3be9c96aa92214b6638e",
+        "bytes": 418
+      }
+    },
+    "before_build_pins": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-vulkan-identity-reference\\Release\\llmx-model-logits.exe": {
+        "sha256": "a8472c28fd60c93b36ca761f95c80d21b2e0922feaec6a950099984eeb4b4a0e",
+        "size": 8457216
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-vulkan-identity-reference\\Release\\llmx-vulkan.lib": {
+        "sha256": "0657e3bbc2152446c0309a7d6eea15325c697913729efaf2c716a9b1c1283a3e",
+        "size": 10104158
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-vulkan-identity-reference\\generated\\config.hpp": {
+        "sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "size": 900
+      },
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\tq-pair-20261024\\build-vulkan-identity-reference\\generated\\llmx-build-info.hpp": {
+        "sha256": "d05a13817205b4e5492aa641e4dc68d61a91816d801d69c4c0a0e1ed9497c659",
+        "size": 418
+      }
+    },
+    "device": "AMD Radeon VII, AMD proprietary driver; device-local heap15.73GiB, reported budget14.94GiB; Windows dedicated usage2.917GB before captures.",
+    "activity": "Existing RuneLite PIDs28668/72224 each approximately2.2%3D; not idle or performance evidence.",
+    "requested_dtype": "auto",
+    "resolved_dtype": "f16",
+    "kv_type": "f32",
+    "paired_full_vocabulary_rows": 180,
+    "per_file_full_vocabulary_rows": 90,
+    "per_file_greedy_ids": 64,
+    "matrix_paths_each_phase": [
+      "block-int16"
+    ],
+    "metadata_exclusion_only": "version",
+    "comparisons": [
+      {
+        "name": "TQ1_0",
+        "versions": [
+          "0.1.0+gc1cea7360c25",
+          "0.1.0+g91bfcbf562ae"
+        ],
+        "metadata_excluded": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "phases": {
+          "batched": {
+            "exact_bytes": true,
+            "before_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "after_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "size": 7900672
+          },
+          "decode": {
+            "exact_bytes": true,
+            "before_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "after_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "size": 7900672
+          },
+          "greedy": {
+            "exact_bytes": true,
+            "before_sha256": "30bbd8268819ee4eb8baf5f6f5938d4bcf1a3f07eaf77fac3bf130c06217f4da",
+            "after_sha256": "30bbd8268819ee4eb8baf5f6f5938d4bcf1a3f07eaf77fac3bf130c06217f4da",
+            "size": 38895616
+          }
+        }
+      },
+      {
+        "name": "TQ2_0",
+        "versions": [
+          "0.1.0+gc1cea7360c25",
+          "0.1.0+g91bfcbf562ae"
+        ],
+        "metadata_excluded": [
+          "version"
+        ],
+        "metadata_equal": true,
+        "phases": {
+          "batched": {
+            "exact_bytes": true,
+            "before_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "after_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "size": 7900672
+          },
+          "decode": {
+            "exact_bytes": true,
+            "before_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "after_sha256": "6d7f21bf47b6c453f8fd504257406ce878911ec3e15f45cffe766000b3278abd",
+            "size": 7900672
+          },
+          "greedy": {
+            "exact_bytes": true,
+            "before_sha256": "30bbd8268819ee4eb8baf5f6f5938d4bcf1a3f07eaf77fac3bf130c06217f4da",
+            "after_sha256": "30bbd8268819ee4eb8baf5f6f5938d4bcf1a3f07eaf77fac3bf130c06217f4da",
+            "size": 38895616
+          }
+        }
+      }
+    ],
+    "shader_identity": {
+      "count": 245,
+      "all_generated_shader_bytes_equal": true,
+      "before_library_sha256": "0657e3bbc2152446c0309a7d6eea15325c697913729efaf2c716a9b1c1283a3e",
+      "after_library_sha256": "0a2ee978dabb6dc897969e133806a1decbe06781c5296a910e15be02ccbc12ab",
+      "note": "Equal shader outputs do not imply equal whole libraries or independently establish HF correctness."
+    },
+    "evidence_sha256": {
+      "build-quant-resume-20261020/tq-d0c-windows-vulkan-20261024/result.json": "153a762d28b4ad6b039416bb597ec319b3b706fc5170499421e6f98242b0b2bd",
+      "build-quant-resume-20261020/tq-d0c-windows-vulkan-20261024/gpu-results.json": "23413fcdc2812572824d6ad67a867b5670a96cd4f14689a8f82a680d5d6de8bc",
+      "build-quant-resume-20261020/tq-d0c-windows-vulkan-20261024/vulkan-identity.json": "ccc1e818a6a88e5c9ab699e82b67498789e4cc8679be9d9cf7fa8f510b70ab47",
+      "build-quant-resume-20261020/tq-d0c-windows-vulkan-20261024/identity-shader-pins.json": "427cc3112ffc89cb8caa530791fc43dfdac2d0a7eab5fab34b7ad9059f47b503"
+    }
+  },
+  "hosted_pending": {
+    "run": 40072900319,
+    "head": "823c222fd",
+    "branch": "gate/tq-pair-20261024",
+    "status": "in progress at documentation checkpoint",
+    "parent_scope": "Separate whole-job HF timeout maintenance parent; no public main merge or hosted pass claimed."
+  },
+  "windows_vulkan_checkpoint_review": {
+    "pages": 130,
+    "unchanged_markdown_parent_blobs": 129,
+    "changed_markdown": [
+      "docs/STATUS.md"
+    ],
+    "review_path": "build-quant-resume-20261020/tq-d0c-device-doc-review-20261024/markdown-review.json",
+    "review_sha256": "7f09595b6ff24b8d9cf2fd7655b787e7fa0b6d7a8e4394c2966703f9a5d43d78",
+    "checks": [
+      "docs",
+      "dead-code"
+    ],
+    "checks_exit": 0,
+    "checks_log": "build-quant-resume-20261020/tq-d0c-device-doc-checks-20261024.log",
+    "checks_log_sha256": "268be53b03aa991f13335eea47d14e1adc0643d2b0317f452f3d990bc2c5da12",
+    "scope": "Documentation checks only; numerical and runtime source unchanged by this record update."
   }
 }

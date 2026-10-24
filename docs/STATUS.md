@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## A twin left on values a norm or SiLU changed (2026-10-24, branch fix/stale-twin on main 55a115a05, found by DDEV's fused-kernel DESIGN of 13:15, lands by fast-forward as two commits)
+
+- **The bug:** the Vulkan backend's `rms_norm_rows` and `silu_mul` are exempt from the dispatch's clear of the cached activation twin (`XqTag`) and set the tag only when they write a twin, so a call that writes none (`n % 32 != 0`, or a norm over part of each row with another stride) left the old twin tagged on a buffer whose values it changed, and a matmul reading that buffer read the old twin.
+- **The fix:** such a call drops the tag where its output overlaps the twin's source (`overlaps_twin`), as the matmuls already do.
+- **Test:** `backend-vulkan` writes a twin with a norm and with a SiLU over two rows, writes over part of each in place without one, and holds the matmul from the written buffer to the same matmul from a fresh copy of its values, under f16 and int8; it fails on main (the norm case) on the Radeon VII and passes with the fix.
+- **Reach:** no model calls either kernel that way today (Qwen3's head norms go through `norm_rope_kv`, the qwen35 and Flash ones through `norm_rope_partial`, and every width is a multiple of 32), so no model output changes; the fix keeps the backend's contract for the next caller.
+- **Gates (at 69b26eef3 on 3acbf483f, the code rebased unchanged):** byte identity against main on the CPU and the Radeon VII for Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (16 logits rows of a 927- and 955-token prompt and 64 greedy tokens each, identical but for the timing lines); the 13 Vulkan CTests on the Radeon VII; CTest 81 of 81 on Windows; the CPU suite on Linux and the hosted run at the landing head.
+
 ## TQ1_0 / TQ2_0 CPU and Vulkan support (2026-10-25)
 
 | Feature | Status |

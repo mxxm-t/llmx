@@ -1,0 +1,60 @@
+{
+  "scope": "Prospective new-family F16/BF16 calibration frozen before narrowed candidate tests",
+  "frozen_at": 1792803936.0516324,
+  "previous_budget_sha256": "f114173a7ee89bd06a1e2ed3f2f5b7982066d0dfe013466b7799712937621a51",
+  "new_budget_sha256": "a727a24d1325452488756812dfb1eb640fc1dd2ded8f3cec4cdc6906f709c0e5",
+  "existing_limits_unchanged": true,
+  "f32_and_released_limits_unchanged": true,
+  "rows": 120,
+  "review_sha256": "26bd699cceb080ab8cad3ce7f119d67199921f8602d465e6ec633bff582c8772",
+  "families": [
+    {
+      "family": "tq1-0",
+      "output_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-calibration-tq1-0-20261024T005918Z-27492",
+      "execution_sha256": "71a2b5aced3292406b4d3ddd9ea4106a579cf06748833e0164e34fbb07520075",
+      "budget_sha256": "292b85ed452c189ebb6bde1d4239f11ee757dd4819989a572dced4c5c68025f7",
+      "elapsed_seconds": 150.0789999999106,
+      "rows": 60,
+      "routing_refusals": 0,
+      "budgets": {
+        "f16": {
+          "max_logit_error": 0.00104425847530365,
+          "max_nll_error": 0.00018927201751584022,
+          "logit_budget": 0.0020885169506073,
+          "nll_budget": 0.00037854403503168044
+        },
+        "bf16": {
+          "max_logit_error": 0.007772713899612427,
+          "max_nll_error": 0.0010725536017863746,
+          "logit_budget": 0.015545427799224854,
+          "nll_budget": 0.002145107203572749
+        }
+      }
+    },
+    {
+      "family": "tq2-0",
+      "output_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-calibration-tq2-0-20261024T010212Z-8788",
+      "execution_sha256": "b3252e8273b18b5fb9859b831a3f1b6005eb4abba4b06156d940c79130f8544c",
+      "budget_sha256": "d10c06d46ac6de98504e7e9b848cceef3a8b8f8227cd210c65e3c254a56fba9b",
+      "elapsed_seconds": 140.06300000008196,
+      "rows": 60,
+      "routing_refusals": 0,
+      "budgets": {
+        "f16": {
+          "max_logit_error": 0.0012234896421432495,
+          "max_nll_error": 0.00017249973683863828,
+          "logit_budget": 0.002446979284286499,
+          "nll_budget": 0.00034499947367727657
+        },
+        "bf16": {
+          "max_logit_error": 0.010749608278274536,
+          "max_nll_error": 0.0012194738124646776,
+          "logit_budget": 0.021499216556549072,
+          "nll_budget": 0.002438947624929355
+        }
+      }
+    }
+  ],
+  "candidate_conformance_claimed": false,
+  "int8": "TQ has no block-int8 path; existing path witness consumer applies the F16 budget to its fallback"
+}

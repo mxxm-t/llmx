@@ -41,11 +41,11 @@ The first TQ2_0 ordinary-MoE seed 12345 routing-gap refusal is preserved;
 HF-only screening selected seed 12346 before any candidate comparison.
 The `tq1-0` and `tq2-0` components consume those references
 through the shared 150-logit/12-NLL checker. Initial F32 execution keeps its
-existing bounds. Narrowed execution requires prospectively generated and
-reviewed TQ-family budgets; absent budgets are an error, not permission to use
-another family's tolerance.
+existing bounds. The reviewed TQ F16/BF16 families are now frozen before
+narrowed comparisons; absent family data remains an error, not permission to
+use another family's tolerance.
 
-Prospective calibration uses the same fixture constructors and existing
+Family calibration uses the same fixture constructors and existing
 rounding owner. From the pinned HF environment, run each family separately
 with a fresh output path:
 
@@ -61,7 +61,15 @@ HF, with F32 sums and routers, for 60 reference rows. Int8 requests have no
 TQ block-int8 path and use the F16 budget through the completed-path owner;
 F32-weight products and routers remain F32. The existing 2x margin and
 routing-turnover refusals are unchanged. Each output
-starts from the checked-in budget and adds only its named family; review and
-freeze both new family sections while retaining every existing family and
-class limit before running narrowed candidates. Registration generates no
-budget and establishes no candidate conformance.
+starts from the checked-in budget and adds or reproduces only its named family.
+Both new sections are frozen from 120 accepted rows, with no routing refusals
+and every prior family/class limit unchanged. These are reference errors,
+not released-model bounds. [Calibration identities and exact budgets](../benchmarks/tq-calibration-20261024.json).
+
+Ordinary CPU and Radeon VII auto/BF16 consumers now pass 150 full-vocabulary
+comparisons and 12 NLL checks per format and policy. CPU auto retains F32
+arithmetic and strict bounds; Radeon auto uses block-int16 TQ products with
+retained F32 operations. BF16 uses input rounding and F32 sums on both.
+The earlier explicit-F32 checks also pass. Split runtime, released-file depth,
+MI50, performance and landing qualification remain pending. [Scoped results
+and artifact pins](../benchmarks/tq-tiny-dtypes-20261024.json).

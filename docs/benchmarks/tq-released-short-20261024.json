@@ -1,0 +1,526 @@
+{
+  "scope": "Released file-exact short F32 correctness on CPU and Radeon VII, F32 KV. Not default dtype, 16K depth or performance.",
+  "status": "passed",
+  "candidate_commit": "e2d7c5ccf077c451bad8e7b18ff0c990a3953dad",
+  "binary_sha256": "4e75f752c903a2af6a06274ba521522633e0d94285fcc086ae07cd5a7fe5211d",
+  "version": "llmx 0.1.0+g1edef79254d9.dirty numerics 7ce465b81f23850c",
+  "candidate_receipt": {
+    "path": "build-quant-resume-20261020/tq-main-file-exact-20261024/results.json",
+    "sha256": "83f4a7f644c9b45490532eb0a2741162b17e6805efd481f10fee4e8f4b168eac"
+  },
+  "runner": {
+    "path": "build-quant-resume-20261020/run-tq-integrated-file-exact-20261024.py",
+    "sha256": "e0cb6e6aed1233d3f5a8621257690bffe178981148a7e7334e7f86069db19967"
+  },
+  "reference_audit": {
+    "path": "build-quant-resume-20261020/tq-hosted-short-ref-prep-v1/run-40084648588/hosted-reference-audit.json",
+    "sha256": "8c0ef2122e649df8b6198ed1a853143cbe5f321de4a3cded118e941bf1244a07"
+  },
+  "reference_provenance": {
+    "schema": "tq-short-hf-hosted-artifact-audit-v1",
+    "workflow_run_id": "40084648588",
+    "workflow_head": "74e29e0907320f1d8eb26c176244cadf6e137d33",
+    "commit_page": "https://github.com/mxxm-t/llmx/commit/74e29e0907320f1d8eb26c176244cadf6e137d33/checks",
+    "artifact_digest_source": "SHA-256 values displayed on the public GitHub run artifact rows; downloaded ZIP hashes match.",
+    "source_head": "1edef79254d90fe8fd1bf20cba263872f4f132c4",
+    "cells": [
+      {
+        "cell": "tq1-0",
+        "artifact_id": "12556985351",
+        "artifact_sha256": "357872023847ee5349b231d6c5b5ad9a9f1e425cada3223def467bb4a731fbfd",
+        "execution_sha256": "ad3ce32dc3e3b1c5eba0d23029ad5f07f0c7309b0da6f5b65b1a536ec98a0ea4",
+        "artifact_manifest_sha256": "3c488f477695af0e7889035e7d6adcd913a7b6ed988df91bc8332b0d1a9232d5",
+        "dockerfile_sha256": "bc6841e1486c948fb443283cdfd86f00c5224691f4f27f5455f6fa84cd3a789a",
+        "requirements_sha256": "9cf52b34149d860de70270f0648ebfad5dc0f2d9c1fdc95f1b0ccfbe0ad02cbf",
+        "base_image_id": "sha256:16c2312981659c66be0b6d98e1d38a0b6e851899263504540e717986b7b97f69",
+        "host_environment": {
+          "ImageOS": "ubuntu24",
+          "ImageVersion": "20261012.334.1",
+          "RUNNER_OS": "Linux",
+          "RUNNER_ARCH": "X64",
+          "GITHUB_RUN_ID": "40084648588",
+          "GITHUB_RUN_ATTEMPT": "1",
+          "source_workflow_head": "74e29e0907320f1d8eb26c176244cadf6e137d33",
+          "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+        },
+        "model": {
+          "file": "Qwen3-0.6B-TQ1_0.gguf",
+          "bytes": 314252544,
+          "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+          "repo": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+          "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53"
+        },
+        "reference": {
+          "repo": "Qwen/Qwen3-0.6B",
+          "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+          "dtype": "float32",
+          "attention": "eager",
+          "threads": 4
+        },
+        "tensor_counts": {
+          "F32": 113,
+          "Q4_K": 1,
+          "Q6_K": 1,
+          "TQ1_0": 196
+        },
+        "tensors_equal_to_reference": 113,
+        "ranking_cases": 6,
+        "ranking_topn": 10,
+        "ppl_tokens": 247,
+        "ppl_scored": 246,
+        "mean_nll": 16.52482490256211,
+        "perplexity": 15018974.142927242,
+        "container_peak_bytes": 4183773184,
+        "elapsed_seconds": 21.54616504500001,
+        "output_files": {
+          "baseline_logits.json": {
+            "bytes": 3616,
+            "sha256": "4e9aad35cdd2ec3c4084f131a226113b78e69f71f3bdbe5a77e0e90b761cf087"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 4844,
+            "sha256": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8"
+          }
+        },
+        "source_and_hf_inputs_unchanged": true,
+        "container_removed_no_oom": true
+      },
+      {
+        "cell": "tq2-0",
+        "artifact_id": "12556891418",
+        "artifact_sha256": "90658e994fdc5e2a0907c0e25f3ad0b3e9d410ec3d0dbc987f0a2df852618c6f",
+        "execution_sha256": "82204396cfdda4bd9ba6018449a0e3d8c609e48155768a004078ab12fe34e957",
+        "artifact_manifest_sha256": "5ec5031a44992ca78a8a9b2de4190cd0297a68d051ef6e864492841dc75735e1",
+        "dockerfile_sha256": "bc6841e1486c948fb443283cdfd86f00c5224691f4f27f5455f6fa84cd3a789a",
+        "requirements_sha256": "9cf52b34149d860de70270f0648ebfad5dc0f2d9c1fdc95f1b0ccfbe0ad02cbf",
+        "base_image_id": "sha256:16c2312981659c66be0b6d98e1d38a0b6e851899263504540e717986b7b97f69",
+        "host_environment": {
+          "ImageOS": "ubuntu24",
+          "ImageVersion": "20261023.334.3",
+          "RUNNER_OS": "Linux",
+          "RUNNER_ARCH": "X64",
+          "GITHUB_RUN_ID": "40084648588",
+          "GITHUB_RUN_ATTEMPT": "1",
+          "source_workflow_head": "74e29e0907320f1d8eb26c176244cadf6e137d33",
+          "python": "3.12.3 (main, Aug 31 2026, 10:18:26) [GCC 13.3.0]"
+        },
+        "model": {
+          "file": "Qwen3-0.6B-TQ2_0.gguf",
+          "bytes": 334896384,
+          "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+          "repo": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+          "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53"
+        },
+        "reference": {
+          "repo": "Qwen/Qwen3-0.6B",
+          "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+          "dtype": "float32",
+          "attention": "eager",
+          "threads": 4
+        },
+        "tensor_counts": {
+          "F32": 113,
+          "Q4_K": 1,
+          "Q6_K": 1,
+          "TQ2_0": 196
+        },
+        "tensors_equal_to_reference": 113,
+        "ranking_cases": 6,
+        "ranking_topn": 10,
+        "ppl_tokens": 247,
+        "ppl_scored": 246,
+        "mean_nll": 16.524830726029982,
+        "perplexity": 15019061.605695322,
+        "container_peak_bytes": 4190126080,
+        "elapsed_seconds": 19.338468997999982,
+        "output_files": {
+          "baseline_logits.json": {
+            "bytes": 3618,
+            "sha256": "067db38e2842129f127277f27af999d03148e16ee02124d489db6d6afffe89a1"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 4844,
+            "sha256": "4b5048e2db5402280340df494e31e0876f58daef2761077f65d5afde08bc044f"
+          }
+        },
+        "source_and_hf_inputs_unchanged": true,
+        "container_removed_no_oom": true
+      }
+    ],
+    "interpretation": "Both independent CPU file-exact reference generations completed. This verifies generated reference provenance and artifacts, not llmx candidate correctness, GPU behavior, or model quality approval."
+  },
+  "cells": [
+    {
+      "name": "tq1-0-cpu",
+      "top1_exact": 6,
+      "top5_set": 6,
+      "top5_order": 6,
+      "cases": 6,
+      "maximum_continuous_nll_delta_rounded": 5.1e-05,
+      "continuous_limit": 0.01,
+      "maximum_window_nll_delta_rounded": 2.7e-05,
+      "window_limit": 0.02,
+      "ppl_cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "candidate_ppl": 15018200.0,
+          "hf_ppl": 15018974.1429,
+          "nll_delta_rounded": 5.1e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "candidate_ppl": 15018200.0,
+          "hf_ppl": 15018974.1429,
+          "nll_delta_rounded": 5.1e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "candidate_ppl": 34107000.0,
+          "hf_ppl": 34107340.8029,
+          "nll_delta_rounded": 9e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "candidate_ppl": 34107000.0,
+          "hf_ppl": 34107340.8029,
+          "nll_delta_rounded": 9e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 27723900.0,
+          "hf_ppl": 27724115.727,
+          "nll_delta_rounded": 1e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 27723900.0,
+          "hf_ppl": 27724115.727,
+          "nll_delta_rounded": 9e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 14980400.0,
+          "hf_ppl": 14980807.6323,
+          "nll_delta_rounded": 2.7e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 14980400.0,
+          "hf_ppl": 14980807.6323,
+          "nll_delta_rounded": 2.7e-05,
+          "limit": 0.02
+        }
+      ],
+      "log": {
+        "path": "build-quant-resume-20261020/tq-main-file-exact-20261024/tq1-0-cpu.log",
+        "sha256": "1bcd4547ec656ead2a66a23df5a7c6869366ba1947c9f8bc4935de2a399d90e1"
+      }
+    },
+    {
+      "name": "tq2-0-cpu",
+      "top1_exact": 6,
+      "top5_set": 6,
+      "top5_order": 6,
+      "cases": 6,
+      "maximum_continuous_nll_delta_rounded": 5.7e-05,
+      "continuous_limit": 0.01,
+      "maximum_window_nll_delta_rounded": 2.4e-05,
+      "window_limit": 0.02,
+      "ppl_cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "candidate_ppl": 15018200.0,
+          "hf_ppl": 15019061.6057,
+          "nll_delta_rounded": 5.7e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "candidate_ppl": 15018200.0,
+          "hf_ppl": 15019061.6057,
+          "nll_delta_rounded": 5.7e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "candidate_ppl": 34107000.0,
+          "hf_ppl": 34107316.7965,
+          "nll_delta_rounded": 8e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "candidate_ppl": 34107000.0,
+          "hf_ppl": 34107316.7965,
+          "nll_delta_rounded": 8e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 27723900.0,
+          "hf_ppl": 27724162.8487,
+          "nll_delta_rounded": 1.1e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 27723900.0,
+          "hf_ppl": 27724162.8487,
+          "nll_delta_rounded": 1.1e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 14980400.0,
+          "hf_ppl": 14980761.6113,
+          "nll_delta_rounded": 2.4e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 14980400.0,
+          "hf_ppl": 14980761.6113,
+          "nll_delta_rounded": 2.4e-05,
+          "limit": 0.02
+        }
+      ],
+      "log": {
+        "path": "build-quant-resume-20261020/tq-main-file-exact-20261024/tq2-0-cpu.log",
+        "sha256": "bf5e867a5bd7cb2dfa50f39fe027615a85caa208d84fac74d614c667daa4bfad"
+      }
+    },
+    {
+      "name": "tq1-0-vulkan-0",
+      "top1_exact": 6,
+      "top5_set": 6,
+      "top5_order": 6,
+      "cases": 6,
+      "maximum_continuous_nll_delta_rounded": 6.5e-05,
+      "continuous_limit": 0.01,
+      "maximum_window_nll_delta_rounded": 4.2e-05,
+      "window_limit": 0.02,
+      "ppl_cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "candidate_ppl": 15018000.0,
+          "hf_ppl": 15018974.1429,
+          "nll_delta_rounded": 6.5e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "candidate_ppl": 15018600.0,
+          "hf_ppl": 15018974.1429,
+          "nll_delta_rounded": 2.2e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "candidate_ppl": 34107800.0,
+          "hf_ppl": 34107340.8029,
+          "nll_delta_rounded": 1.3e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "candidate_ppl": 34107500.0,
+          "hf_ppl": 34107340.8029,
+          "nll_delta_rounded": 5e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 27724900.0,
+          "hf_ppl": 27724115.727,
+          "nll_delta_rounded": 2.8e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 27725300.0,
+          "hf_ppl": 27724115.727,
+          "nll_delta_rounded": 4.2e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 14980800.0,
+          "hf_ppl": 14980807.6323,
+          "nll_delta_rounded": 3e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 14981100.0,
+          "hf_ppl": 14980807.6323,
+          "nll_delta_rounded": 2.1e-05,
+          "limit": 0.02
+        }
+      ],
+      "log": {
+        "path": "build-quant-resume-20261020/tq-main-file-exact-20261024/tq1-0-vulkan-0.log",
+        "sha256": "62a760c9ee538a789af4666c6bd7ffde61a946424678c435b2bc9dffa790ce0e"
+      }
+    },
+    {
+      "name": "tq2-0-vulkan-0",
+      "top1_exact": 6,
+      "top5_set": 6,
+      "top5_order": 6,
+      "cases": 6,
+      "maximum_continuous_nll_delta_rounded": 7e-05,
+      "continuous_limit": 0.01,
+      "maximum_window_nll_delta_rounded": 4e-05,
+      "window_limit": 0.02,
+      "ppl_cases": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "candidate_ppl": 15018000.0,
+          "hf_ppl": 15019061.6057,
+          "nll_delta_rounded": 7e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "candidate_ppl": 15018600.0,
+          "hf_ppl": 15019061.6057,
+          "nll_delta_rounded": 2.8e-05,
+          "limit": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "candidate_ppl": 34107800.0,
+          "hf_ppl": 34107316.7965,
+          "nll_delta_rounded": 1.4e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "candidate_ppl": 34107500.0,
+          "hf_ppl": 34107316.7965,
+          "nll_delta_rounded": 5e-06,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 27724900.0,
+          "hf_ppl": 27724162.8487,
+          "nll_delta_rounded": 2.7e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 27725300.0,
+          "hf_ppl": 27724162.8487,
+          "nll_delta_rounded": 4e-05,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "candidate_ppl": 14980800.0,
+          "hf_ppl": 14980761.6113,
+          "nll_delta_rounded": 0.0,
+          "limit": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "candidate_ppl": 14981100.0,
+          "hf_ppl": 14980761.6113,
+          "nll_delta_rounded": 2.4e-05,
+          "limit": 0.02
+        }
+      ],
+      "log": {
+        "path": "build-quant-resume-20261020/tq-main-file-exact-20261024/tq2-0-vulkan-0.log",
+        "sha256": "e5c760051799d8930ad7df603f8f5d4332b58b1877abb9a7e89bb13c863af44b"
+      }
+    }
+  ],
+  "consumer_source_carry": "tests/baseline.py and tests/common.py are byte-identical Git blobs at the reference source parent 1edef792 and integrated candidate e2d7c5ccf. No test bound changed.",
+  "quality_limit": "Both released files have continuous HF perplexity around 15 million on this 247-token excerpt. This is poor model quality in the independent reference as well. Passing same-file arithmetic checks does not make these files a quality recommendation, and the gate does not compare their quantization loss to original F32 weights.",
+  "memory": "Each serial consumer launched only with at least 3 GiB host memory available. This is admission evidence, not a hard runtime memory cap.",
+  "failed_reference_runs": [
+    40083666374,
+    40084364923
+  ],
+  "environment_fix": "Added the missing pinned hf-xet 1.6.0 dependency to the no-deps HF environment. Numerical package versions, source inputs and bounds are unchanged. Complete diagnostic logs remain retained.",
+  "temporary_branch_cleanup": "gate/tq-short-hf-refs-20261024 deleted with expected-tip lease 74e29e090 after completed jobs and verified artifact recovery; remote absence checked.",
+  "remaining": [
+    "Default-policy and raw/chat 16K depth",
+    "Linux/MI50 and splits",
+    "Current-main identity and timing",
+    "Matched mx Vulkan timing",
+    "Applicable final hosted checks and landing queue"
+  ]
+}

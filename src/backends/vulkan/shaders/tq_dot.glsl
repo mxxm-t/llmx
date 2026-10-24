@@ -1,5 +1,6 @@
 #ifndef LLMX_TQ_DOT_GLSL
 #define LLMX_TQ_DOT_GLSL
+#include "tq_packed.glsl"
 uint lookup_group(uint row, uint nin, uint b, out float dw) {
     uint group = row * (nin / 32u) + b;
     dw = tq_scale(TQ_TYPE, (group / 8u) * TQ_BYTES);

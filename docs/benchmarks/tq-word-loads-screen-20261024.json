@@ -1,0 +1,1047 @@
+{
+ "date": "2026-10-24",
+ "scope": "Word-load optimization screen versus retained packed-owner base; not fresh mx or full qualification.",
+ "source_receipts": {
+  "execution.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\execution.json",
+   "sha256": "2d862127a5d8ef073b3305e5839a94133dbd3e171dbd6f12d2e4ae4d7f15ae5a"
+  },
+  "plan.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\plan.json",
+   "sha256": "89dc98dea98427161e66081d4805a83502fa8294dc13a78cef9676c8e3881f61"
+  },
+  "source-delta.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\source-delta.json",
+   "sha256": "6fdfba945513e65c5600154ca3c68216b2ba4f2cc9ef161bb0a366924f11d5d9"
+  },
+  "screen-pins.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\screen-pins.json",
+   "sha256": "05e185e5ff9a346dcd020d0f69ee569585e093f4db78e79f552544301f09c94b"
+  },
+  "scalar-verification.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\scalar-verification.json",
+   "sha256": "0792d69bfbf062404b4121aae2ed1e5f1b5f4d4f1e68df4fca505a882054088d"
+  },
+  "screen-identity/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\screen-identity\\receipt.json",
+   "sha256": "6f11b724a07a528c8a93c31af5d66b14be9655686acd3165613c5c78836d7c1e"
+  },
+  "screen-timing/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\screen-timing\\receipt.json",
+   "sha256": "ee50913359a2cc109d3fa9dd878882978c515eb18e8ea1fd0866651d5f07b643"
+  },
+  "screen-timing/analysis.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\screen-timing\\analysis.json",
+   "sha256": "b086780b2974e1a5bca2d7f456dfcb2c1e703e31b8a41f05a7a9b9abb130b99e"
+  },
+  "screen-profile/receipt.json": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-20261024\\screen-profile\\receipt.json",
+   "sha256": "144b2c99b875c343fa2610c13b78572a4a69d670921b4ef5890d9121e2928b9a"
+  }
+ },
+ "build": {
+  "admission_samples": "admission-samples.jsonl",
+  "admitted": true,
+  "arms": [
+   {
+    "archive_sha256": "b6d24e0c7969527d79647c3a52daed27fa81d5e7debf4e2794292ec5df128ff6",
+    "arm": "candidate",
+    "cleanup_sha256": "16bc419b1b82418e8e67c7be242c413b161cecb7e531bea2b9111c34b19d0459",
+    "container_identity_sha256": "5aaefe587b14264e5950a537fa7eb1f32ed239212e29a065d5541f8957719c34",
+    "container_result_sha256": "df2de126a3cdf5cbaefcaf95501621622d9303fcfd0fff55d227044998e7ce51",
+    "image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+    "passed": true,
+    "resource_samples_sha256": "f2d89b7d46ef72d123f209592bc3074ff9e7f19d6fe865125730865af7aaeb10",
+    "revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+    "tq_dot_sha256": "ce67903b081fe1034ebb9b322c01a0f4b23ad03996a17156e00e8d0f3f36bd50"
+   }
+  ],
+  "bundle_pins_sha256": "bd1a2ecd0f7f839f47e612c823ff3c258d37f501fd75846b2b1741e1bae99548",
+  "execution_image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "finished_utc": "2026-10-24T13:09:34.311317+00:00",
+  "image_proof_sha256": "e2a61e2e8ba2cf3b22a825620516154dd2dbe52a5c3ca3ab8e1b5a0d7ee793f3",
+  "passed": true,
+  "plan_sha256": "89dc98dea98427161e66081d4805a83502fa8294dc13a78cef9676c8e3881f61",
+  "runner_sha256": "eda12998b127ce25a92e27f042669ed048cb17deeb637d4d820f7c9dc1c6644e",
+  "schema": "tq-unpack-experiment-execution-v1",
+  "started_utc": "2026-10-24T13:05:40.233059+00:00",
+  "terminal_reason": "candidate build completed"
+ },
+ "source_delta": {
+  "src/backends/vulkan/shaders/matmul_row.comp": {
+   "before": "5c3672be625d3505eb4a97964b7f09f9ee55ad4b8f5579513d7677fd8a352540",
+   "after": "e8841181e46630a0aa9ee3ca51f94937614d0e03ce6385ddddac5560918693df"
+  },
+  "src/backends/vulkan/shaders/matmul_tile_q.comp": {
+   "before": "493bc28a4b9b78f0738de97db0de23e3cbe343619418997e6bd52cba8e508bfe",
+   "after": "dc29c206377153040a11d20a39f96b567abeeefbaf80fd8867aa31727141e9d6"
+  },
+  "src/backends/vulkan/shaders/tq.glsl": {
+   "before": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0",
+   "after": "b107e5c1d05ec05ce581da69b6a10acbeea8ecff0eb8dc1363d656370796c0ce"
+  }
+ },
+ "scalar_verification": {
+  "scope": "Prepared word-load candidate scalar equivalence only. No GLSL build or GPU qualification.",
+  "source_delta_sha256": "6fdfba945513e65c5600154ca3c68216b2ba4f2cc9ef161bb0a366924f11d5d9",
+  "base_archive_sha256": "7d1aded17bd39c8521ce9d411ced9a7ecd2ef80008f2eec4e420aa243a059e1d",
+  "candidate_source_hashes": {
+   "tq": {
+    "raw_sha256": "b107e5c1d05ec05ce581da69b6a10acbeea8ecff0eb8dc1363d656370796c0ce",
+    "normalized_lf_sha256": "b107e5c1d05ec05ce581da69b6a10acbeea8ecff0eb8dc1363d656370796c0ce",
+    "expected_delta_after_sha256": "b107e5c1d05ec05ce581da69b6a10acbeea8ecff0eb8dc1363d656370796c0ce"
+   },
+   "row": {
+    "raw_sha256": "e8841181e46630a0aa9ee3ca51f94937614d0e03ce6385ddddac5560918693df",
+    "normalized_lf_sha256": "b8b4865062068ffd7333dade12ea2b149cb24d1b5625053b00b60b5c505da842",
+    "expected_delta_after_sha256": "e8841181e46630a0aa9ee3ca51f94937614d0e03ce6385ddddac5560918693df"
+   },
+   "tile_q": {
+    "raw_sha256": "dc29c206377153040a11d20a39f96b567abeeefbaf80fd8867aa31727141e9d6",
+    "normalized_lf_sha256": "349a0f01a40fe8ea5ab4dcf636d8945c02a4748d7c7d4673c7dda3a35d86d318",
+    "expected_delta_after_sha256": "dc29c206377153040a11d20a39f96b567abeeefbaf80fd8867aa31727141e9d6"
+   }
+  },
+  "experiment_base_archive_source_hashes": {
+   "tq": {
+    "archive_sha256": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0",
+    "normalized_lf_sha256": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0",
+    "expected_delta_before_sha256": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0"
+   },
+   "row": {
+    "archive_sha256": "5c3672be625d3505eb4a97964b7f09f9ee55ad4b8f5579513d7677fd8a352540",
+    "normalized_lf_sha256": "b9904e89a597647fccedd8d832ed33788f19a4dda37bc91112c22976185727a9",
+    "expected_delta_before_sha256": "5c3672be625d3505eb4a97964b7f09f9ee55ad4b8f5579513d7677fd8a352540"
+   },
+   "tile_q": {
+    "archive_sha256": "493bc28a4b9b78f0738de97db0de23e3cbe343619418997e6bd52cba8e508bfe",
+    "normalized_lf_sha256": "530562f9caeca537cec83f426e061d334b0cdebba3813afacb5750422abc4cd2",
+    "expected_delta_before_sha256": "493bc28a4b9b78f0738de97db0de23e3cbe343619418997e6bd52cba8e508bfe"
+   }
+  },
+  "current_worktree_snapshot_hashes_not_experiment_base": {
+   "tq": {
+    "raw_sha256": "9041be8a1337c20ae4bb7f1f60abcf2dd8018fec878f298fbbca0bc150616240",
+    "normalized_lf_sha256": "67c7eb257631913dbcf6c617e43a75d5306bcf7f36024ac250b771cb4dc038b0"
+   },
+   "row": {
+    "raw_sha256": "b9904e89a597647fccedd8d832ed33788f19a4dda37bc91112c22976185727a9",
+    "normalized_lf_sha256": "b9904e89a597647fccedd8d832ed33788f19a4dda37bc91112c22976185727a9"
+   },
+   "tile_q": {
+    "raw_sha256": "530562f9caeca537cec83f426e061d334b0cdebba3813afacb5750422abc4cd2",
+    "normalized_lf_sha256": "530562f9caeca537cec83f426e061d334b0cdebba3813afacb5750422abc4cd2"
+   }
+  },
+  "rows": {
+   "TQ1_0": {
+    "block_bytes": 54,
+    "two_block_bytes": 108,
+    "uint32_rounded_bytes": 108,
+    "max_word_read_byte_two_block_case": 107,
+    "tail_checks_one_two_three_blocks": 384
+   },
+   "TQ2_0": {
+    "block_bytes": 66,
+    "two_block_bytes": 132,
+    "uint32_rounded_bytes": 132,
+    "max_word_read_byte_two_block_case": 131,
+    "tail_checks_one_two_three_blocks": 384
+   }
+  },
+  "counts": {
+   "exhaustive_lane_values": 262144,
+   "group_word_positions": 256,
+   "random_block_positions": 8192,
+   "block_parities": [
+    0,
+    2
+   ]
+  },
+  "result": "pass"
+ },
+ "identity": {
+  "six_paired_logit_hashes": {
+   "TQ1_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ1_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ1_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731",
+   "TQ2_0/batched": "1cd2f89182dbceb7502a82cab9d2ff3533dc86fbd1cf9d7b385dcdecf1af7601",
+   "TQ2_0/decode": "2d5d247358fb20144cff53211e64016f8c9ec87ef467879e7072b871cec2441f",
+   "TQ2_0/greedy": "9b76f220a9a288f3e54b1f3f62f07b71bfd81370cfc501aab4c9ae756f951731"
+  },
+  "native_tq_cases": 18,
+  "input_ids_sha256": "e12a2132723f031b18135b69492012a5b77e3fa56c99842e4cc7b3c2a722701e"
+ },
+ "timing": {
+  "call_count": 12,
+  "warmups": 4,
+  "measured": 8,
+  "order": "ABBA two measured pairs per file; all calls retained.",
+  "models": {
+   "TQ1_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4130.5599999999995,
+      "tg256": 244.64
+     },
+     "candidate": {
+      "pp4096": 4213.005,
+      "tg256": 282.06
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 1.995976332506988,
+     "tg256": 15.295945062132121
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 1.9288522639894445,
+       "tg256": 16.122307157748427
+      },
+      "duration_sum_seconds": {
+       "base": 2.0368981712008134,
+       "candidate": 1.8728639182364755
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ1_0-2-base",
+       "TQ1_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 2.063265058780761,
+       "tg256": 14.469650521152676
+      },
+      "duration_sum_seconds": {
+       "base": 2.0392421576432045,
+       "candidate": 1.8869008338104916
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ1_0-4-candidate",
+       "TQ1_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 3,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ]
+   },
+   "TQ2_0": {
+    "rates_mean": {
+     "base": {
+      "pp4096": 4071.435,
+      "tg256": 300.53
+     },
+     "candidate": {
+      "pp4096": 4249.84,
+      "tg256": 325.45000000000005
+     }
+    },
+    "candidate_minus_base_percent": {
+     "pp4096": 4.38187027423993,
+     "tg256": 8.292017435863341
+    },
+    "pairs": [
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 4.401317227339585,
+       "tg256": 8.560467055879917
+      },
+      "duration_sum_seconds": {
+       "base": 1.8598920142194955,
+       "candidate": 1.7501426582068824
+      },
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "tags": [
+       "TQ2_0-2-base",
+       "TQ2_0-3-candidate"
+      ]
+     },
+     {
+      "candidate_vs_base_throughput_delta_percent": {
+       "pp4096": 4.36241610738255,
+       "tg256": 8.024957684776467
+      },
+      "duration_sum_seconds": {
+       "base": 1.8558434025317787,
+       "candidate": 1.7506659419973012
+      },
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "tags": [
+       "TQ2_0-4-candidate",
+       "TQ2_0-5-base"
+      ]
+     }
+    ],
+    "pair_activity_flags_match": [
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 0,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": false,
+      "missing_data_present": true,
+      "order": [
+       "base",
+       "candidate"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": false,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": false,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 2,
+       "sample_intervals": 5,
+       "unknown_gpu_intervals": 0
+      }
+     },
+     {
+      "both_have_samples": true,
+      "first": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "first_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 3,
+       "sample_intervals": 6,
+       "unknown_gpu_intervals": 0
+      },
+      "flags_match": true,
+      "missing_data_present": true,
+      "order": [
+       "candidate",
+       "base"
+      ],
+      "second": {
+       "disk": true,
+       "iowait": false,
+       "low_idle": false,
+       "other_gpu": true,
+       "sample_gap": false,
+       "unrelated_cpu": true
+      },
+      "second_coverage": {
+       "flags": {
+        "disk": true,
+        "iowait": false,
+        "low_idle": false,
+        "other_gpu": true,
+        "sample_gap": false,
+        "unrelated_cpu": true
+       },
+       "missing_sample_intervals": 1,
+       "sample_intervals": 4,
+       "unknown_gpu_intervals": 0
+      }
+     }
+    ]
+   }
+  },
+  "calls": [
+   {
+    "tag": "TQ1_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4145.56,
+     "tg256": 243.93
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4221.84,
+     "tg256": 284.88
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4135.62,
+     "tg256": 244.63
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4215.39,
+     "tg256": 284.07
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4210.62,
+     "tg256": 280.05
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ1_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4125.5,
+     "tg256": 244.65
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-0-base",
+    "arm": "base",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4078.43,
+     "tg256": 299.43
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-1-candidate",
+    "arm": "candidate",
+    "warmup": true,
+    "rates": {
+     "pp4096": 4250.08,
+     "tg256": 325.16
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-2-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4072.19,
+     "tg256": 299.75
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-3-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4251.42,
+     "tg256": 325.41
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-4-candidate",
+    "arm": "candidate",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4248.26,
+     "tg256": 325.49
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   },
+   {
+    "tag": "TQ2_0-5-base",
+    "arm": "base",
+    "warmup": false,
+    "rates": {
+     "pp4096": 4070.68,
+     "tg256": 301.31
+    },
+    "witness": {
+     "dtype": "f16",
+     "devices": [
+      [
+       "block-int16"
+      ]
+     ]
+    },
+    "exit_code": 0
+   }
+  ],
+  "activity": {
+   "flag_interval_counts": {
+    "disk": 50,
+    "iowait": 0,
+    "low_idle": 0,
+    "other_gpu": 19,
+    "sample_gap": 0,
+    "unrelated_cpu": 36
+   },
+   "intervals": 55,
+   "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+   "max_gap_seconds": 1.0027192870620638,
+   "missed_sample_intervals": 15,
+   "per_call": {
+    "TQ1_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 7,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ1_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-0-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-1-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-2-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 0,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-3-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": false,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 2,
+     "sample_intervals": 5,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-4-candidate": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 3,
+     "sample_intervals": 6,
+     "unknown_gpu_intervals": 0
+    },
+    "TQ2_0-5-base": {
+     "flags": {
+      "disk": true,
+      "iowait": false,
+      "low_idle": false,
+      "other_gpu": true,
+      "sample_gap": false,
+      "unrelated_cpu": true
+     },
+     "missing_sample_intervals": 1,
+     "sample_intervals": 4,
+     "unknown_gpu_intervals": 0
+    }
+   },
+   "samples": 56,
+   "unknown_gpu_intervals": 0
+  },
+  "thresholds": {
+   "system_idle_below_percent": 25,
+   "iowait_above_percent": 5,
+   "unrelated_cpu_at_least_percent": 100,
+   "disk_bytes_per_second_above": 50000000,
+   "sample_gap_above_seconds": 2.5
+  },
+  "monitor_exit": 0,
+  "removed": true
+ },
+ "instrumented_profile": {
+  "TQ1_0-0-base": {
+   "tg_total_ms": 1176.59,
+   "row_ms": 721.13,
+   "statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=3192908514419585402 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4896 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1437058641 Instructions=891 Copies=64 Branches=25 Latency=30497 Inverse Throughput=16762 VMEM Clause=18 SMEM Clause=16 Pre-Sched SGPRs=28 Pre-Sched VGPRs=31 VALU=609 SALU=132 VMEM=45 SMEM=20 VOPD=0"
+  },
+  "TQ1_0-1-candidate": {
+   "tg_total_ms": 1023.77,
+   "row_ms": 571.569,
+   "statistics": "profile: kernel matmul_row_tq1_0_dot_1col: Driver pipeline hash=5651799859522571119 SGPRs=48 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=4384 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=2768921670 Instructions=785 Copies=62 Branches=25 Latency=27905 Inverse Throughput=15561 VMEM Clause=10 SMEM Clause=16 Pre-Sched SGPRs=28 Pre-Sched VGPRs=29 VALU=535 SALU=132 VMEM=29 SMEM=20 VOPD=0"
+  },
+  "TQ2_0-0-base": {
+   "tg_total_ms": 962.461,
+   "row_ms": 515.964,
+   "statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=12655388947135704742 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7324 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1595521953 Instructions=1400 Copies=62 Branches=24 Latency=97740 Inverse Throughput=78019 VMEM Clause=24 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1075 SALU=126 VMEM=70 SMEM=20 VOPD=0"
+  },
+  "TQ2_0-1-candidate": {
+   "tg_total_ms": 898.162,
+   "row_ms": 450.387,
+   "statistics": "profile: kernel matmul_row_tq2_0_dot_1col: Driver pipeline hash=12126103911604306147 SGPRs=64 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6748 LDS size=0 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=945653227 Instructions=1300 Copies=57 Branches=24 Latency=94092 Inverse Throughput=76339 VMEM Clause=19 SMEM Clause=17 Pre-Sched SGPRs=43 Pre-Sched VGPRs=29 VALU=1005 SALU=127 VMEM=54 SMEM=20 VOPD=0"
+  }
+ },
+ "locally_verified_receipt_hashes": 52,
+ "ownership": "Current E5: scalar code/scale/at remain in tq.glsl; tq_packed.glsl owns unchanged packed helper, included only by tq_dot.glsl. Row/integer-tile retain TQ_WORD accessors.",
+ "historical_mx_targets": {
+  "TQ1_0": {
+   "pp4096": 2174.663,
+   "tg256": 195.293
+  },
+  "TQ2_0": {
+   "pp4096": 2349.315,
+   "tg256": 323.6
+  }
+ },
+ "limits": [
+  "Historical mx targets are not fresh matched results.",
+  "All measured samples and activity/missing-data observations retained.",
+  "PP/TG have independent histories; not request latency.",
+  "Profile times are instrumented; static VMEM instruction counts do not establish measured bandwidth or occupancy.",
+  "E4 tested-source results retain their exact placement; E5 build passes and strict declaration-ID structural audit is complete; raw binaries differ and current runtime qualification remains separate."
+ ],
+ "e4_tested_placement": "All recorded identity, timing and profile data above tested E4 with packed helper inside tq.glsl. They are not a fresh E5 execution.",
+ "e5_relocation": {
+  "receipts": {
+   "execution.json": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-module-20261024\\execution.json",
+    "sha256": "b066b1faa10e41a1cb056cce615165410b998cc697f43e3d66760acaf5085aab"
+   },
+   "screen-pins.json": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-module-20261024\\screen-pins.json",
+    "sha256": "ca93d18eb3d82ecf01662e9548e7bd3e2db81325ef42ff77128767ab43d5c911"
+   },
+   "module-comparison.json": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-module-20261024\\module-comparison.json",
+    "sha256": "1874fce03620f0f8c6113299e8e20c0ba0217d3765262332570aad4e0900c522"
+   }
+  },
+  "build_passed": true,
+  "packed_helper_moved_unchanged": true,
+  "cmake_dependency_added": true,
+  "generated_modules": 261,
+  "byte_identical_modules": 257,
+  "different_modules": [
+   "generated/vulkan/matmul_row_tq1_0_dot.inc",
+   "generated/vulkan/matmul_row_tq2_0_dot.inc",
+   "generated/vulkan/matmul_tile_tq2_0_dot.inc",
+   "generated/vulkan/matmul_tile_tq1_0_dot.inc"
+  ],
+  "compiled_equivalence": "257 raw-identical modules. Remaining four raw and strip-debug/compact-IDs binaries differ; recursively compared immutable declaration multisets/counts match, and substituting only their result IDs makes all remaining instructions equal in original order. No arithmetic optimization or instruction reordering. Structural evidence, not raw-byte equality, formal semantic proof or new GPU execution.",
+  "focused_dead_code": "Root focused rerun passes; initial E4 failure retained.",
+  "fresh_matched_benchmark": "M4 running separately; no result claimed.",
+  "compiled_audit_receipt": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-module-20261024\\module-audit\\module-audit.json",
+   "sha256": "267db81e40022975fb4f4b88f53c91a131f6d376cc717154dfbb495b4b2c018b"
+  },
+  "four_module_structural_checks": [
+   {
+    "name": "matmul_row_tq1_0_dot.inc",
+    "e4_raw_sha256": "408ecc5ccad74a73b025bb6f88126c56644cfbddea2042df7c4af8dcb8036ec6",
+    "e5_raw_sha256": "bd5cc1086a4ffec8bdfe1c3d95caf0a65fddf82a9d6c33bf8037cfa5987a2dd6",
+    "declaration_id_only_compare": {
+     "declaration_counts_equal": true,
+     "recursive_declaration_multisets_equal": true,
+     "non_declaration_instruction_counts_equal": true,
+     "non_declaration_instructions_equal_in_order_after_decl_id_substitution": true,
+     "base_declaration_count": 110,
+     "candidate_declaration_count": 110,
+     "base_non_declaration_instruction_count": 870,
+     "candidate_non_declaration_instruction_count": 870,
+     "first_instruction_differences": []
+    }
+   },
+   {
+    "name": "matmul_row_tq2_0_dot.inc",
+    "e4_raw_sha256": "9dffc26101a18d1c1397bf726c63edf00f01a74bee2e133375bc261af89159ba",
+    "e5_raw_sha256": "e7458beba35344d2a584b846d7453cf451b5b91da969f2ef1d77bff3f1c5d3c7",
+    "declaration_id_only_compare": {
+     "declaration_counts_equal": true,
+     "recursive_declaration_multisets_equal": true,
+     "non_declaration_instruction_counts_equal": true,
+     "non_declaration_instructions_equal_in_order_after_decl_id_substitution": true,
+     "base_declaration_count": 98,
+     "candidate_declaration_count": 98,
+     "base_non_declaration_instruction_count": 790,
+     "candidate_non_declaration_instruction_count": 790,
+     "first_instruction_differences": []
+    }
+   },
+   {
+    "name": "matmul_tile_tq1_0_dot.inc",
+    "e4_raw_sha256": "b49da02b7750a7a22a986ae6b848d6220c5e9085d99237ca9db0f74235fc086d",
+    "e5_raw_sha256": "b7e5495e3dd38b5769c9e1ab27934b76a8db4c7e438819bfffa430cf3200f4f6",
+    "declaration_id_only_compare": {
+     "declaration_counts_equal": true,
+     "recursive_declaration_multisets_equal": true,
+     "non_declaration_instruction_counts_equal": true,
+     "non_declaration_instructions_equal_in_order_after_decl_id_substitution": true,
+     "base_declaration_count": 127,
+     "candidate_declaration_count": 127,
+     "base_non_declaration_instruction_count": 1294,
+     "candidate_non_declaration_instruction_count": 1294,
+     "first_instruction_differences": []
+    }
+   },
+   {
+    "name": "matmul_tile_tq2_0_dot.inc",
+    "e4_raw_sha256": "f58a46809a5a2405acf7cd2662c51dd5ff473eebd82aa7069a1df6d89169b0b4",
+    "e5_raw_sha256": "26bad98bf0b44f0ca696a2e20b54bb8db8c6548dc348e6c45be1e5b62c388c68",
+    "declaration_id_only_compare": {
+     "declaration_counts_equal": true,
+     "recursive_declaration_multisets_equal": true,
+     "non_declaration_instruction_counts_equal": true,
+     "non_declaration_instructions_equal_in_order_after_decl_id_substitution": true,
+     "base_declaration_count": 115,
+     "candidate_declaration_count": 115,
+     "base_non_declaration_instruction_count": 1212,
+     "candidate_non_declaration_instruction_count": 1212,
+     "first_instruction_differences": []
+    }
+   }
+  ]
+ },
+ "retained_failed_check": {
+  "review_receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-md-review-20261024.json",
+  "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-word-loads-docs-checks-20261024.log",
+  "issue": "Optional TQ_WORD guard parsed in scalar-only copy/embed/float-tile shaders; three dead-code findings. No checker waiver added."
+ }
+}

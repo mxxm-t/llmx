@@ -114,6 +114,9 @@ vec4 weight4(uint i) {
 #endif
 #if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_LOOKUP_DOT) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_TQ
+#define TQ_WORD(i) w32s[pi].w32[i]
+#endif
 #ifdef LLMX_IQ3_S
 // Float rows use the spare twin view; int16 rows use the spare F32 weight view.
 #ifdef LLMX_DOT

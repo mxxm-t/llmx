@@ -72,6 +72,9 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #endif
 #if defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_TQ
+#define TQ_WORD(i) ws[pi].w32[i]
+#endif
 #endif
 #if defined(LLMX_Q8MX) || defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #include "qdecode.glsl"

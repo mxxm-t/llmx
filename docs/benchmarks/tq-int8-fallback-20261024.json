@@ -1,0 +1,87 @@
+{
+  "schema": "llmx-tq-int8-request-fallback-v1",
+  "date": "2026-10-24",
+  "scope": "Ordinary tiny HF comparisons for int8 requests on CPU and Radeon VII. This checks existing fallback selection, not native TQ int8 arithmetic.",
+  "calibration": {
+    "record": "docs/benchmarks/tq-calibration-20261024.json",
+    "budget_sha256": "a727a24d1325452488756812dfb1eb640fc1dd2ded8f3cec4cdc6906f709c0e5",
+    "unchanged": true
+  },
+  "runs": [
+    {
+      "backend": "cpu",
+      "requested_dtype": "int8",
+      "result": "pass",
+      "families": [
+        {
+          "family": "TQ1_0",
+          "full_vocabulary_comparisons": 150,
+          "nll_checks": 12,
+          "max_logit_error_printed": 9.6e-07,
+          "max_nll_error_printed": 6e-08,
+          "printed_logit_bound": 2e-05,
+          "printed_nll_bound": 1e-05,
+          "bound_source": "same completed-path family bounds used by the existing dtype checkpoint; no limits changed"
+        },
+        {
+          "family": "TQ2_0",
+          "full_vocabulary_comparisons": 150,
+          "nll_checks": 12,
+          "max_logit_error_printed": 1.43e-06,
+          "max_nll_error_printed": 1.3e-07,
+          "printed_logit_bound": 2e-05,
+          "printed_nll_bound": 1e-05,
+          "bound_source": "same completed-path family bounds used by the existing dtype checkpoint; no limits changed"
+        }
+      ],
+      "log": "build-quant-resume-20261020/tq-cpu-int8-fallback-20261024.log",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "encoding": "UTF-16 LE",
+      "process_exit": "0 confirmed by root for corresponding run",
+      "binary": "build-tq-cpu-stage/Release/llmx.exe",
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808"
+    },
+    {
+      "backend": "Radeon VII",
+      "requested_dtype": "int8",
+      "result": "pass",
+      "families": [
+        {
+          "family": "TQ1_0",
+          "full_vocabulary_comparisons": 150,
+          "nll_checks": 12,
+          "max_logit_error_printed": 4.996e-05,
+          "max_nll_error_printed": 7.49e-06,
+          "printed_logit_bound": 0.0020885169506073,
+          "printed_nll_bound": 0.00037854403503168044,
+          "bound_source": "same completed-path family bounds used by the existing dtype checkpoint; no limits changed"
+        },
+        {
+          "family": "TQ2_0",
+          "full_vocabulary_comparisons": 150,
+          "nll_checks": 12,
+          "max_logit_error_printed": 7.205e-05,
+          "max_nll_error_printed": 5.24e-06,
+          "printed_logit_bound": 0.002446979284286499,
+          "printed_nll_bound": 0.00034499947367727657,
+          "bound_source": "same completed-path family bounds used by the existing dtype checkpoint; no limits changed"
+        }
+      ],
+      "log": "build-quant-resume-20261020/tq-radeon-int8-fallback-20261024.log",
+      "log_sha256": "4a3e37bd1f26d64b89644714dae27f8aa2568f9c97bd7557790435466dd74a18",
+      "encoding": "UTF-16 LE",
+      "process_exit": "0 confirmed by root for corresponding run",
+      "binary": "build-tq-vulkan-stage/Release/llmx.exe",
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version_carried_by_exact_binary_hash": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f"
+    }
+  ],
+  "path_and_log_limits": "The existing checker selects bounds from completed matrix-path witnesses. These retained text logs print the selected bounds but do not retain raw per-capture witness metadata, so this record does not claim which arithmetic path each individual capture took. No native TQ int8 implementation is claimed.",
+  "counts": {
+    "backend_family_cells": 4,
+    "full_vocabulary_comparisons": 600,
+    "nll_checks": 48
+  },
+  "prior_evidence": "docs/benchmarks/tq-tiny-dtypes-20261024.json"
+}

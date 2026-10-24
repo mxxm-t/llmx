@@ -43,7 +43,8 @@ The `tq1-0` and `tq2-0` components consume those references
 through the shared 150-logit/12-NLL checker. Initial F32 execution keeps its
 existing bounds. The reviewed TQ F16/BF16 families are now frozen before
 narrowed comparisons; absent family data remains an error, not permission to
-use another family's tolerance.
+use another family's tolerance. CPU tensor-split HF checks pass at widths 2
+and 4; Vulkan split runtime HF remains pending.
 
 Family calibration uses the same fixture constructors and existing
 rounding owner. From the pinned HF environment, run each family separately
@@ -67,9 +68,13 @@ and every prior family/class limit unchanged. These are reference errors,
 not released-model bounds. [Calibration identities and exact budgets](../benchmarks/tq-calibration-20261024.json).
 
 Ordinary CPU and Radeon VII auto/BF16 consumers now pass 150 full-vocabulary
-comparisons and 12 NLL checks per format and policy. CPU auto retains F32
+comparisons and 12 NLL checks per format and policy. Int8 requests also pass
+300 full-vocabulary comparisons and 24 NLL checks on each backend using the
+existing fallback owner; this is not native TQ int8 coverage. The selected
+bounds follow actual matrix-path witnesses, while the retained text logs do not
+include raw per-capture witness metadata. CPU auto retains F32
 arithmetic and strict bounds; Radeon auto uses block-int16 TQ products with
 retained F32 operations. BF16 uses input rounding and F32 sums on both.
-The earlier explicit-F32 checks also pass. Split runtime, released-file depth,
-MI50, performance and landing qualification remain pending. [Scoped results
-and artifact pins](../benchmarks/tq-tiny-dtypes-20261024.json).
+The earlier explicit-F32 checks also pass. CPU tensor-split HF checks pass
+at widths 2 and 4. Vulkan split runtime HF, released-file depth, MI50, performance
+and landing qualification remain pending. [Scoped dtype results and artifact pins](../benchmarks/tq-tiny-dtypes-20261024.json) and [int8-request fallback results](../benchmarks/tq-int8-fallback-20261024.json).

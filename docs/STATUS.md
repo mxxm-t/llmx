@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Lookup storage card presentation (2026-10-24)
+
+- **Change:** lookup storage uses the existing card style, with storage location and logical size first. Layer, format and row details are secondary. One note explains replicated copies, CPU storage and unknown file residency. Collector, health API, metrics and runtime are unchanged.
+- **Validation:** the focused browser check passes 19 assertions at each of 1440 and 390 pixels. Production topology renders at 1440, 390 and 320 pixels without horizontal overflow. Empty, older-API and incomplete states pass. The numeric fixture retains the existing 1.3 KiB display for 1280 bytes. Syntax, docs and dead-code checks pass. No inference or performance gate applies to this static presentation change.
+- **Review:** all 129 Markdown pages were reconciled. This page and the dashboard README describe the change, while 127 pages retain their parent content and source correspondence.
+- **Landing:** lands by fast-forward from main `d0c09440b` as one presentation change. Production receives the static page after publication without restarting inference or the dashboard collector. [Validation evidence](benchmarks/dashboard-lookup-card-20261024.json).
+
 ## Lookup rows read ahead (2026-10-23, branch feat/lookup-prefetch on feat/split-pacing b9bc503dd, item P of the Flash decode design of 2026-10-20 08:29, ranked first for cold text by F2DEV on 2026-10-23 11:14, lands by fast-forward as two commits)
 
 - **Goal:** Qwen3.8-Flash-Next's per-layer embedding rows, read from the table's file (`--lookup-storage file`), stop holding a decode token and a prompt.

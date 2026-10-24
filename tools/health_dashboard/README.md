@@ -107,7 +107,9 @@ request. These are backend assignments, not inferred physical GPU numbers or
 VRAM telemetry. Older runtimes without `topology` show placement as unavailable.
 The dashboard does not infer placement from device count.
 
-The Lookup storage card reads `topology.lookups`, when the server exposes it,
+The Lookup storage card puts each table's storage location and Logical size first,
+with its layer, format and row details below. The size is logical table bytes,
+not measured host, device or file residency. It reads `topology.lookups`, when the server exposes it,
 for each bounded table's layer, row count, packed row and logical table bytes
 (row count times packed row size, not replicated allocation), storage
 type, storage choice and layer-group members. `device` means the table is

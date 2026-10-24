@@ -22,6 +22,7 @@ INPUT_TEMPLATE = ROOT / "input-template"
 FIXTURE_TEMPLATE = ROOT / "fixtures"
 MODEL_REPO = "Majipa/Qwen3-0.6B-GGUF-Quantized"
 OVERLAY_PARENT = PINS["candidate_revision"]
+WORKFLOW_PARENT = PINS.get("workflow_parent", OVERLAY_PARENT)
 
 
 def sha(path):
@@ -140,15 +141,17 @@ def make_runtime_bundle(bundle, paths, validate_staged_inputs=False):
 
 def stage(args):
     pin = PINS["matched_build"]
-    assert subprocess.check_output(["git", "rev-parse", "HEAD^"], cwd=args.repo, text=True).strip() == OVERLAY_PARENT
+    assert subprocess.check_output(["git", "rev-parse", "HEAD^"], cwd=args.repo, text=True).strip() == WORKFLOW_PARENT
     assert subprocess.check_output(["git", "rev-parse", OVERLAY_PARENT], cwd=args.repo, text=True).strip() == OVERLAY_PARENT
     assert not args.out.exists(), "refuse an existing staging root"
     args.out.mkdir(parents=True)
     results = args.out / "results"
     results.mkdir()
     receipt_path = results / "stage-receipt.json"
+    workflow_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=args.repo, text=True).strip()
     record = {"schema": "tq-hosted-cpu-depth-stage-v1", "passed": False,
-              "candidate_revision": OVERLAY_PARENT, "started_unix": time.time(),
+              "candidate_revision": OVERLAY_PARENT, "workflow_parent": WORKFLOW_PARENT,
+              "workflow_head": workflow_head, "started_unix": time.time(),
               "artifacts": {"matched_build_id": pin["artifact_id"],
                             "matched_build_digest": pin["artifact_digest"],
                             "probe_build_id": PINS["probe_build"]["artifact_id"],

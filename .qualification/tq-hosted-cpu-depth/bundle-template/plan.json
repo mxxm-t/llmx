@@ -1,7 +1,7 @@
 {
   "schema": "tq-clean-depth-capture-prep-v2",
-  "state": "local v2 binds the verified hosted probe build; transfer and capture still require root review and fresh admission",
-  "scope": "Two exact released TQ GGUFs; CPU and MI50 Vulkan; auto/F16 and explicit F32 policies; raw and chat; 16K frozen inputs and 512 top-50 scored rows per cell. Capture contract is existing quant-depth probe plus tests/common.py hf_depth_top1 comparison. No new full-array/NLL requirement on candidate captures; short NLL gate remains separate.",
+  "state": "isolated retry prepared only; TQ1_0/F32 CPU raw and chat are the only matrix cells; no run or inference from this branch.",
+  "scope": "Two exact released TQ GGUFs; CPU and MI50 Vulkan; auto/F16 and explicit F32 policies; raw and chat; 16K frozen inputs and 512 top-50 scored rows per cell. Capture contract is existing quant-depth probe plus tests/common.py hf_depth_top1 comparison. No new full-array/NLL requirement on candidate captures; short NLL gate remains separate. This retry workflow selects only model tq1-0 with policy f32, capturing its raw and chat variants.",
   "candidate_source": {
     "planned_revision_prefix": "a0fa25492",
     "revision_kind": "clean hosted matched-build arm; full revision and clean source status verified by receipt",
@@ -444,9 +444,9 @@
     "resource_owner": "resource-owner.py copied byte-for-byte from tq-f16kv-depth-reference-prep-v1/run.py; uses resources, peer_reservations, live_host_floor, monitor, inspect_owned",
     "gpu_owner": "gpu-owner.py copied byte-for-byte from tq-hosted-timing-prep-v1/run-matrix.py; uses preflight for renderD130/PCI/VRAM/fuser/container checks",
     "execution_policy": {
-      "memory_bytes": 6442450944,
-      "memory_swap_bytes": 6442450944,
-      "minimum_host_available_bytes": 10737418240,
+      "memory_bytes": 10737418240,
+      "memory_swap_bytes": 10737418240,
+      "minimum_host_available_bytes": 15032385536,
       "minimum_live_reserve_bytes": 4294967296,
       "minimum_disk_free_bytes": 5368709120,
       "pids_limit": 256,
@@ -457,9 +457,30 @@
       "threads": "must be supplied by fresh admission",
       "timeout_seconds": 2100
     },
-    "resource_policy_source": "TQ hosted CPU capture admission: 6 GiB container cap with no swap and 10 GiB initial host availability, retaining the 4 GiB live reserve plus unused-cap and peer accounting and 5 GiB disk floor. The 6 GiB cap is based on three completed Qwen3 0.6B 16K C++ captures with a 3,983,986,688-byte peak. Per-cell payload timeout remains 2100 seconds; CPU assignment is chosen fresh by the hosted admission helper.",
+    "resource_policy_source": "The failed hosted TQ1_0/F32 raw and chat captures used a 6-GiB cap and both Docker inspections recorded OOMKilled=true; chat additionally recorded cgroup oom_kill=1. This retry uses the existing 10-GiB cap and 14-GiB initial host-availability threshold, retaining the 4-GiB live reserve plus unused-cap and peer accounting and the 5-GiB disk floor. The original 16K input, probe, timeouts, and numerical checks are unchanged.",
     "model_root_source": "existing tq-mx-timing-main-prep-v1/manifest.json, model files must pass plan byte/hash checks",
     "image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
     "readiness": "The matched candidate build and both probe binaries/receipt are pinned by the preparation adapter. Each job validates those artifacts, inputs, and model before a CPU-only capture. Captures are not run by this plan preparation; comparisons remain blocked until independent per-cell references and capture receipts are verified."
+  },
+  "retry_scope": {
+    "predecessor_run_id": 40110762193,
+    "predecessor_attempt": 1,
+    "predecessor_cells": [
+      "cpu-tq1-0-f32-raw",
+      "cpu-tq1-0-f32-chat"
+    ],
+    "predecessor_local_evidence": "build-quant-resume-20261020/tq-cpu-f32-failure-collected-20261024/failure-analysis.json",
+    "predecessor_artifact_sha256": "81f9db6f6ff5651844f7c25d09f20727ba374acf72c0f2d0e5a2868d875ba2fb",
+    "retry_models": [
+      "tq1-0"
+    ],
+    "retry_policies": [
+      "f32"
+    ],
+    "retry_variants": [
+      "raw",
+      "chat"
+    ],
+    "resource_change": "Only the container hard cap changes from 6 GiB to 10 GiB and initial host admission from 10 GiB to 14 GiB; swap remains disabled. The 4-GiB live reserve, peer reservations, disk floor, full context, child timeout, model/input/probe pins, and numerical checks remain unchanged."
   }
 }

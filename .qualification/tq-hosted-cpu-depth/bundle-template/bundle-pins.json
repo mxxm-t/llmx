@@ -1,4 +1,5 @@
 {
+  "schema": "tq-clean-depth-capture-bundle-v2",
   "files": {
     "a0fa-build-result.json": "c6499c89ea22838acefac41d41bc36fdd2dd20f11fe1fa704983e1d64140f030",
     "build-probes.py": "229d390ac7bb8e43ab97edb38a53a50e775b4ec14342a41f81c1ec4950ad3e57",
@@ -10,12 +11,12 @@
     "gpu-owner.py": "4f05ae792d079cacfcf7a52f564dedb873046c22d5cd1264afb18421a3b33a73",
     "inputs-complete.json": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
     "local-validation.json": "e18f0442cce65d634db2ad74c465ecd016537628d306a67a29be4673467ee482",
-    "plan.json": "cbb6224a96ca0512269ec3c1d68f16bf760921fab2944d2121e2fb93eca3b44a",
+    "plan.json": "48b1b2103f639ed3f62b2373c1bd3ce2948c9b5662c799022cec8cd8311bd31b",
     "quant-depth-default-probe.cpp": "e10c5a1faee353502cdd9ef96bfe0edd165267dca53612b30530975d508f63f6",
     "quant-depth-f32-probe.cpp": "03fef5042d157053b1bc0817be52d74a0a8cb306d58d893dba0810f4720cd99b",
-    "README.md": "199bc9d33e4c9b855430ecce65f923f96800348ce13f52b8529203e7faf4ca92",
+    "README.md": "0cff3d77f37e90995fb3d1dd4b7a84ab8a1ea33c8e145bd5ee917f48afbb5ac9",
     "resource-owner.py": "a20a19cbcfbd07bb15ec90424891c6bd661e0851f65e5ce8377f041888f4ee4c",
-    "run-capture.py": "c4a54a61a9148b2e1fa8222cff23eea5c763fc5074e720f091a04ef137898fdb",
+    "run-capture.py": "94802ea23ed6a834c31add85aacdfb9d63d16411591cfd837c7db20b40cf4b18",
     "validate-binding.py": "cf0a74a9813e809abd926d7b91b12b32acc544143e4dc0ff0097306be390ce5a"
   }
 }

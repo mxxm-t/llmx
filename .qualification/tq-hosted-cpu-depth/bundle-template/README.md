@@ -78,6 +78,13 @@ inputs and a 2100-second payload timeout. The resource owner adds unused peer
 reservations to admission/live-floor checks. No CPU placement or GPU
 availability is considered current until fresh admission passes.
 
+This isolated retry workflow selects only the terminally failed TQ1_0/F32 CPU
+raw and chat cells. The prior 6 GiB cap run is retained; Docker reported
+OOMKilled for both cells, with a cgroup oom_kill event for chat. The retry uses
+the same probe, model, fixtures, full-context workload, child timeout and
+numerical checks, with the already specified 10 GiB cap and 14 GiB admission.
+The workflow matrix excludes all other models and policies.
+
 Before capture, stage exact source revision a0fa25492b3ec9badaa43f8cd489fbb68fe06494 with Git tree 2f66f4090866e2a0733d504f7d3526540a63f020 at `/source`, load and inspect
 image `sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85`,
 and stage the pinned TQ models at `/models`. Extract `probe-build/probes/default-probe`, `probe-build/probes/f32-probe`, and `probe-build/probes/probe-build.json` from the verified hosted artifact and stage those exact files flat at the pinned v2 probe path. The current plan pins the

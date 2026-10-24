@@ -3,7 +3,7 @@ name: TQ hosted CPU depth captures
 on:
   push:
     branches:
-      - diag/tq-hosted-cpu-capture-20261024
+      - diag/tq-cpu-f32-memory-20261024
 
 permissions:
   contents: read
@@ -16,10 +16,10 @@ jobs:
     timeout-minutes: 85
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
-        model: [tq1-0, tq2-0]
-        policy: [default, f32]
+        model: [tq1-0]
+        policy: [f32]
     env:
       HF_HUB_DISABLE_TELEMETRY: "1"
       HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"

@@ -48,13 +48,14 @@
     "chat": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070"
   },
   "resource_policy": {
-    "container_cap_bytes": 6442450944,
-    "initial_host_available_bytes": 10737418240,
+    "container_cap_bytes": 10737418240,
+    "initial_host_available_bytes": 15032385536,
     "live_reserve_bytes": 4294967296,
     "disk_floor_bytes": 5368709120,
     "container_cpu_quota": 4,
     "threads": 4,
     "child_timeout_seconds": 2100,
-    "maximum_parallel_jobs": 2
-  }
+    "maximum_parallel_jobs": 1
+  },
+  "workflow_parent": "4008f6bf11eaff8b0b9a393e1733888bbd9fb6af"
 }

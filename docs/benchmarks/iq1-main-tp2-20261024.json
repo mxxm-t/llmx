@@ -1,0 +1,239 @@
+{
+  "schema": "llmx-iq1-tp2-depth-progress-checkpoint-v1",
+  "date": "2026-10-24",
+  "base_commit": "ec430ce0ba285a86ba7f3e13762a9e7dbd4db197",
+  "scope": "Completed selected current-main TP2 synthetic HF checks and retained CPU depth resource failure; no performance or overall landing claim.",
+  "tp2": {
+    "host_session": 98384,
+    "host_terminal_exit": 0,
+    "numerical_children": 144,
+    "placement_children": 6,
+    "all_passed": true,
+    "not_started_numerical_children": 0,
+    "cells": [
+      {
+        "family": "iq1-s",
+        "requested_dtype": "auto",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-s",
+        "requested_dtype": "f32",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-s",
+        "requested_dtype": "bf16",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-s",
+        "requested_dtype": "int8",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-m",
+        "requested_dtype": "auto",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-m",
+        "requested_dtype": "f32",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-m",
+        "requested_dtype": "bf16",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      },
+      {
+        "family": "iq1-m",
+        "requested_dtype": "int8",
+        "checks": 18,
+        "kinds": {
+          "logits": 12,
+          "nll": 6
+        },
+        "all_passed": true
+      }
+    ],
+    "fixtures": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "placement_witnesses": [
+      {
+        "family": "iq1-s",
+        "fixture": "dense-untied",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      },
+      {
+        "family": "iq1-s",
+        "fixture": "dense-tied",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      },
+      {
+        "family": "iq1-s",
+        "fixture": "moe",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      },
+      {
+        "family": "iq1-m",
+        "fixture": "dense-untied",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      },
+      {
+        "family": "iq1-m",
+        "fixture": "dense-tied",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      },
+      {
+        "family": "iq1-m",
+        "fixture": "moe",
+        "tensor_group_witness": [
+          "tensor group vulkan:0+vulkan:1 under pci0000:c0"
+        ]
+      }
+    ],
+    "binary_sha256": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "source_manifest_sha256": "d623e8a81b5b26dcda8ee11612c59870632d587e997157471788b3ee48cc2ed2",
+    "resources": {
+      "cpuset": "14-15",
+      "cpu_quota": 2,
+      "memory_bytes": 6442450944,
+      "memory_swap_bytes": 6442450944,
+      "network": "none",
+      "devices": [
+        [
+          "/dev/dri/renderD129",
+          "0000:c6:00.0"
+        ],
+        [
+          "/dev/dri/renderD130",
+          "0000:c9:00.0"
+        ]
+      ]
+    },
+    "diagnostic_exit": 0,
+    "container_removed": true,
+    "oom_killed": false,
+    "build_source_bundle_pins_unchanged": true,
+    "state_receipt_scope": "execution.state is a pre-removal snapshot of the running owned container; diagnostic_exit=0 and passed/removed record the successful child and cleanup. Do not relabel this snapshot as terminal exited state.",
+    "int8_scope": "Existing block-int16/F32 next-wider fallback; no native IQ1 int8 qualification.",
+    "pins": [
+      {
+        "path": "build-quant-resume-20261020/iq1-main-tp2-v5-collected/execution.json",
+        "sha256": "320678364951f4e55d9a9061e559f166e582b220d286003e7ad756a969959cbc"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-main-tp2-v5-collected/result.json",
+        "sha256": "29a12cec0482802040bb15c0e25ae564e50a85623ac90616d3aab10fb8f76b41"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-main-tp2-v5-collected/diagnostic.stdout",
+        "sha256": "8a956fa62d57e4a6031c6f3190d9805fa7180b6665408fd6081d54f661924426"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-main-tp2-v5-collected/diagnostic.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "artifact_validation": "Root reports all child artifact hashes checked against retained result/execution inventories; this scratch review checked the collected execution/result hashes and all144+6 verdicts.",
+    "historical_failures": "Retain earlier device-count and quiet-placement harness refusals unchanged."
+  },
+  "cpu_f32_resource_failure": {
+    "host_session": 59164,
+    "host_terminal_exit": 1,
+    "case": "iq1-s-f32-raw",
+    "container_cap_bytes": 6442450944,
+    "capture_seconds": 1372.8002350330353,
+    "probe_exit": -9,
+    "container_exit": 1,
+    "oom_killed": true,
+    "container_removed": true,
+    "capture_complete": false,
+    "comparison_rows": 0,
+    "numerical_verdict": "None: resource failure before usable depth output.",
+    "other_three_cells": "Not started in this batch.",
+    "pins": [
+      {
+        "path": "build-quant-resume-20261020/iq1-cpu-depth-failure-v1/activity.jsonl",
+        "sha256": "e97c22c2f77e41812376d99e0986bd0afd1e356c5d4ea9474a9a92590dd9c1aa"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-cpu-depth-failure-v1/execution.json",
+        "sha256": "404f4aefaf0ead95a2daf6b465966937ef9356af3a7a3a1cf5d7836b5c330cf4"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-cpu-depth-failure-v1/report.json",
+        "sha256": "ecfc0e9f0d5de730e40d27aa100f5929badad2d4264e87bd190090ee84c5edbd"
+      },
+      {
+        "path": "build-quant-resume-20261020/iq1-cpu-depth-failure-v1/run.log",
+        "sha256": "cac36fe4a2e66173697f089778562acd18bdd079340904deb8d16381041997e4"
+      }
+    ]
+  },
+  "pending": {
+    "cpu_memory": "Assessment and bounded revised resource plan pending.",
+    "cpu_default_hf": {
+      "host_session": 7579,
+      "run": "released-reference-20261023T223928Z-3406387",
+      "state": "Active head-only matrix rounding/logicalF16KV controls and references on CPUs0-3; no completed default CPU gate claimed."
+    },
+    "cpu_default_capture": "Build preflight refused an active explicit CPU6-13 peer before container creation; revised CPU4-5/14-15 placement under preparation, not executed qualification.",
+    "hosted_ci": {
+      "run": 40032647038,
+      "state": "in progress"
+    },
+    "published_to_main": false
+  }
+}

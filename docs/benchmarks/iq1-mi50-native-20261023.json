@@ -1,0 +1,52 @@
+{
+  "scope": "Integrated-source MI50 Vulkan operator and ownership checks; not model-level or performance qualification.",
+  "source_checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+  "build_execution": {
+    "path": "build-quant-resume-20261020/iq1-integrated-rig-v1/results/execution-recovery.json",
+    "sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+    "passed": true,
+    "removed": true,
+    "container_id": "f1fff5709b998fb4c1ed4e1dc337fa8a3def055b8b94d5a25cd4196b77dae4a5"
+  },
+  "test_execution": {
+    "name": "llmx-iq1-integrated-native-v1-20261023",
+    "container_id": "03ee4bbc560dcc8354e4f67803e59abd6574ffa254b8752b0761c64fd8030141",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device": {
+      "render_node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "name": "AMD Instinct MI60 / MI50 (RADV VEGA20)"
+    },
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T17:32:19.590004988Z",
+      "FinishedAt": "2026-10-23T17:32:23.140056031Z"
+    },
+    "removed": true
+  },
+  "tests": {
+    "passed": [
+      "vulkan-lifetime",
+      "iq2-small-vulkan",
+      "iq1-vulkan"
+    ],
+    "passed_count": 3,
+    "total_count": 3,
+    "skipped_count": 0,
+    "ctest_elapsed_seconds": 3.35
+  },
+  "evidence": {
+    "result_json_sha256": "a89bd21ff474656d004c4dcf34dfa5e62dbeeca02e9924d6655eb7dec3517c90",
+    "ctest_log_sha256": "c48e095221352695e90c6f7fc632f413b4229dfd80323cc880854a86819141fa"
+  },
+  "coverage_note": "vulkan-lifetime checks shared IQ1 dictionary reuse and distinct IQ2_XXS storage. This is native device/operator and ownership coverage only."
+}

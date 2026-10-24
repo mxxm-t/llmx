@@ -1,0 +1,114 @@
+{
+  "schema": "llmx-iq1-depth-reference-policy-review-v1",
+  "date": "2026-10-24",
+  "status": "Archived agreement and source-derived uniform correction reviewed by root and an agent; actual acceptance pending completed evidence.",
+  "base_commit": "f5bc503e1401035bb4073dc42eaa615809240c4d",
+  "archive": {
+    "path": "root@11.10.10.13:/opt/claude-work/collab/llmx/finished_devlog.md",
+    "sha256": "7a405bf49f5f07b5da6a2124d5edc5b7a77d049e157e57169783f4ab541bf259",
+    "entry_hash_method": "Split decoded UTF-8 archive at multiline ^**[ entry headers; SHA-256 of each complete selected entry encoded as UTF-8.",
+    "entries": [
+      {
+        "author": "LDEV",
+        "timestamp": "2026-10-01 08:31",
+        "sha256": "e9ed542fb596a857d3c2abdd38d39863c9f037925ac82366db19cf443722d231",
+        "finding": "Selected-dtype HF is the depth gate; F32 HF is recorded as information, not a gate. F32 execution retains the F32 HF gate."
+      },
+      {
+        "author": "XDEV",
+        "timestamp": "2026-10-01 08:40",
+        "sha256": "4fba880e5c364add430f16adbceb0c5b14bad5a0e67987ae0baea9cfebb7f556",
+        "finding": "Reference follows actual arithmetic, including wider F32 operations; predeclare per workload, never per position or by outcome; retain original F32 quality information."
+      },
+      {
+        "author": "LDEV",
+        "timestamp": "2026-10-01 13:56",
+        "sha256": "a97adf57d8d54a8a717e0a83a374b7ab22adb5e73fd5160015d1b3707324df2b",
+        "finding": "Accepts 08:40 guards exactly and confirms direct user delegation to the two developers."
+      }
+    ]
+  },
+  "interpretation": {
+    "narrowed_execution": "One actual-operation HF depth reference is the gate; full-F32 HF remains a required recorded quality companion.",
+    "f32_execution": "Full-F32 HF remains the gate.",
+    "reference_correction": "Uniform incoming K and V round F16 then widen F32 before DynamicCache.update returns current and retained rows to attention; selected matrix hooks stay unchanged.",
+    "discovery": "Retrospective: the reference cache-policy mismatch was diagnosed after the original failure. Do not describe this as a policy frozen before that failure.",
+    "selection_guard": "Determine the complete workload policy from source and cache configuration; freeze before reevaluating retained captures. No per-position or outcome-based oracle selection.",
+    "limits_changed": false,
+    "tie_margin": 0.1,
+    "rule_owner": "tests/common.py:hf_depth_top1",
+    "cpu_default_complete": false,
+    "gate_promoted": false
+  },
+  "source_points": [
+    {
+      "path": "src/model/arch/qwen3.hpp",
+      "line": 223,
+      "sha256": "da63c0711d628afb1ba346dbb4ac71e621cdb95d9bf083bb085338b60955dd43"
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_backend.cpp",
+      "line": 3073,
+      "sha256": "bdd0f887dbc4e113ac63124a3c968ce19367343b459a9c1966ece1fbaf4afcc0"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/norm_rope_kv.comp",
+      "line": 55,
+      "sha256": "f54feb6fdbdce4c754427d468b6dd3f32d6811eec09fee5034a0b00ee01a8ea8"
+    },
+    {
+      "path": "src/backends/vulkan/shaders/f16.glsl",
+      "line": 22,
+      "sha256": "d79911a5b8cf132d2400fcd8c54eda4d4ccbf1dd8c9daa37fd877dd56d6f5c0c"
+    },
+    {
+      "path": "build-quant-resume-20261020/iq1-hf-f16kv-continuation-v1/quant-depth-reference.py",
+      "line": 69,
+      "sha256": "370a3a5ab6987fcc255c1ba285e5583692bfed0ab5353721027a0b319e64f2d5",
+      "finding": "Incoming K and V converted F16->F32 before super().update, including current chunk. Physical cache and attention remain F32."
+    }
+  ],
+  "controls": {
+    "original_selected_f16_f32kv_hf_vs_default_f16kv": {
+      "exact": 505,
+      "accepted_tie": 6,
+      "miss": 1
+    },
+    "vulkan_only_kv_f32_vs_original_hf": {
+      "exact": 511,
+      "accepted_tie": 1,
+      "miss": 0
+    },
+    "hf_only_kv_f16_vs_retained_default": {
+      "exact": 506,
+      "accepted_tie": 6,
+      "miss": 0
+    },
+    "position_16883": {
+      "candidate_top1": 17,
+      "hf_top1": 15,
+      "original_hf_gap": 0.1311931610107422,
+      "matched_kv_hf_gap": 0.06857109069824219,
+      "matched_verdict": "accepted tie, not exact"
+    },
+    "full_f32_quality_companion_default_s_raw": {
+      "exact": 506,
+      "accepted_tie": 5,
+      "miss": 1,
+      "position_16883_hf_gap": 0.10200119018554688
+    },
+    "limits": "Raw IQ1_S diagnostic controls only; no general numerical equivalence or remaining-cell pass inferred."
+  },
+  "evidence_pins": [
+    {
+      "path": "worktrees/iq1-final-20261024/docs/benchmarks/iq1-hf-kv-f16-control-20261024.json",
+      "sha256": "3d27850040b13547fba1a8c9d86d218828503d6e4895588fbc7f98f92da5f970"
+    },
+    {
+      "path": "build-quant-resume-20261020/iq1-kv-f32-control-v1/comparison/comparison.json",
+      "sha256": "277d152f8e42b3b9a949523f3841ca04a7e1a6e833709ffd0f5f98b8a85848a6"
+    }
+  ],
+  "remaining": "Complete genuine applicable S/M raw/chat comparison evidence and CPU depth/default applicability, and finish the separate landing checklist. Original misses remain recorded; no waiver or limit change.",
+  "review_scope": "Adapter and source-policy review; reviewer authored the diagnostic producer, so this is not independent producer validation."
+}

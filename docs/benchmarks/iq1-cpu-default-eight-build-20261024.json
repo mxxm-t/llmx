@@ -1,0 +1,25 @@
+{
+  "scope": "Eight-thread default probe build; pending captures are not qualified",
+  "execution_sha256": "b57f2887521a261e65891fa65ca5ae9a9b92e00268103df941bec734209c1776",
+  "build_receipt_sha256": "4b8de47ffb261285005d46dd66cbb626b88f105805b46346d98145d409bbb562",
+  "artifacts": {
+    "container.cid": "8c9af78d751240f3e7101ba0b094d6d2452f4efa549186ad70aea785d2a18962",
+    "activity.jsonl": "a44d8087adad518dc0358c7202acb367020f9b8997f24d472fc2fb00d5080052",
+    "probe-build.json": "4b8de47ffb261285005d46dd66cbb626b88f105805b46346d98145d409bbb562",
+    "run.log": "568194bcc8741caad33a0d758dc6429ee7b2af428487d7e03bdc6ccd30a69600",
+    "default-probe": "92c0b2073a1d27bf61a0a23e7774544e323164c888df90b3406aa23421d6bde2"
+  },
+  "source_build_and_library_pins_unchanged": true,
+  "passed_removed_exit_zero_non_oom": true,
+  "pending_cases": [
+    "iq1-s-default-chat",
+    "iq1-m-default-raw",
+    "iq1-m-default-chat"
+  ],
+  "admission_refusal": {
+    "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\iq1-eight-default-schat-launch-20261024.log",
+    "sha256": "545722f9036fed60047e3f3a0720aee915bb6fa66a292e88af2fd26c489228b8",
+    "meaning": "Host memory plus unused peer reservation check refused before creating the capture directory or container; no numerical result"
+  },
+  "limits_or_guards_changed": false
+}

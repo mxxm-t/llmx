@@ -1,0 +1,56 @@
+{
+  "scope": "CPU IQ1_M F32/F32-KV raw 16K prompt and 512-position full-F32 HF depth qualification",
+  "capture_remote": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/cpu-eight-f32-v1/results/iq1-m-f32-raw",
+  "comparison_remote": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/comparison-results/cpu-eight-f32-compare-mraw-v1",
+  "capture_execution_sha256": "c2338ae059c4674698ed3228d00a6d869fb7c70f90855d00b7c8146b0fed1dd8",
+  "comparison_execution_sha256": "2ede2629b768973ee42d58184d148f5cec1138f9180962d0cdd97939c6962ad3",
+  "comparison_sha256": "18ba5a0fade8761280b46893012325c98ce704c98f6261a0764f52341bc800d8",
+  "capture_artifacts": {
+    "activity.jsonl": "9281cce0f7636befcdb6407bc94858fb892f3532d07d4b41547cb01d9c3f6aa3",
+    "run.log": "941529a9ba43f0f5f1b18308371952ae236d690b126a399e5c727653e2d650d3",
+    "container.cid": "9666b0bc800f5330c38e48ab6abd194fb9d8357552837887cc2a1cb5970ad9c8",
+    "iq1-m-raw.stdout": "bd357e74bb1318dced2703e02669f04a0f70c2a108f969edadbad804508f06ce",
+    "iq1-m-raw.stderr": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+    "report.json": "b43973083e2b10a40d703a10e2c169639001781fd109d328827c1b968071fb32"
+  },
+  "counts": {
+    "exact": 512,
+    "accepted-tie": 0,
+    "miss": 0
+  },
+  "matrix_paths": {
+    "dtype": "f32",
+    "devices": [
+      [
+        "f32"
+      ]
+    ]
+  },
+  "capture_seconds": 1369.8668339252472,
+  "capture_and_comparison_passed_removed_exit_zero_non_oom": true,
+  "source_build_model_input_pins_unchanged": true,
+  "prefix_diagnostic_sha256": "17ce4aef0efa21a461874598450e54d85390de440b77238282819273aab24cce",
+  "prefix_diagnostic": {
+    "diagnostic_only": true,
+    "scope": "127 retained top-50 text score rows, four vs eight threads; not full-vocabulary identity or a substitute for the full 512-row HF gate",
+    "passed": true,
+    "old_receipt_sha256": "a252aa520e53ae728d2921cc6a1917c8549190148de2c126d5ad3926fa7927a4",
+    "new_receipt_sha256": "c2338ae059c4674698ed3228d00a6d869fb7c70f90855d00b7c8146b0fed1dd8",
+    "build_receipt_sha256": "77559050643854a5666df759bed3194dccf24ee10a47c0f7e6bf1561b7039921",
+    "old_stdout_sha256": "dbd43cf69b8fe55cb83e7c0c397e21407c37ddb75abffc9488ce57d3ed724190",
+    "new_stdout_sha256": "bd357e74bb1318dced2703e02669f04a0f70c2a108f969edadbad804508f06ce",
+    "compared_rows": 127,
+    "identical_rows": 127,
+    "mismatch_positions": [],
+    "retained_partial_fragment": [],
+    "old_failure_has_after_pins": false,
+    "limitation": "Timed-out original may lack post-run pins; compare pinned original artifacts and pre-run closure only. Not an inference identity gate."
+  },
+  "numerical_policy_and_limits_changed": false,
+  "remaining_cpu_depth_cells": [
+    "iq1-m-f32-chat",
+    "iq1-s-default-chat",
+    "iq1-m-default-raw",
+    "iq1-m-default-chat"
+  ]
+}

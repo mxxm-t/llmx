@@ -1,0 +1,289 @@
+{
+  "schema": "llmx.iq1-released-depth-captures.v1",
+  "scope": "Candidate-side released-file depth captures only. These are not HF reference-generation or comparison results.",
+  "collected_index_sha256": "546fdcaff3008024632ae53f9a1d77fc802cee0ba12e99fd32f8a516fa5c34c5",
+  "runtime_checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+  "build_record_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+  "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+  "probe_build_receipt_sha256": "504911fa56eb8a2ede2c88430e9ad1b3012abceb94abd906fafb463bd1d96ff7",
+  "probe_build_execution_sha256": "a15a9e55e17b642252a65b59584d013c67a4534d6a2778afc14f1ff4afad4f69",
+  "counts": {
+    "captures": 4,
+    "raw_chat_variants": 8,
+    "positions_per_variant_after_16k_prompt": 512
+  },
+  "captures": [
+    {
+      "kind": "iq1-s",
+      "policy": "default",
+      "execution_sha256": "efe4c7e62c16f48da3da368b7775b2f95722d102716056f1ccb00adb94d45d93",
+      "report_sha256": "3e498a4a06725a43d967b867e9ee9993c46ce0eacb9de7f3d9cdd077444c2519",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "probe_sha256": "7c22169190ecb6e7b6152dc2e98a64c91814396cfa7c17f8df98b87abe692d72",
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "bundle_pins_unchanged": true,
+      "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+      "build_record_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "cases": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "stdout_sha256": "acd670af3f2ea95f9cd75811c108f879317e3d85f19a571c84790d2b20786dd7",
+          "stderr_sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+          "elapsed_seconds": 14.797,
+          "selected_arithmetic_policy": "f16"
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "stdout_sha256": "a5aa81a6879b5da0534bc617f87871f3fb8dde0b6b7b4484c4437b27b6c69142",
+          "stderr_sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+          "elapsed_seconds": 13.94,
+          "selected_arithmetic_policy": "f16"
+        }
+      ]
+    },
+    {
+      "kind": "iq1-s",
+      "policy": "f32",
+      "execution_sha256": "55dea3a347c44b4eeaedfd9778a74a5c020533ba52788cf7a19a5911ed4c41bc",
+      "report_sha256": "db56ec4799f8ed7c67f27903de1181550947ebd37e8f4bb3b5d700e227b1cac9",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "probe_sha256": "af93fa0d41d7185805b7bbe466e1155b8f4b6ef05e484bc0030a8a0d518fdfa1",
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "bundle_pins_unchanged": true,
+      "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+      "build_record_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "cases": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "ae5c790594174c924d17a0c755270d97d955bb451b04e47cc3fb0d3288cd495b",
+          "stderr_sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "elapsed_seconds": 25.632,
+          "selected_arithmetic_policy": "f32"
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "6f127a0087352fc0d8ac86642dfcbe775119d3556fae5fe717117010b6c3a613",
+          "stderr_sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "elapsed_seconds": 25.469,
+          "selected_arithmetic_policy": "f32"
+        }
+      ]
+    },
+    {
+      "kind": "iq1-m",
+      "policy": "default",
+      "execution_sha256": "f7837586d633ad56c91e40b5d3206b5107252c38c58a568eb119790932b74a9d",
+      "report_sha256": "36bffe96ee4ef80c8d133444660a899b1584b62dc099f37cd5e84ad5df3d7c5f",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "probe_sha256": "7c22169190ecb6e7b6152dc2e98a64c91814396cfa7c17f8df98b87abe692d72",
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "bundle_pins_unchanged": true,
+      "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+      "build_record_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "cases": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "stdout_sha256": "88a9b39bfb1220fb96defd854441a92d89b60e5dfbf042d5b2ca3e6357d8791d",
+          "stderr_sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+          "elapsed_seconds": 14.845,
+          "selected_arithmetic_policy": "f16"
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+          "matrix_paths": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "stdout_sha256": "73fe5b41043c33e129b212447d4b58543dd448caee50d072dc97328620f78e30",
+          "stderr_sha256": "556fd51f85b4d6db4d31b6b21ca738ba0a966a3ac93d4d6ac4c3e95ab0c24578",
+          "elapsed_seconds": 13.939,
+          "selected_arithmetic_policy": "f16"
+        }
+      ]
+    },
+    {
+      "kind": "iq1-m",
+      "policy": "f32",
+      "execution_sha256": "17d242e1ef393ac0b179197966bd41863602bdce343c3f76aa19821fd578ac8a",
+      "report_sha256": "9e60d3975edca99c4ae2e4125d549104779ad007474fe2ed2dbc58deca0913e8",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "probe_sha256": "af93fa0d41d7185805b7bbe466e1155b8f4b6ef05e484bc0030a8a0d518fdfa1",
+      "passed": true,
+      "exit": 0,
+      "removed": true,
+      "oom_killed": false,
+      "bundle_pins_unchanged": true,
+      "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+      "build_record_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+      "input_manifest_sha256": "0793196265ad4e2af0d4674ffc86432ee002d5d985379011d4b33ef09532bdbe",
+      "cases": [
+        {
+          "variant": "raw",
+          "positions": 512,
+          "fixture_sha256": "d25ed7ec8183544a44bd35e1264edee51ae34a6ef0155e139dc51ccb958411d3",
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "bb3418ba64a5f67776bdf0129cf4049258cc261db2a394ecdef1b6d7b9a8b896",
+          "stderr_sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "elapsed_seconds": 26.013,
+          "selected_arithmetic_policy": "f32"
+        },
+        {
+          "variant": "chat",
+          "positions": 512,
+          "fixture_sha256": "a5f77d5898e27d3eb2820fb4ddd053fce25d78fca8c4b5f5ec0edb6638840070",
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "c8d27ebf5f44112535c23d023962b6d8508de12d697690141ada8a68f867d7bc",
+          "stderr_sha256": "d03c37f311a45fe02d8d6597dbbe51f5b36cd31ab8af86a3be50b42d46e5375c",
+          "elapsed_seconds": 25.83,
+          "selected_arithmetic_policy": "f32"
+        }
+      ]
+    }
+  ],
+  "hf_reference_generation": {
+    "manifest_sha256": "3b915b1c2a388f6be692b634cfe29e70e1288a1ae773d58c3cd05fd5bf971556",
+    "plan_sha256": "7e0dfbffac5882b3bdb666344949d6a1a203ee4c83483564c18fc313a04e73a7",
+    "phases": [
+      {
+        "model_id": "iq1-s",
+        "name": "depth-f16"
+      },
+      {
+        "model_id": "iq1-s",
+        "name": "depth-f32"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-f16"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-f32"
+      }
+    ],
+    "reference_generation_phase_count": 4,
+    "plan_execution_status": "LOCAL PREPARATION ONLY; four remaining depth phases. Launch only after IQ2 timing and a fresh coordinated CPU/memory/disk preflight. Both completed short phases are context only.",
+    "pending_comparison_cell_count": 6,
+    "pending_comparison_roles_per_model": [
+      "selected-f16",
+      "selected-f32",
+      "default-versus-f32"
+    ],
+    "comparison_scope": "Six later comparison cells total: the three roles above for each of IQ1_S and IQ1_M, each comparing raw and chat captures. None has run.",
+    "status_at_capture_checkpoint": "staged_unlaunched_on_rig",
+    "status": "first_reference_phase_running",
+    "live_followup": {
+      "model_id": "iq1-s",
+      "phase": "depth-f16",
+      "rig_path": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/released-depth-v3/released-reference-20261023T195720Z-2876986",
+      "session_id": 80698,
+      "observed_at": "2026-10-23T19:58:37Z",
+      "observation": "The 64-token F16 control passed; raw depth capture had reached 3584 positions. This is progress only, not a completed reference phase."
+    },
+    "pending_reference_phases": [
+      {
+        "model_id": "iq1-s",
+        "name": "depth-f16",
+        "state": "running"
+      },
+      {
+        "model_id": "iq1-s",
+        "name": "depth-f32",
+        "state": "pending"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-f16",
+        "state": "pending"
+      },
+      {
+        "model_id": "iq1-m",
+        "name": "depth-f32",
+        "state": "pending"
+      }
+    ]
+  }
+}

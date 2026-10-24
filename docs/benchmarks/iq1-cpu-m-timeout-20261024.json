@@ -1,0 +1,32 @@
+{
+  "scope": "Incomplete CPU F32 IQ1_M raw depth capture. Resource timeout only; no numerical qualification or pass.",
+  "capture_root": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/cpu-depth-m-lane-v1/results/iq1-m-f32-raw",
+  "passed": false,
+  "removed": true,
+  "oom_killed": false,
+  "child_timeout_seconds": 1800,
+  "elapsed_seconds": 1800.426578760147,
+  "required_positions": 512,
+  "scored_lines_written": 127,
+  "complete_scored_lines": 127,
+  "probe_sha256": "317280ac7624298dfa0c5f383c3115c2d19ee78bf687f72bf14f5abacc313fb9",
+  "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+  "artifacts": {
+    "activity.jsonl": "020ff3db01f24e32c39776701a542410642c2efe6e62c0dfd67f0ecb890887ea",
+    "container.cid": "4a063d8b5c26432441b7ebb52247facda45611b5ba62c51599a7c3d0445ca5fe",
+    "execution.json": "a252aa520e53ae728d2921cc6a1917c8549190148de2c126d5ad3926fa7927a4",
+    "iq1-m-raw.stderr": "55d12e09cd7233374b7e48e98464219b7ace9e0b5e0f52a2c9e5f25f68bbde4e",
+    "iq1-m-raw.stdout": "dbd43cf69b8fe55cb83e7c0c397e21407c37ddb75abffc9488ce57d3ed724190",
+    "report.json": "b6217b7360cc14d786364dcc6ebc531118002b3fc13f12b723307c3bc73429e0",
+    "run.log": "4a5b261629b39c8c26b4d0ef70e9eadfcf6cbc12bff3f5c95164e290583143e7"
+  },
+  "next_action": "Fresh M-only capture wrapper with 3600-second child and 3900-second outer deadlines; reuse identical probe and inputs, CPU allocation and memory guards. Preserve this incomplete attempt.",
+  "retry_admission": {
+    "at": 1792800132.2470593,
+    "host_available_bytes": 42191654912,
+    "required_host_available_bytes": 49118461952,
+    "peer_reserved_bytes": 25301266432,
+    "peer": "/llmx-ddev-p4-lbase-32-p3-conc",
+    "scope": "Fresh v2 launch refused before creating a result directory or container. Existing aggregate memory guard unchanged; wait for a peer or S capture to release its reservation."
+  }
+}

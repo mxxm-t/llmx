@@ -28,6 +28,8 @@ layout(set = 0, binding = 3) readonly buffer I { uint ids[]; };
 #include "iq2_s.glsl"
 #define IQ2_SMALL_HALF(i) (QBYTE(i) | (QBYTE((i) + 1u) << 8u))
 #include "iq2_small.glsl"
+#define IQ1_GRID_WORD(i) floatBitsToUint(table_f[i])
+#include "iq1.glsl"
 #define IQ3_XXS_GRID_WORD(i) floatBitsToUint(table_f[i])
 #include "iq3_xxs.glsl"
 #include "qdecode.glsl"
@@ -80,6 +82,7 @@ void main() {
             else if (p.type == TYPE_IQ4_NL) v = iq4_nl_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ4_XS) v = iq4_xs_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ3_S) v = iq3_s_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
+            else if (p.type == TYPE_IQ1_S || p.type == TYPE_IQ1_M) v = iq1_at(p.type, o, k, iq1_scale(p.type, o));
             else if (p.type == TYPE_IQ2_S) v = iq2_s_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ2_XXS || p.type == TYPE_IQ2_XS) v = iq2_small_at(p.type, o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_IQ3_XXS) v = iq3_xxs_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));

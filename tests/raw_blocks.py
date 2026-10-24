@@ -586,16 +586,77 @@ def check_roundtrip_blocks():
     print("raw-blocks: the numpy form gives the pure form's bits on the round trip's Q4_1, Q5_1, Q4_K, Q5_K and Q6_K raw blocks  [ok]")
 
 
+def iq1_block(type_id, half_bits, indices, multipliers, signs):
+    """Pack chosen format fields without using either decoder or the runtime dictionary."""
+    if type_id == sd.IQ1_S:
+        words = []
+        for group in range(8):
+            high = sum((indices[4 * group + v] // 256) << (3 * v) for v in range(4))
+            words.append(high | ((multipliers[group] - 1) // 2) << 12 | (signs[group] < 0) << 15)
+        return struct.pack("<H", half_bits) + bytes(i % 256 for i in indices) + struct.pack("<8H", *words)
+    if type_id != sd.IQ1_M:
+        raise ValueError("not an IQ1 block type")
+    high = [i // 256 + (8 if sign < 0 else 0) for i, sign in zip(indices, signs)]
+    words = [sum(((multipliers[4 * group + v] - 1) // 2) << (3 * v) for v in range(4))
+             | ((half_bits >> (4 * group)) & 15) << 12 for group in range(4)]
+    return bytes(i % 256 for i in indices) + bytes(high[i] + 16 * high[i + 1] for i in range(0, 32, 2)) + struct.pack("<4H", *words)
+
+
+def iq1_cases(type_id):
+    for d in HALVES:
+        for first in range(0, 2048, 32):
+            indices = [(first + 13 * v) % 2048 for v in range(32)]
+            count = 8 if type_id == sd.IQ1_S else 16
+            multipliers = [1 + 2 * ((g + first // 32) % 8) for g in range(count)]
+            signs = [-1 if (g + first // 32) % 2 else 1 for g in range(8 if type_id == sd.IQ1_S else 32)]
+            yield d, indices, multipliers, signs
+
+
+def check_iq1():
+    grid = sd.iq1_grid()
+    signed = bytes(value & 255 for vector in grid for value in vector)
+    assert hashlib.sha256(signed).hexdigest() == "07540ffc1aeaf6ad4d97e96b0fcc765aae39671d4ae4a27bbd0e796fde167c6a"
+    codes = [sum((value + 1) * 3 ** lane for lane, value in enumerate(vector)) for vector in grid]
+    assert hashlib.sha256(struct.pack("<2048H", *codes)).hexdigest() == "964d7b98109a8e48d64ff22ebf527705d9e47f02108b893311300e82b4cba376"
+    for type_id in (sd.IQ1_S, sd.IQ1_M):
+        payload, expected = bytearray(), []
+        for d, indices, multipliers, signs in iq1_cases(type_id):
+            payload += iq1_block(type_id, d, indices, multipliers, signs)
+            for vector, index in enumerate(indices):
+                odd = multipliers[vector // (4 if type_id == sd.IQ1_S else 2)]
+                sign = signs[vector // 4 if type_id == sd.IQ1_S else vector]
+                expected.extend(cell(lambda h: (h(d) * odd) * (value + Fraction(sign, 8))) for value in grid[index])
+        name = sd.type_name(type_id)
+        # Both readers take an offset view and consecutive blocks, not an aligned independent block copy.
+        guarded = b"x" + payload + b"y"
+        view = memoryview(guarded)[1:-1]
+        assert_values(name, expected, sd.decode(type_id, view, len(expected)))
+        assert_numpy_matches(name, type_id, view, len(expected))
+        for count in (1, 255, 257):
+            try:
+                sd.payload_bytes(type_id, count)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(name + " accepted a partial block")
+        print("raw-blocks: %s %d values, pinned dictionary, scale fields, shifts, unaligned blocks and partial-block refusal  [ok]"
+              % (name, len(expected)))
+
+
 def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
     halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
-              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,)}.get(type_id, ())
+              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,), sd.IQ1_S: (0,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
         block = bytearray(rng.getrandbits(8) for _ in range(size))
         for at in halves:
             block[at + 1] &= 0xFB if block[at + 1] & 0x7C == 0x7C else 0xFF
+        if type_id == sd.IQ1_M:
+            bits = sum((block[49 + 2 * i] >> 4) << (4 * i) for i in range(4))
+            if bits & 0x7C00 == 0x7C00:
+                block[53] &= 0xBF
         out += block
     return bytes(out)
 
@@ -765,6 +826,7 @@ def run(require=False):
     check_iq2_xxs()
     check_iq2_xs()
     check_iq3_xxs()
+    check_iq1()
     check_mxfp4(rng)
     check_q3_k(rng)
     check_q2_k(rng)

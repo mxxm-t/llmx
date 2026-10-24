@@ -1,0 +1,1813 @@
+{
+  "review": "Integrated IQ1/IQ2 Markdown review against previously reviewed feature checkpoints",
+  "parents": {
+    "iq2": "ca4fd2e1a5ef232ba5283eb33832f0b39a483898",
+    "iq1": "08cb08e7d"
+  },
+  "current_markdown_count": 131,
+  "counts": {
+    "changed_from_both_reviewed_parents": 9,
+    "carried_by_exact_blob_match": 122,
+    "new_since_both": 0,
+    "deleted_from_parent_union": 0
+  },
+  "unchanged_pages_verified_by_exact_git_blob_id": true,
+  "unchanged_pages": [
+    {
+      "path": "docs/ADDING-AN-ARCHITECTURE.md",
+      "git_blob": "ce09a34c694dbe7dd4a8bd70a9e8b9059b0fe597",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+      "git_blob": "82613f552bc36c1f9a9247fd3d0a7e0ed026905e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/backend-audit-20260925/README.md",
+      "git_blob": "59c66c121f18fdd953d6a8191c03560f3763eff2",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+      "git_blob": "b26abeeaa1640a677f27507f944eb36c5f3585eb",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+      "git_blob": "2b42df75659941a2df949e513be0b64ad06897a0",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+      "git_blob": "5822bb21e7e5fde06cd84dc7655506573bcdac2b",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+      "git_blob": "51f59dc4eac634694cdb2b80e62bf3eee9516dc7",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+      "git_blob": "64760e12c10753993d348c65b68aae374c59cb02",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+      "git_blob": "e761d4ddad31913e54c6853da41e39020c4896fc",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+      "git_blob": "e4eadc7176c7f9bec8bc5539095835f58580005d",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+      "git_blob": "ffb03960808d3e9f80a662de90c15d56969da794",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/expert-types-20261002.md",
+      "git_blob": "6fc934a5daf5de930e543c1f07a49d38c61dc7f7",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+      "git_blob": "ed0b5807d87603fc6a04cb7296897b552cffb003",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+      "git_blob": "a624045338754fc4b9197dfe2a36ff23ee0697c3",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+      "git_blob": "98a10fde041055b6f73e84de40c9e9497baf14fe",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+      "git_blob": "c2b3afb7af676a651abdffc4163ca58a9143eb60",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+      "git_blob": "9192dc0d300a94a5669ae524358e0bd31b89e74f",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+      "git_blob": "620183c135e7f2ca420bd405327cedaad6a49d21",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+      "git_blob": "d15ab1e479b1f68370520322768cf6798324f7dd",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+      "git_blob": "4c3f17f998dd881dbf4cd69e0cd7d32ba1a37acc",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+      "git_blob": "f68fc00803047e4914828a914faac4cfa85c7a7c",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+      "git_blob": "39e4811fb0d872381711160c3741e805eb674505",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+      "git_blob": "d5f3e5c6f0ccd7d200e7d3bfba42c7850c9201d8",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+      "git_blob": "2d7c2e87ac1ae3c95533e52a18cfdc6e8080b716",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+      "git_blob": "adb08d19bafa5807381ab03474c1d95d0fc1aa60",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+      "git_blob": "982b9131eda33817718574dd395c1568175005a1",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/server-investigation-20260929/README.md",
+      "git_blob": "e53df899ac40e16fc3d084f63ff3fdd08d11e8b5",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/storage-types-20261002.md",
+      "git_blob": "15cd91ca2337e2e3d215bd8aca4b9aab3a80c148",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+      "git_blob": "b25304a82b664b2d3741a6cdb96873d1d2617047",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/BUILD.md",
+      "git_blob": "22f64a7e0c2fb4f69fed8539c9c2d67474063d97",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/CACHE-PLAN.md",
+      "git_blob": "9d36ac194478c486a158cda5eeb988c636bebc2e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/CI.md",
+      "git_blob": "f0e545136da2409c8b73605d2106da476b0ed787",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/DEVICE-EXECUTION.md",
+      "git_blob": "26a81d55ecf13c92b90b39fd40bfad47bbfd57d5",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/DISK-TIER.md",
+      "git_blob": "6a3c7042d533adfa9dbc2ddbce979fcac7bffb26",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/EXECUTION.md",
+      "git_blob": "f3b23584ab34f36d13c232a7ecda3d713f332ca9",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/KV-CACHE.md",
+      "git_blob": "a91df5663eb2932007db9ccf4cbad12ad210a877",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/MULTI-DEVICE.md",
+      "git_blob": "eae7b51793dbff212a804dd9005bfb04b30de67a",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/OPERATING.md",
+      "git_blob": "97d15099938bdc1afea5fcc0b2698580cfbf33dd",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/QWEN35.md",
+      "git_blob": "9a5870f3a0c45d2255f40870f1eecd8690027449",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/QWEN38-FLASH.md",
+      "git_blob": "65b2ae36517a7eb85c93fdc9d8336c5677a0ff6f",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+      "git_blob": "f149e74f2e432a10b602a305bbf42a000f31aca8",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/research/rocm-20261009.md",
+      "git_blob": "48b58e87d702fe81bd79fbf5295c5a5e8a0af368",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "git_blob": "f2dbb68e4439093fa53587c3f0f280971bc15d76",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/ROCM.md",
+      "git_blob": "7819060d3143e111c45a055534cd7d60484418be",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/SERVER.md",
+      "git_blob": "03b4477c67b056433fe61e1ae3e86184d444c6bf",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/SPECULATIVE.md",
+      "git_blob": "c495bdc3c2bece2ad9a4df79644f668a31189d5a",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-backend.md",
+      "git_blob": "03dc121898b44b97c489c6a26bff79efd37ba820",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-cpu.md",
+      "git_blob": "f045a3dd175e3b144703d38186acf93b289fb7d2",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-cpu-placement.md",
+      "git_blob": "320f9e8eb13e5c65d0864fbd31aadffdda970e66",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-cpu-q8_dots.md",
+      "git_blob": "cbe2e26d3e39e697e959373636870b1ecfd98cc6",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-device_profile.md",
+      "git_blob": "7089aa2a1674cccf256db7d7c7ce220f1f6deead",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-devices.md",
+      "git_blob": "7825b16c4bb8e43c706082440563cb7923d1a529",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/backends-kv_storage.md",
+      "git_blob": "d5803e9565da5cf9b703e237a8a4bf58f3c3b093",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/cli-main.md",
+      "git_blob": "0769f379ce9290dbc6f1635ff96600fbb02b5f1f",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/config.md",
+      "git_blob": "a4f50ec6f8ed04cffa72b1597c99157032ef069d",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-bf16.md",
+      "git_blob": "540d041b8c4ec3c2449b765dafb66a8cfb94761d",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-cgroup.md",
+      "git_blob": "bea87e35e95f7f4283a14589c5c8b3d360da2de2",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-cpus.md",
+      "git_blob": "96eeea36cf9b2d98e4250823d48730bb51785074",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-crc32c.md",
+      "git_blob": "326f2485f6426863be71713e7e5626363d0b422e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-fp16.md",
+      "git_blob": "a82c809636dfb9021c606f30c2970ebff3fdf9bb",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-host_memory.md",
+      "git_blob": "a3cf8d662a48d763fa48beffc23ba337bf3225ff",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-job_threads.md",
+      "git_blob": "18eb1b2636e1af05a16f93cc41b8b884138d966b",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-json.md",
+      "git_blob": "6de4af8bc48886867159a06dc1cef5d7b72f88c8",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-list.md",
+      "git_blob": "85b645fb0f9fc9531085c3faf2a6adaf0dea4a0e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-sha.md",
+      "git_blob": "8d157681e57f7f3b5b74ffa8899a1a88013a60da",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/core-utf8.md",
+      "git_blob": "3c08533f851338cbcfb05f1d11225123e65edb5e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-file_digest.md",
+      "git_blob": "edc86ca34830cbd117a795bacccda20e1d80403e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-file_reader.md",
+      "git_blob": "91dfd65c3241eefef79081d4b4eda2b0a15c27a2",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-file_writer.md",
+      "git_blob": "653dfa691361d3dfc8c166cd7ba71cbdf1e1a813",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-format.md",
+      "git_blob": "82cec9d5a4a9d7c09929655f25ecd2f931e8bb95",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-gguf.md",
+      "git_blob": "f8104f6ddac76b1079e924770d892e4c95307bd5",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-mapped_file.md",
+      "git_blob": "302434ec69213e091434a9bca1d27ce6000d6d93",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-output_file.md",
+      "git_blob": "407a2b29592acfa693ce9ce783b2efd9af53c242",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/format-raw_convert.md",
+      "git_blob": "d7b424eca32fe8583962a68f2410f985ce302b17",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/hub.md",
+      "git_blob": "68d3ec4e7eb77f41f57238214d21cc3c940dd6a3",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-chat.md",
+      "git_blob": "2ed9b45f59af07a15fe46da0a80d9039b4cca512",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-generate.md",
+      "git_blob": "382776b75f5b617a606539de90aadc47e8cde065",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-load.md",
+      "git_blob": "23d499a9c081071413535b7409519725a9b06add",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-logprobs.md",
+      "git_blob": "48f063053a6063751dce259f4b0f166ae81428cc",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-pair.md",
+      "git_blob": "f4aa1bd4edbcca8f9304640fc36fd9c7dba70407",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-perplexity.md",
+      "git_blob": "c70b41eab981e8de0d68173a8009439ef0bb5295",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-read_ring.md",
+      "git_blob": "752ecb8be5243802f69d2fd09deeefbfe830489a",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-sampler.md",
+      "git_blob": "54cb9f558d3240db1170328b30884e703e0a529e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/inference-spec.md",
+      "git_blob": "b6846a6320be04443cea03f99b980341f2ce4fad",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-blocks.md",
+      "git_blob": "3110082ba2d17159acf81c7dbe00bdcce3b93eb6",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-architecture.md",
+      "git_blob": "832955ed946c74df5bcf5bd0bdd0fbbfc2719150",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-metadata.md",
+      "git_blob": "ebaa653ce084d88bddff59629d35d6707b77e127",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-qwen3.md",
+      "git_blob": "a485ba409bc73163eea8d01bcb5d076c7f86de16",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-qwen35.md",
+      "git_blob": "a9737158c4bfeb5ec47cf413589b035f3508af65",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-qwen4exp.md",
+      "git_blob": "ed6a007d183fb40546e83581f40cbe634ec00b7f",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-arch-registry.md",
+      "git_blob": "f49238fd29716998a71441dfbc65bc34f8d34a3e",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-history.md",
+      "git_blob": "e44683c27230f904cea192f5cc24ebf89870be12",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-kv_cache.md",
+      "git_blob": "54f4381dffd52d9e490bcab423d21d39326f5c2b",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-layer_split.md",
+      "git_blob": "35983bccfaba8e07fdcf9009d4fe431dbc805ed5",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-passes.md",
+      "git_blob": "b0ba977c9a2163d0ca4b6294b80de25d9e6abe07",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-place.md",
+      "git_blob": "48e1da16d5e8ed0ffba15ce669c69efa7777b02c",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-runtime.md",
+      "git_blob": "d35fe7332001880419c07c1a370e8379093509b0",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-shard.md",
+      "git_blob": "6ba6cc11ac5ccf941065f0c489b8c102090f039f",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-weight_rows.md",
+      "git_blob": "18583e4c2e9dd4c0681b29de74f335d4614af72d",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/model-weights.md",
+      "git_blob": "75edfd2b46e34cee47dfb976f8acf48a5d1b8a96",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-iq1.md",
+      "git_blob": "ea69d8182e4a07ccdd7b85cb45c2a28800bc1a2a",
+      "matched_parent": "IQ1 checkpoint 08cb08e7d"
+    },
+    {
+      "path": "docs/src/quant-iq1-grid.md",
+      "git_blob": "e29a8a89f7d4f3a5322e6067c5555aae45c491c9",
+      "matched_parent": "IQ1 checkpoint 08cb08e7d"
+    },
+    {
+      "path": "docs/src/quant-iq2-s.md",
+      "git_blob": "4cf8177d5ea95b88b993672f0615d1c8cfc603aa",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq2-s-grid.md",
+      "git_blob": "f50718330f465f54113591d16fce2ad5b0b24b4b",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-iq2-xs.md",
+      "git_blob": "190f77b35361e7043188a45e3a15f109dab14299",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq2-xs-grid.md",
+      "git_blob": "f4b388807128e7977ccf235b51c063ed19cae3ab",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq2-xxs.md",
+      "git_blob": "5fa452cdcfc08bfa2747ec7e2eeed34bf7d47a3c",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq2-xxs-grid.md",
+      "git_blob": "6cc49e83aa386a76dde8035ff018d76db7768e42",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq3-s.md",
+      "git_blob": "90eb4263ee2136d76d8d60c7b2aa2c457bff94fa",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-iq3-s-grid.md",
+      "git_blob": "305bdde77dbfdc038d0083ff82f3948eaedec832",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-iq3-xxs.md",
+      "git_blob": "9b975e1c54fb998d63cd210046e49a54fb95cfae",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-iq3-xxs-grid.md",
+      "git_blob": "a2dd52b1697c703329f35c1baff0d436661c2212",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-iq-signs.md",
+      "git_blob": "95101b31108bf63bcfba9a3c6808a9d747dabbba",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/src/quant-k_quants.md",
+      "git_blob": "767cbdd5c3b079be820c253366e0588614a3b613",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/quant-mxfp4.md",
+      "git_blob": "2bf211c63b9c25fa20a9bef7a97a1e0c0b9ec508",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/server.md",
+      "git_blob": "1f097fda22cbad1e036cfafff9ddbf9402647c70",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/src/tokenizer-tokenizer.md",
+      "git_blob": "f246b9a1e4fcfc24a355d3f3cef7e6e1a4fe4411",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/STATUS-2026-09.md",
+      "git_blob": "7c76cf7000b97e2ce0740ffb9a1977c7100e5ade",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/TENSOR-SPLIT.md",
+      "git_blob": "8349e7cbada3ad4de8b9343f2c31a0543156007d",
+      "matched_parent": "both"
+    },
+    {
+      "path": "docs/USAGE.md",
+      "git_blob": "3462e0e6baf610c36c047eecb073d92ec593f148",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "docs/VULKAN.md",
+      "git_blob": "ed851d9e7eb43dde16edb12db33098843b53e092",
+      "matched_parent": "IQ2 parent ca4fd2e1a"
+    },
+    {
+      "path": "tools/health_dashboard/README.md",
+      "git_blob": "d37367357f183d73a534237439b110eac9d42d32",
+      "matched_parent": "both"
+    }
+  ],
+  "reviewed_changed_pages": [
+    {
+      "path": "AGENTS.md",
+      "git_blob": "2f1d3c9998f677637a7217133085af89d13f0d70",
+      "iq2_parent_blob": "bbfd87ff795ace50c3c64d13bbff5798121b74ac",
+      "iq1_parent_blob": "afbafbf4aad7a549e30547594fc82a5e84d8337b"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "git_blob": "cc9d15fc33775c1d108a3b70cd25fb9e2dc1c090",
+      "iq2_parent_blob": "4bbdbcd9ed7950d5bfc745a418c72f1041fa3739",
+      "iq1_parent_blob": "f1c62ea10bdcb291a073155cb3c96609df2058dd"
+    },
+    {
+      "path": "docs/ASSETS.md",
+      "git_blob": "2323fec86a21df8674c0342416bbbcb5db0669e0",
+      "iq2_parent_blob": "0900d6d5931c816a15605cd017b104344962aed3",
+      "iq1_parent_blob": "edd65dbc60ed01099f23db535cd3df7be562f10d"
+    },
+    {
+      "path": "docs/PRECISION.md",
+      "git_blob": "e4659d8b2c1f62308882cc884db4fa8bdcce0cee",
+      "iq2_parent_blob": "b45d119b3a1ab5a43c8f561541069d7e78996a55",
+      "iq1_parent_blob": "8f895a59bd50c5f5fb9ebaac138ba2f4a41d0d6e"
+    },
+    {
+      "path": "docs/src/backends-vulkan.md",
+      "git_blob": "ba4253bff2761233f7b5050e808cec242cde9719",
+      "iq2_parent_blob": "a964cbc4c83319e13570ae79fceb8964ffb1752d",
+      "iq1_parent_blob": "48cc8a0d435319a51e5c66beaa3ad3b749bcf069"
+    },
+    {
+      "path": "docs/src/quant-quant.md",
+      "git_blob": "e0b6211b1e408f51b478faf2e1a220bbb3318e6c",
+      "iq2_parent_blob": "11d49cc32db7c68fb1b92023b121153bc6e517f0",
+      "iq1_parent_blob": "6cf20f587feb1323a71e8db939a81feb3850e2bb"
+    },
+    {
+      "path": "docs/src/quant-types.md",
+      "git_blob": "4f776c0ca2dce3deaa6df3ccb4f216e4beda052e",
+      "iq2_parent_blob": "88604ca26b4697e4ce5c33f6ef846efc4f4f832b",
+      "iq1_parent_blob": "c20ada38f1d07f50891647ee33dec0d0aeee1823"
+    },
+    {
+      "path": "docs/STATUS.md",
+      "git_blob": "b10e1e578451791e6514a4e79900cac4d66c2051",
+      "iq2_parent_blob": "48688fc63e1d0dd8d35104a8e1823c473247152e",
+      "iq1_parent_blob": "9ab28eeb637aa195fbb73e3056f92e767e62520f",
+      "integration_results_review": "Root reviewed the added eight native checks, four-family F32 HF result, released smoke limits and retained setup failures against logs."
+    },
+    {
+      "path": "README.md",
+      "git_blob": "5b2e6bcb785ba275bb92564212a2ada782e5b32c",
+      "iq2_parent_blob": "7706afc6a5ff4e2f0691497558629be779aa80c4",
+      "iq1_parent_blob": "58ae5b59fbb7e2f728887987676a0f7d50a2effa"
+    }
+  ],
+  "added_pages": [],
+  "deleted_pages": [],
+  "inspected_topics": [
+    "README and developer guidance: support remains development-only where released/model gates are incomplete; no new writer claim.",
+    "Registry, storage and architecture owners: IQ2_XXS/XS IDs and block sizes retained; IQ1 family owner and fixed dictionary listed.",
+    "Vulkan owner: IQ1 descriptors carry dictionary pointer and byte count; generic lookup_grids_ caches by matching both, reusing the shared buffer when formats share the exact data. The search occurs only while initializing a format cache slot.",
+    "Native test docs: IQ1 CPU and Vulkan checks are described, and vulkan-lifetime ownership checks match the shared IQ1 dictionary and distinct IQ2_XXS buffer assertions.",
+    "Precision and STATUS claims remain scoped to available tiny/operator evidence; split, MI50, released-file/depth, performance and landing gates remain pending."
+  ],
+  "findings": [
+    "Updated docs/ARCHITECTURE.md quant owner inventory to include iq1.hpp and its shared fixed dictionary.",
+    "Updated docs/ASSETS.md stale IQ3_XXS wording from initial decoder to read-only CPU/Vulkan inference support, consistent with the current support matrix."
+  ],
+  "limitations": [
+    "This is a Markdown consistency review, not build, numerical, released-model or landing qualification. The parents and current working-tree files are pinned above."
+  ],
+  "checkpoint_followup": {
+    "checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+    "current_markdown_count": 131,
+    "checkpoint_markdown_count": 131,
+    "counts": {
+      "changed": 1,
+      "unchanged_exact_blob": 130,
+      "added": 0,
+      "deleted": 0
+    },
+    "unchanged_pages_verified_by_exact_git_blob_id": true,
+    "changed_pages": [
+      {
+        "path": "docs/STATUS.md",
+        "git_blob": "6650b4c55b65a96c1db41ef10083e80de469b9ba",
+        "checkpoint_blob": "b10e1e578451791e6514a4e79900cac4d66c2051"
+      }
+    ],
+    "unchanged_pages": [
+      {
+        "path": "AGENTS.md",
+        "git_blob": "2f1d3c9998f677637a7217133085af89d13f0d70"
+      },
+      {
+        "path": "README.md",
+        "git_blob": "5b2e6bcb785ba275bb92564212a2ada782e5b32c"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "git_blob": "ce09a34c694dbe7dd4a8bd70a9e8b9059b0fe597"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "git_blob": "cc9d15fc33775c1d108a3b70cd25fb9e2dc1c090"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "git_blob": "2323fec86a21df8674c0342416bbbcb5db0669e0"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "git_blob": "22f64a7e0c2fb4f69fed8539c9c2d67474063d97"
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "git_blob": "9d36ac194478c486a158cda5eeb988c636bebc2e"
+      },
+      {
+        "path": "docs/CI.md",
+        "git_blob": "f0e545136da2409c8b73605d2106da476b0ed787"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "git_blob": "26a81d55ecf13c92b90b39fd40bfad47bbfd57d5"
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "git_blob": "6a3c7042d533adfa9dbc2ddbce979fcac7bffb26"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "git_blob": "f3b23584ab34f36d13c232a7ecda3d713f332ca9"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "git_blob": "a91df5663eb2932007db9ccf4cbad12ad210a877"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "git_blob": "eae7b51793dbff212a804dd9005bfb04b30de67a"
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "git_blob": "97d15099938bdc1afea5fcc0b2698580cfbf33dd"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "git_blob": "e4659d8b2c1f62308882cc884db4fa8bdcce0cee"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "git_blob": "9a5870f3a0c45d2255f40870f1eecd8690027449"
+      },
+      {
+        "path": "docs/QWEN38-FLASH.md",
+        "git_blob": "65b2ae36517a7eb85c93fdc9d8336c5677a0ff6f"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "git_blob": "f2dbb68e4439093fa53587c3f0f280971bc15d76"
+      },
+      {
+        "path": "docs/ROCM.md",
+        "git_blob": "7819060d3143e111c45a055534cd7d60484418be"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "git_blob": "03b4477c67b056433fe61e1ae3e86184d444c6bf"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "git_blob": "c495bdc3c2bece2ad9a4df79644f668a31189d5a"
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "git_blob": "7c76cf7000b97e2ce0740ffb9a1977c7100e5ade"
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "git_blob": "8349e7cbada3ad4de8b9343f2c31a0543156007d"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "git_blob": "3462e0e6baf610c36c047eecb073d92ec593f148"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "git_blob": "ed851d9e7eb43dde16edb12db33098843b53e092"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "git_blob": "82613f552bc36c1f9a9247fd3d0a7e0ed026905e"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "git_blob": "59c66c121f18fdd953d6a8191c03560f3763eff2"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "git_blob": "b26abeeaa1640a677f27507f944eb36c5f3585eb"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "git_blob": "2b42df75659941a2df949e513be0b64ad06897a0"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "git_blob": "5822bb21e7e5fde06cd84dc7655506573bcdac2b"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "git_blob": "51f59dc4eac634694cdb2b80e62bf3eee9516dc7"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "git_blob": "64760e12c10753993d348c65b68aae374c59cb02"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "git_blob": "e761d4ddad31913e54c6853da41e39020c4896fc"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "git_blob": "e4eadc7176c7f9bec8bc5539095835f58580005d"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "git_blob": "ffb03960808d3e9f80a662de90c15d56969da794"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "git_blob": "6fc934a5daf5de930e543c1f07a49d38c61dc7f7"
+      },
+      {
+        "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+        "git_blob": "ed0b5807d87603fc6a04cb7296897b552cffb003"
+      },
+      {
+        "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+        "git_blob": "a624045338754fc4b9197dfe2a36ff23ee0697c3"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "git_blob": "9192dc0d300a94a5669ae524358e0bd31b89e74f"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "git_blob": "98a10fde041055b6f73e84de40c9e9497baf14fe"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "git_blob": "c2b3afb7af676a651abdffc4163ca58a9143eb60"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "git_blob": "620183c135e7f2ca420bd405327cedaad6a49d21"
+      },
+      {
+        "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+        "git_blob": "d15ab1e479b1f68370520322768cf6798324f7dd"
+      },
+      {
+        "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+        "git_blob": "4c3f17f998dd881dbf4cd69e0cd7d32ba1a37acc"
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "git_blob": "f68fc00803047e4914828a914faac4cfa85c7a7c"
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "git_blob": "39e4811fb0d872381711160c3741e805eb674505"
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "git_blob": "d5f3e5c6f0ccd7d200e7d3bfba42c7850c9201d8"
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "git_blob": "2d7c2e87ac1ae3c95533e52a18cfdc6e8080b716"
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "git_blob": "adb08d19bafa5807381ab03474c1d95d0fc1aa60"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "git_blob": "e53df899ac40e16fc3d084f63ff3fdd08d11e8b5"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "git_blob": "982b9131eda33817718574dd395c1568175005a1"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "git_blob": "15cd91ca2337e2e3d215bd8aca4b9aab3a80c148"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "git_blob": "b25304a82b664b2d3741a6cdb96873d1d2617047"
+      },
+      {
+        "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+        "git_blob": "f149e74f2e432a10b602a305bbf42a000f31aca8"
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "git_blob": "48b58e87d702fe81bd79fbf5295c5a5e8a0af368"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "git_blob": "03dc121898b44b97c489c6a26bff79efd37ba820"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "git_blob": "320f9e8eb13e5c65d0864fbd31aadffdda970e66"
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "git_blob": "cbe2e26d3e39e697e959373636870b1ecfd98cc6"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "git_blob": "f045a3dd175e3b144703d38186acf93b289fb7d2"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "git_blob": "7089aa2a1674cccf256db7d7c7ce220f1f6deead"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "git_blob": "7825b16c4bb8e43c706082440563cb7923d1a529"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "git_blob": "d5803e9565da5cf9b703e237a8a4bf58f3c3b093"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "git_blob": "ba4253bff2761233f7b5050e808cec242cde9719"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "git_blob": "0769f379ce9290dbc6f1635ff96600fbb02b5f1f"
+      },
+      {
+        "path": "docs/src/config.md",
+        "git_blob": "a4f50ec6f8ed04cffa72b1597c99157032ef069d"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "git_blob": "540d041b8c4ec3c2449b765dafb66a8cfb94761d"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "git_blob": "bea87e35e95f7f4283a14589c5c8b3d360da2de2"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "git_blob": "96eeea36cf9b2d98e4250823d48730bb51785074"
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "git_blob": "326f2485f6426863be71713e7e5626363d0b422e"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "git_blob": "a82c809636dfb9021c606f30c2970ebff3fdf9bb"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "git_blob": "a3cf8d662a48d763fa48beffc23ba337bf3225ff"
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "git_blob": "18eb1b2636e1af05a16f93cc41b8b884138d966b"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "git_blob": "6de4af8bc48886867159a06dc1cef5d7b72f88c8"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "git_blob": "85b645fb0f9fc9531085c3faf2a6adaf0dea4a0e"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "git_blob": "8d157681e57f7f3b5b74ffa8899a1a88013a60da"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "git_blob": "3c08533f851338cbcfb05f1d11225123e65edb5e"
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "git_blob": "edc86ca34830cbd117a795bacccda20e1d80403e"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "git_blob": "91dfd65c3241eefef79081d4b4eda2b0a15c27a2"
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "git_blob": "653dfa691361d3dfc8c166cd7ba71cbdf1e1a813"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "git_blob": "82cec9d5a4a9d7c09929655f25ecd2f931e8bb95"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "git_blob": "f8104f6ddac76b1079e924770d892e4c95307bd5"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "git_blob": "302434ec69213e091434a9bca1d27ce6000d6d93"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "git_blob": "407a2b29592acfa693ce9ce783b2efd9af53c242"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "git_blob": "d7b424eca32fe8583962a68f2410f985ce302b17"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "git_blob": "68d3ec4e7eb77f41f57238214d21cc3c940dd6a3"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "git_blob": "2ed9b45f59af07a15fe46da0a80d9039b4cca512"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "git_blob": "382776b75f5b617a606539de90aadc47e8cde065"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "git_blob": "23d499a9c081071413535b7409519725a9b06add"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "git_blob": "48f063053a6063751dce259f4b0f166ae81428cc"
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "git_blob": "f4aa1bd4edbcca8f9304640fc36fd9c7dba70407"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "git_blob": "c70b41eab981e8de0d68173a8009439ef0bb5295"
+      },
+      {
+        "path": "docs/src/inference-read_ring.md",
+        "git_blob": "752ecb8be5243802f69d2fd09deeefbfe830489a"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "git_blob": "54cb9f558d3240db1170328b30884e703e0a529e"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "git_blob": "b6846a6320be04443cea03f99b980341f2ce4fad"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "git_blob": "3110082ba2d17159acf81c7dbe00bdcce3b93eb6"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "git_blob": "ebaa653ce084d88bddff59629d35d6707b77e127"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "git_blob": "a485ba409bc73163eea8d01bcb5d076c7f86de16"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "git_blob": "a9737158c4bfeb5ec47cf413589b035f3508af65"
+      },
+      {
+        "path": "docs/src/model-arch-qwen4exp.md",
+        "git_blob": "ed6a007d183fb40546e83581f40cbe634ec00b7f"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "git_blob": "f49238fd29716998a71441dfbc65bc34f8d34a3e"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "git_blob": "832955ed946c74df5bcf5bd0bdd0fbbfc2719150"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "git_blob": "e44683c27230f904cea192f5cc24ebf89870be12"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "git_blob": "54f4381dffd52d9e490bcab423d21d39326f5c2b"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "git_blob": "35983bccfaba8e07fdcf9009d4fe431dbc805ed5"
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "git_blob": "b0ba977c9a2163d0ca4b6294b80de25d9e6abe07"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "git_blob": "48e1da16d5e8ed0ffba15ce669c69efa7777b02c"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "git_blob": "d35fe7332001880419c07c1a370e8379093509b0"
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "git_blob": "6ba6cc11ac5ccf941065f0c489b8c102090f039f"
+      },
+      {
+        "path": "docs/src/model-weight_rows.md",
+        "git_blob": "18583e4c2e9dd4c0681b29de74f335d4614af72d"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "git_blob": "75edfd2b46e34cee47dfb976f8acf48a5d1b8a96"
+      },
+      {
+        "path": "docs/src/quant-iq-signs.md",
+        "git_blob": "95101b31108bf63bcfba9a3c6808a9d747dabbba"
+      },
+      {
+        "path": "docs/src/quant-iq1-grid.md",
+        "git_blob": "e29a8a89f7d4f3a5322e6067c5555aae45c491c9"
+      },
+      {
+        "path": "docs/src/quant-iq1.md",
+        "git_blob": "ea69d8182e4a07ccdd7b85cb45c2a28800bc1a2a"
+      },
+      {
+        "path": "docs/src/quant-iq2-s-grid.md",
+        "git_blob": "f50718330f465f54113591d16fce2ad5b0b24b4b"
+      },
+      {
+        "path": "docs/src/quant-iq2-s.md",
+        "git_blob": "4cf8177d5ea95b88b993672f0615d1c8cfc603aa"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs-grid.md",
+        "git_blob": "f4b388807128e7977ccf235b51c063ed19cae3ab"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs.md",
+        "git_blob": "190f77b35361e7043188a45e3a15f109dab14299"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs-grid.md",
+        "git_blob": "6cc49e83aa386a76dde8035ff018d76db7768e42"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs.md",
+        "git_blob": "5fa452cdcfc08bfa2747ec7e2eeed34bf7d47a3c"
+      },
+      {
+        "path": "docs/src/quant-iq3-s-grid.md",
+        "git_blob": "305bdde77dbfdc038d0083ff82f3948eaedec832"
+      },
+      {
+        "path": "docs/src/quant-iq3-s.md",
+        "git_blob": "90eb4263ee2136d76d8d60c7b2aa2c457bff94fa"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs-grid.md",
+        "git_blob": "a2dd52b1697c703329f35c1baff0d436661c2212"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs.md",
+        "git_blob": "9b975e1c54fb998d63cd210046e49a54fb95cfae"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "git_blob": "767cbdd5c3b079be820c253366e0588614a3b613"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "git_blob": "2bf211c63b9c25fa20a9bef7a97a1e0c0b9ec508"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "git_blob": "e0b6211b1e408f51b478faf2e1a220bbb3318e6c"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "git_blob": "4f776c0ca2dce3deaa6df3ccb4f216e4beda052e"
+      },
+      {
+        "path": "docs/src/server.md",
+        "git_blob": "1f097fda22cbad1e036cfafff9ddbf9402647c70"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "git_blob": "f246b9a1e4fcfc24a355d3f3cef7e6e1a4fe4411"
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "git_blob": "d37367357f183d73a534237439b110eac9d42d32"
+      }
+    ],
+    "added_pages": [],
+    "deleted_pages": [],
+    "review_note": "Only the IQ1 section of docs/STATUS.md changed since checkpoint 10ac84660. It was checked against the completed MI50 native and early timing records plus subsequent released IQ1_S short/depth receipts and the Windows native qualification. The other Markdown pages are byte-identical Git blobs to checkpoint 10ac84660.",
+    "evidence_reviewed": [
+      "docs/benchmarks/iq1-mi50-native-20261023.json",
+      "docs/benchmarks/iq1-perf-screen-20261023.json",
+      "docs/benchmarks/iq1-s-released-short-20261023.json",
+      "docs/benchmarks/iq1-windows-native-20261023.json"
+    ]
+  },
+  "checkpoint_followup_1b07": {
+    "checkpoint": "1b07c7df7f653a71897285c74be393ee25d14387",
+    "current_markdown_count": 131,
+    "checkpoint_markdown_count": 131,
+    "counts": {
+      "changed": 1,
+      "unchanged_exact_blob": 130,
+      "added": 0,
+      "deleted": 0
+    },
+    "unchanged_pages_verified_by_exact_git_blob_id": true,
+    "changed_pages": [
+      {
+        "path": "docs/STATUS.md",
+        "git_blob": "6650b4c55b65a96c1db41ef10083e80de469b9ba",
+        "checkpoint_blob": "013fbd35917f0a319ecc26cca8fb968f199ffda5"
+      }
+    ],
+    "unchanged_pages": [
+      {
+        "path": "AGENTS.md",
+        "git_blob": "2f1d3c9998f677637a7217133085af89d13f0d70"
+      },
+      {
+        "path": "README.md",
+        "git_blob": "5b2e6bcb785ba275bb92564212a2ada782e5b32c"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "git_blob": "ce09a34c694dbe7dd4a8bd70a9e8b9059b0fe597"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "git_blob": "cc9d15fc33775c1d108a3b70cd25fb9e2dc1c090"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "git_blob": "2323fec86a21df8674c0342416bbbcb5db0669e0"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "git_blob": "22f64a7e0c2fb4f69fed8539c9c2d67474063d97"
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "git_blob": "9d36ac194478c486a158cda5eeb988c636bebc2e"
+      },
+      {
+        "path": "docs/CI.md",
+        "git_blob": "f0e545136da2409c8b73605d2106da476b0ed787"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "git_blob": "26a81d55ecf13c92b90b39fd40bfad47bbfd57d5"
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "git_blob": "6a3c7042d533adfa9dbc2ddbce979fcac7bffb26"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "git_blob": "f3b23584ab34f36d13c232a7ecda3d713f332ca9"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "git_blob": "a91df5663eb2932007db9ccf4cbad12ad210a877"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "git_blob": "eae7b51793dbff212a804dd9005bfb04b30de67a"
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "git_blob": "97d15099938bdc1afea5fcc0b2698580cfbf33dd"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "git_blob": "e4659d8b2c1f62308882cc884db4fa8bdcce0cee"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "git_blob": "9a5870f3a0c45d2255f40870f1eecd8690027449"
+      },
+      {
+        "path": "docs/QWEN38-FLASH.md",
+        "git_blob": "65b2ae36517a7eb85c93fdc9d8336c5677a0ff6f"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "git_blob": "f2dbb68e4439093fa53587c3f0f280971bc15d76"
+      },
+      {
+        "path": "docs/ROCM.md",
+        "git_blob": "7819060d3143e111c45a055534cd7d60484418be"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "git_blob": "03b4477c67b056433fe61e1ae3e86184d444c6bf"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "git_blob": "c495bdc3c2bece2ad9a4df79644f668a31189d5a"
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "git_blob": "7c76cf7000b97e2ce0740ffb9a1977c7100e5ade"
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "git_blob": "8349e7cbada3ad4de8b9343f2c31a0543156007d"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "git_blob": "3462e0e6baf610c36c047eecb073d92ec593f148"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "git_blob": "ed851d9e7eb43dde16edb12db33098843b53e092"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "git_blob": "82613f552bc36c1f9a9247fd3d0a7e0ed026905e"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "git_blob": "59c66c121f18fdd953d6a8191c03560f3763eff2"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "git_blob": "b26abeeaa1640a677f27507f944eb36c5f3585eb"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "git_blob": "2b42df75659941a2df949e513be0b64ad06897a0"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "git_blob": "5822bb21e7e5fde06cd84dc7655506573bcdac2b"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "git_blob": "51f59dc4eac634694cdb2b80e62bf3eee9516dc7"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "git_blob": "64760e12c10753993d348c65b68aae374c59cb02"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "git_blob": "e761d4ddad31913e54c6853da41e39020c4896fc"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "git_blob": "e4eadc7176c7f9bec8bc5539095835f58580005d"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "git_blob": "ffb03960808d3e9f80a662de90c15d56969da794"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "git_blob": "6fc934a5daf5de930e543c1f07a49d38c61dc7f7"
+      },
+      {
+        "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+        "git_blob": "ed0b5807d87603fc6a04cb7296897b552cffb003"
+      },
+      {
+        "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+        "git_blob": "a624045338754fc4b9197dfe2a36ff23ee0697c3"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "git_blob": "9192dc0d300a94a5669ae524358e0bd31b89e74f"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "git_blob": "98a10fde041055b6f73e84de40c9e9497baf14fe"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "git_blob": "c2b3afb7af676a651abdffc4163ca58a9143eb60"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "git_blob": "620183c135e7f2ca420bd405327cedaad6a49d21"
+      },
+      {
+        "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+        "git_blob": "d15ab1e479b1f68370520322768cf6798324f7dd"
+      },
+      {
+        "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+        "git_blob": "4c3f17f998dd881dbf4cd69e0cd7d32ba1a37acc"
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "git_blob": "f68fc00803047e4914828a914faac4cfa85c7a7c"
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "git_blob": "39e4811fb0d872381711160c3741e805eb674505"
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "git_blob": "d5f3e5c6f0ccd7d200e7d3bfba42c7850c9201d8"
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "git_blob": "2d7c2e87ac1ae3c95533e52a18cfdc6e8080b716"
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "git_blob": "adb08d19bafa5807381ab03474c1d95d0fc1aa60"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "git_blob": "e53df899ac40e16fc3d084f63ff3fdd08d11e8b5"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "git_blob": "982b9131eda33817718574dd395c1568175005a1"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "git_blob": "15cd91ca2337e2e3d215bd8aca4b9aab3a80c148"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "git_blob": "b25304a82b664b2d3741a6cdb96873d1d2617047"
+      },
+      {
+        "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+        "git_blob": "f149e74f2e432a10b602a305bbf42a000f31aca8"
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "git_blob": "48b58e87d702fe81bd79fbf5295c5a5e8a0af368"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "git_blob": "03dc121898b44b97c489c6a26bff79efd37ba820"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "git_blob": "320f9e8eb13e5c65d0864fbd31aadffdda970e66"
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "git_blob": "cbe2e26d3e39e697e959373636870b1ecfd98cc6"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "git_blob": "f045a3dd175e3b144703d38186acf93b289fb7d2"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "git_blob": "7089aa2a1674cccf256db7d7c7ce220f1f6deead"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "git_blob": "7825b16c4bb8e43c706082440563cb7923d1a529"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "git_blob": "d5803e9565da5cf9b703e237a8a4bf58f3c3b093"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "git_blob": "ba4253bff2761233f7b5050e808cec242cde9719"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "git_blob": "0769f379ce9290dbc6f1635ff96600fbb02b5f1f"
+      },
+      {
+        "path": "docs/src/config.md",
+        "git_blob": "a4f50ec6f8ed04cffa72b1597c99157032ef069d"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "git_blob": "540d041b8c4ec3c2449b765dafb66a8cfb94761d"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "git_blob": "bea87e35e95f7f4283a14589c5c8b3d360da2de2"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "git_blob": "96eeea36cf9b2d98e4250823d48730bb51785074"
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "git_blob": "326f2485f6426863be71713e7e5626363d0b422e"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "git_blob": "a82c809636dfb9021c606f30c2970ebff3fdf9bb"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "git_blob": "a3cf8d662a48d763fa48beffc23ba337bf3225ff"
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "git_blob": "18eb1b2636e1af05a16f93cc41b8b884138d966b"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "git_blob": "6de4af8bc48886867159a06dc1cef5d7b72f88c8"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "git_blob": "85b645fb0f9fc9531085c3faf2a6adaf0dea4a0e"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "git_blob": "8d157681e57f7f3b5b74ffa8899a1a88013a60da"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "git_blob": "3c08533f851338cbcfb05f1d11225123e65edb5e"
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "git_blob": "edc86ca34830cbd117a795bacccda20e1d80403e"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "git_blob": "91dfd65c3241eefef79081d4b4eda2b0a15c27a2"
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "git_blob": "653dfa691361d3dfc8c166cd7ba71cbdf1e1a813"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "git_blob": "82cec9d5a4a9d7c09929655f25ecd2f931e8bb95"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "git_blob": "f8104f6ddac76b1079e924770d892e4c95307bd5"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "git_blob": "302434ec69213e091434a9bca1d27ce6000d6d93"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "git_blob": "407a2b29592acfa693ce9ce783b2efd9af53c242"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "git_blob": "d7b424eca32fe8583962a68f2410f985ce302b17"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "git_blob": "68d3ec4e7eb77f41f57238214d21cc3c940dd6a3"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "git_blob": "2ed9b45f59af07a15fe46da0a80d9039b4cca512"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "git_blob": "382776b75f5b617a606539de90aadc47e8cde065"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "git_blob": "23d499a9c081071413535b7409519725a9b06add"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "git_blob": "48f063053a6063751dce259f4b0f166ae81428cc"
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "git_blob": "f4aa1bd4edbcca8f9304640fc36fd9c7dba70407"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "git_blob": "c70b41eab981e8de0d68173a8009439ef0bb5295"
+      },
+      {
+        "path": "docs/src/inference-read_ring.md",
+        "git_blob": "752ecb8be5243802f69d2fd09deeefbfe830489a"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "git_blob": "54cb9f558d3240db1170328b30884e703e0a529e"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "git_blob": "b6846a6320be04443cea03f99b980341f2ce4fad"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "git_blob": "3110082ba2d17159acf81c7dbe00bdcce3b93eb6"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "git_blob": "ebaa653ce084d88bddff59629d35d6707b77e127"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "git_blob": "a485ba409bc73163eea8d01bcb5d076c7f86de16"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "git_blob": "a9737158c4bfeb5ec47cf413589b035f3508af65"
+      },
+      {
+        "path": "docs/src/model-arch-qwen4exp.md",
+        "git_blob": "ed6a007d183fb40546e83581f40cbe634ec00b7f"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "git_blob": "f49238fd29716998a71441dfbc65bc34f8d34a3e"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "git_blob": "832955ed946c74df5bcf5bd0bdd0fbbfc2719150"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "git_blob": "e44683c27230f904cea192f5cc24ebf89870be12"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "git_blob": "54f4381dffd52d9e490bcab423d21d39326f5c2b"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "git_blob": "35983bccfaba8e07fdcf9009d4fe431dbc805ed5"
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "git_blob": "b0ba977c9a2163d0ca4b6294b80de25d9e6abe07"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "git_blob": "48e1da16d5e8ed0ffba15ce669c69efa7777b02c"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "git_blob": "d35fe7332001880419c07c1a370e8379093509b0"
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "git_blob": "6ba6cc11ac5ccf941065f0c489b8c102090f039f"
+      },
+      {
+        "path": "docs/src/model-weight_rows.md",
+        "git_blob": "18583e4c2e9dd4c0681b29de74f335d4614af72d"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "git_blob": "75edfd2b46e34cee47dfb976f8acf48a5d1b8a96"
+      },
+      {
+        "path": "docs/src/quant-iq-signs.md",
+        "git_blob": "95101b31108bf63bcfba9a3c6808a9d747dabbba"
+      },
+      {
+        "path": "docs/src/quant-iq1-grid.md",
+        "git_blob": "e29a8a89f7d4f3a5322e6067c5555aae45c491c9"
+      },
+      {
+        "path": "docs/src/quant-iq1.md",
+        "git_blob": "ea69d8182e4a07ccdd7b85cb45c2a28800bc1a2a"
+      },
+      {
+        "path": "docs/src/quant-iq2-s-grid.md",
+        "git_blob": "f50718330f465f54113591d16fce2ad5b0b24b4b"
+      },
+      {
+        "path": "docs/src/quant-iq2-s.md",
+        "git_blob": "4cf8177d5ea95b88b993672f0615d1c8cfc603aa"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs-grid.md",
+        "git_blob": "f4b388807128e7977ccf235b51c063ed19cae3ab"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs.md",
+        "git_blob": "190f77b35361e7043188a45e3a15f109dab14299"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs-grid.md",
+        "git_blob": "6cc49e83aa386a76dde8035ff018d76db7768e42"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs.md",
+        "git_blob": "5fa452cdcfc08bfa2747ec7e2eeed34bf7d47a3c"
+      },
+      {
+        "path": "docs/src/quant-iq3-s-grid.md",
+        "git_blob": "305bdde77dbfdc038d0083ff82f3948eaedec832"
+      },
+      {
+        "path": "docs/src/quant-iq3-s.md",
+        "git_blob": "90eb4263ee2136d76d8d60c7b2aa2c457bff94fa"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs-grid.md",
+        "git_blob": "a2dd52b1697c703329f35c1baff0d436661c2212"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs.md",
+        "git_blob": "9b975e1c54fb998d63cd210046e49a54fb95cfae"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "git_blob": "767cbdd5c3b079be820c253366e0588614a3b613"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "git_blob": "2bf211c63b9c25fa20a9bef7a97a1e0c0b9ec508"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "git_blob": "e0b6211b1e408f51b478faf2e1a220bbb3318e6c"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "git_blob": "4f776c0ca2dce3deaa6df3ccb4f216e4beda052e"
+      },
+      {
+        "path": "docs/src/server.md",
+        "git_blob": "1f097fda22cbad1e036cfafff9ddbf9402647c70"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "git_blob": "f246b9a1e4fcfc24a355d3f3cef7e6e1a4fe4411"
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "git_blob": "d37367357f183d73a534237439b110eac9d42d32"
+      }
+    ],
+    "added_pages": [],
+    "deleted_pages": [],
+    "review_note": "Only docs/STATUS.md changed from checkpoint 1b07c7df7. The IQ1 section was checked against current short-file HF logs/reference receipts, both fixed-guard stops, the terminal live-budget guard receipt, and the completed 81/81 Windows CTest result. Other Markdown pages match checkpoint Git blobs exactly.",
+    "evidence_reviewed": [
+      "docs/benchmarks/iq1-s-released-short-20261023.json",
+      "docs/benchmarks/iq1-windows-native-20261023.json",
+      "docs/benchmarks/iq1-mi50-native-20261023.json",
+      "docs/benchmarks/iq1-perf-screen-20261023.json"
+    ]
+  },
+  "follow_up_7555ec9b9": {
+    "base": "7555ec9b93c16c90341b72635ad11445bb0acfc4",
+    "tracked_markdown_count": 131,
+    "changed_pages": [
+      "docs/STATUS.md"
+    ],
+    "unchanged_pages": 130,
+    "status_git_blob": "d237fc0f161e025395b86b0dfa9892374d3c5d2f",
+    "review_note": "Reviewed the updated IQ1 parent-identity STATUS against the 19/19 Vulkan identity record, active CPU identity v2 checkpoint, and both prelaunch resource stops. The other 130 Markdown pages match this checkpoint by exact path-aware Git blob hash."
+  },
+  "evidence_reviewed": [
+    "docs/benchmarks/iq1-parent-identity-20261023.json"
+  ]
+}

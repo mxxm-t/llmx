@@ -1,0 +1,2171 @@
+{
+  "scope": "Early matched mixed IQ1_S/M MI50 screen, 40 calls including warmups. Results are descriptive only, not a final performance gate.",
+  "source_checkpoint": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+  "units": "PP and TG rates are tokens/second; phase times are seconds.",
+  "candidate": {
+    "root": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1",
+    "build": "recovery-v1/build",
+    "source": "source",
+    "source_manifest": "recovery-pins.json",
+    "source_manifest_sha256": "64cf85661955df3717230687327923de3ef06b2ca5bc85497f7099d6d0736ef4",
+    "execution": "execution-recovery.json",
+    "execution_sha256": "fe72fea94f454e2379e5d23b3fa9699157625d191923aae3d160ce73f7cc1bb1",
+    "result": "recovery-v1/result.json",
+    "result_sha256": "3e882d1a970b89f07efe1619ba65bec2f627fe1931cd17f5ee7ad15679af0d70",
+    "binary_sha256": "166dd7a9d4ab1ccb9a2e94e5a9666cc6001918ab999c1d1c2666ea20c6d0f8d8",
+    "version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+    "config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+  },
+  "reference": {
+    "head": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "binary_sha256": "02a7c23e0304a71bd8af815892f0015ee75ea9fe0b3a526386188745567268a2",
+    "execution_sha256": "5b5aadfbf902887eb403854c99291e6befc555c7000c26ed49f0501153c8da4f",
+    "source_manifest_sha256": "642cd49e8794e32fc0942d15ba7984bf4b04b914d22650767a15ff62f753ad0e",
+    "wrapper_sha256": "f619ba8b88db666dce12946d50c6fbd175e4dea442fdfa5e9322bcd36b2aa126"
+  },
+  "models": [
+    {
+      "label": "IQ1_S",
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1/models/Qwen3-0.6B-UD-IQ1_S.gguf",
+      "sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "bytes": 214643392
+    },
+    {
+      "label": "IQ1_M",
+      "path": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/integrated-v1/models/Qwen3-0.6B-UD-IQ1_M.gguf",
+      "sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "bytes": 220754624
+    }
+  ],
+  "device": {
+    "name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+    "node": "/dev/dri/renderD130",
+    "pci": "0000:c9:00.0",
+    "guard": {
+      "pci": "0000:c9:00.0",
+      "busy": 0,
+      "vram": 10932224,
+      "power": "auto"
+    }
+  },
+  "controls": {
+    "P_G": [
+      [
+        128,
+        256
+      ],
+      [
+        4096,
+        256
+      ]
+    ],
+    "warmups_per_cell": 1,
+    "measured_pairs_per_cell": 4,
+    "threads": 4,
+    "ubatch": 512,
+    "cache_type_kv": "f32",
+    "candidate_dtype": "auto (observed f16 arithmetic)",
+    "load_mode": "auto",
+    "token_seeds": {
+      "PP": 12345,
+      "TG": 777
+    }
+  },
+  "run": {
+    "passed": true,
+    "container_removed": true,
+    "pins_unchanged": true,
+    "planned_calls": 40,
+    "passed_calls": 40,
+    "monitor_exit": 0,
+    "captured_state": {
+      "Status": "running",
+      "Running": true,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 2532366,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T17:37:01.334073315Z",
+      "FinishedAt": "0001-01-01T00:00:00Z"
+    },
+    "captured_state_note": "Captured state is running/pre-cleanup; runner final record says passed and removed. OOMKilled was false in this snapshot."
+  },
+  "cell_matrix": {
+    "IQ1_S/P128/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.02703952026521132,
+            "min": 0.0270060995807725,
+            "max": 0.027068292455982305
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9374832046283883,
+            "min": 0.9351598173515981,
+            "max": 0.9396564381148143
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.9645227248935997,
+            "min": 0.962198262640994,
+            "max": 0.9667016818495089
+          },
+          "pp128": {
+            "mean": 4733.8150000000005,
+            "min": 4728.78,
+            "max": 4739.67
+          },
+          "tg256": {
+            "mean": 273.0725,
+            "min": 272.44,
+            "max": 273.75
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.04737645597982814,
+            "min": 0.04726857784359271,
+            "max": 0.04764297545270132
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0440469020943552,
+            "min": 1.042812334514644,
+            "max": 1.0451965867798962
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.0914233580741834,
+            "min": 1.0901057123333109,
+            "max": 1.0928395622325975
+          },
+          "pp128": {
+            "mean": 2701.7925,
+            "min": 2686.65,
+            "max": 2707.93
+          },
+          "tg256": {
+            "mean": 245.2,
+            "min": 244.93,
+            "max": 245.49
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            2,
+            3
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 75.02926589682897,
+            "tg256": 11.131029986962183
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020262478262820207,
+            "tg_phase_seconds": -0.10447073165648635,
+            "pp_plus_tg_phase_seconds": -0.12473320991930648
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.440334837931044
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            4,
+            5
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 74.71873371980888,
+            "tg256": 11.34465762352843
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020225085362684535,
+            "tg_phase_seconds": -0.10624981164934799,
+            "pp_plus_tg_phase_seconds": -0.12647489701203252
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.602076347377356
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            6,
+            7
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 74.8954206823154,
+            "tg256": 11.227239323916072
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02025564906965708,
+            "tg_phase_seconds": -0.10549747712973545,
+            "pp_plus_tg_phase_seconds": -0.1257531261993925
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.511059796055513
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            8,
+            9
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 76.20456702585004,
+            "tg256": 11.766627199608038
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02060453016330546,
+            "tg_phase_seconds": -0.1100367694282981,
+            "pp_plus_tg_phase_seconds": -0.13064129959160353
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.954298151936605
+        }
+      ]
+    },
+    "IQ1_S/P4096/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.0534087911672128,
+            "min": 1.0526721579008236,
+            "max": 1.0540184453227932
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9320279650480241,
+            "min": 0.9312477264459804,
+            "max": 0.9329446064139942
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.9854367562152369,
+            "min": 1.9843265723414671,
+            "max": 1.9862835582142715
+          },
+          "pp4096": {
+            "mean": 3888.33,
+            "min": 3886.08,
+            "max": 3891.05
+          },
+          "tg256": {
+            "mean": 274.66999999999996,
+            "min": 274.4,
+            "max": 274.9
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.748015961894213,
+            "min": 1.7443296510488975,
+            "max": 1.7553708949563087
+          },
+          "tg_phase_seconds": {
+            "mean": 1.044674462823764,
+            "min": 1.0440882580855664,
+            "max": 1.0457089171193987
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.792690424717977,
+            "min": 2.7884179091344636,
+            "max": 2.8010798120757077
+          },
+          "pp4096": {
+            "mean": 2343.2425,
+            "min": 2333.41,
+            "max": 2348.18
+          },
+          "tg256": {
+            "mean": 245.0525,
+            "min": 244.81,
+            "max": 245.19
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            12,
+            13
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.72536486630445,
+            "tg256": 11.949736852841575
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6922088432781965,
+            "tg_phase_seconds": -0.11148442544925075,
+            "pp_plus_tg_phase_seconds": -0.8036932687274474
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.80805245274508
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            14,
+            15
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.70492892367707,
+            "tg256": 12.068192014356205
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6916574931480739,
+            "tg_phase_seconds": -0.11243384364492282,
+            "pp_plus_tg_phase_seconds": -0.8040913367929965
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.836830166629856
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            16,
+            17
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 66.58152660698293,
+            "tg256": 12.291164576610413
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.7016100544173882,
+            "tg_phase_seconds": -0.11446119067341831,
+            "pp_plus_tg_phase_seconds": -0.8160712450908068
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -29.13416610168157
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            18,
+            19
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.74384870960448,
+            "tg256": 12.035903712770303
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6929522920643425,
+            "tg_phase_seconds": -0.11220653133536784,
+            "pp_plus_tg_phase_seconds": -0.8051588233997107
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.843827431400403
+        }
+      ]
+    },
+    "IQ1_M/P128/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.027185432423309393,
+            "min": 0.027099066140775414,
+            "max": 0.0272686795781024
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9500898066930172,
+            "min": 0.9467805762047413,
+            "max": 0.9535871265737913
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 0.9772752391163266,
+            "min": 0.9740250528128039,
+            "max": 0.9808558061518937
+          },
+          "pp128": {
+            "mean": 4708.4375,
+            "min": 4694.03,
+            "max": 4723.41
+          },
+          "tg256": {
+            "mean": 269.45,
+            "min": 268.46,
+            "max": 270.39
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 0.04770266921999792,
+            "min": 0.047257757840911185,
+            "max": 0.04822527230324654
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0566725858485415,
+            "min": 1.0558878119199835,
+            "max": 1.0572396134467663
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 1.1043752550685393,
+            "min": 1.1031455697608947,
+            "max": 1.104865025441504
+          },
+          "pp128": {
+            "mean": 2683.4325,
+            "min": 2654.21,
+            "max": 2708.55
+          },
+          "tg256": {
+            "mean": 242.26999999999998,
+            "min": 242.14,
+            "max": 242.45
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            22,
+            23
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 74.60883784888692,
+            "tg256": 11.666804328074676
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.0203267873752874,
+            "tg_phase_seconds": -0.110459037242025,
+            "pp_plus_tg_phase_seconds": -0.13078582461731247
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.837847299397641
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            24,
+            25
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 76.85224605438152,
+            "tg256": 10.78738857708814
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02095659272514414,
+            "tg_phase_seconds": -0.10286714876460434,
+            "pp_plus_tg_phase_seconds": -0.1238237414897485
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.209019100072714
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            26,
+            27
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 74.19320300529802,
+            "tg256": 11.074448339863906
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.020128250474614084,
+            "tg_phase_seconds": -0.10527511232844988,
+            "pp_plus_tg_phase_seconds": -0.12540336280306397
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.367798252613659
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            28,
+            29
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp128": 76.22888738821088,
+            "tg256": 11.347400586364941
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.02065731661170848,
+            "tg_phase_seconds": -0.10772981828701744,
+            "pp_plus_tg_phase_seconds": -0.12838713489872589
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -11.620164630283448
+        }
+      ]
+    },
+    "IQ1_M/P4096/G256": {
+      "arms": {
+        "candidate": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.0584165156178482,
+            "min": 1.0578375795767099,
+            "max": 1.0587672702363873
+          },
+          "tg_phase_seconds": {
+            "mean": 0.9464675951169197,
+            "min": 0.9447191674662336,
+            "max": 0.9486048838329566
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.0048841107347677,
+            "min": 2.003486437702621,
+            "max": 2.0072626938896887
+          },
+          "pp4096": {
+            "mean": 3869.9325,
+            "min": 3868.65,
+            "max": 3872.05
+          },
+          "tg256": {
+            "mean": 270.48,
+            "min": 269.87,
+            "max": 270.98
+          }
+        },
+        "mx": {
+          "n": 4,
+          "pp_phase_seconds": {
+            "mean": 1.749344049925295,
+            "min": 1.7434238528986123,
+            "max": 1.7540929549357418
+          },
+          "tg_phase_seconds": {
+            "mean": 1.0548780526249688,
+            "min": 1.0533245556287032,
+            "max": 1.056367087562928
+          },
+          "pp_plus_tg_phase_seconds": {
+            "mean": 2.8042221025502636,
+            "min": 2.7997217586644325,
+            "max": 2.8102421360075684
+          },
+          "pp4096": {
+            "mean": 2341.465,
+            "min": 2335.11,
+            "max": 2349.4
+          },
+          "tg256": {
+            "mean": 242.6825,
+            "min": 242.34,
+            "max": 243.04
+          }
+        }
+      },
+      "pairs": [
+        {
+          "block": 0,
+          "call_indices": [
+            32,
+            33
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.6704980842912,
+            "tg256": 11.372242344418826
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6950587862295328,
+            "tg_phase_seconds": -0.10759059980676378,
+            "pp_plus_tg_phase_seconds": -0.8026493860362964
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.59320244555844
+        },
+        {
+          "block": 1,
+          "call_indices": [
+            34,
+            35
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.09124243199453,
+            "tg256": 11.290322580645174
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6885596234590197,
+            "tg_phase_seconds": -0.10685901288986854,
+            "pp_plus_tg_phase_seconds": -0.795418636348888
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.410631659637886
+        },
+        {
+          "block": 2,
+          "call_indices": [
+            36,
+            37
+          ],
+          "order": [
+            "candidate",
+            "mx"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 64.66544649697794,
+            "tg256": 11.81810679211026
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6846565826622251,
+            "tg_phase_seconds": -0.11164792009669444,
+            "pp_plus_tg_phase_seconds": -0.7963045027589195
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.441570091931588
+        },
+        {
+          "block": 3,
+          "call_indices": [
+            38,
+            39
+          ],
+          "order": [
+            "mx",
+            "candidate"
+          ],
+          "candidate_vs_mx_rate_percent": {
+            "pp4096": 65.69026726792313,
+            "tg256": 11.337101365567893
+          },
+          "candidate_minus_mx_seconds": {
+            "pp_phase_seconds": -0.6954351448790095,
+            "tg_phase_seconds": -0.10754429723886982,
+            "pp_plus_tg_phase_seconds": -0.8029794421178797
+          },
+          "candidate_vs_mx_phase_sum_time_percent": -28.573318712623465
+        }
+      ]
+    }
+  },
+  "activity": {
+    "monitor_samples": 175,
+    "monitor_intervals": 174,
+    "flagged_intervals": {
+      "unrelated_cpu": 174,
+      "disk": 49
+    },
+    "measured_calls_by_arm": {
+      "candidate": {
+        "measured_calls": 16,
+        "unrelated_cpu_flagged": 16,
+        "disk_flagged": 4,
+        "calls_with_uncovered_seconds": 0
+      },
+      "mx": {
+        "measured_calls": 16,
+        "unrelated_cpu_flagged": 16,
+        "disk_flagged": 4,
+        "calls_with_uncovered_seconds": 0
+      }
+    },
+    "all_calls_uncovered_seconds_zero": true,
+    "flags_are_overlap_correlations_not_causation": true,
+    "monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "calls_including_warmups": [
+    {
+      "index": 0,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "candidate",
+      "warmup": true,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4732.39,
+        "tg256": 274.14
+      },
+      "pp_phase_seconds": 0.027047644002290594,
+      "tg_phase_seconds": 0.9338294302181368,
+      "pp_plus_tg_phase_seconds": 0.9608770742204273,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        94
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "0-candidate.stdout": "21575b400d92629becc99dfdc9b8a154e01c3734cc6f28b17a811f8b33564a19",
+        "0-candidate.stderr": "5ef137481f193105cdd63d22979fb0dcc7331d4575696e203aba793a79e7035e"
+      }
+    },
+    {
+      "index": 1,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "status": "passed",
+      "rates": {
+        "pp128": 2710.69,
+        "tg256": 244.92
+      },
+      "pp_phase_seconds": 0.04722044940587083,
+      "tg_phase_seconds": 1.0452392617997714,
+      "pp_plus_tg_phase_seconds": 1.0924597112056422,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        99
+      ],
+      "measured_device_busy_sample_count": 8,
+      "log_sha256": {
+        "1-mx.stdout": "9fd23662b47997b3a94813b3cedc179a3cb46c19fd307f25297f0c5b4b8b0a95",
+        "1-mx.stderr": "b2c4e7462e30e06bf2f5814163f9183db031e3e37a966cccfce3ad2a7831d765"
+      }
+    },
+    {
+      "index": 2,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4739.67,
+        "tg256": 272.76
+      },
+      "pp_phase_seconds": 0.0270060995807725,
+      "tg_phase_seconds": 0.9385540401818449,
+      "pp_plus_tg_phase_seconds": 0.9655601397626173,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "2-candidate.stdout": "67723a4a6e43cb91296af4fa08ef84d17928aa238db36be2119baf607b00f8ea",
+        "2-candidate.stderr": "260dbf0007ca952a4964cecad427481ab28902da2ee4681db4572d4240261d0b"
+      }
+    },
+    {
+      "index": 3,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2707.93,
+        "tg256": 245.44
+      },
+      "pp_phase_seconds": 0.04726857784359271,
+      "tg_phase_seconds": 1.0430247718383312,
+      "pp_plus_tg_phase_seconds": 1.0902933496819238,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        98,
+        98
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "3-mx.stdout": "09bff1af9df63ac064f39603afa9261b8c6bcb964d2b6587fcba97052e8c61ee",
+        "3-mx.stderr": "4c3fe7512c770ee154d6b77a046ee1f425e98aa018ca056bf3e1ae734c121448"
+      }
+    },
+    {
+      "index": 4,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2706.51,
+        "tg256": 245.49
+      },
+      "pp_phase_seconds": 0.04729337781866684,
+      "tg_phase_seconds": 1.042812334514644,
+      "pp_plus_tg_phase_seconds": 1.0901057123333109,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "4-mx.stdout": "44dfe20345060e6dd68c816ac740e9bfa0968ff8f1bafd3ff6e1c36d9e382517",
+        "4-mx.stderr": "701fc3c6f75632d55b327c7019caa25d65b02e08d4a180a023ac90665418b99e"
+      }
+    },
+    {
+      "index": 5,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4728.78,
+        "tg256": 273.34
+      },
+      "pp_phase_seconds": 0.027068292455982305,
+      "tg_phase_seconds": 0.9365625228652961,
+      "pp_plus_tg_phase_seconds": 0.9636308153212784,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        91
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "5-candidate.stdout": "f0d7921ca542fdc939e63527e8447a4953903acdbcfce14882ebf727413170c0",
+        "5-candidate.stderr": "a808f169b72d3e07f33dd0f00024cf839bfb7b762b27b6a69b6beae18031cf8f"
+      }
+    },
+    {
+      "index": 6,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4732.81,
+        "tg256": 272.44
+      },
+      "pp_phase_seconds": 0.027045243734694607,
+      "tg_phase_seconds": 0.9396564381148143,
+      "pp_plus_tg_phase_seconds": 0.9667016818495089,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        93,
+        96
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "6-candidate.stdout": "277231e4ef9aecf1d8b04d8416a8e23ca46c0ac89d061b5e8d79c4397faf2ef7",
+        "6-candidate.stderr": "8dc3269afc4adfa38a43b127f0664f54c12bf4a6b0879a88e116f3d1474866aa"
+      }
+    },
+    {
+      "index": 7,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2706.08,
+        "tg256": 244.94
+      },
+      "pp_phase_seconds": 0.04730089280435169,
+      "tg_phase_seconds": 1.0451539152445497,
+      "pp_plus_tg_phase_seconds": 1.0924548080489014,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        97
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "7-mx.stdout": "9b06124e7646bafb734fe07e13d40c2e2298bf0d744388b104619c6b9bf2d438",
+        "7-mx.stderr": "335845fb0cb97779528f682ad37a572f881fc2afb51b73be95d8821e2614cf06"
+      }
+    },
+    {
+      "index": 8,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2686.65,
+        "tg256": 244.93
+      },
+      "pp_phase_seconds": 0.04764297545270132,
+      "tg_phase_seconds": 1.0451965867798962,
+      "pp_plus_tg_phase_seconds": 1.0928395622325975,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        98
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "8-mx.stdout": "6dcc2784e5f9f27006a39cc485e226baf09880f80b167ca1364b3df9f16fab2b",
+        "8-mx.stderr": "3cdc55a9dfa33fc76479f6de5f0e630458b91100d09bf4a18456ebfb09d8bac9"
+      }
+    },
+    {
+      "index": 9,
+      "cell": "IQ1_S/P128/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4734.0,
+        "tg256": 273.75
+      },
+      "pp_phase_seconds": 0.02703844528939586,
+      "tg_phase_seconds": 0.9351598173515981,
+      "pp_plus_tg_phase_seconds": 0.962198262640994,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        86,
+        96
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "9-candidate.stdout": "dd220300ced633c551e543ed09943277e330e7bed88818a093ced72f9f60a19d",
+        "9-candidate.stderr": "a808f169b72d3e07f33dd0f00024cf839bfb7b762b27b6a69b6beae18031cf8f"
+      }
+    },
+    {
+      "index": 10,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2347.49,
+        "tg256": 245.5
+      },
+      "pp_phase_seconds": 1.7448423635457448,
+      "tg_phase_seconds": 1.0427698574338085,
+      "pp_plus_tg_phase_seconds": 2.787612220979553,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 7,
+      "log_sha256": {
+        "10-mx.stdout": "2836de8628366cf98b2f12e4abc824b17d1807f6335df30e2ff7d58bde4bdbff",
+        "10-mx.stderr": "4157d1257a87c7edcbc8ad564d9fe9ef22ec61e8968621b608f7c0e559ab8290"
+      }
+    },
+    {
+      "index": 11,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "candidate",
+      "warmup": true,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3889.92,
+        "tg256": 274.29
+      },
+      "pp_phase_seconds": 1.0529779532741033,
+      "tg_phase_seconds": 0.9333187502278609,
+      "pp_plus_tg_phase_seconds": 1.986296703501964,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        86,
+        100
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "11-candidate.stdout": "e3897983113bdfe00b048b6dd4e44785604a169f405265e81f970ac4ffea5b0f",
+        "11-candidate.stderr": "d69a4d894d085ecaf6ac88b36dba99f25e5d2211a9c42c7e27358c96270347dd"
+      }
+    },
+    {
+      "index": 12,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2346.75,
+        "tg256": 245.11
+      },
+      "pp_phase_seconds": 1.7453925641845105,
+      "tg_phase_seconds": 1.044429031863245,
+      "pp_plus_tg_phase_seconds": 2.7898215960477555,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "12-mx.stdout": "f18edcedf553ec728e0d4198fb5a2cebd9b2e7b19a26b5df30490064237d7831",
+        "12-mx.stderr": "82845649f8fbf2bda448aa092c3c17bae262754a6d4b76b95c4b00aeb0a3883f"
+      }
+    },
+    {
+      "index": 13,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3889.16,
+        "tg256": 274.4
+      },
+      "pp_phase_seconds": 1.053183720906314,
+      "tg_phase_seconds": 0.9329446064139942,
+      "pp_plus_tg_phase_seconds": 1.986128327320308,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "13-candidate.stdout": "1f77d86b7b6ce6ac87ac8977db0ea3ad6fd6dd4f894ac9404120851415700c7b",
+        "13-candidate.stderr": "a808f169b72d3e07f33dd0f00024cf839bfb7b762b27b6a69b6beae18031cf8f"
+      }
+    },
+    {
+      "index": 14,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3891.05,
+        "tg256": 274.78
+      },
+      "pp_phase_seconds": 1.0526721579008236,
+      "tg_phase_seconds": 0.9316544144406436,
+      "pp_plus_tg_phase_seconds": 1.9843265723414671,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        92,
+        100
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "14-candidate.stdout": "61d3c38153e66e0ba11c74adb7914433b5fbb2f822acc655e856ef65866f8882",
+        "14-candidate.stderr": "0b38eb60b2a146f8cfc79993dc43cf8eb61d9d3c35d3f2d82a97df24fce9522d"
+      }
+    },
+    {
+      "index": 15,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2348.18,
+        "tg256": 245.19
+      },
+      "pp_phase_seconds": 1.7443296510488975,
+      "tg_phase_seconds": 1.0440882580855664,
+      "pp_plus_tg_phase_seconds": 2.7884179091344636,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 7,
+      "log_sha256": {
+        "15-mx.stdout": "3a5b20ac11199995195c437cc5f36ef7601aea122c8c42ce9f1dc1782a08a50c",
+        "15-mx.stderr": "709800ace8180e8d2b7e9dbade310d304e6359f62478c910d535683843512bff"
+      }
+    },
+    {
+      "index": 16,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2333.41,
+        "tg256": 244.81
+      },
+      "pp_phase_seconds": 1.7553708949563087,
+      "tg_phase_seconds": 1.0457089171193987,
+      "pp_plus_tg_phase_seconds": 2.8010798120757077,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        94,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "16-mx.stdout": "86946aea664f9edd43744292255e01b4d9cfa6b3898da5ab2c539f259bb19b8d",
+        "16-mx.stderr": "2e6c8bcdd5ad618937b35b7f58ae49657d938455bb0bf08d21c2683c90df1ea1"
+      }
+    },
+    {
+      "index": 17,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3887.03,
+        "tg256": 274.9
+      },
+      "pp_phase_seconds": 1.0537608405389205,
+      "tg_phase_seconds": 0.9312477264459804,
+      "pp_plus_tg_phase_seconds": 1.985008566984901,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        97,
+        100
+      ],
+      "measured_device_busy_sample_count": 4,
+      "log_sha256": {
+        "17-candidate.stdout": "9b6631de3290cfaa04d9f63a5719775d94a50bb3124b3056731713f9b2fe18bc",
+        "17-candidate.stderr": "260dbf0007ca952a4964cecad427481ab28902da2ee4681db4572d4240261d0b"
+      }
+    },
+    {
+      "index": 18,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3886.08,
+        "tg256": 274.6
+      },
+      "pp_phase_seconds": 1.0540184453227932,
+      "tg_phase_seconds": 0.9322651128914784,
+      "pp_plus_tg_phase_seconds": 1.9862835582142715,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "18-candidate.stdout": "7efc724ce826c089986d42dbb955cae604881635dd535939a2873001980970c0",
+        "18-candidate.stderr": "0b38eb60b2a146f8cfc79993dc43cf8eb61d9d3c35d3f2d82a97df24fce9522d"
+      }
+    },
+    {
+      "index": 19,
+      "cell": "IQ1_S/P4096/G256",
+      "model": "IQ1_S",
+      "model_sha256": "fcb165efedaee2cfbdefe02bd3bbf22c80cfdb728915fbbe54fa809a8556710a",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2344.63,
+        "tg256": 245.1
+      },
+      "pp_phase_seconds": 1.7469707373871357,
+      "tg_phase_seconds": 1.0444716442268462,
+      "pp_plus_tg_phase_seconds": 2.791442381613982,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "19-mx.stdout": "dd566fe17bc72598c725097eaa219736ed50804f1ee46c1ecdba14d1906ecb45",
+        "19-mx.stderr": "4fcf9b1e950c025fd1697488b03fabf8c8b85bd96dc7c8330834fd39e5b146e7"
+      }
+    },
+    {
+      "index": 20,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "status": "passed",
+      "rates": {
+        "pp128": 2687.26,
+        "tg256": 242.52
+      },
+      "pp_phase_seconds": 0.047632160639461754,
+      "tg_phase_seconds": 1.0555830446973444,
+      "pp_plus_tg_phase_seconds": 1.1032152053368063,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        99
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "20-mx.stdout": "558f5e3c67747150a5de0e6b184182f355d440a233f0ae9b301e80353ac0edac",
+        "20-mx.stderr": "cf28ec59898004138ab7f04f36e67912381cc7e40c52e5d50b76efdc8f85981f"
+      }
+    },
+    {
+      "index": 21,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": null,
+      "arm": "candidate",
+      "warmup": true,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4722.75,
+        "tg256": 270.5
+      },
+      "pp_phase_seconds": 0.02710285321052353,
+      "tg_phase_seconds": 0.9463955637707948,
+      "pp_plus_tg_phase_seconds": 0.9734984169813183,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        93,
+        97
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "21-candidate.stdout": "8f66fe02286a31335c7c763e13534b433051d889203e6fe23e62e5831941cdd9",
+        "21-candidate.stderr": "7f935f41f5530da26fc732c5730622e485a5548ea9661b2fbe494b7b7eec6ed4"
+      }
+    },
+    {
+      "index": 22,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2690.7,
+        "tg256": 242.14
+      },
+      "pp_phase_seconds": 0.047571263983350064,
+      "tg_phase_seconds": 1.0572396134467663,
+      "pp_plus_tg_phase_seconds": 1.1048108774301164,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        96
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "22-mx.stdout": "718f2e4d0a8324bf1181af43dab54c8f85cfaceae39cc55ce7a45a9689fac338",
+        "22-mx.stderr": "a3da2723251c1c6763fe682b12a82c167ba427e1d7852582d86fdd8ec767a901"
+      }
+    },
+    {
+      "index": 23,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 0,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4698.2,
+        "tg256": 270.39
+      },
+      "pp_phase_seconds": 0.027244476608062663,
+      "tg_phase_seconds": 0.9467805762047413,
+      "pp_plus_tg_phase_seconds": 0.9740250528128039,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        95,
+        100
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "23-candidate.stdout": "ab1468f455e437e4acd0ad86c9da256c5d1b96a7be7e024fcae76ba374446556",
+        "23-candidate.stderr": "924d36e5affb82dfd03f8c372c89941e0490f0b091ec15e0705d6c42ec816c51"
+      }
+    },
+    {
+      "index": 24,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4694.03,
+        "tg256": 268.46
+      },
+      "pp_phase_seconds": 0.0272686795781024,
+      "tg_phase_seconds": 0.9535871265737913,
+      "pp_plus_tg_phase_seconds": 0.9808558061518937,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        90
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "24-candidate.stdout": "70edc2eefc91451512953cbd40423c369f9ecc6cabf5ca00cba1ad620624d274",
+        "24-candidate.stderr": "4aa925551617cabbaeec5f73ad3c1222294bccd0fe27332f50b29b4a3ac92ba8"
+      }
+    },
+    {
+      "index": 25,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2654.21,
+        "tg256": 242.32
+      },
+      "pp_phase_seconds": 0.04822527230324654,
+      "tg_phase_seconds": 1.0564542753383956,
+      "pp_plus_tg_phase_seconds": 1.1046795476416422,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        1,
+        91
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "25-mx.stdout": "478d2b3f29fec9860a0d985c799984f2f88dd2532386827023cbae077e4fb4c4",
+        "25-mx.stderr": "ef0db155b6016edbfa34c7e4bca36331f175eff4bdaafe5e36ba811494b868c8"
+      }
+    },
+    {
+      "index": 26,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2708.55,
+        "tg256": 242.45
+      },
+      "pp_phase_seconds": 0.047257757840911185,
+      "tg_phase_seconds": 1.0558878119199835,
+      "pp_plus_tg_phase_seconds": 1.1031455697608947,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        93,
+        99
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "26-mx.stdout": "3399558acb83a4ca82d1c236ca67010e2fa6c5ab3acff6aca18108dbf2e0a95a",
+        "26-mx.stderr": "7ebb8b4d5a19ad7e4f0a9f62ba325cb3c14aa8ae28c6a92f17e46abf2c65a3af"
+      }
+    },
+    {
+      "index": 27,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 2,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4718.11,
+        "tg256": 269.3
+      },
+      "pp_phase_seconds": 0.0271295073662971,
+      "tg_phase_seconds": 0.9506126995915336,
+      "pp_plus_tg_phase_seconds": 0.9777422069578308,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        89,
+        98
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "27-candidate.stdout": "7ccc1952c5e91e8ab1a1f88423cc628ca5749eae38ca91a8053f3af3a4e4ff61",
+        "27-candidate.stderr": "7f935f41f5530da26fc732c5730622e485a5548ea9661b2fbe494b7b7eec6ed4"
+      }
+    },
+    {
+      "index": 28,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp128": 4723.41,
+        "tg256": 269.65
+      },
+      "pp_phase_seconds": 0.027099066140775414,
+      "tg_phase_seconds": 0.9493788244020027,
+      "pp_plus_tg_phase_seconds": 0.9764778905427781,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        96
+      ],
+      "measured_device_busy_sample_count": 3,
+      "log_sha256": {
+        "28-candidate.stdout": "c1888672577809254d49c8eeaeece5cda56dff65416640e4fd47e64fc0cc4414",
+        "28-candidate.stderr": "7f935f41f5530da26fc732c5730622e485a5548ea9661b2fbe494b7b7eec6ed4"
+      }
+    },
+    {
+      "index": 29,
+      "cell": "IQ1_M/P128/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 128,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp128": 2680.27,
+        "tg256": 242.17
+      },
+      "pp_phase_seconds": 0.047756382752483895,
+      "tg_phase_seconds": 1.0571086426890202,
+      "pp_plus_tg_phase_seconds": 1.104865025441504,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        96,
+        98
+      ],
+      "measured_device_busy_sample_count": 2,
+      "log_sha256": {
+        "29-mx.stdout": "dafdd5a20ff6180ca1bf96186e0d1f8d87996aec28d305ac50ff7d6c79961ee1",
+        "29-mx.stderr": "e7f6f26645fb028e66eddc3f87dd8220f18ed8b94c3d313d90e66ba4cac01bba"
+      }
+    },
+    {
+      "index": 30,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "candidate",
+      "warmup": true,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3872.05,
+        "tg256": 270.78
+      },
+      "pp_phase_seconds": 1.0578375795767099,
+      "tg_phase_seconds": 0.945416943644287,
+      "pp_plus_tg_phase_seconds": 2.003254523220997,
+      "flags": [
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "30-candidate.stdout": "4df423aab08168f843d76d07209f41b40281355eb3be373ab384b2ef08c36ac0",
+        "30-candidate.stderr": "924d36e5affb82dfd03f8c372c89941e0490f0b091ec15e0705d6c42ec816c51"
+      }
+    },
+    {
+      "index": 31,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": null,
+      "arm": "mx",
+      "warmup": true,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2340.4,
+        "tg256": 242.96
+      },
+      "pp_phase_seconds": 1.750128183216544,
+      "tg_phase_seconds": 1.0536713862364175,
+      "pp_plus_tg_phase_seconds": 2.803799569452962,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "31-mx.stdout": "c3e0f89420acbbc86bad371db48ed3bf68e1ff96be566560ed4afb7f634cd7f2",
+        "31-mx.stderr": "15d518736298a69e7691b2a3720644fd7191bf372e30cdebe16edbd1c2cf3b99"
+      }
+    },
+    {
+      "index": 32,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3869.98,
+        "tg256": 270.59
+      },
+      "pp_phase_seconds": 1.0584034026015638,
+      "tg_phase_seconds": 0.9460807864296538,
+      "pp_plus_tg_phase_seconds": 2.0044841890312175,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "32-candidate.stdout": "503492b5ac0910c2ce9b4207413c4aba54a99d0d55ff778537707abb0b2e5a45",
+        "32-candidate.stderr": "b111983678612604bd633d9c896782b05e72efc11537b84d90c3c760588a0331"
+      }
+    },
+    {
+      "index": 33,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 0,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2335.95,
+        "tg256": 242.96
+      },
+      "pp_phase_seconds": 1.7534621888310966,
+      "tg_phase_seconds": 1.0536713862364175,
+      "pp_plus_tg_phase_seconds": 2.807133575067514,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "33-mx.stdout": "f53148d2038c58c8caf9842a222b7de5edb4fa1525907da74f83daa10fd2b50a",
+        "33-mx.stderr": "4f1b2bfe1246feffd941d4bfc2a2653c639af091a2b7b8962f808d86e70bcf7a"
+      }
+    },
+    {
+      "index": 34,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2345.4,
+        "tg256": 243.04
+      },
+      "pp_phase_seconds": 1.7463972030357295,
+      "tg_phase_seconds": 1.0533245556287032,
+      "pp_plus_tg_phase_seconds": 2.7997217586644325,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "34-mx.stdout": "7e96242101769a3dc84ccf94c4b53c6bf9817fdaf10d010eece7bcb33fde4e77",
+        "34-mx.stderr": "7f8fccb8c0951491640467084107376819748f4f24134a90f49a429bcf9722be"
+      }
+    },
+    {
+      "index": 35,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 1,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3872.05,
+        "tg256": 270.48
+      },
+      "pp_phase_seconds": 1.0578375795767099,
+      "tg_phase_seconds": 0.9464655427388347,
+      "pp_plus_tg_phase_seconds": 2.0043031223155445,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        4,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "35-candidate.stdout": "3e89f53a58717cd03c169d62cafde8eda26f1c6ce7d3ad6788854f4100b56865",
+        "35-candidate.stderr": "dc51322b27913f3d817cecf9af35b13d4d7a618317497da8766f1fe5ff109914"
+      }
+    },
+    {
+      "index": 36,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3868.65,
+        "tg256": 270.98
+      },
+      "pp_phase_seconds": 1.0587672702363873,
+      "tg_phase_seconds": 0.9447191674662336,
+      "pp_plus_tg_phase_seconds": 2.003486437702621,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        1,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "36-candidate.stdout": "19daf6f1ef4009fe9814f819913b28a0e2da9683fbea4943d8b6561eca0367ed",
+        "36-candidate.stderr": "2c3bb44e23ee50cf3aef4f1b3aabda71ed3c719b4e6f7ea12f10e16659796f9a"
+      }
+    },
+    {
+      "index": 37,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 2,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2349.4,
+        "tg256": 242.34
+      },
+      "pp_phase_seconds": 1.7434238528986123,
+      "tg_phase_seconds": 1.056367087562928,
+      "pp_plus_tg_phase_seconds": 2.7997909404615404,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        98,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "37-mx.stdout": "0e313cad113c32c6b31f3c7d3ec345bc25f382f0e6652fc8527f3f32d57590d1",
+        "37-mx.stderr": "3cd355d8748183196c69ff4b372b1c0d367aa9c9121e68e4446617792942616c"
+      }
+    },
+    {
+      "index": 38,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "rates": {
+        "pp4096": 2335.11,
+        "tg256": 242.39
+      },
+      "pp_phase_seconds": 1.7540929549357418,
+      "tg_phase_seconds": 1.0561491810718264,
+      "pp_plus_tg_phase_seconds": 2.8102421360075684,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 6,
+      "log_sha256": {
+        "38-mx.stdout": "a01e51b8383080abcb2b9e74b8162bb189ef3b80568935afb00528a886768a55",
+        "38-mx.stderr": "4336d426d751fe236db4952a2d5c79ce20a4bb5c72c801ec161b20b0306c8d41"
+      }
+    },
+    {
+      "index": 39,
+      "cell": "IQ1_M/P4096/G256",
+      "model": "IQ1_M",
+      "model_sha256": "7b3e7f1ba1b743d9f97c4c8fe926cf92b0ac1902cb4a99309fe58b3bdd30d33b",
+      "p": 4096,
+      "g": 256,
+      "block": 3,
+      "arm": "candidate",
+      "warmup": false,
+      "status": "passed",
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "rates": {
+        "pp4096": 3869.05,
+        "tg256": 269.87
+      },
+      "pp_phase_seconds": 1.0586578100567323,
+      "tg_phase_seconds": 0.9486048838329566,
+      "pp_plus_tg_phase_seconds": 2.0072626938896887,
+      "flags": [
+        "disk",
+        "unrelated_cpu"
+      ],
+      "uncovered_seconds": 0,
+      "measured_device_busy_percent_range": [
+        0,
+        100
+      ],
+      "measured_device_busy_sample_count": 5,
+      "log_sha256": {
+        "39-candidate.stdout": "28fcdc98e7d283ef3881391ded540387ee41f9d5c9c69d5789dee0e4c4bdc287",
+        "39-candidate.stderr": "dc51322b27913f3d817cecf9af35b13d4d7a618317497da8766f1fe5ff109914"
+      }
+    }
+  ],
+  "limitations": [
+    "PP and TG both reset before execution. P/PP + G/TG sums separate empty-history microbench phases; it is NOT decode after that prompt or request/server latency. Load/startup are excluded.",
+    "mx n_ctx=max(512,P,G); llmx reach=max(P,G). Allocated KV layouts need not match. Identical token-stream seeds: PP12345 and TG777. F32 K/V; llmx auto F16 arithmetic; ubatch512; threads4.",
+    "Four matched blocks per cell; no measured layout noise band, both-phase floor verdict, or automatic acceptance/rejection.",
+    "All warmups and samples retained. Activity flags describe overlapping monitor intervals, not proven causation. Whole-disk counters are not process-attributed. Short-lived processes may escape sampling; unavailable counters are unknown, not zero."
+  ],
+  "evidence_hashes": {
+    "summary.json": "3fc7e104087ed025b45f1d37ed955a6ae985499320523a980d2fffcea11943e7",
+    "execution.json": "a365f48ad3c4386215113b585ad6da8358fc63c128ff285654f22ff0d2f4b494",
+    "activity.jsonl": "338ec51b1b87026386f939d872ee26e8113368b230c91ca54a04ff6d3254b43b",
+    "version.stdout": "e55743d65bad81119110f2c88f15f77a981c719bc693cea484c0cf78c2154f0c",
+    "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb"
+  }
+}

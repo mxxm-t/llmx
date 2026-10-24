@@ -1,0 +1,303 @@
+{
+  "scope": "Development checkpoint: independent CPU format, CPU/Radeon operators and ordinary tiny HF F32 checks. No merge, released-model or performance qualification.",
+  "base": "a93d7925de32bc77da86bb4b692bad3acd5e1fd6",
+  "worktree": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-pair-20261023",
+  "source_sha256": {
+    "CMakeLists.txt": "7f6b8be725ac9bbd86c5fb011716c25dc63e595a33beee0d37c93ce827495c7f",
+    "cmake/tests.cmake": "97d744990f1745ba1b96daa3d677c9859456239c8de1631210526e00ed75973a",
+    "src/backends/vulkan/shaders/embed.comp": "73ce096d2e13c5c95a6cfc693e7cb568492cdf9d87a32562199994517dcc3595",
+    "src/backends/vulkan/shaders/iq1.glsl": "afe1f50ff2c9f09357216d0582202527ffa7d4eb6b89b82868ae6d359952f55e",
+    "src/backends/vulkan/shaders/iq1_dot.glsl": "ebfd14d128fa3be1be023bfe7c09677fc391d01aaeb58290b0ff4b00f251a070",
+    "src/backends/vulkan/shaders/iq1_layout.glsl": "30b556fd6dc6d21d1c41c0f0a0fb18fc3cddafe2d0f6a2687262bac12e8dad23",
+    "src/backends/vulkan/shaders/matmul_row.comp": "f41cc48d03be4ea2caf230a58bb77aa1b394fd2b8a9931b0464b0d999c9310a2",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "6a029bdc4973c32c9c97e432f0dc3eaef3d18e65a2f35769087b0852792bd209",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "1545278d415eb731fe25bbacdb26618d7d4c72e125c69d99952435e6cff45fac",
+    "src/backends/vulkan/shaders/q.glsl": "1f7e0f1a0e709eb9bd3b6cd90c51c6ecc9b8563a5ff5a5e4aaacf2bb759d9960",
+    "src/backends/vulkan/vulkan_backend.cpp": "e9282a4a28cd841f31eb54f7c905758b2e3a96dd894f9fbe5bde14a659f00d2b",
+    "src/quant/iq1.hpp": "c55f0c9f012fd1a998bdad6cc72e9901300b77cf27a70d5c2552b71fa795e30a",
+    "src/quant/iq1_grid.inc": "7aa985906f0e93861abab83f4a9646ca3d338401e0de332b7148d962ed3aed34",
+    "src/quant/quant.hpp": "113b684d6a2f6930616d1939574ccbe73fec25c0d5302fb2bdcc4e4969d1bd6f",
+    "src/quant/types.hpp": "cad1517bb85a726d4b040e07b6b099f2ea8f16cf7573bc05ff699ac1edab7128",
+    "tests/backend_errors.cpp": "ce8f2e3b15b556e3048d568e955ee464023c05030e0ebe35f9b3b72b7bae10f7",
+    "tests/backend_vulkan.cpp": "0df7759f8481c9ccde6fb24c45a6aced2d9b6f1663bfa745411574aeeb29bd26",
+    "tests/data/baseline_iq1_m.json": "e207e45a69f5a741fac11595321f5ee0f9710064386c5d613590ec8c242f4240",
+    "tests/data/baseline_iq1_m_split.json": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+    "tests/data/baseline_iq1_s.json": "c3aea8a3c9023770a8a392e106758738d6be7bb052a61d358744a06c7ff0fd1f",
+    "tests/data/baseline_iq1_s_split.json": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+    "tests/iq1.cpp": "e458c54245f90412458b2b90df7f196bd964226ba0c1b2945aaac2847f1b1b02",
+    "tests/iq1.py": "b83b6877f24ae03ae360867241d1a76e9a93c57f263918889dbcd84dc7b3b6de",
+    "tests/iq1_grid.inc": "0abdd2b465e27139906b473737e3555dd9d098fc02a3b35a05908c0e09765f53",
+    "tests/raw_blocks.py": "22a133468e00be68e33de49a0257ea8b4ff076471aa5c35ebdf68ee84fad33dc",
+    "tests/run_tests.py": "cbc33b6b1d91fd98b1d6e057a806175c023bb75ef068138b4518683bf029f9dc",
+    "tests/spec_decode.py": "09eaf4ee47040500bcbeebc763f1cd0fb00ed77f45815fb477ef7bc86c4d0e09",
+    "tools/calibrate_dtype.py": "26c3dc816e54ea2e815a9e97a25c3959211849004d9541ccdb6bff51af2b6b1f",
+    "tools/gen_baseline.py": "4c18e1307f295daaddb8b58f2e7490c5a9cb32c2c3e230da324593320b74da81",
+    "tests/reference_generator.py": "8c9865aec388e0d2fe0e74525cb2e7ead37badc781fd63263e592ef4be1df3e2",
+    "tests/data/dtype_budget.json": "3f02ecd4eca94ebaadcd385d3453e7dad423102b769a1dee1fe661ec6c2258c3"
+  },
+  "product": {
+    "path": "build-iq1-vulkan/Release/llmx.exe",
+    "sha256": "7ee3bf514da567de4e3ab1123706fea631179e8b9525963f6e691bb0be19205c",
+    "scope": "Built before layout-selector relocation; used by CLI conversion and CPU/Radeon HF checks."
+  },
+  "native_gpu": {
+    "initial_sha256": "846ad5ff3c8d837aa84e64575ad0bfce0cb1d38013a5cfcc67ce8797207cbd6a",
+    "initial_seconds": 2.11,
+    "post_relocation_sha256": "af630fb26c11a8183c9a7b48ae6e82b02bd15ff44199b908cb6f6b54f92f257f",
+    "post_relocation_gpu_seconds": 1.08,
+    "post_relocation_cpu_seconds": 2.71,
+    "embedding_values": 2104320,
+    "matrix_range_values": 207936,
+    "device": "AMD Radeon VII",
+    "driver": "31.0.21925.1001"
+  },
+  "shader_relocation": {
+    "scope": "IQ1 layout-selector relocation, same compiler/flags; compiled IQ1 shader bytes only",
+    "shaders": [
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_m.inc",
+        "before": "1eedbc84b6a030e5f0196ebc0d93bf59da7e0c578bc6925ab7a1ea9232007adf",
+        "after": "1eedbc84b6a030e5f0196ebc0d93bf59da7e0c578bc6925ab7a1ea9232007adf",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_m_dot.inc",
+        "before": "803883f3ad9da42cb13dedfc1671f4f0aff521e4cbdf5f57ced2e3bd9a62da5f",
+        "after": "803883f3ad9da42cb13dedfc1671f4f0aff521e4cbdf5f57ced2e3bd9a62da5f",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_m_preserve.inc",
+        "before": "dd8411f256973839f40540b9564b5af933f723d53cee06d1d94573e043fe22a0",
+        "after": "dd8411f256973839f40540b9564b5af933f723d53cee06d1d94573e043fe22a0",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_s.inc",
+        "before": "5afa2bf9f2a4900b8fc7990cb1ac47c6efbb803d6f1bffd381e04a222deba5f9",
+        "after": "5afa2bf9f2a4900b8fc7990cb1ac47c6efbb803d6f1bffd381e04a222deba5f9",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_s_dot.inc",
+        "before": "4206192d6d3b14bb431f8c4a483e19d077f89e13bec26ddc3ec8a887375737c5",
+        "after": "4206192d6d3b14bb431f8c4a483e19d077f89e13bec26ddc3ec8a887375737c5",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_row_iq1_s_preserve.inc",
+        "before": "5c6e44a447c610da136e4397d1b2ec50114085b5261e432168219834201adf03",
+        "after": "5c6e44a447c610da136e4397d1b2ec50114085b5261e432168219834201adf03",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_m.inc",
+        "before": "7deb7972e584b5e8427b27d8ce7d47138589b9dfebe3529a1c284bf608818d43",
+        "after": "7deb7972e584b5e8427b27d8ce7d47138589b9dfebe3529a1c284bf608818d43",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_m_bf16.inc",
+        "before": "a50cadbc31395f818e024ca6cf5eb791495ab00a7fedb0230d0f1888c960826d",
+        "after": "a50cadbc31395f818e024ca6cf5eb791495ab00a7fedb0230d0f1888c960826d",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_m_bf16_preserve.inc",
+        "before": "eec2ddc5e76ea5c21d33f240714a9da6727c7b938f1c41d57edc0eb1a682868c",
+        "after": "eec2ddc5e76ea5c21d33f240714a9da6727c7b938f1c41d57edc0eb1a682868c",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_m_dot.inc",
+        "before": "cdc13b4180996bb93399c81007bbf20c9f330f6433f5cc8c9a9aef8c83c847fa",
+        "after": "cdc13b4180996bb93399c81007bbf20c9f330f6433f5cc8c9a9aef8c83c847fa",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_m_preserve.inc",
+        "before": "a1e4d00502b4f64c1dbb100e9c25dcf1ee80a77e2f6af0adf890060798d7181e",
+        "after": "a1e4d00502b4f64c1dbb100e9c25dcf1ee80a77e2f6af0adf890060798d7181e",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_s.inc",
+        "before": "29a59131d264691c0015684eb306f0fb9d2fee2cb3d456070a2346ffdbd07d91",
+        "after": "29a59131d264691c0015684eb306f0fb9d2fee2cb3d456070a2346ffdbd07d91",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_s_bf16.inc",
+        "before": "c8e7c00aee9b386207f3209e999aa84762a3f8af757d3864640f1732b3a725b0",
+        "after": "c8e7c00aee9b386207f3209e999aa84762a3f8af757d3864640f1732b3a725b0",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_s_bf16_preserve.inc",
+        "before": "8717be37c7cbc6e775c07c1ee07c4de88b12f349c88f5175eddc2d878b9d4214",
+        "after": "8717be37c7cbc6e775c07c1ee07c4de88b12f349c88f5175eddc2d878b9d4214",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_s_dot.inc",
+        "before": "711aaefc324390ede9ff5d5746ae76a2504ee16c9c6b0889f592aba0406ee8d6",
+        "after": "711aaefc324390ede9ff5d5746ae76a2504ee16c9c6b0889f592aba0406ee8d6",
+        "same": true
+      },
+      {
+        "path": "build-iq1-vulkan/generated/vulkan/matmul_tile_iq1_s_preserve.inc",
+        "before": "40df890a9db70a6f0037cc96ba92e16075b5fa4d53675d677cd9cb97a57b68ab",
+        "after": "40df890a9db70a6f0037cc96ba92e16075b5fa4d53675d677cd9cb97a57b68ab",
+        "same": true
+      }
+    ]
+  },
+  "hf": {
+    "scope": "150 full-logit cases and12NLL checks per family per backend, dense tied/untied and MoE. Printed errors rounded to8decimal places.",
+    "dtype": "f32",
+    "logit_limit": 2e-05,
+    "nll_limit": 1e-05,
+    "rows": [
+      {
+        "format": "IQ1_S",
+        "backend": "CPU",
+        "max_logit": 1.25e-06,
+        "max_nll": 6e-08
+      },
+      {
+        "format": "IQ1_M",
+        "backend": "CPU",
+        "max_logit": 1.39e-06,
+        "max_nll": 4e-08
+      },
+      {
+        "format": "IQ1_S",
+        "backend": "Radeon VII",
+        "max_logit": 1.18e-06,
+        "max_nll": 1e-07
+      },
+      {
+        "format": "IQ1_M",
+        "backend": "Radeon VII",
+        "max_logit": 1.21e-06,
+        "max_nll": 5e-08
+      }
+    ]
+  },
+  "logs": {
+    "build-iq1-cpu/python-raw-blocks.log": "404c0dd77ebf3d7f3f6392c98570ed65b0cdffdbff43679417664b5a9b4aae2e",
+    "build-iq1-cpu/python-format.log": "e77fcbdcbb967b1888a05f1d012b6d2b5f3de3e9a3b79d4c582c85a1dbd5c3b6",
+    "build-iq1-cpu/hf-f32-v1.log": "771200870c3f2448044341cfa09361a1d5de3643d647b1c11fc0862984e65e1a",
+    "build-iq1-vulkan/hf-f32-v1.log": "a42124e96961ebf62eae39a768e77db5b98d9137eac9a9c27993519d6b3603f3",
+    "build-iq1-vulkan/operators-device-v1.log": "2e70577a5adf5bb2563f98d0d49cc2c245f2418ee47415a272ea4fbee29c15d2",
+    "build-iq1-vulkan/layout-tests.log": "ef51121a5c906346e373bcd0f3a76152f509be15720b6d129ad55b4fc1f0bcc3",
+    "build-iq1-vulkan/layout-compile.log": "c6f180c84c6ee42ef7d9093eef09a9462f5c9ec8f31da9711908b3c1ad13ccfe",
+    "build-iq1-cpu/docs-dead-v2.log": "b277893474225179a1febef09e3456ba90943dd044baf95a5e1b978f2ad6ea69"
+  },
+  "prior_operator_evidence": {
+    "scope": "Expanded IQ1 CPU and optional Vulkan operators; GPU execution has not run.",
+    "CPU_result": "iq1 CTest passes with one and three threads; format67108864 and packed3047424 controls; perthread2104320 embedding and207936 matrix/range values.",
+    "retained_failure": "operators-tests.log: adopted CPU output aliased original guard vector; corrected fixture to alloc+write; no runtime change.",
+    "coverage": [
+      "all dictionary indices at every vector/lane through exact CPU embedding, with half edges and signedzero",
+      "two-block width512 embedding, prefix4 and alternating IQ1_S50byte alignment",
+      "device-ID valid/repeated/invalid rows and full output guards",
+      "ordinary, logits, grouped, additive, routed and routed-add matrix calls at decodeextent1",
+      "four requested dtype witnesses; independent BF16 rounding, int16 twin and double arithmetic oracle",
+      "exact one-hot F32/BF16/fallback products",
+      "row67, width768, threeblock rows and columns/extent at crossover-1, crossover, crossover+1",
+      "Vulkan-only actual shader timing witnesses for each threshold ordinary call, when timestamps available",
+      "finite halfedges and activation exponents down to2^-145 and up to2^100 through decode/tile range repair"
+    ],
+    "not_covered": [
+      "GPU execution",
+      "two-pick routing",
+      "routed tile crossover",
+      "tall tile forced witness",
+      "mixed RowRuns batch invariance",
+      "HF/model/perf"
+    ],
+    "files": {
+      "tests/iq1.cpp": {
+        "sha256": "e458c54245f90412458b2b90df7f196bd964226ba0c1b2945aaac2847f1b1b02",
+        "size": 21131,
+        "mtime_ns": 1792773526709728600
+      },
+      "tests/iq1_grid.inc": {
+        "sha256": "0abdd2b465e27139906b473737e3555dd9d098fc02a3b35a05908c0e09765f53",
+        "size": 12619,
+        "mtime_ns": 1792771992916398400
+      },
+      "cmake/tests.cmake": {
+        "sha256": "97d744990f1745ba1b96daa3d677c9859456239c8de1631210526e00ed75973a",
+        "size": 35059,
+        "mtime_ns": 1792773501146700700
+      },
+      "src/quant/iq1.hpp": {
+        "sha256": "c55f0c9f012fd1a998bdad6cc72e9901300b77cf27a70d5c2552b71fa795e30a",
+        "size": 2354,
+        "mtime_ns": 1792771993513416500
+      },
+      "src/quant/iq1_grid.inc": {
+        "sha256": "7aa985906f0e93861abab83f4a9646ca3d338401e0de332b7148d962ed3aed34",
+        "size": 13952,
+        "mtime_ns": 1792771964777198400
+      },
+      "build-iq1-cpu/Release/llmx-iq1-test.exe": {
+        "sha256": "0b8c323c0b1207031de6e7161c41a14a2beb5558bfa1a40bae2257fc6291792e",
+        "size": 355328,
+        "mtime_ns": 1792773530327612700
+      },
+      "build-iq1-vulkan/Release/llmx-iq1-test.exe": {
+        "sha256": "846ad5ff3c8d837aa84e64575ad0bfce0cb1d38013a5cfcc67ce8797207cbd6a",
+        "size": 7381504,
+        "mtime_ns": 1792773569003526200
+      },
+      "build-iq1-cpu/operators-compile.log": {
+        "sha256": "cadeaa923676e6b60535916945ac786008da8c475a208d26e3f928e34d918220",
+        "size": 17402,
+        "mtime_ns": 1792773508579276500
+      },
+      "build-iq1-cpu/operators-tests.log": {
+        "sha256": "28f6bb912c4e74d15e18f44c894a518c43f26b67c45bd3cd56031fb22e715eed",
+        "size": 3402,
+        "mtime_ns": 1792773518017790000
+      },
+      "build-iq1-cpu/operators-compile-v2.log": {
+        "sha256": "00816a7f729160acecb95f855394fb7820f5a815b387dc0f825239e3dfdee8ec",
+        "size": 8460,
+        "mtime_ns": 1792773530399157700
+      },
+      "build-iq1-cpu/operators-tests-v2.log": {
+        "sha256": "b7ef635da979e287cbf1263300ebdb2614832cccf9863af7928111bbbf58547f",
+        "size": 3136,
+        "mtime_ns": 1792773537534630400
+      },
+      "build-iq1-vulkan/operators-compile.log": {
+        "sha256": "5e46687c69316e61b4acc8c77bacc535159dfbb073452a1136b6b8ff3a576ff1",
+        "size": 15034,
+        "mtime_ns": 1792773569066230600
+      }
+    }
+  },
+  "retained_failures": [
+    {
+      "scope": "Initial CLI format invocation inside sandbox",
+      "error": "cannot resolve output .../input.json: filesystem error 5",
+      "resolution": "Same test and binary passed outside sandbox; no code or limit change"
+    },
+    {
+      "scope": "Static checks",
+      "error": "Six IQ1 selector findings through globally included q.glsl and two missing AGENTS Tests descriptions",
+      "resolution": "Move selectors to iq1_layout.glsl and describe tests under Tests; docs/dead checks pass"
+    }
+  ],
+  "pending": [
+    "narrowed and split HF",
+    "MI50 operators and models",
+    "released model and16K checks",
+    "mx Vulkan comparison and existing-path gates",
+    "hosted CI"
+  ],
+  "prospective_calibration": "Completed and recorded separately in iq1-calibration-20261023.json before narrowed model comparisons."
+}

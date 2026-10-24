@@ -1,0 +1,1178 @@
+{
+  "scope": "Prospective independent HF-only calibration, frozen before narrowed candidate model comparisons. F32 tiny checks ran with unchanged strict limits. No existing family budget changes.",
+  "rig_directory": "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/hf-reference-v1",
+  "execution": {
+    "start": 1792773726.9019718,
+    "passed": true,
+    "removed": true,
+    "source_pins_sha256": "00928b0c606f74d3f91e90d5bec05c33f9d0a1e067cfa8bf67d3961b3c2357a0",
+    "launch_sha256": "5c53ba45ca19a1cdb90492452af79c49162e8451215b08a7f1156a73065548c3",
+    "payload_sha256": "bf947ec89662a1e9cf0d0ed2e2d6ec037f4fb5864da3d940204994000ee329db",
+    "container": "llmx-iq1-pair-hf-reference-v1-20261023",
+    "mem_available": 22303563776,
+    "disk_before": {
+      "total": 3619024797696,
+      "used": 3308511035392,
+      "free": 310513762304
+    },
+    "cpu_peers": {},
+    "image": {
+      "Id": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "RepoDigests": [
+        "python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de"
+      ],
+      "Created": "2026-07-14T02:11:29.203658501Z"
+    },
+    "command": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-iq1-pair-hf-reference-v1-20261023",
+      "--label",
+      "llmx.iq1-pair-hf-reference=v1-20261023",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "14-15",
+      "--cpus",
+      "2",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/hf-reference-v1/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/hf-reference-v1:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/iq1-pair-20261023/hf-reference-v1/out:/out",
+      "-v",
+      "/opt/claude-work/llmx-p2-qp-hf:/hf:ro",
+      "-w",
+      "/w",
+      "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+      "/hf/venv/bin/python",
+      "-B",
+      "-u",
+      "/bundle/payload.py"
+    ],
+    "container_id": "ee965a41f20a64be8030a66757bac61915c92e39746be90b3b8118a5eb7e5d82",
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T16:42:07.385115969Z",
+      "FinishedAt": "2026-10-23T16:53:58.286349653Z"
+    },
+    "exit": 0,
+    "payload": {
+      "start": 1792773727.6773968,
+      "calls": [
+        {
+          "name": "iq1-goldens",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/gen_baseline.py",
+            "iq1",
+            "--output-dir",
+            "/out/goldens"
+          ],
+          "start": 1792773731.2937589,
+          "exit": 0,
+          "end": 1792773848.5288692,
+          "log_sha256": "075975042af03e7fca2f23fce92cfd3d594c8dcf6f59180e5d90dc856737ebcb"
+        },
+        {
+          "name": "iq1-s-calibration",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/calibrate_dtype.py",
+            "--family",
+            "iq1-s",
+            "--output",
+            "/out/calibration/iq1-s-budget-proposal.json"
+          ],
+          "start": 1792773848.5294564,
+          "exit": 0,
+          "end": 1792774135.7943454,
+          "log_sha256": "7baccaca54f7c35d4e6d6a3de203bb28885ec9f975bb477dfb9b99fad7c16d71"
+        },
+        {
+          "name": "iq1-m-calibration",
+          "command": [
+            "/hf/venv/bin/python",
+            "-B",
+            "-u",
+            "/w/tools/calibrate_dtype.py",
+            "--family",
+            "iq1-m",
+            "--output",
+            "/out/calibration/iq1-m-budget-proposal.json"
+          ],
+          "start": 1792774135.7970436,
+          "exit": 0,
+          "end": 1792774437.7687445,
+          "log_sha256": "650d655e734d54516215579084ffe33f484516bb3617784e2914c863d1e17105"
+        }
+      ],
+      "passed": true,
+      "environment": {
+        "versions": {
+          "torch": "2.5.1+cpu",
+          "transformers": "4.55.2",
+          "numpy": "2.2.6"
+        },
+        "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+        "executable": "/hf/venv/bin/python",
+        "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+        "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+        "torch_threads": 1,
+        "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+        "affinity": [
+          14,
+          15
+        ],
+        "no_gpu_devices": true,
+        "cgroup": {
+          "cpu.max": "200000 100000\n",
+          "cpuset.cpus.effective": "14-15\n",
+          "memory.max": "8589934592\n",
+          "memory.swap.max": "0\n"
+        }
+      },
+      "goldens": {
+        "baseline_iq1_s.json": {
+          "sha256": "c3aea8a3c9023770a8a392e106758738d6be7bb052a61d358744a06c7ff0fd1f",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "7e705635f85dcd7d23cf670386552f2e30f525b5050e5e086e572ba9fd8e63b8",
+              "packed_sha256": "88c7a80ba9577bd4f0daf4f67f6c48cb60a21bdfb32f4bf055f7f26b14e9314e"
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "ef59420f3620b2393c13afade6b268235661677a806531d293d2e0af1b7502b4",
+              "packed_sha256": "0dd5732cd5afc798baf8fe59dcbe413e2fffe984eb01647c00cc0692971aa4cc"
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "5eab0ce60bb4f9c3346204a2412c982a4d64a328abece2b3f2c52a5a716b1d8a",
+              "packed_sha256": "2cf860bc9577a0995304fdb702e5dca0f7c73b736247be9be3de93d7fd8ea85c"
+            }
+          ]
+        },
+        "baseline_iq1_s_split.json": {
+          "sha256": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "dc0725d98ef7cfae9079ff790032505b328c2ad6a80592d8130ff8f86015dcaf",
+              "packed_sha256": "26a030f230ed322663b8cdc65bb2327ba3753abd34a7a6abe8780f2251023f5b"
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "921bdf03605c55a271d6a9d13c998f19fe507a3131649ac44464f0b2bdc2eeb1",
+              "packed_sha256": "3f965c01b216312f81ab97c6603fd723c22a9fe2a8c91b1eb1e31a3fa84d405c"
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 4,
+                "expert_feed_forward_length": 1024
+              },
+              "weights_sha256": "731bd433d75811f6c5423f3a3cd5639ef5b08d1099e8fde8386d0b5ca472d496",
+              "packed_sha256": "c694833ed547341f09dc3ddff7d6cbef01e8e36665e4cb98edb3cac6d01fe26a"
+            }
+          ]
+        },
+        "baseline_iq1_m.json": {
+          "sha256": "e207e45a69f5a741fac11595321f5ee0f9710064386c5d613590ec8c242f4240",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "19e6194bd604995745fb6c7628f9211a0370480bb454c428f3a5763fb3f1207f",
+              "packed_sha256": "c728c880aa46989f85d89847e2c2ad717871bc03a0d8acb6f5fc032ea2f00445"
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16
+              },
+              "weights_sha256": "cbf7eb5734d4f6dac2bbd8f2bc6463a6b3c0936b4be6c3a60fd4ebfa22644968",
+              "packed_sha256": "0968c4ffb446611fab17b6df12ae9ebc5e02ca22a7c5f00761ea1bf2eefd2a52"
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 256,
+                "feed_forward_length": 768,
+                "attention.head_count": 2,
+                "attention.head_count_kv": 1,
+                "attention.key_length": 128,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 2,
+                "expert_feed_forward_length": 768
+              },
+              "weights_sha256": "ee0ccee1eeb84f1c3461054daee34cc278089d35beb8024ad1612b1f377d537d",
+              "packed_sha256": "0022861d2cca994aaac40097adaea3d65306fb6db4a554f5bcbed6c427e50fc8"
+            }
+          ]
+        },
+        "baseline_iq1_m_split.json": {
+          "sha256": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+          "fixtures": [
+            {
+              "name": "dense-untied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "2a35b8cf911c204a2685f0b237d39ee60a17e49104c3a51d761f342a08e8cb7b",
+              "packed_sha256": "98e108fa22553814fd36daa25f20f59b25b5abae0628db1c49dc691f343c77b7"
+            },
+            {
+              "name": "dense-tied",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16
+              },
+              "weights_sha256": "4a954ec5ea4dd38defad50c90ee10ac901e1e6173acbc10aa5f072196b3b54ca",
+              "packed_sha256": "fd889689f28cfdcf78832d8b36efacb22e6b257bc0a598600fab3971d5c080b8"
+            },
+            {
+              "name": "moe",
+              "config": {
+                "block_count": 2,
+                "embedding_length": 1024,
+                "feed_forward_length": 1024,
+                "attention.head_count": 4,
+                "attention.head_count_kv": 2,
+                "attention.key_length": 256,
+                "context_length": 16,
+                "expert_count": 4,
+                "expert_used_count": 4,
+                "expert_feed_forward_length": 1024
+              },
+              "weights_sha256": "07af81a0d3c75aca63407e77f515c669fa1d77e3c399e1bd6bf26fab2e04a58f",
+              "packed_sha256": "fc42de3622dd232dd08863d6719a3fa932438294ebe3c023918171769127a487"
+            }
+          ]
+        }
+      },
+      "calibration": {
+        "iq1-s": {
+          "sha256": "f69fdb303ab493548b80794b319f0704b857f6f5f173e03d802da172d7c0567f",
+          "margin": 2.0,
+          "threads": 1,
+          "dtypes": {
+            "f16": {
+              "rows": 30,
+              "accepted": 30,
+              "refused": [],
+              "max_logit_error": 0.0022460222244262695,
+              "max_nll_error": 0.000245642411850433,
+              "logit_budget": 0.004492044448852539,
+              "nll_budget": 0.000491284823700866
+            },
+            "bf16": {
+              "rows": 30,
+              "accepted": 30,
+              "refused": [],
+              "max_logit_error": 0.019594311714172363,
+              "max_nll_error": 0.0017938752672526093,
+              "logit_budget": 0.03918862342834473,
+              "nll_budget": 0.0035877505345052185
+            },
+            "int8": {
+              "rows": 30,
+              "accepted": 30,
+              "refused": [],
+              "max_logit_error": 0.04785662889480591,
+              "max_nll_error": 0.005408964222193724,
+              "logit_budget": 0.09571325778961182,
+              "nll_budget": 0.010817928444387448
+            }
+          }
+        },
+        "iq1-m": {
+          "sha256": "ab906799f6887f07c601eed08b16843c3048158cb8a897977d69da7e5d133ea9",
+          "margin": 2.0,
+          "threads": 1,
+          "dtypes": {
+            "f16": {
+              "rows": 30,
+              "accepted": 30,
+              "refused": [],
+              "max_logit_error": 0.0021657943725585938,
+              "max_nll_error": 0.000360434668877474,
+              "logit_budget": 0.0043315887451171875,
+              "nll_budget": 0.000720869337754948
+            },
+            "bf16": {
+              "rows": 30,
+              "accepted": 30,
+              "refused": [],
+              "max_logit_error": 0.02241504192352295,
+              "max_nll_error": 0.002475196931809087,
+              "logit_budget": 0.0448300838470459,
+              "nll_budget": 0.004950393863618174
+            },
+            "int8": {
+              "rows": 30,
+              "accepted": 29,
+              "refused": [
+                {
+                  "fixture": "moe",
+                  "split": false,
+                  "seed": 1,
+                  "config": {
+                    "block_count": 2,
+                    "embedding_length": 256,
+                    "feed_forward_length": 768,
+                    "attention.head_count": 2,
+                    "attention.head_count_kv": 1,
+                    "attention.key_length": 128,
+                    "context_length": 16,
+                    "expert_count": 4,
+                    "expert_used_count": 2,
+                    "expert_feed_forward_length": 768
+                  },
+                  "weights_sha256": "9e2a77711c6b28835ba007727916f3823f18b8da44611cdc3e90c7b156bcfecb",
+                  "packed_sha256": "47f486ada7dffe4707131fbde5e4affdd9438f0bb5c20925a7072c461d93049a",
+                  "logit_error": 0.14310166239738464,
+                  "nll_error": 0.004120241727949114,
+                  "routing": {
+                    "stable": false,
+                    "calls": 18,
+                    "first_change": {
+                      "call": 8,
+                      "original": {
+                        "router": "model.layers.0.mlp.gate",
+                        "experts": [
+                          [
+                            0,
+                            2
+                          ],
+                          [
+                            2,
+                            3
+                          ],
+                          [
+                            2,
+                            3
+                          ],
+                          [
+                            0,
+                            2
+                          ],
+                          [
+                            1,
+                            2
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ]
+                        ]
+                      },
+                      "rounded": {
+                        "router": "model.layers.0.mlp.gate",
+                        "experts": [
+                          [
+                            0,
+                            2
+                          ],
+                          [
+                            2,
+                            3
+                          ],
+                          [
+                            2,
+                            3
+                          ],
+                          [
+                            0,
+                            2
+                          ],
+                          [
+                            1,
+                            2
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ],
+                          [
+                            2,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            1,
+                            3
+                          ],
+                          [
+                            0,
+                            3
+                          ]
+                        ]
+                      }
+                    }
+                  },
+                  "status": "refused"
+                }
+              ],
+              "max_logit_error": 0.04446244239807129,
+              "max_nll_error": 0.007477898583945652,
+              "logit_budget": 0.08892488479614258,
+              "nll_budget": 0.014955797167891305
+            }
+          }
+        }
+      },
+      "combined_calibration": {
+        "path": "iq1-pair-budget-proposal.json",
+        "sha256": "3f02ecd4eca94ebaadcd385d3453e7dad423102b769a1dee1fe661ec6c2258c3",
+        "families": [
+          "iq1-m",
+          "iq1-s",
+          "iq2-s",
+          "iq3-s",
+          "iq3-xxs",
+          "iq4-xs",
+          "q3-k",
+          "q5-0",
+          "q5-1"
+        ]
+      },
+      "end": 1792774437.837292,
+      "cgroup_memory_peak": "3263090688\n"
+    },
+    "final_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-23T16:42:07.385115969Z",
+      "FinishedAt": "2026-10-23T16:53:58.286349653Z"
+    },
+    "end": 1792774440.0208135,
+    "outputs": {
+      "out/calibration/iq1-m-budget-proposal.json": "ab906799f6887f07c601eed08b16843c3048158cb8a897977d69da7e5d133ea9",
+      "out/calibration/iq1-pair-budget-proposal.json": "3f02ecd4eca94ebaadcd385d3453e7dad423102b769a1dee1fe661ec6c2258c3",
+      "out/calibration/iq1-s-budget-proposal.json": "f69fdb303ab493548b80794b319f0704b857f6f5f173e03d802da172d7c0567f",
+      "out/goldens/baseline_iq1_m.json": "e207e45a69f5a741fac11595321f5ee0f9710064386c5d613590ec8c242f4240",
+      "out/goldens/baseline_iq1_m_split.json": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+      "out/goldens/baseline_iq1_s.json": "c3aea8a3c9023770a8a392e106758738d6be7bb052a61d358744a06c7ff0fd1f",
+      "out/goldens/baseline_iq1_s_split.json": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+      "out/iq1-goldens.log": "075975042af03e7fca2f23fce92cfd3d594c8dcf6f59180e5d90dc856737ebcb",
+      "out/iq1-m-calibration.log": "650d655e734d54516215579084ffe33f484516bb3617784e2914c863d1e17105",
+      "out/iq1-s-calibration.log": "7baccaca54f7c35d4e6d6a3de203bb28885ec9f975bb477dfb9b99fad7c16d71",
+      "out/result.json": "cd62b1eac0f334cc8c760451a75ad38946c80406d633bec6baa63598b4c7d448"
+    },
+    "disk_after": {
+      "total": 3619024797696,
+      "used": 3308512083968,
+      "free": 310512713728
+    }
+  },
+  "result": {
+    "start": 1792773727.6773968,
+    "calls": [
+      {
+        "name": "iq1-goldens",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/gen_baseline.py",
+          "iq1",
+          "--output-dir",
+          "/out/goldens"
+        ],
+        "start": 1792773731.2937589,
+        "exit": 0,
+        "end": 1792773848.5288692,
+        "log_sha256": "075975042af03e7fca2f23fce92cfd3d594c8dcf6f59180e5d90dc856737ebcb"
+      },
+      {
+        "name": "iq1-s-calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq1-s",
+          "--output",
+          "/out/calibration/iq1-s-budget-proposal.json"
+        ],
+        "start": 1792773848.5294564,
+        "exit": 0,
+        "end": 1792774135.7943454,
+        "log_sha256": "7baccaca54f7c35d4e6d6a3de203bb28885ec9f975bb477dfb9b99fad7c16d71"
+      },
+      {
+        "name": "iq1-m-calibration",
+        "command": [
+          "/hf/venv/bin/python",
+          "-B",
+          "-u",
+          "/w/tools/calibrate_dtype.py",
+          "--family",
+          "iq1-m",
+          "--output",
+          "/out/calibration/iq1-m-budget-proposal.json"
+        ],
+        "start": 1792774135.7970436,
+        "exit": 0,
+        "end": 1792774437.7687445,
+        "log_sha256": "650d655e734d54516215579084ffe33f484516bb3617784e2914c863d1e17105"
+      }
+    ],
+    "passed": true,
+    "environment": {
+      "versions": {
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "numpy": "2.2.6"
+      },
+      "python": "3.12.13 (main, Jul 14 2026, 02:09:00) [GCC 14.2.0]",
+      "executable": "/hf/venv/bin/python",
+      "executable_sha256": "0e6475dfda68a9b2d93501449fc47593ca169010e8f4881577b97463fd0c1263",
+      "platform": "Linux-6.17.13-2-pve-x86_64-with-glibc2.41",
+      "torch_threads": 1,
+      "torch_config": "PyTorch built with:\n  - GCC 9.3\n  - C++ Version: 201703\n  - Intel(R) oneAPI Math Kernel Library Version 2024.2-Product Build 20240605 for Intel(R) 64 architecture applications\n  - Intel(R) MKL-DNN v3.5.3 (Git Hash 66f0cb9eb66affd2da3bf5f8d897376f04aae6af)\n  - OpenMP 201511 (a.k.a. OpenMP 4.5)\n  - LAPACK is enabled (usually provided by MKL)\n  - NNPACK is enabled\n  - CPU capability usage: AVX2\n  - Build settings: BLAS_INFO=mkl, BUILD_TYPE=Release, CXX_COMPILER=/opt/rh/devtoolset-9/root/usr/bin/c++, CXX_FLAGS= -D_GLIBCXX_USE_CXX11_ABI=0 -fabi-version=11 -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -DNDEBUG -DUSE_KINETO -DLIBKINETO_NOCUPTI -DLIBKINETO_NOROCTRACER -DLIBKINETO_NOXPUPTI=ON -DUSE_FBGEMM -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DSYMBOLICATE_MOBILE_DEBUG_HANDLE -O2 -fPIC -Wall -Wextra -Werror=return-type -Werror=non-virtual-dtor -Werror=bool-operation -Wnarrowing -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-unused-parameter -Wno-strict-overflow -Wno-strict-aliasing -Wno-stringop-overflow -Wsuggest-override -Wno-psabi -Wno-error=old-style-cast -Wno-missing-braces -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, LAPACK_INFO=mkl, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, TORCH_VERSION=2.5.1, USE_CUDA=0, USE_CUDNN=OFF, USE_CUSPARSELT=OFF, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_GLOO=ON, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=OFF, USE_NNPACK=ON, USE_OPENMP=ON, USE_ROCM=OFF, USE_ROCM_KERNEL_ASSERT=OFF, \n",
+      "affinity": [
+        14,
+        15
+      ],
+      "no_gpu_devices": true,
+      "cgroup": {
+        "cpu.max": "200000 100000\n",
+        "cpuset.cpus.effective": "14-15\n",
+        "memory.max": "8589934592\n",
+        "memory.swap.max": "0\n"
+      }
+    },
+    "goldens": {
+      "baseline_iq1_s.json": {
+        "sha256": "c3aea8a3c9023770a8a392e106758738d6be7bb052a61d358744a06c7ff0fd1f",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "7e705635f85dcd7d23cf670386552f2e30f525b5050e5e086e572ba9fd8e63b8",
+            "packed_sha256": "88c7a80ba9577bd4f0daf4f67f6c48cb60a21bdfb32f4bf055f7f26b14e9314e"
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "ef59420f3620b2393c13afade6b268235661677a806531d293d2e0af1b7502b4",
+            "packed_sha256": "0dd5732cd5afc798baf8fe59dcbe413e2fffe984eb01647c00cc0692971aa4cc"
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 2,
+              "expert_feed_forward_length": 768
+            },
+            "weights_sha256": "5eab0ce60bb4f9c3346204a2412c982a4d64a328abece2b3f2c52a5a716b1d8a",
+            "packed_sha256": "2cf860bc9577a0995304fdb702e5dca0f7c73b736247be9be3de93d7fd8ea85c"
+          }
+        ]
+      },
+      "baseline_iq1_s_split.json": {
+        "sha256": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "dc0725d98ef7cfae9079ff790032505b328c2ad6a80592d8130ff8f86015dcaf",
+            "packed_sha256": "26a030f230ed322663b8cdc65bb2327ba3753abd34a7a6abe8780f2251023f5b"
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "921bdf03605c55a271d6a9d13c998f19fe507a3131649ac44464f0b2bdc2eeb1",
+            "packed_sha256": "3f965c01b216312f81ab97c6603fd723c22a9fe2a8c91b1eb1e31a3fa84d405c"
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 4,
+              "expert_feed_forward_length": 1024
+            },
+            "weights_sha256": "731bd433d75811f6c5423f3a3cd5639ef5b08d1099e8fde8386d0b5ca472d496",
+            "packed_sha256": "c694833ed547341f09dc3ddff7d6cbef01e8e36665e4cb98edb3cac6d01fe26a"
+          }
+        ]
+      },
+      "baseline_iq1_m.json": {
+        "sha256": "e207e45a69f5a741fac11595321f5ee0f9710064386c5d613590ec8c242f4240",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "19e6194bd604995745fb6c7628f9211a0370480bb454c428f3a5763fb3f1207f",
+            "packed_sha256": "c728c880aa46989f85d89847e2c2ad717871bc03a0d8acb6f5fc032ea2f00445"
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16
+            },
+            "weights_sha256": "cbf7eb5734d4f6dac2bbd8f2bc6463a6b3c0936b4be6c3a60fd4ebfa22644968",
+            "packed_sha256": "0968c4ffb446611fab17b6df12ae9ebc5e02ca22a7c5f00761ea1bf2eefd2a52"
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 256,
+              "feed_forward_length": 768,
+              "attention.head_count": 2,
+              "attention.head_count_kv": 1,
+              "attention.key_length": 128,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 2,
+              "expert_feed_forward_length": 768
+            },
+            "weights_sha256": "ee0ccee1eeb84f1c3461054daee34cc278089d35beb8024ad1612b1f377d537d",
+            "packed_sha256": "0022861d2cca994aaac40097adaea3d65306fb6db4a554f5bcbed6c427e50fc8"
+          }
+        ]
+      },
+      "baseline_iq1_m_split.json": {
+        "sha256": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+        "fixtures": [
+          {
+            "name": "dense-untied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "2a35b8cf911c204a2685f0b237d39ee60a17e49104c3a51d761f342a08e8cb7b",
+            "packed_sha256": "98e108fa22553814fd36daa25f20f59b25b5abae0628db1c49dc691f343c77b7"
+          },
+          {
+            "name": "dense-tied",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16
+            },
+            "weights_sha256": "4a954ec5ea4dd38defad50c90ee10ac901e1e6173acbc10aa5f072196b3b54ca",
+            "packed_sha256": "fd889689f28cfdcf78832d8b36efacb22e6b257bc0a598600fab3971d5c080b8"
+          },
+          {
+            "name": "moe",
+            "config": {
+              "block_count": 2,
+              "embedding_length": 1024,
+              "feed_forward_length": 1024,
+              "attention.head_count": 4,
+              "attention.head_count_kv": 2,
+              "attention.key_length": 256,
+              "context_length": 16,
+              "expert_count": 4,
+              "expert_used_count": 4,
+              "expert_feed_forward_length": 1024
+            },
+            "weights_sha256": "07af81a0d3c75aca63407e77f515c669fa1d77e3c399e1bd6bf26fab2e04a58f",
+            "packed_sha256": "fc42de3622dd232dd08863d6719a3fa932438294ebe3c023918171769127a487"
+          }
+        ]
+      }
+    },
+    "calibration": {
+      "iq1-s": {
+        "sha256": "f69fdb303ab493548b80794b319f0704b857f6f5f173e03d802da172d7c0567f",
+        "margin": 2.0,
+        "threads": 1,
+        "dtypes": {
+          "f16": {
+            "rows": 30,
+            "accepted": 30,
+            "refused": [],
+            "max_logit_error": 0.0022460222244262695,
+            "max_nll_error": 0.000245642411850433,
+            "logit_budget": 0.004492044448852539,
+            "nll_budget": 0.000491284823700866
+          },
+          "bf16": {
+            "rows": 30,
+            "accepted": 30,
+            "refused": [],
+            "max_logit_error": 0.019594311714172363,
+            "max_nll_error": 0.0017938752672526093,
+            "logit_budget": 0.03918862342834473,
+            "nll_budget": 0.0035877505345052185
+          },
+          "int8": {
+            "rows": 30,
+            "accepted": 30,
+            "refused": [],
+            "max_logit_error": 0.04785662889480591,
+            "max_nll_error": 0.005408964222193724,
+            "logit_budget": 0.09571325778961182,
+            "nll_budget": 0.010817928444387448
+          }
+        }
+      },
+      "iq1-m": {
+        "sha256": "ab906799f6887f07c601eed08b16843c3048158cb8a897977d69da7e5d133ea9",
+        "margin": 2.0,
+        "threads": 1,
+        "dtypes": {
+          "f16": {
+            "rows": 30,
+            "accepted": 30,
+            "refused": [],
+            "max_logit_error": 0.0021657943725585938,
+            "max_nll_error": 0.000360434668877474,
+            "logit_budget": 0.0043315887451171875,
+            "nll_budget": 0.000720869337754948
+          },
+          "bf16": {
+            "rows": 30,
+            "accepted": 30,
+            "refused": [],
+            "max_logit_error": 0.02241504192352295,
+            "max_nll_error": 0.002475196931809087,
+            "logit_budget": 0.0448300838470459,
+            "nll_budget": 0.004950393863618174
+          },
+          "int8": {
+            "rows": 30,
+            "accepted": 29,
+            "refused": [
+              {
+                "fixture": "moe",
+                "split": false,
+                "seed": 1,
+                "config": {
+                  "block_count": 2,
+                  "embedding_length": 256,
+                  "feed_forward_length": 768,
+                  "attention.head_count": 2,
+                  "attention.head_count_kv": 1,
+                  "attention.key_length": 128,
+                  "context_length": 16,
+                  "expert_count": 4,
+                  "expert_used_count": 2,
+                  "expert_feed_forward_length": 768
+                },
+                "weights_sha256": "9e2a77711c6b28835ba007727916f3823f18b8da44611cdc3e90c7b156bcfecb",
+                "packed_sha256": "47f486ada7dffe4707131fbde5e4affdd9438f0bb5c20925a7072c461d93049a",
+                "logit_error": 0.14310166239738464,
+                "nll_error": 0.004120241727949114,
+                "routing": {
+                  "stable": false,
+                  "calls": 18,
+                  "first_change": {
+                    "call": 8,
+                    "original": {
+                      "router": "model.layers.0.mlp.gate",
+                      "experts": [
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ]
+                      ]
+                    },
+                    "rounded": {
+                      "router": "model.layers.0.mlp.gate",
+                      "experts": [
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          0,
+                          2
+                        ],
+                        [
+                          1,
+                          2
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          2,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          1,
+                          3
+                        ],
+                        [
+                          0,
+                          3
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "status": "refused"
+              }
+            ],
+            "max_logit_error": 0.04446244239807129,
+            "max_nll_error": 0.007477898583945652,
+            "logit_budget": 0.08892488479614258,
+            "nll_budget": 0.014955797167891305
+          }
+        }
+      }
+    },
+    "combined_calibration": {
+      "path": "iq1-pair-budget-proposal.json",
+      "sha256": "3f02ecd4eca94ebaadcd385d3453e7dad423102b769a1dee1fe661ec6c2258c3",
+      "families": [
+        "iq1-m",
+        "iq1-s",
+        "iq2-s",
+        "iq3-s",
+        "iq3-xxs",
+        "iq4-xs",
+        "q3-k",
+        "q5-0",
+        "q5-1"
+      ]
+    },
+    "end": 1792774437.837292,
+    "cgroup_memory_peak": "3263090688\n"
+  },
+  "source_pins": {
+    "scope": "Prospective HF-only IQ1 reference and dtype calibration; no candidate comparisons",
+    "files": {
+      "tests/block_fixture.py": "ce327e86c1941a36c120b43bd2241db958fc3abcf713b408009fd48c27f64a90",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/data/dtype_budget.json": "02236613dfac827534fb3345b20366cd51ef403197bb8dd5850011f54833bbd8",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/iq1.py": "b83b6877f24ae03ae360867241d1a76e9a93c57f263918889dbcd84dc7b3b6de",
+      "tests/iq1_grid.inc": "0abdd2b465e27139906b473737e3555dd9d098fc02a3b35a05908c0e09765f53",
+      "tests/iq2_s.py": "33ec93b0924f361f383448ee1948c405675a6a7e152c60db4ca4948b7f8e0fc1",
+      "tests/iq3_s.py": "8bdda3397dbc5bcdee2d659ef8b470284b428335190b8b016b60282a7c679cdc",
+      "tests/iq3_xxs.py": "dd2bcedae9101915bd803970527124d57d1d0b443123a4ae612780c69e3dc338",
+      "tests/iq4_xs.py": "bf1eba289873aa1d4db648ead4785912b563ab91c18b44454385a0459fa45fd9",
+      "tests/q3_k.py": "3ef1c122c816931e633c2aaf951993169bea917091f52c607c3079c5fddb1f2c",
+      "tests/q5_0.py": "2c81ff88abc9a6a844341da54d758c0786cf5370c8dfe4f1cf0d6f4f63da5ac6",
+      "tests/q5_1.py": "728d2f499ec3ee1d566b2ef9a99c964ba4b2565076f84fefbc8af86aed75015b",
+      "tests/raw_blocks.py": "22a133468e00be68e33de49a0257ea8b4ff076471aa5c35ebdf68ee84fad33dc",
+      "tests/roundtrip.py": "02764a658ceb48538d28daa159042b294623f348727fe8fe215b33fad136399b",
+      "tests/spec_decode.py": "09eaf4ee47040500bcbeebc763f1cd0fb00ed77f45815fb477ef7bc86c4d0e09",
+      "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+      "tools/calibrate_dtype.py": "26c3dc816e54ea2e815a9e97a25c3959211849004d9541ccdb6bff51af2b6b1f",
+      "tools/gen_baseline.py": "4c18e1307f295daaddb8b58f2e7490c5a9cb32c2c3e230da324593320b74da81",
+      "tools/gen_chat_baseline.py": "7316697c48833b87fd68db1d89bb60baae89b9c0e7bd743dd81132d967ce28e1"
+    },
+    "archive_sha256": "fd8c17f7cfb2dd352394014a8915dc95521ecf5191424915317787cbb3f8328f"
+  },
+  "local_execution_sha256": "57e17d12eede8df8be573814a873cba79bbf59e725720c865ca630f52b761f51"
+}

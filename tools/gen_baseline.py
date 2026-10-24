@@ -1005,6 +1005,13 @@ def gen_iq2_small(kind, output_dir=OUT_DIR):
     else:
         raise ValueError("unknown IQ2 small family: " + kind)
 
+def gen_iq1(output_dir=OUT_DIR):
+    from functools import partial
+    from iq1 import fixture
+    from spec_decode import IQ1_S, IQ1_M
+    for type_id, label in ((IQ1_S, "IQ1_S"), (IQ1_M, "IQ1_M")):
+        gen_block_family("iq1", label, partial(fixture, type_id), output_dir)
+
 
 def tiny_moe(seed=67890, config=None, vocab=257):
     """The tiny qwen3moe model of tests/moe.py, or one of `config`'s shapes over `vocab` tokens, as an HF Qwen3MoeForCausalLM holding the weights moe.tensors builds from `seed`; returns the model and those weights."""
@@ -1640,6 +1647,7 @@ FIXED_KINDS = {
     "iq2-xxs": "uses fixed synthetic raw blocks and one thread",
     "iq2-xs": "uses fixed synthetic raw blocks and one thread",
     "iq3-xxs": "uses fixed synthetic raw blocks and one thread",
+    "iq1": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
     "qwen35-mtp": "uses fixed synthetic weights and one thread",
@@ -1649,7 +1657,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1778,6 +1786,8 @@ def main(argv=None):
         gen_iq2_small(args.kind, args.output_dir)
     if args.kind == "iq3-xxs":
         gen_iq3_xxs(args.output_dir)
+    if args.kind == "iq1":
+        gen_iq1(args.output_dir)
     if args.kind == "tokenizer-qwen35":
         gen_tokenizer_qwen35(args.output_dir)
     if args.kind == "qwen35-tiny":

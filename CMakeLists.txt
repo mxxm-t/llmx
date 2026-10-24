@@ -84,16 +84,22 @@ if(LLMX_HAS_BACKEND_VULKAN)
         embed_mxfp4=embed=LLMX_MXFP4 matmul_tile_mxfp4=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_tile_mxfp4_bf16=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_BF16 matmul_reduce_mxfp4=matmul_reduce=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_tile_iq1_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ1+LLMX_IQ1_S+LLMX_PRESERVE_F32
+        matmul_tile_iq1_m_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ1+LLMX_IQ1_M+LLMX_PRESERVE_F32
         matmul_tile_iq2_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ2_S+LLMX_PRESERVE_F32
         matmul_tile_iq3_xxs_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ3_XXS+LLMX_PRESERVE_F32
         matmul_tile_iq2_xxs_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ2_SMALL+LLMX_IQ2_XXS+LLMX_PRESERVE_F32
         matmul_tile_iq2_xs_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ2_SMALL+LLMX_IQ2_XS+LLMX_PRESERVE_F32
+        matmul_row_iq1_s_dot=matmul_row=LLMX_IQ1+LLMX_IQ1_S+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_iq1_m_dot=matmul_row=LLMX_IQ1+LLMX_IQ1_M+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq2_s_dot=matmul_row=LLMX_IQ2_S+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq3_xxs_dot=matmul_row=LLMX_IQ3_XXS+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq2_xxs_dot=matmul_row=LLMX_IQ2_SMALL+LLMX_IQ2_XXS+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq2_xs_dot=matmul_row=LLMX_IQ2_SMALL+LLMX_IQ2_XS+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_tile_iq3_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ3_S+LLMX_PRESERVE_F32
         matmul_row_iq3_s_dot=matmul_row=LLMX_IQ3_S+LLMX_DOT+LLMX_PRESERVE_F32
+        matmul_row_iq1_s=matmul_row=LLMX_FLOAT_X+LLMX_IQ1+LLMX_IQ1_S
+        matmul_row_iq1_m=matmul_row=LLMX_FLOAT_X+LLMX_IQ1+LLMX_IQ1_M
         matmul_row_iq2_s=matmul_row=LLMX_FLOAT_X+LLMX_IQ2_S
         matmul_row_iq3_xxs=matmul_row=LLMX_FLOAT_X+LLMX_IQ3_XXS
         matmul_row_iq2_xxs=matmul_row=LLMX_FLOAT_X+LLMX_IQ2_SMALL+LLMX_IQ2_XXS
@@ -114,6 +120,16 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_iq3_xxs_bf16=matmul_tile=LLMX_IQ3_XXS+LLMX_BF16
         matmul_tile_iq2_xxs_bf16=matmul_tile=LLMX_IQ2_SMALL+LLMX_IQ2_XXS+LLMX_BF16
         matmul_tile_iq2_xs_bf16=matmul_tile=LLMX_IQ2_SMALL+LLMX_IQ2_XS+LLMX_BF16
+        matmul_row_iq1_s_preserve=matmul_row=LLMX_FLOAT_X+LLMX_IQ1+LLMX_IQ1_S+LLMX_PRESERVE_F32
+        matmul_row_iq1_m_preserve=matmul_row=LLMX_FLOAT_X+LLMX_IQ1+LLMX_IQ1_M+LLMX_PRESERVE_F32
+        matmul_tile_iq1_s=matmul_tile=LLMX_IQ1+LLMX_IQ1_S
+        matmul_tile_iq1_m=matmul_tile=LLMX_IQ1+LLMX_IQ1_M
+        matmul_tile_iq1_s_preserve=matmul_tile=LLMX_IQ1+LLMX_IQ1_S+LLMX_PRESERVE_F32
+        matmul_tile_iq1_m_preserve=matmul_tile=LLMX_IQ1+LLMX_IQ1_M+LLMX_PRESERVE_F32
+        matmul_tile_iq1_s_bf16=matmul_tile=LLMX_IQ1+LLMX_IQ1_S+LLMX_BF16
+        matmul_tile_iq1_m_bf16=matmul_tile=LLMX_IQ1+LLMX_IQ1_M+LLMX_BF16
+        matmul_tile_iq1_s_bf16_preserve=matmul_tile=LLMX_IQ1+LLMX_IQ1_S+LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_iq1_m_bf16_preserve=matmul_tile=LLMX_IQ1+LLMX_IQ1_M+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_iq2_s_bf16_preserve=matmul_tile=LLMX_IQ2_S+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_iq3_xxs_bf16_preserve=matmul_tile=LLMX_IQ3_XXS+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_iq2_xxs_bf16_preserve=matmul_tile=LLMX_IQ2_SMALL+LLMX_IQ2_XXS+LLMX_BF16+LLMX_PRESERVE_F32
@@ -249,7 +265,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
             COMMAND ${LLMX_GLSLC} -fshader-stage=compute --target-env=vulkan1.2 -O
                     -mfmt=num -I ${LLMX_VK_SHADER_DIR} ${define} -o ${spv} ${LLMX_VK_SHADER_DIR}/${source}.comp
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
-                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/iq3_s.glsl ${LLMX_VK_SHADER_DIR}/lookup_cache.glsl ${LLMX_VK_SHADER_DIR}/iq2_s.glsl ${LLMX_VK_SHADER_DIR}/iq2_dot.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs_dot.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
+                    ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/iq3_s.glsl ${LLMX_VK_SHADER_DIR}/lookup_cache.glsl ${LLMX_VK_SHADER_DIR}/iq1.glsl ${LLMX_VK_SHADER_DIR}/iq1_layout.glsl ${LLMX_VK_SHADER_DIR}/iq1_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_s.glsl ${LLMX_VK_SHADER_DIR}/iq2_dot.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs_dot.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
                     ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
                     ${LLMX_VK_SHADER_DIR}/k23_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_small.glsl ${LLMX_VK_SHADER_DIR}/iq2_layout.glsl
             COMMENT "glslc ${shader}"

@@ -16,6 +16,8 @@ Run once in the HF reference environment of tools/gen_baseline.py, then commit t
     python tools/calibrate_dtype.py --family iq2-xxs --output FILE
     python tools/calibrate_dtype.py --family iq2-xs --output FILE
     python tools/calibrate_dtype.py --family iq3-xxs --output FILE
+    python tools/calibrate_dtype.py --family iq1-s --output FILE
+    python tools/calibrate_dtype.py --family iq1-m --output FILE
 """
 
 import argparse
@@ -140,6 +142,9 @@ def family_models(family):
     from gen_baseline import tiny_block_model
     from block_fixture import VARIANTS, packed_hash
     from f32 import weight_hash
+    from functools import partial
+    from spec_decode import IQ1_S, IQ1_M
+    import iq1
     import q5_0
     import q5_1
     import q3_k
@@ -148,8 +153,11 @@ def family_models(family):
     import iq2_s
     import iq3_xxs
     import iq2_small
-    assert family in ("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs"), "unknown calibration family"
-    fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture, "q3-k": q3_k.fixture, "iq4-xs": iq4_xs.fixture, "iq3-s": iq3_s.fixture, "iq2-s": iq2_s.fixture, "iq2-xxs": iq2_small.fixture_xxs, "iq2-xs": iq2_small.fixture_xs, "iq3-xxs": iq3_xxs.fixture}[family]
+    assert family in ("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m"), "unknown calibration family"
+    fixture = {"q5-0": q5_0.fixture, "q5-1": q5_1.fixture, "q3-k": q3_k.fixture, "iq4-xs": iq4_xs.fixture,
+               "iq3-s": iq3_s.fixture, "iq2-s": iq2_s.fixture, "iq3-xxs": iq3_xxs.fixture,
+               "iq2-xxs": iq2_small.fixture_xxs, "iq2-xs": iq2_small.fixture_xs,
+               "iq1-s": partial(iq1.fixture, IQ1_S), "iq1-m": partial(iq1.fixture, IQ1_M)}[family]
     for split in (False, True):
         for name, tied, moe in VARIANTS:
             for seed in (12345,) + SEEDS:
@@ -205,7 +213,7 @@ def family_budget(family, torch, transformers):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--output", required=True, help="new result file; never overwrites a frozen budget")
-    parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs"), help="measure this raw-block fixture family; Q3_K measures BF16 only")
+    parser.add_argument("--family", choices=("q5-0", "q5-1", "q3-k", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1-s", "iq1-m"), help="measure this raw-block fixture family; Q3_K measures BF16 only")
     args = parser.parse_args(argv)
     import torch
     import transformers

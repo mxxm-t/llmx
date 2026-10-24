@@ -1,0 +1,39 @@
+{
+  "scope": "Eight-thread F32 helper build only; the first M/raw numerical capture remains active.",
+  "execution_sha256": "77559050643854a5666df759bed3194dccf24ee10a47c0f7e6bf1561b7039921",
+  "build_record_sha256": "9ea50b6d8d4a18bb8040873ae6792b65c8b1f823a02e177c5a15e70354ac0cb8",
+  "source_sha256": "0ceff80948b95e402940c8ebf374b8888adaea2cdfd8487d5a6612cb808ced22",
+  "binary_sha256": "bea3106b4b2b89ee2f2602376e79af338925bff0af757a571aa1345e2b68e90c",
+  "library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+  "compiler_commands": [
+    [
+      "/usr/bin/c++",
+      "-I/b/generated",
+      "-I/source/src",
+      "-O3",
+      "-DNDEBUG",
+      "-std=c++17",
+      "-mavx2",
+      "-mfma",
+      "-mf16c",
+      "-Wall",
+      "-Wextra",
+      "-Werror=unused-function",
+      "-Werror=unused-variable",
+      "-Werror=unused-but-set-variable",
+      "/bundle/quant-depth-cpu-probe.cpp",
+      "/b/libllmx-vulkan.a",
+      "-ldl",
+      "-o",
+      "/out/f32-probe"
+    ]
+  ],
+  "sole_probe_source_change": "model.set_threads(4) to model.set_threads(8); line endings normalized to LF",
+  "runtime_library_and_reference_policy_unchanged": true,
+  "passed_removed_exit_zero_non_oom": true,
+  "cpu_set": "0-5,14-15",
+  "capture_child_seconds": 3600,
+  "capture_outer_seconds": 3900,
+  "memory_cap_bytes": 10737418240,
+  "source_of_thread_witness": "Compare the retained 127 complete four-thread M/raw rows byte-for-byte with the eight-thread prefix, then apply the unchanged independent 512-position HF comparison."
+}

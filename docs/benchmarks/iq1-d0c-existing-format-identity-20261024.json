@@ -1,0 +1,241 @@
+{
+  "schema": "iq1-d0c-existing-format-identity-v1",
+  "date": "2026-10-24",
+  "scope": "Windows existing-format integration identity subset for the named binaries; not direct current-main qualification, HF, depth, split, full 11/19-format coverage or performance.",
+  "baseline_source": {
+    "base_commit": "58d505f3e698685669753b20ce1710795ec6fc44",
+    "iq1_carry_range": "ca4fd2e1a..7a1857899",
+    "source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "state": "Uncommitted staged IQ1-on-main58 integration; dirty banner does not identify pure main58.",
+    "build_receipt": {
+      "path": "build-quant-resume-20261020/iq1-main-windows-build-v1/result.json",
+      "sha256": "99b2f99cad811925d48998747820b83d90379ad1323fb35f56a4fd990d12c6ba"
+    }
+  },
+  "candidate_sources": {
+    "cpu": {
+      "feature_parent": "e8e1dacc817cb289e26510f06a851ad0f6159e42",
+      "main_parent": "d0c09440b745baec91c85dda646a7a3e240727ef",
+      "state": "Merge in progress and tracked-dirty at compilation; not pure feature parent."
+    },
+    "vulkan": {
+      "revision": "41e31ea5a0e67445e5f1fa79f79ac2d740c8caeb",
+      "state": "Fresh Windows Vulkan integration build."
+    }
+  },
+  "inputs": {
+    "prompt_sha256": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+    "prompt_source_sha256": "7a7a310054bbcd6e4a558adea4f06f007fc0cee80766b6edacd14542cecef15c",
+    "reported_dtype": "f16",
+    "cache": "f32",
+    "vocabulary": 151936,
+    "rows_per_model": {
+      "batched": 247,
+      "one_row": 247,
+      "greedy": 64
+    },
+    "metadata_exclusions": [
+      "version",
+      "numerics"
+    ]
+  },
+  "arms": {
+    "cpu": {
+      "main_cli": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-main-20261023\\build-main-vulkan\\Release\\llmx.exe",
+        "sha256": "4b29dfb151f4f9e545f6c48a01f5070e9b0da75b3f04557f0e1edcb40bde5d98",
+        "version": "llmx 0.1.0+g58d505f3e698.dirty numerics e3011170275b2364"
+      },
+      "cpu_cli": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-d0c-20261024\\build-integration\\Release\\llmx.exe",
+        "sha256": "0d64e13e1e86d5f771641363de1fd2d3fc4c50d03a11601f4973533a8da37706",
+        "version": "llmx 0.1.0+ge8e1dacc817c.dirty numerics 98bf6b691a333807"
+      }
+    },
+    "vulkan": {
+      "main_cli": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-main-20261023\\build-main-vulkan\\Release\\llmx.exe",
+        "sha256": "4b29dfb151f4f9e545f6c48a01f5070e9b0da75b3f04557f0e1edcb40bde5d98",
+        "version": "llmx 0.1.0+g58d505f3e698.dirty numerics e3011170275b2364"
+      },
+      "vk_cli": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-d0c-20261024\\build-vulkan-integration\\Release\\llmx.exe",
+        "sha256": "91496865c8ddfa3d45d2fc09d70fd5286bd7562f681eb35e05375ad9052bbba2",
+        "version": "llmx 0.1.0+g41e31ea5a0e6 numerics 98bf6b691a333807"
+      }
+    },
+    "helpers": {
+      "main_tool": "1d154ee361d6ab6ebb3744ed50bce485906245b042444469713458c3007f1944",
+      "cpu_tool": "e3734e2f9aad5cfe50cb377eef0d17ada30a2b959a4c78a18cda474a209f9e16",
+      "vk_tool": "af2d2c8fb62fbae17d687ce72e6452a076c47a748ead453a1a02cc694d83323f"
+    }
+  },
+  "results": {
+    "cpu": {
+      "models": [
+        "Q8_0",
+        "Q4_0",
+        "IQ4_NL",
+        "IQ4_XS",
+        "Q2_K",
+        "Q3_K_S"
+      ],
+      "model_count": 6,
+      "paired_full_vocabulary_rows": 3348,
+      "exact_raw_bytes": true,
+      "metadata_equal_excluding_named_fields": true,
+      "token_and_greedy_ids_equal": true,
+      "matrix_path_witnesses_equal": true,
+      "receipt": {
+        "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-cpu-retained-20261024/cpu-result.json",
+        "sha256": "a8c1310380f4d1b8941e68436bd3f5d3a8215817671f277e4233f620090423f9"
+      },
+      "observed_matrix_paths": {
+        "batched": [
+          "f32"
+        ],
+        "decode": [
+          "block-int16",
+          "f32"
+        ],
+        "greedy": [
+          "block-int16",
+          "f32"
+        ]
+      }
+    },
+    "vulkan": {
+      "models": [
+        "Q8_0",
+        "Q4_0",
+        "IQ4_NL",
+        "IQ4_XS",
+        "Q2_K",
+        "Q3_K_S",
+        "Q5_K_M",
+        "Q4_K_M"
+      ],
+      "model_count": 8,
+      "paired_full_vocabulary_rows": 4464,
+      "exact_raw_bytes": true,
+      "metadata_equal_excluding_named_fields": true,
+      "token_and_greedy_ids_equal": true,
+      "matrix_path_witnesses_equal": true,
+      "receipt": {
+        "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-local-20261024/vulkan-result.json",
+        "sha256": "ab40e3a90646d8eb2a637494f50268f21e9e1cbc5fef5950c250093a45fcbdfd"
+      },
+      "observed_matrix_paths": {
+        "batched": [
+          "f32"
+        ],
+        "decode": [
+          "block-int16",
+          "f32"
+        ],
+        "greedy": [
+          "block-int16",
+          "f32"
+        ]
+      }
+    }
+  },
+  "models": [
+    {
+      "name": "Q8_0",
+      "bytes": 639446688,
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    {
+      "name": "Q4_0",
+      "bytes": 382156480,
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb"
+    },
+    {
+      "name": "IQ4_NL",
+      "bytes": 381566656,
+      "sha256": "f1b14e28a6de64f21672ddf2c8f24736c389da4c64ebf024b1204f4f43a4fd71"
+    },
+    {
+      "name": "IQ4_XS",
+      "bytes": 367804096,
+      "sha256": "dacc1fe1dc6f4799f366ac3385299f71c7e02c58b8702448a174f14d91b1c64d"
+    },
+    {
+      "name": "Q2_K",
+      "bytes": 296238784,
+      "sha256": "26d035ea15c4a2853e8d20ffc56a76f6164e17dbb6c9e532c5766700c404519d"
+    },
+    {
+      "name": "Q3_K_S",
+      "bytes": 323075776,
+      "sha256": "1d61e10a443e3e335a979eecde30bab6c2489a1e876632e22e0695178d368b67"
+    },
+    {
+      "name": "Q5_K_M",
+      "bytes": 444415680,
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a"
+    },
+    {
+      "name": "Q4_K_M",
+      "bytes": 396705472,
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+    }
+  ],
+  "retention_incident": {
+    "original_cpu_live_comparisons": "Passed for six models, retained in original cpu-result.json.",
+    "raw_retention_failure": "Original CPU and Vulkan runs reused filenames; Vulkan overwrote original CPU raw captures. Those original CPU raw hashes are not treated as retained verification.",
+    "repair": "Separate CPU-only recapture retained raw files in its own directory; original receipts remain unchanged.",
+    "original_cpu_receipt": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-local-20261024/cpu-result.json",
+      "sha256": "da37bbf9682f412003717839199fc7db13e6adceef56c5130d7a177804c68f5a"
+    },
+    "repair_receipt": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-cpu-retained-20261024/cpu-result.json",
+      "sha256": "a8c1310380f4d1b8941e68436bd3f5d3a8215817671f277e4233f620090423f9"
+    }
+  },
+  "receipts": {
+    "vulkan": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-local-20261024/vulkan-result.json",
+      "sha256": "ab40e3a90646d8eb2a637494f50268f21e9e1cbc5fef5950c250093a45fcbdfd"
+    },
+    "vulkan_root_review": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-local-20261024/vulkan-root-review.json",
+      "sha256": "4e738861f6632de7339e71b58cc4b14dd27f0f9c69b13587beaddc2ebdab1588"
+    },
+    "source_review": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-local-20261024/baseline-source-review.json",
+      "sha256": "67defe9be2c10341f55a9c265daf0d36ecf3fa80826c7838dc25a9c20b2016d4"
+    },
+    "candidate_build_sources": {
+      "path": "worktrees/iq1-d0c-20261024/docs/benchmarks/iq1-d0c-native-20261024.json",
+      "sha256": "9de825fa41f5e96258908b0c03c69a1f0e02cf643375292981931ca6a5e0a058"
+    },
+    "candidate_vulkan_build": {
+      "path": "build-quant-resume-20261020/iq1-d0c-windows-vulkan-20261024/identity.json",
+      "sha256": "e8d05d862e57e61e6f9707101da7967a4b6cd957d6f2af26b4f16d319c6c43ee"
+    },
+    "original_incident": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-cpu-retained-20261024/original-incident.json",
+      "sha256": "604bde16da6eecd68ce9d90984d2feddeb9b3f97f6167473c1d56f1eee1e632e"
+    },
+    "cpu_root_review": {
+      "path": "build-quant-resume-20261020/iq1-original-existing-format-identity-cpu-retained-20261024/root-review.json",
+      "sha256": "1e86a17631480b429403a39c454e91745a91b61dd5211d2cd70dcbbd9150d9ab"
+    }
+  },
+  "checkpoint_checks": {
+    "components": [
+      "docs",
+      "dead-code"
+    ],
+    "status": "passed",
+    "log_path": "build-quant-resume-20261020/iq1-existing-identity-doc-review-20261024/docs-dead.log",
+    "log_sha256": "fbdb31e97906185672274942214c7a607c32e9718169a3f2dae5cfd8060c128b",
+    "markdown_pages": 131,
+    "changed_markdown": [
+      "docs/STATUS.md"
+    ]
+  }
+}

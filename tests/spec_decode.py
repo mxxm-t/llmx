@@ -10,6 +10,8 @@ The pure form needs only the standard library; numpy is imported when present an
 
 import math
 import struct
+from functools import lru_cache
+from pathlib import Path
 
 try:
     import numpy as np
@@ -20,6 +22,7 @@ F32, F16, Q4_0, Q4_1, Q8_0, Q2_K, Q3_K, Q4_K, Q5_K, Q6_K, IQ4_NL, IQ4_XS, BF16, 
 Q5_0, Q5_1, IQ3_S, IQ2_S = 6, 7, 21, 22
 IQ2_XXS, IQ2_XS = 16, 17
 IQ3_XXS = 18
+IQ1_S, IQ1_M = 19, 29
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -40,6 +43,8 @@ TYPES = {
     IQ3_S: ("IQ3_S", 256, 110),
     IQ3_XXS: ("IQ3_XXS", 256, 98),
     IQ2_S: ("IQ2_S", 256, 82),
+    IQ1_S: ("IQ1_S", 256, 50),
+    IQ1_M: ("IQ1_M", 256, 56),
     IQ4_NL: ("IQ4_NL", 32, 18),
     IQ4_XS: ("IQ4_XS", 256, 136),
     BF16: ("BF16", 1, 2),
@@ -633,9 +638,44 @@ def iq2_s(block):
     return out
 
 
+@lru_cache(maxsize=1)
+def iq1_grid():
+    """Independent base-three fixture shared with the native format test, loaded only for IQ1."""
+    codes = [int(v) for v in Path(__file__).with_name("iq1_grid.inc").read_text(encoding="ascii").split(",") if v.strip()]
+    if len(codes) != 2048 or any(v < 0 or v >= 3 ** 8 for v in codes):
+        raise ValueError("invalid IQ1 dictionary fixture")
+    return tuple(tuple(code // 3 ** lane % 3 - 1 for lane in range(8)) for code in codes)
+
+
+def iq1_s(block):
+    d, grid, out = f16(block, 0), iq1_grid(), []
+    for group in range(8):
+        control = int.from_bytes(block[34 + 2 * group:36 + 2 * group], "little")
+        scale = 2 * ((control >> 12) & 7) + 1
+        shift = -0.125 if control & 32768 else 0.125
+        for vector in range(4):
+            index = block[2 + 4 * group + vector] + 256 * ((control >> (3 * vector)) & 7)
+            out.extend((d * scale) * (value + shift) for value in grid[index])
+    return out
+
+
+def iq1_m(block):
+    words = struct.unpack("<4H", bytes(block[48:56]))
+    bits = sum((word >> 12) << (4 * i) for i, word in enumerate(words))
+    d, grid, out = struct.unpack("<e", struct.pack("<H", bits))[0], iq1_grid(), []
+    for vector in range(32):
+        fields = (block[32 + vector // 2] >> (4 * (vector % 2))) & 15
+        index = block[vector] + 256 * (fields & 7)
+        scale = 2 * ((words[vector // 8] >> (3 * ((vector // 2) % 4))) & 7) + 1
+        shift = -0.125 if fields & 8 else 0.125
+        out.extend((d * scale) * (value + shift) for value in grid[index])
+    return out
+
+
 PURE = {
     F32: lambda block: [struct.unpack("<f", bytes(block))[0]],
     F16: lambda block: [f16(block, 0)],
+    IQ1_S: iq1_s, IQ1_M: iq1_m,
     BF16: lambda block: [bf16(block, 0)],
     Q8_0: q8_0, Q4_0: q4_0, Q4_1: q4_1, Q5_0: q5_0, Q5_1: q5_1, Q4_K: q4_k, Q5_K: q5_k, Q6_K: q6_k,
     Q2_K: q2_k, Q3_K: q3_k, IQ3_S: iq3_s, IQ2_S: iq2_s, IQ2_XXS: iq2_xxs, IQ2_XS: iq2_xs, IQ3_XXS: iq3_xxs, IQ4_NL: iq4_nl, IQ4_XS: iq4_xs, MXFP4: mxfp4,
@@ -869,8 +909,31 @@ def _np_iq2_s(a):
     return np.where(signs != 0, -values, values)
 
 
+def _np_iq1_s(a):
+    controls = np.ascontiguousarray(a[:, 34:50]).view("<u2")
+    high = np.stack([(controls[:, g // 4] >> (3 * (g % 4))) & 7 for g in range(32)], axis=1)
+    indices = a[:, 2:34].astype(np.uint16) + 256 * high
+    values = np.asarray(iq1_grid(), dtype=np.float32)[indices].reshape(-1, 256)
+    scales = (2 * ((controls >> 12) & 7) + 1).astype(np.float32)
+    shifts = np.where(controls & 32768, np.float32(-0.125), np.float32(0.125))
+    return np.repeat(_half(a, 0) * scales, 32, axis=1) * (values + np.repeat(shifts, 32, axis=1))
+
+
+def _np_iq1_m(a):
+    words = np.ascontiguousarray(a[:, 48:56]).view("<u2")
+    bits = sum((words[:, i] >> 12) << (4 * i) for i in range(4)).astype("<u2")
+    d = bits.view("<f2").astype(np.float32)[:, None]
+    fields = np.stack([(a[:, 32 + g // 2] >> (4 * (g % 2))) & 15 for g in range(32)], axis=1)
+    indices = a[:, :32].astype(np.uint16) + 256 * (fields & 7).astype(np.uint16)
+    values = np.asarray(iq1_grid(), dtype=np.float32)[indices].reshape(-1, 256)
+    scales = np.stack([2 * ((words[:, g // 4] >> (3 * (g % 4))) & 7) + 1 for g in range(16)], axis=1).astype(np.float32)
+    shifts = np.where(fields & 8, np.float32(-0.125), np.float32(0.125))
+    return np.repeat(d * scales, 16, axis=1) * (values + np.repeat(shifts, 8, axis=1))
+
+
 NUMPY = {
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
+    IQ1_S: _np_iq1_s, IQ1_M: _np_iq1_m,
     Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q5_0: _np_q5_0, Q5_1: _np_q5_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
     Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ2_XXS: _np_iq2_xxs, IQ2_XS: _np_iq2_xs, IQ3_XXS: _np_iq3_xxs, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
 }

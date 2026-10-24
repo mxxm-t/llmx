@@ -1,0 +1,71 @@
+{
+  "scope": "Existing synthetic F32 HTTP/CLI integration and updated health contract only. Not a full server, quant HF, split or performance gate.",
+  "original_receipt": {
+    "scope": "Existing synthetic F32 HTTP/CLI integration and updated health contract only. Not a full server, quant HF, split or performance gate.",
+    "started": "2026-10-24T07:29:24.247050+00:00",
+    "feature": "iq1",
+    "head": "e054989586b8d0db148f979737f50538cd3e3769",
+    "binary": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\iq1-d0c-20261024\\build-integration\\Release\\llmx.exe",
+    "binary_sha256": "0d64e13e1e86d5f771641363de1fd2d3fc4c50d03a11601f4973533a8da37706",
+    "version": "llmx 0.1.0+ge8e1dacc817c.dirty numerics 98bf6b691a333807",
+    "source_sha256": {
+      "server.py": "785e4fc3661b7bfdba94846ecba4fcdd6d5000b365a469a8ff1e289aedaad93f",
+      "common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c"
+    },
+    "runner_sha256": "d0da61e05d790bde801a0eda854557cdd8da65e3320205f7cf43d22ac23815e0",
+    "passed": true,
+    "model_sha256": "07f6f1287687a8a3630f818ec8659a338198d63bc0d9feb20899f4b6114e10f8",
+    "prompts_checked": 4,
+    "elapsed_seconds": 1.2030000002123415
+  },
+  "receipt_path": "build-quant-resume-20261020/iq1-d0c-http-20261024/result.json",
+  "receipt_sha256": "95eda2ba8fea04242a49a45cbb3fe9eaa62198b1c3fc8a152667045d5e0e0cf6",
+  "build_evidence_path": "iq1-d0c-native-20261024.json",
+  "build_evidence_sha256": "9de825fa41f5e96258908b0c03c69a1f0e02cf643375292981931ca6a5e0a058",
+  "binary_validation": "Actual binary SHA and version equal the existing fresh Windows CPU integration build receipt; documentation HEAD does not relabel the build.",
+  "test_owner": "tests/server.py:check_server",
+  "arguments": {
+    "prompts": [
+      "a",
+      "ab",
+      "abc",
+      "abcdefg"
+    ],
+    "max_tokens": 6,
+    "cancel_request_max_tokens": 14,
+    "chat": false,
+    "prefix": null,
+    "threads": 2,
+    "fixture": "tests/f32.py:tensors(True)"
+  },
+  "covered": [
+    "Single-CPU synthetic F32 model HTTP/CLI greedy token identity for four prompts, alone and concurrent",
+    "Native generate stream IDs and end markers, compatible completions response/stream/usage/timing shape",
+    "Repeated seeded sampling identity and accepted/refused sampling, body, range and context requests",
+    "Tokenize/detokenize against CLI, including Unicode/special-token texts and malformed/oversized requests",
+    "Health/live/models, precision/topology/pacing field schema, request/work counters and unchanged idle snapshot",
+    "Client leaving mid-stream reaches no active/live requests; owned test server closed by existing finally"
+  ],
+  "not_covered": [
+    "Full tests/server.py run and other server check functions",
+    "Chat-template/chat route branches (chat=False)",
+    "Prefix reuse branch (prefix=None)",
+    "Lookup-table execution or split topology/pacing paths; this fixture is single CPU",
+    "Quant-family or released-file HF correctness,16K depth,device execution,performance"
+  ],
+  "retained_artifacts_sha256": {
+    "result.json": "95eda2ba8fea04242a49a45cbb3fe9eaa62198b1c3fc8a152667045d5e0e0cf6",
+    "server-25160.log": "49f3d264e82a15ae7bf3b922dbbd7853047f34a9fdb7a72fcaf55696ef4909dd",
+    "tiny-f32.gguf": "07f6f1287687a8a3630f818ec8659a338198d63bc0d9feb20899f4b6114e10f8"
+  },
+  "docs_review": {
+    "feature": "iq1",
+    "exit": 0,
+    "log": "build-quant-resume-20261020/iq1-d0c-http-doc-checks-20261024.log",
+    "log_sha256": "46c194cef9a1ebe8eb7776a57b951f6a2882267ad7a4bafc570de5a05e72c51f",
+    "markdown_pages": 131,
+    "unchanged_markdown": 130,
+    "inventory_sha256": "dd913f9c3ee875c65716b216b85803d61f07b49a7993d3c71a20216e6ddd0895"
+  }
+}

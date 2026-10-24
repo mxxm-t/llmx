@@ -1,0 +1,214 @@
+{
+  "schema": "iq1-current-main-existing-format-identity-carry-v1",
+  "date": "2026-10-24",
+  "conclusion": "SUPPORTED artifact/evidence carry for the original helper-based11CPU/19Vulkan full-logit and64greedy identity scope; not a fresh inference recapture and not inferred from tokenization alone.",
+  "current_provenance": {
+    "published_main_commit": "58d505f3e698685669753b20ce1710795ec6fc44",
+    "baseline_alias": "Existing archive tree916c build retained as its original provenance;401/401 selected non-document archive inputs equal publishedmain58.",
+    "candidate_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+    "arms": {
+      "base": {
+        "original_tested_revision": "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+        "current_archive_tree": "916c45408c5430b29f2d64482059626bb554650d",
+        "current_version": "llmx 0.1.0+unknown numerics 1c2f3e76a1a96f1f",
+        "original_cli_sha256": "166c219585c2025d9dd4c6e586f572394ef0a5834f465034b373c2969602119e",
+        "current_cli_sha256": "c3db2daa917a4361fb6da4833ee84286f7e40df122ada535508773d6af5107f6",
+        "identical_capture_helper_sha256": "0dd5d7a70cf30447c6af8626b53ad359bde3662da54af822848f53ed1b6fe00f",
+        "identical_vulkan_library_sha256": "8fdfe267461948d9556827b6f3e7ee295888b599dc7f93027d913ef9590f9bf6",
+        "identical_generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "identical_build_info_sha256": "c54c0a19785f0d0aa0dfa54c5f7c088d638562b7787b70b0cfd494789ed96be3",
+        "helper_binary_equality_verified": true,
+        "library_binary_equality_verified": true,
+        "raw_helper_flags_file_equal": true
+      },
+      "candidate": {
+        "original_tested_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+        "current_archive_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+        "current_version": "llmx 0.1.0+unknown numerics e3011170275b2364",
+        "original_cli_sha256": "166dd7a9d4ab1ccb9a2e94e5a9666cc6001918ab999c1d1c2666ea20c6d0f8d8",
+        "current_cli_sha256": "340a5c2f629d11ed975a1f8de1973fa6a4066c17ea1e74c039e20743059632ca",
+        "identical_capture_helper_sha256": "3146871679f4a1c918c09e1a01f9a97d391ea48e88d42e21444b5e3b3b12c670",
+        "identical_vulkan_library_sha256": "4558721999a083e7ca2c3029ed30160c5c3dd13cfef59172bd7038d754bd720f",
+        "identical_generated_config_sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "identical_build_info_sha256": "e4964475505d413254056da9c863a8e60cf63571acb9afec20a6108a54447693",
+        "helper_binary_equality_verified": true,
+        "library_binary_equality_verified": true,
+        "raw_helper_flags_file_equal": false
+      }
+    }
+  },
+  "supported_workload": {
+    "cpu_models": 11,
+    "vulkan_models": 19,
+    "each_arm_each_fixture": [
+      "Exact serialized prompt token IDs",
+      "Full-vocabulary F32 batched captures for every retained prompt token",
+      "Full-vocabulary F32 per-token decode captures for every retained prompt token",
+      "64greedy token IDs and full-vocabulary greedy captures"
+    ],
+    "helper_arguments": [
+      "MODEL",
+      "IDS",
+      "OUTPUT_PREFIX",
+      "cpu or vulkan:0",
+      "f32 KV",
+      "ubatch512",
+      "cpu_experts0"
+    ],
+    "helper_cpu_threads": 6,
+    "effective_policy": "Auto-selected F16 metadata on both devices; actual matrix paths remain the original per-case witness. F32KV is distinct from F32 arithmetic.",
+    "tested_identity_is_helper_entrypoint": true,
+    "capture_phase_records_cross_checked": 180
+  },
+  "proof_chain": [
+    {
+      "step": "Original actual inference identity",
+      "proof": "Retained result/execution hashes verified; both runs complete, all30cases pass, exit0/removed/noOOM. Each original consumer hashes every binary32 capture and requires arm equality; audit rechecks case order/model hashes, capture sizes, metadata, reports, greedy length and180phase records.",
+      "records": {
+        "cpu": {
+          "cases": 11,
+          "result_sha256": "3dd0300c2e0160901affa9f9867ea7dd5f587dd2705ec076a0ef61d9f0fb4da4",
+          "execution_sha256": "5e4f08feb8046a96ddc4d476b84c3e0ce883f6caeeb92475074e85edcd3376dd",
+          "source_pins_sha256": "4e06099fa0f3657634e1611456430af0983ee051b85af6c6a0b7130f4b9e1394",
+          "passed_exit0_removed_no_oom": true,
+          "capture_phases_per_arm": [
+            "batched",
+            "decode",
+            "greedy64"
+          ],
+          "fixture_manifest_sha256": "aa65cc358dad1993f8058816c505e6680b8480ab9d704ea88a3d1f80bada9dfd"
+        },
+        "vulkan": {
+          "cases": 19,
+          "result_sha256": "6886bcc3f197ff6d3e3c87d58260082853a774aa2d240e4870b7b12ec45cdd38",
+          "execution_sha256": "218346f496592fa9dd7f85b81efb6a04216ffe4633c784dae57ff2e8b15df735",
+          "source_pins_sha256": "4e06099fa0f3657634e1611456430af0983ee051b85af6c6a0b7130f4b9e1394",
+          "passed_exit0_removed_no_oom": true,
+          "capture_phases_per_arm": [
+            "batched",
+            "decode",
+            "greedy64"
+          ],
+          "fixture_manifest_sha256": "2823e4de6a06f1d32008b2700935da5c3afbe8e4e4fd68af4ffe5680d6042d46"
+        }
+      }
+    },
+    {
+      "step": "Exact executables and arithmetic implementation",
+      "proof": "Both current llmx-model-logits binaries and corresponding Vulkan static libraries are byte-identical to original tested arm. Generated config and per-arm build-info bytes also match. This closes inference/codegen/shader identity independently of changed product CLI hashes."
+    },
+    {
+      "step": "Source/config closure",
+      "proof": "Normalized Git-archive input audit across401base/413candidate files: all59base/61candidate literal include closure files rooted at tools/model_logits.cpp unchanged. No server headers in either closure; no unresolved literal includes besides separately pinned generated configuration/build-info. Differences are only listed server/cache/test/tool paths. Vulkan library equality closes its embedded shader/compiler outputs.",
+      "audits": {
+        "main": {
+          "original_revision": "5b5ea1b187a1823bb24a05c41e3eb50fe664fbf6",
+          "current_revision": "916c45408c5430b29f2d64482059626bb554650d",
+          "non_document_input_count": 401,
+          "different_paths": [
+            "src/server/api.hpp",
+            "src/server/cache.hpp",
+            "src/server/disk_tier.hpp",
+            "src/server/policy.hpp",
+            "src/server/scheduler.hpp",
+            "tests/cache_scenario.cpp",
+            "tests/iq2_small.cpp",
+            "tests/server_passes.cpp",
+            "tests/server_passes_cpu.cpp",
+            "tests/server_resume.cpp",
+            "tools/cache_turns.py"
+          ],
+          "capture_TU_literal_include_closure_files": 59,
+          "capture_closure_unchanged_after_archive_LF_normalization": true,
+          "capture_closure_contains_server_files": false,
+          "generated_config_and_build_info_exact_sha": true,
+          "unresolved_literal_includes": []
+        },
+        "candidate": {
+          "original_revision": "10ac84660c3481839358fc07f1b77c31b5bb60a9",
+          "current_revision": "fc6ee3b558c38c364829147da66ac014f040459b",
+          "non_document_input_count": 413,
+          "different_paths": [
+            "src/server/api.hpp",
+            "src/server/cache.hpp",
+            "src/server/disk_tier.hpp",
+            "src/server/policy.hpp",
+            "src/server/scheduler.hpp",
+            "tests/cache_scenario.cpp",
+            "tests/server_passes.cpp",
+            "tests/server_passes_cpu.cpp",
+            "tests/server_resume.cpp",
+            "tools/cache_turns.py"
+          ],
+          "capture_TU_literal_include_closure_files": 61,
+          "capture_closure_unchanged_after_archive_LF_normalization": true,
+          "capture_closure_contains_server_files": false,
+          "generated_config_and_build_info_exact_sha": true,
+          "unresolved_literal_includes": []
+        }
+      }
+    },
+    {
+      "step": "Changed CLI input bridge",
+      "proof": "Both current CLI versions and hashes validated before/after;38tokenize calls across19samefixtures match original stdout hashes, token counts and serialized ID hashes exactly. Models rehashed before/after; exact prompt bytes match original consumer. CPU11fixture set is a verified subset. This closes only the changed version/tokenization input edge, not inference by itself.",
+      "bridge_result_sha256": "c66091695d7f400f7c9452129788a7a92c3466c7d2c28222a35e246dbba7dc58",
+      "bridge_execution_sha256": "ae04f5443f717fb57eb512118a3ed08cd27651e86ceb4470d68ad8311a71ec98",
+      "cases": 19,
+      "tokenize_calls": 38,
+      "passed_exit0_removed_no_oom": true
+    },
+    {
+      "step": "Actual current deployment integrity",
+      "proof": "Completed final66call timing launcher invokes its pinned controls.verify before/after. That verifier checks both full source manifests, protected build artifacts including helpers/config/library, and all compiled shaders; launch passed/removed/exit0/noOOM. Current candidate server bridge independently rechecks same build receipt and all protected artifacts. No new rig read or inference was run by this audit."
+    }
+  ],
+  "consumer_closure": {
+    "cpu_v2_sha256": "911f4a978f2f2ad8e2a34ef3edb8ffa7003b24abd0641e2ed28e4e04c710566e",
+    "vulkan_v1_sha256": "bd9d6c809d0f79cddf7a29bcf43a5ce84435d885f2e7526bc086d35439c9e4a3",
+    "only_consumer_difference": "CPU v1 wrongly expected reportedF32 policy; v2 changes exactly that assertion toF16. Vulkan branch expectation and all commands/capture comparison logic unchanged.",
+    "actual_capture_executable": "llmx-model-logits for batched, decode AND greedy; CLI only version/tokenize.",
+    "fixture_and_prompt_consumer_dependencies": "Candidate baseline_perplexity text and common.parse_ids; exact prompt/serializedIDs/currentCLIstdout equality verified by bridge. Goldens are not used to generate runtime capture weights."
+  },
+  "build_environment": {
+    "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "platform_scope": "Retained LinuxCPU and MI50 Vulkan rig environment; no cross-platform carry.",
+    "vulkan_device_scope": "Original renderD130 / PCI0000:c9:00.0; corresponding current rig/image retained.",
+    "flags_note": "Base raw helper flags file matches. Candidate raw flags-file hash changed across build paths; no false raw-flag-file equality claim. Identical helper machine bytes, library,config andbuild-info provide the executable equivalence proof."
+  },
+  "limitations": [
+    "This is evidence carry of historical full inference identity for the exact helper workload, not newly measured11/19inference runs.",
+    "No remaining closure gap identified for that narrow original helper-based scope.",
+    "Current llmx product CLI hashes differ; full CLI generate/logits execution across all legacy fixtures is not implied by helper equality or tokenizer bridge.",
+    "No server/API/cache/scheduler qualification: these contain the changed source paths and have separate evidence.",
+    "No IQ1 new-format HF/depth, split, model quality, different dtype/KV/ubatch/expert setting, different host/driver, timing or final landing claim.",
+    "Original large raw capture payloads were not reread during this low-overhead audit; original tested consumer computed and compared their hashes, and pinned result/execution manifests remain verified.",
+    "Existing docs iq1-main-identity record remains tokenization-only until root explicitly incorporates this reviewed carry record."
+  ],
+  "evidence_sha256": {
+    "build-quant-resume-20261020/iq1-parent-identity-carry-review-v1.json": "f5a3b2ed497eb323b32868a70ed423e2f62a78a80a7e04f0fe053707092c493f",
+    "build-quant-resume-20261020/iq1-parent-identity-carry-audit-components-v1.json": "19149ce074e9e6fc0fe137410f861d306a7580128bc283fa4d5901a6327acdea",
+    "build-quant-resume-20261020/iq1-parent-identity-prep-v1/identity-consumer.py": "bd9d6c809d0f79cddf7a29bcf43a5ce84435d885f2e7526bc086d35439c9e4a3",
+    "build-quant-resume-20261020/iq1-parent-identity-prep-v2/identity-consumer.py": "911f4a978f2f2ad8e2a34ef3edb8ffa7003b24abd0641e2ed28e4e04c710566e",
+    "build-quant-resume-20261020/iq1-parent-identity-prep-v2/source-pins.json": "4e06099fa0f3657634e1611456430af0983ee051b85af6c6a0b7130f4b9e1394",
+    "build-quant-resume-20261020/iq1-parent-identity-prep-v2/fixtures-cpu.json": "aa65cc358dad1993f8058816c505e6680b8480ab9d704ea88a3d1f80bada9dfd",
+    "build-quant-resume-20261020/iq1-parent-identity-prep-v2/fixtures-vulkan.json": "2823e4de6a06f1d32008b2700935da5c3afbe8e4e4fd68af4ffe5680d6042d46",
+    "build-quant-resume-20261020/iq1-parent-identity-results/cpu/execution.json": "5e4f08feb8046a96ddc4d476b84c3e0ce883f6caeeb92475074e85edcd3376dd",
+    "build-quant-resume-20261020/iq1-parent-identity-results/cpu/result.json": "3dd0300c2e0160901affa9f9867ea7dd5f587dd2705ec076a0ef61d9f0fb4da4",
+    "build-quant-resume-20261020/iq1-parent-identity-results/vulkan/execution.json": "218346f496592fa9dd7f85b81efb6a04216ffe4633c784dae57ff2e8b15df735",
+    "build-quant-resume-20261020/iq1-parent-identity-results/vulkan/result.json": "6886bcc3f197ff6d3e3c87d58260082853a774aa2d240e4870b7b12ec45cdd38",
+    "build-quant-resume-20261020/iq1-parent-identity-carry-bridge-v4/bridge-pins.json": "054d05097c1c30990c5b2ea1b6d0f71e7f1e8d4c3a791372290e5f7bedd89573",
+    "build-quant-resume-20261020/iq1-parent-identity-carry-bridge-v4/payload.py": "1503b12b9665f69d81c8e77cf19703e87b5a38da8fd32ff7c1b8a87fe11d5d38",
+    "build-quant-resume-20261020/iq1-parent-identity-carry-bridge-v4-collected/execution.json": "ae04f5443f717fb57eb512118a3ed08cd27651e86ceb4470d68ad8311a71ec98",
+    "build-quant-resume-20261020/iq1-parent-identity-carry-bridge-v4-collected/results/result.json": "c66091695d7f400f7c9452129788a7a92c3466c7d2c28222a35e246dbba7dc58",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/base-build-execution.json": "f9f667ad7fbc5025652edc95ce48b842f5ddaaaa8f2aac9c515320461584567c",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/candidate-build-execution.json": "98ec270535267e646027304c5969cb73ddca040c94675ccc3154000adc0d7eff",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/baseline-alias-proof.json": "1e8c4e7ba0f4863f5288930ea51246a71a127fa2b205f2e4d9f3d18391a3e671",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/controls.py": "9e6e36fc6a37c246e082e8cf5a1b83667f98422d4aa208193b4ef3936b9f5716",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/run-performance.py": "59e4bb6ecb02c4e3304a12b461e8931182298ff6a0344e892897a21b9f37ffbb",
+    "build-quant-resume-20261020/iq1-main-final-timing-collected-20261024/launch-result.json": "8400f140ce3b9662234bbc5e7390b2020ea964d32e826188205c0f6d3597f764",
+    "build-quant-resume-20261020/iq1-current-main-server-bridge-collected-v1/execution.json": "f3362d9ed69dcac1d6afe0c7736c65b674344fe8b744a37455ab23836701812b",
+    "build-quant-resume-20261020/iq1-current-main-server-bridge-prep-v1/run-rig.py": "c4647a77d19c69fac219aba1de11b8ddd9f2deda799bb6b5b8b35e517b6d0998",
+    "build-quant-resume-20261020/iq1-current-main-server-bridge-prep-v1/bundle-pins.json": "247c9f62aa7c3d98ad4988223fc12efdac2d4a7dc1ff95bec17154f16f2b3db3"
+  },
+  "audit_actions": "Local metadata/source Git-object reads only; scratchJSON writes only; no tests, rig actions or docs edits."
+}

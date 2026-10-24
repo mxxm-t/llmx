@@ -1,0 +1,68 @@
+{
+  "scope": "Read-only source allocation analysis, not an observed crash stack or numerical verdict.",
+  "pre_existing_owner": [
+    {
+      "path": "src/backends/kv_storage.hpp",
+      "main_commit": "58d505f3e698685669753b20ce1710795ec6fc44",
+      "frozen_runtime_source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+      "git_bytes_identical": true,
+      "sha256_git_LF_bytes": "70b19853863471b5133b4214dc169b64f6b33e0488e95d0f020477b2cc15649a",
+      "git_blob": "d210e12b267aa3e96587058e006cc6e45061edc0"
+    },
+    {
+      "path": "src/backends/cpu/cpu_backend.hpp",
+      "main_commit": "58d505f3e698685669753b20ce1710795ec6fc44",
+      "frozen_runtime_source_tree": "fc6ee3b558c38c364829147da66ac014f040459b",
+      "git_bytes_identical": true,
+      "sha256_git_LF_bytes": "79ae8f5cbf0218b879b3c5109297365e5cb90f8a871f5a7110569ba114be5d4a",
+      "git_blob": "a44e44de0987d957fa0fb616e58428aad9682aaa"
+    }
+  ],
+  "shape": {
+    "layers": 28,
+    "kv_heads": 8,
+    "head_dim": 128,
+    "sides": 2,
+    "bytes_per_F32_element": 4,
+    "block_tokens": 128,
+    "budget_tokens": 17024
+  },
+  "KV_growth": {
+    "bytes_per_token": 229376,
+    "backed_16384_GiB": 3.5,
+    "new_17024_GiB": 3.63671875,
+    "simultaneous_KV_only_GiB": 7.13671875,
+    "prior_8192_to_16384_KV_only_GiB": 5.25,
+    "owner": "src/backends/kv_storage.hpp:50-87",
+    "mechanism": "Allocate and copy all new layer K/V buffers while all old buffers stay alive; publish/release only after every layer succeeds. CpuBuffer zero-initializes vector-backed allocation.",
+    "reachable_boundary": "First appended token after16384 enters block128 and grows128->133 blocks. options.kv_backed defaultsfalse.",
+    "causality_limit": "Exceeds old6GiB cap independently of scratch if reached. Consistent with observed rise, but no flushed token/stage marker or stack establishes the failed v1 position."
+  },
+  "other_owners": [
+    {
+      "source": "src/backends/cpu/cpu_backend.hpp:852",
+      "bound": "Attention score buffer n_head*sequence floats shared across heads, reused per query, not per-thread quadratic history. At16heads and16895tokens about1.031MiB logical size; std::vector capacity can retain growth slack."
+    },
+    {
+      "source": "src/backends/cpu/cpu_backend.hpp:437-444,522",
+      "bound": "Prompt dequant scratch4*nin floats per worker; at maxnin3072,48KiB/thread (96KiB for2threads). No whole-model dequant cache."
+    },
+    {
+      "source": "src/backends/cpu/cpu_backend.hpp:2441-2451",
+      "bound": "Fallback local one-row dequant vector nin floats, released each dot; applies to generic decode. No retained per-row model cache."
+    },
+    {
+      "source": "src/model/passes.hpp:600-690; src/model/runtime.hpp:870",
+      "bound": "Prefill arena512rows and one output-logit row; remains reused. Qwen slot widths for E1024,Q2048,KV1024,FF3072 sum17408 floats/row =>34MiB arena, no16384*vocab allocation. One151936-vocab F32 logits row about0.58MiB."
+    },
+    {
+      "source": "src/backends/cpu/cpu_backend.hpp:1954-1959,1993",
+      "bound": "ExplicitF32 bypasses BF16 dtype scratch and block-int16 activation packing. Q5_K F32 head uses fused row dot, not full matrix expansion."
+    }
+  ],
+  "minimal_next_diagnostic_if_retry_fails": "Do not modify current retry. In a fresh isolated probe only, flush stderr markers before/after prefill and each forced step with scored position, Model::kv_allocated_bytes()/kv_peak_bytes(); retain existing cgroup memory.current/peak/events and add memory.stat anon/file categories. Peak accounting updates only after successful growth, so a killed growth may never publish its modeled peak. No runtime flag or arithmetic change required.",
+  "current_retry": "Parent reports4threads/10GiB active; no prediction of completion from allocation bound alone.",
+  "checkpoint_parent": "55b9e2d1d4c3ea5997ae47f0a64e13fe8e74118e",
+  "prior_failure_execution_sha256": "404f4aefaf0ead95a2daf6b465966937ef9356af3a7a3a1cf5d7836b5c330cf4",
+  "qualification": "Source-derived memory requirement only. The bounded 10 GiB CPU retry is running; no CPU depth pass or exact v1 crash location is inferred."
+}

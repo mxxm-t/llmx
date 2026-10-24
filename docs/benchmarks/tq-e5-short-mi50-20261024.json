@@ -1,0 +1,429 @@
+{
+  "date": "2026-10-24",
+  "scope": "Four released file-exact short checks on MI50 Vulkan: TQ1_0 and TQ2_0, each against its independently produced F32-matrix/F32-KV reference and its independently produced F32-matrix/F16-KV reference. No depth, split, performance, default qualification, or HF-generation claim.",
+  "status": "passed",
+  "receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-e5-short-mi50-prep-20261024\\results\\receipt.json",
+    "sha256": "14e3340940a120a56258563127dde58937f099a2df9340cf91eaf92708fd339a"
+  },
+  "plan_pin": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-e5-short-mi50-prep-20261024\\plan.json",
+    "sha256": "8444eaa730e38c05b0e2a1fb66365d715d72c31e9a5fbb81f08df54b6448aab6"
+  },
+  "candidate": {
+    "binary": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/packed-module-v1/candidate/build/llmx",
+    "sha256": "f30572ae4bd3baf95a925cb428c59e4c4373793df8c61746018cf62725bea824",
+    "version": "llmx 0.1.0+unknown numerics 2eafd37875f29183",
+    "execution_receipt": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/packed-module-v1/execution.json",
+    "execution_receipt_sha256": "b066b1faa10e41a1cb056cce615165410b998cc697f43e3d66760acaf5085aab",
+    "source_archive_sha256": "4ca007809f249f0d08a994801e35b205623048f72a0685f9dd66354001247e51",
+    "source_revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+    "source_revision_kind": "archive build with unknown runtime version; source archive and E5 execution receipt are the provenance"
+  },
+  "observed_version": "llmx 0.1.0+unknown numerics 2eafd37875f29183",
+  "image": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+  "models": [
+    {
+      "label": "TQ1_0",
+      "file": "Qwen3-0.6B-TQ1_0.gguf",
+      "bytes": 314252544,
+      "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "repo": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+      "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53"
+    },
+    {
+      "label": "TQ2_0",
+      "file": "Qwen3-0.6B-TQ2_0.gguf",
+      "bytes": 334896384,
+      "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "repo": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+      "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53"
+    }
+  ],
+  "independent_reference_pins": {
+    "f32kv": {
+      "run_id": 40084648588,
+      "audit": "references/f32kv/reference-audit.json",
+      "audit_sha256": "8c0ef2122e649df8b6198ed1a853143cbe5f321de4a3cded118e941bf1244a07",
+      "reference_repo": "Qwen/Qwen3-0.6B",
+      "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "reference_dtype": "float32",
+      "cache_type": "f32",
+      "cells": {
+        "TQ1_0": {
+          "directory": "references/f32kv/tq1-0",
+          "baseline_logits.json": {
+            "bytes": 3616,
+            "sha256": "4e9aad35cdd2ec3c4084f131a226113b78e69f71f3bdbe5a77e0e90b761cf087"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 4844,
+            "sha256": "178a123bddd334b88492d0200fb2c72735b91e58bc7cf2bc68deacccb755ecb8"
+          }
+        },
+        "TQ2_0": {
+          "directory": "references/f32kv/tq2-0",
+          "baseline_logits.json": {
+            "bytes": 3618,
+            "sha256": "067db38e2842129f127277f27af999d03148e16ee02124d489db6d6afffe89a1"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 4844,
+            "sha256": "4b5048e2db5402280340df494e31e0876f58daef2761077f65d5afde08bc044f"
+          }
+        }
+      }
+    },
+    "f16kv": {
+      "run_id": 40089929861,
+      "audit": "references/f16kv/reference-audit.json",
+      "audit_sha256": "c8aee40213fd361391d5b6662d8774f7bc3f9e532d42c18d2e9dfea87dde296b",
+      "reference_repo": "Qwen/Qwen3-0.6B",
+      "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "reference_dtype": "float32",
+      "cache_policy": "f16 logical K/V cache; generated independently for each exact TQ GGUF",
+      "cells": {
+        "TQ1_0": {
+          "directory": "references/f16kv/tq1-0",
+          "baseline_logits.json": {
+            "bytes": 4928,
+            "sha256": "ca4c3475370c747e2a9544ec22bf8f57b145e87f8b78e55d03719ce68ba4afa0"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 5888,
+            "sha256": "4c6a3f9455a3fa95d04ed4068e060d778100e9bdfb97d33b77b080ddbe1ef772"
+          }
+        },
+        "TQ2_0": {
+          "directory": "references/f16kv/tq2-0",
+          "baseline_logits.json": {
+            "bytes": 4930,
+            "sha256": "86f71b39883f9ee118d2379003ef1e112482b1f5a5a44141a20d032d7ee3f92a"
+          },
+          "baseline_perplexity.json": {
+            "bytes": 5889,
+            "sha256": "f293a28c4d4a67ebb2cabc2118840161d34a22dde095cbe256189a2c98eaf489"
+          }
+        }
+      }
+    }
+  },
+  "test_source_pins": {
+    "tests/baseline.py": "5807bd6ff53842cf096028226c71bdcaea2a1479ab7ac94635bd70a3014a5321",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/baseline_8b.py": "9000af246c2327ed825053b8e1d5633ecafe99288ca859d9c1871dc0d626f9fd",
+    "tests/baseline_qwen35.py": "be3b3554938716d8c05c4d32cd366986a2ad84b714df422b49aee16c41773c80",
+    "tests/spec_decode.py": "a40fd3bf68fffe2360c25a77d2901d9ed7e0d049aefde26b61581f1f03d6682f",
+    "tests/data/fixtures.json": "df52a0c32d38af4cc1ba83983d9b7058e02ee840774a184f432afac1bb3901b2"
+  },
+  "cells": [
+    {
+      "id": "tq1-0-f32kv",
+      "model": "TQ1_0",
+      "reference": "f32kv",
+      "dtype": "f32",
+      "cache_type": "f32",
+      "exit_code": 0,
+      "stdout_sha256": "696158365b8f3803940f77b700b06402debd199e460a0c0e16deebd430113a9b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ranking_cases": 6,
+      "top1_pass": 6,
+      "top5_set_pass": 6,
+      "top5_order_pass": 6,
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 6.4e-05,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 2.5e-05,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 2.8e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 2e-06,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 5e-06,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 3.3e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 2.8e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 1.1e-05,
+          "bound": 0.02
+        }
+      ],
+      "max_continuous_delta": 6.4e-05,
+      "max_window_delta": 3.3e-05
+    },
+    {
+      "id": "tq2-0-f32kv",
+      "model": "TQ2_0",
+      "reference": "f32kv",
+      "dtype": "f32",
+      "cache_type": "f32",
+      "exit_code": 0,
+      "stdout_sha256": "a4e30301726951b6727986893699f0f19e442a6fe664b05b5b72ed1f07846702",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ranking_cases": 6,
+      "top1_pass": 6,
+      "top5_set_pass": 6,
+      "top5_order_pass": 6,
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 7e-05,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 3.1e-05,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 2.9e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 1e-06,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 3e-06,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 3.2e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 2.5e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 1.4e-05,
+          "bound": 0.02
+        }
+      ],
+      "max_continuous_delta": 7e-05,
+      "max_window_delta": 3.2e-05
+    },
+    {
+      "id": "tq1-0-f16kv",
+      "model": "TQ1_0",
+      "reference": "f16kv",
+      "dtype": "auto",
+      "cache_type": "f16",
+      "exit_code": 0,
+      "stdout_sha256": "f5ad469773b020ff8e3b064850fed568e7ce583575f870ed1b921ebca4030c54",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ranking_cases": 6,
+      "top1_pass": 6,
+      "top5_set_pass": 6,
+      "top5_order_pass": 6,
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.00215,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.001085,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.002418,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 8.2e-05,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.004197,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.003985,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.001636,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.007308,
+          "bound": 0.02
+        }
+      ],
+      "max_continuous_delta": 0.00215,
+      "max_window_delta": 0.007308
+    },
+    {
+      "id": "tq2-0-f16kv",
+      "model": "TQ2_0",
+      "reference": "f16kv",
+      "dtype": "auto",
+      "cache_type": "f16",
+      "exit_code": 0,
+      "stdout_sha256": "d54aec639008d8a9dcf63f8e8f6b21b16ca935cb1112bc4d198a7f8f1b4c6db5",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "ranking_cases": 6,
+      "top1_pass": 6,
+      "top5_set_pass": 6,
+      "top5_order_pass": 6,
+      "nll_checks": [
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "batched",
+          "nll_delta_printed": 0.004004,
+          "bound": 0.01
+        },
+        {
+          "context": 0,
+          "chunks": 1,
+          "mode": "per-token",
+          "nll_delta_printed": 0.002939,
+          "bound": 0.01
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "batched",
+          "nll_delta_printed": 0.002509,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 4,
+          "mode": "per-token",
+          "nll_delta_printed": 0.000173,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.00462,
+          "bound": 0.02
+        },
+        {
+          "context": 64,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.004407,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "batched",
+          "nll_delta_printed": 0.000413,
+          "bound": 0.02
+        },
+        {
+          "context": 123,
+          "chunks": 2,
+          "mode": "per-token",
+          "nll_delta_printed": 0.006085,
+          "bound": 0.02
+        }
+      ],
+      "max_continuous_delta": 0.004004,
+      "max_window_delta": 0.006085
+    }
+  ],
+  "ranking_prompts": 24,
+  "nll_checks": 32,
+  "container_removed": true,
+  "oom_killed": false,
+  "pins_unchanged": true,
+  "limits": [
+    "Each policy uses its own independent exact-file reference. Original F32 references/failures preserved.",
+    "File perplexity around15million on the continuous excerpt is a quality caveat; numerical agreement is not a quality recommendation.",
+    "Archive E5 binary, not clean-head qualification.",
+    "No16K, split, existing-path or final integrated-CI claim.",
+    "Depth preflight refused active peer CPU6-13; no16K inference launched. MatchedF16-KV depth preparation continues."
+  ]
+}

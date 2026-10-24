@@ -1,0 +1,1333 @@
+{
+ "date": "2026-10-24",
+ "scope": "TQ same-file matched MI50 Vulkan screen. All 40 planned calls retained. PP and TG have independent empty histories, so their summed times are not request latency. No ROCm, existing-path regression, or full qualification result.",
+ "candidate_scope": "Developmental archive-built E4 word-load candidate versus frozen mx; not clean-head qualification or main regression timing.",
+ "source_receipts": {
+  "analysis": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-wordloads-mx-prep-20261024\\analysis.json",
+   "sha256": "e817c9c72c7be969f7f93061f4afe6d1aa8642565edfeff414caafe22776f2c5"
+  },
+  "execution": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-wordloads-mx-prep-20261024\\results\\execution.json",
+   "sha256": "f03c7b7e06125add4733b7492f77058732cbb039f368ce3e09887accc294bc66"
+  },
+  "reference_newline_audit": {
+   "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\tq-packed-module-20261024\\reference-newline-audit.json",
+   "sha256": "3552dba4c113d83ca40d76c37e9a4f156456b0e7be7c67d53c7249a42a51b35e"
+  }
+ },
+ "candidate": {
+  "root": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/word-loads-v1/candidate",
+  "build": "build",
+  "source": "source",
+  "source_revision": "026eecfb1451c923f2a0ccfb1b6d845ec5e0b7aa",
+  "build_kind": "archive-derived developmental E4 candidate; runtime reports unknown Git revision",
+  "execution_image_id": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725"
+ },
+ "mx": {
+  "root": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/hosted-build-40088982736/arms/mx-build",
+  "build": ".",
+  "execution": "build-result.json",
+  "execution_sha256": "c1bee190087baa220361d1bca12975d87b59be239240e7fd1193398c88bc42b7",
+  "head": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "wrapper_sha256": "4479cf5dc85d35970f99ebbbec833be55df16d732e9614bf65a0b87e113be2ab"
+ },
+ "models": [
+  {
+   "label": "TQ1_0",
+   "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ1_0.gguf",
+   "sha256": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+   "bytes": 314252544
+  },
+  {
+   "label": "TQ2_0",
+   "path": "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/models/Qwen3-0.6B-TQ2_0.gguf",
+   "sha256": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+   "bytes": 334896384
+  }
+ ],
+ "device": {
+  "node": "/dev/dri/renderD130",
+  "pci": "0000:c9:00.0",
+  "uuid": "00000000-c900-0000-0000-000000000000",
+  "driver": "Mesa 25.0.7-2+deb13u1",
+  "name": "RADV VEGA20",
+  "note": "Freshly verified physical GPU8 = PCI c9 = renderD130, default clocks and no clients. Exact-image enumeration confirms the UUID and driver. Production owns GPUs0-3, LDEV owns4-7."
+ },
+ "image": "sha256:ac4b0b5da16647efbccba9e5799e24554a1e3813d205bc68e855523d65526725",
+ "manifest_sha256": "996e61df49f2213bedecb09db0f8246920781a3bb30cd96dec164a6bc1f0fc16",
+ "summary": {
+  "TQ1_0/P128/G256": {
+   "means": {
+    "candidate": {
+     "pp128": 5368.135,
+     "tg256": 280.3575
+    },
+    "mx": {
+     "pp128": 2185.8824999999997,
+     "tg256": 192.745
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "candidate": 2,
+      "mx": 3
+     },
+     "delta_percent": {
+      "pp128": 139.76572683606236,
+      "tg256": 45.802348838401976
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "mx": 4,
+      "candidate": 5
+     },
+     "delta_percent": {
+      "pp128": 141.11180355357487,
+      "tg256": 45.700107433365744
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "candidate": 6,
+      "mx": 7
+     },
+     "delta_percent": {
+      "pp128": 155.05964398880755,
+      "tg256": 49.5783259540375
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "mx": 8,
+      "candidate": 9
+     },
+     "delta_percent": {
+      "pp128": 146.988685372165,
+      "tg256": 40.74947589098532
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp128": 145.5820475254274,
+    "tg256": 45.45513502295779
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 0.9375215870973926,
+    "mx": 1.3870010845041394
+   },
+   "combined_time_delta_percent": -32.406571446008506
+  },
+  "TQ1_0/P4096/G256": {
+   "means": {
+    "candidate": {
+     "pp4096": 4213.0525,
+     "tg256": 275.36
+    },
+    "mx": {
+     "pp4096": 2172.125,
+     "tg256": 193.56
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "mx": 12,
+      "candidate": 13
+     },
+     "delta_percent": {
+      "pp4096": 94.74474821473964,
+      "tg256": 40.76983503534959
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "candidate": 14,
+      "mx": 15
+     },
+     "delta_percent": {
+      "pp4096": 93.8569679337869,
+      "tg256": 38.424049658851885
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "mx": 16,
+      "candidate": 17
+     },
+     "delta_percent": {
+      "pp4096": 93.80179534203886,
+      "tg256": 44.737514696110004
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "candidate": 18,
+      "mx": 19
+     },
+     "delta_percent": {
+      "pp4096": 93.44079303977142,
+      "tg256": 45.10455040730559
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp4096": 93.95994705645391,
+    "tg256": 42.26079768547222
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 1.902376489088061,
+    "mx": 3.2084301390259427
+   },
+   "combined_time_delta_percent": -40.70693745366669
+  },
+  "TQ2_0/P128/G256": {
+   "means": {
+    "candidate": {
+     "pp128": 5431.4375,
+     "tg256": 300.22
+    },
+    "mx": {
+     "pp128": 2272.8375,
+     "tg256": 303.93
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "mx": 22,
+      "candidate": 23
+     },
+     "delta_percent": {
+      "pp128": 116.97868663594465,
+      "tg256": 0.42103135841558004
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "candidate": 24,
+      "mx": 25
+     },
+     "delta_percent": {
+      "pp128": 181.12800057867378,
+      "tg256": -3.1432795526129653
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "mx": 26,
+      "candidate": 27
+     },
+     "delta_percent": {
+      "pp128": 144.9997971337249,
+      "tg256": -2.0402909184527362
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "candidate": 28,
+      "mx": 29
+     },
+     "delta_percent": {
+      "pp128": 122.56997998227939,
+      "tg256": 0.010102710894099864
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp128": 138.97165987449605,
+    "tg256": -1.2206758135096862
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 0.8763537800300191,
+    "mx": 0.8996344834544127
+   },
+   "combined_time_delta_percent": -2.5877958051363725
+  },
+  "TQ2_0/P4096/G256": {
+   "means": {
+    "candidate": {
+     "pp4096": 4254.6325,
+     "tg256": 315.32
+    },
+    "mx": {
+     "pp4096": 2345.025,
+     "tg256": 315.485
+    }
+   },
+   "pairs": [
+    {
+     "block": 0,
+     "calls": {
+      "candidate": 32,
+      "mx": 33
+     },
+     "delta_percent": {
+      "pp4096": 80.9880882972521,
+      "tg256": -3.931124106562711
+     }
+    },
+    {
+     "block": 1,
+     "calls": {
+      "mx": 34,
+      "candidate": 35
+     },
+     "delta_percent": {
+      "pp4096": 81.47059701683526,
+      "tg256": 0.9059343434343559
+     }
+    },
+    {
+     "block": 2,
+     "calls": {
+      "candidate": 36,
+      "mx": 37
+     },
+     "delta_percent": {
+      "pp4096": 81.44707207207205,
+      "tg256": -0.347681609796624
+     }
+    },
+    {
+     "block": 3,
+     "calls": {
+      "mx": 38,
+      "candidate": 39
+     },
+     "delta_percent": {
+      "pp4096": 81.8248985692932,
+      "tg256": 3.1056894950853176
+     }
+    }
+   ],
+   "delta_percent": {
+    "pp4096": 81.43228750226541,
+    "tg256": -0.05230042632772269
+   },
+   "mean_independent_phase_seconds": {
+    "candidate": 1.7757008428034522,
+    "mx": 2.5584552416033253
+   },
+   "combined_time_delta_percent": -30.59480525871302
+  }
+ },
+ "calls": [
+  {
+   "index": 0,
+   "cell": "TQ1_0/P128/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp128": 5366.94,
+    "tg256": 280.73
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 1,
+   "cell": "TQ1_0/P128/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp128": 2272.69,
+    "tg256": 195.68
+   },
+   "status": "passed"
+  },
+  {
+   "index": 2,
+   "cell": "TQ1_0/P128/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5371.04,
+    "tg256": 284.3
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 3,
+   "cell": "TQ1_0/P128/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2240.12,
+    "tg256": 194.99
+   },
+   "status": "passed"
+  },
+  {
+   "index": 4,
+   "cell": "TQ1_0/P128/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2230.43,
+    "tg256": 195.47
+   },
+   "status": "passed"
+  },
+  {
+   "index": 5,
+   "cell": "TQ1_0/P128/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5377.83,
+    "tg256": 284.8
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 6,
+   "cell": "TQ1_0/P128/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5368.98,
+    "tg256": 283.78
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 7,
+   "cell": "TQ1_0/P128/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2104.99,
+    "tg256": 189.72
+   },
+   "status": "passed"
+  },
+  {
+   "index": 8,
+   "cell": "TQ1_0/P128/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2167.99,
+    "tg256": 190.8
+   },
+   "status": "passed"
+  },
+  {
+   "index": 9,
+   "cell": "TQ1_0/P128/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5354.69,
+    "tg256": 268.55
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 10,
+   "cell": "TQ1_0/P4096/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp4096": 2175.97,
+    "tg256": 187.92
+   },
+   "status": "passed"
+  },
+  {
+   "index": 11,
+   "cell": "TQ1_0/P4096/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp4096": 4214.75,
+    "tg256": 282.68
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 12,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2163.55,
+    "tg256": 190.95
+   },
+   "status": "passed"
+  },
+  {
+   "index": 13,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4213.4,
+    "tg256": 268.8
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 14,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4211.31,
+    "tg256": 269.83
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 15,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2172.38,
+    "tg256": 194.93
+   },
+   "status": "passed"
+  },
+  {
+   "index": 16,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2175.63,
+    "tg256": 195.63
+   },
+   "status": "passed"
+  },
+  {
+   "index": 17,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4216.41,
+    "tg256": 283.15
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 18,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4211.09,
+    "tg256": 279.66
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 19,
+   "cell": "TQ1_0/P4096/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2176.94,
+    "tg256": 192.73
+   },
+   "status": "passed"
+  },
+  {
+   "index": 20,
+   "cell": "TQ2_0/P128/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp128": 2285.01,
+    "tg256": 309.74
+   },
+   "status": "passed"
+  },
+  {
+   "index": 21,
+   "cell": "TQ2_0/P128/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp128": 5424.74,
+    "tg256": 292.32
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 22,
+   "cell": "TQ2_0/P128/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2499.84,
+    "tg256": 296.89
+   },
+   "status": "passed"
+  },
+  {
+   "index": 23,
+   "cell": "TQ2_0/P128/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5424.12,
+    "tg256": 298.14
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 24,
+   "cell": "TQ2_0/P128/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5441.12,
+    "tg256": 301.36
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 25,
+   "cell": "TQ2_0/P128/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 1935.46,
+    "tg256": 311.14
+   },
+   "status": "passed"
+  },
+  {
+   "index": 26,
+   "cell": "TQ2_0/P128/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2218.21,
+    "tg256": 310.74
+   },
+   "status": "passed"
+  },
+  {
+   "index": 27,
+   "cell": "TQ2_0/P128/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5434.61,
+    "tg256": 304.4
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 28,
+   "cell": "TQ2_0/P128/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp128": 5425.9,
+    "tg256": 296.98
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 29,
+   "cell": "TQ2_0/P128/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp128": 2437.84,
+    "tg256": 296.95
+   },
+   "status": "passed"
+  },
+  {
+   "index": 30,
+   "cell": "TQ2_0/P4096/G256",
+   "block": null,
+   "arm": "candidate",
+   "warmup": true,
+   "rates": {
+    "pp4096": 4263.72,
+    "tg256": 301.11
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 31,
+   "cell": "TQ2_0/P4096/G256",
+   "block": null,
+   "arm": "mx",
+   "warmup": true,
+   "rates": {
+    "pp4096": 2342.5,
+    "tg256": 312.43
+   },
+   "status": "passed"
+  },
+  {
+   "index": 32,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 0,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4252.84,
+    "tg256": 295.7
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 33,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 0,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2349.79,
+    "tg256": 307.8
+   },
+   "status": "passed"
+  },
+  {
+   "index": 34,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 1,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2344.49,
+    "tg256": 316.8
+   },
+   "status": "passed"
+  },
+  {
+   "index": 35,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 1,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4254.56,
+    "tg256": 319.67
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 36,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 2,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4253.7,
+    "tg256": 323.88
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  },
+  {
+   "index": 37,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 2,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2344.32,
+    "tg256": 325.01
+   },
+   "status": "passed"
+  },
+  {
+   "index": 38,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 3,
+   "arm": "mx",
+   "warmup": false,
+   "rates": {
+    "pp4096": 2341.5,
+    "tg256": 312.33
+   },
+   "status": "passed"
+  },
+  {
+   "index": 39,
+   "cell": "TQ2_0/P4096/G256",
+   "block": 3,
+   "arm": "candidate",
+   "warmup": false,
+   "rates": {
+    "pp4096": 4257.43,
+    "tg256": 322.03
+   },
+   "status": "passed",
+   "matrix_paths": {
+    "dtype": "f16",
+    "devices": [
+     [
+      "block-int16"
+     ]
+    ]
+   }
+  }
+ ],
+ "activity": {
+  "samples": 380,
+  "max_gap": 1.0297043148893863,
+  "flags": {
+   "unrelated_cpu": 295,
+   "disk": 155,
+   "low_idle": 208,
+   "iowait": 23,
+   "gap": 0,
+   "other_gpu": 351
+  },
+  "calls": {
+   "0": {
+    "unrelated_cpu": 1,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "1": {
+    "unrelated_cpu": 1,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 16
+   },
+   "2": {
+    "unrelated_cpu": 0,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "3": {
+    "unrelated_cpu": 7,
+    "disk": 3,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 15
+   },
+   "4": {
+    "unrelated_cpu": 8,
+    "disk": 7,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 15
+   },
+   "5": {
+    "unrelated_cpu": 1,
+    "disk": 2,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "6": {
+    "unrelated_cpu": 1,
+    "disk": 1,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "7": {
+    "unrelated_cpu": 4,
+    "disk": 2,
+    "low_idle": 9,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 15
+   },
+   "8": {
+    "unrelated_cpu": 3,
+    "disk": 0,
+    "low_idle": 14,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 14
+   },
+   "9": {
+    "unrelated_cpu": 3,
+    "disk": 0,
+    "low_idle": 4,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "10": {
+    "unrelated_cpu": 9,
+    "disk": 6,
+    "low_idle": 7,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 19
+   },
+   "11": {
+    "unrelated_cpu": 1,
+    "disk": 2,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "12": {
+    "unrelated_cpu": 17,
+    "disk": 0,
+    "low_idle": 11,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 19
+   },
+   "13": {
+    "unrelated_cpu": 6,
+    "disk": 0,
+    "low_idle": 6,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "14": {
+    "unrelated_cpu": 5,
+    "disk": 0,
+    "low_idle": 5,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "15": {
+    "unrelated_cpu": 19,
+    "disk": 0,
+    "low_idle": 15,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 19
+   },
+   "16": {
+    "unrelated_cpu": 16,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 18
+   },
+   "17": {
+    "unrelated_cpu": 5,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "18": {
+    "unrelated_cpu": 5,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "19": {
+    "unrelated_cpu": 12,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 19
+   },
+   "20": {
+    "unrelated_cpu": 14,
+    "disk": 6,
+    "low_idle": 7,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 10
+   },
+   "21": {
+    "unrelated_cpu": 4,
+    "disk": 4,
+    "low_idle": 4,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "22": {
+    "unrelated_cpu": 14,
+    "disk": 14,
+    "low_idle": 14,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 14
+   },
+   "23": {
+    "unrelated_cpu": 4,
+    "disk": 4,
+    "low_idle": 4,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "24": {
+    "unrelated_cpu": 4,
+    "disk": 4,
+    "low_idle": 4,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "25": {
+    "unrelated_cpu": 14,
+    "disk": 14,
+    "low_idle": 14,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 12
+   },
+   "26": {
+    "unrelated_cpu": 14,
+    "disk": 10,
+    "low_idle": 14,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "27": {
+    "unrelated_cpu": 4,
+    "disk": 0,
+    "low_idle": 4,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 4
+   },
+   "28": {
+    "unrelated_cpu": 3,
+    "disk": 0,
+    "low_idle": 3,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "29": {
+    "unrelated_cpu": 14,
+    "disk": 7,
+    "low_idle": 14,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 10
+   },
+   "30": {
+    "unrelated_cpu": 6,
+    "disk": 6,
+    "low_idle": 6,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "31": {
+    "unrelated_cpu": 17,
+    "disk": 17,
+    "low_idle": 17,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 15
+   },
+   "32": {
+    "unrelated_cpu": 6,
+    "disk": 6,
+    "low_idle": 6,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   },
+   "33": {
+    "unrelated_cpu": 17,
+    "disk": 12,
+    "low_idle": 17,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 12
+   },
+   "34": {
+    "unrelated_cpu": 17,
+    "disk": 0,
+    "low_idle": 16,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 17
+   },
+   "35": {
+    "unrelated_cpu": 6,
+    "disk": 2,
+    "low_idle": 0,
+    "iowait": 1,
+    "gap": 0,
+    "other_gpu": 3
+   },
+   "36": {
+    "unrelated_cpu": 5,
+    "disk": 5,
+    "low_idle": 0,
+    "iowait": 5,
+    "gap": 0,
+    "other_gpu": 5
+   },
+   "37": {
+    "unrelated_cpu": 17,
+    "disk": 17,
+    "low_idle": 0,
+    "iowait": 17,
+    "gap": 0,
+    "other_gpu": 17
+   },
+   "38": {
+    "unrelated_cpu": 17,
+    "disk": 14,
+    "low_idle": 13,
+    "iowait": 3,
+    "gap": 0,
+    "other_gpu": 17
+   },
+   "39": {
+    "unrelated_cpu": 6,
+    "disk": 0,
+    "low_idle": 0,
+    "iowait": 0,
+    "gap": 0,
+    "other_gpu": 6
+   }
+  },
+  "missed_samples": 225,
+  "unknown_gpu_samples": 0,
+  "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+ },
+ "thresholds": {
+  "system_idle_below_percent": 25,
+  "iowait_above_percent": 5,
+  "unrelated_cpu_at_least_percent": 100,
+  "disk_bytes_per_second_above": 50000000,
+  "sample_gap_above_seconds": 2.5
+ },
+ "execution": {
+  "passed": true,
+  "removed": true,
+  "pins_unchanged": true,
+  "monitor_exit": 0,
+  "version": "llmx 0.1.0+unknown numerics e4841003cc96b0dc",
+  "start": 1792848422.0771117,
+  "end": 1792848811.5489502
+ },
+ "oom_killed": false,
+ "local_artifact_hashes_verified": 89,
+ "limits": [
+  "All forty calls retained, including mixed TQ2 TG pair signs and all activity/coverage caveats.",
+  "Independent empty-history PP/TG phases; phase sums are not request latency.",
+  "Large prefill gains and minor decode deficits are reported together; no automatic rejection or proof that noise caused deficits.",
+  "E5 ordinary tiny F32-KV HF checks passed separately (tq-e5-tiny-hf-20261024.json); generated-LF/archive-CRLF provenance mismatch resolves by newline normalization only, not changed fixture values or limits.",
+  "E5 released MI50 short completed separately (tq-e5-short-mi50-20261024.json); applicable16K, split, existing-path comparison, clean build and integrated CI remain open."
+ ]
+}

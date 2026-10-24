@@ -1,0 +1,113 @@
+name: TQ hosted CPU depth captures
+
+on:
+  push:
+    branches:
+      - diag/tq-hosted-cpu-capture-20261024
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  capture:
+    name: ${{ matrix.model }} / ${{ matrix.policy }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        model: [tq1-0, tq2-0]
+        policy: [default, f32]
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: "1"
+      HF_HUB_ENABLE_HF_TRANSFER: "0"
+
+    steps:
+      - name: Configure job paths
+        run: |
+          printf '%s\n' "HF_HOME=$RUNNER_TEMP/hf-cache" >> "$GITHUB_ENV"
+          printf '%s\n' "OUTPUT=$RUNNER_TEMP/tq-depth-${{ matrix.model }}-${{ matrix.policy }}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.1"
+
+      - name: Verify pinned hosted build and probe artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .qualification/tq-hosted-cpu-depth/verify_artifact_api.py
+
+      - name: Download exact build artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tq-matched-linux-builds
+          run-id: 40101812090
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/matched-build
+
+      - name: Download exact probe artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: tq-probes-40106666694
+          run-id: 40106666694
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/probe-build
+
+      - name: Install pinned model-download client
+        run: python -m pip install --disable-pip-version-check huggingface_hub==0.36.2
+
+      - name: Stage verified assets and capture bundle
+        run: >-
+          python .qualification/tq-hosted-cpu-depth/stage_hosted.py
+          --repo "$GITHUB_WORKSPACE"
+          --matched-root "${{ runner.temp }}/matched-build"
+          --probe-root "${{ runner.temp }}/probe-build"
+          --model "${{ matrix.model }}"
+          --out "${{ env.OUTPUT }}"
+
+      - name: Choose fresh CPU-only admission
+        run: >-
+          python .qualification/tq-hosted-cpu-depth/make-admission.py
+          "${{ matrix.model }}-${{ matrix.policy }}"
+          "${{ env.OUTPUT }}/admission.json"
+          && cp "${{ env.OUTPUT }}/admission.json" "${{ env.OUTPUT }}/results/admission.json"
+
+      - name: Capture frozen raw and chat cells
+        run: |
+          set -o pipefail
+          overall=0
+          if [ "${{ matrix.policy }}" = "default" ]; then
+            policy_suffix=auto-f16
+          else
+            policy_suffix=f32
+          fi
+          for variant in raw chat; do
+            cell="cpu-${{ matrix.model }}-${policy_suffix}-${variant}"
+            if python "${{ env.OUTPUT }}/assets/bundle/run-capture.py" capture \
+              --execute --resources-released \
+              --admission "${{ env.OUTPUT }}/admission.json" \
+              --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --cell "$cell"; then
+              :
+            else
+              overall=1
+            fi
+          done
+          exit "$overall"
+
+      - name: Retain capture receipts and logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tq-cpu-depth-${{ matrix.model }}-${{ matrix.policy }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.OUTPUT }}/results/
+          if-no-files-found: error
+          retention-days: 30

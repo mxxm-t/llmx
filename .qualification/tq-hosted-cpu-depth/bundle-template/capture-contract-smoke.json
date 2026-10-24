@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "scope": "mocked capture output and probe-build receipt contract only; no inference or build",
+  "schema": [
+    "commands",
+    "probes",
+    "sources",
+    "library_sha256"
+  ],
+  "valid_policies": [
+    "default",
+    "f32"
+  ],
+  "rejected_mutations": [
+    "schema_keys",
+    "source_hashes",
+    "library_hash",
+    "probe_hash",
+    "existing_capture_child",
+    "receipt_file_hash"
+  ]
+}

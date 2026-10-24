@@ -1,0 +1,5010 @@
+{
+  "revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "kind": "llmx",
+  "image_id": "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+  "configure": [
+    "cmake",
+    "-S",
+    "/source",
+    "-B",
+    "/build",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DLLMX_HAS_BACKEND_VULKAN=ON",
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+  ],
+  "targets": [
+    "llmx",
+    "llmx-model-logits",
+    "llmx-tq-test",
+    "llmx-spec-test",
+    "llmx-server-passes-cpu-test",
+    "llmx-backend-vulkan-test"
+  ],
+  "command": [
+    "docker",
+    "create",
+    "--init",
+    "--name",
+    "llmx-tq-build-40101812090-candidate",
+    "--label",
+    "llmx.tq-hosted-build=llmx-tq-build-40101812090-candidate",
+    "--network=none",
+    "--cpus=2",
+    "--memory=8g",
+    "--memory-swap=8g",
+    "--pids-limit=256",
+    "--ulimit",
+    "core=0:0",
+    "--read-only",
+    "--tmpfs",
+    "/tmp:rw,size=512m",
+    "--env",
+    "HOME=/tmp",
+    "--user",
+    "1001:1001",
+    "-v",
+    "/tmp/tq-matched-sources-he00md3l/candidate:/source:ro",
+    "-v",
+    "/home/runner/work/llmx/llmx/.qualification/tq-build-results/arms/candidate-build:/build",
+    "-v",
+    "/home/runner/work/llmx/llmx/.qualification/tq-build-results/arms/candidate:/out",
+    "sha256:e369e69469f20d3940d3689abdbcc33545a5db0361807119ef003b1beb759d85",
+    "bash",
+    "-c",
+    "set -euo pipefail\nulimit -c 0\ntest \"$(git -C /source rev-parse HEAD)\" = \"a0fa25492b3ec9badaa43f8cd489fbb68fe06494\"\ntest -z \"$(git -C /source status --porcelain)\"\ngit -C /source status --short --branch\ngit -C /source rev-parse HEAD\ncmake --version\nc++ --version\nglslc --version\ncmake -S /source -B /build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_VULKAN=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON\ncmake --build /build --parallel 2 --target llmx llmx-model-logits llmx-tq-test llmx-spec-test llmx-server-passes-cpu-test llmx-backend-vulkan-test\n/build/llmx --version > /out/version.txt 2>&1\ncat /out/version.txt\ngrep -F 'a0fa25492b3e' /out/version.txt\n! grep -E 'dirty|unknown' /out/version.txt\nctest --test-dir /build --output-on-failure --no-tests=error --output-junit /out/ctest.xml --timeout 600 -R '^(tq-format|spec|server-passes-cpu)$'\ntest \"$(git -C /source rev-parse HEAD)\" = \"a0fa25492b3ec9badaa43f8cd489fbb68fe06494\"\ntest -z \"$(git -C /source status --porcelain)\""
+  ],
+  "status": "passed",
+  "removed": true,
+  "memory_samples": [
+    {
+      "time": 1792851594.5186489,
+      "available_bytes": 15574163456,
+      "container_bytes_approx": 51547996
+    },
+    {
+      "time": 1792851598.0566013,
+      "available_bytes": 15539396608,
+      "container_bytes_approx": 75979816
+    },
+    {
+      "time": 1792851601.5874553,
+      "available_bytes": 15564406784,
+      "container_bytes_approx": 78035025
+    },
+    {
+      "time": 1792851605.120636,
+      "available_bytes": 15559647232,
+      "container_bytes_approx": 42236641
+    },
+    {
+      "time": 1792851608.6557043,
+      "available_bytes": 15521259520,
+      "container_bytes_approx": 66364375
+    },
+    {
+      "time": 1792851612.1831474,
+      "available_bytes": 15173259264,
+      "container_bytes_approx": 555535564
+    },
+    {
+      "time": 1792851615.710923,
+      "available_bytes": 14999007232,
+      "container_bytes_approx": 657562009
+    },
+    {
+      "time": 1792851619.2438285,
+      "available_bytes": 15283466240,
+      "container_bytes_approx": 519254835
+    },
+    {
+      "time": 1792851622.770262,
+      "available_bytes": 14876368896,
+      "container_bytes_approx": 861510041
+    },
+    {
+      "time": 1792851626.298523,
+      "available_bytes": 14544601088,
+      "container_bytes_approx": 1196148391
+    },
+    {
+      "time": 1792851629.8251026,
+      "available_bytes": 14350897152,
+      "container_bytes_approx": 1363652116
+    },
+    {
+      "time": 1792851633.3518186,
+      "available_bytes": 14262038528,
+      "container_bytes_approx": 1415191724
+    },
+    {
+      "time": 1792851636.8981931,
+      "available_bytes": 14261460992,
+      "container_bytes_approx": 1418412949
+    },
+    {
+      "time": 1792851640.426569,
+      "available_bytes": 14268846080,
+      "container_bytes_approx": 1423781658
+    },
+    {
+      "time": 1792851643.953982,
+      "available_bytes": 14262456320,
+      "container_bytes_approx": 1433445335
+    },
+    {
+      "time": 1792851647.4821455,
+      "available_bytes": 14256664576,
+      "container_bytes_approx": 1461362622
+    },
+    {
+      "time": 1792851651.011061,
+      "available_bytes": 14196330496,
+      "container_bytes_approx": 1526860873
+    },
+    {
+      "time": 1792851654.5389588,
+      "available_bytes": 14135214080,
+      "container_bytes_approx": 1595580350
+    },
+    {
+      "time": 1792851658.0668302,
+      "available_bytes": 14051676160,
+      "container_bytes_approx": 1671816019
+    },
+    {
+      "time": 1792851661.5940042,
+      "available_bytes": 13981917184,
+      "container_bytes_approx": 1706175758
+    },
+    {
+      "time": 1792851665.1211274,
+      "available_bytes": 14002110464,
+      "container_bytes_approx": 1707249500
+    },
+    {
+      "time": 1792851668.6499937,
+      "available_bytes": 13924261888,
+      "container_bytes_approx": 1779190202
+    },
+    {
+      "time": 1792851672.1766536,
+      "available_bytes": 13929848832,
+      "container_bytes_approx": 1781337686
+    },
+    {
+      "time": 1792851675.7061117,
+      "available_bytes": 15557267456,
+      "container_bytes_approx": 269903462
+    },
+    {
+      "time": 1792851679.2328584,
+      "available_bytes": 15027990528,
+      "container_bytes_approx": 713346252
+    },
+    {
+      "time": 1792851682.7589583,
+      "available_bytes": 14793347072,
+      "container_bytes_approx": 835295641
+    },
+    {
+      "time": 1792851686.2859771,
+      "available_bytes": 14769176576,
+      "container_bytes_approx": 887305011
+    },
+    {
+      "time": 1792851689.813378,
+      "available_bytes": 14771257344,
+      "container_bytes_approx": 909534822
+    },
+    {
+      "time": 1792851693.340713,
+      "available_bytes": 14719565824,
+      "container_bytes_approx": 992686899
+    },
+    {
+      "time": 1792851696.8689864,
+      "available_bytes": 14655094784,
+      "container_bytes_approx": 1071644672
+    },
+    {
+      "time": 1792851700.4017005,
+      "available_bytes": 14591270912,
+      "container_bytes_approx": 1107027820
+    },
+    {
+      "time": 1792851703.9297323,
+      "available_bytes": 14572134400,
+      "container_bytes_approx": 15791554
+    },
+    {
+      "time": 1792851707.4569027,
+      "available_bytes": 15281090560,
+      "container_bytes_approx": 388602265
+    },
+    {
+      "time": 1792851710.9832935,
+      "available_bytes": 15272722432,
+      "container_bytes_approx": 429496729
+    },
+    {
+      "time": 1792851714.511463,
+      "available_bytes": 15275249664,
+      "container_bytes_approx": 566335897
+    },
+    {
+      "time": 1792851718.0358653,
+      "available_bytes": 14831910912,
+      "container_bytes_approx": 903977369
+    },
+    {
+      "time": 1792851721.565699,
+      "available_bytes": 14726008832,
+      "container_bytes_approx": 1022256742
+    },
+    {
+      "time": 1792851725.0926554,
+      "available_bytes": 14660427776,
+      "container_bytes_approx": 1083405500
+    },
+    {
+      "time": 1792851728.6196523,
+      "available_bytes": 14560014336,
+      "container_bytes_approx": 1184337231
+    },
+    {
+      "time": 1792851732.1467037,
+      "available_bytes": 14472691712,
+      "container_bytes_approx": 1277752770
+    },
+    {
+      "time": 1792851735.6721747,
+      "available_bytes": 14376468480,
+      "container_bytes_approx": 1335734829
+    },
+    {
+      "time": 1792851739.198973,
+      "available_bytes": 14351450112,
+      "container_bytes_approx": 1348619730
+    },
+    {
+      "time": 1792851742.7255182,
+      "available_bytes": 15310266368,
+      "container_bytes_approx": 574409932
+    },
+    {
+      "time": 1792851746.2516854,
+      "available_bytes": 14863138816,
+      "container_bytes_approx": 942774681
+    },
+    {
+      "time": 1792851749.7784266,
+      "available_bytes": 14646829056,
+      "container_bytes_approx": 1107027820
+    },
+    {
+      "time": 1792851753.3031273,
+      "available_bytes": 14521614336,
+      "container_bytes_approx": 1216549486
+    },
+    {
+      "time": 1792851756.8300214,
+      "available_bytes": 14428536832,
+      "container_bytes_approx": 1315333734
+    },
+    {
+      "time": 1792851760.3741252,
+      "available_bytes": 14327132160,
+      "container_bytes_approx": 1404454305
+    },
+    {
+      "time": 1792851763.9004104,
+      "available_bytes": 14303645696,
+      "container_bytes_approx": 1427002884
+    },
+    {
+      "time": 1792851767.4276032,
+      "available_bytes": 14283350016,
+      "container_bytes_approx": 1430224109
+    },
+    {
+      "time": 1792851770.953116,
+      "available_bytes": 14259163136,
+      "container_bytes_approx": 1434519076
+    },
+    {
+      "time": 1792851774.479472,
+      "available_bytes": 14264762368,
+      "container_bytes_approx": 1436666560
+    },
+    {
+      "time": 1792851778.01457,
+      "available_bytes": 14263570432,
+      "container_bytes_approx": 1446330236
+    },
+    {
+      "time": 1792851781.5400836,
+      "available_bytes": 14259585024,
+      "container_bytes_approx": 1450625204
+    },
+    {
+      "time": 1792851785.0684912,
+      "available_bytes": 14262222848,
+      "container_bytes_approx": 18989711
+    },
+    {
+      "time": 1792851788.5957341,
+      "available_bytes": 15171956736,
+      "container_bytes_approx": 522505420
+    },
+    {
+      "time": 1792851792.1218004,
+      "available_bytes": 15101005824,
+      "container_bytes_approx": 527014297
+    },
+    {
+      "time": 1792851795.6479247,
+      "available_bytes": 15108730880,
+      "container_bytes_approx": 547042099
+    },
+    {
+      "time": 1792851799.1754067,
+      "available_bytes": 15062245376,
+      "container_bytes_approx": 588251136
+    },
+    {
+      "time": 1792851802.7016878,
+      "available_bytes": 15019188224,
+      "container_bytes_approx": 649802547
+    },
+    {
+      "time": 1792851806.230607,
+      "available_bytes": 15650435072,
+      "container_bytes_approx": 14711521
+    },
+    {
+      "time": 1792851809.7602513,
+      "available_bytes": 15666720768,
+      "container_bytes_approx": 16619929
+    },
+    {
+      "time": 1792851813.287205,
+      "available_bytes": 15681044480,
+      "container_bytes_approx": 17658019
+    },
+    {
+      "time": 1792851816.8126144,
+      "available_bytes": 15672836096,
+      "container_bytes_approx": 18779996
+    },
+    {
+      "time": 1792851820.3401031,
+      "available_bytes": 15681884160,
+      "container_bytes_approx": 19430113
+    },
+    {
+      "time": 1792851823.8666074,
+      "available_bytes": 15673270272,
+      "container_bytes_approx": 19482542
+    },
+    {
+      "time": 1792851827.3934138,
+      "available_bytes": 15670226944,
+      "container_bytes_approx": 19566428
+    },
+    {
+      "time": 1792851830.9180374,
+      "available_bytes": 15673602048,
+      "container_bytes_approx": 19283312
+    },
+    {
+      "time": 1792851834.4419637,
+      "available_bytes": 15681413120,
+      "container_bytes_approx": 19398656
+    },
+    {
+      "time": 1792851837.9660625,
+      "available_bytes": 15687880704,
+      "container_bytes_approx": 19398656
+    },
+    {
+      "time": 1792851841.493343,
+      "available_bytes": 15669792768,
+      "container_bytes_approx": 19398656
+    },
+    {
+      "time": 1792851845.0177505,
+      "available_bytes": 15660630016,
+      "container_bytes_approx": 19367198
+    },
+    {
+      "time": 1792851848.5727713,
+      "available_bytes": 15676743680,
+      "container_bytes_approx": 19367198
+    },
+    {
+      "time": 1792851852.0963812,
+      "available_bytes": 15682711552,
+      "container_bytes_approx": 19367198
+    },
+    {
+      "time": 1792851855.621995,
+      "available_bytes": 15676354560,
+      "container_bytes_approx": 19346227
+    },
+    {
+      "time": 1792851859.145319,
+      "available_bytes": 15687405568,
+      "container_bytes_approx": 19346227
+    },
+    {
+      "time": 1792851862.6686673,
+      "available_bytes": 15686848512,
+      "container_bytes_approx": 19346227
+    },
+    {
+      "time": 1792851866.192265,
+      "available_bytes": 15691206656,
+      "container_bytes_approx": 20342374
+    },
+    {
+      "time": 1792851869.7159657,
+      "available_bytes": 15688028160,
+      "container_bytes_approx": 21369978
+    },
+    {
+      "time": 1792851873.241001,
+      "available_bytes": 15676551168,
+      "container_bytes_approx": 24222105
+    },
+    {
+      "time": 1792851876.7647445,
+      "available_bytes": 15685005312,
+      "container_bytes_approx": 20656947
+    },
+    {
+      "time": 1792851880.28927,
+      "available_bytes": 15675166720,
+      "container_bytes_approx": 20415774
+    },
+    {
+      "time": 1792851883.8133273,
+      "available_bytes": 15673147392,
+      "container_bytes_approx": 20415774
+    },
+    {
+      "time": 1792851887.3367815,
+      "available_bytes": 15667175424,
+      "container_bytes_approx": 20415774
+    },
+    {
+      "time": 1792851890.860803,
+      "available_bytes": 15677833216,
+      "container_bytes_approx": 20206059
+    },
+    {
+      "time": 1792851894.384398,
+      "available_bytes": 15671795712,
+      "container_bytes_approx": 20206059
+    },
+    {
+      "time": 1792851897.9084885,
+      "available_bytes": 15678849024,
+      "container_bytes_approx": 20206059
+    },
+    {
+      "time": 1792851901.4337435,
+      "available_bytes": 15677550592,
+      "container_bytes_approx": 20971520
+    },
+    {
+      "time": 1792851904.9573998,
+      "available_bytes": 15676719104,
+      "container_bytes_approx": 23425187
+    },
+    {
+      "time": 1792851908.481101,
+      "available_bytes": 15686959104,
+      "container_bytes_approx": 23425187
+    },
+    {
+      "time": 1792851912.0041444,
+      "available_bytes": 15683022848,
+      "container_bytes_approx": 23666360
+    },
+    {
+      "time": 1792851915.5350866,
+      "available_bytes": 15676850176,
+      "container_bytes_approx": 23383244
+    },
+    {
+      "time": 1792851919.058918,
+      "available_bytes": 15681908736,
+      "container_bytes_approx": 23383244
+    },
+    {
+      "time": 1792851922.5812666,
+      "available_bytes": 15673982976,
+      "container_bytes_approx": 23383244
+    },
+    {
+      "time": 1792851926.104433,
+      "available_bytes": 15667982336,
+      "container_bytes_approx": 23351787
+    },
+    {
+      "time": 1792851929.627864,
+      "available_bytes": 15684567040,
+      "container_bytes_approx": 23351787
+    },
+    {
+      "time": 1792851933.1505969,
+      "available_bytes": 15693828096,
+      "container_bytes_approx": 23351787
+    },
+    {
+      "time": 1792851936.6735628,
+      "available_bytes": 15685427200,
+      "container_bytes_approx": 23351787
+    },
+    {
+      "time": 1792851940.1965818,
+      "available_bytes": 15684411392,
+      "container_bytes_approx": 23330816
+    },
+    {
+      "time": 1792851943.7221203,
+      "available_bytes": 15688749056,
+      "container_bytes_approx": 23330816
+    },
+    {
+      "time": 1792851947.2448707,
+      "available_bytes": 15686946816,
+      "container_bytes_approx": 23278387
+    },
+    {
+      "time": 1792851950.768591,
+      "available_bytes": 15689945088,
+      "container_bytes_approx": 23278387
+    },
+    {
+      "time": 1792851954.2916892,
+      "available_bytes": 15685734400,
+      "container_bytes_approx": 23509073
+    },
+    {
+      "time": 1792851957.815074,
+      "available_bytes": 15691358208,
+      "container_bytes_approx": 23488102
+    },
+    {
+      "time": 1792851961.3376732,
+      "available_bytes": 15683698688,
+      "container_bytes_approx": 23488102
+    },
+    {
+      "time": 1792851964.8608835,
+      "available_bytes": 15680921600,
+      "container_bytes_approx": 23603445
+    },
+    {
+      "time": 1792851968.3837729,
+      "available_bytes": 15683612672,
+      "container_bytes_approx": 23341301
+    },
+    {
+      "time": 1792851971.907239,
+      "available_bytes": 15667318784,
+      "container_bytes_approx": 23634903
+    },
+    {
+      "time": 1792851975.4455447,
+      "available_bytes": 15674609664,
+      "container_bytes_approx": 22366126
+    },
+    {
+      "time": 1792851978.9686732,
+      "available_bytes": 15680749568,
+      "container_bytes_approx": 22135439
+    },
+    {
+      "time": 1792851982.4918978,
+      "available_bytes": 15668666368,
+      "container_bytes_approx": 22187868
+    },
+    {
+      "time": 1792851986.0147808,
+      "available_bytes": 15675244544,
+      "container_bytes_approx": 22261268
+    },
+    {
+      "time": 1792851989.5381596,
+      "available_bytes": 15681589248,
+      "container_bytes_approx": 23781703
+    },
+    {
+      "time": 1792851993.0639806,
+      "available_bytes": 15675441152,
+      "container_bytes_approx": 23582474
+    },
+    {
+      "time": 1792851996.5892448,
+      "available_bytes": 15681126400,
+      "container_bytes_approx": 24977080
+    },
+    {
+      "time": 1792852000.114319,
+      "available_bytes": 15667507200,
+      "container_bytes_approx": 24945623
+    },
+    {
+      "time": 1792852003.6407354,
+      "available_bytes": 15677247488,
+      "container_bytes_approx": 24977080
+    },
+    {
+      "time": 1792852007.1662123,
+      "available_bytes": 15680946176,
+      "container_bytes_approx": 25459425
+    },
+    {
+      "time": 1792852010.6909575,
+      "available_bytes": 15682514944,
+      "container_bytes_approx": 25595740
+    },
+    {
+      "time": 1792852014.214354,
+      "available_bytes": 14591778816,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852017.7374966,
+      "available_bytes": 14591397888,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852021.2608092,
+      "available_bytes": 14589554688,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852024.7840269,
+      "available_bytes": 14578688000,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852028.3073819,
+      "available_bytes": 14585614336,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852031.831004,
+      "available_bytes": 14604828672,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852035.3549104,
+      "available_bytes": 14619189248,
+      "container_bytes_approx": 1101659111
+    },
+    {
+      "time": 1792852038.8804798,
+      "available_bytes": 15685586944,
+      "container_bytes_approx": 12457082
+    },
+    {
+      "time": 1792852042.4052436,
+      "available_bytes": 15694094336,
+      "container_bytes_approx": 12457082
+    },
+    {
+      "time": 1792852045.9298165,
+      "available_bytes": 15685705728,
+      "container_bytes_approx": 13065256
+    },
+    {
+      "time": 1792852049.4550126,
+      "available_bytes": 15681650688,
+      "container_bytes_approx": 14197719
+    },
+    {
+      "time": 1792852052.979763,
+      "available_bytes": 15685488640,
+      "container_bytes_approx": 12152995
+    },
+    {
+      "time": 1792852056.5059683,
+      "available_bytes": 15690276864,
+      "container_bytes_approx": 15539896
+    },
+    {
+      "time": 1792852060.0323517,
+      "available_bytes": 15686967296,
+      "container_bytes_approx": 14176747
+    },
+    {
+      "time": 1792852063.557873,
+      "available_bytes": 15678889984,
+      "container_bytes_approx": 14208204
+    },
+    {
+      "time": 1792852067.080742,
+      "available_bytes": 15684337664,
+      "container_bytes_approx": 0
+    }
+  ],
+  "admission": {
+    "mem_available_bytes": 15664594944,
+    "disk_free_bytes": 90559365120
+  },
+  "container_id": "07ba5eba3f7e7052bbc0317697e3829d381deb2a7910fa55377f1f42dcf7b6ba",
+  "attach_exit_code": 0,
+  "container_state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-24T14:19:50.990294043Z",
+    "FinishedAt": "2026-10-24T14:27:45.730015594Z"
+  },
+  "source_head_after": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "source_status_after": "",
+  "elapsed_seconds": 478.33087587700004,
+  "log_sha256": "f13cf92133a41248d6506f2c6678c2fa638ecbcd97ad0646c2b39dbaa0005cea",
+  "build_artifacts": [
+    {
+      "path": "CMakeCache.txt",
+      "bytes": 15024,
+      "sha256": "9b6608c29d190a824488d760f0fb457c830408ccb5a33d6da68bc3a9925261bd"
+    },
+    {
+      "path": "CMakeFiles/3.31.6/CMakeDetermineCompilerABI_CXX.bin",
+      "bytes": 16040,
+      "sha256": "31cb421ebf6630bd8b3a51f26ee67d0a2974b57c0c2f294de9103fe858496d29"
+    },
+    {
+      "path": "CMakeFiles/3.31.6/CompilerIdCXX/a.out",
+      "bytes": 16152,
+      "sha256": "3992e5e161123594a907389d62c52fde24dea585d161e8c0d1f17d2563129263"
+    },
+    {
+      "path": "CMakeFiles/CMakeRuleHashes.txt",
+      "bytes": 22047,
+      "sha256": "c6c488670ea84a152fd9db636ea24a9aac025ffbcd8be8d89017989994221669"
+    },
+    {
+      "path": "CMakeFiles/Continuous.dir/build.make",
+      "bytes": 2355,
+      "sha256": "64e74ead2b76ef2029eb47ddf7751c21ecdca33de711de159373b9dbbc89ec58"
+    },
+    {
+      "path": "CMakeFiles/Continuous.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "919e5bfb5fed905567592a6f27cef3b6ba7b5b35d5ad1614739d91855dba1f9e"
+    },
+    {
+      "path": "CMakeFiles/Continuous.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousBuild.dir/build.make",
+      "bytes": 2460,
+      "sha256": "943b3efc7a18a801dccf92fd27704c10086298ced69ea586c6a2cf9d6536c1f6"
+    },
+    {
+      "path": "CMakeFiles/ContinuousBuild.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "08f8390e3e516e3e75557560b218347128420503b79bf591bde5dd2b87e07a5e"
+    },
+    {
+      "path": "CMakeFiles/ContinuousBuild.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousConfigure.dir/build.make",
+      "bytes": 2544,
+      "sha256": "1f275e2e6bb23a644b7e14a0801dff3d800cc60aae3ab35799ef2b2b171b22f2"
+    },
+    {
+      "path": "CMakeFiles/ContinuousConfigure.dir/compiler_depend.make",
+      "bytes": 129,
+      "sha256": "c608cfe44f9a660fa2ceb3720442849d15d050ed04a676584838cf383bc75863"
+    },
+    {
+      "path": "CMakeFiles/ContinuousConfigure.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousCoverage.dir/build.make",
+      "bytes": 2523,
+      "sha256": "4219fec3b5dafcd859ecc6c7889f87ad336036e5305f6f32f64628a70bf4aaa9"
+    },
+    {
+      "path": "CMakeFiles/ContinuousCoverage.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "4ab71f97a5fd638d130a44fe1f4e64a6e31f15febaf4c7abfb4726e8fbf9de5d"
+    },
+    {
+      "path": "CMakeFiles/ContinuousCoverage.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousMemCheck.dir/build.make",
+      "bytes": 2523,
+      "sha256": "6294e6935faf5d5c60873881109bfec033b1b35477cca80df795a35f6a9d7e61"
+    },
+    {
+      "path": "CMakeFiles/ContinuousMemCheck.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "7dc3e3b98412fd3f3408bba91f062e2f6fb71c6dc0384dd28aa60b6c17aed83b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousMemCheck.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousStart.dir/build.make",
+      "bytes": 2460,
+      "sha256": "5b0a721a77b5c08d42ddc82ac976a934dd9d5a46322a3d67a789a695b61ea088"
+    },
+    {
+      "path": "CMakeFiles/ContinuousStart.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "dcbf9c0b91f3ad25f514e42baa2949bdd4a8c880dd11256741c3d97a605a84c3"
+    },
+    {
+      "path": "CMakeFiles/ContinuousStart.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousSubmit.dir/build.make",
+      "bytes": 2481,
+      "sha256": "01a5865bf9208927318082fe17b5584f573acd4ffffb178bae3248f8437654c2"
+    },
+    {
+      "path": "CMakeFiles/ContinuousSubmit.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "254f40d83e360c89565cfa8c782da276598e9ecde8e22fdef98ad94e5bec6985"
+    },
+    {
+      "path": "CMakeFiles/ContinuousSubmit.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousTest.dir/build.make",
+      "bytes": 2439,
+      "sha256": "768bbfcb46a19678abdb788f96e4ad5c31b312a8b01c62a2eb81e96cfc4f6aa8"
+    },
+    {
+      "path": "CMakeFiles/ContinuousTest.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "1ee0d7de9de26a62c6299bc50315ea6b59629e5460fc648525be643afd40fcda"
+    },
+    {
+      "path": "CMakeFiles/ContinuousTest.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ContinuousUpdate.dir/build.make",
+      "bytes": 2481,
+      "sha256": "ab4dc28f5b97a4cbeb9808ae992b26d2eb9a12b00143d1501f7f72b24596b697"
+    },
+    {
+      "path": "CMakeFiles/ContinuousUpdate.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "626b8c3b402b2f7b69a21ca02cf3cc7b066f13d778523d881ce6ba709d6f56d1"
+    },
+    {
+      "path": "CMakeFiles/ContinuousUpdate.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/Experimental.dir/build.make",
+      "bytes": 2397,
+      "sha256": "9943913822133fba1624e0c6fb8f1d2049ab219b49ff77ed8ea191971f9e1c7c"
+    },
+    {
+      "path": "CMakeFiles/Experimental.dir/compiler_depend.make",
+      "bytes": 122,
+      "sha256": "bf9b0ea4f73c08ef981d64d3ca46e7e4cf40dd2aa3c93c10c181cf1e2ead1e7a"
+    },
+    {
+      "path": "CMakeFiles/Experimental.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalBuild.dir/build.make",
+      "bytes": 2502,
+      "sha256": "49c00b90023b550e71b030245d42f5f26757e2f0973a3da36c604ab9eb15383c"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalBuild.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "0b1efbf5f9fb8d456b66a023110c288ca8d69a38edd37ef491e33b9c702f60b0"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalBuild.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalConfigure.dir/build.make",
+      "bytes": 2586,
+      "sha256": "0dc8f93831bee795a1ebe467bb58562edb51e262c088c27627c336382cd07e2a"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalConfigure.dir/compiler_depend.make",
+      "bytes": 131,
+      "sha256": "792ee335709149261b1d6c0458066aab961639e98a4c01fc04c377766ecae92c"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalConfigure.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalCoverage.dir/build.make",
+      "bytes": 2565,
+      "sha256": "b7835f7cb6e296fe5579a674f9d830a3b2b55aab972c2149a38dd1cec1db27ac"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalCoverage.dir/compiler_depend.make",
+      "bytes": 130,
+      "sha256": "527cd200c8f393f6bf01d37fae202e955d6dab76516a9fde9b93d1a0959a6294"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalCoverage.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalMemCheck.dir/build.make",
+      "bytes": 2565,
+      "sha256": "c337921740e3c29b2a0fdea32db0d68279d9d0a54d4976b7964ffd7532a203c7"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalMemCheck.dir/compiler_depend.make",
+      "bytes": 130,
+      "sha256": "e90c7c799fa7f6743c3d58f4b5cffbc93e961872c3e77d0054bcd0eec20628a4"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalMemCheck.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalStart.dir/build.make",
+      "bytes": 2502,
+      "sha256": "9b86822446ba8159bb1acb959d212f9ae73b58dedecfa5bde2950128f94a2648"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalStart.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "1a27102a452977f11d841268ff855e65f5da7bf12fe731957af5f3f30ec46e5d"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalStart.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalSubmit.dir/build.make",
+      "bytes": 2523,
+      "sha256": "a231868c6c2ba13d45b06020bbba6485649e53d98f4abd96d57de353bcd2b601"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalSubmit.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "5f2e02bfd9a96b0b3b39bf880262397245c1dd07fb2957dcae0a4fb5fce06434"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalSubmit.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalTest.dir/build.make",
+      "bytes": 2481,
+      "sha256": "ddef9e2c9ecbc086446494d7ab2b183e7be661bc03165bcf8d753ccde2b816b8"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalTest.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "b2a74156c5ae92ed73eac71a221d7fa3b7268f5c64f33f99bf2c7f41d5209ad3"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalTest.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalUpdate.dir/build.make",
+      "bytes": 2523,
+      "sha256": "7b9c4804ed44e595e07ff9ddd5979b25e9ddb5a98147e497bfee8e133875e3fc"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalUpdate.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "61bb95fcf190332d674a225ac8b042e79bcca96ccef59d8cfc7e5aec82f0cfc1"
+    },
+    {
+      "path": "CMakeFiles/ExperimentalUpdate.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/Nightly.dir/build.make",
+      "bytes": 2292,
+      "sha256": "a997723c708ff687a9a044147f1f11515111e6a2619512aa4102f9e25efee3db"
+    },
+    {
+      "path": "CMakeFiles/Nightly.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "76ff0b8e3709d2d19f08803663127978052e80ff8cb1079a141f4ec09b908a53"
+    },
+    {
+      "path": "CMakeFiles/Nightly.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyBuild.dir/build.make",
+      "bytes": 2397,
+      "sha256": "5cbf3feb23056ab1ab9c8d3a7aad660dd9ac56bdbf75d166d189dc8cedbe5f95"
+    },
+    {
+      "path": "CMakeFiles/NightlyBuild.dir/compiler_depend.make",
+      "bytes": 122,
+      "sha256": "febf578a323c331828e7634ba7ecdb8c1df8c3a12c481d02dee297c1fb6a9f5e"
+    },
+    {
+      "path": "CMakeFiles/NightlyBuild.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyConfigure.dir/build.make",
+      "bytes": 2481,
+      "sha256": "60ef290eef113eab841463932f2ba5616a16d52858a381bdee6b2c7fb8bc01f1"
+    },
+    {
+      "path": "CMakeFiles/NightlyConfigure.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "b2bc127dec8619c8520ff722557397ed3a1bcbf3ce22842f3bccd6df8b872c68"
+    },
+    {
+      "path": "CMakeFiles/NightlyConfigure.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyCoverage.dir/build.make",
+      "bytes": 2460,
+      "sha256": "b0713865b8b99a1a029022774a1c7260f7c25901c5b57087c70cc97a5b7d6cfa"
+    },
+    {
+      "path": "CMakeFiles/NightlyCoverage.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "3ce09349ec9653e97a9fabfc4e3dd1ad5f068e40581213c99b3992ab93a906fe"
+    },
+    {
+      "path": "CMakeFiles/NightlyCoverage.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemCheck.dir/build.make",
+      "bytes": 2460,
+      "sha256": "1bc5557b5abab75128023a3d7d9d7b767949a33b65efb7953f5a2ab6fd341c9d"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemCheck.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "75fc1b7c08e0570d2a39881363ea3107b58461ad8a462511090e582b29fc652d"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemCheck.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemoryCheck.dir/build.make",
+      "bytes": 2523,
+      "sha256": "5ae040b2ed85087eb2ab9f6da2cfd2878cdae90636fea2a7391a7d8fff075005"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemoryCheck.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "07f4bf505f7a9b039d70b610e64f88ff4dcf3f9e4332f35cb97f606879b3c1aa"
+    },
+    {
+      "path": "CMakeFiles/NightlyMemoryCheck.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyStart.dir/build.make",
+      "bytes": 2397,
+      "sha256": "d76279e4d866ffb5ccde75df43cd7e00fb39418aeedb267072763269847d697c"
+    },
+    {
+      "path": "CMakeFiles/NightlyStart.dir/compiler_depend.make",
+      "bytes": 122,
+      "sha256": "d3ffa0f4e3777d28e256da86a83f08740feb6ecd3f22bcebea05e7c99b1a1317"
+    },
+    {
+      "path": "CMakeFiles/NightlyStart.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlySubmit.dir/build.make",
+      "bytes": 2418,
+      "sha256": "b5d6673f952275e2066efa96fa5f84291c3418d7e29061031dc464d201c05525"
+    },
+    {
+      "path": "CMakeFiles/NightlySubmit.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "c5829b18074828f78e96f59ca21ae56c47e1ac69cb8290eae293553b34c8c0f1"
+    },
+    {
+      "path": "CMakeFiles/NightlySubmit.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyTest.dir/build.make",
+      "bytes": 2376,
+      "sha256": "3cb8b42059bdafa73dada3ed89a41dac873e1d57f5ff76d5f0c5eceb78d2eae8"
+    },
+    {
+      "path": "CMakeFiles/NightlyTest.dir/compiler_depend.make",
+      "bytes": 121,
+      "sha256": "8cea92af00a96a90221187212f4621f7cca3acca5be9a965e61caed4bf444f29"
+    },
+    {
+      "path": "CMakeFiles/NightlyTest.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/NightlyUpdate.dir/build.make",
+      "bytes": 2418,
+      "sha256": "c19713f906bac72de340ada4ad1eff6964d638d45cda3b1a6c5570dc1412ab2e"
+    },
+    {
+      "path": "CMakeFiles/NightlyUpdate.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "48856352aad327dd8fa6290061f851b9f84f069f97e0c1117626bf54ff93da51"
+    },
+    {
+      "path": "CMakeFiles/NightlyUpdate.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/TargetDirectories.txt",
+      "bytes": 4724,
+      "sha256": "a1acfb0b2797e71f8962628dd2ee1760650e649e0e13050e536aca4a4d9c3b55"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "d411aa6514f2062f8d64399e1db530b3518774e04e5f965c3c3d0fcb1b966bcd"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "11dcf3dc81437a6b203ba698a4dc0f653a18bebb0f22a6bd4e488b7ccdddc738"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "f4b6b37bbd31d1c89cfaec531e798f8ec5a6b0c55a4fe950ffa9d55d971e2083"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "a9ee1019285be2641349cde600db82361c05526fd845071abec06f688618678c"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen35-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "ba5d3e634e5d81b772e58443c8231b9fdcea04821d209a6ac1727553d37253ca"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "090ad83604df1399fbd67659d7185d0a85e11afbf8d3d582465ac7e0edcc756e"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "13e0815fdca994757e6427b30dce15c2539ec92e862db28f30145a090cffb100"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "834bfddf14b84d09fd00f74b42c85ce183d1ba08edaeeccf57f890945b39bfb1"
+    },
+    {
+      "path": "CMakeFiles/llmx-arch-qwen4exp-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "f45daee02da9c8dc556c070ed86f591a81c6a62fd65151979f56d8eef1f7eca4"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/build.make",
+      "bytes": 5188,
+      "sha256": "776f90a8e7fdeac32d43ac84d74d52327b840ee45fdcfd8a8f5242466edb19a1"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "4fd3e8353515f70607f7c100904f392ef39b5186fb43ac564123b0337bf49de9"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "92c77a7a911b7003146fb285cbf193e8227448a9df1dfe14aeae6980d399a00d"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/link.txt",
+      "bytes": 192,
+      "sha256": "863b26e65a2d50f34f11167473532bbb9436d8d1445c0181bf5df43ab072b758"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-errors-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "79e1e31e0374fd614744d09c108c18e733efa84612eb20aac7d0688c501cb06d"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "4d82af5b5a650e7f16e6736fc87566928f89003c1ec225b79d6173af7ac7d537"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "cc51459dc21d918704d313c202dedf9803fd95cc09b61ee716a612610ae044dc"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/flags.make",
+      "bytes": 351,
+      "sha256": "084329a447ce0e558304549d1ba2452eae781ff11a86f636c370b3bae86e261e"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "f33585e223f3883c3fae684c749e6407391a9e2bfd00ec60a38f674e57536a7b"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-group-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "7b91cf814f8b7053fe932dac53102506881cd43b0ad355ca90fb7d691b17f154"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/build.make",
+      "bytes": 5231,
+      "sha256": "332533c7d9e149249ce56566d6ed3005037cc5549f9ac2b88a0fd2a05d809cd7"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "a46b46cfb0984e230a51cb7ad4583aa173378092bac865ab6a962260d23564e2"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "61c9c057a8585d6461a9f53d9bc6625c59ac4c436d79acd082aafe7d3bccfc8d"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/link.txt",
+      "bytes": 215,
+      "sha256": "874ffa9e242fcc9d5fc8137c859b0b31a71f074608abf1e8e76fc00d3bdac5b3"
+    },
+    {
+      "path": "CMakeFiles/llmx-backend-vulkan-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-build-info.dir/build.make",
+      "bytes": 2874,
+      "sha256": "7f1ea98e8eac441cbbf501ee13e5e5474ddb69c5854f458a1e1a109c5778272e"
+    },
+    {
+      "path": "CMakeFiles/llmx-build-info.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "499f98e41879f00ca257e736f54630869178dd113a900f234cd018b06ee1576b"
+    },
+    {
+      "path": "CMakeFiles/llmx-build-info.dir/progress.make",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/build.make",
+      "bytes": 5231,
+      "sha256": "640a0a32b93118e13729398d72fa2e31c4dc8ecbc12143c69e01bdd9863c8044"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "95154344b48169118ff960567b43e836faebc173a4ee92479eeee7d105a8a7c9"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "babe399fb61ac14cb11a24e963564202c4fee8ea4ed36ddd6f4a2e6d3060d460"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/link.txt",
+      "bytes": 215,
+      "sha256": "14c7cbaa3febbd220f1b8bd2146905098ab3da942f1bbcce5be28fd146cac32e"
+    },
+    {
+      "path": "CMakeFiles/llmx-cache-scenario-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "60f6d00c25d68117cad6153e8334bde49a64e2510a7ab6586570b74e3929e5e2"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "ca2071d1935e180db8c0a625b2580fb39b52249aeb67972310179241b8d430ca"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "da2d285b021cea44b7dbc0b53c8da3205dd214c4519da427614353ac3fab88a1"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "70951f9593c04c342186731d1bfee2ed5a414d1ffe857d89964de471e22c2405"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "5c40c378ebe035676c5ed4f72bfed0589587aa567a299eab1bf4da0ec1e82218"
+    },
+    {
+      "path": "CMakeFiles/llmx-chat-template-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/build.make",
+      "bytes": 4932,
+      "sha256": "45738d7e4b409d29909122f1a718be9cff8ef42a39df7a367ed52877758a1df8"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "d3c4444657d768231fc1d193833bf7c5006185d8efa7b45c2fb5522517f6099e"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/depend.make",
+      "bytes": 104,
+      "sha256": "1e118a431d74561ef48febe238c3264d93885d16be044a9875032e3c0e41697e"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/link.txt",
+      "bytes": 176,
+      "sha256": "5c22b90c0870f7afca2872a2ed3561205c042bc0812f2fa1fcea52a24d3dfecb"
+    },
+    {
+      "path": "CMakeFiles/llmx-cli-output-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "dbcb8fe21cd405b4e89add2efde9c427b0a312919fb7fd8305def0e5c10f5311"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "f12f78327ffa2546ee80b299ada1112225e5752272eb069873e041c8fe2adba5"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "d627178f3d583cbc571611f62c50b073728b239081868f5608eb21ad420f5450"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "635e22867f3b0ee144dedb88fcb2f4f2849192362633158b88668ba1002b28b1"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "c73162588408249be686599b3691d7df9640afdc4a3d95c9e97a686338f7b8e0"
+    },
+    {
+      "path": "CMakeFiles/llmx-context-cut-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/build.make",
+      "bytes": 4936,
+      "sha256": "d9c9753e6abb98cac4012405721555b4e693385eef50dd6c64981210f8a40787"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/compiler_depend.make",
+      "bytes": 121,
+      "sha256": "a1f8eccff2daa5d015233ca6a9be421a45ccce425974afee991d0b2031fdd8aa"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/depend.make",
+      "bytes": 102,
+      "sha256": "3173f1ab6198f6fc4e2030927a0e5e2e900146ed1454618102718c95212bc740"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/link.txt",
+      "bytes": 196,
+      "sha256": "cedaa560e16c0df8e581add0c40c0cd0aab57bd0ae8669a6f27e2d1248946340"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpu-f32-check.dir/progress.make",
+      "bytes": 42,
+      "sha256": "336a5cae3a58a537acf0ce6f214b3ce525e94439ac895d4031a603702a5ce4c4"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/build.make",
+      "bytes": 4546,
+      "sha256": "4e41ca3497510810e0748706e9a4f79df32066781e2bf8d30a88e8192407e5bf"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "cd662418fa54da8f54c761f389c9262443206ee88759fb3b8dc6836994a6a7f4"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "e7086113607696c673d1b6402ef2a7015f598a6bed809423f5d595b08fbf5a14"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/link.txt",
+      "bytes": 152,
+      "sha256": "3354bf60e6ac8c38211e1efb7cfda142cf6597c43001897b1ce244965e65cd9d"
+    },
+    {
+      "path": "CMakeFiles/llmx-cpus-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/build.make",
+      "bytes": 4869,
+      "sha256": "bbc1ddd476c355a1aadcaa4fb7d990d5261700158e1fda75a1d5c0cb0bd0c29a"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "e506a8a0ecb3ed731f2ece388eb2aef05bc22347f73a48281159602ed06f919d"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/depend.make",
+      "bytes": 101,
+      "sha256": "fc466fb14c1a807b34fa1f096c41ccecd6b43eb2b229f05d9459bc50f02743df"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/link.txt",
+      "bytes": 192,
+      "sha256": "bb017db4faf0107b68cd05a5da9d9fd61299bb0a4c767ee2fd67cad02b4193dd"
+    },
+    {
+      "path": "CMakeFiles/llmx-decode-probe.dir/progress.make",
+      "bytes": 42,
+      "sha256": "55182acb23813bdc6e419ba61bb23b0be39e292a013356155419bd1325349672"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/build.make",
+      "bytes": 5101,
+      "sha256": "50d4519da2039e6bbb17a1fc041201ff3a2f3ee02218798266d8f4bbf4f902cc"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "3e10b4058992ecf1e12b97f64336e5ef1401c0862f1132fc0c66a0c3da0fc0ef"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "a1d92de21144ed636c65da719b6a27f8079b7186143fe34eb57fdc7fe9fc7024"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/link.txt",
+      "bytes": 207,
+      "sha256": "4c50c733af46d323d5696d09fb564e084eac9ed27e11f39a0759953b737e2af7"
+    },
+    {
+      "path": "CMakeFiles/llmx-dilated-conv-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/build.make",
+      "bytes": 4932,
+      "sha256": "e976885612eeb7cf6e6178f265b4a875e0acc8e5a243b3113bb5254f5e83c5b1"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "c7803ed4f4c04c6a4731d9329c46ff4c774055539ebade7ba9825a51daef1347"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/depend.make",
+      "bytes": 104,
+      "sha256": "52f1e6289d565ef6575d2c916d23038d36967619d0ef84cd9b3d0ebc62fd7d15"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/link.txt",
+      "bytes": 176,
+      "sha256": "845c331eb4d79688bc489550a7d666ce663209a0ba12044e9f9ef7f94ff01f38"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-index-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/build.make",
+      "bytes": 4932,
+      "sha256": "d987e79c56d6aa5b2756db21c1d390400b6f4593b90d988a996cdfef7fd601ad"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "f9791ea6c04da853663bd6d97d523cce09d8958b3169f7074f8f23b77947d89c"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/depend.make",
+      "bytes": 104,
+      "sha256": "83fb6d7b92155d905f40a8dc07bb85ee5c3b4463555749062bcc3ad658b4fd24"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/link.txt",
+      "bytes": 176,
+      "sha256": "b61a3bd99f80a36895886b71e2cb2d71ec529b5006275257b075a60dfc5c523c"
+    },
+    {
+      "path": "CMakeFiles/llmx-disk-store-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "24a4d2fe2694b83748439d8f055df7de0472aad5b2b8e19c9f7bde3c3c085d99"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/build.make",
+      "bytes": 4833,
+      "sha256": "8358a322b5905a182ecd522d74b935fdd8c6c587bc9960c1a70189bef900fbea"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "d01e27c60938402e8bdec6b9469a94efaf3b5007f1ed57dab1d46010df125dbe"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/depend.make",
+      "bytes": 101,
+      "sha256": "0b2a33fe1604944c0a8d9dd4c2ec0a58f6fcd3f1fca47184ef57522a524a1a3c"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/link.txt",
+      "bytes": 169,
+      "sha256": "77815eb60a90275ae04eabe82fd64b1ef6ebdc703498f35dfdfcfc30529dbb38"
+    },
+    {
+      "path": "CMakeFiles/llmx-drafter-pack.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/build.make",
+      "bytes": 4610,
+      "sha256": "605f019271dbc58d92ce9594888d80c5a3b1073c100b7eca256226e5c228442b"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "ccb7b9c80ef049076af605d9874f0e76c4061771603dea0e0c577c16123c8a09"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/depend.make",
+      "bytes": 99,
+      "sha256": "353a006793f8fb8fc33c688db006cb947bfb4348ad4f634a2aa17ada60034932"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/link.txt",
+      "bytes": 156,
+      "sha256": "b31ec930c4c6d54efe94c6f365f1a4ce8721401ac9582e5fef3ad3d77efbbda1"
+    },
+    {
+      "path": "CMakeFiles/llmx-dtype-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "e1f0b130499a510568c37d49599251ffe1a77f5365450edd05b893008e902842"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "a5587ba435fbb4fa369a7c33e881495563b74c8ffaa3ca30dc872844a07a4e91"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "dc1e7ba3b607194b203d161822d24a8436a8cbf8e3cd7e59f684b099d9ff508a"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "b025ac7f40c738348c49a28ef1367f805d2ee52561af0f6b7f60303ac28e95bc"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "7a03ed0636a600420cdc56ff9ced05da7a11c6325bb44ae7e9158d92a1d290df"
+    },
+    {
+      "path": "CMakeFiles/llmx-file-reader-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "380ceabb169b345af4bd26da5b952ab0ccfcb58f77884f88b7a2731ae91b4e91"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "0047b291853b2e31da3f9b471987aa58e5b54c3bd271e59c8d6d35a9fcc3ded1"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "a90d090f6e7528dd6ea836d09f77285d8918d12c6ce302fa75c24698e58087a6"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "c7bfb57a32391e16129ddc1c8c958ed86e4cc70732fc706fb63f887f609a826b"
+    },
+    {
+      "path": "CMakeFiles/llmx-format-output-test.dir/progress.make",
+      "bytes": 42,
+      "sha256": "28285b7f0c640b85cc24abfcdb4f605477695945a133c63dd155ec38042892e5"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/build.make",
+      "bytes": 4546,
+      "sha256": "60e2036340d2687a6f8801b08d8175193152819bf4614ca89d8d19dc30891487"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "4f985fa7fb1a9a3d753c096dad5e421aec00cde0b7fe36d1fc8d2389fc0f9fd8"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "a6d563ad883194c03d96222f219906c04d18eacd19195884ee1bc2f32f61996a"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/link.txt",
+      "bytes": 152,
+      "sha256": "86976c3eabeed0363ded9f864a64a18847bf2dfe570ceda8fb9ccb45bed499b9"
+    },
+    {
+      "path": "CMakeFiles/llmx-fp16-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/build.make",
+      "bytes": 5446,
+      "sha256": "e4829d39c8d9d5950a59978ec3850626a644f3b2232d8a9fac9f78ca75844430"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/compiler_depend.make",
+      "bytes": 131,
+      "sha256": "7a55e7e4236f01aee505da6a33ccb54513e3114b2e678ccff890d5c35dcfe37e"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/depend.make",
+      "bytes": 112,
+      "sha256": "77618593bb248bfb659aa6b29d91b88f32d53175c4500811f160d0d4509b2e38"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/link.txt",
+      "bytes": 208,
+      "sha256": "355e7c0c1266a69096b831e0e1570e29c3bcee6e3e28d2a244cce04b93da9ecf"
+    },
+    {
+      "path": "CMakeFiles/llmx-fused-dot-overflow-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "6fe9e684f0d49bec79d316514613861464e4672a6fc83b89570b64bd0765240d"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/build.make",
+      "bytes": 5380,
+      "sha256": "7742dc2ac2e8efcf1060827ab1ce12d33ca2da0f83c1095cd7bc3bbe4304400b"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/compiler_depend.make",
+      "bytes": 130,
+      "sha256": "ada36d2fc89b7c8c34d2b5f8663e3c4cd331abd648da7fcc716fc2342bb28770"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/depend.make",
+      "bytes": 111,
+      "sha256": "a011e64effe8fc0c98fd604a67b6d4c231600fadad041394b796a25ccc7a520c"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/link.txt",
+      "bytes": 204,
+      "sha256": "55ecb888a25c62fd3e09ffa0cb7d880ce4f6344ddf11e9ef6c7888653a6f0cac"
+    },
+    {
+      "path": "CMakeFiles/llmx-generation-stream-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "e28aa51218a558d7c8868da6c734a434c978d507252a386fdd24bb349949761d"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "8b3e3e4f6d664c8c20b85055ed709ad589291cfccba89da06f476d7b23659bbe"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "c4896bbfc58f1491fc9183898a3db2e949aa97a3192b08ce97fa86c27a7605f8"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "1f9753cdfdb351cd7b4491959b00c796b5474a70b7076ebd78e74d72feb4e003"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-shards-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "72e6e5ef2ce5848c414172316cdc01ef0cd05473e3cc3b7573bba59ded14a991"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/build.make",
+      "bytes": 5252,
+      "sha256": "3e9c1c42a41d4ab6910bc19f550722bc60665b14a3fa37788818a084c80ca279"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "d5525370780900b6653f41db13ca60efc2895c71f09917b5fa79a98a121f7991"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/depend.make",
+      "bytes": 109,
+      "sha256": "f1ed6ce17649d8f1d25eff753e17624da5ac8ff0cdc70e7508d3de804ff83310"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/link.txt",
+      "bytes": 196,
+      "sha256": "0508b2b334428610a449b3e4421b0ed24d50d4de810034d9019aad3eb4a90697"
+    },
+    {
+      "path": "CMakeFiles/llmx-gguf-validation-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/build.make",
+      "bytes": 5060,
+      "sha256": "f640f44daf409f60bf69067308a4273c71537899d568b719033dd7cec0508a53"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "2b871d25b48b9a7467b111e83357c67c90ea8bb78a9d8772b20f7232bd98003f"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "c328515023890eb81e0f15c205405e255bf6c7fffa3e7657240c3f95294cf221"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/link.txt",
+      "bytes": 184,
+      "sha256": "6893826925807643bc4dabb505b7866b641e74a0104cc04982c49c3c4ca6b664"
+    },
+    {
+      "path": "CMakeFiles/llmx-half-weights-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "158cdaf1cbffb5f00595877c761f8bc4755ccd1a0c5d51e96e51164674623002"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "130702aa84913359d7505fb29f0ea553ad92d808e0e2eb95407f80433301128b"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "a208a1f4d2f9b8a360197f70a1a3d2af93ba6c17fa1811d5fe961850993328c2"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "0a75e6a6ce50aaae3c1059c1cf61b0c71022907e62449f2f2da12028ef090426"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "062f4ec048d698b482b6fa928f4f8c5f9c0e3d83cfa872ac08da84dd40a0ade5"
+    },
+    {
+      "path": "CMakeFiles/llmx-host-memory-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/build.make",
+      "bytes": 4546,
+      "sha256": "d2ae11105e5f6c9dd58edfcf42c4f6de77461fac59b29de9ba519d3373c5e3e6"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "f56fac242b5a45f1ee6d90fd9ccc1128b9c7e2367c8a16565150eeb11285bb54"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "8ca3d9a4e9d1f04ad85a2e560a2433f96793e8b305ae6468b6c14d6dd78024a1"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/link.txt",
+      "bytes": 152,
+      "sha256": "25d40c896ddd85c64b2b6183ed9ed34d926a1eb80487022fcbede503967033f4"
+    },
+    {
+      "path": "CMakeFiles/llmx-http-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/build.make",
+      "bytes": 5060,
+      "sha256": "f4f8afeab30dcb2d4ba7a257b363ce3aa005ddc1d22335f6fcb322ccf82b3498"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "e3efae2d5cc09b1072d9533e92478812eabe5ce444097747d201f833446b7e8c"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "57da0f81f687baaeb9f095e0c0783f9a5208c4aedaaf56305b79327e9aa23ab2"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/link.txt",
+      "bytes": 184,
+      "sha256": "e69c24921e3c480b20bcb2a0abaaf15288c8d8327c11200fc044cc4d1c88d8b2"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-manifest-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "833ee9256420a323d696b2da7cd5cb4c51a528a43dd0d078b5c46b2ec3211b8c"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/build.make",
+      "bytes": 4804,
+      "sha256": "e5aea9c3c25f4b12ef18e127867dcd647fd6c47cfc26d1d238665363cb2b6b66"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/compiler_depend.make",
+      "bytes": 121,
+      "sha256": "cb3eeff9d9dc3fda1c043a3ea77d1140df021360717310b6465af36b41541e3d"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/depend.make",
+      "bytes": 102,
+      "sha256": "73f8d014a4dda41dedbeb9ec08a81cf475243f97a2f566b39c6f31ae9534078e"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/link.txt",
+      "bytes": 168,
+      "sha256": "77abdfcb7d418d5f1503b9a34b21a3666b30baefcb281cfdeae951455e956eff"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-pull-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "7651fb22b932cbde062ccd8d4423c6c637447ebd05e045ea8471b6db24126d6b"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "fa678752dcbe6af57fd5075f97bcd5142d6da714f39925462c575f4d0cff7ac7"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "5b0e88a4da5089be2320daeb619e7cfae14356133b1e4c6e1262e46098aae8d3"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "7c51c902cf71003ac842bd379cce4d200f40cc905feb5156941b962ff5e7411a"
+    },
+    {
+      "path": "CMakeFiles/llmx-hub-transport-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "588994ef67578b59eeb01f87c6d55ba33700687aca1af834c0126a5048d822c9"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/build.make",
+      "bytes": 4514,
+      "sha256": "fa58930e5e09333d26eb88c7d4d2193d3acc2207908d4efb537fead0d5755304"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/compiler_depend.make",
+      "bytes": 116,
+      "sha256": "d08f466ec6f5c47b117ff5bd44795ee9eefc137dcb4a823ce33fee67f2e0e441"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/depend.make",
+      "bytes": 97,
+      "sha256": "637d9c4449be94467efc7d52dc6e10d10fad2ea92d0467a8a36eedb74e548b2d"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/link.txt",
+      "bytes": 171,
+      "sha256": "7322aa7f69e990c520950dc81acdfe899c0a362c1f97a784153608e3b7eaf9cc"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq1-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/build.make",
+      "bytes": 4646,
+      "sha256": "abae318110459e7c42019c01236c5fee32812932606a10c9353d34e3ae87d648"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "97de6135e639506b956df2df35ffda6d9afaf147b56b8fbee6d2f2a405bb9435"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/depend.make",
+      "bytes": 99,
+      "sha256": "3075de84b1e7a10350454163e20a5cd6cbcd60147cd11fd07d3b343b0c17e7d2"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/link.txt",
+      "bytes": 179,
+      "sha256": "253910a22197f5d33013b93d2d0b83c821e48dcd8534d1933d7a98bb1a1dc153"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-s-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "3fbf0ddd8fc8796f6de6a4dcee1921ea20f4eaafd5ec14d8a29a6afcdbba18a0"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/build.make",
+      "bytes": 4906,
+      "sha256": "6f79df27ba2552cca8f6c66e43e763faf2e8b97f2e39c31ec3a952574b1b9483"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/compiler_depend.make",
+      "bytes": 122,
+      "sha256": "27d61e67f4f7ddde52354bc9cf3a2b19b37f3ce7f7135de17ddb14b64af16630"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/depend.make",
+      "bytes": 103,
+      "sha256": "d10436ff74a40c8dde979cee286cf888f46609d45db2142dff1247896bf29d06"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/link.txt",
+      "bytes": 195,
+      "sha256": "6a27ccbbf5dae3eff7662282fe46139aecf1c428ac2cab1bd74a983842af1b17"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq2-small-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/build.make",
+      "bytes": 4646,
+      "sha256": "be76c799b49a3460f18a43e837d471ef3982bdf2ab883dea222fa5f62a208506"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "5a06942bc847b12ae79c4c343e098f1cd1dd9d838d5595f75db57d326a25902f"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/depend.make",
+      "bytes": 99,
+      "sha256": "f0140948dd50b3a4b85db8343e7d9230dcc93556a20b231635751812969db977"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/link.txt",
+      "bytes": 179,
+      "sha256": "0ea268af326fc18024ea61bbcb7ef99cbfc45f3f0886ecedd7f002a609ed2914"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-s-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "ecd333825d1ab01c81584b0cd489c64309a9d220a0817c330b8e823bbc063e9a"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/build.make",
+      "bytes": 4776,
+      "sha256": "6502d26546b7dc709a4255d5f32f78c5995f08227c5884d34e36904c228ceb94"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "cdcd65430d71d91f7f0d04b7353eef563e2d22c9144c47f2ea9b4917eb0db402"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/depend.make",
+      "bytes": 101,
+      "sha256": "a75de901bf53425e2267d826e35b141781aebec7920d654c25e904949ac2d1cb"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/link.txt",
+      "bytes": 187,
+      "sha256": "b98438ca37ecb3e1e1ad8dc34164f8fb30c5e15accaa746f5b0fc2e052fc06e0"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq3-xxs-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/build.make",
+      "bytes": 4676,
+      "sha256": "f00809d4fc0b3985665082ff349cc5b3ac8a5ea07ebd99ae326f51485e50ded7"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/compiler_depend.make",
+      "bytes": 119,
+      "sha256": "e09fb3b25ca5d9cad3eee8e6bb3da29dc929b3a4aadb253a7d7cd001e3036ffa"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/depend.make",
+      "bytes": 100,
+      "sha256": "9c388f93bb697c92f70552171debba9364f98342dcdbbe20656c8d0635ba7339"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/link.txt",
+      "bytes": 160,
+      "sha256": "38c6b80486a5d61a42f1ad331954028243b05616a90ec70d0209343aea377fbe"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "d7c9de387c4e4f51c493bc10f54c281214abf42b36e106f9a6fc8a34e1d1d0b8"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/build.make",
+      "bytes": 5168,
+      "sha256": "e5b53f0540fb66c0e7c44ef5e2e415ccc8c6840820c934c5d8e2bfaeced839d2"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "7a717cb685f9ba55da72241d34a2f4932d58a2630c7ae057909748be9e15f4ea"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "e733fa52228fd25719fb67bdb7cbcfa50829b175d1073ee24cc0c5c4aef00548"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/link.txt",
+      "bytes": 211,
+      "sha256": "cc6b2c0becd695c535bfc8ae5f0ca1c43d46f7cf907273a472f00c7a10c9bc1c"
+    },
+    {
+      "path": "CMakeFiles/llmx-iq4-nl-vulkan-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "1be01093b8726a031a44459deee615a85432f8c1aa554fe04cbe6df71a2048aa"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "7fbeb44c5998e6ba80baa95dd48eef03a0927626cc95168976394b0e5e8b30bc"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "eddf98e958da7d8d8979c2147a40509d5004c34fda21816767807f1c36b9f860"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "8970416dc6622c7dc6a05a0959ff2348e53632c1a3ca56009af8c0e0e6a75c48"
+    },
+    {
+      "path": "CMakeFiles/llmx-job-threads-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "f5239f21ccf03130d3a018e03c3d28b32f1cbf9fff7163c72485bd85e0cc0835"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/build.make",
+      "bytes": 4546,
+      "sha256": "ac2f1c53a5a9d03714d71192379f02224b776c8bc3398cb1cae95e96f5cacab1"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "8ce31770f5047787d555f24888f81a3bb7e4d7ff6d6ef2a90f7ff506b70a4f31"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "c8b98a3fe2363cf588aa2e5f2587991075de7802d4a931262e20512ebfaf0f95"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/link.txt",
+      "bytes": 152,
+      "sha256": "4f12a597e2aa285c3abcee2c5512a5d36ca46054f34a7f3dc8c676bf52789032"
+    },
+    {
+      "path": "CMakeFiles/llmx-json-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/build.make",
+      "bytes": 5101,
+      "sha256": "854e53d676b723e7a0cc96455b4fa0d68ba3cca48dd3b7a811ec4866b5d03c3c"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "2eab67aeaf297b5560424e969ff143995bb5dfcc4aa45e031013dac688cf12b1"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "bfa4ce3ae097759b2bb740dfa4e4e393085184307d3e51f0900858a346894eb1"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/link.txt",
+      "bytes": 207,
+      "sha256": "eb831f237b90640f76f29d7173aa4112e199aa667d8254413edd8cd9cd605ffc"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-auxiliary-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "0de32ec5753f6e011ffabb93fe8e1ae240f0ab132219e872515f6fbae5c7fc16"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/build.make",
+      "bytes": 4804,
+      "sha256": "19542a6b0f74559a7682539e89b194b7375064d48edc78f31e0a6df2a1a79250"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/compiler_depend.make",
+      "bytes": 121,
+      "sha256": "3b0ec126fb90206bfb3030996757b24c4e72f2adc1c9fbb1618f5a5f95627a2f"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/depend.make",
+      "bytes": 102,
+      "sha256": "6454a0dfc8200efa6e87181a89382795b63bbd6b92b96359c47668eed59f2a7d"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/link.txt",
+      "bytes": 168,
+      "sha256": "02fb38b8ee2aff553e9fbb981bbf94484616fdfebcb01eb1f44c7cd4821a7dea"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-cache-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/build.make",
+      "bytes": 5101,
+      "sha256": "36e1c312ce2e41f6ab19c4531b47a63e10b55c71964b49dbdf1672d03b745b27"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "2975a2c31562091b147bc588fec7f56d41a0ba077b25140679cf7288edcc1cfd"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "9dfc2cefe11a91ca63ede51611f7f581cf810d822aacc9ab79f8e1ce46d3b9ca"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/link.txt",
+      "bytes": 207,
+      "sha256": "72d08109af00c7438db8c50b7a2784cddbfc465c5e949f1af9a4cd712ac35e23"
+    },
+    {
+      "path": "CMakeFiles/llmx-kv-selection-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "d0bc3a90a089fb1b109983feb5e12f33a22ee8f6974fb8482752a7da2beb8621"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "9eda8d8ebb69bcbd933b395232340680080705e766d9939ae2343c63ab88bc1d"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "4076efadd8ff97057a4e94a1b5a09211f69c3184001fc9fcf7ebb00814f00787"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "2281e5e4ad0ff7140c316601bfd18270cf5b4368d14f411cbeb0571d4b03fa0f"
+    },
+    {
+      "path": "CMakeFiles/llmx-load-progress-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "676e8ba1cb9153c307eb7413197ae19bd2e97e0dfe6b3b74670871eb8925b495"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/build.make",
+      "bytes": 4802,
+      "sha256": "02927c13294ebd035b055ac922ecbc28555cc8e3b0ccb9842ee308b59a205940"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/compiler_depend.make",
+      "bytes": 121,
+      "sha256": "93b53fad0d5ff2597cfae5853e64ef28711bd29a0854cbdd02ddacf1faa2c01a"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/depend.make",
+      "bytes": 102,
+      "sha256": "0905fd48042d53abf5c98a0d41be471e62575b3879ebcac91dad659331bdfcf5"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/link.txt",
+      "bytes": 168,
+      "sha256": "e68787769ed6607f5dd6268a5b381a19aedcdabe2080a2af1de5cd9314dfa891"
+    },
+    {
+      "path": "CMakeFiles/llmx-logprobs-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/build.make",
+      "bytes": 4869,
+      "sha256": "678e9b4e87808cd0c0c866a8c0a2926c80564a757bad6fc153a38ab344a2a3e1"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "f7f53afd7b97a97385f5a72b46d262f1b46585092379943e38441267685daeee"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/depend.make",
+      "bytes": 101,
+      "sha256": "bb091c39d8f487b3d2770216261f3475026a279e515bc1d301ed511d29011844"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/link.txt",
+      "bytes": 192,
+      "sha256": "aa54bfe8a7f36e1148a52da9cbbfd8ebb97b8f586fbbd036a2541142a9f5e37a"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-logits.dir/progress.make",
+      "bytes": 43,
+      "sha256": "14bdffceca0018de7f2d50c883823ffe3a340d27eb8a81d12de673a129a247c0"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/build.make",
+      "bytes": 5316,
+      "sha256": "ce860c636d4e6d8580d21532c56437d28c62d3c6a872fa9c14a04cded24410b3"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/compiler_depend.make",
+      "bytes": 129,
+      "sha256": "be009b0ee7bc3f7616da916cfbdd14826b0c996b763ec9af765b09ba01252bfe"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/depend.make",
+      "bytes": 110,
+      "sha256": "6e962e635dcfe063d223c3b363ee2d26edafccb1b06d5de56ac7535b8c802268"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/link.txt",
+      "bytes": 200,
+      "sha256": "d930aab3ed217a244b304407ac3e656a28dce6c67f882a24d9c1dcd496b20141"
+    },
+    {
+      "path": "CMakeFiles/llmx-model-validation-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/build.make",
+      "bytes": 5131,
+      "sha256": "250ebd8d8c3bfdc8f52d371ce6363738d151f4a6f32a13288b6b6b6850e0f1c0"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "5027f49a2377f458aa9595c01fe1d552f71e7359b8f168854719dc8754f634aa"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/depend.make",
+      "bytes": 105,
+      "sha256": "9cdcc190657c204c0df5b40ce021e975d37b4b90be0ec6bf7d31f69e2886bc91"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/link.txt",
+      "bytes": 208,
+      "sha256": "2832db8b6c532d6fc11638fb17c0fd6e01d0e509e40aa5b498391df767cfc4e2"
+    },
+    {
+      "path": "CMakeFiles/llmx-moe-kernel-bench.dir/progress.make",
+      "bytes": 43,
+      "sha256": "ecab1708abc172e5c20d7ae5cee8494a7241478d3f1de66efad7cc4408b84b26"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/build.make",
+      "bytes": 5261,
+      "sha256": "d27d879e6c152f068c84b400cc845b7bb7e01ae9602c58d90b66ed53403cc7e0"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "5230371ee8fecfe09fe5ee3cadb4f468ef829a2af161307178dd8f560fbaa84c"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/depend.make",
+      "bytes": 107,
+      "sha256": "39027cfa769cf10f4d7d05f10cde80047a1d923daa39257cd986c5d24dff14be"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/link.txt",
+      "bytes": 216,
+      "sha256": "19f29d05f82d7954b864a049e137cd3f3f8ce5546b5a147c0f6cc7890df6f63a"
+    },
+    {
+      "path": "CMakeFiles/llmx-multi-device-bench.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/build.make",
+      "bytes": 4610,
+      "sha256": "6c378c5a60ba3a75bb91fe99be6fe5631aec08651311d3dbd50c827f9f16e2ba"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "38c321e2d9bba51ff47e68ac70f9ce5186d6a0efb6332312724d4bffcc192bb9"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/depend.make",
+      "bytes": 99,
+      "sha256": "58cdfa7c15426f78fd9b4bac28c056103b82f1849e04613513d8a1297b0cc81f"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/link.txt",
+      "bytes": 156,
+      "sha256": "d28a88f2a76d866454c8dca09b2e0d087095d2523de6078abc0c340828c26098"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "fdb2f44299b162d9d9390b1fd2f20eb1f10277caad92d8e3431d75b0cf620358"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/build.make",
+      "bytes": 5101,
+      "sha256": "6b0957190ba48e05cbf59c4174943733b3cd1f6af80dda639448964311f645a4"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "f0932d655b0647cf267a25047ac30cabbc8e01124ce7b91dd969e0cdcdb62c61"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "8bca6e6ada3d485821392f7c4584151c99a65c1eb345ba60c949598c3b33b4b9"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/link.txt",
+      "bytes": 207,
+      "sha256": "867f9f810821b3a54941b5e2b17b333b4753103b35beff75f64881a71842d1a6"
+    },
+    {
+      "path": "CMakeFiles/llmx-mxfp4-vulkan-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/build.make",
+      "bytes": 4866,
+      "sha256": "1d5bded0c0d6239678918fbfb936f1a6ea28278066e98032913062a069710292"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/compiler_depend.make",
+      "bytes": 122,
+      "sha256": "9833aec2eae556cb9e0829caa3dec5322fcedfa1ae5402e145b0d647bbfe8fea"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/depend.make",
+      "bytes": 103,
+      "sha256": "957d3e61c05c7656bc56e3828b1bb7cb2358c366be47151a0f56affe1fecf6fd"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/link.txt",
+      "bytes": 172,
+      "sha256": "141cbe6ebf8b06bafa71c1c514c2f9cc795a5323b0521eb719c0d20bf6f53eca"
+    },
+    {
+      "path": "CMakeFiles/llmx-placement-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "f98f35607d43cdf615e16fc9f2ce81e198f085d5f78725c2421ed508a7cb0d3a"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "55e326cd9a84ca03a4ffa8801b26751bd4ec7bdee756162452a294a6f9210de3"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "f2a6a2c5b54111505541399235452f58c9372eaea3ca293f3aacb669b95aa126"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "636d023932e22cc0471e25694cbc9a3013fe5e11156d1e39e1578a99395bd558"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "e082dd8ff955c3b8db2cacf45658c4cb939c51cf5f3c5520b6bf66e5d49378d0"
+    },
+    {
+      "path": "CMakeFiles/llmx-prefill-scope-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/build.make",
+      "bytes": 4581,
+      "sha256": "91645d0542a7cf33d5d0b93d498246b3f3a798bb589939ceb8e17e7ff9af1de0"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "eabf363c3e055f57dc506089ebb7ac5abe30fa3d93f700bde2b342e73d6ba05f"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "1b81ae3ec18e3db3a2b7e98c89a0265db4dd92438675bb223ec35ff4334e2997"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/link.txt",
+      "bytes": 175,
+      "sha256": "0e253ee851742448c22a5388086ed84edd96c3c2882f0c700ea84424e51d966d"
+    },
+    {
+      "path": "CMakeFiles/llmx-q2-k-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "61d23178aec10293591cef7e23d04a05c9d65a7a9feac384e784af2e7ea2ecd3"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/build.make",
+      "bytes": 4581,
+      "sha256": "721910b93e7533d1f6fbee5f915eaab71ab776aed06a0f6e3022b9872f1e502f"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "fc50b302a600a4697d27e4c9d823a7d0a054d8d14072d4dbbed5701250d33907"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "46149961e5bab69a7cd71802573a98967a7dfe2e07a30a95ecc72ec64c5b0e80"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/link.txt",
+      "bytes": 175,
+      "sha256": "e6c5f6f94d3f10990f8d498b83b42e6924846563e402ba4dda1303def0fe9558"
+    },
+    {
+      "path": "CMakeFiles/llmx-q3-k-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/build.make",
+      "bytes": 4548,
+      "sha256": "cad535b956a8eb6b67365b0b3455b9a7db6532af04bfc222004b20020a3a0f4d"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "c72697c2e2fcc725b92f94913f93261890b092f0cad2cd98694914ba46e8a5b3"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "c34a993ebb130d6fcecc7787c20201eedb14717111585889dd934eec8298da9d"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/link.txt",
+      "bytes": 152,
+      "sha256": "9e362f32baf9d6fd6b982bcaa1f2282ec5808c4813cb4ed8d64f511dc2a720be"
+    },
+    {
+      "path": "CMakeFiles/llmx-q5-0-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/build.make",
+      "bytes": 4740,
+      "sha256": "67fccdcae9dcceecb9fbfe79e6adb7ba495b2fa89c55565149c5b8c1bec0493e"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "4d768743bb74a67d7ee8fa9ea12f3d95f171aed3d4d6c7b78a4d50a9db68f78e"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/depend.make",
+      "bytes": 101,
+      "sha256": "600ca520de135be8687ff8f6ed78d830f91d8af2e69b9c7e0cf4bbccbeeee478"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/link.txt",
+      "bytes": 164,
+      "sha256": "0e6cd650eedfeb676b83d08d6f2e47adc83bcbc4b3cb63804b76f3b633058954"
+    },
+    {
+      "path": "CMakeFiles/llmx-q8-dots-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "54f888e6ab6cced9dea954b9a929b4fb4241d3e2b98f61c28e53f027850cd193"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/build.make",
+      "bytes": 5188,
+      "sha256": "ce083d4e26bbe73f8d5cfbb25636b0a7106ea84a06d6c6cb2504cc6b8a8a0862"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "688d5c791771f39c51ff4976f3cef17fe3f7b04da03b70d5d70c1a019e767f43"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "72ab7c95ba74a7fd61ce1b22090402aadac664969eedcd528c0e57241cb971b4"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/link.txt",
+      "bytes": 192,
+      "sha256": "95fbdf63842f448b32a835c7ffe2f20f64757b1736d749a250578eda3cdd2545"
+    },
+    {
+      "path": "CMakeFiles/llmx-quantize-range-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/build.make",
+      "bytes": 4932,
+      "sha256": "a71a11517687fe9f1ef731fd975b2b7b6b33d1fa32ba2803bcaef88264646042"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "ca6f4f3c0deafb1b752c2ee1b5dfc29f1c7b280e5e8614ac18641b31d24b242d"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/depend.make",
+      "bytes": 104,
+      "sha256": "3e696948bb29428f841b6c1d7ad9413ae37c05eafdb1e5b862d459d518706e58"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/link.txt",
+      "bytes": 176,
+      "sha256": "30d683e2637950b98e26c36b9ad93d726f7f4f1b694a7b8a94e4669c636b3e73"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen35-ops-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "947c8f73e38064b25eaa7cffd00b10b0a169b0c405163c1a31acf2df7a43205c"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/build.make",
+      "bytes": 5231,
+      "sha256": "21628a599ff45f2cc14a0b6871dd2b9fc5c5039d8ccc6acc9dc9688a5456240e"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "f01465429b000b9805122303043011a3ccada053122a809ca5d7ca77758cacda"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "f041870993a036c4cee9572e6e6734a0de6432062e532fc14aca985a81079d8c"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/link.txt",
+      "bytes": 215,
+      "sha256": "5661a41f5d23941679543d0845c7ce9c90f50a6939874d8e7be896c60a0daaab"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-graph-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/build.make",
+      "bytes": 5231,
+      "sha256": "c41ca100f375b8a2e44a155ee319417c99954d210012caf0b0d838c075f50101"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/compiler_depend.make",
+      "bytes": 127,
+      "sha256": "616c359e3b7999a28b95bf8d836135879d93554fdea137fe58d0f6bc640c5d4b"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/depend.make",
+      "bytes": 108,
+      "sha256": "37e8eae926676a09174523583fab410987df7a6f1aa44fd09d2765d67a62b9c3"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/link.txt",
+      "bytes": 215,
+      "sha256": "5354398680821d7c986cce77dd1f189bc0c9c3307f3b25c0b2b4e698513b76f8"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-model-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "532368e4ad9460e21f5b6ddb40921f5d4fa229a151cf219d6d427ba76c78a3b3"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/build.make",
+      "bytes": 5101,
+      "sha256": "44abe62654468ec79f4a7b3312fa604fc25f019f892e700421c9b882438b3390"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/compiler_depend.make",
+      "bytes": 125,
+      "sha256": "06a5e623b4d5562f0c01c0923b8aa5b7d8a5f4e6b1153a262baae05f92b117b8"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/depend.make",
+      "bytes": 106,
+      "sha256": "ee7f6cb14dbe79466828005750c1d076c371dca1188d6c091a85a5e7bc33a9b0"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/link.txt",
+      "bytes": 207,
+      "sha256": "f756ab7dd07cf82543e66d383969c21a37b6161627f65ba23f6f4165d17f1f8f"
+    },
+    {
+      "path": "CMakeFiles/llmx-qwen4exp-mtp-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/build.make",
+      "bytes": 4738,
+      "sha256": "f84a2764cb61a94dd634ac08a41a2e19d53b25f221a11a55a6b561d08c8484fc"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/compiler_depend.make",
+      "bytes": 120,
+      "sha256": "a1a01505e6b01ae61a02d9b56defb1dd8bdc91cef8286710bee67c2d6dcc9744"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/depend.make",
+      "bytes": 101,
+      "sha256": "66d0fd1d81546d3757764ec22443ae387cd48890535977bf15e64044c51531ad"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/link.txt",
+      "bytes": 164,
+      "sha256": "32cc32549e60c9f3603cabaf6927cdd8ce28dfc8c9459c8a30c70b2a2509e3ea"
+    },
+    {
+      "path": "CMakeFiles/llmx-sampler-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "0d952f113640e5db09f579582075ab316f22c488d9468d84a65a50de9b2cb227"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/build.make",
+      "bytes": 5428,
+      "sha256": "5fbc3603b3e67c769149b1695b820bd479facf42742c9814c20dc05943966e8c"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/compiler_depend.make",
+      "bytes": 130,
+      "sha256": "eae9bea86a7ccdc21f5331ff5a17f32c803bb7abb3b9e8e36030ca14a1408e18"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/depend.make",
+      "bytes": 111,
+      "sha256": "77af4dcccc4cbb179698075e23997c7bf7c2ed19264d080a778c0c2dfe724c6b"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/link.txt",
+      "bytes": 227,
+      "sha256": "4582591155e500cd19ff33a95bc24c6c5a8dccaf0c9a1f478b334513780e5b59"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-cpu-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/build.make",
+      "bytes": 5124,
+      "sha256": "a613beb28ccaaf1820e6adad380b235ab6c5e22a0fe32ee743a80821b3f2bd13"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "21a6ad8fb4240b8f670774de4b75764fe5d77b833790e916eccda311ec7d3c9d"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "b519e6e2d09ef5bf34d89f03f8e20de14250f9d52e085bf3f8c7ee617517fd2c"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/link.txt",
+      "bytes": 188,
+      "sha256": "7f2bf4b82a49dfa3ad1d97a4d13bfe30ff70307f8bd029ec64c22b34bfa507b7"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-passes-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "7b5463bb1bde7b99f0f3a2c79d3fed0e13b02a543c024679fa755952407b4695"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/build.make",
+      "bytes": 5166,
+      "sha256": "89b662b98d30dd88d928aec1f6d0983c292762db40177f3ae1e999f9f900ecad"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/compiler_depend.make",
+      "bytes": 126,
+      "sha256": "544e98a721c579850b175f29e2aec541a0ad62f287189b6400db4281507deeb0"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/depend.make",
+      "bytes": 107,
+      "sha256": "6b8004215f713f6157649e12705909a66bd738e34cf1799372480d4f155eca2f"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/link.txt",
+      "bytes": 211,
+      "sha256": "cdfd64e0de89932a678193852e6ea46f869b8de31c9b4276168423dc0c16ca62"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-resume-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/build.make",
+      "bytes": 5036,
+      "sha256": "7701daa73035518df913d0b57de1d62add4d01f8d702fef042403b3f3b7540b3"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "ba24116745a3968d56c5004f1b9830d087fbef79d530074d1a3dd5318d121703"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "7b66396b69f5d729c7d1859509c9e4572c475d2b018f200f49feb3695dd374eb"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/link.txt",
+      "bytes": 203,
+      "sha256": "d38132cd0d14f671b1dd64a3354ee193661d7b9df0e269c8daa45ee190f38394"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-spec-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "43df3a43a8c40cbdacc8450bd61c6193812917f8394caba26bcf2e147bfd009f"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "ce997f18d54ceb81485203b3b63a63bfbb71217202ceb1c6b9cfa9d4ecb53e70"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "df92a4a950c37de19523f37da0734d7e452f371a55dfafcf90e89021fe654e12"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "d10fc9fe10f151182b819785de3e0931f932f67f15c625b96617261da5511f09"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "c020d1485d7c11dee71c0b48980325433ab2b97c8ad341a1a13381ba9fcd628b"
+    },
+    {
+      "path": "CMakeFiles/llmx-server-utf8-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/build.make",
+      "bytes": 4610,
+      "sha256": "82a5d359eaf12acbf715ea5d9108b858db1bb2bf612daf4e8e802518b8c6f248"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "06bb356fc1d02aca1953b8403decf9f59a5ee2008d67c229d821f4e38cc2ac71"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/depend.make",
+      "bytes": 99,
+      "sha256": "ed08fe48d321954b5bb3111547e8629e45f108f97fba90c515da57abe19d3c7e"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/link.txt",
+      "bytes": 156,
+      "sha256": "b783646501f76ab7cd5e995f87eb4b41a096df3dc22aad7a345413125de2ba59"
+    },
+    {
+      "path": "CMakeFiles/llmx-shard-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "c9625225a9045bf7ec6ff693b0e93ef207185e2ad303db88d44de2a60366fb5e"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/build.make",
+      "bytes": 5361,
+      "sha256": "0cf312c23b671820effe4f85149427d04b283a7e9db89cc304b8fad51c4ac57a"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/compiler_depend.make",
+      "bytes": 129,
+      "sha256": "b479cc1ac9a10aaf6756689ba6db1182a857734a1b24790f284dde122ac2aeef"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/depend.make",
+      "bytes": 110,
+      "sha256": "8738472890c3dc044ed773bde47462349911f690c650c3226e894a8e9fa0b3dd"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/link.txt",
+      "bytes": 223,
+      "sha256": "f12f143fc47dbb05c79fefaabc088a4f8fb5297af3644746a2acf8297f6ec158"
+    },
+    {
+      "path": "CMakeFiles/llmx-sparse-attention-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/build.make",
+      "bytes": 4579,
+      "sha256": "c8d29ac166dcd59ed832df3542a272c2c26b80465a16ca19e4a8b479e9cef228"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/compiler_depend.make",
+      "bytes": 117,
+      "sha256": "7b5150a3dc2c138a73a0abb49f36d83247333c43111fdc62eae14b9a170148ef"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/depend.make",
+      "bytes": 98,
+      "sha256": "faa64447250e68dee4348a2813ca9966a5e0b47932e380b9bc0d4b61ceb15ab9"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/link.txt",
+      "bytes": 175,
+      "sha256": "89f9c15db696d4f2b2317477830f2388a683f782779985993ce827bc9795fdaa"
+    },
+    {
+      "path": "CMakeFiles/llmx-spec-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/build.make",
+      "bytes": 4804,
+      "sha256": "ef67191fc1b3497b40693e7ce6b051c9a2c8673ec3b6d6d37eb228bac0cda56a"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/compiler_depend.make",
+      "bytes": 119,
+      "sha256": "a73f3c2797d7d9be369aa166e92bc7cf6de62a893f27a138d303099fa39265f1"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/depend.make",
+      "bytes": 100,
+      "sha256": "328888a2162f520f5c76d614f40d2df0ade5cd4360680b63f1850e4ee4aaaec2"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/link.txt",
+      "bytes": 188,
+      "sha256": "17b84155789f56775c49848f07bf829098dbac0aa8f7c1b7fbce6e8880b5ecc8"
+    },
+    {
+      "path": "CMakeFiles/llmx-split-check.dir/progress.make",
+      "bytes": 43,
+      "sha256": "efc027a13529471c4ca98d6de8b86ea1e74b892f4435651f1ad4ccb87e0df65f"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/build.make",
+      "bytes": 4971,
+      "sha256": "7f366a442d71f251c1a4f3a20306d442fac414ce92e3c37c1222c24593e6d91c"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/compiler_depend.make",
+      "bytes": 123,
+      "sha256": "bff7ee5ba615d525ca7d7629a49d713986ac7df9ede5a59995e0dbdfdcdc645b"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/depend.make",
+      "bytes": 104,
+      "sha256": "aa02e7def8939b20fbf4c71992698d2fa35a0ac4f2bb4fcbca3a9232ebf731e3"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/link.txt",
+      "bytes": 199,
+      "sha256": "6b2c09db53e6f5079dbfe12f786d0830cd05084eb5c9c8daa4c9793d2c3394c3"
+    },
+    {
+      "path": "CMakeFiles/llmx-stream-ops-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/build.make",
+      "bytes": 5316,
+      "sha256": "ac441a8f577d57934e9f6e7b6efe4e39ff3f7a5accfde23c29e104160a0e2cbc"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/compiler_depend.make",
+      "bytes": 129,
+      "sha256": "ddd8ec8ebfdccde0e1d7d3df33a57602f3e113adc15a0dc6dd249a83de599f79"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/depend.make",
+      "bytes": 110,
+      "sha256": "eecb60f2f89effbcaea3ecd02bea7e2e4d7e1f48ecb58d6598eaf5711d27121e"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/link.txt",
+      "bytes": 200,
+      "sha256": "1fe21358a2759c8b2b6643e58366abfd8629a45d510cc2ff6e98b38364644c50"
+    },
+    {
+      "path": "CMakeFiles/llmx-tokenizer-encode-test.dir/progress.make",
+      "bytes": 43,
+      "sha256": "a357daafff702478f074a11afaacf9ccf1778b70fd78396755cb37269257f3db"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/build.make",
+      "bytes": 4418,
+      "sha256": "e3455555717346e5d140727c62f0cb801275e39b89f3b1ddc68babccbfe5de13"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/compiler_depend.make",
+      "bytes": 115,
+      "sha256": "b1a1b5f20c176c613daa39a31ba2dc2e7598252376e7a27cb65630f48d7106f0"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/depend.make",
+      "bytes": 96,
+      "sha256": "005b11ed14f99049c2f5559066c4a819be90aaad8ebd66d83bf04e12e2009116"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/link.txt",
+      "bytes": 144,
+      "sha256": "3afbdf9ff5d3f559ebc9af9075d2c66ee1d9cd28f3f62196eb75b239763c5de0"
+    },
+    {
+      "path": "CMakeFiles/llmx-tq-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff-shaders.dir/build.make",
+      "bytes": 9668,
+      "sha256": "177eaaa5f5124b8b4e468ce9ae2b4d15cd9c4fd6907da16519f96d3fbe378677"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff-shaders.dir/compiler_depend.make",
+      "bytes": 133,
+      "sha256": "9f3e11dd7ef3c2e4b1e109c259fcea40e94f4a36187e37ecbe7b2306e0963aec"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff-shaders.dir/progress.make",
+      "bytes": 206,
+      "sha256": "d66b732041be204b72e98bacd4c42e61de015bbbe5b36af94695e36d66d2b130"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/build.make",
+      "bytes": 4781,
+      "sha256": "859a9fb2fd765755146196b6f91fa668a724e418877d50c115c2473bfb298c47"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/compiler_depend.make",
+      "bytes": 118,
+      "sha256": "1834742a29b5b66aaf6b7206bdadc08f128ddb2cc898e90aa36ce5c9d85a3d20"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/depend.make",
+      "bytes": 99,
+      "sha256": "8ac16d5dbcaff88dbdb1c4817fc28aa92b6da8da26297fc7d4fb9c9c9250eb6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/flags.make",
+      "bytes": 346,
+      "sha256": "c948fae4bdf31acdb764a510b87f696fff6f08b996889c8ef37bc22519449599"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/link.txt",
+      "bytes": 171,
+      "sha256": "a7de22f57c7e439272ae5b33620cca4d422fd47e5227bbcdd9c63be14a8367af"
+    },
+    {
+      "path": "CMakeFiles/llmx-vk-handoff.dir/progress.make",
+      "bytes": 43,
+      "sha256": "34cbe11bc433f4a3018cd90dc270b181031a33359a6f6e424941e721869e5bfa"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/build.make",
+      "bytes": 5214,
+      "sha256": "b529352c610ba2d41ab409f97325e08d31375ad0d1c0abd5412c9a072524a329"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/compiler_depend.make",
+      "bytes": 128,
+      "sha256": "3f676675ab9485a0ea044c5838695d7377c3851f3620a89e75ab84c4b31bb1eb"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/depend.make",
+      "bytes": 109,
+      "sha256": "02ca41638bfa2381aad3c2758950586be22f632770fd703eb551b8879021d848"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "22bd0f8044781b051490aa9bd1147670b77f812fe481a6a7bc7792f6faf6499d"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/link.txt",
+      "bytes": 200,
+      "sha256": "e3589f02528725071806079da5d470f045e9f46d92e514619ca9d9075b74bbcf"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-lifetime-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/build.make",
+      "bytes": 5508,
+      "sha256": "c0ae5620323fad121b32e7939b2153b3ad9bf02cfa606a40d5631797a97f1b9d"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/compiler_depend.make",
+      "bytes": 132,
+      "sha256": "308106af5c0f684abb81f99e29121fb40a6139959361af15932336c5401f766a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/depend.make",
+      "bytes": 113,
+      "sha256": "6f5039b9663d2e967cad4cf2752e4ae6e8213d8dc55144e63286102ba5c071eb"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/flags.make",
+      "bytes": 352,
+      "sha256": "22bd0f8044781b051490aa9bd1147670b77f812fe481a6a7bc7792f6faf6499d"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/link.txt",
+      "bytes": 218,
+      "sha256": "dca71a821d9a2ea2327ed89d6064734ed476896bafdb0dcdfd83d5e018c9de3b"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-quantization-test.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-shaders.dir/build.make",
+      "bytes": 758603,
+      "sha256": "2aa4df9733da4fc3a62f35a1190061403a5f67e4a7935ef83599a6f6b5d5f002"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-shaders.dir/compiler_depend.make",
+      "bytes": 129,
+      "sha256": "b81841469cb8672b19469b4686b64e5f6b8d085cc4b512402ff8435aa0dc2186"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan-shaders.dir/progress.make",
+      "bytes": 5757,
+      "sha256": "9e595b12542eb2a8de48bfaa7aeb2838b40cda0eec37da9ad87ab5a5db7f2cdd"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/build.make",
+      "bytes": 4908,
+      "sha256": "134c3bf7a06866424511599e4714654a74ec4a6a0a244ff89233939e70662d97"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/compiler_depend.make",
+      "bytes": 51346,
+      "sha256": "67510c9870885d49a928cbb564afb9eac069b00eb08885eef0557c1f0a587f15"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/depend.make",
+      "bytes": 95,
+      "sha256": "1ad966348670a20706a05e976b7ddd3b56e77a464c034a0cfce3405e8ec0766a"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/link.txt",
+      "bytes": 135,
+      "sha256": "319d2a69f518f48fcbc1d22e7dbef3118cf4d56279d1a67c4e70085b55d1d1e1"
+    },
+    {
+      "path": "CMakeFiles/llmx-vulkan.dir/progress.make",
+      "bytes": 43,
+      "sha256": "0167ada28714352f6afe5ae78c0cd176759f607836cde0562d0c7ece83ff6dba"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/build.make",
+      "bytes": 4996,
+      "sha256": "9c9e81bc0e8059ae18702a330b76526811b59e56d22de1f22cf51f1a6d2a3d13"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/compiler_depend.make",
+      "bytes": 124,
+      "sha256": "242fa30bef2dcce406d20307fe67374ef8422a28c15ce4082073cfafd39f1b6e"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/depend.make",
+      "bytes": 105,
+      "sha256": "475b63ce5f5cb8a48e92266b5e42aa27fd17fe403189a4bea0a1e14474ef5ea5"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/flags.make",
+      "bytes": 333,
+      "sha256": "86ce7eb10fec507eac964f7fa8029cd5fbbc1afdaf619a18825ff97e1d040371"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/link.txt",
+      "bytes": 180,
+      "sha256": "58fb38d7023e2740f28930e4794e1113e7e3733d875b06eb6c538447616dfd47"
+    },
+    {
+      "path": "CMakeFiles/llmx-weight-rows-test.dir/progress.make",
+      "bytes": 44,
+      "sha256": "967f8310773343328fc206001054085f32db632c252941e6c3a7f9074274c53b"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/build.make",
+      "bytes": 4153,
+      "sha256": "84f1c932b021f572350e5b8faa2f5c63cc66c7f276dac72c700911a66d67b940"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/compiler_depend.make",
+      "bytes": 107,
+      "sha256": "f4e1af4c73e3e0ab7e2baab11a815c24b15229ca7d8018f8b008f24d6b008dcd"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/depend.make",
+      "bytes": 88,
+      "sha256": "17e7a8c8b59c00d330bd497d874175d0bc016bb5065b238e7eafc0c26956163d"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/flags.make",
+      "bytes": 352,
+      "sha256": "632470c22d6bd128895c6ca1c74ad88472022f187b618de65caa31369cec9e84"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/link.txt",
+      "bytes": 145,
+      "sha256": "ceb23f9175b910364c3cc50f77c9541c017b5cf299de3901257571a1f0f5a299"
+    },
+    {
+      "path": "CMakeFiles/llmx.dir/progress.make",
+      "bytes": 41,
+      "sha256": "0f9c4f95cfa1d76640bd7b27f192bbd5745bdaf09d6496acd321023d9ebd2b6a"
+    },
+    {
+      "path": "Testing/Temporary/CTestCostData.txt",
+      "bytes": 65,
+      "sha256": "f62165b821b913fb952d346a5a8f1c08c12cfdf79a678431e084a9eaa6b485be"
+    },
+    {
+      "path": "compile_commands.json",
+      "bytes": 34957,
+      "sha256": "7d947cfe16f038454c07feb382a2e5a2443726e4282848ba74cc5e8bd4a0bfdc"
+    },
+    {
+      "path": "generated/config.hpp",
+      "bytes": 879,
+      "sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749"
+    },
+    {
+      "path": "generated/llmx-build-info.hpp",
+      "bytes": 344,
+      "sha256": "de82d9d8624a24c9060116e84d07a2546497cd1ff90cf65cc998415c448eb1b0"
+    },
+    {
+      "path": "generated/vulkan/add.inc",
+      "bytes": 3037,
+      "sha256": "c5fcf6022b9dd4d471666924d51762739ba7dd4b4899923dcac2867034d3889a"
+    },
+    {
+      "path": "generated/vulkan/argmax_rows.inc",
+      "bytes": 16368,
+      "sha256": "59a0ddb9f22721ed7069e686414227c994ec3d05fbbb6ad360c530856592f0f5"
+    },
+    {
+      "path": "generated/vulkan/attention.inc",
+      "bytes": 138442,
+      "sha256": "63e7093e3c4788b9714d98386a67c9edb7737e3c30a2660deca15a5eba362fd4"
+    },
+    {
+      "path": "generated/vulkan/attention_g4.inc",
+      "bytes": 149602,
+      "sha256": "cd8948cd9fed81a2edf82ca66ee614231489d4a7e7ca1f7e03a2f9494ac7f5a2"
+    },
+    {
+      "path": "generated/vulkan/attention_k16.inc",
+      "bytes": 139229,
+      "sha256": "2562ebded7e32c90ec418dafb11008d87b72e13e6770a305f82773617e11fdeb"
+    },
+    {
+      "path": "generated/vulkan/attention_k16_g4.inc",
+      "bytes": 150389,
+      "sha256": "282e6610794698aec717af5c2c473a65b895c9f2b2742dbe8cef14c87e45ae05"
+    },
+    {
+      "path": "generated/vulkan/attention_kv16.inc",
+      "bytes": 139904,
+      "sha256": "ec42f8b1723b2ea9c90944f56b70f5eda8be7238d7877e5395f7e93ba41e33f0"
+    },
+    {
+      "path": "generated/vulkan/attention_kv16_g4.inc",
+      "bytes": 151064,
+      "sha256": "a4bcef33398534314d7cd7b597ed1ee9f3540afb21bda3867dd3f5c9f2d1616d"
+    },
+    {
+      "path": "generated/vulkan/attention_merge.inc",
+      "bytes": 123896,
+      "sha256": "03f37436562fe1b3228b61ba08449416cacbe0fe467e79eb006a7f985ccf6394"
+    },
+    {
+      "path": "generated/vulkan/attention_tile.inc",
+      "bytes": 166983,
+      "sha256": "333a4335e32fd1dd282d5a6bdab7af0c67e467ca2ffad903e3964d87c63e25d5"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_d256.inc",
+      "bytes": 166927,
+      "sha256": "bdd022f948ab85d213dfaf8aaad35078b7148e8a861403d04e32bff76cbc75ee"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_d256_k16.inc",
+      "bytes": 168018,
+      "sha256": "7b0b423ee120fe1ea2068cd6c40a3117504a9ff6e0b8a88a217470558b03a9d7"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_d256_kv16.inc",
+      "bytes": 168851,
+      "sha256": "d8bf960cf177f2387186316416b10769c6c6e0890702456b7ba2f34f31525705"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_d256_v16.inc",
+      "bytes": 168018,
+      "sha256": "fe5d05d8b64f9e7e809e0a16e598f2eb05fda3f05a4de3fef7dc8de59207147e"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_k16.inc",
+      "bytes": 168074,
+      "sha256": "4bd26256fdcf362e20ec640f3d7e678e3c40ee7801288433271ac756585692f2"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_kv16.inc",
+      "bytes": 168907,
+      "sha256": "38e891c4130fe94265069466501abcbb8349952af85d76b2cba0b4022835ea90"
+    },
+    {
+      "path": "generated/vulkan/attention_tile_v16.inc",
+      "bytes": 168074,
+      "sha256": "1c09b82845d5253fdf35c1f287b10632ee9274c9e643684a3c09ffe20eb9a6de"
+    },
+    {
+      "path": "generated/vulkan/attention_v16.inc",
+      "bytes": 139229,
+      "sha256": "6acbf9280a0986579a4b9e53ac0514cb80457ff887d76e58197dd27a13c44778"
+    },
+    {
+      "path": "generated/vulkan/attention_v16_g4.inc",
+      "bytes": 150389,
+      "sha256": "ca83a715ad98c6cab9f6c6e48bbafed917da473510d7bd51c442110fc927ddc9"
+    },
+    {
+      "path": "generated/vulkan/attention_vec.inc",
+      "bytes": 138633,
+      "sha256": "5accc2e57ff65b9037ba92235d09db5cc388d2e4085eb50c10b0ab3d16a5fba3"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256.inc",
+      "bytes": 138633,
+      "sha256": "0cbb567035ffd9c7eeca17983f24e5caa33f52b774a1afbbe629fa6a264ba9a7"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_g4.inc",
+      "bytes": 162044,
+      "sha256": "7ea7bf72415af5563847ca32ddd372f0b86d7e42554b33147d11a10496521431"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_k16.inc",
+      "bytes": 139162,
+      "sha256": "9e46f689d7506a973fb194613ff4dbaf8fca2b57e5a089c40f4c499a6f2187ff"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_k16_g4.inc",
+      "bytes": 163451,
+      "sha256": "19cb94c643e7f880dacbda67eb9f55cb0f73f082766ee0f7c3444275a7c36138"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_kv16.inc",
+      "bytes": 139342,
+      "sha256": "46c1d38daeee70bc0abeb369cd641005157cec72eab5f04b91390d1f6d1cf4a7"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_kv16_g4.inc",
+      "bytes": 164171,
+      "sha256": "7022613b07e206123fb6bdfd70f72a45964a9cee5a6fb688a4af961a65b7bf97"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_v16.inc",
+      "bytes": 139162,
+      "sha256": "d4b857baf0d2c0a64ae6df6b8b0fc41f9a0d2326c3aeb7da206531cb874cfa49"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_d256_v16_g4.inc",
+      "bytes": 163451,
+      "sha256": "3b84bb3397221af20f955bd3101397bbaf6da0842b043944fd71b7eb854c61f9"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_g4.inc",
+      "bytes": 162044,
+      "sha256": "2d22c07813e16ec3873c56b77190ea9e832c9114b59d5fdfa05c08644a34881b"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_k16.inc",
+      "bytes": 139162,
+      "sha256": "b98219d366b9ec61f4f7e85c23954b9421c770f049ca3a50c100d98bf23b0041"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_k16_g4.inc",
+      "bytes": 163451,
+      "sha256": "e8539880eb5e0b87f5b322e71b3bcd55db7c93b2ab40f7bffce882765443376d"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_kv16.inc",
+      "bytes": 139342,
+      "sha256": "1960014a5391d7d0d532f41c9c32c8085cc28353c77971a6c2349bbacfb7ad71"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_kv16_g4.inc",
+      "bytes": 164171,
+      "sha256": "aab11266a8c9d97d8a59814fa8601d0f019dc595ffe6bbfc2efaa8062f617140"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_v16.inc",
+      "bytes": 139162,
+      "sha256": "e4ce18354757dd652da6ea53cf60a13fba9d8a6ad121486144c93b6dc2d732b1"
+    },
+    {
+      "path": "generated/vulkan/attention_vec_v16_g4.inc",
+      "bytes": 163451,
+      "sha256": "c43e21c89bc934acf5961d5a583768abce2e21c4a9e276073cad9379e13e8f6b"
+    },
+    {
+      "path": "generated/vulkan/causal_conv_silu.inc",
+      "bytes": 22994,
+      "sha256": "ead149a1e347e3db6ad272034800fcd3a13fe35cb8c46c1a0a26bd53328fe980"
+    },
+    {
+      "path": "generated/vulkan/copy_mxfp4.inc",
+      "bytes": 7953,
+      "sha256": "925bd41b00dc45b558aea11bf82025e58bc77a3b6d22120ee988ceba66f47edb"
+    },
+    {
+      "path": "generated/vulkan/delta_rule.inc",
+      "bytes": 86399,
+      "sha256": "52c625c809c611137a2d4e6b22c73bfc9963a859e53200d57c395f12ab7442fa"
+    },
+    {
+      "path": "generated/vulkan/delta_rule_short.inc",
+      "bytes": 86399,
+      "sha256": "4fde72bdf43cf1e04ea0de015f9533b67fd1872669774c222cc1178e56cc3edd"
+    },
+    {
+      "path": "generated/vulkan/dilated_conv_silu_add.inc",
+      "bytes": 17066,
+      "sha256": "4dd2eaa9bd1039f0963b3146f95b9dd65e5a989f4e2e9cc7e4a8d7e5c2ca2c87"
+    },
+    {
+      "path": "generated/vulkan/embed.inc",
+      "bytes": 99809,
+      "sha256": "61ec11257476196d88fe51534c88357486dab917c0c33dd279e29cfdd4fc613f"
+    },
+    {
+      "path": "generated/vulkan/embed_ids.inc",
+      "bytes": 100912,
+      "sha256": "aea6dfd496fe9fdb87ba7a130f4d85098bf9cc1987b5558eb71abeae0ad925fe"
+    },
+    {
+      "path": "generated/vulkan/embed_ids_mxfp4.inc",
+      "bytes": 9292,
+      "sha256": "5eae578af856b64053352f0e77d77166b9344b77b7676e637cf571938843e15f"
+    },
+    {
+      "path": "generated/vulkan/embed_ids_wbf16.inc",
+      "bytes": 6254,
+      "sha256": "ae5a510a71ec8001ac2d3e8ba27d147574436c7c94ad2da83d80f08631ef94e1"
+    },
+    {
+      "path": "generated/vulkan/embed_ids_wf16.inc",
+      "bytes": 8966,
+      "sha256": "b8199be58e3a5333580a25bd74c414d72eaff9af6947d71ed91086f81dec605c"
+    },
+    {
+      "path": "generated/vulkan/embed_mxfp4.inc",
+      "bytes": 8189,
+      "sha256": "1479c23012afc725c431f5036dca5fdbf1eabc3109d73243b282fe7e8969ee71"
+    },
+    {
+      "path": "generated/vulkan/embed_wbf16.inc",
+      "bytes": 5107,
+      "sha256": "89b90a7ab0bce758f527a91da0a0abeb97da7bd44be255367e1af4c02f740ea1"
+    },
+    {
+      "path": "generated/vulkan/embed_wf16.inc",
+      "bytes": 7818,
+      "sha256": "5de06c8e9171563df948d7f612ce4dccdd5af905ced0c59ce42e821b604c7f93"
+    },
+    {
+      "path": "generated/vulkan/gated_rms_norm.inc",
+      "bytes": 260336,
+      "sha256": "55dd362a9cc20a5b20b7f6b873edaa3ba7879b1d587d1d19d6c6846c59b25e04"
+    },
+    {
+      "path": "generated/vulkan/gather_rows.inc",
+      "bytes": 4196,
+      "sha256": "18fb48ad4171822401e69747ac3d60ec074dc1f24a8ab7ae094a93f0f9ead37a"
+    },
+    {
+      "path": "generated/vulkan/group_rms_norm.inc",
+      "bytes": 254474,
+      "sha256": "1625462c23c987804b9d224928363f0b6d72add6d786929c307ebd556c6f180b"
+    },
+    {
+      "path": "generated/vulkan/inject_streams.inc",
+      "bytes": 5253,
+      "sha256": "a6e09c3a957fa1ff185303684d4503a20b352628a9e76c78e4873e27248a6033"
+    },
+    {
+      "path": "generated/vulkan/kv_index_pool.inc",
+      "bytes": 13387,
+      "sha256": "f69e1ca31cc8c75bb6b61b1705f5f8837e2e19d1b6aed4096136786913aa7bc8"
+    },
+    {
+      "path": "generated/vulkan/kv_index_scores.inc",
+      "bytes": 10248,
+      "sha256": "522b8cc15a02083e0acc85d116fb6cd650c0cbdd48c994552b069e67ea785620"
+    },
+    {
+      "path": "generated/vulkan/kv_index_select.inc",
+      "bytes": 20936,
+      "sha256": "8b4bbac88ec1d4027198663d847acb1a0265b2f363261b6bcd20c74fb17acfd1"
+    },
+    {
+      "path": "generated/vulkan/kv_write.inc",
+      "bytes": 8842,
+      "sha256": "5789604e44fd11500b770aae6359b54db994e744a08afd4fba3999baa02f6f18"
+    },
+    {
+      "path": "generated/vulkan/kv_write_k16.inc",
+      "bytes": 14411,
+      "sha256": "c277d556a5efd0d4eb0773c72e5ee2a39cb543a020b098330be2855c5f46ce34"
+    },
+    {
+      "path": "generated/vulkan/kv_write_kv16.inc",
+      "bytes": 19147,
+      "sha256": "07c72290273234fd6a1bbd61643ccc114d9e073595145b324bdbe927e4d75ba8"
+    },
+    {
+      "path": "generated/vulkan/kv_write_v16.inc",
+      "bytes": 14411,
+      "sha256": "4c38eb5fd5d86171002cfe34f977bb9a8acc709655aa46a5a386e671f8a1c510"
+    },
+    {
+      "path": "generated/vulkan/matmul_reduce.inc",
+      "bytes": 8831,
+      "sha256": "cb397b35c152ae077a9a82fd046fd3561c3ab66a6877e8521d04bfb34c8e2391"
+    },
+    {
+      "path": "generated/vulkan/matmul_reduce_mxfp4.inc",
+      "bytes": 9134,
+      "sha256": "31af6a257c20a01b7fa3616c2f80fffa828c44b18fea64d7afd1aa38ff2f2500"
+    },
+    {
+      "path": "generated/vulkan/matmul_reduce_preserve.inc",
+      "bytes": 8966,
+      "sha256": "7e8053aa5f7f3139ff8a3f53fff4bf856c21a3475413fc933fb1634d12ba1632"
+    },
+    {
+      "path": "generated/vulkan/matmul_row.inc",
+      "bytes": 58949,
+      "sha256": "e31c0debfd3c03a019c0dcd3795b936b0e24dabc45a2325128b17f76540f0400"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x.inc",
+      "bytes": 93599,
+      "sha256": "379118eb719391fcf0cb04db6c149bc1ced6b7c2eb73c488be630f755b8460f7"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x_preserve.inc",
+      "bytes": 94207,
+      "sha256": "31a8451cc3392e57e0574d4ce030224039dd6ed0b5b305560046b2aa69e8f84e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x_q2.inc",
+      "bytes": 27731,
+      "sha256": "2a996b3f015811ecefce82ab606db40412a093b6f4496da30dcec1e1afa4322d"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x_q2_preserve.inc",
+      "bytes": 28552,
+      "sha256": "824332edec66debc6cecfa3fbf3c70db94d1b0858c2be26e5cbe36a7bb2c7d57"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x_q3.inc",
+      "bytes": 28878,
+      "sha256": "49d91fb0e44c0f6eae73010fbf81888cff77f2c1ced6020ee2a5d4b6ab1bc573"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_float_x_q3_preserve.inc",
+      "bytes": 29699,
+      "sha256": "2c41b7d1db832217f799eb9df1dc70792d3da6d14031b7e7332bacd3e507902b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_m.inc",
+      "bytes": 31297,
+      "sha256": "479ac295b6594b2310d4070183586c0e5d27eb0cba2208279a44798efbc1853e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_m_dot.inc",
+      "bytes": 52289,
+      "sha256": "cb4cf369e395c5c1af4b9f5220f2ce883b3adb0348563b5cb3e92cc98e86baf1"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_m_preserve.inc",
+      "bytes": 32107,
+      "sha256": "5f6403b81b5cff7e08828816aa582490141fe511abbea07651b0b1e6893b34ba"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_s.inc",
+      "bytes": 28777,
+      "sha256": "bc01b1146c785f7dc1473e1b21a3b9b5be2477be4a5359471bf3b97f451b0922"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_s_dot.inc",
+      "bytes": 47429,
+      "sha256": "38c40f74a2c0741526a46580d301d98d2866d82703460b456896b7e61c1051b5"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq1_s_preserve.inc",
+      "bytes": 29587,
+      "sha256": "1c25d90f00b8e9d5ad03d08e8b4257c37e8b41613ede7a6034d7447dac17f493"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_s.inc",
+      "bytes": 29328,
+      "sha256": "f6080004bd29a1e6794ce258068be67f1c187eca7a6078cb13f8a008fbcd335b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_s_dot.inc",
+      "bytes": 47519,
+      "sha256": "79c59dc1912e07f55337c97e03cf43e887b12a13ac1a6ba04712c4f2ffcd13f1"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_s_preserve.inc",
+      "bytes": 30296,
+      "sha256": "4b799ba6abec2893c3e98bc223a91d88c8c1213a51dc2900640cdf0cb383b5b8"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xs.inc",
+      "bytes": 28529,
+      "sha256": "2e801165050b8298cfb83b6f0c18501946cf2a49bfab1405c8944286c40ebfc7"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xs_dot.inc",
+      "bytes": 45607,
+      "sha256": "f7cb731dcf63bc429a9868261652a9123f3c3bc8719d3824ce5a5db8d9fa716e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xs_preserve.inc",
+      "bytes": 29497,
+      "sha256": "5f1b01b3ad6f1028d4b71d34680905f4e189229476200de01a339253ed7a82c1"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xxs.inc",
+      "bytes": 28698,
+      "sha256": "97fcc68b85e5cc6432855034a06333b7a10fb1058d3ba601d93f41a44cb385d7"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xxs_dot.inc",
+      "bytes": 45899,
+      "sha256": "98823a47ae7a9e2a5210a72024c80847b7ec6d00675747050815bc2b11f2340e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq2_xxs_preserve.inc",
+      "bytes": 29666,
+      "sha256": "9dc7ee0367be8e044ff7cbc38583589cc1f0c9784bb7ab0b4b8251db9b0a98be"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_s.inc",
+      "bytes": 29272,
+      "sha256": "19cc922641bd61ffff486f8f2ba8d62ca5cd2e2410cd31798fa154aad1c3ba7b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_s_dot.inc",
+      "bytes": 49432,
+      "sha256": "349e4620f90e34bb688b33b4d7ff7727c72d12e1a526861a03b9f082cadff7a7"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_s_preserve.inc",
+      "bytes": 30239,
+      "sha256": "3c7740f06df2b9728165a22874161e1a861254fac74399065c9595c7ec31607a"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_xxs.inc",
+      "bytes": 29486,
+      "sha256": "4fee563acf38d0acebb03e535ef8715a9a27fc892e22c3ed759f0c41d97adc8b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_xxs_dot.inc",
+      "bytes": 48116,
+      "sha256": "12731ec5fcf7dfb0fc46256b333003ccaeb5e6653e58de619dab29a289dcbeba"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq3_xxs_preserve.inc",
+      "bytes": 30453,
+      "sha256": "75e7bc1de6032da7cf6488f6abcaf0d0e28fd84fa7b873f85055a232ef657d26"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq4_dot.inc",
+      "bytes": 41861,
+      "sha256": "f89c0aadbd996100b524ae90e67bb5c7ba4e143bd46c6ba9cabbb7f9ecf0e65d"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_iq4_xs_dot.inc",
+      "bytes": 47261,
+      "sha256": "b69b5c8d0b8a4b86b8816f80baa3f61dfd6e6dad3225ab2bf36df981dd11d2a0"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k.inc",
+      "bytes": 101969,
+      "sha256": "a90329ec23de7171018a93359451b80de98528e2a31d6d1a562ed8775aa5712c"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k4.inc",
+      "bytes": 88267,
+      "sha256": "2d5593f101bdb8a0bce60b05a2d659ce5072cc53da55115645bcef1527531aab"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k4_dot.inc",
+      "bytes": 70897,
+      "sha256": "5cbb713198471609f76bfa110913086f5329f2fbd5a2cdde697ad0bb018d74ab"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k4_dot_preserve.inc",
+      "bytes": 71032,
+      "sha256": "cf298781bd3104d743094dddf14cd072ff720d440be37934267a9d0e12208d65"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k4_i8.inc",
+      "bytes": 62797,
+      "sha256": "54dc2bae56a1355f1a305515f45d48fefab42f7deda827e20ff29a9f53452195"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k4_i8_preserve.inc",
+      "bytes": 62932,
+      "sha256": "b03dfc406995b5276a04a4fabb36d792066fd9134978a5a0fe0a9f1bbcd9dc54"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5.inc",
+      "bytes": 91023,
+      "sha256": "18cfcfdef8579dbfb8b2235b05d1b4f7a19fde5fd7af563a6504259521069bcc"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5_dot.inc",
+      "bytes": 73653,
+      "sha256": "5142779d8866edfd7501c284b314494d1e9e3736f56c04a8d27e578dbf34e945"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5_dot_preserve.inc",
+      "bytes": 73788,
+      "sha256": "34340e3f18e886dd96198a5f8fcce9f169c526f0ca2de451e1fb19a3ae596047"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5_i8.inc",
+      "bytes": 65891,
+      "sha256": "dd5699cdbdbeff8804000e3d1afd6698bd15eb8fd10ea1983840fa8ace338b8b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5_i8_preserve.inc",
+      "bytes": 66026,
+      "sha256": "660ef755e8a06d1e20b42d55568cf55c4ae68622fc944dba58b810dca88cf34f"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k5_preserve.inc",
+      "bytes": 94983,
+      "sha256": "83a5311c1d8fb7cc48ea7577f438ddbb0ccfd3c4af6fbf698908cd9d607a1082"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k_dot.inc",
+      "bytes": 83036,
+      "sha256": "8cdddace268dfe35a1d0f0021331264ed0cbe0378a4323a4e86dc680306d0266"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k_dot_preserve.inc",
+      "bytes": 83171,
+      "sha256": "4a6001197d527703fadb22d5ef3d6c217fb42471c2955211ab453a9b070fc489"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k_i8.inc",
+      "bytes": 76522,
+      "sha256": "dc1106d1a9d1715c45bf9e821c288e9af0a9434a526974cec117f95e7c13dd69"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k_i8_preserve.inc",
+      "bytes": 76657,
+      "sha256": "e444b1ce3be9eb3fec3a0e4a1c1c7e2401822138decc7d6ecb16eb9aedb2b5b3"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_k_preserve.inc",
+      "bytes": 102104,
+      "sha256": "7e8e84a2c833d4dbbd615ddaaa0d2ae2c40fbbd7f146b065281caf66ecaf8989"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_mxfp4.inc",
+      "bytes": 47238,
+      "sha256": "d51f7fe2e2e86222af465107392a53ddbc0b5461d1d200a6432a2075f09e2071"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_mxfp4_dot.inc",
+      "bytes": 49882,
+      "sha256": "9bf73a8940603d41edc028ddedb67a60c54ebf91726f5ad6380f4dd289bcfc9e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_mxfp4_float_x.inc",
+      "bytes": 106053,
+      "sha256": "9b19272ef6c5caa3999959b35aa51093c92c147f5ad8532a5aecb0aa34121434"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_preserve.inc",
+      "bytes": 60356,
+      "sha256": "4812858c16372159ad6ab2b15874a490a626172a21c6caa96369bba58792f9fd"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q2_dot.inc",
+      "bytes": 69243,
+      "sha256": "cd8192cc077e0852ce8ddf79fb05affce8b68b355b6a2edc8267527d02f20e27"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q2_dot_preserve.inc",
+      "bytes": 70312,
+      "sha256": "9abe3cc366da4035420b3efe7431eba8960fa006578b83d5ba800b2c9edda1e3"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q3_dot.inc",
+      "bytes": 80549,
+      "sha256": "e4746dd41277da167a63e6382abb3ced4213f950b59171c09a35fa487fcf27b8"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q3_dot_preserve.inc",
+      "bytes": 81528,
+      "sha256": "8a99e5c99dc46189a04625cf0c175a68b712f3093d1f8974ee3667a1226497fd"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4.inc",
+      "bytes": 178537,
+      "sha256": "f6badc96d3e1cadf59ce0b5643471092a180d3719fbc1202d9f4ed33f6d73e16"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4_dot.inc",
+      "bytes": 126022,
+      "sha256": "6ebc3c1ebe044c841a104accfd45c73c96c035326e20c05d2d219b1fea55a029"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4_dot_preserve.inc",
+      "bytes": 126157,
+      "sha256": "a09a1c268d9e628a8980440e321c56c1b9f7da323fc4e355965002f554ef9d2b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4_i8.inc",
+      "bytes": 99944,
+      "sha256": "949eaa020f38f9fbb70ab7da8b3bfef82c12fd6a98de35018e88afd4dc477e04"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4_i8_preserve.inc",
+      "bytes": 100079,
+      "sha256": "478bb25d39841ba6fe3353cd3e4ca9e7930d9e3537d9167275cb9464ce6a1a69"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q4_preserve.inc",
+      "bytes": 190147,
+      "sha256": "93770c64e4a9dfa95d59b46ccc58565f97a44fb07dcdfa57a61f490b3256c8e0"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5.inc",
+      "bytes": 192678,
+      "sha256": "b5bbfafea40b5abdd2ef9a301ec06b7344b4c35bb8a83150e536d4a7a780239b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50.inc",
+      "bytes": 206864,
+      "sha256": "fe492de5b0471a643676f18248831dc3e5dfeeec7a7fc7aed2b7e95ef573018a"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50_dot.inc",
+      "bytes": 149006,
+      "sha256": "ec3634bc3bd84448431aeb6d5abcecb9f673baec96ee0990eabee9ec09330bf8"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50_dot_preserve.inc",
+      "bytes": 149141,
+      "sha256": "7a0e61b1b8c2c8f7e286c948fe83595a164dbea2038d50285fd7f84d32ee0754"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50_i8.inc",
+      "bytes": 140017,
+      "sha256": "720b5e6330c2a7ba4a50e605599d446edbc0665f186a521c558a38497c7f1e6c"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50_i8_preserve.inc",
+      "bytes": 140152,
+      "sha256": "fbdde6740f9c484bb1c8c0d3d0df7c2b417255544bc295386e1901503baec343"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q50_preserve.inc",
+      "bytes": 207674,
+      "sha256": "1bcf8f77bfb19ba1f11b2b7f878e1bff2df5c8ad25bd6bf11755000db31ddc36"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5_dot.inc",
+      "bytes": 140163,
+      "sha256": "d214e1ac49a96e4e337dfa0a6b7dfc920f05a74a2474e4190b5ff5201f8a8842"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5_dot_preserve.inc",
+      "bytes": 140298,
+      "sha256": "332eabc16cd76a35cab8435faaea800d3620004c0b18d6f73997ee5d9f9d13ef"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5_i8.inc",
+      "bytes": 115031,
+      "sha256": "39c562f7b3bc4ae92c884ff460561c1d5c09a8184e0a1b33125df4eeb578055b"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5_i8_preserve.inc",
+      "bytes": 115166,
+      "sha256": "a94a50338eacae6fc245453e8bbffc77155d43c13a40c3d7aa1d88e340865a0e"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q5_preserve.inc",
+      "bytes": 204288,
+      "sha256": "d00ac9f2a11825cb9bc5d602a4fe317f766557357867adcd59cb999b9b39efbb"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q8w.inc",
+      "bytes": 41276,
+      "sha256": "10a0444a245a763408b9a6f4133a99c40a6a2b0a1f3989edb032ba53015dba73"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_q8w_preserve.inc",
+      "bytes": 41861,
+      "sha256": "c4fd10358338f87dd9dbd0116174c577e2702b46e8184a8c6a7ef158e6fa88cd"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq1_0.inc",
+      "bytes": 26549,
+      "sha256": "e426cdcd8083b67342244b8f22ebcbb296227ec7fc4df1c599005455b9d9ae07"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq1_0_dot.inc",
+      "bytes": 44966,
+      "sha256": "bd5cc1086a4ffec8bdfe1c3d95caf0a65fddf82a9d6c33bf8037cfa5987a2dd6"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq1_0_preserve.inc",
+      "bytes": 27359,
+      "sha256": "3c5a87e8c4e9998b55e2637252bad2102a5d3610d8662ffcc15e2915fbd2c37c"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq2_0.inc",
+      "bytes": 24648,
+      "sha256": "ec18fb26cfc1b18962a985a7f7f281b385ca4553368aa82a154ed56f6269b3ac"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq2_0_dot.inc",
+      "bytes": 40668,
+      "sha256": "e7458beba35344d2a584b846d7453cf451b5b91da969f2ef1d77bff3f1c5d3c7"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_tq2_0_preserve.inc",
+      "bytes": 25458,
+      "sha256": "3debaf6477ab16bc101f3608dd09873d3e0dc912ce5c55675bda6b976f662509"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_wbf16.inc",
+      "bytes": 34289,
+      "sha256": "1c44d6ae066130b7e7538b7e5c60af3970c4747353f467fc88b966ebbd4b0835"
+    },
+    {
+      "path": "generated/vulkan/matmul_row_wf16.inc",
+      "bytes": 81236,
+      "sha256": "0192bc27c88af90cda0b1cad80ae087d3225c81458f2f0d14b8a1e22a7f1df54"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile.inc",
+      "bytes": 123806,
+      "sha256": "f4525c38bc863913c6c028fab282afae23d780f187bf32eb06df9b308cd55586"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_bf16.inc",
+      "bytes": 124796,
+      "sha256": "02531422e2ad0ea17808b2877a171a9004d6f7ba94ed2a2089301751e80159df"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_bf16_preserve.inc",
+      "bytes": 131658,
+      "sha256": "e17a7a4c761437de007bcc0e0edacb2b8573dad93b6e0920dc607798b67da92f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_m.inc",
+      "bytes": 33108,
+      "sha256": "7b408cfb6394a61c390dc74b8ba54ab238278d4a3d4f4ed168d1f59eca0b9e90"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_m_bf16.inc",
+      "bytes": 34143,
+      "sha256": "78f16141418d3be464d4e1ca25ba58fb4af5f08e64c8b9840db2e4a28876f3a7"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_m_bf16_preserve.inc",
+      "bytes": 35459,
+      "sha256": "83b595b4d397d131ffd04eb473f3b1f95232a43b63bdc07f6abdbc6aed3cab07"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_m_dot.inc",
+      "bytes": 72506,
+      "sha256": "d082ebb0d51a3d36495b78766f88586c8868b3648bdf5ac6d8f059a86911c7f6"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_m_preserve.inc",
+      "bytes": 34424,
+      "sha256": "689535b9fe0f22663359d9e9406a2c7c8668c685085c81c42d96cf4a0621d564"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_s.inc",
+      "bytes": 30622,
+      "sha256": "0806cc6c87e1ccf096d2972c6d944784962eae761d264423db4d8a151ff236cf"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_s_bf16.inc",
+      "bytes": 31657,
+      "sha256": "e69cdda0c1fb15046db190b40168d2573ea5b9b2f0c95cd4c46010bb0eb87201"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_s_bf16_preserve.inc",
+      "bytes": 32973,
+      "sha256": "6efb110e627f8e05eb4cd62308812dcec4ce75b25184210c6428a34cd4163cb7"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_s_dot.inc",
+      "bytes": 67646,
+      "sha256": "69f4440d09c0a6f96bb5442a6602aefd5d5a25c48e1eca950186d4ba6647e001"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq1_s_preserve.inc",
+      "bytes": 31938,
+      "sha256": "960e6ed2579599853a15f9b7fe7bb432d3d241228b0b46f769f4da7281c77f9a"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_s.inc",
+      "bytes": 32084,
+      "sha256": "af4bd69e9c716821b33997e5dec4b75073b48bd907fcc2213f4caaa72b270de0"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_s_bf16.inc",
+      "bytes": 33119,
+      "sha256": "50bf4ff89ddfed7dc610969cd0b8ace9e19eab18543bb5d225cdf3c29d69fa7d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_s_bf16_preserve.inc",
+      "bytes": 34998,
+      "sha256": "680db94e90d3477a43fdfbe9e1b8a3b2424179e5ce6b23b601ec047282beab34"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_s_dot.inc",
+      "bytes": 68726,
+      "sha256": "f7ad786ec3ea1b55578f72ba75d3191712f077cf2a6fcab209b1651bb1c3ea52"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_s_preserve.inc",
+      "bytes": 33963,
+      "sha256": "77da5628a5154c1d45e6605c70a15ba805a2da9278b0fbfa62f04df54732fe6e"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xs.inc",
+      "bytes": 32321,
+      "sha256": "5dd227c88f941ab05273a6e49990743fb47f31a14bdf4b68595af079c4f8f003"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xs_bf16.inc",
+      "bytes": 33356,
+      "sha256": "df0f20aa99c16ac2603eaef3388574e9cdd3e189c5cac11f6489c3439009690d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xs_bf16_preserve.inc",
+      "bytes": 34267,
+      "sha256": "e7b4aeed461bdf6e4e604a36163635b9aa558f0725f7e9eb7c08ba34311da218"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xs_dot.inc",
+      "bytes": 67758,
+      "sha256": "5dec1c636d384a08ec778b133100ecf09b51df7407ad323ccb577ae7f5df0286"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xs_preserve.inc",
+      "bytes": 33232,
+      "sha256": "a7f55194c7512388fbcde40c9cfaee2f89d3e5021d742b01f9a85d05c341c12c"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xxs.inc",
+      "bytes": 33221,
+      "sha256": "5bcd7024e482217980492c82c3583e1373cb6655f1bdcc515ea0922341b5d9b5"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xxs_bf16.inc",
+      "bytes": 34256,
+      "sha256": "c63aad4c7f04d33ada754fecf08cf16256ccd4804324fe0dc48362ef30b3ba33"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xxs_bf16_preserve.inc",
+      "bytes": 35167,
+      "sha256": "29900e45247e2592afa9b606aaeb9b252ab2f96c009ff83eea2c78c96eee5014"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xxs_dot.inc",
+      "bytes": 69603,
+      "sha256": "b065c6eaa1d0fd4c00af39da4d85a4f1ee6d0fbe934cb977035ecc6cad99ea22"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq2_xxs_preserve.inc",
+      "bytes": 34132,
+      "sha256": "58ce47fded1adeb7ea828cec2d7097b1b6aafa88a82c1834087e8575647ab4e5"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_s.inc",
+      "bytes": 31972,
+      "sha256": "dc2292457b63519d67a3f3469e242e68f5ba56c18eef0475b02a10c7130d3505"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_s_bf16.inc",
+      "bytes": 32962,
+      "sha256": "afd1a1df1869ffec66c1477ad9a09787ee69b1229f5319d57ee2f3b28f7ae17f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_s_bf16_preserve.inc",
+      "bytes": 35144,
+      "sha256": "d7d9a8cd0e889d15658345ca6525b3fe5bf1d3817982a726219e84e9b078d9ec"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_s_dot.inc",
+      "bytes": 69704,
+      "sha256": "fa823bb642521d9545df858ef0d264c3883fb2ce9aec3b665ae11550d92dcfd9"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_s_preserve.inc",
+      "bytes": 34154,
+      "sha256": "646cbb71ffce4e3d385956cd61495b6ffa318b28e167c2a4e5a90bd03119d8bb"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_xxs.inc",
+      "bytes": 32129,
+      "sha256": "5f785e64dee89a12e62286b3e4fdd619a08ed4187f24092cc3410950aada1586"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_xxs_bf16.inc",
+      "bytes": 33164,
+      "sha256": "45f0191db0a017e8c824e62e534b493bd79b45c1e356302f87319fdb274d7d3b"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_xxs_bf16_preserve.inc",
+      "bytes": 34773,
+      "sha256": "6f0c1e4c1ad9ddb026d83a57bd96c9efc36f89b3769523a9d61899e718b6a9f6"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_xxs_dot.inc",
+      "bytes": 69277,
+      "sha256": "5ee4364471e489ba1e301a8a2a4e9c6c61ba1e37fd2429c348d1e68ba00c6ce9"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq3_xxs_preserve.inc",
+      "bytes": 33738,
+      "sha256": "f540261f09d67e0f5a67ae394dafbe287a75feb534308f06995656b0422d0758"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq4.inc",
+      "bytes": 62279,
+      "sha256": "db93c1b3d2487859a9a676ea37e4c46fffab3960f523f76744988689881ab854"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_iq4_xs.inc",
+      "bytes": 67623,
+      "sha256": "731bf81daada7a328da5d1f58bc943054268efca2d1383dd7cec2bc6098dd200"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_mxfp4.inc",
+      "bytes": 53729,
+      "sha256": "14cb7b5a37db73c58414e8ba642862c497fa9c7c944cc90e4fa11475fa2db862"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_mxfp4_bf16.inc",
+      "bytes": 56294,
+      "sha256": "a750d3387eef3f858c346c97fa06da54ee4e9d2d28fdadd6aa86560c4b70ec15"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_preserve.inc",
+      "bytes": 130668,
+      "sha256": "9add433adb3a9966a9fda32f11a06cae9250e0641b73437da0c214552eaa202f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q.inc",
+      "bytes": 75926,
+      "sha256": "c0cc0be41af9918b100da0d0b25fba47bb44a08dd67eeec44743af8862a3d255"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q2.inc",
+      "bytes": 80921,
+      "sha256": "9116414e164f28691c3448bd1ffae24b38a290caef61a4930a42d8d85d8c15d6"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q2_preserve.inc",
+      "bytes": 81056,
+      "sha256": "1fd2f26cbf2a0d44decf60e9a3f58182acb0d45d469966dc89357f1301a2061a"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q3.inc",
+      "bytes": 79773,
+      "sha256": "04d8d887cb6b4335bd063d87c85ea1f7d0813bd40a03cff63dc7ae50ecdc7504"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q3_preserve.inc",
+      "bytes": 79908,
+      "sha256": "e1607e63b5c519774da05a713af8791ab1b3d6e9a66b2207e5aa5a3dc65b9682"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q5.inc",
+      "bytes": 56328,
+      "sha256": "9da43ae7d2ae886bd26502eaf60e2a77213bcf4401152893643b429ef3e25f22"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q50.inc",
+      "bytes": 58061,
+      "sha256": "d3223f8a3364a566911ad8ddfe604d6ee7a4d8d2024e0fdec2ba5b5734529334"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q50_preserve.inc",
+      "bytes": 58196,
+      "sha256": "fe37465a85af31d17a80cfe84219014f49372a1ddd6083b89a566df0d28a9a70"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q50i8.inc",
+      "bytes": 54933,
+      "sha256": "a5376ba3c34efa5e7cc270b4ee0c34dbd7bc1c6577d0e3a6d65227cf2884c6da"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q50i8_preserve.inc",
+      "bytes": 55068,
+      "sha256": "c5d598be131007ecba73a282f4c69b88b4a50850d29c9c1fa018e666c05dad94"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q5_preserve.inc",
+      "bytes": 56463,
+      "sha256": "f93dd1b65dbddf6a9e6ab33633dc70213420fd0272f2bb28f03c26208e817a42"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q5i8.inc",
+      "bytes": 53201,
+      "sha256": "a948c6517fb7e9df1aef2939c938fc76980a7c3807a7c023c288f50e382e311d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q5i8_preserve.inc",
+      "bytes": 53336,
+      "sha256": "916c7faf561db759209ec5b4ddc7d8db8fd56fe089320b940b2d479dc839d68d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q6.inc",
+      "bytes": 62246,
+      "sha256": "c56eb244d507b4d7c491f8c8dfaa96c68ea69a3305affba61af8619f06cdc307"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q6_preserve.inc",
+      "bytes": 62381,
+      "sha256": "696bc66efe2b5422a952e82f04eb07f6e287c04eb0cbda77b17752a72afff17f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q6i8.inc",
+      "bytes": 57476,
+      "sha256": "0db83b3851b927e3067776eb0d7006771ca7534e42c6dfe2fc9de64f0ed3fb9f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q6i8_preserve.inc",
+      "bytes": 57611,
+      "sha256": "01c2b1a33cbac8f7edf258a0b7cda88034f784135ac722f8762d0f26b95977c1"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q8.inc",
+      "bytes": 51153,
+      "sha256": "418dbacc77d922f60eab0715e2bb39bfa19bf2f5b7fd22b3f2a067f0b2e6e0e8"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q8i8.inc",
+      "bytes": 48026,
+      "sha256": "c0bad793f285495abf982372eee988ebce3fe74ffb369b39d1098cb2dffc859c"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q8mx.inc",
+      "bytes": 63551,
+      "sha256": "7032c97bc95632a2d08cdb572796b4af3a8745c9d6541d48c3c236df6b3446a3"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_q_preserve.inc",
+      "bytes": 76061,
+      "sha256": "76755efe3ac4fb1e0ca63199fb30faa60cbfa88c8fe0fa05c15addb438dc395c"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_qi8.inc",
+      "bytes": 72123,
+      "sha256": "94290b38a0b40e324eb77428cd52417ea33bad6737017302d971438647b12227"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_qi8_preserve.inc",
+      "bytes": 72258,
+      "sha256": "aa15b5dd289296c0ab5b4cb3c6ae795713dfc9daf2fd7453a7bac3b5da4a419b"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq1_0.inc",
+      "bytes": 28631,
+      "sha256": "4ea131e994430f3930719ec23df1996ff00a76b02c55672d918f69f1bc531505"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq1_0_bf16.inc",
+      "bytes": 29621,
+      "sha256": "c3e22187e2a25b4a27467722936bedf27272d3586433637b606aa3719472661e"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq1_0_bf16_preserve.inc",
+      "bytes": 30937,
+      "sha256": "97cb6a6dc09edc6d4085d9c0db1df4c4eb242c74c5178ff69e9262f58f097c57"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq1_0_dot.inc",
+      "bytes": 65339,
+      "sha256": "b7e5495e3dd38b5769c9e1ab27934b76a8db4c7e438819bfffa430cf3200f4f6"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq1_0_preserve.inc",
+      "bytes": 29947,
+      "sha256": "9569908f103d65ccfaa6c9ba803857e99e986af888c253975086dd0e586115ab"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq2_0.inc",
+      "bytes": 26684,
+      "sha256": "d308bf2d5e2f64f24f47a6319617179d3242e01a428d8d1d0ec6365934e00a2d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq2_0_bf16.inc",
+      "bytes": 27674,
+      "sha256": "b02ebf3b759d775cac647b2d95469e36c227fe774f16bcff58c1e0f766a3df32"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq2_0_bf16_preserve.inc",
+      "bytes": 28991,
+      "sha256": "3c1480fa670bb65063210e5c2fe54deaba6d20c32593bc5424a397724f32dea3"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq2_0_dot.inc",
+      "bytes": 60997,
+      "sha256": "26bad98bf0b44f0ca696a2e20b54bb8db8c6548dc348e6c45be1e5b62c388c68"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_tq2_0_preserve.inc",
+      "bytes": 28001,
+      "sha256": "fb33fe6d0dd87764dd18b306bf6a8aba7b6ff0f576f29da3edd3b2bcfbd24d89"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wbf16.inc",
+      "bytes": 23197,
+      "sha256": "3b79f280a5301003ac8a35453fff366e7326a91db30ee936b4f2f543e5729308"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wbf16_bf16.inc",
+      "bytes": 24232,
+      "sha256": "ce9a1dabe19c28087203c20bfe3c33a75fd8e5753c1ee9e9dc84e5d08fcb954f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wbf16_bf16_preserve.inc",
+      "bytes": 25278,
+      "sha256": "4ccd1813368a85ad563ca15fae4d32d04f95c76f3fbebd304ab0b1a53f0339bd"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wbf16_preserve.inc",
+      "bytes": 24243,
+      "sha256": "e98062d35787af84119abf4f05335d0a5c23b921e8f2d9f4e7e1c8b7385ae85d"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wf16.inc",
+      "bytes": 25863,
+      "sha256": "a822ee2041abbe2f8b27b0e9c26afc1483d2363537b41185ca568ad196d5bb44"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wf16_bf16.inc",
+      "bytes": 26853,
+      "sha256": "09b4d50e0a0e3c2084471d203906bbf84957b19dfca98cad5b306f5afb77b606"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wf16_bf16_preserve.inc",
+      "bytes": 27899,
+      "sha256": "1a8c3dbddc16418203a334121e114d8f03c85fe78cbde35df612a176f46a603f"
+    },
+    {
+      "path": "generated/vulkan/matmul_tile_wf16_preserve.inc",
+      "bytes": 26909,
+      "sha256": "73b3a17fcdcf5ac7223380973a0e7d198716e63bb0405f56050f6408c67d69cd"
+    },
+    {
+      "path": "generated/vulkan/matmul_vec_q8.inc",
+      "bytes": 103724,
+      "sha256": "7e81e091ba6ef8f49c8a988c63d1034b2199667af271c06fd29e12bad737b6e6"
+    },
+    {
+      "path": "generated/vulkan/matmul_vec_q8_i8.inc",
+      "bytes": 90033,
+      "sha256": "5d2c8d31b7da3d0968925adc8e9c7ff140a72d59cd418d10b464c109999d8304"
+    },
+    {
+      "path": "generated/vulkan/matmul_vec_q8_i8_preserve.inc",
+      "bytes": 90371,
+      "sha256": "6f77e553d08821e8e2055f6af6cbd7792763b3eee7da638c4b094b725640167f"
+    },
+    {
+      "path": "generated/vulkan/matmul_vec_q8_preserve.inc",
+      "bytes": 104062,
+      "sha256": "43c3ea5f8d5064757e805cc8ee69eb0a284d3c051f5742d551e6ab883d922076"
+    },
+    {
+      "path": "generated/vulkan/mix_streams.inc",
+      "bytes": 252708,
+      "sha256": "3844b60f32be4d61552220d3233d5745a4ad6a5b5ec71c823f39a8a271f8cf31"
+    },
+    {
+      "path": "generated/vulkan/moe_combine.inc",
+      "bytes": 8628,
+      "sha256": "e17faceaa27dda05a3819a8a820414075a23dc16901c3b8c820a4968db1bfedb"
+    },
+    {
+      "path": "generated/vulkan/moe_group.inc",
+      "bytes": 16694,
+      "sha256": "54d7a45d8db7202aefc70ec859c249117988f25f3c1a11cfb6114d17cd37a587"
+    },
+    {
+      "path": "generated/vulkan/moe_route.inc",
+      "bytes": 20081,
+      "sha256": "d3b45c96874daa5aad108d06725d78ac2e3207d8cd50bf4ce70054df56341c3c"
+    },
+    {
+      "path": "generated/vulkan/norm_rope_kv.inc",
+      "bytes": 21341,
+      "sha256": "669c52250612b206b521528666a3ce935cbe817f521ba4505ca848d8946e9423"
+    },
+    {
+      "path": "generated/vulkan/norm_rope_kv_k16.inc",
+      "bytes": 31646,
+      "sha256": "c32f29d8d6c56ca39e2e9dec2302b2037d5eb611e44f6057ce946d385b5c6dd3"
+    },
+    {
+      "path": "generated/vulkan/norm_rope_kv_kv16.inc",
+      "bytes": 36427,
+      "sha256": "dd96b1beb9f4348074dfc10d82aeb691fafae8036e9776d14e823ff12805546f"
+    },
+    {
+      "path": "generated/vulkan/norm_rope_kv_v16.inc",
+      "bytes": 26954,
+      "sha256": "a5ef8a8e0729832142d4aa3ca79b1be024f201b7bccaeeaa322bbe2d31ab0886"
+    },
+    {
+      "path": "generated/vulkan/norm_rope_partial.inc",
+      "bytes": 12307,
+      "sha256": "6b3a0989c51ab0b10ea2793717622620ee5b10c0d8047ab7a52f33162bf4b662"
+    },
+    {
+      "path": "generated/vulkan/quantize_x.inc",
+      "bytes": 108011,
+      "sha256": "70b4a187b753f7c05a0505f92afe33f5779c96dac9467a0e4eb7fa11902b815d"
+    },
+    {
+      "path": "generated/vulkan/quantize_xw.inc",
+      "bytes": 141569,
+      "sha256": "54683cbc5906d3bc0d0bbd995916e08ee1930fedd5d5bd029e13bed3b5928983"
+    },
+    {
+      "path": "generated/vulkan/rms_norm_rows.inc",
+      "bytes": 257782,
+      "sha256": "66a245356f5cd91e6ec761f1faa14c577f5f6353c1e0fafbbd50bf7bcca22b99"
+    },
+    {
+      "path": "generated/vulkan/sigmoid_mul.inc",
+      "bytes": 254092,
+      "sha256": "92f5e6a8b82d53e8543760b972c7297c4213fedf1d48183d4f14bebad08b5bbe"
+    },
+    {
+      "path": "generated/vulkan/signed_sqrt_gate.inc",
+      "bytes": 254969,
+      "sha256": "97fee570c8b56141cbfc1268240d62666b36c1151fe00a30a64f5b88444046e6"
+    },
+    {
+      "path": "generated/vulkan/silu_mul.inc",
+      "bytes": 249434,
+      "sha256": "7dd3f2e3f9aa9fcaa61f72f53a015fcb43952f86589da20988dab31785484c8e"
+    },
+    {
+      "path": "generated/vulkan/silu_scaled.inc",
+      "bytes": 248804,
+      "sha256": "5d0124d3b7d17c6460bb3f25934e548f2bd9c08ceba54e877904a003a143e33b"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention.inc",
+      "bytes": 139342,
+      "sha256": "d75d2c8346a2f84feaf8f8af41eb107591a83cee6b80834da706bb8b2d799983"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_k16.inc",
+      "bytes": 140129,
+      "sha256": "069d79ad2c05bbf788f5b6261e31e1b47a5458088b0de3426dcb55bf4d9b7a9a"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_kv16.inc",
+      "bytes": 140804,
+      "sha256": "d15f7714617b60e1021b712c5d250ca3c8fb3c60bf6b4e9f04b122d8ebf37d98"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_v16.inc",
+      "bytes": 140129,
+      "sha256": "079f1e3778b35c32a6b5f022998477715a5f3ddbfed3276180b8fc5f9bfc6028"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec.inc",
+      "bytes": 139533,
+      "sha256": "e73fee60de1be1533567e7636419d86ec485c8d42673f3004c3fb04af4e12e33"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_d256.inc",
+      "bytes": 139533,
+      "sha256": "1268bea10d917d3d7557207dda263d13feb5754cd27323a53414014c171e3258"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_d256_k16.inc",
+      "bytes": 140062,
+      "sha256": "f9f45c98050c30c559d6d29d33cbb241e7856d30e9268d86812feb9026639e75"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_d256_kv16.inc",
+      "bytes": 140242,
+      "sha256": "31206403997cc87ce9df31ad99d6f9300c1fd14031e8885d8431b3633a3fc079"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_d256_v16.inc",
+      "bytes": 140062,
+      "sha256": "8f88844041f8d2a3afd043771a4e505afe2f5d9fbf96b85f4aa81979559fb7eb"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_k16.inc",
+      "bytes": 140062,
+      "sha256": "f463bbf06e73273226579fac8202872ef66291d80310e8b078d1dc94a3983c69"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_kv16.inc",
+      "bytes": 140242,
+      "sha256": "bceb9d83ff52458b78dc963ff73a5b7743552a3588852b15e94df0aeb764609d"
+    },
+    {
+      "path": "generated/vulkan/sparse_attention_vec_v16.inc",
+      "bytes": 140062,
+      "sha256": "8b05ebc80ece905891fde107ad3ea796f6ec4960af1d5cb85aee03ab1d9ece1c"
+    },
+    {
+      "path": "libllmx-vulkan.a",
+      "bytes": 7945384,
+      "sha256": "946cef2e728500ec7f629c6773c75fc82b7056abdd65d691eaa7a6705845050e"
+    },
+    {
+      "path": "llmx",
+      "bytes": 11010408,
+      "sha256": "abb515f5aa00189932b4777b69c61d90024e80770152d0473bd77577808437f8"
+    },
+    {
+      "path": "llmx-backend-vulkan-test",
+      "bytes": 8803968,
+      "sha256": "f704518bf9b7f1f5bf8a57843b45148d7baa30bb566143b2b4c4630cd1935312"
+    },
+    {
+      "path": "llmx-model-logits",
+      "bytes": 9373376,
+      "sha256": "533ec6b3a0f4064ce42ac7fcf50a84d869a76fc37556da4f0bb655311852aaf9"
+    },
+    {
+      "path": "llmx-server-passes-cpu-test",
+      "bytes": 2699400,
+      "sha256": "2b69692eafc58ba63090fe274ef8c189e13eca75589ee9d92550cda0a9a0dc01"
+    },
+    {
+      "path": "llmx-spec-test",
+      "bytes": 1434944,
+      "sha256": "49b19d48968b5092c2c6372a2c0e35677324ede7cecb8bc9adcc7c9e13d22b14"
+    },
+    {
+      "path": "llmx-tq-test",
+      "bytes": 489232,
+      "sha256": "b651e525a7521c173f69bd91756ce190f11b4f19b24da4caa17e296dea2ed476"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "scope": "local source/build/probe artifact and bundle binding only; no transfer, probe execution, capture or inference",
+  "candidate_revision": "a0fa25492b3ec9badaa43f8cd489fbb68fe06494",
+  "candidate_tree": "2f66f4090866e2a0733d504f7d3526540a63f020",
+  "build_receipt_sha256": "c6499c89ea22838acefac41d41bc36fdd2dd20f11fe1fa704983e1d64140f030",
+  "workflow_head": "48c0a0fb55b67485183f074176aef1439bdffb37",
+  "hosted_probe_artifact_sha256": "0fa344713bf84d30bc5a78fab86a305be3e7d139258ddb93311f40183835448e",
+  "probe_build_receipt_sha256": "1559727f04938dc98975a85ae16ef260753ab61c497da8a3fbf46b9a64e2077c",
+  "probe_hashes": {
+    "default": "2e5198b08e9064dcf3e33ecf8ce47d7f2f2b84d24cfa86a6f6c04225e3df045b",
+    "f32": "6861305e727d287526793edcc42e6ea16c594cc890ca5aca01961b96b01d2a84"
+  },
+  "verified_bundle_files": 17,
+  "artifact_files_reconciled": 8,
+  "container_removed_no_oom": true
+}

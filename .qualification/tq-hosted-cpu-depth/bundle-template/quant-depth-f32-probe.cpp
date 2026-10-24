@@ -1,0 +1,102 @@
+// A reply's decode path on a real model: the prompt read as one prefill, then each forced id of a fixture fed as a decode step, as a request alone runs through the server.
+// Each step prints its greedy token and the forced one with their logits; after the last forced id it prints the step's five best, or every id of a smaller vocabulary, and the logits of the fixture's two tokens, where two builds' greedy replies parted.
+// Usage: llmx-decode-probe <model.gguf> <fixture.json> [device]; the device is `cpu` or a Vulkan index, 0 when left out. It exits 1 where a forced id is not its step's greedy token, and 2 on a fixture entry that is not a whole number inside the vocabulary.
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <fstream>
+#include <iterator>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include "backends/devices.hpp"
+#include "core/json.hpp"
+#include "inference/load.hpp"
+#include "inference/logprobs.hpp"
+
+// Entry i of a fixture's array `name` as a token id: a finite whole number from 0 to 2^32 - 1 below `vocab`, or an error naming the entry.
+static uint32_t fixture_id(const jmini::Value& v, const char* name, size_t i, size_t vocab) {
+    const std::string at = std::string(name) + "[" + std::to_string(i) + "]";
+    if (!v.isNumber()) throw std::runtime_error(at + " is not a number");
+    const double x = v.asNumber();
+    if (!std::isfinite(x) || x != std::floor(x) || x < 0 || x > 4294967295.0) throw std::runtime_error(at + " is not a whole number from 0 to 4294967295");
+    if (x >= (double)vocab) throw std::runtime_error(at + " lies outside the vocabulary");
+    return (uint32_t)x;
+}
+
+int main(int argc, char** argv) {
+    if (argc < 3) {
+        std::fprintf(stderr, "usage: llmx-decode-probe <model.gguf> <fixture.json> [device]\n");
+        return 2;
+    }
+    try {
+        std::ifstream in(argv[2], std::ios::binary);
+        if (!in) throw std::runtime_error(std::string("cannot read ") + argv[2]);
+        const jmini::Value fixture = jmini::parse(std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
+        const jmini::Value *prompt = fixture.get("prompt"), *ids = fixture.get("ids"), *tokens = fixture.get("tokens");
+        const jmini::Value* pinned_prompt = fixture.get("prompt_ids");
+        if (!pinned_prompt || !pinned_prompt->isArray()) throw std::runtime_error("missing frozen prompt ids");
+        if (!prompt || !prompt->isString() || !ids || !ids->isArray() || !tokens || !tokens->isArray() || tokens->asArray().size() != 2)
+            throw std::runtime_error("the fixture needs a prompt, its forced ids and the two tokens where the replies part");
+        const std::string device = argc > 3 ? argv[3] : "0";
+        infer::PlacementRequest request;
+        request.names = {device == "cpu" ? device : "vulkan:" + device};
+        request.dtype = backend::Dtype::f32;
+        infer::ModelOptions options;
+        options.kv_tokens = 17024;
+        options.kv_k = options.kv_v = backend::KVType::f32;
+        const auto loaded = infer::load_model(argv[1], backend::make_backends(request.names), request, options);
+        infer::Model& model = *loaded->model;
+        model.set_threads(4);
+        if (loaded->dtype.effective != backend::Dtype::f32) throw std::runtime_error("F32 was not selected");
+        const size_t vocab = model.n_vocab();
+        std::vector<uint32_t> forced;
+        for (size_t i = 0; i < ids->asArray().size(); ++i) forced.push_back(fixture_id(ids->asArray()[i], "ids", i, vocab));
+        const uint32_t a = fixture_id(tokens->asArray()[0], "tokens", 0, vocab), b = fixture_id(tokens->asArray()[1], "tokens", 1, vocab);
+
+        std::vector<uint32_t> prompt_ids;
+        for (size_t i = 0; i < pinned_prompt->asArray().size(); ++i)
+            prompt_ids.push_back(fixture_id(pinned_prompt->asArray()[i], "prompt_ids", i, vocab));
+        if (prompt_ids.size() != 16384 || forced.size() != 511)
+            throw std::runtime_error("depth fixture needs 16384 prompt and 511 continuation ids");
+        if (loaded->tok->encode(prompt->asString()) != prompt_ids)
+            throw std::runtime_error("tokenizer differs from frozen prompt ids");
+        std::fprintf(stderr, "version: %s; dtype: f32 -> f32; tokenizer: 16384 exact ids\n", LLMX_VERSION_STRING);
+        std::printf("%s on %s: %zu prompt tokens, %zu forced ids\n", argv[1], request.names[0].c_str(), prompt_ids.size(), forced.size());
+        std::vector<float> logits = model.prefill(prompt_ids);
+        // The n best ids, or every id of a smaller vocabulary, best first and a tie to the lower id, as greedy sampling takes the first.
+        auto best = [&](size_t n) { return infer::top_logprobs(logits.data(), vocab, 0.0, n); };
+        size_t off = 0;
+        for (size_t s = 0; s < forced.size(); ++s) {
+            std::printf("%zu", prompt_ids.size() - 1 + s);
+            for (const auto& token : best(50)) std::printf(" %u %.9g", token.id, logits[token.id]);
+            std::printf("\n");
+            const auto top = best(2);
+            off += top[0].id != forced[s];
+            std::printf("step %zu greedy %u %.6f", s, top[0].id, logits[top[0].id]);
+            if (top.size() > 1) std::printf(" second %u %.6f", top[1].id, logits[top[1].id]);
+            std::printf(" forced %u %.6f\n", forced[s], logits[forced[s]]);
+            logits = model.step((int)forced[s]);
+        }
+        std::printf("%zu", prompt_ids.size() - 1 + forced.size());
+        for (const auto& token : best(50)) std::printf(" %u %.9g", token.id, logits[token.id]);
+        std::printf("\n");
+        const auto paths = model.take_matrix_paths();
+        std::fprintf(stderr, "matrix-paths: {\"dtype\":\"f32\",\"devices\":[");
+        for (size_t i = 0; i < paths.size(); ++i) {
+            std::fprintf(stderr, "%s[", i ? "," : "");
+            for (size_t j = 0; j < paths[i].size(); ++j)
+                std::fprintf(stderr, "%s\"%s\"", j ? "," : "", paths[i][j].c_str());
+            std::fprintf(stderr, "]");
+        }
+        std::fprintf(stderr, "]}\n");
+        std::printf("step %zu best", forced.size());
+        for (const auto& t : best(5)) std::printf(" %u %.6f", t.id, logits[t.id]);
+        std::printf("\nstep %zu tokens %u %.6f %u %.6f, the first ahead by %.6f\n", forced.size(), a, logits[a], b, logits[b], logits[a] - logits[b]);
+        std::printf("%s\n", off ? "the forced ids left the greedy path" : "every forced id is its step's greedy token");
+        return 0;
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "llmx-decode-probe: %s\n", e.what());
+        return 2;
+    }
+}

@@ -305,7 +305,7 @@ public:
               size_t ctx_size = 0)
         : model_(model), tok_(tok), max_seqs_(max_seqs), ubatch_(model.prefill_batch()), max_queue_(max_queue), limit_(request_limit(model, ctx_size)), timed_(timed), host_cap_(host_bytes), share_(pacing.mode == Pacing::Mode::fixed ? pacing.share : 0), auto_(pacing.mode == Pacing::Mode::automatic), interleave_(pacing.mode == Pacing::Mode::interleaved),
           wait_bound_(std::chrono::duration_cast<Clock::duration>(disk.wait ? *disk.wait : std::chrono::milliseconds(kWaitBound))), read_wait_(disk.read_wait), recompute_row_ms_(disk.recompute_row_ms),
-          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), priced_(priced), pools_(pools_of(model)),
+          proposer_(draft_max ? proposer : nullptr), draft_max_(proposer ? draft_max : 0), draft_rows_(draft_rows(max_seqs, draft_max_)), priced_(priced), pools_(pools_of(model)),
           samplers_(std::min<size_t>(kSamplers, (size_t)core::automatic_threads() - 1)) {
         if (model_.keeps_state() && max_seqs_ > model_.state_slots())
             throw std::logic_error("server: " + std::to_string(max_seqs_) + " requests at once need as many recurrent state slots, and the model holds " +
@@ -313,18 +313,18 @@ public:
         size_t p = passes ? passes : model_.pipelined() ? model_.stage_count() : 1;
         if (p > 1 && !model_.pipelined())
             throw std::runtime_error("server: " + std::to_string(p) + " passes in flight need a layer split over several devices, each running its layers whole; this placement runs one at a time");
-        // A pass carries at most kDraftRows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.
-        const size_t drafts = draft_rows(proposer_ != nullptr);
+        // A pass carries at most draft_rows draft rows beside a row a decoding request and a ubatch of prompt rows, each draft row wanting its logits.
+        const size_t drafts = draft_rows_;
         // A pass apart at each stage, with logits rows of their own, since they retire past the prompt passes.
         if (share_ < 0 || share_ >= 1) throw std::runtime_error("server: the share of generating requests is at least 0 and below 1");
         if (auto_ && !(model_.paces() && model_.stage_count() == 1)) throw std::logic_error("server: automatic pacing needs one stage fed in pieces");
         if (interleave_ && !(model_.pipelined() && model_.stage_count() > 1)) throw std::logic_error("server: interleaved pacing needs a pipelined split");
         const size_t a = (share_ > 0 || auto_) && model_.paces() ? model_.stage_count() : 0;
-        apart_rows_ = logit_rows(a, logits_a_pass(max_seqs_, proposer_ != nullptr));
+        apart_rows_ = logit_rows(a, logits_a_pass(max_seqs_, draft_max_));
         for (;; --p) {
-            logit_rows_ = logit_rows(p, logits_a_pass(max_seqs_, proposer_ != nullptr));
+            logit_rows_ = logit_rows(p, logits_a_pass(max_seqs_, draft_max_));
             try {
-                model_.reserve_passes(ctx_, p + a, ubatch_ + max_seqs_ + drafts, logit_rows_.size + apart_rows_.size, a ? apart_rows(max_seqs_, proposer_ != nullptr) : 0);
+                model_.reserve_passes(ctx_, p + a, ubatch_ + max_seqs_ + drafts, logit_rows_.size + apart_rows_.size, a ? apart_rows(max_seqs_, draft_max_) : 0);
                 break;
             } catch (const std::logic_error&) {
                 throw;
@@ -574,10 +574,8 @@ public:
         s.turns_without_memory = turns_without_memory_.load();
         s.host_limit = host_cap_;
         // Every source's by position, and the requests' own histories' apart.
-        s.own_drafted = tally_[infer::spec::Source::lookup].drafted();
-        s.own_kept = tally_[infer::spec::Source::lookup].kept();
-        s.drafted = tally_[infer::spec::Source::proposer].drafted();
-        s.kept = tally_[infer::spec::Source::proposer].kept();
+        tally_.tally(infer::spec::Source::lookup, s.own_drafted, s.own_kept);
+        tally_.tally(infer::spec::Source::proposer, s.drafted, s.kept);
         if (s.drafted.size() < s.own_drafted.size()) s.drafted.resize(s.own_drafted.size()), s.kept.resize(s.own_drafted.size());
         for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
         s.live = live_;
@@ -766,12 +764,12 @@ public:
         }
         return p;
     }
-    // The draft rows a pass carries at most where requests draft, and the rows of a pass that want logits: a row a request and those drafts.
+    // The draft rows a pass carries at most, kDraftRows or `draft_max` a request where that is less, and the rows of a pass that want logits: a row a request and those drafts.
     // A caller asks the fit for both, so what the scheduler reserves is what was fitted.
-    static size_t draft_rows(bool drafting) { return drafting ? kDraftRows : 0; }
-    static size_t logits_a_pass(size_t max_seqs, bool drafting) { return max_seqs + draft_rows(drafting); }
+    static size_t draft_rows(size_t max_seqs, size_t draft_max) { return std::min(kDraftRows, max_seqs * draft_max); }
+    static size_t logits_a_pass(size_t max_seqs, size_t draft_max) { return max_seqs + draft_rows(max_seqs, draft_max); }
     // The rows of a pass apart at most: every row of it wants its logits.
-    static size_t apart_rows(size_t max_seqs, bool drafting) { return logits_a_pass(max_seqs, drafting); }
+    static size_t apart_rows(size_t max_seqs, size_t draft_max) { return logits_a_pass(max_seqs, draft_max); }
 
     void stop() {
         {
@@ -1399,7 +1397,7 @@ private:
         f.want = 0;
     }
 
-    // The decode columns a pass with `decoders` decode entries leaves for drafts (docs/SPECULATIVE.md, section 3): those its kernels read each weight once for, past one a decoder, less the drafts passes in flight carry, at most kDraftRows.
+    // The decode columns a pass with `decoders` decode entries leaves for drafts (docs/SPECULATIVE.md, section 3): those its kernels read each weight once for, past one a decoder, less the drafts passes in flight carry, at most draft_rows_.
     // None while every seat is taken (`seated`) and a request is queued for one, where drafts cost output and first-token p99 (docs/STATUS.md); a request paused or queued for room changes nothing.
     size_t draft_columns(size_t decoders, size_t seated) {
         if (!proposer_) return 0;
@@ -1414,7 +1412,7 @@ private:
         for (const Slot& s : slots_)
             if (s.live)
                 for (const auto& m : s.members) flying += m->verify_.empty() ? 0 : m->verify_.size() - 1;
-        return std::min(free, kDraftRows - std::min(kDraftRows, flying));
+        return std::min(free, draft_rows_ - std::min(draft_rows_, flying));
     }
 
     // The verifies of the decoding requests `rs` in the pass being formed, each in r.verify_ on a mark of its sequence, its last pick then its drafts, or empty for a decode entry.
@@ -1443,11 +1441,12 @@ private:
                 history.insert(history.end(), r->gen_.begin(), r->gen_.end());
                 k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_);
             }
-            if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record[Source::proposer]);
+            if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record.proposer);
             if (!k) continue;
             columns -= k;
             keeps_.emplace_back(k);
-            for (size_t j = 0; j < k; ++j) keeps_.back()[j] = record[record.drafted].keeps(j, tally_[record.drafted]);
+            // A draft is priced by its source's acceptance, a history draft's by its match bucket's, each weighed with the server's of the same.
+            for (size_t j = 0; j < k; ++j) keeps_.back()[j] = record.drafting().keeps(j, tally_.at(record.drafted, record.bucket));
             chained_.push_back(record.drafted == Source::proposer);
             askers_.push_back(r.get());
         }
@@ -1549,7 +1548,7 @@ private:
                 continue;
             }
             std::lock_guard<std::mutex> lk(m_);
-            tally_[r.record_.drafted].verified(keep - f.from[e] - 1, k_drafts);
+            tally_.at(r.record_.drafted, r.record_.bucket).verified(keep - f.from[e] - 1, k_drafts);
         }
         if (timed_) round_.settling_ms += ms_since(start);
     }
@@ -2389,6 +2388,7 @@ private:
     std::vector<char> plain_;             // per stage, whether it has a thread for passes that are neither fed in pieces nor apart
     infer::spec::Proposer* const proposer_;   // none drafts nothing
     const size_t draft_max_;
+    const size_t draft_rows_;             // the draft rows a pass reserves (draft_rows)
     const bool priced_;
     std::vector<infer::spec::Proposer::Ask> asks_;   // the drafts being proposed, the first of them in use
     std::vector<Request*> askers_;        // the requests that may draft in the pass being formed

@@ -50,14 +50,14 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
             spec::Record& record = drafting->record;
             record.drafted = spec::Source::proposer;
             const bool first = drafting->proposer->after_lookup();
-            if (first || !record[spec::Source::proposer].resting()) {
+            if (first || !record.proposer.resting()) {
                 history = drafting->history;
                 history.insert(history.end(), gen.begin(), gen.end());
             }
             // The history's own convincing continuation is the draft where it has one, and the proposer is not run that round.
             if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, drafting->draft_max, history, drafts);
             if (!k) {
-                k = spec::draft_length(drafting->draft_max, left, room, drafting->draft_max, record[spec::Source::proposer]);
+                k = spec::draft_length(drafting->draft_max, left, room, drafting->draft_max, record.proposer);
                 if (k) drafting->proposer->draft(nullptr, history, k, drafts);
             }
             // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.

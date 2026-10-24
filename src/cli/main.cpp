@@ -526,8 +526,10 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.slots = slots;
     // A server's passes carry a verify's draft rows where it drafts, and it keeps logits rows for its passes in flight by its own rule, a row a request and those drafts, not one for every row of a pass.
     if (slots) {
-        request.draft_rows = server::Scheduler::draft_rows(mark_rows > 0);
-        request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, mark_rows > 0)).size;
+        // A drafting server's mark holds a verify, its last pick and `--draft-max` drafts.
+        const size_t draft_max = mark_rows ? mark_rows - 1 : 0;
+        request.draft_rows = server::Scheduler::draft_rows(decode_rows, draft_max);
+        request.logit_rows = server::logit_rows(slots, server::Scheduler::logits_a_pass(decode_rows, draft_max)).size;
     }
     request.fit_kv = slots > 0;
     request.kv_auto = slots > 0 && exec.kv_tokens <= 0;
@@ -711,11 +713,12 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
         // By draft position, the drafts the verifies kept of those they fed.
         if (drafting) {
             // The proposer's, then those the reply's own history gave ahead of it, where it gave any.
+            std::vector<size_t> fed, kept;
             for (infer::spec::Source s : {infer::spec::Source::proposer, infer::spec::Source::lookup}) {
-                const infer::spec::Acceptance& a = drafting->record[s];
-                if (s == infer::spec::Source::lookup && a.drafted().empty()) continue;
+                drafting->record.tally(s, fed, kept);
+                if (s == infer::spec::Source::lookup && fed.empty()) continue;
                 printf(s == infer::spec::Source::lookup ? "own drafts kept:" : "drafts kept:");
-                for (size_t i = 0; i < a.drafted().size(); ++i) printf(" %zu/%zu", a.kept()[i], a.drafted()[i]);
+                for (size_t i = 0; i < fed.size(); ++i) printf(" %zu/%zu", kept[i], fed[i]);
                 printf("\n");
             }
         }
@@ -1202,7 +1205,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
     // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
-    const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() > 0);
+    const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() ? drafts.draft_max : 0);
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
                                    drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart);
     bpe::Tokenizer& tok = *loaded->tok;

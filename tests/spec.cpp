@@ -87,7 +87,7 @@ std::unique_ptr<infer::Model> placed(const gguf::GGUFModel& weights, size_t stag
     request.drafter = drafter;
     infer::ModelOptions options;
     options.mark_slots = 1;
-    options.mark_rows = 17;
+    options.mark_rows = 32;
     return std::move(infer::place_model(infer::gguf_weights(weights), std::move(backends), request, options).model);
 }
 
@@ -117,14 +117,14 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
     }
     Run r;
     r.ids = infer::generate(*model, tok, gp, rng, logits, {}, drafting.get());
-    if (drafting)
-        for (const infer::spec::Acceptance& a : drafting->record.of)
-            for (size_t n : a.drafted()) r.drafted += n;
     if (drafting) {
-        const infer::spec::Acceptance& own_history = drafting->record[infer::spec::Source::lookup];
-        for (size_t n : own_history.drafted()) r.own += n;
-        for (size_t n : own_history.kept()) r.own_kept += n;
-        r.rested = drafting->record[infer::spec::Source::proposer].resting();
+        std::vector<size_t> fed, kept;
+        drafting->record.tally(infer::spec::Source::proposer, fed, kept);
+        for (size_t n : fed) r.drafted += n;
+        drafting->record.tally(infer::spec::Source::lookup, fed, kept);
+        for (size_t n : fed) r.drafted += n, r.own += n;
+        for (size_t n : kept) r.own_kept += n;
+        r.rested = drafting->record.proposer.resting();
     }
     r.passes = submits - prefilled;
     r.fed = model->n_tokens();
@@ -176,7 +176,7 @@ void rounds(const std::string& name, const gguf::GGUFModel& plain, size_t vocab,
                     oracle.prompt = prompt.size();
                     oracle.vocab = vocab;
                     oracle.end = has_end ? (int64_t)end : -1;
-                    for (size_t k : {1, 4, 16}) {
+                    for (size_t k : {1, 4, 7, 15, 16, 31}) {
                         for (size_t miss : {SIZE_MAX, size_t(0), size_t(1), size_t(2), k - 1}) {
                             oracle.miss = miss;
                             const Run got = generate(*w, st, prompt, gp, &oracle, k);
@@ -289,12 +289,12 @@ void convincing_rule() {
     infer::spec::Record r;
     r.drafted = Source::lookup;
     for (int i = 0; i < 11; ++i) r.verified(0, 3);
-    require(r[Source::lookup].resting() && !r[Source::proposer].resting(), "lookup's misses rested the proposer, or not lookup");
+    require(r.lookup[0].resting() && !r.proposer.resting(), "lookup's misses rested the proposer, or not lookup");
     require(infer::spec::lookup_first(r, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 0 && r.drafted == Source::proposer,
             "a resting lookup drafted ahead of the proposer");
     r.drafted = Source::proposer;
     for (int i = 0; i < 4; ++i) r.verified(3, 3);
-    require(!r[Source::lookup].resting(), "16 tokens the proposer's verifies generated did not end lookup's rest");
+    require(!r.lookup[0].resting(), "16 tokens the proposer's verifies generated did not end lookup's rest");
     require(infer::spec::lookup_first(r, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 3 && r.drafted == Source::lookup &&
                 out == std::vector<uint32_t>({20, 21, 22}),
             "lookup did not draft ahead of the proposer once its rest ended");
@@ -302,8 +302,52 @@ void convincing_rule() {
             "a history without a convincing run left a draft or lookup's source");
     infer::spec::Record p;
     for (int i = 0; i < 11; ++i) p.verified(0, 3);
-    require(p[Source::proposer].resting() && !p[Source::lookup].resting(), "the proposer's misses rested lookup, or not the proposer");
+    require(p.proposer.resting() && !p.lookup[0].resting(), "the proposer's misses rested lookup, or not the proposer");
     require(infer::spec::lookup_first(p, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 3, "a resting proposer stopped lookup");
+
+    // Lookup's acceptance is kept by the match's length at the draft's start (F2DEV, 2026-10-23): eleven misses of an eight-token match rest that bucket alone, so a match of 32 tokens still drafts.
+    std::vector<uint32_t> long_run(32);
+    for (size_t i = 0; i < long_run.size(); ++i) long_run[i] = 100 + (uint32_t)i;
+    infer::spec::Record keyed;
+    keyed.drafted = Source::lookup;
+    for (int i = 0; i < 11; ++i) keyed.verified(0, 3);
+    require(infer::spec::lookup_first(keyed, 3, 100, 100, 3, history({long_run, {20, 21, 22}, long_run}), out) == 3 && keyed.drafted == Source::lookup &&
+                out == std::vector<uint32_t>({20, 21, 22}),
+            "a short match's misses rested the drafts of a match of 32 tokens");
+    require(infer::spec::lookup_first(keyed, 3, 100, 100, 3, history({run, {20, 21, 22}, run}), out) == 0 && keyed.drafted == Source::proposer,
+            "a resting eight-token match drafted");
+    // Only once every bucket rests does lookup_first skip the walk, as main skipped it while lookup's one acceptance rested: one bucket resting leaves the others drafting.
+    require(!keyed.lookup_resting(), "one resting bucket made the history's drafts rest");
+    infer::spec::Record rested;
+    rested.drafted = Source::lookup;
+    // In turns, since each verify counts down the other buckets' rests.
+    for (int i = 0; i < 11; ++i)
+        for (size_t bucket = 0; bucket < infer::spec::kMatchBuckets; ++bucket) {
+            rested.bucket = bucket;
+            rested.verified(0, 3);
+        }
+    require(rested.lookup_resting() && infer::spec::lookup_first(rested, 3, 100, 100, 3, history({long_run, {20, 21, 22}, long_run}), out) == 0 && out.empty() &&
+                rested.drafted == Source::proposer,
+            "every bucket resting, a history draft was still taken");
+
+    // The walk gives the match's length, the occurrence extended backwards while it matches, at most 32, and that names the bucket a verify records into.
+    std::vector<uint32_t> mid(20);
+    for (size_t i = 0; i < mid.size(); ++i) mid[i] = 200 + (uint32_t)i;
+    require(Lookup::convincing(history({run, {20, 21, 22}, run}), 2, out) == 8 && Lookup::convincing(history({mid, {20, 21, 22}, mid}), 2, out) == 20 &&
+                Lookup::convincing(history({{7}, long_run, {20, 21, 22}, {7}, long_run}), 2, out) == 32 && Lookup::convincing(history({run, {20}}), 2, out) == 0,
+            "the walk gave a match's length wrong");
+    require(infer::spec::match_bucket(8) == 0 && infer::spec::match_bucket(15) == 0 && infer::spec::match_bucket(16) == 1 && infer::spec::match_bucket(31) == 1 &&
+                infer::spec::match_bucket(32) == 2,
+            "the match buckets are not 8 to 15, 16 to 31 and 32 or more");
+    infer::spec::Record b;
+    require(infer::spec::lookup_first(b, 3, 100, 100, 3, history({mid, {20, 21, 22}, mid}), out) == 3 && b.drafted == Source::lookup && b.bucket == 1,
+            "a match of 20 tokens drafted in another bucket");
+    b.verified(2, 3);
+    std::vector<size_t> fed, kept;
+    b.tally(Source::lookup, fed, kept);
+    require(b.lookup[1].drafted() == std::vector<size_t>({1, 1, 1}) && b.lookup[0].drafted().empty() && b.lookup[2].drafted().empty() &&
+                fed == std::vector<size_t>({1, 1, 1}) && kept == std::vector<size_t>({1, 1, 0}),
+            "a verify recorded outside its match's bucket, or the tally did not sum the buckets");
 
     // What a round pays to look: the walk of a history that holds no convincing run, and the copy of that history the scheduler makes to look in, printed and held to nothing.
     for (size_t tokens : {size_t(32768), size_t(262144)}) {
@@ -316,8 +360,12 @@ void convincing_rule() {
         for (int i = 0; i < 100; ++i) copy.assign(h.begin(), h.end());
         const auto t2 = std::chrono::steady_clock::now();
         require(out.empty() && copy.size() == tokens, "a random history convinced");
+        const auto t3 = std::chrono::steady_clock::now();
+        for (int i = 0; i < 100; ++i) infer::spec::lookup_first(rested, 3, 100, 100, 3, h, out);
+        const auto t4 = std::chrono::steady_clock::now();
         std::cout << "spec: looking in " << tokens << " tokens: the walk " << std::chrono::duration<double, std::micro>(t1 - t0).count() / 100 << " us, the copy "
-                  << std::chrono::duration<double, std::micro>(t2 - t1).count() / 100 << " us" << std::endl;
+                  << std::chrono::duration<double, std::micro>(t2 - t1).count() / 100 << " us, every bucket resting " << std::chrono::duration<double, std::micro>(t4 - t3).count() / 100
+                  << " us" << std::endl;
     }
 
     // A chain's steps are priced only where a request's drafts come from one: 34 ms a pass and 10 ms a row, a chain step 40 ms.

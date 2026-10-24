@@ -174,7 +174,7 @@ The saved inputs cover the conv's raw rows and the recurrence's inputs of every 
 
 **The scheduler:** retract runs right after a pass's logits are read, in the same round, before `park`, `pause` or any fork, so no rule is needed for a pending restore.
 A mark takes a slot only from free ones; a request without one drafts nothing that round.
-Draft rows count in the pass's ubatch budget; the logits rows become 2 x (max_seqs + 64), draft rows in flight capped at 64; `Request::kRowsWaiting` becomes at least k_max + 1; a draft pass runs per drafter device, in that device's formation order, and is retired like a stage.
+Draft rows count in the pass's ubatch budget; the logits rows become 2 x (max_seqs + draft_rows), `draft_rows` being 64 or `--draft-max` a request where that is less (`Scheduler::draft_rows`), draft rows in flight capped at it; `Request::kRowsWaiting` becomes at least k_max + 1; a draft pass runs per drafter device, in that device's formation order, and is retired like a stage.
 A request is in at most one pass at a time, so with passes in flight its next draft waits for its verify.
 
 **What changed from the 2026-09-26 plan, and why:**
@@ -378,10 +378,12 @@ Agreed in design on 2026-10-11 and 2026-10-12 from the lookup match profile and 
 - The verify, `infer::accept`, the mark and the retract are those of section 3, so ids, draws, log-probabilities and ends are those of the run without drafts whatever was drafted.
 
 **An acceptance a source** (`spec::Record`): a verify counts in the acceptance of the source that drafted it, so a resting proposer does not stop a history that convinces, and lookup's misses never rest the proposer; the tokens one source's verifies generate count down the other's rest.
+The history's own drafts keep three acceptances, by the length of the match at the draft's start (`match_bucket`): 8 to 15 tokens, 16 to 31, and 32 or more, the match found by extending the eight-token occurrence backwards in the same walk; each prices and rests apart, weighed in the server with the server's acceptance of the same bucket.
+On the match profile's 30 prompts on Qwen3.8-27B Q8_0 (greedy, 400 tokens, kept shares computed from the replies' ids, 2026-10-23), a match of 8 to 11 tokens kept its 16th draft 0.25 of the time and one of 32 or more 0.82; modelled for a request alone at the measured verify costs, the three gave code edits 77.7 tokens a second at a cap of 31 against 71.3 with one acceptance (docs/STATUS.md).
 The price (`spec::draft_depths`) charges a chain's steps only for requests whose drafts a chain gives.
 
 **The constant** is in tokens, so it means the same on any hardware: `kConvincing` is 8.
 Over 10338 reply positions of 30 prompts in six kinds (Qwen3.5-4B Q4_K_M, greedy), a match of 8 or more was wrong at its first token 4 percent of the time, of 3 or more 16 percent and of 1 or more 45 percent; it covered 79 percent of the positions of code edits and under 3 percent of prose.
 What hardware changes is what a skipped chain saves, not whether the rule loses: the draft it puts in a chain's place is kept more often than the model drafter's first position.
 
-**Not built:** a kept source position after a hit (the scan is one backward walk of the history, measured before any cursor is added); a verify longer than `--draft-max` for a long match; a lookup continuation after a model draft and a probe after a refused one (the next step, measured first); candidates verified as a tree; lookup across requests, since one user's text must never shape another's timing.
+**Not built:** a kept source position after a hit (the scan is one backward walk of the history, measured before any cursor is added); a deeper default `--draft-max`, which on production's Qwen3.8-Flash-Next gained 60 percent on code edits at 15 while Qwen3.8-27B Q8_0 on one MI50 slowed its chat kinds by 4 to 9 percent there against 3, even with `generate` priced as the server and depths only at the plateau ends of the decode builds, both measured on 2026-10-24 and not built (docs/STATUS.md); a lookup continuation after a model draft and a probe after a refused one (the next step, measured first); candidates verified as a tree; lookup across requests, since one user's text must never shape another's timing.

@@ -1,0 +1,125 @@
+{
+  "kind": "released_file_cpu_path_capture",
+  "date": "2026-10-24",
+  "status": "completed",
+  "qualification": "Short local loading and phase-path capture only. No HF comparison, quality conclusion, depth result, or performance result.",
+  "source_tree": {
+    "head": "b84192e7f3d88c86d880533ede25043c8021610d",
+    "source_trace": {
+      "score_extent": "src/model/runtime.hpp:924-934 sets each score entry extent to the full 13-token input; src/model/passes.hpp:237-247 carries that extent into prompt head runs.",
+      "single_row_head": "src/model/passes.hpp:246-247 assigns extent 1 to a non-every-logits head row.",
+      "helper_finiteness": "tools/model_logits.cpp:72-74 checks every emitted logit with std::isfinite before writing the binary row.",
+      "cpu_path_owner": "src/backends/cpu/cpu_backend.hpp:399-410 records the ordinary F32 path, while src/backends/cpu/q8_dots.hpp:593-597 shows TQ is not a packed-dot type and Q6_K is."
+    },
+    "source_sha256": {
+      "tools/model_logits.cpp": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c",
+      "src/model/runtime.hpp": "3ecccf01aedef3b4c9097d787af8c84f8b1b608cebc805c44aacb113699bdf45",
+      "src/model/passes.hpp": "a5739ac768a8f32665c51edc42f3f5e1beb73ccf96dee83f86d6c357132541f3",
+      "src/backends/cpu/cpu_backend.hpp": "49c43bcec1545b5ca4e95ff6dc3838e1fdd4581153de0abdef2f937c96681bfa",
+      "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26"
+    }
+  },
+  "execution": {
+    "terminal_exit_code": 0,
+    "terminal_source": "Root confirmation for session 30294; both retained per-model helper exit codes are 0.",
+    "results_path": "build-quant-resume-20261020/tq-released-local-path-results-v1/results.json",
+    "results_sha256": "118a12cbe4e1cca1afdd2f10b21dd6546aedfeda7350782347f5899c0cc66b47",
+    "prepared_path": "build-quant-resume-20261020/tq-released-local-path-results-v1/prepared.json",
+    "prepared_sha256": "985a6d634156bf14c01a91c78244be4acf76afa96442d514ca6aeb0a9d4b8046",
+    "runner_path": "build-quant-resume-20261020/run-tq-local-paths-20261024.py",
+    "runner_sha256": "2c19e419c7203fb0176143a3222aaa5f04ac6bd4df1fe2c31e26f89df7470653",
+    "command_shape": "llmx-model-logits MODEL IDS PREFIX cpu f32 3 0 - 1",
+    "helper": {
+      "path": "worktrees/tq-pair-20261024/build-tq-cpu-stage/Release/llmx-model-logits.exe",
+      "sha256": "e389e99c134e36d26a6e4c836c35d732c203998dad6f5aa5b47a925fa300b44d",
+      "version": "0.1.0+g612a3d9d1e4e.dirty",
+      "source_sha256": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c",
+      "threads": 6
+    }
+  },
+  "inputs": {
+    "repository": "Majipa/Qwen3-0.6B-GGUF-Quantized",
+    "revision": "6df0b3e98df0fd81c85f3eb94215c1aa50470b53",
+    "header_inventory_path": "build-quant-resume-20261020/tq-released-reference-v1/model-header-inventory.json",
+    "header_inventory_sha256": "4d5928f994d4b0f3a0056af85b57afaf6e01326bfc1cbd71562d67de89cc9b9e",
+    "prompt_source_path": "build-quant-resume-20261020/iq2-landing-prep-20261023/results-vulkan/00.ids",
+    "prompt_source_sha256": "ec4794c1683b2c3f46451082c0382423a1f4960a7f3911facd5594b001c2c600",
+    "prompt_ids": [
+      284, 8397, 425, 10965, 465, 284, 715, 8397, 425, 10965, 465, 374, 458
+    ],
+    "prompt_file_sha256": "e00a046d09788a3d0e0f211cb9e17a5be366a93f9a25d42c11df088f168962bc",
+    "kv_cache": "f32",
+    "ubatch": 3,
+    "effective_activation_dtype": "f16",
+    "vocabulary": 151936,
+    "greedy_rows": 64
+  },
+  "models": [
+    {
+      "type": "TQ1_0",
+      "gguf_type_id": 34,
+      "path": "build-quant-resume-20261020/tq-model-cache/models--Majipa--Qwen3-0.6B-GGUF-Quantized/snapshots/6df0b3e98df0fd81c85f3eb94215c1aa50470b53/Qwen3-0.6B-TQ1_0.gguf",
+      "size": 314252544,
+      "sha256_before_after": "e505d615403d960c79f3a970912c61e41bf32f33e0ec29060fe265fbabdc9812",
+      "metadata": {
+        "architecture": "qwen3",
+        "storage_type_ids": [0, 12, 14, 34],
+        "dtype": "f16",
+        "phase_matrix_paths": {
+          "batched": [["f32"]],
+          "decode": [["f32", "block-int16"]],
+          "greedy": [["f32", "block-int16"]]
+        }
+      },
+      "captures": {
+        "batched": {"rows": 13, "bytes": 7900672, "sha256": "0895ddd785d7db686577c8db1d9b2d18b4e1ce8ed3eb5ee1bdd71ab765b53d0f"},
+        "decode": {"rows": 13, "bytes": 7900672, "sha256": "26e675894d2478aa923cd2159ae0d57445befc86c0804632c58728d199772982"},
+        "greedy": {"rows": 64, "bytes": 38895616, "sha256": "4276254ca92c46f08cb9abbe1670c4830f403fffc39aa0de9ae0dfcb4b8fc341"}
+      },
+      "stdout_sha256": "d09f95b6002a21791de930f4f1d9804dde5a3f760886ab85ec3142ce08cd26da",
+      "metadata_sha256": "cf2361f76e1eed608406a7e98fa85f8fbefd9f0cb4c4de1b39a81d3b915b83bb",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "type": "TQ2_0",
+      "gguf_type_id": 35,
+      "path": "build-quant-resume-20261020/tq-model-cache/models--Majipa--Qwen3-0.6B-GGUF-Quantized/snapshots/6df0b3e98df0fd81c85f3eb94215c1aa50470b53/Qwen3-0.6B-TQ2_0.gguf",
+      "size": 334896384,
+      "sha256_before_after": "047d7f218e106cbd421c21e6f2a81b188cf6f47bcc1044e5cc0be5d194ac3f0a",
+      "metadata": {
+        "architecture": "qwen3",
+        "storage_type_ids": [0, 12, 14, 35],
+        "dtype": "f16",
+        "phase_matrix_paths": {
+          "batched": [["f32"]],
+          "decode": [["f32", "block-int16"]],
+          "greedy": [["f32", "block-int16"]]
+        }
+      },
+      "captures": {
+        "batched": {"rows": 13, "bytes": 7900672, "sha256": "0895ddd785d7db686577c8db1d9b2d18b4e1ce8ed3eb5ee1bdd71ab765b53d0f"},
+        "decode": {"rows": 13, "bytes": 7900672, "sha256": "26e675894d2478aa923cd2159ae0d57445befc86c0804632c58728d199772982"},
+        "greedy": {"rows": 64, "bytes": 38895616, "sha256": "4276254ca92c46f08cb9abbe1670c4830f403fffc39aa0de9ae0dfcb4b8fc341"}
+      },
+      "stdout_sha256": "235f8165d0cbb2cc3c9b1cfdf158d49f75e9eff36884d1b057b1a7f7fd64fd22",
+      "metadata_sha256": "ef45f935191d45365bd1ff3ed39e75ad86796e82ebbe22b282370557e8c10227",
+      "stderr_bytes": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "audit": {
+    "actual_raw_hashes_and_sizes_match_result_receipt": true,
+    "stdout_metadata_values_match": true,
+    "all_helper_calls_exit_zero": true,
+    "finite_values": "The helper source checks each logit for finiteness before writing; zero exit and complete expected-size files mean all 90 rows per model passed that check.",
+    "corresponding_raw_hashes_equal_across_the_two_files": true,
+      "interpretation": "The path records aggregate matrices on the CPU device. TQ matrices use the F32 fallback. Score every_logits retains the full 13-token extent across ubatch chunks, so its batched Q6_K head work is prompt F32. Ordinary greedy prefill selects only its final head row with extent 1; its initial prefill head and 63 generated rows therefore include block-int16 Q6_K head work. Decode is 13 separate one-row calls. Aggregate paths do not isolate each operation. This short capture does not test a full-length prompt, long context or quality."
+  },
+  "limitations": [
+    "This checks local loading and recorded CPU matrix paths for one short prompt and 64 greedy outputs only.",
+    "No independent HF logits or NLL comparison was run.",
+    "No released-file depth or performance qualification was run.",
+    "The matching raw hashes across the two model files are recorded as observed data, not interpreted as an accuracy result."
+  ]
+}

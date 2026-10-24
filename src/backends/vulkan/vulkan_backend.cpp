@@ -2716,6 +2716,7 @@ public:
         dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
                  groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
         if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        else if (overlaps_twin(bind(dst), n)) xq_tag_ = XqTag{};
     }
 
     // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
@@ -3017,6 +3018,7 @@ public:
         dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)},
                  &pc, sizeof(pc), u32(rows * chunks), 1, quant ? twin_variant() : 0);
         if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_, major};
+        else if (overlaps_twin(bind(dst), (rows - 1) * stride + n)) xq_tag_ = XqTag{};
     }
 
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).

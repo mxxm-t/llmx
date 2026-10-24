@@ -1309,6 +1309,34 @@ size_t check_kernels(backend::Backend& vk) {
                 const auto ha = norm(true);
                 vk.add({ha.get(), 0}, {otherb.get(), 0}, rows * n_in);
                 values += exact(matmul_of(ha), matmul_of(sumb), "a matmul read a norm's twin after a kernel wrote its output");
+                // A norm or SiLU that writes no twin, here over part of each row in place, still invalidates the twin of the buffer it writes.
+                // Two rows, so the row kernels read the cached twin; the reference's buffer and the outputs are allocated first, since an allocation drops every twin.
+                {
+                    const size_t r2 = 2, b2 = r2 * n_in * sizeof(float);
+                    const std::vector<backend::RowRun> two{{r2, r2}};
+                    const auto h2 = vk.alloc(b2, backend::Memory::device), fresh = vk.alloc(b2, backend::Memory::device);
+                    const auto y2 = vk.alloc(r2 * n_out * sizeof(float), backend::Memory::device);
+                    auto product = [&](const backend::BufferPtr& x) {
+                        vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {x.get(), 0}, {y2.get(), 0}, n_in, n_out, r2, {two.data(), two.size()}, dtype);
+                        std::vector<float> y(r2 * n_out);
+                        vk.read(*y2, 0, y.data(), y.size() * sizeof(float));
+                        return y;
+                    };
+                    auto refresh = [&] {
+                        std::vector<float> v(r2 * n_in);
+                        vk.read(*h2, 0, v.data(), b2);
+                        vk.write(*fresh, 0, v.data(), b2);
+                        return product(fresh);
+                    };
+                    vk.rms_norm_rows({h2.get(), 0}, {srcb.get(), 0}, {wnb.get(), 0}, r2, n_in, n_in, 1e-6f);
+                    vk.rms_norm_rows({h2.get(), 0}, {h2.get(), 0}, {wnb.get(), 0}, r2, n_in / 2, n_in, 1e-6f);
+                    const auto after_norm = product(h2);
+                    values += exact(after_norm, refresh(), "a matmul read a norm's twin after a norm without a twin wrote over it");
+                    vk.silu_mul({h2.get(), 0}, {gb.get(), 0}, {ub.get(), 0}, r2 * n_in);
+                    vk.silu_mul({h2.get(), 0}, {h2.get(), 0}, {ub.get(), 0}, r2 * n_in - 16);
+                    const auto after_silu = product(h2);
+                    values += exact(after_silu, refresh(), "a matmul read a SiLU's twin after a SiLU without a twin wrote over it");
+                }
             };
             try {
                 compare();

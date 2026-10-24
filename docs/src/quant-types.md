@@ -50,7 +50,7 @@ oracle and CPU products to exactly widened F32 weights. `backend-vulkan` holds d
 previously unknown layout also needs storage metadata here; a known layout
 does not need another sizing or format implementation.
 
-TQ1_0 and TQ2_0 have read-only CPU decoders in `tq.hpp` ([TQ block layouts](quant-tq.md)). The paired native `tq-format` check holds packed-byte mappings, scale bits and generic CPU products to an independent field oracle. Vulkan inference and released-file qualification remain pending.
+TQ1_0 and TQ2_0 have read-only CPU decoders in `tq.hpp` ([TQ block layouts](quant-tq.md)). The paired native `tq-format` check holds packed-byte mappings, scale bits and generic CPU products to an independent field oracle. Focused CPU and Vulkan F32 model checks pass; released-file and full qualification remain pending in [STATUS](../STATUS.md).
 
 IQ2_S has read-only CPU/Vulkan inference support. Its exact qualification scope
 and evidence are recorded in [STATUS](../STATUS.md); it has no quantize writer.

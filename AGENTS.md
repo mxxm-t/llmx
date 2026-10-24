@@ -1199,7 +1199,7 @@ matters: **each layer depends only on the layers below it** -
 |--------------|-------------------------------------------------|
 | `core/`      | fp16 and bf16 <-> f32, JSON parser, UTF-8, file hashes, the host memory a process can still take and owned pages, comma-separated lists, the CPUs a process may use and the cgroups its limits are read from, threads that run a job over its indices |
 | `hub/`       | CLI acquisition path: Hub metadata, curl HTTPS and verified multi-stream cache |
-| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry + F16/BF16 widening and Q8_0/Q4_0/Q4_1/Q5_0/Q5_1/Q2_K/Q3_K/Q4_K/Q5_K/Q6_K/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS/MXFP4 kernels |
+| `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry, F16/BF16 widening and the Q, K, IQ, MXFP4 and TQ family decoders |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |

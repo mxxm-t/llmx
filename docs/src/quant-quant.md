@@ -67,4 +67,4 @@ recorded in [STATUS](../STATUS.md).
 
 IQ2_XXS and IQ2_XS are read-only registry decoders in `iq2_xxs.hpp` and `iq2_xs.hpp` ([IQ2_XXS](quant-iq2-xxs.md), [IQ2_XS](quant-iq2-xs.md)). Both use the shared even-parity sign expansion in `iq_signs.hpp`; the CPU registry path widens their decoded weights for existing products. No quantizer or specialized CPU dot is added. Published CPU/Vulkan inference support and completed qualification are recorded in [STATUS](../STATUS.md).
 
-TQ1_0 and TQ2_0 are read-only registry decoders in `tq.hpp` ([format owner](quant-tq.md)). The CPU registry path widens their decoded weights for existing products. This paired stage adds no quantizer, specialized CPU dot or Vulkan kernels; model-level qualification remains pending.
+TQ1_0 and TQ2_0 are read-only registry decoders in `tq.hpp` ([format owner](quant-tq.md)). The CPU registry path widens their decoded weights for existing products. Vulkan uses the shared TQ decoder through its existing embedding, row and tile owners. No quantizer or specialized CPU dot is added; remaining model qualification is recorded in [STATUS](../STATUS.md).

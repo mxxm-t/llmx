@@ -1,0 +1,228 @@
+{
+  "scope": "Independent TQ tiny F32 model references and CPU/Radeon VII comparisons; not full quant qualification",
+  "generator_execution_sha256": "ed8c8fda752851ccb4b88c74220e13527af5007edb86cbeade45b6d07dfcb5f7",
+  "generator_elapsed_seconds": 62.02232527732849,
+  "generator_source_pins": {
+    "tools/gen_baseline.py": "82b8e0a6120adbd5305cf204f7d580263aa96a04fa4e4bcf3ce7ae07566abd40",
+    "tests/tq.py": "aeccecd936960867535f76a55e949eb69db133632348f174448aae6c5ff9a534",
+    "tests/raw_blocks.py": "b3aba8a9e3b12c5820d3e4f54b0b8c472c0afb357a8a1822f4cbff3f58a6f861",
+    "tests/spec_decode.py": "5060e3275158515d07c112c7d012b2f5be685a3fee651844c24a204d61e55f8f",
+    "tests/block_fixture.py": "ce327e86c1941a36c120b43bd2241db958fc3abcf713b408009fd48c27f64a90",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c"
+  },
+  "goldens": {
+    "baseline_tq1_0.json": "8672924b46b7d83f697bc02521c64228bf217cc60bd0bd8fcb460a28523476d3",
+    "baseline_tq1_0_split.json": "c78dc85d1e2be1dda611b2d48294109d95f3297587ecc7898e40ee509de4571e",
+    "baseline_tq2_0.json": "a30e99ef2dba3d825bce3ea1aa8be24568a64644235e457e1660898cb0d73ecf",
+    "baseline_tq2_0_split.json": "461c2e21316e5e36a8129fd2cfb26098558664d4a8ee3e7cd9bddf28196b8333"
+  },
+  "fixtures": [
+    {
+      "file": "baseline_tq1_0.json",
+      "name": "dense-untied",
+      "gap": null,
+      "weights_sha256": "e1e253a68faa62e65f7711c4f48a58d158c59c404e89445ce10059414f7aa17f",
+      "packed_sha256": "8a02464397f254be6d75f5ed2f4167f74e3d774f76ad492db00195b0a08c5819"
+    },
+    {
+      "file": "baseline_tq1_0.json",
+      "name": "dense-tied",
+      "gap": null,
+      "weights_sha256": "4321428b7c068985190b9123b170c7d402d5ebd3a3694ed128204d2fb1c439b8",
+      "packed_sha256": "d0b068bb319ba438f13781d33950a2cbf2d25b5211ec26e85cea5f172fbfc485"
+    },
+    {
+      "file": "baseline_tq1_0.json",
+      "name": "moe",
+      "gap": 0.0012940577269734098,
+      "weights_sha256": "4cd52f7eb7f0ecfb4dc2d048806f42cb273f3a13a23ed455d9d3d7d5e77ca4a0",
+      "packed_sha256": "fce3db962ca1e1ac247a13852e8bec6346348d9471cbd167b9bc16320ec78cb2"
+    },
+    {
+      "file": "baseline_tq1_0_split.json",
+      "name": "dense-untied",
+      "gap": null,
+      "weights_sha256": "5086198a9c2cb770a93be902c484a00d495102510a88f51eb582cd7ad7e5b269",
+      "packed_sha256": "49ba468894840d0ea40382682446a55b008986705dd2d517ac84059503e09621"
+    },
+    {
+      "file": "baseline_tq1_0_split.json",
+      "name": "dense-tied",
+      "gap": null,
+      "weights_sha256": "645faf58f54cbdb3665f0cba0ac237d126b57b5b674513b0b802aed7e8ed2407",
+      "packed_sha256": "8569e4fb4c9a8abceac86ad0f5299c7cfb375734fe6d825a36e596b600652e27"
+    },
+    {
+      "file": "baseline_tq1_0_split.json",
+      "name": "moe",
+      "gap": null,
+      "weights_sha256": "2973b9009d5e77d57694162cc719c867fe5dd0740d784176b7f852cc483a6412",
+      "packed_sha256": "18cc7057894f36405507f6d979b08489e952b91761cc5d5c17161b2744973487"
+    },
+    {
+      "file": "baseline_tq2_0.json",
+      "name": "dense-untied",
+      "gap": null,
+      "weights_sha256": "11c377bcaa7315cf848fe5a88ba9de5a88325bda53221e3d02c6538eb9aa9c0f",
+      "packed_sha256": "b034262cdd7b1febd8367e4b9507cde94546b139349bb16c56cffd4f1cea8bbc"
+    },
+    {
+      "file": "baseline_tq2_0.json",
+      "name": "dense-tied",
+      "gap": null,
+      "weights_sha256": "fa9bc1c8010c39819d68b5ccaad7056d771ebb41920f762db0c7485bfc934681",
+      "packed_sha256": "92d8125195d91bce5a36923a9ad50a5c8687bf81926765edfa3e4b123241bbc1"
+    },
+    {
+      "file": "baseline_tq2_0.json",
+      "name": "moe",
+      "gap": 0.0001850404126570726,
+      "weights_sha256": "1b899db31736a5844c31f591a771c9003ca8e559b3ff8d4b5de767c8d7772863",
+      "packed_sha256": "9c42a9dff649243b17c67cedc1ac68239b78a13cf9e55906a24cd1360de3385f"
+    },
+    {
+      "file": "baseline_tq2_0_split.json",
+      "name": "dense-untied",
+      "gap": null,
+      "weights_sha256": "49348ae3f356576bc7654b66fe0e727bca077fa2a852c7dced2a284dafad738c",
+      "packed_sha256": "2572d0a0f8bd46bdfdbb56835a9f993530d66a24445bad04b0225c5dfdbb8af8"
+    },
+    {
+      "file": "baseline_tq2_0_split.json",
+      "name": "dense-tied",
+      "gap": null,
+      "weights_sha256": "57aeeae766ce66e883dd79e341b6d9c7a1c9ab1ad3419ec2ecc2678108bd3dba",
+      "packed_sha256": "09c74383d09530e69ecdc102edecca75589ab68a75eed1309e9b35f73c5ae723"
+    },
+    {
+      "file": "baseline_tq2_0_split.json",
+      "name": "moe",
+      "gap": null,
+      "weights_sha256": "0201966bdfa847b345ebdcd8510e016cedc09b7ca561527d1636a0fb53a3d8ce",
+      "packed_sha256": "71e3ea5eb76f63b5fb73524435d8cffb5f03676a76855bb1584955d22fd59469"
+    }
+  ],
+  "original_refusal": {
+    "execution_sha256": "832f7fa570e54033eb700ace780d8fcca2b88df3f1e77af79fe6728ffc304c14",
+    "log_sha256": "e6d91b940980fdd13314868f9fd80703594daae6ebb13e305f775b232f1ad406",
+    "cause": "TQ2 ordinary MoE seed12345 reference routing gap1.81e-5 below unchanged1e-4 guard",
+    "resolution": "Deterministic seed12346 passed independent HF generation before any llmx model comparison"
+  },
+  "seed_owner_validation": {
+    "passed": true,
+    "TQ2_SEED": 12346,
+    "fixture_AST_equal_after_resolving_seed_constant": true,
+    "tq1_and_other_family_own_seed": 12345,
+    "extra_seeds": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "calibration_executed": false,
+    "source_pins": {
+      "tests/tq.py": "cb564e3422f6c8278a3360a5249ec2751802c61d11e6c9376f2393b2bea3f6f7",
+      "tools/calibrate_dtype.py": "c8d1dcb3687096afd28631936d6f5c6b97a9587c09ccc2d1eb221e1dbf5fa2f0"
+    }
+  },
+  "checks": {
+    "cpu": {
+      "binary_sha256": "5d78b4171a189f98ac88b93a036993c18b195881f4b415ea8d351b3974960f6e",
+      "version": "llmx 0.1.0+g15bc88f4252b.dirty numerics 44c0e285aa79f808",
+      "log_sha256": "f1dc2a5f077c4360be83aa52daf0858f63dc5ff94d04ad3c7dbc4d107db360ed",
+      "full_vocabulary_comparisons": 300,
+      "nll_comparisons": 24,
+      "results": [
+        "TQ1_0 dense-untied HF: max logit error 0.00000096, bounds [2e-05]; max NLL error 0.00000002, bounds [1e-05]",
+        "TQ1_0 dense-tied HF: max logit error 0.00000068, bounds [2e-05]; max NLL error 0.00000001, bounds [1e-05]",
+        "TQ1_0 moe HF: max logit error 0.00000083, bounds [2e-05]; max NLL error 0.00000006, bounds [1e-05]",
+        "tq1-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000096  [ok]",
+        "TQ2_0 dense-untied HF: max logit error 0.00000097, bounds [2e-05]; max NLL error 0.00000013, bounds [1e-05]",
+        "TQ2_0 dense-tied HF: max logit error 0.00000104, bounds [2e-05]; max NLL error 0.00000008, bounds [1e-05]",
+        "TQ2_0 moe HF: max logit error 0.00000143, bounds [2e-05]; max NLL error 0.00000011, bounds [1e-05]",
+        "tq2-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000143  [ok]",
+        "",
+        "  tq1-0      PASS",
+        "  tq2-0      PASS"
+      ],
+      "dtype": "f32",
+      "kv": "f32"
+    },
+    "vulkan": {
+      "binary_sha256": "b2c40496b07c75139789eb6692e1a1009858e05b51e3721307379ef68f4af5a4",
+      "version": "llmx 0.1.0+g7353c5b9b465.dirty numerics bd541d41569be98f",
+      "log_sha256": "8f659e4644867e6319f51741b050b5084ce375d93ee23e3f14a96f0752f88bd6",
+      "full_vocabulary_comparisons": 300,
+      "nll_comparisons": 24,
+      "results": [
+        "TQ1_0 dense-untied HF: max logit error 0.00000083, bounds [2e-05]; max NLL error 0.00000003, bounds [1e-05]",
+        "TQ1_0 dense-tied HF: max logit error 0.00000068, bounds [2e-05]; max NLL error 0.00000003, bounds [1e-05]",
+        "TQ1_0 moe HF: max logit error 0.00000079, bounds [2e-05]; max NLL error 0.00000002, bounds [1e-05]",
+        "tq1-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000083  [ok]",
+        "TQ2_0 dense-untied HF: max logit error 0.00000097, bounds [2e-05]; max NLL error 0.00000016, bounds [1e-05]",
+        "TQ2_0 dense-tied HF: max logit error 0.00000091, bounds [2e-05]; max NLL error 0.00000004, bounds [1e-05]",
+        "TQ2_0 moe HF: max logit error 0.00000147, bounds [2e-05]; max NLL error 0.00000005, bounds [1e-05]",
+        "tq2-0: dense tied/untied and MoE vs HF, 150 full-logit cases and 12 NLL checks; max error 0.00000147  [ok]",
+        "",
+        "  tq1-0      PASS",
+        "  tq2-0      PASS"
+      ],
+      "dtype": "f32",
+      "kv": "f32"
+    }
+  },
+  "vulkan_device": "AMD Radeon VII",
+  "driver": "31.0.21925.1001",
+  "gpu_activity_before": "Two existing RuneLite processes around2 percent GPU each; correctness only, no timing claim",
+  "limits": {
+    "logits": 2e-05,
+    "nll": 1e-05,
+    "changed": false
+  },
+  "calibration": "Family registration only; checked-in dtype budget unchanged and narrowed candidates not run",
+  "pending": [
+    "split models",
+    "prospective narrowed calibration and comparisons",
+    "released-file depth",
+    "Linux MI50",
+    "matched mx Vulkan and existing-path performance",
+    "landing gates"
+  ],
+  "threshold_witnesses": {
+    "owner": "tests/backend_vulkan.cpp check_weight_dispatch",
+    "types": [
+      "TQ1_0",
+      "TQ2_0"
+    ],
+    "widths": [
+      256,
+      4096
+    ],
+    "operations": [
+      "dense",
+      "routed"
+    ],
+    "extents": [
+      "1",
+      "from-1",
+      "from",
+      "from+1"
+    ],
+    "dtypes_on_radeon": [
+      "f16",
+      "f32",
+      "bf16"
+    ],
+    "tq_timestamped_cases_on_radeon": 96,
+    "all_weight_dispatch_cases": 605,
+    "expected": "Exactly one matching TQ row/tile timestamp per call, including selected dot/BF16 suffix",
+    "passed": true,
+    "integer_tile_and_int8_request_witness_on_mi50_pending": true,
+    "artifacts": {
+      "build-tq-vulkan-stage\\tq-vulkan-test-threshold-rebuild-v1.log": "c182906f9bbd1e687dbddf36094dc879b17e2ead5d9ce3bc88ef86a442543570",
+      "build-tq-vulkan-stage\\backend-vulkan-threshold-device.log": "2318906691c2bbdbfe533abe5dd93205d74dd6bf159c2400b66ab9fb4ecb5ef2",
+      "build-tq-vulkan-stage\\tq-threshold-native-details.log": "54e8af2897daae51c805402183a165724642e0a4a8068edc8b02dd3112ccaa1c",
+      "build-tq-vulkan-stage\\Release\\llmx-backend-vulkan-test.exe": "c67088ed40a88a73bdced544a6587021ebe777fd61904a6009fcbcccec034cad"
+    }
+  }
+}

@@ -2412,12 +2412,15 @@ size_t check_weight_dispatch() {
         {8, "matmul_row_q8w", "matmul_tile_q8"},
         {2, "matmul_row_q4", "matmul_tile_q"}, {3, "matmul_row_q4", "matmul_tile_q"},
         {6, "matmul_row_q50", "matmul_tile_q50"}, {7, "matmul_row_q5", "matmul_tile_q5"},
+        {quant::GGML_TYPE_TQ1_0, "matmul_row_tq1_0", "matmul_tile_tq1_0_dot"},
+        {quant::GGML_TYPE_TQ2_0, "matmul_row_tq2_0", "matmul_tile_tq2_0_dot"},
         {12, "matmul_row_k4", "matmul_tile_q"}, {13, "matmul_row_k5", "matmul_tile_q"},
         {14, "matmul_row_k", "matmul_tile_q6"}, {39, "matmul_row_mxfp4", "matmul_tile_q8mx"}};
     size_t checks = 0;
     for (const Expected& e : cases) {
         if (e.type == 39 && !vk.supports_type(e.type)) continue;
         require(vk.supports_type(e.type), "an implemented weight type lost device support");
+        const bool tq = e.type == quant::GGML_TYPE_TQ1_0 || e.type == quant::GGML_TYPE_TQ2_0;
         for (size_t nin : {size_t(96), size_t(256), size_t(4096)}) {
             if (nin == 96 && e.type != 2 && e.type != 6 && e.type != 7 && e.type != 8) continue;
             const size_t nout = 3;
@@ -2431,31 +2434,37 @@ size_t check_weight_dispatch() {
                 const bool fast = floating || e.type == 8;
                 const size_t dense_from = fast ? (nin < p.tile_narrow_nin ? p.tile_from_8bit_narrow : p.tile_from_8bit)
                                               : (nin < p.tile_narrow_nin ? p.tile_from_other_narrow : p.tile_from_other);
-                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 6 || e.type == 7 ? p.moe_tile_from_q4
+                const size_t from = !routed ? dense_from : e.type == 2 || e.type == 3 || e.type == 6 || e.type == 7 || tq ? p.moe_tile_from_q4
                                   : e.type == 12 ? p.moe_tile_from_q4k : e.type == 13 ? p.moe_tile_from_q5k : p.moe_tile_from;
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::f32, backend::Dtype::bf16, backend::Dtype::int8}) {
                     // int8 reaches a device only where it is native; floating weights keep F32 products and MXFP4 keeps its 16-bit dot.
                     if (dtype == backend::Dtype::int8 && !p.prefer_integer_dot) continue;
-                    const bool i8 = dtype == backend::Dtype::int8 && !floating && e.type != 39;
-                    for (size_t extent : {size_t(1), from - 1, from}) {
+                    const bool i8 = dtype == backend::Dtype::int8 && !floating && e.type != 39 && !tq;
+                    std::vector<size_t> extents = {size_t(1), from - 1, from};
+                    if (tq) extents.push_back(from + 1);
+                    for (size_t extent : extents) {
                         const bool tile = dtype == backend::Dtype::bf16 || extent >= from;
                         const bool integer = (dtype == backend::Dtype::f16 || dtype == backend::Dtype::int8) && p.prefer_integer_dot && !floating &&
                                              !(routed && e.type == 39);
                         std::string expected;
                         if (tile) {
-                            expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
-                                       e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
+                            if (tq)
+                                expected = integer ? e.integer_tile : e.type == quant::GGML_TYPE_TQ1_0 ? "matmul_tile_tq1_0" : "matmul_tile_tq2_0";
+                            else
+                                expected = integer ? e.integer_tile : e.type == 39 ? "matmul_tile_mxfp4" :
+                                           e.type == 1 ? "matmul_tile_wf16" : e.type == 30 ? "matmul_tile_wbf16" : "matmul_tile";
                             if (dtype == backend::Dtype::bf16) expected += "_bf16";
                             if (i8) expected += "i8";
                         } else if (dtype == backend::Dtype::f32 && !floating) {
-                            expected = e.type == 39 ? "matmul_row_mxfp4_float_x" : "matmul_row_float_x";
+                            expected = e.type == 39 ? "matmul_row_mxfp4_float_x" :
+                                       tq ? e.row : "matmul_row_float_x";
                         } else if (i8) {
                             expected = e.type == 8 ? "matmul_vec_q8_i8" : std::string(e.row) + "_i8";
                         } else {
                             expected = e.type == 8 && nin == 96 ? "matmul_row" : e.row;
                             if (e.type == 8 && p.prefer_integer_dot) expected = "matmul_vec_q8";
-                            else if ((e.type == 39 && p.lookup_integer_dot) ||
-                                     (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39)) expected += "_dot";
+                            else if ((tq && p.lookup_integer_dot) || (e.type == 39 && p.lookup_integer_dot) ||
+                                     (p.prefer_integer_dot && !floating && e.type != 8 && e.type != 39 && !tq)) expected += "_dot";
                         }
                         (void)backend::vulkan_kernel_times(vk);
                         const backend::RowRun run{1, extent};

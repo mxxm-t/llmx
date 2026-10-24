@@ -27,16 +27,41 @@ Independent model-file and performance qualification remain pending in [STATUS](
 The paired tiny HF preparation lives in `tests/tq.py`. It reuses
 `tests/block_fixture.py` for dense tied/untied and MoE models, including the
 existing whole-block split layout, and `tests/spec_decode.py` for exact decoded
-weights. Seed 12345, raw packed bytes and signed finite half scales determine
-all weights; periodic blocks include signed zero and subnormal scales. Norms
+weights. Seeds 12345 for TQ1_0 and `TQ2_SEED = 12346` for TQ2_0, raw packed
+bytes and signed finite half scales determine all weights; periodic blocks
+include signed zero and subnormal scales. Norms
 and routers remain F32. These are test packers, not runtime quantize writers.
 
 `python tools/gen_baseline.py tq --output-dir DIR` prepares
 `baseline_tq1_0.json`, `baseline_tq1_0_split.json`, `baseline_tq2_0.json` and
 `baseline_tq2_0_split.json` with the existing pinned CPU HF environment and
-routing-gap refusal. No HF reference generation or model comparison is claimed
-by this preparation. The `tq1-0` and `tq2-0` components consume those references
+routing-gap refusal. The pinned HF generation completed all twelve fixtures
+across the four files; this is reference generation, not a runtime comparison.
+The first TQ2_0 ordinary-MoE seed 12345 routing-gap refusal is preserved;
+HF-only screening selected seed 12346 before any candidate comparison.
+The `tq1-0` and `tq2-0` components consume those references
 through the shared 150-logit/12-NLL checker. Initial F32 execution keeps its
 existing bounds. Narrowed execution requires prospectively generated and
 reviewed TQ-family budgets; absent budgets are an error, not permission to use
 another family's tolerance.
+
+Prospective calibration uses the same fixture constructors and existing
+rounding owner. From the pinned HF environment, run each family separately
+with a fresh output path:
+
+```
+python tools/calibrate_dtype.py --family tq1-0 --output tq1-0-budget.json
+python tools/calibrate_dtype.py --family tq2-0 --output tq2-0-budget.json
+```
+
+Each family constructs 30 models: ordinary and split layouts, three variants,
+and its own fixture seed (12345 for TQ1_0, `TQ2_SEED` for TQ2_0), plus
+seeds 0, 1, 2 and 3. It records F16 and BF16 errors against exact-weight F32
+HF, with F32 sums and routers, for 60 reference rows. Int8 requests have no
+TQ block-int8 path and use the F16 budget through the completed-path owner;
+F32-weight products and routers remain F32. The existing 2x margin and
+routing-turnover refusals are unchanged. Each output
+starts from the checked-in budget and adds only its named family; review and
+freeze both new family sections while retaining every existing family and
+class limit before running narrowed candidates. Registration generates no
+budget and establishes no candidate conformance.

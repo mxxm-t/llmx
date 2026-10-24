@@ -4,6 +4,8 @@ import spec_decode as sd
 from block_fixture import fixture as block_fixture, run_family
 from raw_blocks import tq1_block, tq2_block
 
+TQ2_SEED = 12346
+
 
 def raw_block(type_id, next_value, block):
     bits = next_value()
@@ -31,7 +33,7 @@ def fixture_tq1(tied, moe, seed=12345, context=16, split=False):
     return fixture(sd.TQ1_0, tied, moe, seed, context, split)
 
 
-def fixture_tq2(tied, moe, seed=12345, context=16, split=False):
+def fixture_tq2(tied, moe, seed=TQ2_SEED, context=16, split=False):
     return fixture(sd.TQ2_0, tied, moe, seed, context, split)
 
 

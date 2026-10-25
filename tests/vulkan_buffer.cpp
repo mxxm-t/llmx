@@ -1359,6 +1359,36 @@ int share_checks() {
     return failures;
 }
 
+// A table's views (table_views): they cover its rows once and in order, each within one binding's range and 32-bit indices, beginning on the alignment with its first row at the skew.
+// Among them the 26.8 GiB per-layer table of Qwen3.8-Flash-Next, IQ4_NL rows 160 wide, whose row offsets pass 2^32 bytes; a table that fits one binding keeps one view.
+int table_view_checks() {
+    struct Case {
+        VkDeviceSize base;
+        size_t rows, row_bytes;
+        VkDeviceSize max_range, align;
+        bool one;
+    };
+    const Case cases[] = {{0, 320001536, 90, 0xffffffffull, 16, false},  {4096, 320001536, 90, 0x7fffffffull, 256, false},
+                          {0, 70000000, 64, 0xffffffffull, 4, false},    {0, 248320, 2720, 0xffffffffull, 4, true},
+                          {12, 1000, 64, 0xffffffffull, 64, true},       {0, 1, 4096, 0xffffffffull, 256, true}};
+    int failures = 0;
+    for (const Case& c : cases) {
+        const std::vector<backend::TableView> views = backend::table_views(c.base, c.rows, c.row_bytes, c.max_range, c.align);
+        bool ok = !views.empty() && views.front().first == 0 && views.back().end == c.rows && (views.size() == 1) == c.one;
+        uint32_t next = 0;
+        for (const backend::TableView& v : views) {
+            const VkDeviceSize at = c.base + VkDeviceSize(v.first) * c.row_bytes;
+            ok = ok && v.first == next && v.first < v.end && v.offset % c.align == 0 && v.skew < c.align && (c.row_bytes % 4 || v.skew % 4 == 0) && v.offset + v.skew == at &&
+                 v.range == v.skew + VkDeviceSize(v.end - v.first) * c.row_bytes && v.range <= c.max_range && v.range <= 0xffffffffull;
+            next = v.end;
+        }
+        std::cout << "table views of " << c.rows << " rows of " << c.row_bytes << " bytes from " << c.base << " at a range of " << c.max_range << ": "
+                  << views.size() << (ok ? " PASS\n" : " FAIL\n");
+        failures += !ok;
+    }
+    return failures;
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
@@ -1401,6 +1431,8 @@ int main(int argc, char** argv) {
         ++cases;
         failures += share_checks();
         ++cases;
+        failures += table_view_checks();
+        cases += 6;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
         return failures ? 1 : 0;
     } catch (const backend::VulkanUnavailable& e) {

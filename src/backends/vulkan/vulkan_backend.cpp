@@ -1428,6 +1428,16 @@ inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties&
 inline size_t attention_row_width(uint32_t subgroup_size) { return std::min<size_t>(256, 4 * (size_t)subgroup_size); }
 inline bool attention_head_fits(size_t head_dim, uint32_t subgroup_size) { return head_dim == 128 || head_dim == 256 || head_dim <= attention_row_width(subgroup_size); }
 
+// A table a gather reads (shaders/embed.comp), as storage views of whole rows: each view's first row `skew` bytes past its offset, rows first to end.
+struct TableView {
+    VkDeviceSize offset = 0, range = 0;
+    uint32_t skew = 0, first = 0, end = 0;
+};
+inline std::vector<TableView> table_views(VkDeviceSize base, size_t rows, size_t row_bytes, VkDeviceSize max_range, VkDeviceSize align) {
+    (void)max_range, (void)align;
+    return {TableView{base, VkDeviceSize(rows) * row_bytes, 0, 0, uint32_t(rows)}};
+}
+
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
 
@@ -3158,8 +3168,9 @@ public:
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
         const uint32_t pc[2] = {u32(nin), type};
+        const VkDescriptorBufferInfo view = table_view(type, table, nin, nrows);
         // Dictionary formats use the spare F32 table view for immutable format data.
-        dispatch(weight_kernels(type)->embed, {bind(dst), lookup_grid(type, bind(table)), bind(table), args(ids, count * sizeof(uint32_t))},
+        dispatch(weight_kernels(type)->embed, {bind(dst), lookup_grid(type, view), view, args(ids, count * sizeof(uint32_t))},
                  pc, sizeof(pc), u32(count));
     }
 
@@ -3170,7 +3181,14 @@ public:
         if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
             throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
         const uint32_t pc[3] = {u32(nin), type, u32(nrows)};
-        dispatch(weight_kernels(type)->embed_ids, {bind(dst), lookup_grid(type, bind(table)), bind(table), bind(ids)}, pc, sizeof(pc), u32(count));
+        const VkDescriptorBufferInfo view = table_view(type, table, nin, nrows);
+        dispatch(weight_kernels(type)->embed_ids, {bind(dst), lookup_grid(type, view), view, bind(ids)}, pc, sizeof(pc), u32(count));
+    }
+    // The table's one view (table_views).
+    VkDescriptorBufferInfo table_view(uint32_t type, CSlice table, size_t nin, size_t nrows) {
+        const TableView v = table_views(bind(table).offset, nrows, quant::row_bytes(type, nin), dev_->props.limits.maxStorageBufferRange,
+                                        dev_->props.limits.minStorageBufferOffsetAlignment).front();
+        return VkDescriptorBufferInfo{as_vulkan(*table.buffer).handle(), v.offset, VK_WHOLE_SIZE};
     }
 
     // A row past one slice is reduced by a workgroup a slice into partials, then a workgroup a row over them (shaders/argmax_rows.comp); a shorter row, or work recorded without barriers, takes one workgroup a row.

@@ -980,11 +980,10 @@ BenchDrafter bench_drafter(const std::string& d, size_t draft_max) {
     return {source == "embedded", source == "embedded" || source == "off" ? std::string() : source, draft_max};
 }
 
-// The fixed ids a model bench feeds, from `seed`: below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
+// The fixed ids a model bench feeds, from `seed`, spread over the whole vocabulary as a text's are, so a model that reads a table by token reads as many of its rows as a prompt does.
 std::vector<uint32_t> bench_ids(uint32_t seed, size_t n, size_t n_vocab) {
-    const uint32_t vocab = (uint32_t)std::min<size_t>(1000, n_vocab);
     std::vector<uint32_t> ids(n);
-    for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % vocab; }
+    for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = uint32_t((uint64_t(seed) * n_vocab) >> 32); }
     return ids;
 }
 

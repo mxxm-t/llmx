@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## A model bench's ids span the vocabulary (2026-10-25, branch feat/bench-ids on main 07facf1b6, the coordinator's order of 2026-10-25, lands by fast-forward as two commits)
+
+- **The bug:** `bench --model` drew every id below 1000, so on Qwen3.8-Flash-Next its prompts read a few cached rows of the 26.8 GiB per-layer table, where a text reads a distinct row a token from the file.
+  On four MI50s its pp2048 on 2x2 read 726 tok/s against 130-175 tok/s for served wiki prompts of 4k-16k tokens through the same build (2026-10-24 comparison against the gfx906 HIP fork, test machine `castagna/run/out1` and `out2`).
+- **The fix:** the ids come from one function, `bench_ids`, which spreads a fixed seed's ids over the whole vocabulary by a multiply-shift of the generator's 32 bits, as a text's ids spread; the prompt, the depth's history and the decode tokens keep their own seeds.
+- **Tests:** the first commit, failing on main: `cli-output` holds `bench_ids` to spanning a 151936- and a 248320-token vocabulary (the largest of 4096 past nine tenths, 3900 distinct at least) and to staying inside it, a 16-token vocabulary included.
+- **Measured** (test machine, GPU 9, CPUs 14-15, ABBA, pp512 and tg64 with 3 counted runs; main 07facf1b6 against the branch, each built clean): ordinary models are unchanged, Qwen3-0.6B Q8_0 pp 8961.0 against 8951.5 and tg 410.8 against 412.4 tok/s, Qwen3.5-9B Q4_K_M pp 786.9 against 786.6 and tg 82.8 against 82.6.
+- **A new series:** on a routed model the ids decide the experts, and on a table-reading model the rows read, so `bench --model` figures of routed models (Qwen3-30B-A3B, Qwen3.5-35B-A3B, Flash and the like) and of table-reading models (Flash's per-layer table) start a new series at this commit and are not comparable with figures taken before it; dense models without a table are unchanged beyond noise (C2DEV's review of 2026-10-25 02:17).
+- **Left:** Flash's bench figure before and after on six cards, queued behind DDEV's runs; the hosted run.
+
 ## A Vulkan table past 4 GiB gathered through views of whole rows (2026-10-25, branch feat/lookup-wide on main 07facf1b6, the coordinator's order of 2026-10-25, lands by fast-forward as two commits)
 
 - **The bug:** `embed` and `embed_ids` bound a table once and indexed it with 32-bit byte offsets, so a resident table past 4 GiB, Qwen3.8-Flash-Next's 26.8 GiB per-layer table with `--lookup-storage device`, gave other rows than its own past 2^32 bytes and a binding past the device's storage-buffer range.

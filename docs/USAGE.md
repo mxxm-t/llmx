@@ -1122,6 +1122,7 @@ are fixed, sampling and text output are excluded, and every repeat starts
 from a cleared history. The report is the mean and standard deviation of
 tokens per second, the protocol reference runtimes' bench tools use for
 the same `-p N -n N -r R`, so the figures compare directly.
+The ids are drawn from a fixed seed over the whole vocabulary, as a text's spread over it, so a model that reads a table by token, Qwen3.8-Flash-Next's per-layer table among them, reads as many distinct rows as a prompt makes it read.
 `generate` always prints `pp` and `tg` as well, but its `tg` is a single cold run decoding after the prompt with sampling inside the timer, which is a different measurement.
 
 `--seqs N` measures decode the way a server runs it: `N` sequences each

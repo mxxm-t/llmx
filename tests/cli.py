@@ -244,6 +244,20 @@ def check_usage_errors():
     for value in ("lookup", "lookup,embedded", "lookup,x.gguf"):
         usage_error(["bench", "--model", model, "--drafter", value], "bench", "--drafter: bench --model takes off, embedded or a drafter file, not lookup")
     usage_error(["bench", "--model", model, "--drafter", "off,off"], "bench", "--drafter: off is listed twice")
+    # The image flags go together and with --chat, each refusal by its reason, on both commands that take them; --image lists its files, and drafts and decode steps beside images come later.
+    for command in (["generate", model, "a"], ["logits", model, "a"]):
+        for args, reason in ((["--image", "a.png", "--chat"], "--image needs the vision encoder --mmproj names"),
+                             (["--mmproj", "m.gguf", "--chat"], "--mmproj encodes the images --image gives"),
+                             (["--image-max-pixels", "1024", "--chat"], "--image-max-pixels sizes the images --image gives"),
+                             (["--mmproj", "m.gguf", "--image", "a.png"], "--image places its images in the one user message --chat sends"),
+                             (["--mmproj", "m.gguf", "--image", "a.png,", "--chat"], "--image: an empty entry in 'a.png,'"),
+                             (["--mmproj", "m.gguf", "--image", "a.png", "--image", "b.png", "--chat"], "--image is given twice"),
+                             (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-pixels", "0"], "--image-max-pixels")):
+            usage_error(command + args, command[0], reason)
+    usage_error(["generate", model, "a", "--chat", "--mmproj", "m.gguf", "--image", "a.png", "--drafter", "lookup"], "generate",
+                "--drafter beside --image comes with the images' cache identity")
+    usage_error(["logits", model, "a", "--chat", "--mmproj", "m.gguf", "--image", "a.png", "--per-token"], "logits",
+                "--per-token reads tokens one at a time, which an image's rows are not")
     # Pacing is off or a fixed share, never both.
     usage_error(["serve", model, "--no-pacing", "--generating-share", "0.5"], "serve", "--no-pacing serves no generating request apart")
 
@@ -297,7 +311,9 @@ def check_help():
              "quantize": ["quantize", "missing.json", "missing.bin", "out.gguf"]}
     # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
     synthetic = ["bench", "--p", "1", "--n", "1"]
-    company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"]}
+    # The image flags are taken together and with --chat.
+    company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
+               "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-pixels": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"]}
     # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, and --drafter names a drafter.
     values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off"}
 

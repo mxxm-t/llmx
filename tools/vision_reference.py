@@ -209,3 +209,110 @@ def file_exact(output_dir, mmproj, checkpoint):
         json.dump(doc, f, indent=1)
         f.write("\n")
     print("wrote %s (%d images, every tensor equal to the checkpoint's)" % (path, len(cases)))
+
+
+# The tower of the image prompt fixture: the tiny tower with rows the width of tests/image.py's text model.
+IMAGE_SEED = 20261026
+
+
+def hf_processor(transformers, max_pixels):
+    """HF's Qwen 3.5 processor over tests/image.py's vocabulary: a byte-level tokenizer without merges, each byte its own id, the vision tokens and the end of text added as special tokens, and the fixture's chat template."""
+    import image
+    from tokenizers import Tokenizer, decoders, models, pre_tokenizers
+    vocab = {token: i for i, token in enumerate(image.tokens())}
+    tok = Tokenizer(models.BPE(vocab=vocab, merges=[]))
+    tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False, use_regex=False)
+    tok.decoder = decoders.ByteLevel()
+    fast = transformers.PreTrainedTokenizerFast(tokenizer_object=tok, eos_token="<|endoftext|>", additional_special_tokens=image.SPECIAL[1:])
+    from transformers.models.qwen3_vl.processing_qwen3_vl import Qwen3VLProcessor
+    from transformers.models.qwen3_vl.video_processing_qwen3_vl import Qwen3VLVideoProcessor
+    return Qwen3VLProcessor(image_processor=processor(MIN_PIXELS, max_pixels), tokenizer=fast, video_processor=Qwen3VLVideoProcessor(), chat_template=image.TEMPLATE)
+
+
+def image_tiny(output_dir):
+    """tests/image.py's goldens: HF Qwen3_5ForConditionalGeneration holding the qwen35 fixture's text weights and a seeded tiny tower, each case's every prompt row and greedy ids from HF's token-by-token cached forward.
+    The prompt is HF's processor's (its template render, tokenizer and pad expansion), and the image rows and positions are HF's own (get_image_features, get_rope_index, and the rope delta its generation adds), stepped through the text model so its linear layers run the recurrence llmx runs; the full forward over the prompt must agree within 1e-4."""
+    import math
+    import gen_baseline
+    import image
+    import qwen35
+    from transformers.models.qwen3_5.configuration_qwen3_5 import Qwen3_5Config
+    torch, transformers, modeling = environment()
+    text = gen_baseline.qwen35_hf_config(image.FIXTURE)
+    text.pop("architectures")
+    vision = dict(TINY, out_hidden_size=text["hidden_size"])
+    config = Qwen3_5Config(text_config=text, vision_config=vision, image_token_id=image.IMAGE_PAD, vision_start_token_id=image.VISION_START,
+                           vision_end_token_id=image.VISION_END, tie_word_embeddings=image.FIXTURE["tied"])
+    config._attn_implementation = config.text_config._attn_implementation = config.vision_config._attn_implementation = "eager"
+    model = modeling.Qwen3_5ForConditionalGeneration(config).to(torch.float32).eval()
+    raw = qwen35.raw_weights(image.FIXTURE)
+    state = {("model.language_model." + name[len("model."):] if name.startswith("model.") else name): torch.tensor(values, dtype=torch.float32).reshape(shape)
+             for name, shape, values in raw}
+    missing, unexpected = model.load_state_dict(state, strict=False)
+    if unexpected or any(not k.startswith("model.visual.") and k != "lm_head.weight" for k in missing):
+        raise SystemExit("image-tiny: the text weights do not load: missing %s, unexpected %s" % (missing, unexpected))
+    gen = torch.Generator().manual_seed(IMAGE_SEED)
+    with torch.no_grad():
+        for name, p in model.model.visual.named_parameters():
+            scale = 0.1 if "norm" in name and name.endswith("weight") else 0.3
+            base = 1.0 if "norm" in name and name.endswith("weight") else 0.0
+            p.copy_(base + scale * torch.randn(p.shape, generator=gen, dtype=torch.float32))
+        model.lm_head.weight.copy_(model.model.language_model.embed_tokens.weight)
+    if not torch.equal(model.lm_head.weight, model.model.language_model.embed_tokens.weight):
+        raise SystemExit("image-tiny: the head is not the tied embedding")
+    visual = {k: v.detach().numpy() for k, v in model.model.visual.state_dict().items()}
+    root = os.path.join(output_dir, "vision")
+    os.makedirs(root, exist_ok=True)
+    mmproj = os.path.join(root, "tiny-mmproj-image.gguf")
+    write_mmproj(mmproj, vision, visual)
+    lm = model.model.language_model
+    cases = []
+    with gen_baseline.counted_delta_rules(modeling) as calls, torch.no_grad():
+        for case in image.CASES:
+            # HF's processor end to end: its chat template render, its tokenizer and its pad expansion, beside the image processor at the case's bound.
+            hf = hf_processor(transformers, case["max_pixels"] or MAX_PIXELS)
+            content = [{"type": "image", "path": os.path.join(output_dir, "images", f)} for f in case["images"]] + [{"type": "text", "text": case["text"]}]
+            feat = hf.apply_chat_template([{"role": "user", "content": content}], add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt")
+            grid, input_ids, types = feat["image_grid_thw"], feat["input_ids"], feat["mm_token_type_ids"]
+            ids = input_ids[0].tolist()
+            embeds = lm.embed_tokens(input_ids)
+            features = torch.cat(model.model.get_image_features(feat["pixel_values"], grid).pooler_output, dim=0)
+            mask, _ = model.model.get_placeholder_mask(input_ids, inputs_embeds=embeds, image_features=features)
+            embeds = embeds.masked_scatter(mask, features)
+            positions, delta = model.model.get_rope_index(input_ids, types, image_grid_thw=grid)
+            full = model(input_ids=input_ids, pixel_values=feat["pixel_values"], image_grid_thw=grid, mm_token_type_ids=types, use_cache=False).logits[0]
+            model.model.rope_deltas = None
+            cache = gen_baseline.qwen35_cache(lm, torch, transformers)
+
+            def step(e, pos):
+                return model.lm_head(lm(inputs_embeds=e, position_ids=pos, past_key_values=cache, use_cache=True).last_hidden_state)[0, -1]
+
+            calls.update(recurrent=0, chunk=0, log_decay=0.0)
+            rows = torch.stack([step(embeds[:, i:i + 1], positions[:, :, i:i + 1]) for i in range(len(ids))])
+            distance = (full - rows).abs().max().item()
+            if not 0 < distance < 1e-4:
+                raise SystemExit("image-tiny: the full forward is %.3g from the steps" % distance)
+            greedy, gap, last = [], math.inf, rows[-1]
+            for k in range(image.GREEDY):
+                scores = last.clone()
+                scores[image.EOS] = -math.inf
+                top = torch.topk(scores, 2)
+                gap = min(gap, (top.values[0] - top.values[1]).item())
+                greedy.append(int(top.indices[0]))
+                if k + 1 < image.GREEDY:
+                    # HF's position for a generated token: its index plus the rope delta get_rope_index gave the prompt.
+                    pos = (torch.tensor([[[len(ids) + k]]]) + delta).expand(3, 1, 1)
+                    last = step(lm.embed_tokens(torch.tensor([[greedy[-1]]])), pos)
+            if gap < gen_baseline.QWEN35_GREEDY_GAP:
+                raise SystemExit("image-tiny: a greedy step's top two logits are within %.2e" % gap)
+            cases.append(dict(case, ids=ids, grids=[[int(v) for v in g[1:]] for g in grid], logits=[[float(v) for v in r] for r in rows.tolist()],
+                              greedy=greedy, min_gap=gap, full_forward_distance=distance, recurrent_steps=calls["recurrent"]))
+            print("  %r: %d tokens, grids %s, full forward within %.3g, greedy %s" % (case["text"], len(ids), cases[-1]["grids"], distance, greedy))
+    doc = {"generator": "tools/gen_baseline.py image-tiny", "transformers": transformers.__version__, "torch": torch.__version__, "dtype": "float32",
+           "attention": "eager", "fixture": image.FIXTURE, "template": image.TEMPLATE, "vision": vision, "seed": IMAGE_SEED,
+           "mmproj_sha256": hashlib.sha256(open(mmproj, "rb").read()).hexdigest(), "cases": cases}
+    path = os.path.join(output_dir, "baseline_image_tiny.json")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(doc, f)
+        f.write("\n")
+    print("wrote %s and %s (%d cases)" % (path, mmproj, len(cases)))

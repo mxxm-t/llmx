@@ -23,6 +23,7 @@
 #include "model/place.hpp"
 #include "model/arch/registry.hpp"
 #include "tiny_qwen.hpp"
+#include "tiny_qwen35.hpp"
 
 // Fails the calling thread's Nth allocation after arming, once, so a case can fail each allocation of one call in turn.
 static thread_local size_t fail_allocation = 0;
@@ -63,86 +64,7 @@ void refuses(const std::string& what, const std::string& text, const std::functi
     throw std::runtime_error(what + ": not refused");
 }
 
-constexpr uint64_t E = 8, F = 12, HQ = 2, HKV = 1, D = 8, HK = 1, HV = 2, DK = 4, DV = 4, VOCAB = 32, CONTEXT = 64;
-constexpr uint64_t C = 2 * HK * DK + HV * DV;
-
-// A tensor of `shape` appended to `m`, F32 from a fixed pattern of its index and the tensors before it, times `scale` plus `offset`.
-void add_tensor(gguf::GGUFModel& m, const std::string& name, std::vector<uint64_t> shape, float scale = 1.0f, float offset = 0.0f) {
-    size_t count = 1;
-    for (uint64_t d : shape) count *= size_t(d);
-    const size_t at = m.blob.size();
-    m.blob.resize(at + count * sizeof(float));
-    for (size_t i = 0; i < count; ++i) {
-        const float v = offset + scale * float(int((i * 17 + m.tensors.size() * 7) % 29) - 14) / 64.0f;
-        std::memcpy(m.blob.data() + at + i * sizeof(float), &v, sizeof(v));
-    }
-    m.tensors.push_back({name, std::move(shape), quant::GGML_TYPE_F32, 0});
-    m.offsets.push_back(at);
-}
-
-// Four layers, linear then full attention twice, 8 wide over a vocabulary of 32, with a rotary width of 4 of each head's 8; `edit` changes the metadata and tensors before the model is read.
-gguf::GGUFModel tiny(const std::function<void(gguf::GGUFModel&)>& edit = {}) {
-    gguf::GGUFModel m;
-    auto meta = [&](const std::string& key, uint64_t value) {
-        gguf::MetaValue v;
-        v.vtype = gguf::V_UINT32;
-        v.u = value;
-        m.kv.push_back({"qwen35." + key, v});
-    };
-    gguf::MetaValue arch;
-    arch.vtype = gguf::V_STRING;
-    arch.s = "qwen35";
-    m.kv.push_back({"general.architecture", arch});
-    for (const auto& kv : std::vector<std::pair<std::string, uint64_t>>{
-             {"block_count", 4}, {"embedding_length", E}, {"feed_forward_length", F}, {"attention.head_count", HQ},
-             {"attention.head_count_kv", HKV}, {"attention.key_length", D}, {"attention.value_length", D}, {"rope.dimension_count", 4},
-             {"context_length", CONTEXT}, {"ssm.conv_kernel", 4}, {"ssm.state_size", DK}, {"ssm.group_count", HK},
-             {"ssm.time_step_rank", HV}, {"ssm.inner_size", HV * DV}, {"full_attention_interval", 2}})
-        meta(kv.first, kv.second);
-    gguf::MetaValue sections;
-    sections.vtype = gguf::V_ARRAY;
-    sections.u = gguf::V_INT32;
-    for (int s : {1, 1, 0, 0}) {
-        gguf::MetaValue e;
-        e.vtype = gguf::V_INT32;
-        e.i = s;
-        sections.arr.push_back(e);
-    }
-    m.kv.push_back({"qwen35.rope.dimension_sections", sections});
-    auto add = [&](const std::string& name, std::vector<uint64_t> shape, float scale = 1.0f, float offset = 0.0f) {
-        add_tensor(m, name, std::move(shape), scale, offset);
-    };
-    add("token_embd.weight", {E, VOCAB});
-    add("output_norm.weight", {E}, 0.1f, 1.0f);
-    for (int l = 0; l < 4; ++l) {
-        const std::string pre = "blk." + std::to_string(l) + ".";
-        add(pre + "attn_norm.weight", {E}, 0.1f, 1.0f);
-        add(pre + "post_attention_norm.weight", {E}, 0.1f, 1.0f);
-        if (l % 2) {
-            add(pre + "attn_q.weight", {E, 2 * HQ * D});
-            add(pre + "attn_k.weight", {E, HKV * D});
-            add(pre + "attn_v.weight", {E, HKV * D});
-            add(pre + "attn_q_norm.weight", {D}, 0.1f, 1.0f);
-            add(pre + "attn_k_norm.weight", {D}, 0.1f, 1.0f);
-            add(pre + "attn_output.weight", {HQ * D, E});
-        } else {
-            add(pre + "attn_qkv.weight", {E, C});
-            add(pre + "attn_gate.weight", {E, HV * DV});
-            add(pre + "ssm_alpha.weight", {E, HV});
-            add(pre + "ssm_beta.weight", {E, HV}, 4.0f);
-            add(pre + "ssm_conv1d.weight", {4, C}, 4.0f);
-            add(pre + "ssm_a", {HV}, 4.0f, -1.0f);
-            add(pre + "ssm_dt.bias", {HV});
-            add(pre + "ssm_norm.weight", {DV}, 0.1f, 1.0f);
-            add(pre + "ssm_out.weight", {HV * DV, E});
-        }
-        add(pre + "ffn_gate.weight", {E, F});
-        add(pre + "ffn_up.weight", {E, F});
-        add(pre + "ffn_down.weight", {F, E});
-    }
-    if (edit) edit(m);
-    return m;
-}
+using namespace tiny35;
 
 gguf::MetaValue* meta(gguf::GGUFModel& m, const std::string& key) {
     for (auto& kv : m.kv)
@@ -280,7 +202,7 @@ void plan() {
     const gguf::GGUFModel m = tiny();
     const infer::ModelWeights w = infer::gguf_weights(m);
     const infer::ModelPlan p = infer::plan_model(w);
-    require(p.layers.size() == 4 && p.vocab == VOCAB && p.residual == E && p.context_length == CONTEXT, "the plan's shape");
+    require(p.layers.size() == 4 && p.vocab == VOCAB && p.residual == E && p.context_length == CTX, "the plan's shape");
     for (size_t l = 0; l < 4; ++l) {
         const bool full = l % 2;
         const infer::LayerPlan& layer = p.layers[l];
@@ -292,7 +214,7 @@ void plan() {
     }
     require(p.state.k_heads == HK && p.state.v_heads == HV && p.state.k_dim == DK && p.state.v_dim == DV, "the state's shape");
     require(p.kv_heads == HKV && p.head_dim == D, "the KV geometry");
-    require(p.tables.size() == 2 && p.tables[0] == CONTEXT * 2, "rope tables of rope_dim / 2 a position");
+    require(p.tables.size() == 2 && p.tables[0] == CTX * 2, "rope tables of rope_dim / 2 a position");
     require(p.slots.size() == 10 && p.slots[0] == E && p.slots[2] == 2 * HQ * D && p.slots[3] == C && p.slots[5] == HQ * D, "the arena's slots");
     // Without the interval the layers' kinds come from the recurrent layers' array, which names each block, the MTP block's false, and leaves that block unplanned.
     const gguf::GGUFModel mtp = tiny([](gguf::GGUFModel& f) {
@@ -338,7 +260,7 @@ void footprint() {
     options.state_slots = 3;
     options.kv_k = options.kv_v = backend::KVType::f32;
     const infer::Footprint fp = infer::footprint(w, p, options);
-    const size_t kv = CONTEXT * HKV * D * 2 * sizeof(float), state = 3 * (HV * DK * DV + 3 * C) * sizeof(float);
+    const size_t kv = CTX * HKV * D * 2 * sizeof(float), state = 3 * (HV * DK * DV + 3 * C) * sizeof(float);
     require(fp.cache.size() == 4 && fp.cache[0] == state && fp.cache[1] == kv && fp.cache[2] == state && fp.cache[3] == kv, "the footprint's caches");
     bool conv_product = false;
     for (const infer::Matrix& t : fp.layers[0])

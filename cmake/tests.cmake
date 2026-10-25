@@ -308,6 +308,12 @@ set_tests_properties(arch-qwen35 PROPERTIES TIMEOUT 60)
 add_test(NAME arch-qwen35-fit COMMAND llmx-arch-qwen35-test fit)
 set_tests_properties(arch-qwen35-fit PROPERTIES TIMEOUT 240)
 
+add_executable(llmx-image-prompt-test tests/image_prompt.cpp)
+target_include_directories(llmx-image-prompt-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-image-prompt-test)
+add_test(NAME image-prompt COMMAND llmx-image-prompt-test)
+set_tests_properties(image-prompt PROPERTIES TIMEOUT 60)
+
 add_executable(llmx-placement-test tests/placement.cpp)
 target_include_directories(llmx-placement-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-placement-test)

@@ -7,8 +7,9 @@
 # Test outputs
 *.bin
 *.gguf
-# The tiny vision encoder fixture is committed, since its HF reference needs torch to rebuild (docs/ASSETS.md).
+# The tiny vision encoder fixtures are committed, since their HF references need torch to rebuild (docs/ASSETS.md).
 !tests/data/vision/tiny-mmproj.gguf
+!tests/data/vision/tiny-mmproj-image.gguf
 __pycache__/
 *.pyc
 

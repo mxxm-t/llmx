@@ -484,6 +484,24 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
         }
         ++checks;
     }
+    {
+        // A probability below FLT_MIN counts as 0, so the experts at gaps of 90, 95 and 100 tie and go by lower id, while the one at 87 stays above FLT_MIN and keeps its place.
+        const std::vector<float> scores = {0.0f, -100.0f, -95.0f, -90.0f, -200.0f, -87.0f, -200.0f, -200.0f};
+        std::vector<float> ids_w(k), w(k);
+        const auto sb = cpu.adopt(scores.data(), scores.size() * sizeof(float));
+        const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
+        cpu.route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        std::vector<uint32_t> ids(k);
+        std::vector<float> got(k);
+        cpu.read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
+        cpu.read(*wb, 0, got.data(), got.size() * sizeof(float));
+        const std::vector<uint32_t> want_ids = {0, 5, 1, 2};
+        for (size_t j = 0; j < k; ++j) require(ids[j] == want_ids[j], "routing ordered probabilities below FLT_MIN by value rather than counting them as 0");
+        require(got[0] == 1.0f && got[2] == 0.0f && got[3] == 0.0f && !std::signbit(got[2]) && !std::signbit(got[3]),
+                "routing gave a probability below FLT_MIN another weight than 0");
+        require(std::fabs(got[1] - std::exp(-87.0f)) <= 1e-4f * std::exp(-87.0f), "routing changed the weight of a probability above FLT_MIN");
+        ++checks;
+    }
     std::vector<float> wf(n_expert * nout * nin);
     for (float& v : wf) v = next();
     std::vector<uint8_t> w8(n_expert * nout * (nin / 32) * quant::Q8_0_TYPESIZE);
@@ -582,7 +600,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routings without a candidate; "
+                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

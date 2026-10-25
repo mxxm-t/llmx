@@ -4199,6 +4199,24 @@ size_t check_route_edges(backend::Backend& vk) {
             }
             ++checks;
         }
+        // A probability below FLT_MIN counts as 0 whatever the device's denormal mode, so the experts at gaps of 90, 95 and 100 go by lower id after the one at 87.
+        {
+            const std::vector<float> scores = {0.0f, -100.0f, -95.0f, -90.0f, -200.0f, -87.0f, -200.0f, -200.0f};
+            const auto sb = b->adopt(scores.data(), scores.size() * sizeof(float));
+            const auto ib = b->alloc(k * sizeof(float), backend::Memory::device), wb = b->alloc(k * sizeof(float), backend::Memory::device);
+            b->route_experts({sb.get(), 0}, 1, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            std::vector<uint32_t> ids(k);
+            std::vector<float> w(k);
+            b->read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
+            b->read(*wb, 0, w.data(), w.size() * sizeof(float));
+            const std::vector<uint32_t> want_ids = {0, 5, 1, 2};
+            for (size_t j = 0; j < k; ++j)
+                require(ids[j] == want_ids[j], ("routing ordered probabilities below FLT_MIN by value rather than counting them as 0 " + on).c_str());
+            require(w[0] == 1.0f && w[2] == 0.0f && w[3] == 0.0f && !std::signbit(w[2]) && !std::signbit(w[3]),
+                    ("routing gave a probability below FLT_MIN another weight than 0 " + on).c_str());
+            require(std::fabs(w[1] - std::exp(-87.0f)) <= 1e-4f * std::exp(-87.0f), ("routing changed the weight of a probability above FLT_MIN " + on).c_str());
+            ++checks;
+        }
         // The routed products: the gate-up call and the down call with its sum, on 2 decode rows and on a 70-row prompt read at extent 512, every second row without candidates.
         for (const size_t rows : {size_t(2), size_t(70)}) {
             const size_t entries = rows * k;

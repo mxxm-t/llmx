@@ -79,6 +79,7 @@ The lifetime and packed-quantization tests include the implementation and use te
   `attention_head_fits` takes a head 128 or 256 wide, which the tiled and vector kernels read on any subgroup the device check accepts, and a head of another width up to four elements per subgroup lane and 256 in all (`attention_row_width`), which the per-row kernel reads; `kv_alloc` and `attention` check it, so a 32-lane device refuses a head of another width above 128. The device's `DeviceCaps` choose its `DeviceProfile`
   (`backends/device_profile.hpp`), which `vulkan_device_profile` returns so
   the test predicts the kernel the backend picks.
+  `vulkan_prefer_integer_dot` has a test's backend take the integer-dot kernels where the device has the integer dot and its profile does not prefer it, so the test reaches the Q8_0 decode kernel's builds on such a device too.
 - `vulkan_kernel_statistics` returns the driver's per-kernel registers,
   shared memory and scratch when the device serves them, which the test
   prints after its checks. With `diagnostics` the backend also captures

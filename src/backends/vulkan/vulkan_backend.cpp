@@ -368,6 +368,11 @@ public:
     const std::string& name() const { return dev_->caps.device; }
     std::string identity() const override { return dev_->identity; }
     const DeviceProfile& profile() const { return dev_->profile; }
+    bool prefer_integer_dot() {
+        if (!dev_->caps.integer_dot) return false;
+        dev_->profile.prefer_integer_dot = true;
+        return true;
+    }
 
     // The driver's statistics for every kernel compiled so far, one line each: on AMD the vector and scalar register counts, scratch, shared memory and occupancy.
     // Empty when the device does not report them.
@@ -1560,6 +1565,11 @@ std::string vulkan_device_name(const Backend& backend) {
 DeviceProfile vulkan_device_profile(const Backend& backend) {
     const auto* v = dynamic_cast<const VulkanBackend*>(&backend);
     return v ? v->profile() : DeviceProfile{};
+}
+
+bool vulkan_prefer_integer_dot(Backend& backend) {
+    auto* v = dynamic_cast<VulkanBackend*>(&backend);
+    return v && v->prefer_integer_dot();
 }
 
 std::string vulkan_kernel_statistics(const Backend& backend) {

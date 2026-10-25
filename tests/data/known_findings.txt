@@ -11,6 +11,7 @@ test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 |
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which the Vulkan tests print so a hand run's log says which card and driver it ran on; goes if the tests stop printing it
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which backend-vulkan and mxfp4-vulkan read to predict the backend's kernel choice at each crossover; goes only if those checks do
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which backend-vulkan --isa writes out for the hand check AGENTS.md asks at every row-kernel change; goes only with that check
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_prefer_integer_dot | 1 | has a test's backend take the integer-dot kernels, which backend-vulkan needs to reach the Q8_0 decode kernel's builds on a device whose profile does not prefer the integer dot; goes only with that check
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
 
 # Interfaces of an approved plan whose product caller is a later step.
@@ -22,6 +23,7 @@ linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::v(u
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::vraw(unsigned long, int) const | 1 | what the const v reads through; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::kernel_representations() const | 1 | what vulkan_kernel_representations returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
+linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::prefer_integer_dot() | 1 | what vulkan_prefer_integer_dot calls; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user
 shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef LLMX_ROW_PROJ | 1 | a fused kernel widens, qualifies or extends the row kernel's declarations; item B, step B1b (moe_step) and step B2 (stream_mix) override it

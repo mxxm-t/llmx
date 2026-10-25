@@ -36,6 +36,12 @@ struct DeviceProfile {
     // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree and kQ8Half): the first is set only where the disassembly showed the reduction takes the pairs it writes out (docs/VULKAN.md).
     // The second is the half-block order, which every build takes where it is set; it sums a column's products in another order than the quarter layout, so setting it changes the device's decode results once.
     uint32_t q8_decode_forms = 0;
+    // Row width below which the Q8_0 decode kernel's one-column chunk takes its build of two rows and one step, since a lane of a narrow row has too few blocks to load ahead.
+    uint32_t q8_decode_narrow_below = 1024;
+    // Output rows of a call from which a wider one-column chunk over 8-bit activations takes the build of two rows and two steps ahead rather than one row and four steps, which gives a call of few rows twice the subgroups.
+    uint32_t q8_decode_two_rows_from = 2560;
+    // Output rows below which such a chunk over 16-bit activations takes the build of one row and four steps, and from which it keeps two rows and one step.
+    uint32_t q8_decode_one_row_below_16bit = 1024;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
     // Batch rows from which a matmul takes the tile kernel rather than the row kernel, for 8-bit and other types, narrow and wide rows; the crossover moves with the row width, and the values are measured (docs/VULKAN.md).
@@ -86,6 +92,9 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.tile_tall_per_cu = 1;
              p.tile_tall_per_cu_narrow = 1;
              p.select_wide_from = 5120;
+             p.q8_decode_narrow_below = 1024;
+             p.q8_decode_two_rows_from = 2560;
+             p.q8_decode_one_row_below_16bit = 1280;
          }},
         {"MI60 / MI50", "radv", [](DeviceProfile& p) {
              p.tile_from_8bit = 16;
@@ -104,6 +113,9 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.q8_decode_forms = 3;
              p.row_decode_cols = 16;
              p.attention_split_max = 32;
+             p.q8_decode_narrow_below = 1024;
+             p.q8_decode_two_rows_from = 4096;
+             p.q8_decode_one_row_below_16bit = 1024;
          }},
     };
     count = sizeof(table) / sizeof(table[0]);

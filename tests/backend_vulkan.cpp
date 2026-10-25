@@ -2157,10 +2157,63 @@ size_t check_kernels(backend::Backend& vk) {
     return values;
 }
 
+// A one-column Q8_0 decode call takes two rows and one step for rows narrower than the profile's q8_decode_narrow_below, else one row and four steps below the knee of its activations' width.
+// Above it int8 takes two rows and two steps and f16 two rows and one step; a group counts its projections' rows together, on a backend that takes the integer dot (vulkan_prefer_integer_dot).
+size_t check_q8_one_column_builds(backend::Backend& vk) {
+    const backend::DeviceProfile prof = backend::vulkan_device_profile(vk);
+    const size_t wide = prof.q8_decode_narrow_below, from = prof.q8_decode_two_rows_from, from16 = prof.q8_decode_one_row_below_16bit;
+    require(wide >= 64 && wide % 32 == 0 && from > 256 && from16 > 256, "the profile's Q8_0 one-column numbers leave no case below them");
+    const uint32_t q8 = quant::GGML_TYPE_Q8_0;
+    const auto x = uniform(wide, 520);
+    const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+    // Rows nin wide, a of one projection and b of a second, one row and one block either side of each number.
+    struct Case { size_t nin, a, b; };
+    std::vector<Case> cases = {{wide - 32, 256, 0}, {wide, 256, 0}, {wide - 32, from, 0}, {wide - 32, from16, 0}};
+    for (size_t knee : {from, from16})
+        for (const Case& c : {Case{wide, knee - 1, 0}, Case{wide, knee, 0}, Case{wide, knee / 2, knee - knee / 2 - 1}, Case{wide, knee / 2, knee - knee / 2}}) cases.push_back(c);
+    size_t checks = 0;
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8}) {
+        const bool x8 = dtype == backend::Dtype::int8;
+        const std::string want_one = x8 ? "matmul_vec_q8_i8_1col" : "matmul_vec_q8_1col";
+        // The suffix of the build the rule gives, from the profile's numbers.
+        auto build = [&](size_t nin, size_t rows) -> std::string {
+            if (nin < wide) return "";
+            if (!x8) return rows < from16 ? "_1row" : "";
+            return rows < from ? "_1row" : "_2step";
+        };
+        for (const Case& c : cases) {
+            const auto wa = matrix(q8, c.nin, c.a, 521), wb = matrix(q8, c.nin, c.b ? c.b : 1, 522);
+            const auto a = vk.adopt(wa.data(), wa.size()), b = vk.adopt(wb.data(), wb.size());
+            const auto ya = vk.alloc(c.a * sizeof(float)), yb = vk.alloc((c.b ? c.b : 1) * sizeof(float));
+            const backend::RowRun decode{1, 1};
+            (void)backend::vulkan_kernel_times(vk);
+            if (c.b) vk.matmul_group({{q8, {a.get(), 0}, {ya.get(), 0}, c.a}, {q8, {b.get(), 0}, {yb.get(), 0}, c.b}}, {xb.get(), 0}, c.nin, 1, {&decode, 1}, dtype);
+            else vk.matmul(q8, {a.get(), 0}, {xb.get(), 0}, {ya.get(), 0}, c.nin, c.a, 1, {&decode, 1}, dtype);
+            const auto times = backend::vulkan_kernel_times(vk);
+            if (times.empty() && !checks) {
+                vk.sync();
+                std::cout << "backend-vulkan: one-column Q8_0 builds unwitnessed without device timestamps\n";
+                return 0;
+            }
+            const std::string want = want_one + build(c.nin, c.a + c.b);
+            size_t products = 0;
+            for (const auto& entry : times) {
+                if (entry.first.rfind("matmul_", 0) != 0) continue;
+                require(entry.first == want, ("a one-column Q8_0 call of " + std::to_string(c.a + c.b) + " rows " + std::to_string(c.nin) + " wide, " + backend::dtype_name(dtype) +
+                                              ", expected " + want + ", got " + entry.first).c_str());
+                ++products;
+            }
+            require(products == 1, "a one-column Q8_0 call did not witness exactly one product kernel");
+            ++checks;
+        }
+    }
+    return checks;
+}
+
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
-// AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds.
-size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
-    const size_t nout = 300, widest = 64;
+// AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
+size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
+    const size_t widest = 64;
     // Remainders reach every narrower build, and 18 and 29 columns leave the widest Q8_0 build's second group partially filled.
     const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
@@ -2182,13 +2235,17 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
         columns += n;
     };
 
-    struct Case { uint32_t type; size_t nin; };
+    // Q8_0 rows also as many as the profile's q8_decode_two_rows_from, from which a one-column chunk of rows 1024 wide or wider takes the build of two rows and two steps; rows 224 wide take the narrow build.
+    const size_t two_rows = backend::vulkan_device_profile(vk).q8_decode_two_rows_from;
+    struct Case { uint32_t type; size_t nin; size_t nout = 300; };
     for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
+                          Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
                           Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280},
                           Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}}) {
         const uint32_t type = c.type;
-        const size_t nin = c.nin, rows[3] = {nout, 37, 129};
+        if (only_q8 && type != q8) continue;
+        const size_t nin = c.nin, nout = c.nout, rows[3] = {nout, 37, 129};
         const auto x = uniform(widest * nin, 300 + uint32_t(nin)), base = uniform(widest * nout, 301);
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
         std::vector<backend::BufferPtr> w;
@@ -2249,7 +2306,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
 
     // Routed gate/up and residual down products must equal each token alone, on both sides of the grouped-build threshold.
     // The two input widths cover paired steps and their single-step tails.
-    const size_t n_expert = 8, k = 2, tokens = 32;
+    const size_t nout = 300, n_expert = 8, k = 2, tokens = 32;
     const auto scores = uniform(tokens * n_expert, 310, -3.0f, 3.0f), base = uniform(tokens * nout, 313);
     const auto sb = vk.adopt(scores.data(), scores.size() * sizeof(float));
     const auto ids = vk.alloc(tokens * k * sizeof(float)), wts = vk.alloc(tokens * k * sizeof(float));
@@ -2259,6 +2316,7 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype) {
         const auto x = uniform(tokens * rin, 311), x2 = uniform(tokens * k * rin, 312);
         const auto xb = vk.adopt(x.data(), x.size() * sizeof(float)), x2b = vk.adopt(x2.data(), x2.size() * sizeof(float));
         for (uint32_t type : {f32, q8, q40, q41, q4k, q5k, q6k, quant::GGML_TYPE_TQ1_0, quant::GGML_TYPE_TQ2_0}) {
+            if (only_q8 && type != q8) continue;
             try {
                 const auto g = matrix(type, rin, n_expert * nout, 314), u = matrix(type, rin, n_expert * nout, 315), d = matrix(type, rin, n_expert * nout, 316);
                 const auto gb = vk.adopt(g.data(), g.size()), ub = vk.adopt(u.data(), u.size()), db = vk.adopt(d.data(), d.size());
@@ -2551,7 +2609,9 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 const std::string digits = b.substr(kernel.size() + 1, b.size() - kernel.size() - 4);
                 if (!digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos) cols = std::stoul(digits);
             }
-            if (cols < 2) continue;
+            // The Q8_0 decode kernel's other one-column builds are held to their shapes like the wider builds.
+            const bool two_row_one = (kernel == vec || kernel == vec8) && (b == one.first + "_1row" || b == one.first + "_2step");
+            if (cols < 2 && !two_row_one) continue;
             const FloatOps& got = build.second;
             auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + b); };
             if (got.kinds() != ref.kinds()) fail("a build's float multiply and add kinds differ from its one-column build's");
@@ -2635,8 +2695,10 @@ void check_decode_contraction() {
         return out;
     };
     const std::string one = code("cols=1 rows=2 steps=1 tree=0 half=1", 8, 6, 12);
+    const std::string one1 = code("cols=1 rows=1 steps=4 tree=0 half=1", 12, 7, 6);
+    const std::string one2 = code("cols=1 rows=2 steps=2 tree=0 half=1", 16, 10, 12);
     const std::string two = code("cols=2 rows=2 steps=1 tree=1 half=1", 16, 11, 5);
-    require(check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_2col", two}}).decode == 1,
+    require(check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_1row", one1}, {"matmul_vec_q8_1col_2step", one2}, {"matmul_vec_q8_2col", two}}).decode == 3,
             "Q8 separate products fail their captured shape counts");
     for (const std::string& wrong : {code("cols=2 rows=2 steps=1 tree=1 half=1", 15, 11, 5),
                                      code("cols=2 rows=2 steps=1 tree=1 half=1", 16, 10, 5),
@@ -2645,6 +2707,13 @@ void check_decode_contraction() {
         try { check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_2col", wrong}}); }
         catch (const std::runtime_error&) { refused = true; }
         require(refused, "Q8 changed arithmetic escaped its shape counts");
+    }
+    for (const std::string& wrong : {code("cols=1 rows=2 steps=2 tree=0 half=1", 14, 10, 12), code("cols=1 rows=2 steps=2 tree=0 half=1", 16, 9, 12),
+                                     one2 + "v_fma_f32 v0, v1, v2, v3\n", code("cols=1 rows=1 steps=4 tree=0 half=1", 12, 6, 6)}) {
+        bool refused = false;
+        try { check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_2step", wrong}}); }
+        catch (const std::runtime_error&) { refused = true; }
+        require(refused, "a Q8 one-column build's changed arithmetic escaped its shape counts");
     }
 }
 
@@ -2740,7 +2809,8 @@ size_t check_weight_dispatch() {
                         size_t products = 0;
                         for (const auto& entry : times) {
                             if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
-                            require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_small",
+                            require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_1col_1row" ||
+                                        entry.first == expected + "_1col_2step" || entry.first == expected + "_small",
                                     ("weight dispatch expected " + expected + ", got " + entry.first).c_str());
                             ++products;
                         }
@@ -4519,6 +4589,19 @@ int main(int argc, char** argv) {
         const auto native = b->native_dtypes();
         if (std::find(native.begin(), native.end(), backend::Dtype::int8) != native.end())
             std::cout << "backend-vulkan: " << check_decode_columns(*b, backend::Dtype::int8) << " int8 decode columns equal to the same columns alone\n";
+        // The Q8_0 decode kernel on a backend taking the integer dot, which a device whose profile does not prefer it reaches only here.
+        backend::BackendPtr q8b = backend::make_vulkan_backend(0, true);
+        const bool q8_forced = !backend::vulkan_device_profile(*q8b).prefer_integer_dot;
+        if (q8_forced && !backend::vulkan_prefer_integer_dot(*q8b)) {
+            std::cout << "backend-vulkan: no integer dot, so no Q8_0 decode kernel to check\n";
+            q8b.reset();
+        } else {
+            std::cout << "backend-vulkan: " << check_q8_one_column_builds(*q8b) << " one-column Q8_0 decode calls in the build their shape gives\n";
+            if (q8_forced)
+                for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
+                    std::cout << "backend-vulkan: " << check_decode_columns(*q8b, dtype, true) << " Q8_0 decode columns on the integer dot, " << backend::dtype_name(dtype)
+                              << ", equal to the same columns alone\n";
+        }
         std::cout << "backend-vulkan: " << check_bf16_rounding(*b) << " BF16 boundary and unchanged-weight products, with F32 control\n";
         std::cout << "backend-vulkan: " << check_bf16_weight_decode(*b) << " BF16 weight embedding and indexer projection values\n";
         const size_t precise = check_activation_precision(*b, backend::Dtype::f16);
@@ -4543,6 +4626,21 @@ int main(int argc, char** argv) {
                       << c.whole_columns << " those and whole columns, " << c.two_rows << " pairs of two-row builds whole columns apart, " << c.decode
                       << " Q8_0 decode builds those their shape and forms give, "
                       << c.kinds_only << " their kinds only; " << c.grouped << " grouped builds the same as their wide build\n";
+            // Where only the backend taking the integer dot built the Q8_0 decode kernel, its builds are written and held to their shapes too.
+            if (q8b && q8_forced) {
+                std::vector<std::pair<std::string, std::string>> q8_builds;
+                for (const auto& kr : backend::vulkan_kernel_representations(*q8b))
+                    if (kr.first.rfind("matmul_vec_q8", 0) == 0) q8_builds.push_back(kr);
+                size_t q8_written = 0;
+                for (const auto& kr : q8_builds) {
+                    std::ofstream f(isa_dir + "/" + kr.first + ".txt");
+                    f << kr.second;
+                    q8_written += f.good() ? 1 : 0;
+                }
+                const ContractionChecks q = check_contraction(q8_builds);
+                std::cout << "backend-vulkan: " << q8_written << " Q8_0 decode builds of the integer dot written; against their one-column build: " << q.decode
+                          << " those their shape and forms give, " << q.kinds_only << " their kinds only\n";
+            }
         }
         return 0;
     } catch (const std::exception& e) {

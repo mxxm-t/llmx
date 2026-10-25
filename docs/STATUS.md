@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Image input (2026-10-25, branches docs/vision and then the eight steps of [VISION](VISION.md), F2DEV's DECISION of 06:18 on VDEV's DESIGN of 06:13 and the coordinator's and F2DEV's DECISION on the reference environment, in progress)
+
+- **Goal:** images in chat requests for the Qwen 3.5, 3.6 and 3.8 models and Qwen3.8-Flash-Next, read through the `mmproj` GGUF that ships beside the text file, with HF's bytes at every stage; ROADMAP 10.
+- **Plan:** [VISION](VISION.md), section 8: image decoding, the CPU ops, the encoder, the prompt of ids and encoder rows, cache identity, the routes, the Vulkan ops, then Flash-Next in production.
+- **Decided:** no positions stored for Flash-Next's sparse attention (its pooled-key change carries them as a call argument, so step 4 follows it); torchvision and Pillow pinned in the reference environment, recorded in each fixture; `--image-max-pixels` defaults to HF's 16777216; a `detail` other than absent or `auto` refused with the field named; one attention, one `gelu`, one rope rule; the reference runtime's comparison is the phase's final gate.
+- **Done:** the design (this block and VISION).
+- **Left:** steps 1 to 8.
+- **Gotchas:** the GGUF `mmproj` carries neither the processor's pixel bounds nor the image token ids; the HF processor resizes on uint8 with antialiased bicubic and rounds to uint8 before normalizing, so decoding and resizing are held to bytes, not to a float bound.
 ## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, in progress)
 
 - **Goal:** one routing answer on every device whatever its denormal mode. The CPU kept a subnormal `exp(v - top) / sum` and ordered such picks by value, while a device that flushes denormals (the Radeon VII, RADV by default) made them 0 and took the lower id.
@@ -2836,6 +2844,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (record in [STATUS-2026-09](STATUS-2026-09.md)): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 landed with the activation dtype (its row above). Remaining weight types and the recorded speed gaps stay open |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (record in [STATUS-2026-09](STATUS-2026-09.md), design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
+| Image input ([VISION](VISION.md)) | In progress: designed and approved on 2026-10-25; step 1, image decoding, next |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |

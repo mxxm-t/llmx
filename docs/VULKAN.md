@@ -84,8 +84,8 @@ The workstation has the LunarG SDK 1.4.357 at `C:\VulkanSDK`, installed for this
   headers and the shader compiler are the SDK.
 - **Shaders are GLSL source in the tree**, `src/backends/vulkan/shaders/`,
   compiled to SPIR-V by `glslc` at build time, one generated `.inc` of
-  comma-separated `uint32_t` words per kernel, which `vulkan_backend.cpp`
-  includes as an array. The binary carries its kernels; there are
+  comma-separated `uint32_t` words per kernel, which the kernel table
+  (`vulkan_kernels.hpp`) includes as an array. The binary carries its kernels; there are
   no files to find at run time and no runtime compiler. `build.bat` stays
   CPU-only.
 
@@ -100,7 +100,8 @@ This does not establish every quant type's extreme-value arithmetic.
 
 `src/backends/vulkan/vulkan_backend.hpp` and, because the device code is
 not header-only material, `vulkan_backend.cpp` compiled only when the
-option is on. The layering rule holds: it depends on `backends/backend.hpp`,
+option is on, one translation unit with a header per concern beside it
+(`docs/src/backends-vulkan.md`). The layering rule holds: it depends on `backends/backend.hpp`,
 `quant/` for the type registry, and nothing above.
 
 - **Instance, device, queue.** One instance, the physical device selected

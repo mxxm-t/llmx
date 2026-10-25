@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## Vulkan backend split into headers by concern (2026-10-25, branch refactor/vulkan-split on main 8e84e4c4f, approved by the reviewer, move only)
+
+- **Goal:** `vulkan_backend.cpp` was one file of 5155 lines holding every concern of the backend; each concern gets one owner, so later features (fused decode kernels first) add their host code to the right header and only a declaration to the class.
+- **The change:** the backend stays one translation unit; `vulkan_backend.cpp` keeps the `VulkanBackend` class with its construction, queue, submissions, diagnostics and the elementwise, norm, state, gather and embedding ops, and includes nine headers (`docs/src/backends-vulkan.md` lists what each holds).
+  - Before the class: `vulkan_device.hpp` (loader, entry points, `Device`, device needs), `vulkan_kernels.hpp` (the kernel table, weight formats' kernels, row and decode builds, write sets) and `vulkan_buffer.hpp` (`VulkanBuffer`, padded F32 rule, table views, `VulkanKVStorage`), each moved verbatim.
+  - After the class: `vulkan_memory.hpp`, `vulkan_dispatch.hpp`, `vulkan_twins.hpp`, `vulkan_matmul.hpp`, `vulkan_attention.hpp` and `vulkan_collective.hpp` define 84 members out of line, each body and its comment moved verbatim; the class keeps each one's declaration where its definition stood, with its default arguments and `override`, and the definition is `inline VulkanBackend::name(...)` without them.
+  - Nothing else changed but what a split needs: the anonymous namespace closes after the class and reopens for the public functions, the moved block of declarations loses the blank lines between neighbours, and one comment that said "this file" now says "the backend".
+  - `tests/dead_code.py`'s shader check reads the kernel table in `vulkan_kernels.hpp` and the dispatches in every backend source; four docs that named `vulkan_backend.cpp` for a moved function name its header.
+- **Proof:** the Vulkan backend's object file, built in fresh MSVC Release directories at 8e84e4c4f and at the change, holds the same 8665 sections as a multiset, each byte for byte with the same relocations by symbol name, once the anonymous namespace's and the lambdas' hashed names are read as one; only the section order, the section checksum table and the debug section naming the source path differ.
+  On the Radeon VII (vulkan:0), Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M `logits --last 16` and `generate --temp 0 -n 64`, and the four tiny fixtures' `llmx-model-logits` files and `logits --then-ids` with and without `--per-token`, are byte-identical, 28 of 28 files.
+  CTest from the fresh change build passes, 83 of 83 (a first run beside the docs and dead-code checks timed out `vulkan-quantization` at 120 s, which takes 25 s alone in both arms), and `tests/dead_code.py` and `tests/docs_check.py` report no finding; the `--linked` dead-code check runs only on Linux and was not run.
+- **Left:** reviewer's review and the queue; the moved code reorders sections in the binary, which can shift timing by the layout band AGENTS.md describes without changing an instruction.
+
 ## The linked dead-code check reads objects by their path inside the build (2026-10-25, branch fix/dead-code-src-path on main fc6f53415, F2DEV's finding of 07:42, lands by fast-forward as two commits)
 
 - **The bug:** `tests/dead_code.py --linked` took every object whose full path held `/src/` as built from `src/`, so from a checkout under such a path (a container mounting the tree at `/src`) every test's objects counted and their functions were reported: 131 spurious `linked-test-only` findings on main there, none at a clean path, where the hosted Vulkan job runs.

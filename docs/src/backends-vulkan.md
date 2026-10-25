@@ -41,9 +41,22 @@ F16/BF16 weights keep their 16-bit storage through adoption. Their separate buil
 The `Backend` of `backend.hpp` over a Vulkan 1.2 compute queue, in one
 translation unit (`vulkan_backend.cpp`, built only with
 `LLMX_HAS_BACKEND_VULKAN=ON`) and the GLSL kernels under `shaders/`, which
-`glslc` compiles at build time into arrays the unit includes. The loader is
+`glslc` compiles at build time into arrays the kernel table includes. The loader is
 opened at run time, so a build carries no link dependency; the design,
 kernel notes and measurements are `docs/VULKAN.md`.
+
+The unit holds the `VulkanBackend` class with its construction, queue, submissions, diagnostics and the elementwise, norm, state, gather and embedding ops, and includes a header per concern.
+The first three come before the class; the others define members the class declares, and the unit includes them after it.
+
+- `vulkan_device.hpp`: the loader, the entry points fetched through it, `Device`, and what the kernels need of a device (`missing_device_need`, `attention_head_fits`).
+- `vulkan_kernels.hpp`: the kernel table (`LLMX_VULKAN_KERNELS`) and the embedded modules, each weight format's kernels (`weight_kernels`), the row and Q8_0 decode builds, the bindings and the write sets (`kernel_writes`).
+- `vulkan_buffer.hpp`: `VulkanBuffer`, the padded F32 rule (`pads_f32`), a table's storage views (`table_views`) and `VulkanKVStorage`.
+- `vulkan_memory.hpp`: allocation and adoption, reads, writes and copies through staging, stream-ordered scratch (`grow`), padded F32 copies, the argument arena (`args`) and the lookup grids (`lookup_grid`).
+- `vulkan_dispatch.hpp`: storage bindings (`bind`), pipelines made on first use (`kernel`) and one recorded `dispatch`.
+- `vulkan_twins.hpp`: the activation twins (`twin`, `take_twin`, `keep_twin`) and what a write drops (`forget_written`).
+- `vulkan_matmul.hpp`: the products: the row build or tile a call takes (`row_plan`, `column_builds`), column chunks, row and tile dispatch, and routed expert calls.
+- `vulkan_attention.hpp`: the KV cache and attention: storage, view tables, the KV write, attention, sparse attention and index selection.
+- `vulkan_collective.hpp`: a tensor group's `VulkanCollective` and each member's part in it (`sum_rows`, `external_ownership`).
 
 The lifetime and packed-quantization tests include the implementation and use test-only friends to inspect private storage and dispatch kernels; there is no runtime probe API. The kernel registry keeps F32 rows on the ordinary row module while selecting optional float-preserving modules for Q8 row consumers. The Q8 integer tile uses its ordinary module: F16-range inputs and binary16 weight scales keep its products above the F32 denormal range. The separate MXFP4 integer tile retains preservation for its wider weight scales. Both entries reuse the row shader source. The ordinary K4 row uses the unpreserved module: its selected F16 input range and binary16 weight scales do not need F32 denormal preservation. Its unused preserving build is removed; the integer-dot K4 variant keeps its separate selection. Quantized weights with an explicit F32 policy use its `LLMX_FLOAT_X` build, optionally float-preserving on a supporting device. It reads one exact decoded weight through `quantized_at` in `shaders/qdecode.glsl`, then uses F32 FMA and the existing row reduction. Dense, grouped and routed calls share this path; the F32 policy binds the original input instead of preparing an integer twin.
 
@@ -559,7 +572,7 @@ From the comment at line 2:
 
 From the comment at line 1:
 
-- The view table a batched cache kernel reads (vulkan_backend.cpp, view_table): tab[0] is the view count, then six words per view (batch row, dispatch-local row, row count, history length, block-table offset and length), then every view's block ids.
+- The view table a batched cache kernel reads (vulkan_attention.hpp, view_table): tab[0] is the view count, then six words per view (batch row, dispatch-local row, row count, history length, block-table offset and length), then every view's block ids.
 - A workgroup finds its view by walking the entries, which are few.
 
 ### `src/backends/vulkan/shaders/xquant.glsl`

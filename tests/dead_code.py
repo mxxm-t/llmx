@@ -526,7 +526,8 @@ def override_findings(texts):
 # ----------------------------------------------------------------------------------------------------------------------
 # Shaders: every source built, every module embedded, in the kernel table and named at a dispatch; every define tested and set.
 
-VK = "src/backends/vulkan/vulkan_backend.cpp"
+VK = "src/backends/vulkan/vulkan_kernels.hpp"   # the kernel table and the embedded modules
+VK_DIR = "src/backends/vulkan/"                 # the backend's sources, whose dispatches name the kernels
 SHADERS = "src/backends/vulkan/shaders/"
 
 
@@ -606,6 +607,9 @@ def shader_findings(texts):
             add(VK, k + ".name", "kernel catalog entry has no diagnostic name")
     pos = {k: n for n, k in enumerate(ids)}
     outside = code[:catalog_start] + code[catalog_end:]
+    for p in sorted(texts):
+        if p.startswith(VK_DIR) and p != VK and p.endswith((".cpp", ".hpp")) and not p.startswith(SHADERS):
+            outside += "\n" + code_of(texts[p])
     named = set(re.findall(r"\bK_[A-Z0-9_]+\b", outside))
     derived = set()
     # kv_variant(f32, k16, s) returns f32, k16, k16 + 1 or k16 + 2 by the storage's cache types.

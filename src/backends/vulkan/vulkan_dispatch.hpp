@@ -90,18 +90,19 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         // Specialization constants 8-13 describe grouped builds, rows, load steps, forms and column groups.
         // Their mapping is in docs/src/backends-vulkan.md, Decode builds; modules ignore entries they do not declare.
         const VecBuild& vb = kVecBuilds[variant];
-        const bool vec = is_vec_kernel(id);
+        const bool vec = is_vec_kernel(id) || moe_step_q8(id);
         const uint32_t forms = vec ? vec_forms(variant, d.profile) : 0;
         // Constant 7 is a twin producer's build that also writes the 8-bit twin, its variant 1 (twin_variant).
         // The entries go in constant order.
         const bool twin8 = variant == 1 && !tile && !is_row_kernel(id);
-        const uint32_t spec_data[8] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
-                                       (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span};
-        const uint32_t spec_ids[8] = {0, 7, 8, 9, 10, 11, 12, 13};
-        VkSpecializationMapEntry entries[8];
-        for (uint32_t i = 0; i < 8; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
+        // Constant 14 keeps a fused kernel's row products; a diagnostic backend also builds each fused kernel without them (role_free_).
+        uint32_t spec_data[9] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
+                                 (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span, 1u};
+        const uint32_t spec_ids[9] = {0, 7, 8, 9, 10, 11, 12, 13, 14};
+        VkSpecializationMapEntry entries[9];
+        for (uint32_t i = 0; i < 9; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
         VkSpecializationInfo spec{};
-        spec.mapEntryCount = 8;
+        spec.mapEntryCount = 9;
         spec.pMapEntries = entries;
         spec.dataSize = sizeof(spec_data);
         spec.pData = spec_data;
@@ -111,6 +112,12 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         if (d.exec_ir) ci.flags |= VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR;
         check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &k.pipeline),
               "vkCreateComputePipelines");
+        if (d.exec_ir && moe_step_kernel(id) && !role_free_[id][variant]) {
+            spec_data[8] = 0u;
+            check(d.fn.vkCreateComputePipelines(d.device, VK_NULL_HANDLE, 1, &ci, nullptr, &role_free_[id][variant]), "vkCreateComputePipelines");
+        }
+        // The fused route step's rows are held to the F32 family alone, a build only a diagnostic backend makes.
+        if (d.exec_ir && moe_step_route_kernel(id)) kernel(K_MATMUL_ROW_F32_ONLY, variant);
         k.bindings = src.bindings;
         cached = k;
         return cached;

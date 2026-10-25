@@ -1,11 +1,14 @@
 #version 450
-// y[r*n + o] += sum over j in order of weights[r*k + j] * part[(r*k + j)*n + o], a routed down projection's slots joining the residual (backend.hpp matmul_experts_add); a slot without an expert adds nothing.
+// y[r*n + o] += sum over j in order of weights[r*k + j] * part[(r*k + j)*n + o], a routed down projection's slots joining the residual (backend.hpp matmul_experts_add, moe_combine.glsl); a slot without an expert adds nothing.
+// On a device that preserves denormals and signed zeros it takes the preserving modes, as the row kernels around it do.
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint n; uint k; } p;
 layout(set = 0, binding = 0) buffer Y { float y[]; };
 layout(set = 0, binding = 1) readonly buffer S { float part[]; };
 layout(set = 0, binding = 2) readonly buffer W { float weights[]; };
 layout(set = 0, binding = 3) readonly buffer I { uint ids[]; };
+#include "moe_combine.glsl"
 const uint kHeld = 8u;   // slots loaded up front: a token's experts in every model so far
 void main() {
     uint i = gl_GlobalInvocationID.x;
@@ -19,8 +22,8 @@ void main() {
     }
     float s = 0.0;
     for (uint j = 0u; j < kHeld; ++j)
-        if (j < p.k && ids[r * p.k + j] != 0xffffffffu) s += wv[j] * pv[j];
+        if (j < p.k && ids[r * p.k + j] != 0xffffffffu) s = combine_add(s, wv[j], pv[j], j);
     for (uint j = kHeld; j < p.k; ++j)
-        if (ids[r * p.k + j] != 0xffffffffu) s += weights[r * p.k + j] * part[(r * p.k + j) * p.n + o];
+        if (ids[r * p.k + j] != 0xffffffffu) s = combine_add(s, weights[r * p.k + j], part[(r * p.k + j) * p.n + o], j);
     y[i] += s;
 }

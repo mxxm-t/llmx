@@ -185,6 +185,65 @@
   - The whole difference between the stages is in the routed tiles: the Q4_K gate and up products take 294.0, 242.7, 190.8 and 197.6 ms by stage and the Q5 down products 140.9, 144.4, 104.6 and 100.8 ms, on the same shapes and types, while every other kernel is level across stages within a few ms. That points at how full the tiles run, which depends on how a layer spreads its entries over the experts; the routed integer tile's narrow build (branch feat/routed-narrow) is aimed at that occupancy.
   - The wall time of the profiled pp2048, 1782 ms, is the bottleneck stage's 1016 ms of kernels and about 660 ms of pipeline fill and drain, three slices of the other stages after the last chunk leaves the first: 4 chunks over 4 stages.
 
+## Fused routed step (2026-10-25, branch feat/moe-step on feat/q8-one-col, item B1b of item B's decode stack, plan approved by the reviewer with amendments, in review)
+
+- **Goal:** a decode pass's routed layer ran 6 to 12 dispatches (Qwen3-30B-A3B Q8_0 6; Qwen3.6-35B-A3B Q4_K_M 11; Qwen3.8-Flash-Next UD-Q4_K_XL 11 and a copy), each at least the 3.6 us dispatch floor on the Radeon VII; item B fuses whole sublayers into the fewest dispatches the data allow, each fused kernel giving exactly the unfused kernels' bits.
+- **The op:** `Backend::moe_step` (`MoeStep`, `MoeShared`) is a routed layer's feed-forward block; its base runs today's calls in today's order, so the CPU and any device without a fused build compute what they computed, and `blocks::moe_step` is its one caller, from qwen3 (qwen3moe), qwen35 (qwen35moe) and qwen4exp.
+  `blocks::routed_experts`, `swiglu`'s row gate and `join`'s `add` are gone with their callers; qwen4exp's `clear_rows` became `Backend::repeat_row`, which the base op and the tensor-group injection share.
+  The arena changed: the routed and the shared expert's rows now live at once, the shared after the routed in the g, u and act slots, so qwen4exp's feed-forward slots are `k * ff + ff_sh` floats a row where they were the wider of the two, and qwen35's the wider of a dense layer's and `k * ff + ff_sh`; arch-qwen35's slot expectation follows, and the fit and exact-arena tests (arch-qwen35-fit, model-validation) pass unchanged since they derive their figures from the plan's slots.
+- **The fused path (`vulkan_moe.hpp`, `docs/src/backends-vulkan.md`):** four dispatches for every fused combination: D1 the router's and row gate's F32 rows with routing by the last workgroup, D2 the routed and shared gate and up rows as roles of one dispatch, D2b the SiLU products and the shared expert's sigmoid gate with one twin, D3 the routed down rows joined in slot order and the shared down rows added after, `(y + s) + d`.
+  It takes decode rows alone (up to 64, each routed call on the per-entry row kernels), f16 or int8 on an integer-dot profile, and the combinations of the routed layers of Flash UD-Q4_K_XL (Q4_K, Q5_1, Q8_0 shared), 35B-A3B Q4_K_M (Q4_K, Q6_K, Q4_K and Q6_K shared) and 30B-A3B Q8_0 (D2 and D2b are then the routed row kernel and `silu_mul` themselves), in the builds `row_plan` and A1's `one_column_build` give the unfused calls; everything else takes the base.
+  The fused kernels include the bodies of B1a's row kernels in functions of their own and the functions the standalone kernels now call: `moe_route.glsl` (the routing, a row per quarter of 64 lanes), `moe_combine.glsl`, `silu_mul.glsl` and `sigmoid_mul.glsl`.
+- **Float modes:** D2 and D3 take the `_preserve` builds of the row families they embed, as those kernels do on a preserving device; D1 and D2b stay ordinary like the F32 row kernel, `moe_route`, `silu_mul` and `sigmoid_mul`.
+  The combine is the one fold across modes: the ordinary `moe_combine` compiled to v_mul for slot 0 and unfused v_mad for the rest on the AMD driver, which a preserving module cannot emit, so `moe_combine.glsl` writes it out (slot 0's product is the sum, each later product rounded, then added) and `moe_combine` gains a `_preserve` module, a separable piece (`moe_combine.glsl`, the `moe_combine_preserve` entry and its table entry).
+  On normal inputs its preserving module gives the ordinary module's bits (vulkan-quantization, 46800 outputs); against main it changes only subnormal intermediates on a preserving device, which it now keeps as the CPU does.
+- **The counter:** the plan's counter on the Vulkan memory model was dropped: glslang 16.4 emits no NonPrivatePointer or MakePointer operands under that model, for `nonprivate` or `queuefamilycoherent` buffers and shared variables alike, so its barriers did not order the shared flag that tells a workgroup it is last, and subgroups 1 to 3 of the last workgroup intermittently exited without routing; backend-vulkan's `check_moe_step` caught it at Flash's widths, 2 and 3 rows.
+  D1 uses the GLSL450 model: coherent buffers, `memoryBarrierBuffer`, a device-scope atomic and `barrier()`, which the SPIR-V shows as Coherent decorations, a Device-scope AcquireRelease|UniformMemory barrier and a device-scope atomic; the last workgroup resets the counter, which is zero between calls.
+  The named need is what the routing needs: subgroups of 32 or 64 lanes (`missing_counter_need`), refused by name in vulkan-buffer, a device without it taking the base.
+- **Tests** (descriptions in AGENTS.md, Tests): backend-vulkan holds the dispatch count, every output of the op against its base op bit for bit (2370156 values over the three combinations at their files' widths and at small widths with 60 to 1000 experts, f16 and int8, with zero, 1000-scaled, 1e-30, 1e-20 and NaN rows and -0 residuals), every token at 1 to 64 tokens and over 200 random steps against the token alone (51011 columns), and 1125 row-class pairs.
+  Under `--isa` every fused build's float multiplies and adds, less those of its build without the row products (`ROLES`, constant 14, built by a diagnostic backend), are whole copies of its component one-column builds': 22 of 22 builds on the Radeon VII.
+  D1's component is `matmul_row_f32_only`, the row kernel built for the F32 family alone, which only a diagnostic backend makes, and D1 compiles its row body for that family alone too.
+  Both carried the Q8_0 family's code before, which D1 never runs: `moe_build` fuses only an F32 router and row gate. On an MI50 under RADV the same `moe_step_route_s1` build failed the screen by 7 multiplies and 7 multiply-adds.
+  RADV had unrolled that branch's per-column scale over 8 columns in D1 and kept one column-picking block in `matmul_row_f32`, while the F32 path matched block for block. The reviewer's decision of 2026-10-25 22:55 removed the code rather than allowing for it.
+  backend-group holds the base op to the calls written out (`tests/moe_step.hpp`); arch-qwen35 and qwen4exp-mtp count one step a pass per routed layer of qwen35moe, qwen3moe and Flash models with no routed op outside it; vulkan-quantization holds the combine's preserving module to the ordinary one and its subnormal sums to the CPU's (kept) and to 0 (the ordinary module); vulkan-buffer holds the counter's need.
+  `tests/dead_code.py`'s shader rule now counts a define tested in a shared include as set where another source including it sets it, and a default as overridden by a shader that defines it before including the file, so the fused kernels inherit the row kernels' family tests and hooks without listed findings.
+- **Per-call device time, Radeon VII (AMD proprietary driver 26.5.2, default clocks, integer dot forced through the test hook), synthetic weights at each file's routed shapes, three rounds of 100 calls each arm per cell, medians, the empty-dispatch floor 3.56 to 3.78 us:**
+  Every cell's outputs equal between the arms; the figures sum the dispatches' device times, so the gaps between dispatches, which the fused step also saves, are not in them.
+  The machine ran its user's processes throughout (system CPU up to 79 percent, a game client and a browser), recorded beside each round.
+
+  | shape | dtype | tokens | unfused us | fused us | change |
+  |---|---|---|---|---|---|
+  | Flash UD-Q4_K_XL | f16 | 1 | 242.8 | 191.2 | -21.3% |
+  | Flash UD-Q4_K_XL | f16 | 2 | 371.0 | 331.6 | -10.6% |
+  | Flash UD-Q4_K_XL | f16 | 4 | 633.5 | 618.5 | -2.4% |
+  | Flash UD-Q4_K_XL | f16 | 8 | 1181.9 | 1199.7 | +1.5% |
+  | Flash UD-Q4_K_XL | int8 | 1 | 223.6 | 156.3 | -30.1% |
+  | Flash UD-Q4_K_XL | int8 | 2 | 334.4 | 270.9 | -19.0% |
+  | Flash UD-Q4_K_XL | int8 | 4 | 569.9 | 491.4 | -13.8% |
+  | Flash UD-Q4_K_XL | int8 | 8 | 1039.5 | 935.3 | -10.0% |
+  | 35B-A3B Q4_K_M | f16 | 1 | 171.1 | 114.1 | -33.3% |
+  | 35B-A3B Q4_K_M | f16 | 2 | 233.8 | 181.1 | -22.5% |
+  | 35B-A3B Q4_K_M | f16 | 4 | 359.1 | 300.6 | -16.3% |
+  | 35B-A3B Q4_K_M | f16 | 8 | 632.0 | 580.8 | -8.1% |
+  | 35B-A3B Q4_K_M | int8 | 1 | 162.9 | 104.5 | -35.9% |
+  | 35B-A3B Q4_K_M | int8 | 2 | 215.8 | 160.3 | -25.7% |
+  | 35B-A3B Q4_K_M | int8 | 4 | 325.8 | 260.1 | -20.2% |
+  | 35B-A3B Q4_K_M | int8 | 8 | 553.8 | 472.9 | -14.6% |
+  | 30B-A3B Q8_0 | f16 | 1 | 136.7 | 133.5 | -2.4% |
+  | 30B-A3B Q8_0 | f16 | 2 | 224.2 | 218.8 | -2.4% |
+  | 30B-A3B Q8_0 | f16 | 4 | 401.2 | 397.0 | -1.0% |
+  | 30B-A3B Q8_0 | f16 | 8 | 762.5 | 777.0 | +1.9% |
+  | 30B-A3B Q8_0 | int8 | 1 | 126.3 | 122.7 | -2.8% |
+  | 30B-A3B Q8_0 | int8 | 2 | 201.9 | 198.2 | -1.9% |
+  | 30B-A3B Q8_0 | int8 | 4 | 359.3 | 354.2 | -1.4% |
+  | 30B-A3B Q8_0 | int8 | 8 | 679.7 | 685.5 | +0.9% |
+
+  Gains at 1 token are 21 to 36 percent on Flash and 35B-A3B and 2 to 3 percent on 30B-A3B, whose step D2 leaves unfused; three cells at 8 tokens lose 0.9 to 1.9 percent with overlapping ranges.
+  Two causes show in the kernels' times: D2 computes the shared expert a token at a time in the one-column build, where the unfused grouped call reads its weights once for all tokens in a wide build, and D1's last workgroup routes 8 rows in two rounds where the unfused routing takes 8 workgroups.
+- **B2:** B2, the hyper-connection mix's up projection taking the SiLU's dispatch, was dropped: on an MI50 its four-dispatch form lost 3.2 to 19.7 us a mix at 1, 2, 4 and 8 tokens in f16 and int8 (+5 to +23 percent), against the 5.7 to 7.2 us the SiLU dispatch costs; the activation-load macros B1a added for it (`XQ2_AT` and the rest) are plain array reads again, every kernel module's SPIR-V unchanged.
+- **Modules against the B2 tree:** the Radeon VII legs run on the B2 tree count for this top because every embedded module the two builds share is the same: a fresh Release Vulkan build of B2's head 143cb7087 and one of this branch's change commit 244ade235 give 296 modules with equal SHA-256, the four `stream_up_q8` builds (plain, `_i8`, `_preserve`, `_i8_preserve`) exist only in B2, and none exists only here or differs; B2's own build directory `build-vk5`, last built from a working tree before that head, also holds four stale `stream_mix_up` modules of the dropped three-dispatch kernel.
+- **Left:** it is the top of the decode stack (part one, A1, B1b) and lands with it by the reviewer's 16:34 decision, measured by the stack's gate, which is its own; measured follow-ups, each held to these figures: the shared expert's rows in a wide build for several tokens, the routing over several workgroups at many rows, and the paired epilogue, whose gain is at most D2b's 7.5 to 9 us a call.
+
 ## One-column Q8_0 decode builds by row width, rows and activations (2026-10-25, branch feat/q8-one-col on feat/elementwise-preserve, item A1 of item B's decode stack after probe A0, approved by the reviewer, in progress)
 
 - **Goal:** a one-column call of the Q8_0 decode kernel (`matmul_vec_q8.comp`, the 16-bit and 8-bit builds alike) takes the build its shape and activations favour, by one rule whose numbers sit in the device profile, every column's bits unchanged.
@@ -299,15 +358,15 @@
   - Double reference, mean error in units in the last place of each result, or of a sum's mean term magnitude, preserving against ordinary: Radeon VII `silu_scaled` 0.407 against 0.501, `inject_streams` 0.478 against 0.504, `mix_streams` 0.373 against 0.371; MI50 0.501 and 0.501, 0.485 and 0.485, 0.345 and 0.384, RADV lowering a normal division alike in both modules.
   - Subnormals: 160 results kept as the CPU keeps them on the preserving backend and 160 flushed on the ordinary one, on both cards.
   - RADV's envelope (docs/PRECISION.md, section 3): wrong preserving quotients only for divisors past 6e30, true values below 1e-29, inside the reviewer's 1e-28 bound.
-- **Left:** it lands with the decode stack (part one, A1, B1b, B2) by the reviewer's 16:34 decision, and the stack top's gate measures it: HF error and headroom per family on both cards, the 16k raw and chat-template checks against file-exact HF, one interleaved timing round against main on Qwen3.8-Flash-Next 2x2 and layer 4 and Qwen3.6-35B-A3B, `--isa` on both cards and the hosted run. Its checkpoint figures above are not that gate.
+- **Left:** it lands with the decode stack (part one, A1, B1b) by the reviewer's 16:34 decision, and the stack top's gate measures it: HF error and headroom per family on both cards, the 16k raw and chat-template checks against file-exact HF, one interleaved timing round against main on Qwen3.8-Flash-Next 2x2 and layer 4 and Qwen3.6-35B-A3B, `--isa` on both cards and the hosted run. Its checkpoint figures above are not that gate.
 - **Gotchas:** a twin check needs peaks the producer keeps in the ordinary range, so `silu_scaled`'s twin is checked on its own blocks; F32 rows keep the ordinary row module, so a subnormal case of a consumer reading F32 rows says nothing about preservation.
 
 ## Row kernel bodies as includes (2026-10-25, branch refactor/row-bodies on refactor/vulkan-split 4ab05bffe, item B1a, approved by the reviewer, no behaviour change)
 
-- **Goal:** item B fuses decode sublayers into fewer dispatches, and a fused kernel must compute each row with the unfused kernel's bits; the row kernels' bodies become text both include, so the row arithmetic has one owner (B1b's routed step and B2's stream mix build on it).
+- **Goal:** item B fuses decode sublayers into fewer dispatches, and a fused kernel must compute each row with the unfused kernel's bits; the row kernels' bodies become text both include, so the row arithmetic has one owner (B1b's routed step builds on it).
 - **The change:** `matmul_row.comp` keeps its `main`, a workgroup's projection, rows, columns and stores, and includes `matmul_row.glsl` (its bindings, push and specialization constants and per-family helpers), `matmul_row_one.glsl` (the one-row builds' body, every family) and `matmul_row_two.glsl` (the Q4 and K-quant families' two-row body) where their text stood.
   `matmul_vec_q8.comp` keeps its bindings, `main` and stores and includes `matmul_vec_q8.glsl` (its helpers) and `matmul_vec_q8_one.glsl` (its body: both layouts, the TREE and subgroup reductions).
-  Each body hands a sum to a store macro its kernel defines (`ROW_STORE`, `ROW_STORE2`, `VEC_STORE`, `VEC_TREE_STORE`), so stores stay with the callers; every activation load goes through one macro a view (`XQ2_AT`, `XQ4_AT`, `XT2_AT`, `XT4_AT`, `X_AT`, `X4_AT`; `XQ_AT`, `XQ8_AT`), and `matmul_row.glsl` takes `LLMX_ROW_PROJ`, `LLMX_ROW_Y` and `LLMX_ROW_PUSH`, which a fused kernel sets and nothing does yet (listed in `tests/data/known_findings.txt` for B1b and B2).
+  Each body hands a sum to a store macro its kernel defines (`ROW_STORE`, `ROW_STORE2`, `VEC_STORE`, `VEC_TREE_STORE`), so stores stay with the callers, and `matmul_row.glsl` takes `LLMX_ROW_PROJ`, `LLMX_ROW_Y` and `LLMX_ROW_PUSH`, which B1b's fused kernels set.
   The bodies are included text rather than GLSL functions, so the kernels' preprocessed tokens are those they had: a function returning its sums would move the stores and change the code.
 - **Proof, on the Radeon VII (AMD proprietary driver, default clocks), both arms built the same way in fresh MSVC Release directories from detached worktrees at 6807750e6 and at the change:**
   - All 266 generated kernel modules are byte-identical SPIR-V, the 87 builds of the two row kernels among them.

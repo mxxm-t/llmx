@@ -39,6 +39,9 @@ const uint32_t kSpvEmbed[] = {
 const uint32_t kSpvMatmulRow[] = {
 #include "vulkan/matmul_row.inc"
 };
+const uint32_t kSpvMatmulRowF32Only[] = {
+#include "vulkan/matmul_row_f32_only.inc"
+};
 const uint32_t kSpvMatmulRowQ8W[] = {
 #include "vulkan/matmul_row_q8w.inc"
 };
@@ -618,8 +621,90 @@ const uint32_t kSpvMoeRouteS8[] = {
 const uint32_t kSpvMoeCombine[] = {
 #include "vulkan/moe_combine.inc"
 };
+const uint32_t kSpvMoeCombinePreserve[] = {
+#include "vulkan/moe_combine_preserve.inc"
+};
 const uint32_t kSpvMoeGroup[] = {
 #include "vulkan/moe_group.inc"
+};
+// The fused routed step's kernels (vulkan_moe.hpp).
+const uint32_t kSpvMoeStepRouteS1[] = {
+#include "vulkan/moe_step_route_s1.inc"
+};
+const uint32_t kSpvMoeStepRouteS2[] = {
+#include "vulkan/moe_step_route_s2.inc"
+};
+const uint32_t kSpvMoeStepRouteS4[] = {
+#include "vulkan/moe_step_route_s4.inc"
+};
+const uint32_t kSpvMoeStepRouteS8[] = {
+#include "vulkan/moe_step_route_s8.inc"
+};
+const uint32_t kSpvMoeStepRoute[] = {
+#include "vulkan/moe_step_route.inc"
+};
+const uint32_t kSpvMoeStepAct[] = {
+#include "vulkan/moe_step_act.inc"
+};
+const uint32_t kSpvMoeStepUpK4q8[] = {
+#include "vulkan/moe_step_up_k4q8.inc"
+};
+const uint32_t kSpvMoeStepUpK4q8Preserve[] = {
+#include "vulkan/moe_step_up_k4q8_preserve.inc"
+};
+const uint32_t kSpvMoeStepUpK4q8I8[] = {
+#include "vulkan/moe_step_up_k4q8_i8.inc"
+};
+const uint32_t kSpvMoeStepUpK4q8I8Preserve[] = {
+#include "vulkan/moe_step_up_k4q8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepUpK4[] = {
+#include "vulkan/moe_step_up_k4.inc"
+};
+const uint32_t kSpvMoeStepUpK4Preserve[] = {
+#include "vulkan/moe_step_up_k4_preserve.inc"
+};
+const uint32_t kSpvMoeStepUpK4I8[] = {
+#include "vulkan/moe_step_up_k4_i8.inc"
+};
+const uint32_t kSpvMoeStepUpK4I8Preserve[] = {
+#include "vulkan/moe_step_up_k4_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownQ8[] = {
+#include "vulkan/moe_step_down_q8.inc"
+};
+const uint32_t kSpvMoeStepDownQ8Preserve[] = {
+#include "vulkan/moe_step_down_q8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownQ8I8[] = {
+#include "vulkan/moe_step_down_q8_i8.inc"
+};
+const uint32_t kSpvMoeStepDownQ8I8Preserve[] = {
+#include "vulkan/moe_step_down_q8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownQ5q8[] = {
+#include "vulkan/moe_step_down_q5q8.inc"
+};
+const uint32_t kSpvMoeStepDownQ5q8Preserve[] = {
+#include "vulkan/moe_step_down_q5q8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownQ5q8I8[] = {
+#include "vulkan/moe_step_down_q5q8_i8.inc"
+};
+const uint32_t kSpvMoeStepDownQ5q8I8Preserve[] = {
+#include "vulkan/moe_step_down_q5q8_i8_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownK[] = {
+#include "vulkan/moe_step_down_k.inc"
+};
+const uint32_t kSpvMoeStepDownKPreserve[] = {
+#include "vulkan/moe_step_down_k_preserve.inc"
+};
+const uint32_t kSpvMoeStepDownKI8[] = {
+#include "vulkan/moe_step_down_k_i8.inc"
+};
+const uint32_t kSpvMoeStepDownKI8Preserve[] = {
+#include "vulkan/moe_step_down_k_i8_preserve.inc"
 };
 // The attention kernels at head width 256, qwen35's, in the same cache-type order.
 const uint32_t kSpvAttentionTileD256[] = {
@@ -932,8 +1017,24 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MOE_ROUTE_S4, "moe_route_s4", kSpvMoeRouteS4, sizeof(kSpvMoeRouteS4), 3, nullptr) \
     X(K_MOE_ROUTE_S8, "moe_route_s8", kSpvMoeRouteS8, sizeof(kSpvMoeRouteS8), 3, nullptr) \
     X(K_MOE_ROUTE, "moe_route", kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr) \
-    X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 4, nullptr) \
+    X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 4, nullptr, kSpvMoeCombinePreserve, sizeof(kSpvMoeCombinePreserve)) \
     X(K_MOE_GROUP, "moe_group", kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr) \
+    X(K_MOE_STEP_ROUTE_S1, "moe_step_route_s1", kSpvMoeStepRouteS1, sizeof(kSpvMoeStepRouteS1), 16, kMoeStepRouteCounts) \
+    X(K_MOE_STEP_ROUTE_S2, "moe_step_route_s2", kSpvMoeStepRouteS2, sizeof(kSpvMoeStepRouteS2), 16, kMoeStepRouteCounts) \
+    X(K_MOE_STEP_ROUTE_S4, "moe_step_route_s4", kSpvMoeStepRouteS4, sizeof(kSpvMoeStepRouteS4), 16, kMoeStepRouteCounts) \
+    X(K_MOE_STEP_ROUTE_S8, "moe_step_route_s8", kSpvMoeStepRouteS8, sizeof(kSpvMoeStepRouteS8), 16, kMoeStepRouteCounts) \
+    X(K_MOE_STEP_ROUTE, "moe_step_route", kSpvMoeStepRoute, sizeof(kSpvMoeStepRoute), 16, kMoeStepRouteCounts) \
+    X(K_MOE_STEP_UP_K4Q8, "moe_step_up_k4q8", kSpvMoeStepUpK4q8, sizeof(kSpvMoeStepUpK4q8), 12, kMoeStepUpCounts, kSpvMoeStepUpK4q8Preserve, sizeof(kSpvMoeStepUpK4q8Preserve)) \
+    X(K_MOE_STEP_UP_K4Q8_I8, "moe_step_up_k4q8_i8", kSpvMoeStepUpK4q8I8, sizeof(kSpvMoeStepUpK4q8I8), 12, kMoeStepUpCounts, kSpvMoeStepUpK4q8I8Preserve, sizeof(kSpvMoeStepUpK4q8I8Preserve)) \
+    X(K_MOE_STEP_UP_K4, "moe_step_up_k4", kSpvMoeStepUpK4, sizeof(kSpvMoeStepUpK4), 12, kMoeStepUpCounts, kSpvMoeStepUpK4Preserve, sizeof(kSpvMoeStepUpK4Preserve)) \
+    X(K_MOE_STEP_UP_K4_I8, "moe_step_up_k4_i8", kSpvMoeStepUpK4I8, sizeof(kSpvMoeStepUpK4I8), 12, kMoeStepUpCounts, kSpvMoeStepUpK4I8Preserve, sizeof(kSpvMoeStepUpK4I8Preserve)) \
+    X(K_MOE_STEP_DOWN_Q8, "moe_step_down_q8", kSpvMoeStepDownQ8, sizeof(kSpvMoeStepDownQ8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ8Preserve, sizeof(kSpvMoeStepDownQ8Preserve)) \
+    X(K_MOE_STEP_DOWN_Q8_I8, "moe_step_down_q8_i8", kSpvMoeStepDownQ8I8, sizeof(kSpvMoeStepDownQ8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ8I8Preserve, sizeof(kSpvMoeStepDownQ8I8Preserve)) \
+    X(K_MOE_STEP_DOWN_Q5Q8, "moe_step_down_q5q8", kSpvMoeStepDownQ5q8, sizeof(kSpvMoeStepDownQ5q8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ5q8Preserve, sizeof(kSpvMoeStepDownQ5q8Preserve)) \
+    X(K_MOE_STEP_DOWN_Q5Q8_I8, "moe_step_down_q5q8_i8", kSpvMoeStepDownQ5q8I8, sizeof(kSpvMoeStepDownQ5q8I8), 14, kMoeStepDownCounts, kSpvMoeStepDownQ5q8I8Preserve, sizeof(kSpvMoeStepDownQ5q8I8Preserve)) \
+    X(K_MOE_STEP_DOWN_K, "moe_step_down_k", kSpvMoeStepDownK, sizeof(kSpvMoeStepDownK), 14, kMoeStepDownCounts, kSpvMoeStepDownKPreserve, sizeof(kSpvMoeStepDownKPreserve)) \
+    X(K_MOE_STEP_DOWN_K_I8, "moe_step_down_k_i8", kSpvMoeStepDownKI8, sizeof(kSpvMoeStepDownKI8), 14, kMoeStepDownCounts, kSpvMoeStepDownKI8Preserve, sizeof(kSpvMoeStepDownKI8Preserve)) \
+    X(K_MOE_STEP_ACT, "moe_step_act", kSpvMoeStepAct, sizeof(kSpvMoeStepAct), 5, nullptr) \
     X(K_ATTENTION_G4, "attention_g4", kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr) \
     X(K_ATTENTION_K16_G4, "attention_k16_g4", kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr) \
     X(K_ATTENTION_V16_G4, "attention_v16_g4", kSpvAttentionV16G4, sizeof(kSpvAttentionV16G4), 7, nullptr) \
@@ -947,6 +1048,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_ATTENTION_VEC_V16_G4, "attention_vec_v16_g4", kSpvAttentionVecV16G4, sizeof(kSpvAttentionVecV16G4), 7, nullptr) \
     X(K_ATTENTION_VEC_KV16_G4, "attention_vec_kv16_g4", kSpvAttentionVecKV16G4, sizeof(kSpvAttentionVecKV16G4), 7, nullptr) \
     X(K_MATMUL_ROW_F32, "matmul_row_f32", kSpvMatmulRow, sizeof(kSpvMatmulRow), 12, kMatmulRowCounts) \
+    X(K_MATMUL_ROW_F32_ONLY, "matmul_row_f32_only", kSpvMatmulRowF32Only, sizeof(kSpvMatmulRowF32Only), 12, kMatmulRowCounts) \
     X(K_SIGMOID_MUL, "sigmoid_mul", kSpvSigmoidMul, sizeof(kSpvSigmoidMul), 4, nullptr) \
     X(K_GATED_RMS_NORM, "gated_rms_norm", kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr) \
     X(K_CAUSAL_CONV_SILU, "causal_conv_silu", kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr) \
@@ -1210,7 +1312,7 @@ inline bool is_row_kernel(KernelId id) {
     case K_MATMUL_ROW_IQ2_XXS_DOT: case K_MATMUL_ROW_IQ2_XS_DOT:
     case K_MATMUL_ROW_TQ1_0: case K_MATMUL_ROW_TQ2_0: case K_MATMUL_ROW_IQ2_S: case K_MATMUL_ROW_TQ1_0_DOT: case K_MATMUL_ROW_TQ2_0_DOT: case K_MATMUL_ROW_IQ2_S_DOT:
     case K_MATMUL_ROW_IQ3_S: case K_MATMUL_ROW_IQ3_S_DOT:
-    case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50:
+    case K_MATMUL_ROW: case K_MATMUL_ROW_FLOAT_X: case K_MATMUL_ROW_F32: case K_MATMUL_ROW_F32_ONLY: case K_MATMUL_ROW_Q8W: case K_MATMUL_ROW_Q4: case K_MATMUL_ROW_Q5: case K_MATMUL_ROW_Q50:
     case K_MATMUL_ROW_K4: case K_MATMUL_ROW_K5: case K_MATMUL_ROW_K:
     case K_MATMUL_ROW_Q4_DOT: case K_MATMUL_ROW_Q5_DOT: case K_MATMUL_ROW_Q50_DOT:
     case K_MATMUL_ROW_K4_DOT: case K_MATMUL_ROW_K5_DOT: case K_MATMUL_ROW_K_DOT: case K_MATMUL_VEC_Q8:
@@ -1261,6 +1363,14 @@ inline bool is_tile_kernel(KernelId id) {
 
 // The Q8_0 decode kernel's 16-bit and 8-bit builds, which share their builds and dispatch (kVecBuilds).
 inline bool is_vec_kernel(KernelId id) { return id == K_MATMUL_VEC_Q8 || id == K_MATMUL_VEC_Q8_I8; }
+
+// The fused routed step's kernels that hold a Q8_0 decode body, whose builds are its one-column ones (kVecBuilds), and all the step's kernels, which name their builds by those.
+inline bool moe_step_q8(KernelId id) {
+    return id == K_MOE_STEP_UP_K4Q8 || id == K_MOE_STEP_UP_K4Q8_I8 || id == K_MOE_STEP_DOWN_Q8 || id == K_MOE_STEP_DOWN_Q8_I8 ||
+           id == K_MOE_STEP_DOWN_Q5Q8 || id == K_MOE_STEP_DOWN_Q5Q8_I8;
+}
+inline bool moe_step_kernel(KernelId id) { return id >= K_MOE_STEP_ROUTE_S1 && id <= K_MOE_STEP_DOWN_K_I8; }
+inline bool moe_step_route_kernel(KernelId id) { return id >= K_MOE_STEP_ROUTE_S1 && id <= K_MOE_STEP_ROUTE; }
 
 // The row kernels that read the 8-bit twin.
 inline bool reads_x8(KernelId id) {
@@ -1349,6 +1459,10 @@ struct KernelSource {
 };
 
 const uint32_t kMatmulRowCounts[12] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1};
+// The fused routed step's kernels: the row kernel's bindings with their projections, then the routing's scores, ids, weights and counter, or the down kernel's weights and zero row.
+const uint32_t kMoeStepRouteCounts[16] = {3, 3, 3, 3, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+const uint32_t kMoeStepUpCounts[12] = {4, 4, 4, 4, 1, 4, 1, 1, 1, 1, 1, 1};
+const uint32_t kMoeStepDownCounts[14] = {2, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1};
 // The integer-dot tile's outputs and weights, three of each, and the reduce's outputs.
 const uint32_t kMatmulTileQCounts[5] = {3, 3, 1, 1, 1};
 const uint32_t kMatmulTileIq3Counts[6] = {3, 3, 1, 1, 1, 1};

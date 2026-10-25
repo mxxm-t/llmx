@@ -55,6 +55,7 @@ The first three come before the class; the others define members the class decla
 - `vulkan_dispatch.hpp`: storage bindings (`bind`), pipelines made on first use (`kernel`) and one recorded `dispatch`.
 - `vulkan_twins.hpp`: the activation twins (`twin`, `take_twin`, `keep_twin`) and what a write drops (`forget_written`).
 - `vulkan_matmul.hpp`: the products: the row build or tile a call takes (`row_plan`, `column_builds`), column chunks, row and tile dispatch, and routed expert calls.
+- `vulkan_moe.hpp`: the fused routed step (`moe_step`, `moe_build`), below.
 - `vulkan_attention.hpp`: the KV cache and attention: storage, view tables, the KV write, attention, sparse attention and index selection.
 - `vulkan_collective.hpp`: a tensor group's `VulkanCollective` and each member's part in it (`sum_rows`, `external_ownership`).
 
@@ -260,6 +261,17 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
   their weighted sum to the residual, a slot without an expert (`kNoExpert`, which the routed row kernels leave unwritten and `moe_group` counts in no tile) adding nothing; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
+- The fused routed step (`vulkan_moe.hpp`, `Backend::moe_step`): a decode pass's routed layer in four dispatches where the unfused calls take eleven or more, every output bit for bit the unfused calls' (backend-vulkan holds them to it).
+  - **D1** (`shaders/moe_step_route.comp`): the router's and the shared expert's row gate's F32 rows, matmul_row.comp's one-row body as the plain matmul runs them, compiled for the F32 family alone since `moe_build` fuses only an F32 router and row gate, then the workgroup that finishes last routes every row, four at a time, through moe_route.comp's function (`shaders/moe_route.glsl`).
+    The last one is found through a device-scope atomic counter in `moe_count_`, after each workgroup's scores are made visible through coherent stores and a buffer barrier; it reads them back the same way and sets the counter to zero, so it is zero between calls and no workgroup waits on another.
+  - **D2** (`shaders/moe_step_up.comp`): workgroup row y below `rows * k` is routed entry y, its expert's gate and up rows in the routed row kernel's one-column arithmetic, and each further row a token's shared expert, through the same family's body or the Q8_0 decode kernel's; the shared rows land after the routed ones in the slots.
+    A layer without a shared expert runs the routed row kernel and `silu_mul` instead, as the unfused step does.
+  - **D2b** (`shaders/moe_step_act.comp`): every routed value's `silu_mul_value` and every shared one's scaled by `sigmoid_scale` of its row gate, the functions silu_mul.comp and sigmoid_mul.comp call, with one 16-bit twin of them all, whose blocks hold the values either kernel's twin holds.
+  - **D3** (`shaders/moe_step_down.comp`): a workgroup takes a block of a token's output rows, each routed entry's down rows against its twin column joined in slot order through moe_combine.comp's function (`shaders/moe_combine.glsl`), then the shared expert's rows, added as `(y + s) + d`, the order the unfused kernels add them in; with a zero row the step reads it in place of y, as the unfused copy then add gives.
+  - `moe_build` takes the fused path only for decode rows alone (every run of extent 1, at most 64 rows), each routed call on the per-entry row kernels (`rows * k` under twice the experts, below the routed tile crossover), F32 router and row gate, f16 or int8 on a profile that prefers the integer dot, a shared expert as wide as the routed ones whose rows follow theirs in the slots, and the type combinations of `kMoeBuilds`, the routed layers of Qwen3.8-Flash-Next UD-Q4_K_XL (Q4_K, Q5_1, Q8_0 shared), Qwen3.6-35B-A3B Q4_K_M (Q4_K, Q6_K, Q4_K and Q6_K shared) and Qwen3-30B-A3B Q8_0, each in the kernels `row_plan` picks for them; everything else takes the base.
+  - The fused kernels take the builds of the kernels whose bodies they hold: D2 and D3 the one-column builds, a Q8_0 role the build `one_column_build` gives the unfused call, and the `_preserve` modules where the row kernels have them; D1 and D2b stay ordinary like their kernels. Their kernel names carry the build (`_1col`, `_1row`, `_2step`).
+  - `missing_counter_need`: the routing's quarters of 64 lanes must each be one subgroup or two, so a device whose subgroups are not 32 or 64 lanes takes the base, the need named.
+  - The combine is written out in `moe_combine.glsl` (slot 0's product is the sum, each later product rounded before it is added) and moe_combine.comp has a `_preserve` module, so the combine runs in the row kernels' float mode on a preserving device and the fused down kernel holds the same arithmetic; on normal inputs both modules give the bits the ordinary module gave (vulkan-quantization).
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
@@ -447,12 +459,13 @@ From the comment at line 2:
 
 The kernel's own part is `main`: a workgroup's projection, its rows, its columns and routed or grouped entries, and its stores, around the bodies of `matmul_row_one.glsl` and `matmul_row_two.glsl`, each included where it stood, with the declarations and helpers of `matmul_row.glsl`.
 Each body hands a sum to a store macro the kernel defines (`ROW_STORE`, `ROW_STORE2`), so the stores stay with the kernel; the split leaves every build's SPIR-V byte for byte as it was.
+Its `LLMX_ROW_F32` build (`matmul_row_f32_only`) compiles the F32 family alone; only a diagnostic backend makes it, beside each fused route build, and backend-vulkan `--isa` holds D1's rows to it.
 
 ### `src/backends/vulkan/shaders/matmul_row.glsl`
 
 The row kernel's bindings, push constants, specialization constants and per-family helpers, shared by `matmul_row.comp` and by any kernel that fuses a row product with other work.
-Such a kernel may widen the projection arrays (`LLMX_ROW_PROJ`), qualify the outputs (`LLMX_ROW_Y`), add push constants (`LLMX_ROW_PUSH`) and point the activation loads elsewhere: every load goes through one macro a view, `XQ2_AT` and `XQ4_AT` for the twin's words, `XT2_AT` and `XT4_AT` for its table, and `X_AT` and `X4_AT` for the original floats, which default to the bindings.
-The dictionary formats' float rows read their lookup table through the spare twin view directly, not through these macros.
+Such a kernel may widen the projection arrays (`LLMX_ROW_PROJ`), qualify the outputs (`LLMX_ROW_Y`) and add push constants (`LLMX_ROW_PUSH`); the activations are read from the bindings.
+The dictionary formats' float rows read their lookup table through the spare twin view.
 
 From the comment at line 14:
 
@@ -561,7 +574,7 @@ The kernel's own part is its bindings and `main`, a workgroup's projection, rows
 
 ### `src/backends/vulkan/shaders/matmul_vec_q8.glsl`
 
-The Q8_0 decode kernel's helpers: the weight word's form and its dot, the column groups and the TREE reduction's pairs, and one macro a view for the activation loads, `XQ_AT` and `XQ8_AT` for the 16-bit and 8-bit twins' words and `XT2_AT` for the table, which a kernel fusing a Q8_0 row product with other work may point elsewhere.
+The Q8_0 decode kernel's helpers: the weight word's form and its dot, the column groups and the TREE reduction's pairs.
 
 From the comment at line 13:
 
@@ -576,6 +589,15 @@ The Q8_0 decode kernel's body: a subgroup's dots of its rows with up to MAX_COLS
 From the comment at line 17:
 
 - Each row's first word, a multiple of 17 words since the row's first block is even; per lane its four quant words, a fifth where the bytes straddle (the fourth again where they do not), its scale word and its activation offsets, which a step moves by 272 words, 64 runs of 16 bytes and 32 blocks.
+
+### `src/backends/vulkan/shaders/moe_route.glsl`, `moe_combine.glsl`, `silu_mul.glsl`, `sigmoid_mul.glsl`
+
+The functions the unfused kernels and the fused routed step's kernels share, one owner each: a row's routing (`route_row`, a quarter of 64 lanes of the workgroup, `ROUTE_QUARTERS` of them), the combine's slot (`combine_add`), `silu_mul_value` and `sigmoid_scale`.
+
+### `src/backends/vulkan/shaders/moe_step_route.comp`, `moe_step_up.comp`, `moe_step_act.comp`, `moe_step_down.comp`
+
+The fused routed step's four kernels (`vulkan_moe.hpp`), each including the bodies of the kernels whose rows it computes (`matmul_row_one.glsl`, `matmul_vec_q8_one.glsl`) in a function of its own, with its own store macros.
+moe_step_up.comp and moe_step_down.comp are built per type family: the routed family's defines, then `LLMX_SHARED_Q8` or `LLMX_SHARED_ROW` for the shared expert and `LLMX_ROUTED_Q8` (with `LLMX_Q8_I8`) for Q8_0 routed rows.
 
 ### `src/backends/vulkan/shaders/moe_route.comp`
 

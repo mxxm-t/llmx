@@ -1,105 +1,12 @@
 #version 450
-// Expert routing (backend.hpp route_experts): per row the k most probable experts, ties to the lower id, divided by their sum with `normalize`; a NaN row picks the invalid id with weight 0.
-// 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one, the reductions joined through shared memory when there are two.
+// Expert routing (backend.hpp route_experts), a row a workgroup of 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one (moe_route.glsl).
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
 layout(local_size_x = 64) in;
 layout(push_constant) uniform P { uint n_expert; uint k; uint normalize; } p;
-layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
-layout(set = 0, binding = 1) buffer I { uint ids[]; };
-layout(set = 0, binding = 2) buffer W { float weights[]; };
-
-// Invocation t holds experts t + 64 q, q < kHeld, in registers; route_experts takes the build of the fewest slots that hold the row.
-#if defined(LLMX_SLOTS1)
-const uint kHeld = 1u;
-#elif defined(LLMX_SLOTS2)
-const uint kHeld = 2u;
-#elif defined(LLMX_SLOTS4)
-const uint kHeld = 4u;
-#elif defined(LLMX_SLOTS8)
-const uint kHeld = 8u;
-#else
-const uint kHeld = 16u;
-#endif
-shared float part_v[2];
-shared uint part_i[2];
-shared float chosen[256];
-shared uint chosen_id[256];
-
-float group_max(float v) {
-    v = subgroupMax(v);
-    if (gl_NumSubgroups == 1u) return v;
-    if (subgroupElect()) part_v[gl_SubgroupID] = v;
-    barrier();
-    float r = max(part_v[0], part_v[1]);
-    barrier();
-    return r;
-}
-float group_sum(float v) {
-    v = subgroupAdd(v);
-    if (gl_NumSubgroups == 1u) return v;
-    if (subgroupElect()) part_v[gl_SubgroupID] = v;
-    barrier();
-    float r = part_v[0] + part_v[1];
-    barrier();
-    return r;
-}
-uint group_min(uint v) {
-    v = subgroupMin(v);
-    if (gl_NumSubgroups == 1u) return v;
-    if (subgroupElect()) part_i[gl_SubgroupID] = v;
-    barrier();
-    uint r = min(part_i[0], part_i[1]);
-    barrier();
-    return r;
-}
-
-void main() {
-    uint r = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
-    uint base = r * p.n_expert;
-    // Every score is loaded at once, a slot past the experts reading the last one, which it then leaves out.
-    float pr[kHeld];
-    for (uint q = 0u; q < kHeld; ++q) pr[q] = scores[base + min(t + 64u * q, p.n_expert - 1u)];
-    float top = -1.0 / 0.0;
-    for (uint q = 0u; q < kHeld; ++q)
-        if (t + 64u * q < p.n_expert) top = max(top, pr[q]);
-    top = group_max(top);
-    float part = 0.0;
-    for (uint q = 0u; q < kHeld; ++q)
-        if (t + 64u * q < p.n_expert) {
-            float v = exp(pr[q] - top);
-            pr[q] = v;
-            part += v;
-        }
-    float sum = group_sum(part);
-    // A probability below FLT_MIN counts as 0 under any float mode, and a slot past the experts holds -2, which no pick takes.
-    for (uint q = 0u; q < kHeld; ++q) {
-        float v = pr[q] / sum;
-        pr[q] = t + 64u * q >= p.n_expert ? -2.0 : v < uintBitsToFloat(0x00800000u) ? 0.0 : v;
-    }
-    // Every invocation adds the picks in j order, the sum the weights are divided by.
-    float total = 0.0;
-    for (uint j = 0u; j < p.k; ++j) {
-        // The largest untaken probability, then the lowest id holding it; a taken expert holds -1, below every probability.
-        float bv = -2.0;
-        uint bi = 0xffffffffu;
-        for (uint q = 0u; q < kHeld; ++q)
-            if (pr[q] > bv) { bv = pr[q]; bi = t + 64u * q; }
-        float m = group_max(bv);
-        uint id = group_min(bv == m ? bi : 0xffffffffu);
-        // Where none is left the pick is the invalid id, which marks nothing and adds 0.
-        for (uint q = 0u; q < kHeld; ++q)
-            if (t + 64u * q == id) pr[q] = -1.0;
-        float c = id < p.n_expert ? m : 0.0;
-        total += c;
-        if (t == 0u) {
-            chosen[j] = c;
-            chosen_id[j] = id;
-        }
-    }
-    barrier();
-    for (uint j = t; j < p.k; j += 64u) {
-        ids[r * p.k + j] = chosen_id[j];
-        weights[r * p.k + j] = chosen_id[j] >= p.n_expert ? 0.0 : p.normalize != 0u ? chosen[j] / total : chosen[j];
-    }
-}
+layout(set = 0, binding = 0) readonly buffer S { float route_scores[]; };
+layout(set = 0, binding = 1) buffer I { uint route_ids[]; };
+layout(set = 0, binding = 2) buffer W { float route_weights[]; };
+#define ROUTE_QUARTERS 1u
+#include "moe_route.glsl"
+void main() { route_row(gl_WorkGroupID.x, gl_LocalInvocationID.x, 0u, true, p.n_expert, p.k, p.normalize != 0u); }

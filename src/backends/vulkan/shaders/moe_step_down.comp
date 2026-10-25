@@ -1,0 +1,128 @@
+#version 450
+// The fused routed step's down projection (backend.hpp moe_step): a block of token y's output rows, the routed entries' rows joined in slot order (moe_combine.glsl), then the shared expert's, added after.
+// Each takes its unfused kernel's body: its family's from matmul_row.comp, or the Q8_0 decode kernel's with LLMX_ROUTED_Q8 for routed rows and LLMX_SHARED_Q8 for shared ones.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_integer_dot_product : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#define LLMX_ROW_PROJ 2
+// Picks a token, tokens, whether y starts from the zero row, the output rows a workgroup takes, the shared expert's rows a pass, and its type and wide flag.
+#define LLMX_ROW_PUSH uint k; uint tokens; uint zero; uint rows_wg; uint sh_rows; uint sh_type; uint sh_wide;
+#include "matmul_row.glsl"
+#if defined(LLMX_ROUTED_Q8) && defined(LLMX_Q8_I8)
+#define LLMX_I8
+#endif
+#if defined(LLMX_ROUTED_Q8) || defined(LLMX_SHARED_Q8)
+#include "dot16.glsl"
+layout(constant_id = 10) const uint STEPS = 1;
+layout(constant_id = 11) const bool TREE = false;
+layout(constant_id = 12) const bool HALF = false;
+layout(constant_id = 13) const uint SPAN = 1;
+#ifdef LLMX_I8
+layout(set = 0, binding = 6) readonly buffer XQ8 { uvec2 xq8[]; };
+#endif
+layout(set = 0, binding = 7) readonly buffer XQ { uvec4 xq[]; };
+#include "matmul_vec_q8.glsl"
+#endif
+layout(set = 0, binding = 12) readonly buffer EW { float expert_w[]; };
+layout(set = 0, binding = 13) readonly buffer Z { float zero_row[]; };
+#include "moe_combine.glsl"
+shared float stage[256];
+
+// ROLES (14), false only in a diagnostic build, compiles the row products out, so the build's other instructions can be told from theirs (backend-vulkan --isa).
+// Their stand-in is a value the compiler cannot know, another for each row, so the combine and the adds after them compile as they do on the products.
+layout(constant_id = 14) const bool ROLES = true;
+#define STAND_IN(i) uintBitsToFloat(p.sh_wide ^ (i))
+#define XCOL(c) (col0 + (c))
+#define OCOL(c) (col0 + (c))
+#ifndef LLMX_ROUTED_Q8
+// A row family's dot of weight row `wrow` with twin column col0, in every lane of the row's cluster.
+float row_dot(uint row, uint l, uint nout, uint type, uint wide, uint wrow, uint col0) {
+    uint lane = gl_SubgroupInvocationID;
+    const uint ncols = 1u;
+    float got = 0.0;
+#define ROW_STORE(c, s) got = s;
+#include "matmul_row_one.glsl"
+    return got;
+}
+#endif
+#if defined(LLMX_ROUTED_Q8) || defined(LLMX_SHARED_Q8)
+// The Q8_0 decode kernel's dots of its subgroup's ROWS rows from row0, weight rows from wrow0, with twin column col0, in every lane.
+void q8_dots(uint row0, uint nout, uint wrow0, uint col0, out float got[ROWS]) {
+    uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
+    const uint ncols = 1u;
+    for (uint r = 0u; r < ROWS; ++r) got[r] = 0.0;
+#define VEC_TREE_STORE(c, row, v) got[(row) - row0] = v;
+#define VEC_STORE(c, row, s) got[r] = s;
+#include "matmul_vec_q8_one.glsl"
+}
+#endif
+
+// Row `row` of token r: its routed sum s joins y, or the zero row, and then the shared expert's d, the order the unfused kernels add them in.
+void store(uint r, uint row, float s, float d, uint nout) {
+    float y0 = p.zero != 0u ? zero_row[row] : ys[0].y[r * nout + row];
+    float t = y0 + s;
+    ys[0].y[r * nout + row] = t + d;
+}
+
+void main() {
+    uint r = gl_WorkGroupID.y, o0 = gl_WorkGroupID.x * p.rows_wg, nout = p.nout0;
+    uint lane = gl_SubgroupInvocationID;
+    pi = 0u;
+#ifdef LLMX_ROUTED_Q8
+    uint row0 = o0 + gl_SubgroupID * ROWS;
+    float s[ROWS];
+    for (uint i = 0u; i < ROWS; ++i) s[i] = 0.0;
+    for (uint j = 0u; j < p.k; ++j) {
+        uint e = r * p.k + j, id = ids[e];
+        if (id == 0xffffffffu) continue;
+        float got[ROWS];
+        for (uint i = 0u; i < ROWS; ++i) got[i] = STAND_IN(i);
+        if (ROLES) q8_dots(row0, nout, id * nout, e, got);
+        float w = expert_w[e];
+        for (uint i = 0u; i < ROWS; ++i) s[i] = combine_add(s[i], w, got[i], j);
+    }
+    for (uint i = 0u; i < ROWS; ++i)
+        if (lane == 0u && row0 + i < nout) stage[row0 + i - o0] = s[i];
+#else
+    uint rsub = lane / p.cluster, l = lane - rsub * p.cluster;
+    uint row = o0 + gl_SubgroupID * p.rows_per_sg + rsub;
+    float s = 0.0;
+    for (uint j = 0u; j < p.k; ++j) {
+        uint e = r * p.k + j, id = ids[e];
+        if (id == 0xffffffffu) continue;
+        s = combine_add(s, expert_w[e], ROLES ? row_dot(row, l, nout, p.type0, p.wide0, id * nout + row, e) : STAND_IN(0u), j);
+    }
+    if (l == 0u && row < nout) stage[row - o0] = s;
+#endif
+    barrier();
+#if defined(LLMX_SHARED_Q8) || defined(LLMX_SHARED_ROW)
+    // The shared expert's rows of the block, a pass of sh_rows at a time, against its twin column after every routed entry's.
+    pi = 1u;
+    uint col = p.tokens * p.k + r;
+    for (uint base = 0u; base < p.rows_wg; base += p.sh_rows) {
+#ifdef LLMX_SHARED_Q8
+        uint srow0 = o0 + base + gl_SubgroupID * ROWS;
+        float d[ROWS];
+        for (uint i = 0u; i < ROWS; ++i) d[i] = STAND_IN(i);
+        if (ROLES) q8_dots(srow0, nout, 0u, col, d);
+        for (uint i = 0u; i < ROWS; ++i) {
+            uint srow = srow0 + i;
+            if (lane == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d[i], nout);
+        }
+#else
+        uint srow = o0 + base + gl_SubgroupID * p.rows_per_sg + rsub;
+        float d = ROLES ? row_dot(srow, l, nout, p.sh_type, p.sh_wide, srow, col) : STAND_IN(0u);
+        if (l == 0u && srow < nout && srow - o0 < p.rows_wg) store(r, srow, stage[srow - o0], d, nout);
+#endif
+    }
+#else
+    // Without a shared expert the routed sum alone joins y.
+    uint t = gl_LocalInvocationIndex;
+    if (t < p.rows_wg && o0 + t < nout) {
+        float y0 = p.zero != 0u ? zero_row[o0 + t] : ys[0].y[r * nout + o0 + t];
+        ys[0].y[r * nout + o0 + t] = y0 + stage[t];
+    }
+#endif
+}

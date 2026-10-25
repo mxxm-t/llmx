@@ -16,29 +16,19 @@ run them.
   `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
   `shard_experts(roles, tensors, gate, up, down, ff, experts)`: a routed layer's split, the gate and up stacks by the `ff` rows of each expert and the down stack by as many columns, the router whole; each section carries the down stack's block size as its alignment, read from the tensor, so a member holds the blocks that cover its share ([shard](model-shard.md)); a shared expert is split by the same call as one expert.
 - `join(step, weight, in)`: a part's last projection, whose output joins the residual: `matmul_add` into the residual on one device, and on a tensor group the member's partial rows into `Step::partial`, which the runtime sums into every member's residual; `swiglu`'s down projection and the modules' attention and `ssm_out` projections go through it.
-  With `add`, a part's second such projection after its routed experts, a shared expert's, it adds to the partial rows they wrote.
 - `projection(weight, out)`: a weight's product into `out` for
   `matmul_group` and `matmul_experts`, the buffer passed by raw pointer so
   building one copies no shared pointer on the per-token path.
 - `embed(step, table, ids)`: the table's rows the ids name, into the
   residual.
-- `swiglu(step, gate, up, down, h, g, u, act, row_gate)`: the SwiGLU
+- `swiglu(step, gate, up, down, h, g, u, act)`: the dense SwiGLU
   feed-forward block over the normed rows `h`: gate and up grouped through
-  `matmul_group`, `silu_mul`, and the down projection added into the
-  residual through `matmul_add`, with the step's runs throughout. With
-  `row_gate`, one value a row, `sigmoid_mul` scales each row the down
-  projection reads by sigmoid of that value, as qwen35moe's shared expert
-  is gated.
-- `routed_experts(step, router, gate, up, down, k, norm, h, g, u, act,
-  scores, ids, weights)`: routed experts over the normed rows `h`: the
-  router's matmul into `scores`, `route_experts` choosing each row's k
-  experts into `ids` and `weights` (renormalized when `norm`),
-  `matmul_experts` for gate and up, `silu_mul`, and `matmul_experts_add`
-  into the residual, or on a tensor group into the member's partial rows, which the runtime hands this part cleared. The routed SiLU reads the expert products as k
-  entries a token row, so it rebuilds the runs for them (`end * k`) in
-  the step's run list (`Step::scratch`), which the runtime has reserved;
-  the down projection takes the step's runs unchanged. qwen3moe and
-  qwen35moe run it.
+  `matmul_group`, `silu_mul`, and the down projection joining the residual
+  through `join`, with the step's runs throughout.
+- `SharedExpert`: a routed layer's shared expert, its gate, up and down weights and the F32 vector gating its row, null for an ungated one.
+- `moe_step(step, router, gate, up, down, k, norm, h, g, u, act, scores, ids, weights, shared, row_gate, zero)`: a routed layer's feed-forward block as one backend op, `Backend::moe_step` ([backend](backends-backend.md)): the router's scores, each row's k experts (renormalized when `norm`), their SwiGLU and weighted down projections, then `shared`'s SwiGLU scaled by sigmoid of its row gate into `row_gate`, all joining the residual, or on a tensor group the member's partial rows, which the runtime hands this part cleared.
+  `g`, `u` and `act` hold a token's k routed rows and, past `rows * k` of them, the shared expert's rows, so the slots are as wide as both (the modules' slot widths); `zero`, a row of zeros the model keeps, has the step clear the residual first, as qwen4exp's expert block starts from zero.
+  It builds the op's operands from the weights and the step's run list (`Step::scratch`, where the base op rebuilds the routed SiLU's runs) and calls the backend once; qwen3moe, qwen35moe and qwen4exp run it.
 - `nextn_input(step, enorm, hnorm, eh_proj, pair, side, out, eps)`: an MTP
   block's input (docs/SPECULATIVE.md, section 7): `pair` holds the tokens'
   rows then the target's rows before them, each half normed in place, the

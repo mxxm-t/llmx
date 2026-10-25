@@ -143,13 +143,13 @@ enum Role : uint16_t {
 };
 enum Kind : uint8_t { linear, full };
 
-// The floats one row of a pass takes in each arena slot, the widest use either layer kind makes of it; on qwen35moe the feed-forward slots hold a token's k routed expert rows or the shared expert's row, whichever is wider.
+// The floats one row of a pass takes in each arena slot, the widest use either layer kind makes of it; on qwen35moe the feed-forward slots hold k routed expert rows and then the shared expert's.
 // Slots 0 to 9 are x, h, the mixer's working rows, the gates and the dense feed-forward rows, and on qwen35moe 10 to 13 hold router scores, expert ids, expert weights and the shared expert's gate (docs/src/model-arch-qwen35.md, Arena slots).
 inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t e = (size_t)c.n_embd, d = (size_t)c.head_dim;
     const size_t q = (size_t)c.n_head * d, kv = (size_t)c.n_head_kv * d;
     const size_t v = (size_t)c.v_heads * (size_t)c.v_dim, channels = 2 * (size_t)c.k_heads * (size_t)c.k_dim + v;
-    const size_t k = (size_t)c.n_expert_used, ff = std::max({(size_t)c.n_ff, k * (size_t)c.n_ff_exp, (size_t)c.n_ff_shexp});
+    const size_t k = (size_t)c.n_expert_used, ff = std::max((size_t)c.n_ff, k * (size_t)c.n_ff_exp + (size_t)c.n_ff_shexp);
     std::vector<size_t> w = {e, e, std::max(2 * q, channels), std::max(kv, channels), std::max(kv, v), std::max(q, 2 * (size_t)c.v_heads), std::max(q, v), ff, ff, ff};
     if (c.n_expert) w.insert(w.end(), {(size_t)c.n_expert, k, k, 1});
     return w;
@@ -259,12 +259,9 @@ public:
             blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, g, u, act);
             return;
         }
-        blocks::routed_experts(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
-                               h, g, u, act, s.slot(10), s.slot(11), s.slot(12));
-        const backend::Slice sg = s.slot(13);
-        const Weight& gate = w[ffn_gate_inp_shexp];
-        b.matmul(gate.type, gate.slice(), h, sg, E, 1, s.rows, s.runs, s.dtype);
-        blocks::swiglu(s, w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], h, g, u, act, &sg);
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], &w[ffn_gate_inp_shexp]};
+        blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+                         h, g, u, act, s.slot(10), s.slot(11), s.slot(12), &shared, s.slot(13));
     }
 
     void head(const HeadStep& s) const override { blocks::head(s, s.w[output_norm], s.w[output], cfg_.rms_eps, s.slot(1)); }

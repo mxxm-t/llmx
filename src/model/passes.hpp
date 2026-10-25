@@ -651,7 +651,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
     stage_submit(ctx, p, s, g);
 }
 
-// A member's partial rows cleared, `rows` of them, before a part whose routed experts add their weighted sum to them (blocks::routed_experts): a copy of zero rows the context keeps on the member.
+// A member's partial rows cleared, `rows` of them, before a part whose routed experts add their weighted sum to them (blocks::moe_step): a copy of zero rows the context keeps on the member.
 inline void Model::clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows) {
     devices_[dev]->b->copy(*partial.buffer, partial.offset * sizeof(float), *ctx.zeros[dev], 0, rows * plan_.residual * sizeof(float));
 }

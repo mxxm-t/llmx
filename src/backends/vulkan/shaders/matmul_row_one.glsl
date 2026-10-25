@@ -53,7 +53,7 @@
             float weight = quantized_at(type, wrow, p.nin, j);
 #endif
             for (uint c = 0u; c < ncols; ++c) {
-                float value = X_AT(XCOL(c) * p.nin + j);
+                float value = x[XCOL(c) * p.nin + j];
 #ifdef LLMX_MXFP4
                 uint wbits = floatBitsToUint(weight) & 0x7fffffffu, xbits = floatBitsToUint(value) & 0x7fffffffu;
                 uint exponent = (wbits >> 23u) + (xbits >> 23u);
@@ -84,7 +84,7 @@
                 uint col = XCOL(c), a = col * p.nin / 4u + block * 8u;
                 int lo = 0, hi = 0, ls = 0, hs = 0;
                 [[unroll]] for (uint w = 0u; w < 4u; ++w) {
-                    uvec2 xl = XQ2_AT(a + w), xh = XQ2_AT(a + w + 4u);
+                    uvec2 xl = xq2[a + w], xh = xq2[a + w + 4u];
                     lo = dot_pairs(codes[w], xl, lo);
                     hi = dot_pairs(codes[w + 4u], xh, hi);
 #ifdef LLMX_Q2
@@ -109,7 +109,7 @@
                 uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
                 // IQ3_XXS is largest: 32 * 1922 * 32767 = 2015301568, within int32.
                 int sum = 0;
-                for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], XQ2_AT(a2 + j), sum);
+                for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], xq2[a2 + j], sum);
                 float dx = xq_block(col, b).x, scale = dw * dx;
                 if (lookup_unsafe_scale(dw, dx, scale)) repair[c] = 1u;
                 acc[c] = fma(scale, float(sum), acc[c]);
@@ -143,7 +143,7 @@
 #else
                 precise float sum = 0.0;
                 for (uint j = 0u; j < 32u; j += 4u) {
-                    uvec2 q = XQ2_AT(a2 + j / 4u);
+                    uvec2 q = xq2[a2 + j / 4u];
                     sum += float(weights[j]) * float(lo16(q.x));
                     sum += float(weights[j + 1u]) * float(lo16(q.y));
                     sum += float(weights[j + 2u]) * float(hi16(q.x));
@@ -212,8 +212,8 @@
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a2 = xa_col(col) / 2u + b * 8u;
-                    int s = byte_dot(q0, XQ2_AT(a2)) + byte_dot(q1, XQ2_AT(a2 + 1u)) + byte_dot(q2, XQ2_AT(a2 + 2u)) + byte_dot(q3, XQ2_AT(a2 + 3u)) +
-                            byte_dot(q4, XQ2_AT(a2 + 4u)) + byte_dot(q5, XQ2_AT(a2 + 5u)) + byte_dot(q6, XQ2_AT(a2 + 6u)) + byte_dot(q7, XQ2_AT(a2 + 7u));
+                    int s = byte_dot(q0, xq2[a2]) + byte_dot(q1, xq2[a2 + 1u]) + byte_dot(q2, xq2[a2 + 2u]) + byte_dot(q3, xq2[a2 + 3u]) +
+                            byte_dot(q4, xq2[a2 + 4u]) + byte_dot(q5, xq2[a2 + 5u]) + byte_dot(q6, xq2[a2 + 6u]) + byte_dot(q7, xq2[a2 + 7u]);
 #ifdef LLMX_PRESERVE_F32
                     acc[c] = fma(scale, xq_block(col, b).x * float(s), acc[c]);
 #else
@@ -235,21 +235,21 @@
                 vec4 w3 = WEIGHT4(wbase4 + i + 3u * cl);
                 for (uint c = 0u; c < ncols; ++c) {
                     uint xb = XCOL(c) * n4 + i;
-                    acc[c] += dot(w0, X4_AT(xb));
-                    acc[c] += dot(w1, X4_AT(xb + cl));
-                    acc[c] += dot(w2, X4_AT(xb + 2u * cl));
-                    acc[c] += dot(w3, X4_AT(xb + 3u * cl));
+                    acc[c] += dot(w0, xt4[xb]);
+                    acc[c] += dot(w1, xt4[xb + cl]);
+                    acc[c] += dot(w2, xt4[xb + 2u * cl]);
+                    acc[c] += dot(w3, xt4[xb + 3u * cl]);
                 }
             }
             for (; i < n4; i += cl) {
                 vec4 w = WEIGHT4(wbase4 + i);
-                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, X4_AT(XCOL(c) * n4 + i));
+                for (uint c = 0u; c < ncols; ++c) acc[c] += dot(w, xt4[XCOL(c) * n4 + i]);
             }
         } else {
             uint wbase = wrow * p.nin;
             for (uint i = l; i < p.nin; i += p.cluster) {
                 float w = WEIGHT1(wbase + i);
-                for (uint c = 0u; c < ncols; ++c) acc[c] += w * X_AT(XCOL(c) * p.nin + i);
+                for (uint c = 0u; c < ncols; ++c) acc[c] += w * x[XCOL(c) * p.nin + i];
             }
         }
 #endif
@@ -268,7 +268,7 @@
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
                     Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1)
@@ -286,7 +286,7 @@
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
                     Q4_DOTS(n0, n1, n2, n3, lo0, lo1, hi0, hi1)
@@ -309,7 +309,7 @@
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
                     AFFINE_DOTS(w1, w2, w3, w4, hb, lo0, lo1, hi0, hi1)
@@ -345,12 +345,12 @@
                     QDOT pl = QDOT(0);
                     QDOT ph = QDOT(0);
                     {
-                        XQ4T lo = XQ4_AT(a4), hi = XQ4_AT(a4 + 4u);
+                        XQ4T lo = xq4[a4], hi = xq4[a4 + 4u];
                         nibble_dots(nq.x, fifth(hbv.x, sl), fifth(hbv.x, sl + 8u), fifth(hbv.x, sh), fifth(hbv.x, sh + 8u), XA(lo), XA(hi), pl, ph);
                         nibble_dots(nq.y, fifth(hbv.y, sl), fifth(hbv.y, sl + 8u), fifth(hbv.y, sh), fifth(hbv.y, sh + 8u), XB(lo), XB(hi), pl, ph);
                     }
                     {
-                        XQ4T lo = XQ4_AT(a4 + 1u), hi = XQ4_AT(a4 + 5u);
+                        XQ4T lo = xq4[a4 + 1u], hi = xq4[a4 + 5u];
                         nibble_dots(nq.z, fifth(hbv.z, sl), fifth(hbv.z, sl + 8u), fifth(hbv.z, sh), fifth(hbv.z, sh + 8u), XA(lo), XA(hi), pl, ph);
                         nibble_dots(nq.w, fifth(hbv.w, sl), fifth(hbv.w, sl + 8u), fifth(hbv.w, sh), fifth(hbv.w, sh + 8u), XB(lo), XB(hi), pl, ph);
                     }
@@ -376,7 +376,7 @@
                 for (uint c = 0u; c < ncols; ++c) {
                     uint col = XCOL(c);
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
-                    XQ4T x0v = XQ4_AT(a4), x1v = XQ4_AT(a4 + 4u), x2v = XQ4_AT(a4 + 8u), x3v = XQ4_AT(a4 + 12u);
+                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
 #ifdef LLMX_I8
                     int p0 = q6_dot(q0a, q0b, x0v), p1 = q6_dot(q1a, q1b, x1v), p2 = q6_dot(q2a, q2b, x2v), p3 = q6_dot(q3a, q3b, x3v);
 #else

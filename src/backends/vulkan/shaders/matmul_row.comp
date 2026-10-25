@@ -18,7 +18,12 @@ void main() {
     if (p.nproj > 2u && wg >= p.start2) pi = 2u;
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
 #if !defined(LLMX_IQ3_S) && !defined(LLMX_IQ2_S) && !defined(LLMX_IQ3_XXS) && !defined(LLMX_IQ2_SMALL) && !defined(LLMX_IQ1)
+#ifdef LLMX_ROW_F32
+    // The F32 family alone, a diagnostic build that backend-vulkan --isa holds the fused route step's rows to.
+    const uint type = TYPE_F32;
+#else
     uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
+#endif
 #endif
     uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);
     uint local_wg = wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2));

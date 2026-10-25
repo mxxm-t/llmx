@@ -94,25 +94,6 @@ layout(set = 0, binding = 7) readonly buffer XQ4 { uvec4 xq4[]; };
 #endif
 layout(set = 0, binding = 8) readonly buffer XT2 { vec2 xt2[]; };
 layout(set = 0, binding = 9) readonly buffer XT4 { vec4 xt4[]; };
-// The activation loads, one macro a view, which a kernel sharing these bodies may point elsewhere: the twin's words (XQ2_AT, XQ4_AT), its table (XT2_AT, XT4_AT) and the original floats (X_AT, X4_AT four at a time).
-#ifndef XQ2_AT
-#define XQ2_AT(i) xq2[i]
-#endif
-#ifndef XQ4_AT
-#define XQ4_AT(i) xq4[i]
-#endif
-#ifndef XT2_AT
-#define XT2_AT(i) xt2[i]
-#endif
-#ifndef XT4_AT
-#define XT4_AT(i) xt4[i]
-#endif
-#ifndef X_AT
-#define X_AT(i) x[i]
-#endif
-#ifndef X4_AT
-#define X4_AT(i) xt4[i]
-#endif
 // A routed call (per != 0, backend.hpp matmul_experts) runs one entry per workgroup row y: entry e reads X column e / per through the rows of expert ids[e] and writes output row e.
 layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert.
@@ -213,13 +194,13 @@ uint xa_col(uint c) { return c * p.nin / 2u; }
 #else
 #define XTAB2 (p.nbatch * p.nin / 4u)
 #endif
-vec2 xq_block(uint c, uint b) { return XT2_AT(XTAB2 + c * (p.nin / 32u) + b); }
+vec2 xq_block(uint c, uint b) { return xt2[XTAB2 + c * (p.nin / 32u) + b]; }
 // The scale entries of blocks 2j and 2j + 1 in one load.
-vec4 xq_pair(uint c, uint j) { return XT4_AT(XTAB2 / 2u + c * (p.nin / 64u) + j); }
+vec4 xq_pair(uint c, uint j) { return xt4[XTAB2 / 2u + c * (p.nin / 64u) + j]; }
 #ifdef LLMX_LOOKUP_DOT
 #include "dot16.glsl"
 float lookup_input(uint col, uint b, uint j) {
-    uvec2 pair = XQ2_AT(col * p.nin / 4u + b * 8u + j / 4u);
+    uvec2 pair = xq2[col * p.nin / 4u + b * 8u + j / 4u];
     uint word = (j & 1u) == 0u ? pair.x : pair.y;
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
@@ -242,7 +223,7 @@ float lookup_input(uint col, uint b, uint j) {
 #define K23_WORD(i) w32s[pi].w32[i]
 #include "dot16.glsl"
 float k23_input(uint col, uint b, uint j) {
-    uvec2 pair = XQ2_AT(col * p.nin / 4u + b * 8u + j / 4u);
+    uvec2 pair = xq2[col * p.nin / 4u + b * 8u + j / 4u];
     uint word = (j & 1u) == 0u ? pair.x : pair.y;
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
@@ -305,7 +286,7 @@ uint hword_at(uint byte_off) {
 #ifdef LLMX_Q8W
 // Word d of a Q8_0 pair shifted so block 0's words 0..7 hold values 4d..4d+3 and block 1's words 9..16 hold 32+4(d-9)..; word 8 is zero. `a2` is the pair's first pair-word couple.
 void q8_word(uint w, uint d, uint a2, inout int p0, inout int p1) {
-    int r = byte_dot(w, XQ2_AT(d < 8u ? a2 + d : a2 + 8u + d - 9u));
+    int r = byte_dot(w, xq2[d < 8u ? a2 + d : a2 + 8u + d - 9u]);
     if (d < 8u) p0 += r; else p1 += r;
 }
 #endif
@@ -407,9 +388,9 @@ float mxfp4_wide(uint row, uint col) {
 #endif
         for (uint j = 0u; j < 32u; ++j) {
 #ifdef LLMX_FLOAT_X
-            sum += double(mxfp4_at(o, j)) * double(X_AT(col * p.nin + block * 32u + j));
+            sum += double(mxfp4_at(o, j)) * double(x[col * p.nin + block * 32u + j]);
 #else
-            uvec2 pair = XQ2_AT(a2 + j / 4u);
+            uvec2 pair = xq2[a2 + j / 4u];
             uint word = (j & 1u) == 0u ? pair.x : pair.y;
             int q = (j & 2u) == 0u ? lo16(word) : hi16(word);
             sum += double(mxfp4_at(o, j)) * (double(q) * dx);
@@ -444,8 +425,8 @@ void mxfp4_pairs_of(uvec4 quants, out uint pairs[16]) {
 int mxfp4_dot(uint pairs[16], uint a2) {
     int isum = 0;
     for (uint k = 0u; k < 4u; ++k) {
-        isum += pair_dot(pairs[4u * k], pairs[4u * k + 1u], XQ2_AT(a2 + k));
-        isum += pair_dot(pairs[4u * k + 2u], pairs[4u * k + 3u], XQ2_AT(a2 + 4u + k));
+        isum += pair_dot(pairs[4u * k], pairs[4u * k + 1u], xq2[a2 + k]);
+        isum += pair_dot(pairs[4u * k + 2u], pairs[4u * k + 3u], xq2[a2 + 4u + k]);
     }
     return isum;
 }

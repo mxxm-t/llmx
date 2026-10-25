@@ -27,7 +27,7 @@
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     vec2 xb = xq_block(col, b);
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                         QDOT pl = QDOT(0);
@@ -52,7 +52,7 @@
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     vec2 xb = xq_block(col, b);
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                         QDOT pl = QDOT(0);
@@ -83,7 +83,7 @@
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + b * 4u;
-                    XQ4T lo0 = XQ4_AT(a4), lo1 = XQ4_AT(a4 + 1u), hi0 = XQ4_AT(a4 + 2u), hi1 = XQ4_AT(a4 + 3u);
+                    XQ4T lo0 = xq4[a4], lo1 = xq4[a4 + 1u], hi0 = xq4[a4 + 2u], hi1 = xq4[a4 + 3u];
                     vec2 xb = xq_block(col, b);
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                         QDOT pl = QDOT(0);
@@ -122,7 +122,7 @@
                 [[unroll]] for (uint cc = 0u; cc < MAX_COLS; ++cc) {
                     uint col = XCOL(min(cc, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + (b * 256u + c * 64u + h * 16u) / 8u;
-                    XQ4T lo0 = XQ4_AT(a4), hi0 = XQ4_AT(a4 + 4u), lo1 = XQ4_AT(a4 + 1u), hi1 = XQ4_AT(a4 + 5u);
+                    XQ4T lo0 = xq4[a4], hi0 = xq4[a4 + 4u], lo1 = xq4[a4 + 1u], hi1 = xq4[a4 + 5u];
                     vec4 xt = xq_pair(col, bl / 2u);   // d, ds of the low group, then the high
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                         QDOT pl = QDOT(0);
@@ -159,7 +159,7 @@
                 [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
                     uint col = XCOL(min(c, ncols - 1u));
                     uint a4 = xa_col(col) / 4u + (b * Q6_K_BLOCK + n * 128u + l0) / 8u;
-                    XQ4T x0v = XQ4_AT(a4), x1v = XQ4_AT(a4 + 4u), x2v = XQ4_AT(a4 + 8u), x3v = XQ4_AT(a4 + 12u);
+                    XQ4T x0v = xq4[a4], x1v = xq4[a4 + 4u], x2v = xq4[a4 + 8u], x3v = xq4[a4 + 12u];
                     vec4 xa = xq_pair(col, bg / 2u), xb = xq_pair(col, bg / 2u + 1u);   // d, ds of groups 0..3
                     [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
 #ifdef LLMX_I8

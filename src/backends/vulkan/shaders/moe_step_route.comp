@@ -1,0 +1,57 @@
+#version 450
+// The fused routed step's first kernel (backend.hpp moe_step): the router's and the shared expert's row gate's F32 rows, then the last workgroup to finish routes every row (moe_route.glsl).
+// Each workgroup makes its scores visible device-wide before counting itself on a device-scope counter; the last one reads them and resets the counter, so none waits on another.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#define LLMX_ROW_Y coherent
+// The experts, picks a row, whether to renormalize and the workgroups of the dispatch, which the counter counts to.
+#define LLMX_ROW_PUSH uint n_expert; uint k; uint normalize; uint total;
+#include "matmul_row.glsl"
+layout(set = 0, binding = 12) coherent readonly buffer S { float route_scores[]; };
+layout(set = 0, binding = 13) writeonly buffer I { uint route_ids[]; };
+layout(set = 0, binding = 14) writeonly buffer W { float route_weights[]; };
+layout(set = 0, binding = 15) coherent buffer N { uint finished; };
+// ROLES (14), false only in a diagnostic build, compiles the row products out, so the build's other instructions can be told from theirs (backend-vulkan --isa).
+layout(constant_id = 14) const bool ROLES = true;
+#define ROUTE_QUARTERS 4u
+#include "moe_route.glsl"
+shared bool last;
+
+void main() {
+    // The router's row workgroups, then the row gate's, as matmul_row.comp gives a group's projections their workgroups.
+    uint wg = gl_WorkGroupID.x;
+    if (p.nproj > 1u && wg >= p.start1) pi = 1u;
+    uint nout = pi == 0u ? p.nout0 : p.nout1;
+    // The router's and the row gate's rows are F32 by the host's rule (moe_build), so the body is compiled for that family alone.
+    const uint type = TYPE_F32;
+    uint wide = 0u;
+    uint local_wg = wg - (pi == 0u ? p.start0 : p.start1);
+    uint lane = gl_SubgroupInvocationID;
+    uint rsub = lane / p.cluster;
+    uint l = lane - rsub * p.cluster;
+    uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
+    uint col0 = gl_WorkGroupID.y * MAX_COLS, out0 = col0, wrow = row;
+    const uint ncols = MAX_COLS == 1u ? 1u : min(MAX_COLS, p.nbatch - col0);
+#define XCOL(c) (col0 + (c))
+#define OCOL(c) (out0 + (c))
+#define ROW_STORE(c, s) if (l == 0u && row < nout && c < ncols) ys[pi].y[OCOL(c) * nout + row] = s;
+    if (ROLES) {
+#include "matmul_row_one.glsl"
+    }
+    memoryBarrierBuffer();
+    barrier();
+    if (gl_LocalInvocationIndex == 0u) last = atomicAdd(finished, 1u) == p.total - 1u;
+    barrier();
+    if (!last) return;
+    memoryBarrierBuffer();
+    // Four rows at a time, a quarter of 64 lanes each: one subgroup of 64 or two of 32, holding experts in the lane order moe_route.comp holds them.
+    uint q = gl_SubgroupSize >= 64u ? gl_SubgroupID : gl_SubgroupID / 2u;
+    uint t = gl_SubgroupSize >= 64u ? gl_SubgroupInvocationID : (gl_SubgroupID & 1u) * 32u + gl_SubgroupInvocationID;
+    for (uint r0 = 0u; r0 < p.nbatch; r0 += ROUTE_QUARTERS) {
+        uint r = r0 + q;
+        route_row(min(r, p.nbatch - 1u), t, q, r < p.nbatch, p.n_expert, p.k, p.normalize != 0u);
+        barrier();
+    }
+    if (gl_LocalInvocationIndex == 0u) atomicExchange(finished, 0u);
+}

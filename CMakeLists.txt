@@ -68,7 +68,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS copy_mxfp4 add sum_rows silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
         kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
-        quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group attention_vec
+        quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act attention_vec
         sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
         kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide)
@@ -84,7 +84,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_q8mx=matmul_tile_q=LLMX_Q8+LLMX_Q8MX+LLMX_PRESERVE_F32
         embed_mxfp4=embed=LLMX_MXFP4 matmul_tile_mxfp4=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_tile_mxfp4_bf16=matmul_tile=LLMX_MXFP4+LLMX_PRESERVE_F32+LLMX_BF16 matmul_reduce_mxfp4=matmul_reduce=LLMX_MXFP4+LLMX_PRESERVE_F32
-        matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
+        matmul_row_f32_only=matmul_row=LLMX_ROW_F32 matmul_row_q8w=matmul_row=LLMX_Q8W matmul_row_q4=matmul_row=LLMX_Q4 matmul_row_k4=matmul_row=LLMX_K4 matmul_row_k5=matmul_row=LLMX_K5
         matmul_tile_iq1_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ1+LLMX_IQ1_S+LLMX_PRESERVE_F32
         matmul_tile_iq1_m_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ1+LLMX_IQ1_M+LLMX_PRESERVE_F32
         matmul_tile_iq2_s_dot=matmul_tile_q=LLMX_Q8+LLMX_IQ2_S+LLMX_PRESERVE_F32
@@ -166,6 +166,31 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
         silu_scaled_preserve=silu_scaled=LLMX_PRESERVE_F32 mix_streams_preserve=mix_streams=LLMX_PRESERVE_F32
         inject_streams_preserve=inject_streams=LLMX_PRESERVE_F32
+        moe_combine_preserve=moe_combine=LLMX_PRESERVE_F32
+        moe_step_route_s1=moe_step_route=LLMX_SLOTS1
+        moe_step_route_s2=moe_step_route=LLMX_SLOTS2
+        moe_step_route_s4=moe_step_route=LLMX_SLOTS4
+        moe_step_route_s8=moe_step_route=LLMX_SLOTS8
+        moe_step_up_k4q8=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_SHARED_Q8
+        moe_step_up_k4q8_i8=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8
+        moe_step_up_k4q8_preserve=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
+        moe_step_up_k4q8_i8_preserve=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_up_k4=moe_step_up=LLMX_K4+LLMX_DOT
+        moe_step_up_k4_i8=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_I8
+        moe_step_up_k4_preserve=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_PRESERVE_F32
+        moe_step_up_k4_i8_preserve=moe_step_up=LLMX_K4+LLMX_DOT+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_down_q8=moe_step_down=LLMX_ROUTED_Q8
+        moe_step_down_q8_i8=moe_step_down=LLMX_ROUTED_Q8+LLMX_Q8_I8
+        moe_step_down_q8_preserve=moe_step_down=LLMX_ROUTED_Q8+LLMX_PRESERVE_F32
+        moe_step_down_q8_i8_preserve=moe_step_down=LLMX_ROUTED_Q8+LLMX_Q8_I8+LLMX_PRESERVE_F32
+        moe_step_down_q5q8=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8
+        moe_step_down_q5q8_i8=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8
+        moe_step_down_q5q8_preserve=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_PRESERVE_F32
+        moe_step_down_q5q8_i8_preserve=moe_step_down=LLMX_Q4+LLMX_Q5+LLMX_DOT+LLMX_SHARED_Q8+LLMX_I8+LLMX_PRESERVE_F32
+        moe_step_down_k=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW
+        moe_step_down_k_i8=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW+LLMX_I8
+        moe_step_down_k_preserve=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW+LLMX_PRESERVE_F32
+        moe_step_down_k_i8_preserve=moe_step_down=LLMX_KQUANT+LLMX_DOT+LLMX_SHARED_ROW+LLMX_I8+LLMX_PRESERVE_F32
         matmul_row_q4_preserve=matmul_row=LLMX_Q4+LLMX_PRESERVE_F32
         matmul_row_q4_dot_preserve=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_k4_dot_preserve=matmul_row=LLMX_K4+LLMX_DOT+LLMX_PRESERVE_F32
@@ -288,6 +313,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
                     ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
                     ${LLMX_VK_SHADER_DIR}/matmul_row.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_one.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_two.glsl
                     ${LLMX_VK_SHADER_DIR}/matmul_vec_q8.glsl ${LLMX_VK_SHADER_DIR}/matmul_vec_q8_one.glsl
+                    ${LLMX_VK_SHADER_DIR}/moe_route.glsl ${LLMX_VK_SHADER_DIR}/moe_combine.glsl ${LLMX_VK_SHADER_DIR}/silu_mul.glsl ${LLMX_VK_SHADER_DIR}/sigmoid_mul.glsl
                     ${LLMX_VK_SHADER_DIR}/tq.glsl ${LLMX_VK_SHADER_DIR}/tq_packed.glsl ${LLMX_VK_SHADER_DIR}/tq_dot.glsl ${LLMX_VK_SHADER_DIR}/tq_layout.glsl ${LLMX_VK_SHADER_DIR}/k23_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_small.glsl ${LLMX_VK_SHADER_DIR}/iq2_layout.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)

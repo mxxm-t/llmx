@@ -17,7 +17,7 @@ names it.
   layer is routed when `blk.N.ffn_gate_inp.weight` is
   present, its experts the stacked `ffn_{gate,up,down}_exps` tensors, so
   dense and routed layers can mix. A routed feed-forward block is
-  `blocks::routed_experts` ([blocks](model-arch-blocks.md)); the arena gains the router scores, expert ids and weights as slots 9 to
+  `blocks::moe_step` ([blocks](model-arch-blocks.md)), one backend op; the arena gains the router scores, expert ids and weights as slots 9 to
   11, and the feed-forward slots are as wide as a dense layer or k
   experts, whichever is wider.
 

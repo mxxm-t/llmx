@@ -84,17 +84,18 @@ conversation's prefix through state checkpoints ([server](server.md)).
     attn_q's rows or the raw qkv rows, k or the conv's output, v or z, the
     normed and rotated q or alpha then beta, the attention's or the
     recurrence's output, and the feed-forward block's gate, up and output,
-    as wide as the dense block, k routed expert rows or the shared expert,
-    whichever is widest. A qwen35moe plan adds four: the router's scores,
+    as wide as the dense block or k routed expert rows and the shared
+    expert's after them, whichever is wider. A qwen35moe plan adds four: the router's scores,
     the expert ids and weights, and the shared expert's gate.
   - `fill_tables`: the rope's cos and sin over the rotated pairs,
     `[pos * (rope_dim / 2) + i]` at frequency `rope_theta^(-2i/rope_dim)`.
   - `embed`, `ffn` and `head` are the shared pieces of
     [blocks](model-arch-blocks.md), the feed-forward block after the
     `post_attention_norm` norm: `swiglu` on qwen35, and on qwen35moe
-    `routed_experts`, then the shared expert's gate as a one-column
-    `matmul` and `swiglu` with that row gate, each adding into the
-    residual. `mixer` norms the residual with
+    `moe_step` with the shared expert and its gate, one backend op whose
+    base runs the routed experts, then the shared expert's gate as a
+    one-column `matmul` and its SwiGLU scaled by that row gate, each adding
+    into the residual. `mixer` norms the residual with
     `attn_norm` and runs the layer's kind:
     - full attention: q with its gates, k and v through one
       `matmul_group`; `norm_rope_partial` from q's rows between the gates

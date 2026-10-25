@@ -26,6 +26,8 @@
 namespace backend {
 namespace {
 
+struct MoeBuild;   // the fused routed step's builds (vulkan_moe.hpp)
+
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
     friend struct VulkanQuantizationTest;
@@ -164,6 +166,7 @@ public:
         e12.shaderInt8 = VK_TRUE;
         e12.shaderFloat16 = f12.shaderFloat16;
         e12.storageBuffer8BitAccess = VK_TRUE;
+        d.workgroup_counter = missing_counter_need(sg.subgroupSize).empty();
         VkPhysicalDeviceVulkan11Features e11{};
         e11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
         e11.pNext = &e12;
@@ -328,6 +331,8 @@ public:
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
+        for (auto& variants : role_free_)
+            for (VkPipeline p : variants) if (p) d.fn.vkDestroyPipeline(d.device, p, nullptr);
         for (auto& variants : kernels_)
             for (Kernel& k : variants) destroy_kernel(k);
         for (VkQueryPool q : queries_) d.fn.vkDestroyQueryPool(d.device, q, nullptr);
@@ -345,6 +350,7 @@ public:
         if (is_vec_kernel((KernelId)id) && variant == kVecOneRow) return std::string(kKernelNames[id]) + "_1col_1row";
         if (is_vec_kernel((KernelId)id) && variant == kVecTwoSteps) return std::string(kKernelNames[id]) + "_1col_2step";
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
+        if (moe_step_kernel((KernelId)id)) return std::string(kKernelNames[id]) + (variant == kVecOneRow ? "_1row" : variant == kVecTwoSteps ? "_2step" : variant == 1 ? "_1col" : "");
         return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
     }
 
@@ -429,28 +435,17 @@ public:
         std::vector<std::pair<std::string, std::string>> out;
         const Device& d = *dev_;
         if (!d.exec_ir) return out;
-        for (int slot = 0; slot < K_COUNT * kVariants; ++slot) {
-            const int id = slot / kVariants, variant = slot % kVariants;
-            const Kernel& k = kernels_[id][variant];
-            if (!k.pipeline) continue;
+        // A pipeline's internal representations as text, appended to `text`; false where the driver reports none.
+        const auto pipeline_text = [&d](VkPipeline pipeline, std::string& text) {
             VkPipelineInfoKHR pi{};
             pi.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
-            pi.pipeline = k.pipeline;
+            pi.pipeline = pipeline;
             uint32_t n = 0;
-            if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) continue;
-            std::string text;
-            if (is_vec_kernel((KernelId)id)) {
-                const VecBuild& b = kVecBuilds[variant];
-                const uint32_t forms = vec_forms(variant, d.profile);
-                text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
-                       " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) + "\n";
-            } else if (build_rows((KernelId)id, variant) > 1) {
-                text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) + "\n";
-            }
+            if (d.get_exec_props(d.device, &pi, &n, nullptr) != VK_SUCCESS) return false;
             for (uint32_t e = 0; e < n; ++e) {
                 VkPipelineExecutableInfoKHR ei{};
                 ei.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
-                ei.pipeline = k.pipeline;
+                ei.pipeline = pipeline;
                 ei.executableIndex = e;
                 uint32_t nr = 0;
                 if (d.get_exec_ir(d.device, &ei, &nr, nullptr) != VK_SUCCESS) continue;
@@ -479,7 +474,25 @@ public:
                     text += '\n';
                 }
             }
+            return true;
+        };
+        for (int slot = 0; slot < K_COUNT * kVariants; ++slot) {
+            const int id = slot / kVariants, variant = slot % kVariants;
+            const Kernel& k = kernels_[id][variant];
+            if (!k.pipeline) continue;
+            std::string text;
+            if (is_vec_kernel((KernelId)id)) {
+                const VecBuild& b = kVecBuilds[variant];
+                const uint32_t forms = vec_forms(variant, d.profile);
+                text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
+                       " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) + "\n";
+            } else if (build_rows((KernelId)id, variant) > 1) {
+                text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) + "\n";
+            }
+            if (!pipeline_text(k.pipeline, text)) continue;
             out.emplace_back(kernel_variant_name(id, variant), std::move(text));
+            std::string bare;
+            if (role_free_[id][variant] && pipeline_text(role_free_[id][variant], bare)) out.emplace_back(kernel_variant_name(id, variant) + "_noroles", std::move(bare));
         }
         return out;
     }
@@ -1282,6 +1295,10 @@ public:
                             const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16) override;
     void routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
                      CSlice ids, size_t n_expert, bool tile, Dtype dtype, size_t per = 0);
+    void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
+    const MoeBuild* moe_build(const MoeStep& m, size_t nin, size_t rows, RowRuns runs, Dtype dtype) const;
+    // The decode rows a fused routed step takes at most, the columns the decode-column checks reach.
+    static constexpr size_t kMoeStepRows = 64;
     void check_matrix(uint32_t type, CSlice data, size_t nin, size_t rows, const char* what = "matrix") const;
     size_t take_twin(size_t n, VkDescriptorBufferInfo x = {});
     VkDescriptorBufferInfo twin_binding(size_t slot) const;
@@ -1519,6 +1536,7 @@ private:
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
+    std::shared_ptr<VulkanBuffer> moe_count_; // the fused routed step's finished workgroups, zero between calls (shaders/moe_step_route.comp)
     // Which ids moe_tab_ groups: their location and count, cleared by every routing, by a new buffer (drop_tags) and by any write, copy or dispatch over its ids (forget_written).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
@@ -1542,6 +1560,8 @@ private:
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT][kVariants];
+    // A diagnostic backend's fused routed kernels without their row products (kernel, constant 14), for the instruction counts of backend-vulkan --isa.
+    VkPipeline role_free_[K_COUNT][kVariants] = {};
 };
 
 } // namespace
@@ -1551,6 +1571,7 @@ private:
 #include "backends/vulkan/vulkan_dispatch.hpp"
 #include "backends/vulkan/vulkan_twins.hpp"
 #include "backends/vulkan/vulkan_matmul.hpp"
+#include "backends/vulkan/vulkan_moe.hpp"
 #include "backends/vulkan/vulkan_attention.hpp"
 #include "backends/vulkan/vulkan_collective.hpp"
 

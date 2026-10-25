@@ -239,8 +239,8 @@ public:
         b.rms_norm_rows(h, x, w[ffn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
 
         if (s.kind == routed) {
-            blocks::routed_experts(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
-                                   h, gate, up, ffn, s.slot(9), s.slot(10), s.slot(11));
+            blocks::moe_step(s, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], (size_t)cfg_.n_expert_used, cfg_.expert_norm,
+                             h, gate, up, ffn, s.slot(9), s.slot(10), s.slot(11));
             return;
         }
         blocks::swiglu(s, w[ffn_gate], w[ffn_up], w[ffn_down], h, gate, up, ffn);

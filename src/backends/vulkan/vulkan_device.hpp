@@ -202,6 +202,7 @@ struct Device {
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     bool mxfp4 = false; // exact weight range and wide partials require optional float preservation and double
     bool preserve_float32 = false; // optional matrix modules retain subnormal values
+    bool workgroup_counter = false; // the fused routed step's routing by the last workgroup (missing_counter_need)
     std::string identity;          // the device and the driver that compiles its kernels (Backend::identity)
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)

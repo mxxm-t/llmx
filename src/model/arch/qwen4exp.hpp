@@ -85,24 +85,12 @@ inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Sl
     s.b.mix_streams(out, tmp.normed, tmp.gates, s.rows, H, E, s.runs);
 }
 
-// Copy the model's zero row, then double disjoint copies without host allocations or per-token uploads.
-inline void clear_rows(const Step& s, backend::Slice dst, size_t width) {
-    if (!s.rows) return;
-    s.b.copy(*dst.buffer, dst.offset * sizeof(float), *s.tables[2], 0, width * sizeof(float));
-    for (size_t done = 1; done < s.rows;) {
-        const size_t count = std::min(done, s.rows - done);
-        s.b.copy(*dst.buffer, (dst.offset + done * width) * sizeof(float), *dst.buffer,
-                 dst.offset * sizeof(float), count * width * sizeof(float));
-        done += count;
-    }
-}
-
 // On a group, inject into zeroed full-stream partials for the existing residual collective.
 inline void inject(const Config& c, const Step& s, const Weight& w, backend::CSlice normed,
                    backend::CSlice block, backend::Slice gates) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count);
     s.b.matmul(w.type, w.slice(), normed, gates, H * E, H, s.rows, s.runs, s.dtype);
-    if (s.width > 1) clear_rows(s, s.partial, H * E);
+    if (s.width > 1) s.b.repeat_row(s.partial, *s.tables[2], s.rows, H * E);
     s.b.inject_streams(s.width > 1 ? s.partial : s.x, block, gates, s.rows, H, E);
 }
 
@@ -588,7 +576,7 @@ inline std::vector<size_t> slot_widths(const Config& c) {
     const size_t E = size_t(c.n_embd), R = size_t(c.hc_count) * E;
     const size_t Q = size_t(c.n_head) * size_t(c.head_dim), KV = size_t(c.n_head_kv) * size_t(c.head_dim);
     const size_t V = size_t(c.v_heads) * size_t(c.v_dim), C = 2 * size_t(c.k_heads) * size_t(c.k_dim) + V;
-    const size_t F = std::max(size_t(c.n_expert_used) * size_t(c.n_ff_exp), size_t(c.n_ff_shexp));
+    const size_t F = size_t(c.n_expert_used) * size_t(c.n_ff_exp) + size_t(c.n_ff_shexp);
     return {R, E, std::max(C, 2 * Q), std::max(C, KV), std::max(V, KV), 2 * size_t(c.v_heads), std::max(V, Q),
             F, F, F, size_t(c.n_expert), size_t(c.n_expert_used), size_t(c.n_expert_used), 1,
             R, size_t(c.hc_low_rank), R, E, Q,
@@ -710,18 +698,13 @@ public:
         mix(cfg_, s, {s.w[hc_ffn_norm], s.w[hc_ffn_down], s.w[hc_ffn_up]}, s.slot(mixed), mix_scratch(s));
         Step block = s;
         block.x = s.slot(block_output);
-        // Accumulate this member's expert products locally before mapping them into stream partials.
+        // Accumulate this member's expert products locally, from zero, before mapping them into stream partials.
         block.width = 1;
-        clear_rows(block, block.x, size_t(cfg_.n_embd));
         const Weight* w = s.w;
-        const backend::Slice h = s.slot(mixed), g = s.slot(expert_gate), u = s.slot(expert_up), act = s.slot(expert_act);
-        blocks::routed_experts(block, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps],
-                               size_t(cfg_.n_expert_used), cfg_.expert_norm, h, g, u, act,
-                               s.slot(scores), s.slot(expert_ids), s.slot(expert_weights));
-        const backend::Slice gate = s.slot(shared_gate);
-        s.b.matmul(w[ffn_gate_inp_shexp].type, w[ffn_gate_inp_shexp].slice(), h, gate,
-                   size_t(cfg_.n_embd), 1, s.rows, s.runs, s.dtype);
-        blocks::swiglu(block, w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], h, g, u, act, &gate);
+        const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], &w[ffn_gate_inp_shexp]};
+        blocks::moe_step(block, w[ffn_gate_inp], w[ffn_gate_exps], w[ffn_up_exps], w[ffn_down_exps], size_t(cfg_.n_expert_used), cfg_.expert_norm,
+                         s.slot(mixed), s.slot(expert_gate), s.slot(expert_up), s.slot(expert_act), s.slot(scores), s.slot(expert_ids), s.slot(expert_weights),
+                         &shared, s.slot(shared_gate), s.tables[2].get());
         inject(cfg_, s, w[hc_ffn_inject], s.slot(hc_normed), block.x, s.slot(hc_gates));
     }
 

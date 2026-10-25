@@ -4430,7 +4430,7 @@ MoeIsa check_moe_step_isa(const std::vector<std::pair<std::string, std::string>>
         const std::string vec = std::string(i8 ? "matmul_vec_q8_i8" : "matmul_vec_q8") + (build == "_1row" ? "_1col_1row" : build == "_2step" ? "_1col_2step" : "_1col");
         const std::string dot = i8 ? "_i8_1col" : "_dot_1col";
         std::vector<std::string> parts;
-        if (starts(name, "moe_step_route")) parts = {"matmul_row_f32" + build};
+        if (starts(name, "moe_step_route")) parts = {"matmul_row_f32_only" + build};
         else if (starts(name, "moe_step_up_k4q8")) parts = {"matmul_row_k4" + dot, vec};
         else if (starts(name, "moe_step_up_k4")) parts = {"matmul_row_k4" + dot};
         else if (starts(name, "moe_step_down_q5q8")) parts = {"matmul_row_q5" + dot, vec};

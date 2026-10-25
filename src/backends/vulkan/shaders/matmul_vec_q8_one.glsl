@@ -66,12 +66,12 @@
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) {
                     uint col = XCOL(min(g + j, ncols - 1u));
 #ifdef LLMX_I8
-                    xa[j] = XQ_AT(col * nin16 + lx);
+                    xa[j] = xq[col * nin16 + lx];
 #else
-                    xa[j] = XQ_AT(2u * (col * nin16 + lx));
-                    xb[j] = XQ_AT(2u * (col * nin16 + lx) + 1u);
+                    xa[j] = xq[2u * (col * nin16 + lx)];
+                    xb[j] = xq[2u * (col * nin16 + lx) + 1u];
 #endif
-                    dx[j] = XT2_AT(xtab + col * nblk + lb).x;
+                    dx[j] = xt2[xtab + col * nblk + lb].x;
                 }
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) {
                     [[unroll]] for (uint j = 0u; j < GROUP; ++j) HALF_PRODUCTS(j)
@@ -91,12 +91,12 @@
 // Column g + J's products of step d, one for each row, added to its accumulators.
 #ifdef LLMX_I8
 #define QXT uvec2
-#define QX(i) XQ8_AT(i)
+#define QX(i) xq8[i]
 #define QX0(J) xa[J].x
 #define QX1(J) xa[J].y
 #else
 #define QXT uvec4
-#define QX(i) XQ_AT(i)
+#define QX(i) xq[i]
 #define QX0(J) xa[J].xy
 #define QX1(J) xa[J].zw
 #endif
@@ -131,7 +131,7 @@
                 [[unroll]] for (uint j = 0u; j < GROUP; ++j) { \
                     uint col = XCOL(min(g + j, ncols - 1u)); \
                     xa[j] = QX((col * p.nin + bd * 32u + q * 8u) / 8u); \
-                    dx[j] = XT2_AT(xtab + col * nblk + bd).x; \
+                    dx[j] = xt2[xtab + col * nblk + bd].x; \
                 } \
                 if (!PARTIAL || 2u * g < MAX_COLS || g + GROUP <= ncols) { \
                     [[unroll]] for (uint j = 0u; j < GROUP; ++j) COLUMN_PRODUCTS(j) \

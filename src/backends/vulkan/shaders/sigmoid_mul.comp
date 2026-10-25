@@ -10,11 +10,12 @@ layout(set = 0, binding = 1) readonly buffer X { float x[]; };
 layout(set = 0, binding = 2) readonly buffer G { float gate[]; };
 layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
+#include "sigmoid_mul.glsl"
 float gated(uint i) {
     uint r = i / p.width, rem = i - r * p.width;
     uint h = rem / p.dim, d = rem - h * p.dim;
     float g = gate[r * p.gate_stride + h * p.gate_head_stride + d];
-    return x[i] * (1.0 / (1.0 + exp(-g)));
+    return sigmoid_scale(x[i], g);
 }
 void main() {
     uint i = gl_GlobalInvocationID.x;

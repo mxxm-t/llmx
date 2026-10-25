@@ -34,7 +34,8 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
   Its convolution tail is the layer's F32 `state_tail`; `ple_recur` replays that update from saved normalized and gated rows during a recurrent rerun.
 - `mix(config, step, weights, out, scratch)` and `inject(config, step, weight, normed, block, gates)`: mix normalized streams through the learned down and up projections, keeping the normalized streams in `scratch.normed`, then inject a block result into the original streams through learned per-stream gates.
   The architecture also wires the GDN recurrence and convolution, QSA index selection and selected-KV attention, routed and shared experts, PLE lookup and convolution, per-block HC and the final HC head.
-  On a tensor group, injection writes zeroed full-stream partials for the runtime's residual sum, so the original residual is not added once per member.
+  The routed and shared experts are one `blocks::moe_step` call ([blocks](model-arch-blocks.md)) into the block's output rows, cleared first from the model's zero row (`tables[2]`); the expert slots hold k routed rows and the shared expert's rows after them.
+  On a tensor group, injection writes zeroed full-stream partials for the runtime's residual sum (`Backend::repeat_row` from the same zero row), so the original residual is not added once per member.
   PLE replay inputs are saved whole on each member, while GDN inputs follow its sharded head tiles.
 - The recurrent output uses sigmoid gating through `NormGate::sigmoid`, where Qwen35's gated normalization keeps SiLU; the released GGUF carries no key for it, so the module fixes sigmoid.
 - `plan_drafter`, `draft_rows` and `draft`: the optional MTP block uses the target's raw HC-wide residual and the residual-sized carried rows, marks and KV layer.

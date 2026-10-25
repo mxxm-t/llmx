@@ -1,0 +1,73 @@
+#version 450
+// The fused routed step's gate and up products (backend.hpp moe_step): workgroup row y below `entries` is routed entry y, against its token's twin column, and each row above a token's shared expert.
+// Each takes the body of the kernel the unfused step runs it in: matmul_row.comp's for its family, or with LLMX_SHARED_Q8 the Q8_0 decode kernel's for the shared expert.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#define LLMX_ROW_PROJ 4
+// Routed entries in all, the shared expert's up workgroups' start, and its type and wide flag.
+#define LLMX_ROW_PUSH uint entries; uint sh_start1; uint sh_type; uint sh_wide;
+#include "matmul_row.glsl"
+#ifdef LLMX_SHARED_Q8
+#include "dot16.glsl"
+layout(constant_id = 10) const uint STEPS = 1;
+layout(constant_id = 11) const bool TREE = false;
+layout(constant_id = 12) const bool HALF = false;
+layout(constant_id = 13) const uint SPAN = 1;
+#ifdef LLMX_I8
+layout(set = 0, binding = 6) readonly buffer XQ8 { uvec2 xq8[]; };
+#endif
+layout(set = 0, binding = 7) readonly buffer XQ { uvec4 xq[]; };
+#include "matmul_vec_q8.glsl"
+#endif
+
+// ROLES (14), false only in a diagnostic build, compiles the row products out, so the build's other instructions can be told from theirs (backend-vulkan --isa).
+layout(constant_id = 14) const bool ROLES = true;
+#define XCOL(c) (col0 + (c))
+#define OCOL(c) (out0 + (c))
+// A row family's dot of weight row `wrow` with twin column col0 into output row out0, by the first lane of the row's cluster.
+void row_role(uint local_wg, uint nout, uint type, uint wide, uint wrow_base, uint col0, uint out0) {
+    uint lane = gl_SubgroupInvocationID;
+    uint rsub = lane / p.cluster;
+    uint l = lane - rsub * p.cluster;
+    uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
+    uint wrow = wrow_base + row;
+    const uint ncols = 1u;
+#define ROW_STORE(c, s) if (l == 0u && row < nout) ys[pi].y[OCOL(c) * nout + row] = s;
+#include "matmul_row_one.glsl"
+}
+#ifdef LLMX_SHARED_Q8
+// The Q8_0 decode kernel's dot of its subgroup's rows, as row_role.
+void q8_role(uint local_wg, uint nout, uint col0, uint out0) {
+    uint lane = gl_SubgroupInvocationID, S = gl_SubgroupSize;
+    uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
+    uint wrow0 = 0u;
+    if (row0 >= nout) return;
+    const uint ncols = 1u;
+#define VEC_TREE_STORE(c, row, v) if (writer && row < nout) ys[pi].y[OCOL(c) * nout + row] = v;
+#define VEC_STORE(c, row, s) if (lane == 0u && row < nout) ys[pi].y[OCOL(c) * nout + row] = s;
+#include "matmul_vec_q8_one.glsl"
+}
+#endif
+
+void main() {
+    uint wg = gl_WorkGroupID.x, y = gl_WorkGroupID.y;
+    uint nout = p.nout0;
+    if (y < p.entries) {
+        // A routed entry: gate rows then up rows, an entry without an expert leaving its rows as they were.
+        uint id = ids[y];
+        if (id == 0xffffffffu || wg >= 2u * p.start1) return;
+        pi = wg >= p.start1 ? 1u : 0u;
+        if (ROLES) row_role(wg - pi * p.start1, nout, p.type0, p.wide0, id * nout, y / p.per, y);
+        return;
+    }
+    // A token's shared expert, its rows after every routed entry's.
+    uint r = y - p.entries;
+    if (wg >= 2u * p.sh_start1) return;
+    pi = wg >= p.sh_start1 ? 3u : 2u;
+#ifdef LLMX_SHARED_Q8
+    if (ROLES) q8_role(wg - (pi - 2u) * p.sh_start1, nout, r, y);
+#else
+    if (ROLES) row_role(wg - (pi - 2u) * p.sh_start1, nout, p.sh_type, p.sh_wide, 0u, r, y);
+#endif
+}

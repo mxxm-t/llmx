@@ -645,17 +645,44 @@ def shader_findings(texts):
             if d not in t:
                 add("CMakeLists.txt", name + " " + d, "%s.comp and its includes never test %s, so the variant is the base module" % (src, d))
     all_defs = {d for _, defs in entries.values() for d in defs}
+
+    def reach(path, seen):
+        """The shader files `path` reaches through its includes, itself among them."""
+        if path in seen or path not in shader_texts:
+            return seen
+        seen.add(path)
+        for i in includes(path):
+            reach(i, seen)
+        return seen
+
+    reached_by = {src: reach(src + ".comp", set()) for src in sources}
+    # A define an include shared by several sources tests is set where any source including that file sets it, as the row kernels' header serves the fused kernels too.
+    shared_set = collections.defaultdict(set)
+    for src, files in reached_by.items():
+        for (s2, x) in set_by:
+            if s2 == src:
+                for f in files:
+                    shared_set[f].add(x)
     for src in sorted(sources):
         t, d = tested(src + ".comp", set())
         for x in sorted(t):
             if x.startswith("GL_") or x in d or (src, x) in set_by:
                 continue
+            if any(x in shared_set[f] and x in tested(f, set())[0] for f in reached_by[src] if f != src + ".comp"):
+                continue
             add(SHADERS + src + ".comp", x, "tested but nothing sets it")
+    # A default a shader overrides with its own #define before it includes the file, as a fused kernel sets the row kernels' hooks.
+    overridden = collections.defaultdict(set)
+    for src, files in reached_by.items():
+        own = set(re.findall(r"^\s*#\s*define\s+(\w+)", code_of(shader_texts.get(src + ".comp", "")), re.M))
+        for f in files:
+            if f != src + ".comp":
+                overridden[f] |= own
     for p in sorted(reached):
         lines = code_of(shader_texts[p]).split("\n")
         for n, line in enumerate(lines):
             m = re.match(r"\s*#\s*ifndef\s+(\w+)", line)
-            if not m or m.group(1) in all_defs or m.group(1).endswith("_GLSL"):
+            if not m or m.group(1) in all_defs or m.group(1) in overridden[p] or m.group(1).endswith("_GLSL"):
                 continue
             depth = 1
             for later in lines[n + 1:]:

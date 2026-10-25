@@ -35,13 +35,3 @@ float partner(float v, uint l) {
     if (l == 4u) return subgroupShuffleXor(v, 16u);
     return subgroupShuffleXor(v, 32u);
 }
-// The activation loads, one macro a view, which a kernel sharing the body may point elsewhere: the 16-bit twin's words (XQ_AT), the 8-bit twin's (XQ8_AT) and the table (XT2_AT).
-#ifndef XQ_AT
-#define XQ_AT(i) xq[i]
-#endif
-#ifndef XQ8_AT
-#define XQ8_AT(i) xq8[i]
-#endif
-#ifndef XT2_AT
-#define XT2_AT(i) xt2[i]
-#endif

@@ -980,6 +980,14 @@ BenchDrafter bench_drafter(const std::string& d, size_t draft_max) {
     return {source == "embedded", source == "embedded" || source == "off" ? std::string() : source, draft_max};
 }
 
+// The fixed ids a model bench feeds, from `seed`: below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
+std::vector<uint32_t> bench_ids(uint32_t seed, size_t n, size_t n_vocab) {
+    const uint32_t vocab = (uint32_t)std::min<size_t>(1000, n_vocab);
+    std::vector<uint32_t> ids(n);
+    for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % vocab; }
+    return ids;
+}
+
 // With `drafts` the file's embedded drafter, or the MTP blocks its file holds, is loaded and its context rows run in every pass, with no draft taken (docs/SPECULATIVE.md, section 7, the k = 0 gate).
 int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int G, int R, bool profile, int seqs = 1, int D = 0, const BenchDrafter& drafts = {}) {
     const bool drafter = bool(drafts);
@@ -995,14 +1003,8 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     if (loaded->drafter == infer::spec::DrafterKind::model)
         throw std::runtime_error("bench --model times a drafter's rows in the model's own passes, and " + drafts.file + " is a draft model");
     infer::Model& model = *loaded->model;
-    // Ids below 1000, or below a smaller vocabulary's size, such as the test fixtures'.
-    const uint32_t vocab = (uint32_t)std::min<size_t>(1000, model.n_vocab());
-    auto ids_from = [vocab](uint32_t seed, size_t n) {
-        std::vector<uint32_t> ids(n);
-        for (auto& t : ids) { seed = seed * 1664525u + 1013904223u; t = (seed >> 8) % vocab; }
-        return ids;
-    };
-    const std::vector<uint32_t> prompt = ids_from(12345u, (size_t)P), gen = ids_from(777u, (size_t)G), history = ids_from(4242u, (size_t)D);
+    const size_t vocab = model.n_vocab();
+    const std::vector<uint32_t> prompt = bench_ids(12345u, (size_t)P, vocab), gen = bench_ids(777u, (size_t)G, vocab), history = bench_ids(4242u, (size_t)D, vocab);
     // A cleared history, then the depth's tokens if any, before a timed test starts.
     auto fresh = [&] {
         model.reset();

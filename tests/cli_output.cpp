@@ -1,5 +1,6 @@
 // Include the real CLI so its glue is tested as it runs: removing the emitter's flush is observable without process-timing assumptions, and --device lists and cache types are read as the commands read them.
 #include <atomic>
+#include <set>
 #define main llmx_cli_main
 #include "../src/cli/main.cpp"
 #undef main
@@ -263,6 +264,18 @@ bool bench_times_hot_path() {
     return b->allocs.load() == before;
 }
 
+// A model bench's ids span the vocabulary as text does, so a model reading a table by token, such as Flash's per-layer table, reads as many distinct rows as a prompt makes it read; every id stays inside the vocabulary.
+bool bench_ids_span() {
+    for (const size_t vocab : {size_t(151936), size_t(248320)}) {
+        const std::vector<uint32_t> ids = bench_ids(12345u, 4096, vocab);
+        const std::set<uint32_t> distinct(ids.begin(), ids.end());
+        const uint32_t top = *std::max_element(ids.begin(), ids.end());
+        if (top >= vocab || top < vocab * 9 / 10 || distinct.size() < 3900) return false;
+    }
+    const std::vector<uint32_t> small = bench_ids(777u, 1000, 16);
+    return *std::max_element(small.begin(), small.end()) < 16 && bench_ids(4242u, 0, 151936).empty();
+}
+
 int main() {
     OutputBuffer output;
     auto* saved = std::cout.rdbuf(&output);
@@ -317,6 +330,10 @@ int main() {
     }
     if (!bench_times_hot_path()) {
         std::cerr << "the synthetic bench's timed steps allocate, so they time the model's first-run setup\n";
+        return 1;
+    }
+    if (!bench_ids_span()) {
+        std::cerr << "a model bench's ids do not span the vocabulary, or leave it\n";
         return 1;
     }
     if (!token_id_lists()) {

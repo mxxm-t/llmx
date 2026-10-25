@@ -9,6 +9,10 @@
 #include <stdexcept>
 #include <limits>
 #include <optional>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 
 #include "core/host_memory.hpp"
 #include "format/gguf.hpp"
@@ -923,22 +927,7 @@ public:
                 }
                 return;
             }
-            // Step t runs stage s of chunk t - s, the first stage first, so every device has its next chunk queued before it finishes the one it runs; each device takes its chunks in order, which is what lets them share its arena.
-            const size_t S = stages_.size();
-            if (ctx_.passes.size() < S) ctx_.passes.resize(S);
-            for (size_t t = 0; t + 1 < chunks + S; ++t)
-                for (size_t s = 0; s < S; ++s) {
-                    if (t < s || t - s >= chunks) continue;
-                    const size_t c = t - s;
-                    Pass& p = ctx_.passes[c % S];
-                    if (s == 0) {
-                        const BatchEntry entry = chunk(c);
-                        begin(ctx_, p, &entry, 1);
-                        p.handoff = c % 2;
-                    }
-                    run_stage(ctx_, p, s);
-                }
-            finish(ctx_, ctx_.passes[(chunks - 1) % S]);
+            run_chunks(ctx_, chunks, chunk);
         };
         try {
             scoped(0, work);
@@ -1276,7 +1265,9 @@ private:
     void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0, bool continues = false);
     void at_stage(const Pass& p, size_t s) const;
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
-    void group_stage(ExecContext& ctx, Pass& p, size_t s);
+    void prepare_stage(Pass& p, size_t s);
+    void record_stage(ExecContext& ctx, Pass& p, size_t s, Pace* pace);
+    void run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk);
     void single_prepare(Pass& p, size_t s);
     void start_lookup(ExecContext& ctx, const Pass& p, size_t group, int l);
     void finish_lookup(ExecContext& ctx, const Pass& p, size_t group, size_t width, int l);

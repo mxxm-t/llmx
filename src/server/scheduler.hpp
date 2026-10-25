@@ -28,6 +28,7 @@
 #include "inference/sampler.hpp"
 #include "inference/spec.hpp"
 #include "model/runtime.hpp"
+#include "model/stage_lanes.hpp"
 #include "server/disk_tier.hpp"
 #include "server/policy.hpp"
 #include "tokenizer/tokenizer.hpp"
@@ -347,11 +348,24 @@ public:
             plain_[s] = plain_[s] || (interleave_ && !model_.stage_on_host(s));
             // And where passes go apart every stage has one, the first among them, which is then fed in pieces.
             if (plain_[s] || a) {
-                recorders_[s] = std::make_unique<Recorder>(*pace_[s]);
+                recorders_[s] = std::make_unique<Recorder>(*pace_[s], lanes_.add(s, pace_[s]->m));
                 recorders_[s]->share.share = share_;
-                // The thread is given its record, not the place it is kept: a scheduler destroyed before the thread first runs is emptying that place.
+                // The lane is given its record, not the place it is kept: a scheduler destroyed before the thread first runs is emptying that place.
                 Recorder* rec = recorders_[s].get();
-                rec->thread = std::thread([this, rec, s] { record(*rec, s); });
+                infer::StageLanes::Policy policy;
+                policy.ready = [rec] { return rec->pass.posted || rec->apart.posted; };
+                policy.step = [this, rec, s](std::unique_lock<std::mutex>& lk) { record(*rec, s, lk); };
+                // Slices timed on this stage are settled as they retire, looked at every millisecond while any is out, and the round is woken for the next slice.
+                policy.idle = [this, rec, s](std::unique_lock<std::mutex>& lk) -> std::optional<std::chrono::milliseconds> {
+                    if (settle_timing(*rec, s)) {
+                        lk.unlock();
+                        wake();
+                        lk.lock();
+                    }
+                    if (rec->timing.empty()) return std::nullopt;
+                    return std::chrono::milliseconds(1);
+                };
+                lanes_.start(s, std::move(policy));
             }
         }
         // A job reads the next turn's ids at one extent for every extent that turn's prompt can have, so only where rows are one class from there up to the limit.
@@ -1598,7 +1612,8 @@ private:
     // A stage's thread: it records the pass the round hands it (advance) and decides nothing, and the round takes what it did (collect); a failure is the scheduler's thread's to undo.
     // Beside its pass it holds one pass apart, recorded between the first's pieces once its rows have arrived and the generated rows are due (StageShare), or alone.
     struct Recorder {
-        explicit Recorder(StagePace& pace) : m(pace.m), held(pace.held), clock(pace.clock), floor(pace.floor), apart_ms(pace.apart_ms), stage(pace) {}
+        Recorder(StagePace& pace, infer::StageLanes::Lane& lane)
+            : m(pace.m), cv(lane.cv), held(pace.held), clock(pace.clock), floor(pace.floor), apart_ms(pace.apart_ms), quit(lane.stop), stage(pace) {}
         // A slice timed on this stage: from when the stage's work before it has retired to when its own has, so its stage time as a pass behind it waits for it, which the stage's search takes as the slice's piece (PieceSearch).
         struct Timing {
             backend::Ticket before = 0, own = 0;
@@ -1629,9 +1644,8 @@ private:
             double longest_ms = 0;
             SliceRecord slice{};                  // and its pieces as the health gives them
         };
-        std::thread thread;
         std::mutex& m;           // its stage's (StagePace), as are held, clock and floor
-        std::condition_variable cv;
+        std::condition_variable& cv;   // its lane's wake (infer::StageLanes)
         Post pass, apart;        // under m
         std::vector<End> ends;   // under m, the recordings ended since the round last collected
         size_t holds = 0;        // under m, the scheduler's thread wants the stage's devices (hold)
@@ -1653,21 +1667,13 @@ private:
         PromptFloor& floor;      // under m
         double& apart_ms;        // under m, the stage's last pass apart's time (StagePace::apart_ms)
         bool parked = false;     // under m, it stands still at a piece boundary for that
-        bool quit = false;
+        const bool& quit;        // under m, its lane's stop
         StageShare share;        // the recorder thread's
         std::atomic<double> price_ms{0};   // its share.price(), for the round's choice of riding
         Clock::time_point piece;
         StagePace& stage;               // its search, under m
         std::deque<Timing> timing;      // the thread's, slices recorded and not yet retired on the stage
         backend::Ticket last = 0;       // the thread's, the stage's submission of the last pass it recorded
-        ~Recorder() {
-            {
-                std::lock_guard<std::mutex> lk(m);
-                quit = true;
-            }
-            cv.notify_all();
-            if (thread.joinable()) thread.join();
-        }
     };
 
     // The timed slices whose work has retired on stage s, each given to the stage's search as its slice's piece; under r.m, and true where one was.
@@ -1694,21 +1700,9 @@ private:
         return settled;
     }
 
-    void record(Recorder& r, size_t s) {
-        std::unique_lock<std::mutex> lk(r.m);
-        for (;;) {
-            // Slices timed on this stage are settled as they retire, looked at every millisecond while any is out, and the round is woken for the next slice.
-            for (;;) {
-                if (settle_timing(r, s)) {
-                    lk.unlock();
-                    wake();
-                    lk.lock();
-                }
-                if (r.quit || r.pass.posted || r.apart.posted) break;
-                if (r.timing.empty()) r.cv.wait(lk);
-                else r.cv.wait_for(lk, std::chrono::milliseconds(1));
-            }
-            if (r.quit) return;
+    // One recording of the pass, or the pass apart, posted to stage s, on its lane's thread with the stage's lock held (infer::StageLanes).
+    void record(Recorder& r, size_t s, std::unique_lock<std::mutex>& lk) {
+        {
             // A pass with prompt rows first: the pass apart is taken between its pieces.
             Recorder::Post& post = r.pass.posted ? r.pass : r.apart;
             const Recorder::Post taken = post;
@@ -2559,7 +2553,8 @@ private:
     uint64_t jobs_posted_ = 0;           // the scheduler thread's, the hand-overs to recorders so far
     uint64_t arrivals_ = 0, seen_ = 0;   // under the lock, the requests and follows submitted, and how many the round had seen as it began
     std::vector<std::unique_ptr<StagePace>> pace_;   // per stage, its pacing state; before the recorders, which refer to it
-    std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; last, so their threads end before anything they record on
+    std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; before the lanes, whose threads use them
+    infer::StageLanes lanes_;   // the recorders' threads (Recorder::cv, quit); last, so they end before anything they record on
 };
 
 } // namespace server

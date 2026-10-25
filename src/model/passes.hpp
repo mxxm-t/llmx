@@ -1,5 +1,6 @@
 #pragma once
 #include "model/runtime.hpp"
+#include "model/stage_lanes.hpp"
 
 // A pass, the one owner of how it runs: its plan, its layers' stages over the devices, the residual's crossings, a streamed layer's split, the embedded drafter's rows and the storage of the context it runs in.
 // Members of infer::Model, declared in its class (model/runtime.hpp), which includes this file after it.
@@ -92,13 +93,20 @@ inline void Model::prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
     Pass& p = in_flight(ctx, slot);
     if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
     if (stage_on_host(s) && !stage_grouped(s)) throw std::logic_error("inference: a stage on the host is recorded whole, by run_pass_stage");
+    prepare_stage(p, s);
+}
+
+// With a `pace` a stage of one device is fed in pieces (Pace).
+inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s, Pace* pace) { record_stage(ctx, in_flight(ctx, slot), s, pace); }
+
+// What stage s of a pass takes of its histories and pool before any device work, on the thread that owns them.
+inline void Model::prepare_stage(Pass& p, size_t s) {
     if (width_ > 1) group_prepare(p, s);
     else single_prepare(p, s);
 }
 
-// With a `pace` a stage of one device is fed in pieces (Pace).
-inline void Model::record_pass_stage(ExecContext& ctx, size_t slot, size_t s, Pace* pace) {
-    Pass& p = in_flight(ctx, slot);
+// Stage s of a pass recorded and submitted on its devices, the thread's for as long as the stage's waits hold it; the matrix paths it takes stay with this model.
+inline void Model::record_stage(ExecContext& ctx, Pass& p, size_t s, Pace* pace) {
     const Stage& st = stages_[s];
     // The stage's evidence of the matrix paths it took stays with this model, as run_stage keeps it.
     struct Paths {
@@ -291,27 +299,127 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
 
 // Stage s of a pass: its storage's blocks reserved, the residual embedded or received, its layers, then the head after the last stage or the residual sent on, its submissions, and the commit of its length and storage.
 inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
-    const Stage& st = stages_[s];
-    // Backends may be shared by models used in turn.
-    // Keep each stage's evidence with its model, including failures, while preserving direct backend evidence.
-    struct Paths {
-        const std::vector<std::unique_ptr<Device>>& devices;
-        const std::vector<size_t>& touches;
-        size_t width;
-        void swap() const noexcept {
-            for (size_t d : touches)
-                for (size_t m = d; m < d + width; ++m) devices[m]->b->swap_matrix_paths(devices[m]->matrix_paths);
-        }
-        ~Paths() { swap(); }
-    } paths{devices_, st.touches, width_};
-    paths.swap();
-    if (width_ > 1) {
-        group_stage(ctx, p, s);
-        return;
-    }
-    single_prepare(p, s);
-    single_record(ctx, p, s, nullptr);
+    prepare_stage(p, s);
+    record_stage(ctx, p, s, nullptr);
     stage_commit(p, s);
+}
+
+// A prompt's chunks through a pipelined split (Model::prefill), each device taking its chunks in order and each stage that waits on its devices (stage_waits) recording on a thread of its own.
+// This thread begins, prepares and commits every stage and records the rest; when a stage may take a chunk is docs/src/model-runtime.md's prefill.
+inline void Model::run_chunks(ExecContext& ctx, size_t chunks, const std::function<BatchEntry(size_t)>& chunk) {
+    const size_t S = stages_.size();
+    if (ctx.passes.size() < S) ctx.passes.resize(S);
+    // Each stage's hand-off under `m`: the chunk given to its lane, those it has recorded and its failure.
+    struct Lane {
+        std::optional<size_t> todo;
+        std::deque<size_t> done;
+        std::exception_ptr error;
+    };
+    std::mutex m;
+    std::condition_variable cv;   // this thread's wake, as a lane ends a record
+    std::vector<std::unique_ptr<Lane>> lanes(S);
+    std::vector<size_t> next(S, 0), committed(S, 0);
+    std::vector<char> busy(S, 0);
+    std::exception_ptr failed;
+    std::optional<StageLanes> threads;
+    try {
+        threads.emplace();
+        for (size_t s = 0; s < S; ++s) {
+            if (!stage_waits(s)) continue;
+            lanes[s] = std::make_unique<Lane>();
+            Lane* lane = lanes[s].get();
+            threads->add(s, m);
+            StageLanes::Policy policy;
+            policy.ready = [lane] { return lane->todo.has_value(); };
+            policy.step = [this, &ctx, &cv, lane, s, S](std::unique_lock<std::mutex>& lk) {
+                const size_t c = *lane->todo;
+                lane->todo.reset();
+                lk.unlock();
+                std::exception_ptr error;
+                try { record_stage(ctx, ctx.passes[c % S], s, nullptr); } catch (...) { error = std::current_exception(); }
+                lk.lock();
+                if (error) lane->error = error;
+                else lane->done.push_back(c);
+                cv.notify_all();
+            };
+            threads->start(s, std::move(policy));
+        }
+        const auto ready = [&](size_t s) {
+            const size_t c = next[s];
+            if (c >= chunks || busy[s] || committed[s] != c) return false;
+            if (s > 0 && committed[s - 1] <= c) return false;
+            if (s + 1 < S && committed[s + 1] + 2 <= c) return false;
+            return s > 0 || committed[S - 1] + S > c;
+        };
+        while (committed[S - 1] < chunks) {
+            bool moved = false;
+            // A round takes each stage ready at its start once, the first stage first, as a step of the software pipeline does.
+            std::vector<char> go(S);
+            for (size_t s = 0; s < S; ++s) go[s] = ready(s);
+            for (size_t s = 0; s < S; ++s) {
+                if (!go[s]) continue;
+                const size_t c = next[s]++;
+                Pass& p = ctx.passes[c % S];
+                if (s == 0) {
+                    const BatchEntry entry = chunk(c);
+                    begin(ctx, p, &entry, 1);
+                    p.handoff = c % 2;
+                }
+                prepare_stage(p, s);
+                if (lanes[s]) {
+                    {
+                        std::lock_guard<std::mutex> lk(m);
+                        lanes[s]->todo = c;
+                        busy[s] = 1;
+                    }
+                    threads->notify(s);
+                } else {
+                    record_stage(ctx, p, s, nullptr);
+                    stage_commit(p, s);
+                    ++committed[s];
+                }
+                moved = true;
+            }
+            std::vector<std::pair<size_t, size_t>> finished;
+            {
+                std::unique_lock<std::mutex> lk(m);
+                const auto arrived = [&] {
+                    for (const auto& l : lanes)
+                        if (l && (l->error || !l->done.empty())) return true;
+                    return false;
+                };
+                if (!moved && !arrived()) {
+                    if (std::none_of(busy.begin(), busy.end(), [](char b) { return b != 0; }))
+                        throw std::logic_error("inference: a pipelined prefill with no stage ready and none recording");
+                    cv.wait(lk, arrived);
+                }
+                for (size_t s = 0; s < S; ++s) {
+                    if (!lanes[s]) continue;
+                    Lane& lane = *lanes[s];
+                    if (lane.error) {
+                        if (!failed) failed = lane.error;
+                        lane.error = nullptr;
+                        busy[s] = 0;
+                    }
+                    for (; !lane.done.empty(); lane.done.pop_front()) {
+                        finished.push_back({s, lane.done.front()});
+                        busy[s] = 0;
+                    }
+                }
+            }
+            if (failed) break;
+            for (const auto& [s, c] : finished) {
+                stage_commit(ctx.passes[c % S], s);
+                ++committed[s];
+            }
+        }
+    } catch (...) {
+        if (!failed) failed = std::current_exception();
+    }
+    // The lanes end their current records and stop before the prompt's transaction is undone or finished.
+    threads.reset();
+    if (failed) std::rethrow_exception(failed);
+    finish(ctx, ctx.passes[(chunks - 1) % S]);
 }
 
 // Each entry's history at stage s where the pass found it, before the stage takes anything: an earlier pass of a continued prompt has run the stage first.
@@ -435,14 +543,6 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
                                  {ctx.logits_buf.get(), p.logits_base * plan_.vocab}});
     }
     stage_submit(ctx, p, s, cur);
-}
-
-// Stage s on a tensor group (docs/TENSOR-SPLIT.md, section 4.3): every member runs each part on its shards over its own residual, the group's collective summing the members' partial rows into every member's residual after each part.
-// The residual comes in to every member and leaves from the first, the logits slices are gathered into the context's after the last stage, and a layer that keeps a state runs on each member over its own heads' state.
-inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
-    group_prepare(p, s);
-    group_record(ctx, p, s, nullptr);
-    stage_commit(p, s);
 }
 
 // What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member, and its state's slots, the same on every member, each of which keeps the state of its own heads there.

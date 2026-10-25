@@ -1,5 +1,50 @@
 # llmx - Development Status
 
+## A pipelined prompt records each stage that waits on its devices on a thread of its own (2026-10-25, branch feat/stage-threads on main 9df63df36, change 1 of the prompt-path PROPOSAL of 13:10 after the timeline of 14:44, F2DEV's review of 15:24, one owner of a stage's thread with the server after the coordinator's stop of 17:05 and my DESIGN of 17:12, in progress)
+
+- **Why:** Qwen3.8-Flash-Next UD-Q4_K_XL at pp2048 on 2x2 runs at 720 tok/s, 2.85 s, with each card busy 1.18-1.31 s of it (main 8e84e4c4f, `lw/pprof`).
+  - A timeline of the measured phase (a temporary, uncommitted print of `bench --profile`'s timestamps, `lw/tline`) splits each card's span of 2.11 s:
+    - 0.43 s before submissions that wait on the peer member at the 192 tensor-group sums;
+    - on stage 0, 0.35 s before the next slice's `embed`;
+    - on stage 1, 0.47 s waiting for stage 0's next slice;
+    - 0.03 s inside submissions.
+  - `Model::prefill` recorded every stage on the calling thread, step t taking stage s of chunk t - s. A grouped stage's recording waits at each of its 48 exchanges a slice, and a stage past the first waits for its rows (`receive`), so each stage's recording held every other stage's.
+  - Layer 4's cards are busy 99% of their spans, so its 1.78 s is the pipeline's fill alone.
+- **What lands:**
+  - `Model::run_chunks` takes a prompt's chunks through a pipelined split. A stage that waits on its devices (`stage_waits`) records on a thread of its own, while the calling thread begins, prepares and commits every stage and records the rest, as the scheduler's stages already are (`prepare_pass_stage`, `record_pass_stage`, `commit_pass_stage`).
+  - Stage s takes chunk c once its chunk c - 1 is committed, once stage s + 1 has committed chunk c - 2 (whose handoff buffer chunk c reuses), and stage 0 once the last stage has committed chunk c - S (whose pass slot it reuses).
+  - A round takes each stage ready at its start once, the first stage first, as a step of the software pipeline did, so a placement without such stages runs the same order as before.
+  - A failure on any stage stops the others at their current chunk before the prompt's transaction is undone.
+  - `prepare_stage` and `record_stage` are the one place a stage is prepared and recorded: `run_stage`, the pass API and `run_chunks` call them, and `group_stage` goes.
+  - `infer::StageLanes` (`model/stage_lanes.hpp`) is the one owner of a stage's thread, for `run_chunks` and the server alike: a lane's thread steps its caller's policy while ready holds and otherwise sleeps under the caller's mutex for as long as the policy's idle allows, and destruction stops and joins every lane.
+  - The scheduler's `Recorder` is now its lane's policy: ready while a pass or a pass apart is posted, its step one `record`, its idle the timed slices settled every millisecond while any is out. Its `cv` and `quit` are the lane's.
+  - The scheduler loses its own thread, quit flag, wait loop and joining destructor, and keeps its pacing, shares, holds, background gaps and timed slices unchanged, so the server records exactly what it recorded before.
+- **Tests:** the first commit, failing on main: `placement` runs the pipelined prompt, its decode, a continued prompt, `score`, a two-sequence pass and the failure rollback again with backends that play devices (`FailingCpu::plays_device`), over two and three stages.
+  - Every stage past the first must have submitted from no thread but its own, and the prompt must give one backend's bits.
+  - A failure on the last stage's thread must leave every storage at the history, the first stage being at the failing chunk at least.
+  - CTest passes 70 of 70 on Windows at b6d262fee. With the lanes, `placement`, `server-passes`, `server-passes-cpu`, `server-resume` and `server-resume-cache` pass on Windows.
+- **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL, int8, f16 KV, `--lookup-storage file` on the 16K-record copy, GPUs 4-7 with 8-9 idle at default clocks; main 8e84e4c4f against b6d262fee, interleaved main, new, new, main; `lw/sg`):
+
+| | Main | Branch |
+|---|---|---|
+| 2x2, `bench --p 2048 --n 8 --r 2`, pp2048 tok/s | 721.9, 722.0 | 932.4, 932.2 (+29.1%) |
+| Layer 4, the same | 1151.6, 1151.8 | 1152.2, 1151.0 (level) |
+| 2x2, `generate` after 3930 tokens of real text, prompt tok/s (one run each) | 285.2 | 752.4 |
+| Layer 4, the same | 959.3 | 945.0 |
+
+  - The greedy ids, 24 tokens after that prompt, are equal to main's on 2x2 and on layer 4.
+  - The branch's first 2x2 run (932.4 tok/s) overlapped DDEV's correctness legs on the machine and is kept, flagged; its twin read 932.2. The binaries were `llmx 0.1.0+g8e84e4c4f382 numerics 1ac17687c6f1ab07` (main) and `llmx 0.1.0+gb6d262fee0e7 numerics 55643a80739d943c` (the branch).
+  - On real text, 2x2's file reads of the lookup table for each slice overlap the other stage's recording too, hence more than the bench's gain.
+  - Layer 4 lost nothing to the host before, so its pair is level.
+  - The peer waits at the tensor-group sums, about 0.43 s a card at pp2048, are the next join (my RESULT of 14:44).
+- **What reaches production:** the server already recorded each waiting stage on a thread of its own (production's 2x2 serves with two passes in flight), so served prompts take the same recording as before, now through the shared lanes. The CLI's prompt path (`generate`, `chat`, `bench`, drafting's prefill) is what gains.
+- **Left:** the gate the coordinator set at 17:05, on the lanes' head:
+  - CLI greedy-ids identity against main on 2x2 and on layer 4;
+  - `tools/server_mix_check.py` on a split, ids equal to main's;
+  - one CLI pp2048 pair and one served-prompt figure on 2x2 against main;
+  - the hosted run;
+  - F2DEV's review of the lanes.
+
 ## The indexer keeps each complete group's pooled key (2026-10-25, branch feat/index-pool on feat/index-scores, part 1 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits after parts 3 and 2)
 
 - **Why:** `kv_index_pool` pooled every complete group of a history again at every pass: 2.54 ms a decode stage of Qwen3.8-Flash-Next on 2x2 at a 155648-token history (2026-10-24 profiles), against 0.21 at 8k.

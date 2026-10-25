@@ -2,7 +2,7 @@
 
 `RestoreInto::Run` names a fixed backend buffer, a deferred K/V/auxiliary storage side, or a generic host destination. Its image order is owned by the history layer; host token-history storage is allocated once during construction and never resized while the model lives.
 
-`take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `run_stage` swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
+`take_matrix_paths` drains this model's retained dispatch evidence in placement order, including an expert host that runs no whole model stage. `record_stage`, which every stage's recording goes through, swaps the model's evidence into every touched backend and restores the caller's previous set on both normal and error exits. Models used in turn therefore keep separate evidence even if a caller reads it after another model ran on the shared backend; direct backend calls retain their own set. Callers wait for the measured work before consuming the model's records. This lifetime handling does not permit concurrent execution on a shared backend.
 
 `ModelOptions::dtype` is copied at construction and passed into every architecture `Step`, including split and streamed parts. It is independent of KV storage precision. A model never changes a shared backend dtype setting. Placement supplies resolution before construction, including `ModelOptions::device_dtypes` for per-device emulation or wider fallback. An empty vector applies `dtype` everywhere; a nonempty vector must cover every device before allocation. The existing `part` owner selects the device's policy for each step. Direct model construction can still select the scalar policy.
 
@@ -215,12 +215,20 @@ delegated to a `backend::Backend`.
     entry per chunk, inside one backend prefill scope, so each weight row is
     read once per chunk instead of once per token. Only the last chunk asks
     for logits. The prompt is one transaction across its chunks. Over more
-    than one stage the chunks run as a software pipeline on the calling
-    thread: step t runs stage s of chunk t-s, the first stage first, so
-    every device has its next chunk queued before it finishes the one it
-    runs, and each takes its chunks in order, which is what lets them share
-    its arena. A prompt's positions follow the first stage's length, which
-    a chunk commits first. That needs the embedding on the first stage's
+    than one stage the chunks run as a software pipeline (`run_chunks`):
+    stage s of a chunk follows stage s-1 of it, and each device takes its
+    chunks in order, which is what lets them share its arena. A stage whose
+    recording waits on its devices (`stage_waits`: a tensor group's, which
+    waits at every sum, and past the first a device's, which waits for its
+    rows) records on a thread of its own, its lane of `StageLanes` as the server's stages are, so its waits hold no other
+    stage's recording, while the calling thread begins, prepares and
+    commits every stage and records the rest. A stage takes chunk c once
+    its chunk c-1 is committed, once the stage after it has committed chunk
+    c-2, whose handoff buffer chunk c reuses, and the first stage once the
+    last has committed chunk c-S, whose pass slot it reuses; a failure on
+    any stage stops the others at their current chunk before the prompt's
+    transaction is undone. A prompt's positions follow the first stage's
+    length, which a chunk commits first. That needs the embedding on the first stage's
     device, the head on the last's and every feed-forward block beside its
     mixer, as every fitted split has; any other placement runs its
     chunks one pass at a time. Chunks are the ubatch either way, so a split

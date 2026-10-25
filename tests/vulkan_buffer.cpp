@@ -3,6 +3,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <thread>
 #include <stdexcept>
@@ -43,6 +44,17 @@ struct VulkanLifetimeTest {
     }
     static VkDescriptorBufferInfo args(VulkanBackend& b, const void* data, size_t bytes) {
         return b.args(data, bytes);
+    }
+    static uint32_t slot(VulkanBackend& b) { return b.ring_index_; }
+    // Whether a binding names the argument arena of a ring slot other than the one recording.
+    static bool foreign_arena(VulkanBackend& b, VkBuffer h) {
+        for (uint32_t i = 0; i < VulkanBackend::kRing; ++i)
+            if (i != b.ring_index_ && b.arena_[i].buffer && b.arena_[i].buffer->handle() == h) return true;
+        return false;
+    }
+    static void select_wide(VulkanBackend& b, CSlice scores, CSlice ids, const std::vector<uint32_t>& table, size_t groups, uint32_t compression,
+                            uint32_t budget, uint32_t stride) {
+        b.select_rows(b.bind(scores), b.bind(ids), table, 0, 0, 1, groups, compression, budget, stride, true);
     }
     static BufferPtr dictionary(VulkanBackend& b, uint32_t type) {
         const auto view = b.lookup_grid(type, {});
@@ -962,6 +974,112 @@ int lent_checks() {
     return ok ? 0 : 1;
 }
 
+// A dispatch reads only its own slot's argument arena, which the slot resets when it reopens after waiting for its own submission alone.
+// Pushed sets are counted by the slot recording them, and every binding naming another slot's arena counts as foreign.
+struct ArgsCalls;
+ArgsCalls* args_calls = nullptr;
+struct ArgsCalls {
+    backend::VulkanBackend& b;
+    backend::Fn original;
+    std::shared_ptr<backend::Device> device;
+    std::vector<uint32_t> slots;
+    size_t foreign = 0;
+    explicit ArgsCalls(backend::VulkanBackend& be) : b(be), device(backend::VulkanLifetimeTest::device(be)) {
+        original = device->fn;
+        args_calls = this;
+        device->fn.vkCmdPushDescriptorSetKHR = push;
+    }
+    ~ArgsCalls() {
+        device->fn = original;
+        args_calls = nullptr;
+    }
+    static VKAPI_ATTR void VKAPI_CALL push(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipelineLayout layout, uint32_t set, uint32_t count,
+                                           const VkWriteDescriptorSet* writes) {
+        auto& a = *args_calls;
+        a.slots.push_back(backend::VulkanLifetimeTest::slot(a.b));
+        for (uint32_t i = 0; i < count; ++i)
+            for (uint32_t j = 0; j < writes[i].descriptorCount; ++j)
+                a.foreign += backend::VulkanLifetimeTest::foreign_arena(a.b, writes[i].pBufferInfo[j].buffer);
+        a.original.vkCmdPushDescriptorSetKHR(cmd, point, layout, set, count, writes);
+    }
+};
+
+// An op whose dispatches read one table: after a sync, k single adds put the chunk flush between two of its dispatches for some k, and no dispatch may then bind the table in the slot before it.
+// Attention's merge after its main dispatch (a decode row whose 600-token history splits) and select_rows' five wide stages, each output the bits of the run without adds.
+int args_slot_checks() {
+    backend::VulkanBackend b(0);
+    backend::Backend& base = b;
+    const auto zero = std::vector<float>(256, 0.0f);
+    const auto filler = b.adopt(zero.data(), zero.size() * sizeof(float));
+    auto pattern = [](size_t n, uint32_t seed) {
+        std::vector<float> v(n);
+        for (size_t i = 0; i < n; ++i) v[i] = float(std::sin(double(i * 2654435761u % 1000003u + seed)));
+        return v;
+    };
+    // Runs `op` after k adds for k from 0 to 15, the first run without adds giving the reference.
+    auto forced = [&](const char* what, size_t dispatches, const std::function<std::vector<uint8_t>()>& op) {
+        std::vector<uint8_t> want;
+        bool straddled = false, same = true;
+        size_t foreign = 0;
+        for (int k = -1; k < 16; ++k) {
+            b.sync();
+            std::vector<uint8_t> got;
+            {
+                ArgsCalls calls(b);
+                for (int i = 0; i < k; ++i) base.add({filler.get(), 0}, {filler.get(), 0}, zero.size());
+                const size_t first = calls.slots.size();
+                got = op();
+                same = same && calls.slots.size() - first == dispatches;
+                for (size_t i = first + 1; i < calls.slots.size(); ++i) straddled = straddled || calls.slots[i] != calls.slots[first];
+                foreign += calls.foreign;
+            }
+            if (k < 0) want = got;
+            else same = same && got == want;
+        }
+        const bool ok = straddled && same && !foreign;
+        std::cout << "args_slot " << what << " straddled=" << straddled << " same=" << same << " foreign=" << foreign << (ok ? " PASS\n" : " FAIL\n");
+        return ok ? 0 : 1;
+    };
+    int failures = 0;
+    {
+        const int n_head = 4, n_head_kv = 2, head_dim = 128;
+        const size_t hist = 600, qw = size_t(n_head) * head_dim, kvw = size_t(n_head_kv) * head_dim;
+        const size_t bt = b.kv_layout().block_tokens, n_blocks = (hist + 1 + bt - 1) / bt;
+        auto st = b.kv_alloc(1, n_head_kv, head_dim, n_blocks * bt);
+        std::vector<int32_t> blocks(n_blocks);
+        for (size_t i = 0; i < n_blocks; ++i) blocks[i] = int32_t(i);
+        const auto kh = pattern((hist + 1) * kvw, 1), vh = pattern((hist + 1) * kvw, 2), q = pattern(qw, 3);
+        const auto Kb = b.adopt(kh.data(), kh.size() * sizeof(float));
+        const auto Vb = b.adopt(vh.data(), vh.size() * sizeof(float));
+        const auto Qb = b.adopt(q.data(), q.size() * sizeof(float));
+        const auto ob = b.alloc(qw * sizeof(float), backend::Memory::device);
+        const backend::KVView all{st.get(), blocks.data(), n_blocks, 0, hist + 1};
+        base.kv_write(0, &all, 1, {Kb.get(), 0}, {Vb.get(), 0});
+        const backend::KVView row{st.get(), blocks.data(), n_blocks, hist, 1};
+        failures += forced("attention_merge", 2, [&] {
+            base.attention({Qb.get(), 0}, 0, &row, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+            std::vector<uint8_t> out(qw * sizeof(float));
+            base.read(*ob, 0, out.data(), out.size());
+            return out;
+        });
+    }
+    {
+        const size_t groups = 4096;
+        const uint32_t compression = 4, budget = 2048, stride = budget + compression - 1;
+        const auto scores = pattern(groups, 4);
+        const auto sb = b.adopt(scores.data(), scores.size() * sizeof(float));
+        const auto ib = b.alloc(stride * sizeof(uint32_t), backend::Memory::device);
+        const std::vector<uint32_t> table = {1u, 0u, 0u, 1u, uint32_t(groups * compression - 1), 0u, 0u};
+        failures += forced("select_wide", 5, [&] {
+            backend::VulkanLifetimeTest::select_wide(b, {sb.get(), 0}, {ib.get(), 0}, table, groups, compression, budget, stride);
+            std::vector<uint8_t> out(stride * sizeof(uint32_t));
+            base.read(*ib, 0, out.data(), out.size());
+            return out;
+        });
+    }
+    return failures;
+}
+
 // The one call another thread may make on a backend while its own thread records (Backend::wait): a thread copies and submits without pause while this one waits on each ticket it has been handed, and the bytes must arrive as written.
 int wait_beside_recording() {
     auto base = backend::make_vulkan_backend(0);
@@ -1577,7 +1695,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

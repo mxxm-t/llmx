@@ -170,7 +170,6 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
                scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg};
         const VkDescriptorBufferInfo scratch = scratch_
             ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
-        const VkDescriptorBufferInfo table = args(t.words.data(), t.words.size() * sizeof(uint32_t));
         // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
         const KernelId kernel = head_dim == 128 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                               : head_dim == 256 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, s)
@@ -178,11 +177,11 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
                               : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
         dispatch(kernel,
                  {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                  table, scratch, xq},
+                  args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},
                  &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
         if (nsplit > 1) {
             const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
-            dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+            dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
         }
         if (quant) keep_twin(slot, bind(out), n, 0);
     }
@@ -334,26 +333,24 @@ inline void VulkanBackend::pool_view(VkDescriptorBufferInfo aux, PlaneShape plan
     const size_t done = v.length / index.compression, count = (v.length + v.nq) / index.compression;
     if (count <= done) return;
     const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
-    const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
     struct { uint32_t view, first, dim, half, compression, bt, block_floats, rows_floats; float eps; }
         pc{view, 0, u32(index.dim), u32(index.rope_dim / 2), u32(index.compression), plane.bt, plane.block_floats, plane.rows_floats, index.eps};
     for (size_t first = done; first < count; first += limit) {
         pc.first = u32(first);
-        dispatch(K_KV_INDEX_POOL, {aux, key_norm, cos, sin, tab}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
+        dispatch(K_KV_INDEX_POOL, {aux, key_norm, cos, sin, args(table.data(), table.size() * sizeof(uint32_t))}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
     }
     if (unordered_) barrier(open());
 }
 
 inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
                                       uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
-    const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
     const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
     struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t tile, bt, block_floats, rows_floats; }
         sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(kScoreTile), plane.bt, plane.block_floats, plane.rows_floats};
     const size_t tiles = (groups + kScoreTile - 1) / kScoreTile;
     for (size_t first = 0; first < tiles; first += limit) {
         sc.first = u32(first);
-        dispatch(K_KV_INDEX_SCORES_TILE, {query, pooled, scores, tab}, &sc, sizeof(sc), u32(std::min(tiles - first, limit)), u32(rows));
+        dispatch(K_KV_INDEX_SCORES_TILE, {query, pooled, scores, args(table.data(), table.size() * sizeof(uint32_t))}, &sc, sizeof(sc), u32(std::min(tiles - first, limit)), u32(rows));
     }
     if (unordered_) barrier(open());
 }
@@ -376,11 +373,11 @@ inline void VulkanBackend::select_rows(VkDescriptorBufferInfo scores, VkDescript
         dev_->fn.vkCmdFillBuffer(cmd, select_state_->handle(), 0, VK_WHOLE_SIZE, 0);
         barrier(cmd);
     }
-    const VkDescriptorBufferInfo state = bind(CSlice{select_state_.get(), 0}), tab = args(table.data(), table.size() * sizeof(uint32_t));
+    const VkDescriptorBufferInfo state = bind(CSlice{select_state_.get(), 0});
     struct { uint32_t view, row, groups, compression, budget, stride, stage, slices; } pc{view, u32(row), u32(groups), compression, budget, stride, 0, u32(slices)};
     for (uint32_t s = 0; s < 5; ++s) {
         pc.stage = s;
-        dispatch(K_KV_INDEX_SELECT_WIDE, {scores, ids, tab, state}, &pc, sizeof(pc), u32(slices), u32(rows));
+        dispatch(K_KV_INDEX_SELECT_WIDE, {scores, ids, args(table.data(), table.size() * sizeof(uint32_t)), state}, &pc, sizeof(pc), u32(slices), u32(rows));
         if (unordered_) barrier(open());
     }
 }

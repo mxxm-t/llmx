@@ -149,6 +149,14 @@
 - **A hand check:** `vulkan-index` needs a Vulkan device and no hosted runner has one, so it runs by hand on the MI50 and the Radeon VII; on a device that times no dispatches it skips the dispatch count and the times.
 - **Gate and landing:** the gate ran on the three parts together and is recorded in part 1's block, with the clean pair at 2048 against main (+1.6% tg64, +1.2% pp32); the three parts land by fast-forward, part 3 first.
 
+## A dispatch reads only its own slot's arguments (2026-10-26, branch fix/vulkan-args-flush on the float controls c6182eb70 over the decode stack 5eb59c0d3, F2DEV's finding of 2026-10-25 23:40 and DECISION of 23:50, the coordinator's DECISION of 23:43, lands by fast-forward as two commits)
+
+- **The bug:** `args()` writes a call's table into the open ring slot's arena, which the slot resets when it reopens after waiting for its own submission alone. Attention's merge, pool_view's and score_rows' loops and select_rows' five wide stages bound one table in several dispatches, so a chunk flush between two of them left the later dispatch in the next slot reading the earlier slot's arena, which the host could overwrite once it had gone round the ring while that dispatch was unfinished.
+- **The fix:** each of those dispatches takes its own copy of its table, and the comment at `args()` states that a dispatch reads only its own slot's arena.
+- **Test:** `vulkan-lifetime` replaces the push of descriptor sets, forces the flush after a sync with 0 to 15 single adds before attention on a decode row whose 600-token history splits and before select_rows' wide stages, and requires no binding of another slot's arena, that some count put the op's dispatches in different slots, and each output the bits of the run without adds. On the Radeon VII it fails on the test commit alone (attention's merge one foreign binding, the wide stages ten) and passes with the fix, every output the bits of the run without adds.
+- **Reach:** the copies change no arithmetic and no kernel; the merge's table is copied once a layer when a history splits, a few hundred bytes. The index selection's loops past the workgroup limit are fixed alike but not reached by a test.
+- **Gates (on the Radeon VII under the AMD proprietary driver, Windows):** CTest 90 of 90 on the fix at this base, vulkan-lifetime failing on the test commit and passing on the fix; Qwen3-0.6B Q8_0 greedy, a 993-token wikitext prompt and 64 tokens, auto and int8, the same output and ids on main ab3ecbb5d and the fix at that base but for the load timing line; docs and dead-code. Owed as a landing condition: the Vulkan CTests on an MI50 under RADV, armed on this code, and the hosted run.
+
 ## Vulkan allocation failure diagnostics (2026-10-25, branch fix/vulkan-allocation-error)
 
 - **Goal:** name the device, Vulkan result, allocation bytes and memory type on ordinary buffer allocation failure, preserving existing `std::bad_alloc` retry catches.

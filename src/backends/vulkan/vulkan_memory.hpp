@@ -225,6 +225,7 @@ inline VkDescriptorBufferInfo VulkanBackend::lookup_grid(uint32_t type, VkDescri
 }
 
 // Small per-call host inputs (ids, positions, row lists) go through a host-visible arena per ring slot, bumped per call and reset when the slot retires; a call larger than the arena gets its own buffer, kept the same way.
+// A dispatch reads only its own slot's arena, so each dispatch takes its own copy: the chunk flush can fall between two dispatches of one op, and a slot reopens after waiting for its own submission alone.
 inline VkDescriptorBufferInfo VulkanBackend::args(const void* data, size_t bytes) {
     open();
     Arena& a = arena_[ring_index_];

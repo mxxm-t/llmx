@@ -801,6 +801,7 @@ The fake-only buffer check injects host and device allocation OOM results, requi
 It also checks that IQ1_S and IQ1_M reuse one uploaded dictionary and stable cached ownership in either loading order, that IQ2_XXS keeps distinct dictionary storage, and that the shared IQ1 buffer retains its exact bytes, through the existing private lifetime-test friend without runtime hooks.
 It checks retry and unchanged KV accounting after failed growth.
 A buffer dropped right after `alloc` or `adopt` must outlive its zero fill or its upload.
+A dispatch must bind only its own ring slot's argument arena: with the chunk flush forced by single adds after a sync between attention's main dispatch and its merge, and between select_rows' wide stages, no pushed binding names another slot's arena, the dispatches did fall in different slots, and each output is the bits of the run without adds.
 A backend whose queue a prepared submission holds must refuse to record and to submit until the queue is taken back, and work as before after.
 Hold setup failing at its timeline or at each of its events destroys what it made, and the request made again holds, with copies around the holds right and nothing left after teardown.
 `alloc_weight` storage written in pieces that end inside a row holds the bytes and gets the float tile's padded copy, which storage from `alloc` does not.

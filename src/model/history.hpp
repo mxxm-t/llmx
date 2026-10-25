@@ -688,6 +688,8 @@ inline std::string Model::host_identity() const {
             if (auxiliary) {
                 s += "; auxiliary f32 widths";
                 for (size_t l = 0; l < st->layers(); ++l) s += " " + std::to_string(st->auxiliary_width(l));
+                s += "; pooled every";
+                for (size_t l = 0; l < st->layers(); ++l) s += " " + std::to_string(st->auxiliary_pool(l));
             }
         }
         if (d.states) {

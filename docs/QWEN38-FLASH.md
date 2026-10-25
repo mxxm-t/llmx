@@ -236,7 +236,7 @@ Routing, shared-expert gating, dtype and reduction are the same on every path.
 State follows the layer kind.
 A linear-attention layer keeps its GDN convolution tail and F32 recurrent state in a state slot, `StateShape` giving the common prefix.
 The PLE layer adds its dilated convolution's nine raw rows as a per-layer F32 tail after that prefix (`LayerPlan::state_tail`) and its preceding token IDs as the host token-history tail (`LayerPlan::token_history`).
-A QSA layer keeps ordinary attention K/V and a per-position F32 raw indexer key in an auxiliary plane of the same KV storage (`LayerPlan::kv_aux`); pooled keys and partial-block selection are derived from it, and the MTP block's QSA keys use the same plane.
+A QSA layer keeps ordinary attention K/V and a per-position F32 raw indexer key in an auxiliary plane of the same KV storage (`LayerPlan::kv_aux`); each complete group's pooled key is written into the same blocks as the group completes and kept (`LayerPlan::kv_pool`, `Backend::pool_kv`), partial-block selection is derived from it, and the MTP block's QSA keys use the same plane, its context rows pooling their groups through `pool_kv`.
 Allocation, growth, host copies and the persisted identity include the auxiliary plane, and tensor-group members each keep the complete auxiliary row and the complete state tail beside their head-sharded prefix.
 No layer combines GDN recurrence with attention K/V, so there is no combined KV and state cache mode.
 

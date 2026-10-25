@@ -27,9 +27,11 @@ struct VulkanIndexTest {
         const auto kb = b.adopt(pooled.data(), pooled.size() * sizeof(float));
         std::vector<float> out(rows * groups, -12345.0f);
         const auto o = b.adopt(out.data(), out.size() * sizeof(float));
-        const std::vector<uint32_t> table = {1u, 0u, 0u, uint32_t(rows), hist, 0u, 0u};
-        b.score_rows(b.bind(CSlice{qb.get(), 0}), b.bind(CSlice{kb.get(), 0}), b.bind(CSlice{o.get(), 0}), table, 0, 0, rows, groups, heads, dim, compression,
-                     1.0f / std::sqrt(float(dim)));
+        // The pooled keys as a plane of blocks of one group each and no token rows, block g holding group g.
+        std::vector<uint32_t> table = {1u, 0u, 0u, uint32_t(rows), hist, 0u, uint32_t(groups)};
+        for (size_t g = 0; g < groups; ++g) table.push_back(uint32_t(g));
+        b.score_rows(b.bind(CSlice{qb.get(), 0}), b.bind(CSlice{kb.get(), 0}), VulkanBackend::PlaneShape{compression, dim, 0}, b.bind(CSlice{o.get(), 0}), table, 0, 0,
+                     rows, groups, heads, dim, compression, 1.0f / std::sqrt(float(dim)));
         b.read(*o, 0, out.data(), out.size() * sizeof(float));
         return out;
     }

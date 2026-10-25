@@ -154,7 +154,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         taken.erase(std::unique(taken.begin(), taken.end(), [](const auto& a, const auto& b) { return a.first == b.first; }), taken.end());
         for (const auto& t : taken) fp.drafter.push_back(matrix(t.first.first, t.first.second, t.second));
         const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
-        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux)),
+        fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux_floats())),
                                              backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
     }
     // Runtime gives every state layer on one device the largest saved and rerun row of that device. Before placement, charge the model-wide maxima for each state layer.
@@ -167,7 +167,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             }
     for (const LayerPlan& layer : plan.layers) {
         size_t bytes = 0;
-        if (layer.cache == Cache::kv) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux));
+        if (layer.cache == Cache::kv) bytes = backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, layer.kv_aux_floats()));
         else if (layer.cache == Cache::state) {
             const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
             bytes = backend::size_mul(backend::size_mul(slots, backend::size_add(kept.state.slot_floats(), layer.state_tail)), sizeof(float));

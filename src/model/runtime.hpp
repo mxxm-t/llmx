@@ -346,14 +346,14 @@ public:
             }
             if (layer.kv_aux && layer.cache != Cache::kv)
                 throw std::logic_error("inference: auxiliary KV rows need a KV layer");
-            kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(layer.kv_aux, sizeof(float)));
+            kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(layer.kv_aux_floats(), sizeof(float)));
             if (!layer.token_history) continue;
             if (token_width_ || layer.cache != Cache::state || layer.token_padding >= plan_.vocab)
                 throw std::logic_error("inference: token history needs one recurrent layer and a padding ID in the vocabulary");
             token_width_ = layer.token_history;
             token_padding_ = layer.token_padding;
         }
-        if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux, sizeof(float)));
+        if (plan_.drafter) kv_aux_ = backend::size_add(kv_aux_, backend::size_mul(plan_.drafter->kv_aux_floats(), sizeof(float)));
 
         if (place_.mixer_device.empty() && place_.ffn_device.empty()) {
             place_.mixer_device.assign(n_layer, 0);
@@ -559,14 +559,18 @@ public:
                                                  " tokens in one model; a split needs one size to divide the other");
                 }
                 // A tensor group's members each keep their KV heads, in blocks of the one pool its first member holds, so one block table serves them all.
-                std::vector<size_t> auxiliary((size_t)d.kv_layers, 0);
+                std::vector<size_t> auxiliary((size_t)d.kv_layers, 0), pools((size_t)d.kv_layers, 0);
                 for (size_t l = 0; l < plan_.layers.size(); ++l)
-                    if (plan_.layers[l].cache == Cache::kv && d.local_layer[l] >= 0)
+                    if (plan_.layers[l].cache == Cache::kv && d.local_layer[l] >= 0) {
                         auxiliary[(size_t)d.local_layer[l]] = plan_.layers[l].kv_aux;
-                if (plan_.drafter && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_)
+                        pools[(size_t)d.local_layer[l]] = plan_.layers[l].kv_pool;
+                    }
+                if (plan_.drafter && (size_t)(&dp - devices_.data()) / width_ == (size_t)place_.output_device / width_) {
                     auxiliary[drafter_kv_] = plan_.drafter->kv_aux;
+                    pools[drafter_kv_] = plan_.drafter->kv_pool;
+                }
                 d.storage = d.b->kv_alloc((size_t)d.kv_layers, shard::kv_heads(plan_, width_), plan_.head_dim,
-                                          budget, options_.kv_k, options_.kv_v, auxiliary);
+                                          budget, options_.kv_k, options_.kv_v, auxiliary, pools);
                 if (options_.kv_backed) d.storage->back_all();
                 if (d.member) {
                     d.storage_index = devices_[(size_t)(&dp - devices_.data()) - d.member]->storage_index;

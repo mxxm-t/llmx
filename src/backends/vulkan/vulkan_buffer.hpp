@@ -65,7 +65,7 @@ class VulkanBackend;
 class VulkanKVStorage final : public BlockKVStorage {
 public:
     VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt,
-                    KVType vt, const std::vector<size_t>& auxiliary_widths);
+                    KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools);
 
 private:
     void retire(const BufferPtr& old) override;

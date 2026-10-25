@@ -145,7 +145,8 @@ KVView     { storage, blocks, n_blocks, length, nq, extent }
            one sequence's history, its nq rows of the current pass and
            their extent, which a device chooses its kernels by
 kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type, v_type,
-         auxiliary_widths = {}) -> KVStorage     grows on demand
+         auxiliary_widths = {}, auxiliary_pools = {}) -> KVStorage
+                                                 grows on demand
 kv_write(layer, views, n_views, k, v, auxiliary = {})
                                                  model -> storage, rows in view order
 attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)
@@ -167,11 +168,11 @@ backend implementation details.
 The backend validates all views and source spans before it writes K, V or auxiliary data.
 The auxiliary plane follows the same physical block IDs as K and V, so the sequence, block table, growth and release still have one owner.
 Tensor-group members each retain the full auxiliary row under the shared block IDs.
-Qwen4Exp keeps its raw indexer keys in this plane.
+Qwen4Exp keeps its raw indexer keys in this plane, and with a pool of its compression the pooled key of each complete group after a block's token rows (`auxiliary_pools`), written once as the group completes.
 
 ### CPU physical layout
 
-Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim` elements of each side's cache type, f16 by default or f32, plus an optional F32 auxiliary pool of `n_blocks * block_tokens * auxiliary_width` elements.
+Per layer, K and V pools of `n_blocks * block_tokens * n_head_kv * head_dim` elements of each side's cache type, f16 by default or f32, plus an optional F32 auxiliary pool of `n_blocks * (block_tokens + block_tokens / auxiliary_pool) * auxiliary_width` elements, each block's token rows then, with a pool, one row a group.
 All three planes use the same block ids.
 Inside a K or V block the order is `[kv_head][token][head_dim]`, so each head's history within a
 block is contiguous and the existing dot and weighted-value loops run

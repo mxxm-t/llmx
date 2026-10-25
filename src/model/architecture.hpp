@@ -116,6 +116,10 @@ struct LayerPlan {
     size_t state_tail = 0;
     // Additional F32 values per KV position, held whole on every tensor-group member under the same block IDs as K and V.
     size_t kv_aux = 0;
+    // With kv_aux, the groups of this many positions whose pooled rows of kv_aux floats its blocks also keep (BlockKVStorage::auxiliary_pool), or 0.
+    size_t kv_pool = 0;
+    // The auxiliary floats a position takes, its row and its share of a pooled row rounded up, as the fit counts them.
+    size_t kv_aux_floats() const { return kv_aux + (kv_pool ? (kv_aux + kv_pool - 1) / kv_pool : 0); }
     // One recurrent layer may keep this many preceding token IDs on the host under its existing state slots, padded before sequence start.
     size_t token_history = 0;
     uint32_t token_padding = 0;

@@ -347,10 +347,11 @@ public:
     std::unique_ptr<backend::KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                                   size_t max_tokens, backend::KVType k_type,
                                                   backend::KVType v_type,
-                                                  const std::vector<size_t>& auxiliary_widths = {}) override {
+                                                  const std::vector<size_t>& auxiliary_widths = {},
+                                                  const std::vector<size_t>& auxiliary_pools = {}) override {
         auxiliary_allocations.push_back(auxiliary_widths);
         return backend::CpuBackend::kv_alloc(layers, n_head_kv, head_dim, max_tokens,
-                                             k_type, v_type, auxiliary_widths);
+                                             k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
     std::vector<std::vector<size_t>> auxiliary_allocations;
 };

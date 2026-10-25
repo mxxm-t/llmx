@@ -7,6 +7,7 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -483,6 +484,71 @@ void cpu_layer_split_checks(const infer::ModelWeights& weights, const std::vecto
     model.forward(ctx, entries, 2);
     compare(logits(ctx, 0, prompt.size(), vocab), expected, name + " split sequence A");
     compare(logits(ctx, prompt.size(), prompt.size(), vocab), expected, name + " split sequence B");
+}
+
+// The prompt in consecutive passes over the two-CPU split, each slice entering the first stage while the one before it is at the second (docs/MULTI-DEVICE.md, phase 4).
+// The QSA layer pools a group two slices share in the later pass: the last slice's rows and a decode step must be the bits of the same slices run one after another, and HF's.
+void continued_split_checks(const infer::ModelWeights& weights, const std::vector<uint32_t>& prompt, const std::vector<float>& hf_sliced,
+                            const Json& slice_lengths, const Json& item, size_t vocab, const std::string& name) {
+    const auto split = [&] {
+        std::vector<backend::BackendPtr> backends{backend::make_cpu_backend(), backend::make_cpu_backend()};
+        backends[0]->set_threads(1);
+        backends[1]->set_threads(1);
+        infer::Placement placement;
+        placement.mixer_device = {0, 1};
+        placement.ffn_device = {0, 1};
+        placement.output_device = 1;
+        return std::make_unique<infer::Model>(weights, std::move(backends), placement, model_options(2));
+    };
+    const auto flight = split(), serial = split();
+    infer::Sequence q = flight->make_sequence(), s = serial->make_sequence();
+    std::vector<infer::BatchEntry> chunks;
+    size_t at = 0, widest = 0;
+    for (const Json& length : slice_lengths.asArray()) {
+        const size_t n = size_t(length.asNumber());
+        infer::BatchEntry e{&q, prompt.data() + at, n, at + n == prompt.size()};
+        e.every_logits = e.want_logits;
+        e.extent = prompt.size();
+        chunks.push_back(e);
+        widest = std::max(widest, n);
+        at += n;
+    }
+    const size_t last = chunks.back().n;
+    infer::ExecContext ctx, serial_ctx;
+    flight->reserve_passes(ctx, 2, widest, widest);
+    std::vector<float> got, want;
+    for (size_t t = 0; t <= chunks.size(); ++t)
+        for (size_t st = 0; st < 2; ++st) {
+            if (t < st || t - st >= chunks.size()) continue;
+            const size_t c = t - st, slot = c % 2;
+            if (st == 0) flight->begin_pass(ctx, slot, &chunks[c], 1, 0);
+            flight->run_pass_stage(ctx, slot, st);
+            if (st == 0) continue;
+            for (size_t row = 0; chunks[c].want_logits && row < last; ++row)
+                got.insert(got.end(), flight->pass_logits(ctx, slot, row), flight->pass_logits(ctx, slot, row) + vocab);
+            flight->end_pass(ctx, slot);
+        }
+    for (infer::BatchEntry e : chunks) {
+        e.seq = &s;
+        serial->forward(serial_ctx, &e, 1);
+    }
+    want = logits(serial_ctx, 0, last, vocab);
+    if (q.length() != prompt.size() || got != want)
+        throw std::runtime_error(name + ": a prompt in consecutive passes in flight differs from its slices one after another");
+    compare(got, slice_rows(hf_sliced, vocab, prompt.size() - last, last), name + " consecutive passes in flight");
+    const Json& decode = field(item, "decode_token");
+    if (!decode.isNumber()) return;
+    const uint32_t token = uint32_t(decode.asNumber());
+    infer::BatchEntry step{&q, &token, 1, true};
+    flight->begin_pass(ctx, 0, &step, 1, 0);
+    flight->run_pass_stage(ctx, 0, 0);
+    flight->run_pass_stage(ctx, 0, 1);
+    got.assign(flight->pass_logits(ctx, 0, 0), flight->pass_logits(ctx, 0, 0) + vocab);
+    flight->end_pass(ctx, 0);
+    step.seq = &s;
+    serial->forward(serial_ctx, &step, 1);
+    if (got != logits(serial_ctx, 0, 1, vocab)) throw std::runtime_error(name + ": a step after consecutive passes in flight differs from one after the slices");
+    compare(got, floats(field(item, "decode_logits")), name + " step after consecutive passes in flight");
 }
 
 void keep_fork_parity(const infer::ModelWeights& base, const gguf::GGUFModel& file,
@@ -1360,6 +1426,7 @@ int main(int argc, char** argv) {
                 expert_placement_checks(weights, root, item);
                 std::cout << "case " << name << ": two-CPU split" << std::endl;
                 cpu_layer_split_checks(weights, prompt, hf_full, model.n_vocab(), name);
+                continued_split_checks(weights, prompt, hf_sliced, field(root, "slice_lengths"), item, model.n_vocab(), name);
                 std::cout << "case " << name << ": failure after GDN write, marked rollback" << std::endl;
                 failed_marked_delta_rollback_checks(weights, prompt, hf_full, model.n_vocab(), name);
             }

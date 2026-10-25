@@ -635,7 +635,7 @@ public:
             if (c.layers[size_t(l)] == qwen_sparse_attention) {
                 if (tensors.find(pre + "attn_qkv.weight"))
                     throw std::runtime_error("inference: a QSA layer holds the linear-attention tensor " + pre + "attn_qkv.weight");
-                qsa_roles(layer, pre);
+                qsa_roles(layer, pre, size_t(c.indexer_compress_ratio));
             } else {
                 if (tensors.find(pre + "attn_q.weight"))
                     throw std::runtime_error("inference: a linear-attention layer holds the QSA tensor " + pre + "attn_q.weight");
@@ -763,7 +763,7 @@ public:
                    {output_hc_up, Part::draft, RoleKind::matrix, pre + "nextn.hc_head_up.weight", "", L, R}};
         if (split) d.roles.push_back({nextn_fc_hidden, Part::draft, RoleKind::matrix, pre + "nextn.fc_hidden.weight", "", E, E});
         hyper_roles(d, pre, Part::draft, hc_attn_norm, hc_attn_down, hc_attn_up, hc_attn_inject, "hc_attn", Stream::none);
-        qsa_roles(d, pre, c.nextn_compress_ratio != 0);
+        qsa_roles(d, pre, size_t(c.nextn_compress_ratio));
         hyper_roles(d, pre, Part::draft, hc_ffn_norm, hc_ffn_down, hc_ffn_up, hc_ffn_inject, "hc_ffn", Stream::none);
         expert_roles(d, tensors, pre);
         for (infer::Role& r : d.roles) { r.part = Part::draft; r.stream = Stream::none; }
@@ -949,11 +949,14 @@ private:
         layer.recur_writes.push_back(ple_output);
     }
 
-    void qsa_roles(LayerPlan& layer, const std::string& pre, bool sparse = true) const {
+    // A QSA layer, whose index keys and the pooled rows of their groups of `compression` the KV's auxiliary blocks keep; 0 is the MTP block's dense attention.
+    void qsa_roles(LayerPlan& layer, const std::string& pre, size_t compression) const {
+        const bool sparse = compression != 0;
         const uint64_t E = uint64_t(cfg_.n_embd), D = uint64_t(cfg_.head_dim), Q = uint64_t(cfg_.n_head) * D;
         const uint64_t KV = uint64_t(cfg_.n_head_kv) * D, I = uint64_t(cfg_.indexer_head_dim), IQ = uint64_t(cfg_.indexer_n_heads) * I;
         layer.cache = Cache::kv;
         layer.kv_aux = sparse ? size_t(I) : 0;
+        layer.kv_pool = compression;
         layer.roles.insert(layer.roles.end(), {
             {attn_q, Part::mixer, RoleKind::matrix, pre + "attn_q.weight", "", E, 2 * Q},
             {attn_k, Part::mixer, RoleKind::matrix, pre + "attn_k.weight", "", E, KV},
@@ -1047,6 +1050,12 @@ private:
             auxiliary = s.slot(index_key);
         }
         s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate), auxiliary);
+        // The groups these rows complete get their pooled rows now, as a selection pools its own rows' groups, so the chain's selections read every complete group.
+        if (s.kind == mtp_qsa_kind) {
+            const size_t I = size_t(cfg_.indexer_head_dim), IH = size_t(cfg_.indexer_n_heads);
+            const backend::Backend::IndexArgs args{IH, I, size_t(cfg_.rope_dim), size_t(cfg_.nextn_compress_ratio), size_t(cfg_.indexer_budget), cfg_.rms_eps};
+            s.b.pool_kv(s.kv_layer, s.views, s.n_views, args, w[index_k_norm].slice(), cos, sin);
+        }
     }
 
     void sparse_attention(const Step& s) const {

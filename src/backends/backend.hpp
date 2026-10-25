@@ -517,12 +517,13 @@ public:
 
     virtual KVLayout kv_layout() const = 0;
 
-    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer.
+    // Allocates block-backed K/V up to max_tokens. Optional auxiliary widths specify F32 values per token for each layer, and pools the groups whose pooled rows each layer's blocks also keep (BlockKVStorage::auxiliary_pool).
     virtual std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv,
                                                 size_t head_dim, size_t max_tokens,
                                                 KVType k_type = KVType::f32,
                                                 KVType v_type = KVType::f32,
-                                                const std::vector<size_t>& auxiliary_widths = {}) = 0;
+                                                const std::vector<size_t>& auxiliary_widths = {},
+                                                const std::vector<size_t>& auxiliary_pools = {}) = 0;
 
     // Store token-major [rows, n_head_kv, head_dim] rows, laid out in view order: view v owns the next views[v].nq rows, which go to positions length to length + nq of its sequence, and several views carry several sequences in one call.
     virtual void kv_write(size_t layer, const KVView* views, size_t n_views,
@@ -538,11 +539,16 @@ public:
         size_t heads, dim, rope_dim, compression, budget;
         float eps;
     };
-    // Q is already normalized and rotated; each view's raw auxiliary keys are pooled in complete causal groups, normalized and rotated at the group's first position.
+    // Q is already normalized and rotated; the groups each view's rows complete are pooled first (pool_kv), and every complete group's pooled key is read from the auxiliary blocks.
     // Output is U32 token IDs in chronological order, padded with UINT32_MAX to budget + compression - 1 per row; equal scores prefer the earlier group.
     virtual void select_kv(CSlice, size_t, const KVView*, size_t, Slice,
                            const IndexArgs&, CSlice, CSlice, CSlice) {
         throw std::runtime_error("backend: select_kv is not implemented");
+    }
+    // The complete groups the views' rows complete, their raw auxiliary keys averaged, normalized and rotated at the group's first position, into their pooled rows of the auxiliary blocks (BlockKVStorage::auxiliary_pool).
+    // select_kv pools its own rows' groups; a caller that writes a pooled layer's auxiliary rows without selecting them pools them here, so every complete group of a history has its row.
+    virtual void pool_kv(size_t, const KVView*, size_t, const IndexArgs&, CSlice, CSlice, CSlice) {
+        throw std::runtime_error("backend: pool_kv is not implemented");
     }
 
     // Causal GQA over chronological unique U32 IDs, id_stride slots per query in view order; padding and IDs outside the causal prefix are ignored, and an empty selection yields zeros.

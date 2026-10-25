@@ -30,7 +30,9 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   token IDs a recurrent layer keeps, and `token_padding`, the ID used before
   sequence start;
   `kv_aux`, an optional F32 width per KV position, stored in the same physical
-  blocks as the layer's K and V and held whole on each tensor-group member;
+  blocks as the layer's K and V and held whole on each tensor-group member,
+  and `kv_pool`, the groups of positions whose pooled rows those blocks also keep
+  (`kv_aux_floats()` counts both for the fit);
   `lookup`, an optional `Lookup` naming a mixer gather role and its requested
   table rows per token; and
   `ModelPlan` (the size of a row of resolved weights, the vocabulary, the

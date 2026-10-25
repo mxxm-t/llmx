@@ -854,7 +854,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_SPARSE_ATTENTION_VEC_D256_V16, "sparse_attention_vec_d256_v16", kSpvSparseAttentionVecD256V16, sizeof(kSpvSparseAttentionVecD256V16), 8, nullptr) \
     X(K_SPARSE_ATTENTION_VEC_D256_KV16, "sparse_attention_vec_d256_kv16", kSpvSparseAttentionVecD256Kv16, sizeof(kSpvSparseAttentionVecD256Kv16), 8, nullptr) \
     X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
-    X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 6, nullptr) \
+    X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 5, nullptr) \
     X(K_KV_INDEX_SCORES_TILE, "kv_index_scores_tile", kSpvKvIndexScoresTile, sizeof(kSpvKvIndexScoresTile), 4, nullptr) \
     X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
     X(K_KV_INDEX_SELECT_WIDE, "kv_index_select_wide", kSpvKvIndexSelectWide, sizeof(kSpvKvIndexSelectWide), 4, nullptr) \

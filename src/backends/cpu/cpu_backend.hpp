@@ -53,8 +53,8 @@ static const size_t KV_BLOCK_TOKENS = 128;
 class CpuKVStorage final : public BlockKVStorage {
 public:
     CpuKVStorage(Backend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
-                 const std::vector<size_t>& auxiliary_widths)
-        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths),
+                 const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
+        : BlockKVStorage(owner, "backend", KV_BLOCK_TOKENS, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools),
           kp_(layers, nullptr), vp_(layers, nullptr) {}
 
     // Block `id` of a layer as bytes, and as the element type it holds; the caller checks the type and casts once per block.
@@ -733,10 +733,10 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}) override {
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override {
         if (layers == 0 || n_head_kv == 0 || head_dim == 0)
             throw std::runtime_error("backend: invalid KV storage shape");
-        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths);
+        return std::make_unique<CpuKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
     }
 
     // A row of floats into a cache side of either type; f16 rounds to nearest, eight at a time through F16C.
@@ -1077,6 +1077,57 @@ public:
     }
 
     // Select whole compressed groups by the positive indexer score, then keep the visible partial tail in causal order.
+    // The complete groups `view`'s rows complete, pooled into their rows of the layer's auxiliary blocks (BlockKVStorage::auxiliary_pool); the earlier groups were pooled by the call whose rows completed them.
+    void pool_view(CpuKVStorage& storage, size_t layer, const KVView& view, const IndexArgs& args, const float* gamma, const float* cosine, const float* sine) {
+        const size_t aux_width = storage.auxiliary_width(layer), block_bytes = storage.auxiliary_block_bytes(layer);
+        const size_t rows_bytes = storage.auxiliary_rows_bytes(layer), bt = storage.block_tokens(), half = args.rope_dim / 2;
+        uint8_t* plane = (uint8_t*)at(Slice{storage.auxiliary_buffer(layer).get(), 0});
+        const size_t groups = size_add(view.length, view.nq) / args.compression;
+        for (size_t group = view.length / args.compression; group < groups; ++group) {
+            const size_t first_token = size_mul(group, args.compression);
+            float* pooled = (float*)(plane + (size_t)view.blocks[first_token / bt] * block_bytes + rows_bytes + (first_token % bt) / args.compression * aux_width * sizeof(float));
+            std::fill(pooled, pooled + args.dim, 0.0f);
+            for (size_t token = first_token; token < first_token + args.compression; ++token) {
+                const float* raw = (const float*)(plane + (size_t)view.blocks[token / bt] * block_bytes + (token % bt) * aux_width * sizeof(float));
+                for (size_t d = 0; d < args.dim; ++d) pooled[d] += raw[d];
+            }
+            const float inv_group = 1.0f / (float)args.compression;
+            for (size_t d = 0; d < args.dim; ++d) pooled[d] *= inv_group;
+            float squares = 0.0f;
+            for (size_t d = 0; d < args.dim; ++d)
+                squares = std::fma(pooled[d], pooled[d], squares);
+            const float inv_norm = 1.0f / std::sqrt(squares / (float)args.dim + args.eps);
+            for (size_t d = 0; d < args.dim; ++d) pooled[d] = (pooled[d] * inv_norm) * gamma[d];
+
+            const float* c = cosine + first_token * half;
+            const float* s = sine + first_token * half;
+            for (size_t i = 0; i < half; ++i) {
+                const float a = pooled[i], b = pooled[i + half];
+                pooled[i] = a * c[i] - b * s[i];
+                pooled[i + half] = b * c[i] + a * s[i];
+            }
+        }
+    }
+
+    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s) override {
+        if (!n_views) return;
+        if (!views) throw std::runtime_error("backend: index pooling without views");
+        if (!args.dim || !args.rope_dim || args.rope_dim > args.dim || (args.rope_dim & 1) || !args.compression || !std::isfinite(args.eps) || args.eps <= 0.0f)
+            throw std::runtime_error("backend: invalid index pooling dimensions");
+        size_t max_position = 0;
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            CpuKVStorage& storage = storage_of(views[vi]);
+            storage.check_view(views[vi], layer, false);
+            if (storage.auxiliary_width(layer) != args.dim || storage.auxiliary_pool(layer) != args.compression)
+                throw std::runtime_error("backend: index pooling differs from the rows and groups its auxiliary blocks keep");
+            max_position = std::max(max_position, size_add(views[vi].length, views[vi].nq));
+        }
+        validate_float_slice(key_norm_s, args.dim);
+        validate_float_slice(cos_s, size_mul(max_position, args.rope_dim / 2));
+        validate_float_slice(sin_s, size_mul(max_position, args.rope_dim / 2));
+        for (size_t vi = 0; vi < n_views; ++vi) pool_view(storage_of(views[vi]), layer, views[vi], args, at(key_norm_s), at(cos_s), at(sin_s));
+    }
+
     void select_kv(CSlice Q_s, size_t layer, const KVView* views, size_t n_views, Slice ids_s,
                    const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s) override {
         if (!n_views) return;
@@ -1092,7 +1143,7 @@ public:
         struct ViewPlan {
             CpuKVStorage* storage = nullptr;
             const KVView* view = nullptr;
-            const float* auxiliary = nullptr;
+            float* auxiliary = nullptr;
             size_t first_row = 0, visible = 0, groups = 0;
         };
         std::vector<ViewPlan> plans;
@@ -1112,11 +1163,13 @@ public:
             if (plan.storage->heads() == 0 || plan.storage->dim() == 0 ||
                 plan.storage->auxiliary_width(layer) != args.dim)
                 throw std::runtime_error("backend: index selection auxiliary width differs from its key dimension");
+            if (plan.storage->auxiliary_pool(layer) != args.compression)
+                throw std::runtime_error("backend: index selection compression differs from the groups its auxiliary blocks pool");
             if (plan.visible) {
                 const auto& auxiliary = plan.storage->auxiliary_buffer(layer);
                 if (!auxiliary) throw std::runtime_error("backend: index selection without auxiliary key storage");
                 span(*auxiliary, 0, auxiliary->size());
-                plan.auxiliary = at(CSlice{auxiliary.get(), 0});
+                plan.auxiliary = at(Slice{auxiliary.get(), 0});
             }
             rows = size_add(rows, view.nq);
             max_position = std::max(max_position, plan.visible);
@@ -1155,7 +1208,6 @@ public:
         const float* cosine = at(cos_s);
         const float* sine = at(sin_s);
         float* output = at(ids_s);
-        std::vector<float> pooled_keys(size_mul(max_groups, args.dim));
         struct RankedGroup { float score; size_t group; };
         std::vector<RankedGroup> ranked(max_groups);
         std::vector<size_t> selected(max_groups);
@@ -1170,34 +1222,15 @@ public:
             const KVView& view = *plan.view;
             const size_t aux_width = plan.storage->auxiliary_width(layer);
             const size_t block_bytes = plan.storage->auxiliary_block_bytes(layer);
+            const size_t rows_bytes = plan.storage->auxiliary_rows_bytes(layer);
             const size_t bt = plan.storage->block_tokens();
-            for (size_t group = 0; group < plan.groups; ++group) {
-                const size_t first_token = size_mul(group, args.compression);
-                float* pooled = pooled_keys.data() + group * args.dim;
-                std::fill(pooled, pooled + args.dim, 0.0f);
-                for (size_t token = first_token; token < first_token + args.compression; ++token) {
-                    const size_t block_index = token / bt;
-                    const size_t block_id = (size_t)view.blocks[block_index];
-                    const size_t offset = block_id * block_bytes + (token % bt) * aux_width * sizeof(float);
-                    const float* raw = (const float*)((const uint8_t*)plan.auxiliary + offset);
-                    for (size_t d = 0; d < args.dim; ++d) pooled[d] += raw[d];
-                }
-                const float inv_group = 1.0f / (float)args.compression;
-                for (size_t d = 0; d < args.dim; ++d) pooled[d] *= inv_group;
-                float squares = 0.0f;
-                for (size_t d = 0; d < args.dim; ++d)
-                    squares = std::fma(pooled[d], pooled[d], squares);
-                const float inv_norm = 1.0f / std::sqrt(squares / (float)args.dim + args.eps);
-                for (size_t d = 0; d < args.dim; ++d) pooled[d] = (pooled[d] * inv_norm) * gamma[d];
-
-                const float* c = cosine + first_token * half;
-                const float* s = sine + first_token * half;
-                for (size_t i = 0; i < half; ++i) {
-                    const float a = pooled[i], b = pooled[i + half];
-                    pooled[i] = a * c[i] - b * s[i];
-                    pooled[i + half] = b * c[i] + a * s[i];
-                }
-            }
+            // A complete group's pooled row in its block, after the block's token rows.
+            const auto pooled_row = [&](size_t group) {
+                const size_t token = size_mul(group, args.compression);
+                const size_t offset = (size_t)view.blocks[token / bt] * block_bytes + rows_bytes + (token % bt) / args.compression * aux_width * sizeof(float);
+                return (float*)((uint8_t*)plan.auxiliary + offset);
+            };
+            pool_view(*plan.storage, layer, view, args, gamma, cosine, sine);
 
             for (size_t query_row = 0; query_row < view.nq; ++query_row) {
                 const size_t visible = view.length + query_row + 1;
@@ -1206,7 +1239,7 @@ public:
                 const size_t n_selected = std::min(group_budget, groups);
                 const float* q = query + (plan.first_row + query_row) * row_width;
                 for (size_t group = 0; group < groups; ++group) {
-                    const float* key = pooled_keys.data() + group * args.dim;
+                    const float* key = pooled_row(group);
                     float total = 0.0f;
                     for (size_t h = 0; h < args.heads; ++h) {
                         const float* qh = q + h * args.dim;

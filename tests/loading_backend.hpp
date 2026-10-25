@@ -68,8 +68,8 @@ struct LoadingBackend : backend::CpuBackend {
     void wait(backend::Ticket) noexcept override { sync(); }
     std::unique_ptr<backend::KVStorage> kv_alloc(size_t layers, size_t heads, size_t dim, size_t tokens,
                                                backend::KVType k, backend::KVType v,
-                                               const std::vector<size_t>& auxiliary_widths = {}) override {
+                                               const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override {
         if (fail_cache) throw std::runtime_error("injected cache allocation failure");
-        return backend::CpuBackend::kv_alloc(layers, heads, dim, tokens, k, v, auxiliary_widths);
+        return backend::CpuBackend::kv_alloc(layers, heads, dim, tokens, k, v, auxiliary_widths, auxiliary_pools);
     }
 };

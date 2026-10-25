@@ -114,7 +114,7 @@ placement contracts in `docs/EXECUTION.md`.
   precise activations for it; the Vulkan backend keeps the 16-bit twin for
   a Q4_0, Q4_1 or Q6_K head.
 - `kv_layout()`, `kv_alloc(layers, n_head_kv, head_dim, max_tokens, k_type,
-  v_type, auxiliary_widths = {})`, `kv_write(layer, views, n_views, k, v,
+  v_type, auxiliary_widths = {}, auxiliary_pools = {})`, `kv_write(layer, views, n_views, k, v,
   auxiliary = {})`: the backend-owned half of
   the paged KV cache in `docs/KV-CACHE.md`. Each side is stored as
   `KVType::f32` or `KVType::f16` (the CLI's `--cache-type-k` and
@@ -132,6 +132,7 @@ placement contracts in `docs/EXECUTION.md`.
   `auxiliary_widths` is empty for zero width on every layer or supplies one F32 width per KV layer.
   `kv_write` requires its token-major `[rows, width]` source on enabled layers, refuses one on disabled layers, and validates all views and sources before writing.
   The optional plane uses the same block ids as K and V; `select_kv` reads it for QSA, where qwen4exp keeps its raw indexer keys.
+  `auxiliary_pools` is empty or supplies, per layer, the groups of tokens whose pooled rows each block also keeps after its token rows (0 for none), which `pool_kv` and `select_kv` write.
   The backends here derive their storage from `BlockKVStorage` (`backends-kv_storage.md`), which holds the buffers, the accounting, the growth rule, the whole-budget check and the view checks once.
 - `attention(Q, layer, views, n_views, out, n_head, n_head_kv, head_dim)`:
   causal GQA over every view, shared by decode and prefill. Queries/output
@@ -140,6 +141,9 @@ placement contracts in `docs/EXECUTION.md`.
   `length + nq` positions and every block it reaches must have been written.
   Several views in one call is what a batch of sequences needs; the model
   passes one per entry. The backend owns temporary score storage.
+- `pool_kv(layer, views, n_views, index, key_norm, cos, sin)`: the complete groups the views' rows complete, their raw keys averaged, normalized with `key_norm` and rotated at the group's first position, into their pooled rows of the auxiliary blocks.
+  `select_kv` pools its own rows' groups; a caller that writes a pooled layer's auxiliary rows without selecting them, as qwen4exp's MTP context rows do, pools them here, so every complete group of a history has its row.
+  A layer's pool must be the selection's compression. A backend with `select_kv` has it.
 - `select_kv(Q, layer, views, n_views, ids, index, key_norm, cos, sin)`:
   QSA's causal selector. `Q` is already normalized and RoPE-rotated with shape
   `[rows, index.heads, index.dim]`; each view supplies its contiguous visible

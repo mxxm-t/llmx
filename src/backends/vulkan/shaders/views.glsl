@@ -9,6 +9,11 @@ uint view_local0(uint v) { return tab[2u + VIEW_WORDS * v]; }
 uint view_nq(uint v) { return tab[3u + VIEW_WORDS * v]; }
 uint view_hist(uint v) { return tab[4u + VIEW_WORDS * v]; }
 uint view_block(uint v, uint i) { return tab[1u + VIEW_WORDS * view_count() + tab[5u + VIEW_WORDS * v] + i]; }
+// The first float of complete group g's pooled row in view v's auxiliary blocks: each block of `block_floats` holds its tokens' rows, `rows_floats` of them, then a row a group of `compression` tokens.
+uint pooled_row(uint v, uint g, uint compression, uint bt, uint block_floats, uint rows_floats, uint dim) {
+    uint t = g * compression;
+    return view_block(v, t / bt) * block_floats + rows_floats + (t % bt) / compression * dim;
+}
 // The view holding dispatch-local row g, and g's row within it; the batch row is view_row0(v) + b.
 void view_of_row(uint g, out uint v, out uint b) {
     uint n = view_count();

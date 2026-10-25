@@ -1,13 +1,12 @@
 #version 450
-// One workgroup pools a complete group of raw auxiliary keys, then normalizes and rotates it at its first token's position.
+// One workgroup pools a complete group of raw auxiliary keys, then normalizes and rotates it at its first token's position, into the group's pooled row of the same blocks.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint view; uint first; uint dim; uint half_dim; uint compression; uint bt; float eps; } p;
-layout(set = 0, binding = 0) readonly buffer X { float raw[]; };
-layout(set = 0, binding = 1) writeonly buffer O { float pooled[]; };
-layout(set = 0, binding = 2) readonly buffer W { float w[]; };
-layout(set = 0, binding = 3) readonly buffer C { float cs[]; };
-layout(set = 0, binding = 4) readonly buffer S { float sn[]; };
-layout(set = 0, binding = 5) readonly buffer T { uint tab[]; };
+layout(push_constant) uniform P { uint view; uint first; uint dim; uint half_dim; uint compression; uint bt; uint block_floats; uint rows_floats; float eps; } p;
+layout(set = 0, binding = 0) buffer X { float aux[]; };
+layout(set = 0, binding = 1) readonly buffer W { float w[]; };
+layout(set = 0, binding = 2) readonly buffer C { float cs[]; };
+layout(set = 0, binding = 3) readonly buffer S { float sn[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 #include "views.glsl"
 shared float values[256];
 shared float red[256];
@@ -18,8 +17,8 @@ void main() {
     if (lid < p.dim) {
         for (uint i = 0u; i < p.compression; ++i) {
             uint t = start + i;
-            uint at = (view_block(p.view, t / p.bt) * p.bt + t % p.bt) * p.dim;
-            value += raw[at + lid];
+            uint at = view_block(p.view, t / p.bt) * p.block_floats + t % p.bt * p.dim;
+            value += aux[at + lid];
         }
         value /= float(p.compression);
     }
@@ -40,6 +39,6 @@ void main() {
             uint r = start * p.half_dim + i;
             result = lid < p.half_dim ? a * cs[r] - b * sn[r] : a * sn[r] + b * cs[r];
         }
-        pooled[g * p.dim + lid] = result;
+        aux[pooled_row(p.view, g, p.compression, p.bt, p.block_floats, p.rows_floats, p.dim) + lid] = result;
     }
 }

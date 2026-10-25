@@ -1,5 +1,49 @@
 # llmx - Development Status
 
+## The indexer keeps each complete group's pooled key (2026-10-25, branch feat/index-pool on feat/index-scores, part 1 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits after parts 3 and 2)
+
+- **Why:** `kv_index_pool` pooled every complete group of a history again at every pass: 2.54 ms a decode stage of Qwen3.8-Flash-Next on 2x2 at a 155648-token history (2026-10-24 profiles), against 0.21 at 8k.
+- **What lands:**
+  - A QSA layer's auxiliary blocks keep, after their token rows, one row of the index width for each complete group of the layer's compression (`LayerPlan::kv_pool`, `kv_alloc`'s `auxiliary_pools`, `BlockKVStorage::auxiliary_pool`).
+  - `select_kv` pools only the groups its own rows complete and reads every earlier group's kept row, on the CPU (`pool_view`) and on Vulkan (`pool_view`, `pooled_row` in `views.glsl`), with the same arithmetic as before, so the values are the same.
+  - A caller that writes a pooled layer's rows without selecting them pools them with the new `Backend::pool_kv`: qwen4exp's MTP context rows do.
+  - Retracted rows complete their group again when they are written again, a fork at a whole block shares the kept rows, and host copies and disk files carry them with the block. The disk description names the pools, so files of builds without them are not adopted.
+  - Nothing moves a token's position after it is written. A change that would, such as a sliding window kept in place, must drop or recompute the rows (`BlockKVStorage`'s comment).
+- **Memory** (C2DEV's amendment 1): 128 bytes a position on each QSA layer beside the 512 of the raw key.
+  - On Flash with f16 sides that is about 5% of a token's KV.
+  - On a 2x2 member, which holds 6 QSA layers' head-split K and V (1024 B) and whole raw keys (512 B), 768 against 9216 bytes a token, 8.3%.
+  - So production's 2x2 pool of 655616 tokens becomes about 605200 where KV is what fills the cards.
+  - The fit at production's flags on 2x2 in the gate: 926400 KV tokens with the three parts against 1003584 on main 07facf1b6 (-7.7%), and 47744 against 51712 for the 16 state checkpoints.
+- **Tests:** `kv-selection` holds the rows to being kept on whatever backend it is given: `pool_kv` over rows completing group 2 writes that row alone, and a selection after group 0's kept row is replaced by one the query favours takes group 0, where pooling it again from its raw keys would take group 5.
+  `kv-selection` and `sparse-attention` pool the rows they write before the rows they select, as the passes would; `arch-qwen4exp`, `qwen4exp-mtp` (its MTP block's QSA layer, a verify retracted inside a group and a prompt in slices against a fresh sequence, bit for bit) and `qwen4exp-graph` pass unchanged on the CPU.
+  `llmx-qwen4exp-model-test` reads each HF case's prompt in consecutive passes in flight over the two-CPU split (C2DEV's amendment of 03:58), so the QSA layer on the second stage pools a group two slices share in the later pass: the last slice's rows and the decode step must be the bits of the same slices run one after another, and within the HF bound of the sliced and follow-up logits.
+- **Device checks:** `vulkan-index`, `kv-selection --device vulkan:0`, `sparse-attention --device vulkan:0`, `qwen4exp-mtp --device vulkan:0` and `backend-vulkan` pass on the Radeon VII under the AMD proprietary driver 26.5.2 at this head, and on an MI50 under RADV at the gate's build.
+- **Gate** (the three parts together; Qwen3.8-Flash-Next UD-Q4_K_XL, int8, f16 KV, `--lookup-storage file`, GPUs 4-9 at default clocks; main 07facf1b6 against the three parts built at b79bad34e, whose product code is this head's before the rebase on main; `lw/idx` on the test machine):
+  - Greedy ids, 24 tokens after real-text prompts of 7745, 64075 and 152425 tokens on 2x2 and on the six-card layer split: equal to main's in all six cells. The 64075-token prompt ends at once on both builds, and the six-card 152425 after 5 tokens. The scores keep their bits by the tests above, so the selections and the logits do too, and no long-context check of changed numerics is due.
+  - Decode after a depth on 2x2, tg32 in tok/s, the builds interleaved main, new, new, main:
+
+| Depth | Main | Three parts |
+|---|---|---|
+| 8192 | 33.67, 33.62 | 33.80, 34.25 |
+| 65536 | 26.43, 25.70 | 32.83, 32.06 |
+| 155648 | 20.67, 20.58 | 31.26, 31.07 |
+
+  - Level at 8192, +24% at 65536 and +51% at 155648. The three parts' bench reads its ids over the whole vocabulary (bench-ids) and main's below 1000, so the new arm reads more of the table from the file; the gain is if anything understated.
+  - The profile at 155648, a decode token on the first device: `kv_index_select` 4.43 ms against `kv_index_select_wide` 0.51, `kv_index_scores` 2.56 against `kv_index_scores_tile` 0.66, `kv_index_pool` 2.54 against 0.018; device time 23.4 against 15.3 ms a token.
+  - The generate runs' prompt rates differ by more than the indexer, since main there predates phase 4 and each main run warmed the ARC for the new one, so they are not quoted as its gain.
+- **Landing timing round** against main 8e84e4c4f (9df63df36's product code), 2x2, `bench --p 32 --n 64 --r 2 --depth D`, the 16K-record copy, GPUs 4-7, interleaved main, new, new, main:
+
+| Depth | | Main | The three parts on main |
+|---|---|---|---|
+| 2048 | tg64 tok/s | 39.01, 39.11 | 39.60, 39.82 (+1.6%) |
+| 2048 | pp32 tok/s | 173.2, 172.8 | 175.1, 175.3 (+1.2%) |
+| 65536 | tg64 tok/s | 29.12, 28.47 | 33.45, 33.77 (+16.7%) |
+| 65536 | pp32 tok/s | 122.9, 123.0 | 158.0, 158.0 (+28.5%) |
+
+  - The 65536 rows are a lower bound: they are from the three parts on b9c6e7314, which lack main's K1 and K4 and paid about 81 ms per 64 tokens for it, so the parts on main can only be further ahead (F2DEV, 15:11 and 15:17). A first pair at 2048 from the same arm read 36.2 against 39.5 tok/s. Its profile (`bench --profile`, device 0, 64 tokens) puts the difference in those two kernels, `group_rms_norm_x8` 83.5 against 31.8 ms and `moe_route` 33.2 against `moe_route_s8` 14.1 ms, while the indexer's own kernels were faster: scores 6.09 against 6.89 ms, pooling 1.12 against 6.10 ms.
+  - The 2x2 fault of 11:04 did not recur in ten 2x2 `bench --p 2048` runs since, on this build and on main alike.
+- **Review and landing:** C2DEV reviewed the series (03:58) and F2DEV the head rebased on main (15:17); the three parts land by fast-forward as their six commits through the queue, on the hosted run at the head that lands.
+
 ## The indexer scores a tile of groups a workgroup (2026-10-25, branch feat/index-scores on feat/index-select, part 2 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits after part 3)
 
 - **Why:** `kv_index_scores` took a workgroup per (row, group), four heads of a 256-lane tree each with eight barrier steps: 2.56 ms a decode stage of Qwen3.8-Flash-Next on 2x2 at a 155648-token history (2026-10-24 profiles).
@@ -21,7 +65,7 @@
   4.3 times less on the MI50 at 155648 tokens; the old kernel was not timed on the Radeon VII, since the first commit's run stops at the dispatch check.
   A first form of a tile of 16 groups a workgroup, its dots in shared memory, was slower than the old kernel (1.16 ms at 38912 groups), and one of a thread a dot with its partials indexed at run time slower still (1.64 ms); both kept the bits.
 - **A hand check:** as part 3's, `vulkan-index` runs by hand on the MI50 and the Radeon VII.
-- **Left:** as part 3's: the gate, run on the three parts together (part 1's block); the hosted run; F2DEV's review of the head rebased on main.
+- **Gate and landing:** as part 3's, the gate run on the three parts together and recorded in part 1's block, landing by fast-forward with them.
 
 ## The indexer's selection over many workgroups (2026-10-25, branch feat/index-select on main 14010059a, part 3 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits)
 
@@ -44,7 +88,7 @@
   The wide selection is a floor of five dispatches, about 30 us each with the digits taken again in each workgroup, so the crossover is near 4096 groups (16384 tokens at Flash's compression of 4); it takes 9.3 times less at 155648 tokens.
   On the Radeon VII under the AMD proprietary driver 26.5.2 one workgroup takes 0.087 ms at 4096 groups against the wide selection's 0.104, and 0.112 against 0.103 at 5120, so its profile switches at 5120 (C2DEV's amendment 1); at 38912 groups 0.695 against 0.103.
 - **A hand check:** `vulkan-index` needs a Vulkan device and no hosted runner has one, so it runs by hand on the MI50 and the Radeon VII; on a device that times no dispatches it skips the dispatch count and the times.
-- **Left:** the gate, run on the three parts together (part 1's block); the hosted run; F2DEV's review of the head rebased on main.
+- **Gate and landing:** the gate ran on the three parts together and is recorded in part 1's block, with the clean pair at 2048 against main (+1.6% tg64, +1.2% pp32); the three parts land by fast-forward, part 3 first.
 
 ## Vulkan allocation failure diagnostics (2026-10-25, branch fix/vulkan-allocation-error)
 

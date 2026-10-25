@@ -53,13 +53,13 @@ inline KVLayout VulkanBackend::kv_layout() const { return KVLayout{kVkBlockToken
 inline std::unique_ptr<KVStorage> VulkanBackend::kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                                           size_t max_tokens, KVType k_type,
                                                           KVType v_type,
-                                                          const std::vector<size_t>& auxiliary_widths) {
+                                                          const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools) {
     if (!layers || !n_head_kv || !head_dim)
         throw std::runtime_error("vulkan: KV storage without layers, heads or width");
     if (!attention_head_fits(head_dim, dev_->caps.subgroup_size))
         throw std::runtime_error("vulkan: a head " + std::to_string(head_dim) + " wide is not supported on this device, whose attention takes heads 128 or 256 wide or at most " +
                                  std::to_string(attention_row_width(dev_->caps.subgroup_size)));
-    return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths);
+    return std::make_unique<VulkanKVStorage>(*this, layers, n_head_kv, head_dim, max_tokens, k_type, v_type, auxiliary_widths, auxiliary_pools);
 }
 
 // One dispatch for every view of the batch through the view table, each view's rows scattering into its blocks.
@@ -244,6 +244,8 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
     VulkanKVStorage& storage = *table.storage;
     if (storage.auxiliary_width(layer) != index.dim)
         throw std::runtime_error("vulkan: index selection auxiliary width differs from its key dimension");
+    if (storage.auxiliary_pool(layer) != index.compression)
+        throw std::runtime_error("vulkan: index selection compression differs from the groups its auxiliary blocks pool");
     size_t longest = 0, max_rows = 0;
     for (size_t i = 0; i < n_views; ++i) {
         const size_t visible = size_add(views[i].length, views[i].nq);
@@ -272,30 +274,20 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
     const uint32_t budget = u32(index.budget), output_stride = u32(stride);
     const auto qb = bind(query), ob = bind(ids), wb = bind(key_norm), cb = bind(cos), sb = bind(sin);
     const auto ab = bind(CSlice{auxiliary.get(), 0});
-    // Pool one view at a time and score at most 16 query rows at once, bounding the score matrix independently of the prompt batch.
+    // Pool the groups a view's rows complete into their pooled rows of the auxiliary blocks, then score at most 16 query rows at once, bounding the score matrix independently of the prompt batch.
     const size_t max_groups = longest / index.compression;
-    const size_t pool_bytes = size_mul(size_mul(max_groups, index.dim), sizeof(float));
     const size_t score_bytes = size_mul(size_mul(std::min<size_t>(max_rows, 16), max_groups), sizeof(float));
-    u32(pool_bytes / sizeof(float)); u32(score_bytes / sizeof(float));
-    if (pool_bytes && (!index_pool_ || index_pool_->size() < pool_bytes)) grow(index_pool_, pool_bytes);
+    u32(score_bytes / sizeof(float));
     if (score_bytes && (!scratch_ || scratch_->size() < score_bytes)) grow(scratch_, score_bytes);
-    const auto pb = index_pool_ ? bind(CSlice{index_pool_.get(), 0}) : ob;
     const auto scores = scratch_ ? bind(CSlice{scratch_.get(), 0}) : ob;
-    const auto table_binding = [&]() { return args(table.words.data(), table.words.size() * sizeof(uint32_t)); };
-    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
+    const PlaneShape plane{u32(kVkBlockTokens), u32(storage.auxiliary_block_bytes(layer) / sizeof(float)), u32(storage.auxiliary_rows_bytes(layer) / sizeof(float))};
     for (size_t vi = 0; vi < n_views; ++vi) {
         if (!views[vi].nq) continue;
         const size_t count = (views[vi].length + views[vi].nq) / index.compression;
-        struct { uint32_t view, first, dim, half, compression, bt; float eps; }
-            pc{u32(vi), 0, dim, u32(half), compression, u32(kVkBlockTokens), index.eps};
-        for (size_t first = 0; first < count; first += limit) {
-            pc.first = u32(first);
-            dispatch(K_KV_INDEX_POOL, {ab, pb, wb, cb, sb, table_binding()}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
-        }
-        if (unordered_) barrier(open());
+        pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index);
         for (size_t row = 0; row < views[vi].nq; row += 16) {
             const size_t rows = std::min<size_t>(16, views[vi].nq - row);
-            score_rows(qb, pb, scores, table.words, u32(vi), row, rows, count, heads, dim, compression, 1.0f / std::sqrt(float(index.dim)));
+            score_rows(qb, ab, plane, scores, table.words, u32(vi), row, rows, count, heads, dim, compression, 1.0f / std::sqrt(float(index.dim)));
             select_rows(scores, ob, table.words, u32(vi), row, rows, count, compression, budget, output_stride, count >= dev_->profile.select_wide_from);
         }
     }
@@ -312,12 +304,52 @@ inline std::vector<VulkanBackend::Placed> VulkanBackend::place_views(const KVVie
     return placed;
 }
 
-inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table, uint32_t view,
-                                      size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
+inline void VulkanBackend::pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) {
+    if (!n_views) return;
+    if (!index.dim || index.dim > 256 || !index.rope_dim || index.rope_dim % 2 || index.rope_dim > index.dim || !index.compression || !std::isfinite(index.eps) ||
+        index.eps <= 0)
+        throw std::runtime_error("vulkan: invalid index pooling dimensions");
+    const auto placed = place_views(views, n_views);
+    ViewTable table = view_table(layer, placed, false);
+    if (!table.rows) return;
+    VulkanKVStorage& storage = *table.storage;
+    if (storage.auxiliary_width(layer) != index.dim || storage.auxiliary_pool(layer) != index.compression)
+        throw std::runtime_error("vulkan: index pooling differs from the rows and groups its auxiliary blocks keep");
+    const auto& auxiliary = storage.auxiliary_buffer(layer);
+    if (!auxiliary) throw std::runtime_error("vulkan: index pooling without auxiliary key storage");
+    size_t longest = 0;
+    for (size_t i = 0; i < n_views; ++i) longest = std::max(longest, size_add(views[i].length, views[i].nq));
+    const size_t rope_values = size_mul(longest, index.rope_dim / 2);
+    for (const auto& [s, count] : {std::pair<CSlice, size_t>{key_norm, index.dim}, {cos, rope_values}, {sin, rope_values}}) {
+        if (!s.buffer) throw std::runtime_error("vulkan: operand without storage");
+        span(*s.buffer, size_mul(s.offset, sizeof(float)), size_mul(count, sizeof(float)));
+    }
+    const PlaneShape plane{u32(kVkBlockTokens), u32(storage.auxiliary_block_bytes(layer) / sizeof(float)), u32(storage.auxiliary_rows_bytes(layer) / sizeof(float))};
+    const auto ab = bind(CSlice{auxiliary.get(), 0}), wb = bind(key_norm), cb = bind(cos), sb = bind(sin);
+    for (size_t vi = 0; vi < n_views; ++vi) pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index);
+}
+
+inline void VulkanBackend::pool_view(VkDescriptorBufferInfo aux, PlaneShape plane, VkDescriptorBufferInfo key_norm, VkDescriptorBufferInfo cos, VkDescriptorBufferInfo sin,
+                                     const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index) {
+    const size_t done = v.length / index.compression, count = (v.length + v.nq) / index.compression;
+    if (count <= done) return;
+    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
+    const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
+    struct { uint32_t view, first, dim, half, compression, bt, block_floats, rows_floats; float eps; }
+        pc{view, 0, u32(index.dim), u32(index.rope_dim / 2), u32(index.compression), plane.bt, plane.block_floats, plane.rows_floats, index.eps};
+    for (size_t first = done; first < count; first += limit) {
+        pc.first = u32(first);
+        dispatch(K_KV_INDEX_POOL, {aux, key_norm, cos, sin, tab}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
+    }
+    if (unordered_) barrier(open());
+}
+
+inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
+                                      uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
     const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
     const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
-    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t tile; }
-        sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(kScoreTile)};
+    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t tile, bt, block_floats, rows_floats; }
+        sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(kScoreTile), plane.bt, plane.block_floats, plane.rows_floats};
     const size_t tiles = (groups + kScoreTile - 1) / kScoreTile;
     for (size_t first = 0; first < tiles; first += limit) {
         sc.first = u32(first);
@@ -402,8 +434,8 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
 }
 
 VulkanKVStorage::VulkanKVStorage(VulkanBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens,
-                                 KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths)
-    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths) {}
+                                 KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
+    : BlockKVStorage(owner, "vulkan", kVkBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
 void VulkanKVStorage::retire(const BufferPtr& old) {
     static_cast<VulkanBackend&>(owner()).keep_until_retired(old);

@@ -1310,15 +1310,20 @@ public:
     std::unique_ptr<KVStorage> kv_alloc(size_t layers, size_t n_head_kv, size_t head_dim,
                                         size_t max_tokens, KVType k_type = KVType::f32,
                                         KVType v_type = KVType::f32,
-                                        const std::vector<size_t>& auxiliary_widths = {}) override;
+                                        const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {}) override;
     void kv_write(size_t layer, const KVView* views, size_t n_views, CSlice k,
                   CSlice v, CSlice auxiliary = {}) override;
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out,
                    int n_head, int n_head_kv, int head_dim) override;
     void sparse_attention(CSlice query, size_t layer, const KVView* views, size_t n_views,
                           CSlice ids, size_t id_stride, Slice out, int n_head, int n_head_kv, int head_dim) override;
+    // An auxiliary plane's blocks as the indexer's kernels address them (views.glsl, pooled_row): their tokens, their floats and the floats of their tokens' rows before the pooled rows.
+    struct PlaneShape {
+        uint32_t bt, block_floats, rows_floats;
+    };
     void select_kv(CSlice query, size_t layer, const KVView* views, size_t n_views, Slice ids,
                    const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) override;
+    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) override;
 
     // A view with the batch row its rows start at.
     struct Placed {
@@ -1326,9 +1331,12 @@ public:
         size_t row0;
     };
     static std::vector<Placed> place_views(const KVView* views, size_t n_views);
+    // The complete groups a view's rows complete, pooled into their rows of the auxiliary plane (shaders/kv_index_pool.comp); the earlier groups were pooled by the call whose rows completed them.
+    void pool_view(VkDescriptorBufferInfo aux, PlaneShape plane, VkDescriptorBufferInfo key_norm, VkDescriptorBufferInfo cos, VkDescriptorBufferInfo sin,
+                   const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index);
     // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart, kScoreTile groups a workgroup (shaders/kv_index_scores_tile.comp).
-    void score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table, uint32_t view,
-                    size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale);
+    void score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
+                    uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale);
     // The groups a selection takes for `rows` rows (at most kSelectRows) from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp).
     // `wide` spreads it over slices of kSelectSlice groups (shaders/kv_index_select_wide.comp): three histograms of 11, 11 and 10 bits, a count and an emission, five dispatches giving the same ids.
     void select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,
@@ -1487,7 +1495,6 @@ private:
     size_t next_half_ = 0;                    // the half of staging the next upload fills first
     std::array<BufferPtr, sizeof(weight_formats) / sizeof(weight_formats[0])> lookup_grids_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
-    std::shared_ptr<VulkanBuffer> index_pool_;
     std::shared_ptr<VulkanBuffer> select_state_;   // a wide selection's per-row histograms, prefixes and slice counts (select_rows)
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed
     static constexpr uint32_t kQueries = 8192;    // a pool's queries, two per dispatch

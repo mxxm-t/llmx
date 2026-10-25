@@ -81,14 +81,22 @@ Measured on 2026-10-04 (docs/STATUS.md, a lone prompt read by every stage): a pa
 Measured on 2026-10-23 on Qwen3.8-Flash-Next UD-Q4_K_XL at 100k tokens of history, that overlap is limited (docs/STATUS.md, Replies beside a prompt on a pipelined split).
 The pass ends when its last stage is recorded, which waits for the stage before it, and a tensor group's stage records with every sum waited for.
 So on the staged splits a lone prompt runs one stage at a time (one stage busy 0.84 to 0.89 of the time, two 0.03 to 0.11), and over four single cards at most two stages at once (0.28 of the time).
-Phase 4 is what lets them overlap.
+Phase 4 is what lets them overlap, and it is built (docs/STATUS.md, A prompt in consecutive passes):
+- A sequence may be in more than one pass. `Model::begin_pass` takes a sequence already in flight in a pass of its own, once each of its passes in flight holds it alone, has committed its first stage and does not want its logits, and the sequence holds no mark; the pass starts at the first stage's committed length, as `prefill`'s chunks do.
+- Each stage checks before any work that every entry's committed length there is the pass's start (`Model::at_stage`), so an earlier pass of the sequence has run the stage first; the scheduler's rounds give each stage its oldest waiting pass, which is that order.
+- `Model::abort_pass` rolls a sequence's later passes back first, newest first, and returns their slots; a stage that fails rolls its own pass back, and the later passes, which no stage then takes, are the caller's to abandon (`Scheduler::fail_pass`).
+- The scheduler forms a prompt's or a read-ahead job's next slice into a free slot once its slice before has committed the first stage (`Scheduler::continues`); under the interleaved rule the next slice still waits for the one before to retire at the first stage.
+- A continuation follows a slice formed in an earlier round, so every boundary meets the round's checks; nothing continues while a request could not grow, and a cancelled request does not continue.
+- Beside generated rows a continuation leaves a slot free, which their next pass takes, so a reply never waits for a prompt's slice to leave the last stage.
+- A job does not continue while a request waits for its seat or room, and a job already continuing abandons its passes in flight (`Scheduler::recall`) and gives way at once.
+- Chunk sizes that follow depth are not part of it.
 
 A generating request is served beside a prompt, by the automatic rule or a fixed share (`--generating-share`, docs/SERVER.md, The round), on one device and on one tensor group, where a prompt's stage is fed in pieces and the generated rows' passes run between them.
 A layer split does not get it, and refuses the flag by name; a pipelined split takes the interleaved rule instead (docs/SERVER.md, A generating request beside a prompt).
 Fed in pieces, a prompt's pass stays in flight for its stage's device time, where today it is ended as its last stage is recorded, and a sequence is in one pass at a time, so the prompt's next slice cannot enter the first stage while its last is in the second: the stages no longer overlap on the prompt.
 Measured on Qwen3-8B Q8_0 over two MI50s beside one generating request, one run, before the flag was refused there: a 30000-token prompt read in 120.1 s at a share of one half against 46.0 s at share 0, where one device at one half took 150.9 s against 89.7 s.
-The repair for pieces is the per-storage progress of phase 4 below, a sequence in consecutive passes at consecutive stages; with it each stage keeps the share of its own device, and the flag is then allowed on a split.
-The interleaved rule needs none of it: it feeds no pass in pieces, so a prompt's slices still end as their last stage is recorded, and it only keeps the generated rows out of the prompt's passes and cuts the slices to a stage's time, so the slices and the replies' steps take turns on every stage.
+Pieces need more than phase 4's consecutive passes, a pass fed in pieces staying in flight at its stage, so the flag stays refused on a split.
+The interleaved rule needs no pieces: it feeds no pass in pieces, so a prompt's slices still end as their last stage is recorded, and it only keeps the generated rows out of the prompt's passes and cuts the slices to a stage's time, so the slices and the replies' steps take turns on every stage.
 Measured on 2026-10-22 on Qwen3.8-Flash-Next UD-Q4_K_XL over two stages of two MI50s, before it: a reply riding the prompt's passes beside an 8017-token prompt at 100k tokens of history got 0.33 to 1.03 tok/s against 58 alone, a token every two slice stage times of 1.48 s, each card busy 50 percent of the time (docs/STATUS.md, Replies beside a prompt on a pipelined split).
 
 ### More requests than stages

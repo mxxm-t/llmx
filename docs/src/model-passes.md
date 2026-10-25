@@ -61,14 +61,15 @@ reads saved inputs and performs no table lookup.
   follow. More than one slot needs a pipelined placement.
   `begin_pass(ctx, slot, entries, n, logits_base)` plans a pass in a free
   slot, copying its tokens, and puts its sequences in flight; a sequence
-  in flight or listed twice, a slot in use or beyond the reservation, and
+  listed twice, a slot in use or beyond the reservation, and
   more rows or logits rows than reserved are refused before any work, and
+  so is a sequence already in flight unless it continues a prompt as prefill's chunks do (docs/MULTI-DEVICE.md, Prefill beside decode): alone in its pass, each of its passes in flight holding it alone and past its first stage, none wanting its logits and none under a mark; it starts at the first stage's committed length. And
   so is a pass whose sequences without a state slot outnumber the free
   ones, which takes none; a pass takes its slots last, so one whose plan
   fails to allocate takes none either.
   `run_pass_stage(ctx, slot, s)` records the pass's next stage, which must
-  be `s`; a failure aborts the pass before it is rethrown, and the other
-  passes go on. A caller that records a stage on another thread takes it
+  be `s`, and whose entries' committed length there must be the pass's start (`at_stage`), so a continued prompt's earlier pass has run it first, refused before any work otherwise; a failure aborts the pass alone before it is rethrown, after the caller's `before_undo`, which the scheduler uses to quiet its stages' threads since undoing drains every device, and the other
+  passes go on, a later pass of its sequence refused at its next stage until the caller abandons it. `prepare_pass_stage` holds the same check. A caller that records a stage on another thread takes it
   in three calls instead: `prepare_pass_stage` on its own thread, which
   takes the stage's blocks; `record_pass_stage` on the stage's thread,
   which records and submits and touches only that pass and the stage's
@@ -86,7 +87,7 @@ reads saved inputs and performs no table lookup.
   and returns its wanting row `i`, written from row `logits_base` on.
   `end_pass` takes a pass whose last stage has run out of flight, and
   `abort_pass` abandons one at any point: every device drained, then only
-  its entries truncated in every storage to where it found them. Each
+  its entries truncated in every storage to where it found them, its sequences' later passes rolled back first, newest first, and their slots returned. Each
   pass's stages run in order; passes interleave as the caller likes, since
   each device runs the stages recorded on it in that order and a pass
   keeps its own handoff buffer, logits rows and ticket. `forward`,

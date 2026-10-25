@@ -85,8 +85,9 @@ delegated to a `backend::Backend`.
   per request; the CLI's model keeps one. `length()` is the first stage's
   committed length; the stages can disagree while a pass is part way
   through them, and the model continues a history from the first stage's.
-  `in_flight()` holds from `begin_pass` until `end_pass` or `abort_pass`,
-  when no other pass, reset or fork may take the sequence and it must not
+  `in_flight()` holds from `begin_pass` until `end_pass` or `abort_pass`
+  of every pass it is in (`flights_`, a count, since a prompt continues in
+  later passes), when no reset or fork may take the sequence and it must not
   move.
 - `ExecContext`: where a context's passes run, plain data the model fills:
   per device an activation arena (the plan's slots at 64-byte offsets in

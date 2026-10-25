@@ -17,7 +17,7 @@ inline void Model::advance_tokens(uint32_t* dst, const uint32_t* previous, size_
 // The fork inherits the tickets of the passes that wrote what it shares, and on a model that keeps a state it takes src's checkpoint at `length`, whose state its first pass reads in place.
 inline Sequence Model::fork(const Sequence& src, size_t length) {
     if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
-    if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+    if (src.flights_) throw std::logic_error("inference: a fork of a sequence in flight");
     if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
     if (state_layers_ && (!src.kept_.held() || src.kept_.pos() != length))
         throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state takes its source's checkpoint");
@@ -626,7 +626,7 @@ inline void Model::restored(RestoreInto& r, const std::vector<backend::Ticket>& 
 // The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place, enqueued behind the passes that wrote what it shares; a throw leaves nothing held.
 inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state) {
     if (src.owner_ != this || state.owner != this) throw std::runtime_error("inference: sequence or host state of another model");
-    if (src.in_flight_) throw std::logic_error("inference: a fork of a sequence in flight");
+    if (src.flights_) throw std::logic_error("inference: a fork of a sequence in flight");
     if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
     if (!state_layers_ || state.blocks || state.length != length || state.slabs.size() != devices_.size())
         throw std::logic_error("inference: a fork with a state takes a state alone at its length, on a model whose layers keep one");
@@ -773,7 +773,7 @@ inline void Model::wait_host(const HostHistory& h) const noexcept {
 // A sequence out of flight whose passes have retired, before it gives blocks or slots back.
 inline void Model::settle(Sequence& s, const char* what) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
-    if (s.in_flight_) throw std::logic_error(std::string("inference: ") + what + " of a sequence in flight");
+    if (s.flights_) throw std::logic_error(std::string("inference: ") + what + " of a sequence in flight");
     // A sequence moved from has no tickets, nothing of it being left to wait on.
     for (size_t d = 0; d < devices_.size() && d < s.last_.size(); ++d)
         if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);

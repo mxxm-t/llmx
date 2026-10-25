@@ -85,14 +85,14 @@ struct ModelOptions {
 };
 
 // One request's history in a model's cache, made by Model::make_sequence: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it (docs/EXECUTION.md).
-// Movable, not copyable; from Model::begin_pass until its end_pass or abort_pass it is in flight, when no other pass, reset or fork takes it and it must not move, since the pass holds its address.
+// Movable, not copyable; from Model::begin_pass until its passes end it is in flight, when no reset or fork takes it and it must not move, and its prompt may continue in later passes (Model::begin_pass).
 class Sequence {
 public:
     Sequence() = default;
     // The first stage's committed length.
     // The stages can disagree while a pass is part way through them, and the model continues a history from the first stage's (Model::history).
     size_t length() const { return stage_length(0); }
-    bool in_flight() const { return in_flight_; }
+    bool in_flight() const { return flights_ > 0; }
 private:
     friend class Model;
     // Stage s's committed length, which has one owner: the stage's KV sequence where its layers keep KV, else its own count.
@@ -118,7 +118,7 @@ private:
     Mark mark_;
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
-    bool in_flight_ = false;
+    size_t flights_ = 0;                   // its passes in flight
 };
 
 class Model;
@@ -753,7 +753,7 @@ public:
     // Defined in model/passes.hpp, the owner of a pass and its stages.
     void reserve_passes(ExecContext& ctx, size_t slots, size_t rows, size_t logit_rows, size_t apart_rows = 0);
     void begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool apart = false);
-    void run_pass_stage(ExecContext& ctx, size_t slot, size_t s);
+    void run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const std::function<void()>& before_undo = {});
     void prepare_pass_stage(ExecContext& ctx, size_t slot, size_t s);
     void record_pass_stage(ExecContext& ctx, size_t slot, size_t s, Pace* pace = nullptr);
     void record_pass_within(ExecContext& ctx, size_t slot, size_t s);
@@ -773,7 +773,7 @@ public:
     void commit_pass_stage(ExecContext& ctx, size_t slot);
     const float* pass_logits(ExecContext& ctx, size_t slot, size_t i);
     void end_pass(ExecContext& ctx, size_t slot);
-    void abort_pass(ExecContext& ctx, size_t slot);
+    std::vector<size_t> abort_pass(ExecContext& ctx, size_t slot);
 
     // Defined in model/history.hpp, the owner of a sequence's history (docs/SPECULATIVE.md, section 1).
     void reset(Sequence& s);
@@ -1255,7 +1255,8 @@ private:
     void drop_mark(Sequence& s) noexcept;
 
     // Defined in model/passes.hpp, the owner of a pass and its stages.
-    void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0);
+    void begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base = 0, bool continues = false);
+    void at_stage(const Pass& p, size_t s) const;
     void run_stage(ExecContext& ctx, Pass& p, size_t s);
     void group_stage(ExecContext& ctx, Pass& p, size_t s);
     void single_prepare(Pass& p, size_t s);
@@ -1296,7 +1297,7 @@ private:
 
     // A slot's pass leaves flight, and its sequences with it.
     static void release(Pass& p) noexcept {
-        for (const BatchEntry& en : p.entries) en.seq->in_flight_ = false;
+        for (const BatchEntry& en : p.entries) --en.seq->flights_;
         p.in_flight = false;
     }
 

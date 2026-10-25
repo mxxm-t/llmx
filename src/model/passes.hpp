@@ -37,31 +37,48 @@ inline void Model::reserve_passes(ExecContext& ctx, size_t slots, size_t rows, s
     ctx = std::move(reserved);
 }
 
-// Plan a pass in `slot` of a reserved context, its entries' tokens copied here and its wanting rows written from logits row `logits_base` on, and put its sequences in flight until end_pass or abort_pass.
-// A sequence in flight or listed twice, a slot in use or beyond the reservation, and more rows or logits rows than reserved are refused, with nothing changed.
+// Plan a pass in `slot` of a reserved context, its tokens copied and its wanting rows written from logits row `logits_base` on, its sequences in flight until end_pass or abort_pass; what it refuses changes nothing.
+// A sequence in flight continues its prompt only in a pass of its own, each of its passes in flight holding it alone, past its first stage and not wanting its logits (docs/MULTI-DEVICE.md, phase 4).
 inline void Model::begin_pass(ExecContext& ctx, size_t slot, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool apart) {
     if (!ctx.slots) throw std::logic_error("inference: begin_pass needs a context reserved for passes");
     if (slot >= ctx.slots) throw std::logic_error("inference: a pass slot beyond the reservation");
     Pass& p = ctx.passes[slot];
     if (p.in_flight) throw std::logic_error("inference: a pass slot already in flight");
     size_t rows = 0;
-    for (size_t e = 0; entries && e < n_entries; ++e) rows += entries[e].n;
+    bool continues = false;
+    for (size_t e = 0; entries && e < n_entries; ++e) {
+        rows += entries[e].n;
+        const Sequence* q = entries[e].seq;
+        if (!q || !q->flights_) continue;
+        if (n_entries != 1) throw std::logic_error("inference: a sequence in flight continues in a pass of its own");
+        if (q->mark_.held()) throw std::logic_error("inference: a marked sequence in flight continued");
+        for (const Pass& o : ctx.passes)
+            for (size_t i = 0; o.in_flight && i < o.entries.size(); ++i) {
+                if (o.entries[i].seq != q) continue;
+                if (o.entries.size() != 1) throw std::logic_error("inference: a sequence continued while its pass in flight holds other sequences");
+                if (!o.ran) throw std::logic_error("inference: a sequence continued before its pass in flight committed its first stage");
+                if (o.entries[i].want_logits) throw std::logic_error("inference: a sequence continued while its pass in flight wants its logits");
+            }
+        continues = true;
+    }
     if (apart && rows > ctx.apart_rows) throw std::logic_error("inference: a pass apart beyond the rows reserve_passes reserved for one");
-    begin(ctx, p, entries, n_entries, logits_base);
+    begin(ctx, p, entries, n_entries, logits_base, continues);
     p.apart = apart;
-    for (size_t e = 0; e < n_entries; ++e) entries[e].seq->in_flight_ = true;
+    for (size_t e = 0; e < n_entries; ++e) ++entries[e].seq->flights_;
     p.handoff = slot;
     p.in_flight = true;
 }
 
-// Stage s of the pass in `slot`, which must be the stage after the last one run: its storage reserved, the residual embedded or received, its layers, the head or the handoff out, its submissions and the storage's commit.
-// A failure aborts the pass, as abort_pass does, before it is rethrown; other passes in flight go on.
-inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s) {
+// Stage s of the pass in `slot` in one call, as the scheduler's inline and host stages, the layer split check and the tests take it: the stage after the last one run, its storage, residual, layers, head or handoff, submissions and commit.
+// A failure aborts the pass alone, after `before_undo`, which a caller recording other stages on threads uses to quiet them since undoing drains every device; a later pass of its sequence is the caller's to abort.
+inline void Model::run_pass_stage(ExecContext& ctx, size_t slot, size_t s, const std::function<void()>& before_undo) {
     Pass& p = in_flight(ctx, slot);
     if (s != p.ran || s >= stages_.size()) throw std::logic_error("inference: a pass's stages run in order, each once");
+    at_stage(p, s);
     try {
         run_stage(ctx, p, s);
     } catch (...) {
+        if (before_undo) before_undo();
         roll_back(p);
         release(p);
         throw;
@@ -152,22 +169,36 @@ inline void Model::end_pass(ExecContext& ctx, size_t slot) {
 }
 
 // Abandon the pass in `slot`, run or not: every device drained, then only its entries' histories back to where it found them in every storage, and its sequences out of flight.
-inline void Model::abort_pass(ExecContext& ctx, size_t slot) {
+// Later passes of its sequences go first, newest first, so the history ends where this pass found it; their slots are returned, abandoned too.
+inline std::vector<size_t> Model::abort_pass(ExecContext& ctx, size_t slot) {
     Pass& p = in_flight(ctx, slot);
+    std::vector<size_t> later;
+    for (size_t k = 0; k < ctx.passes.size(); ++k) {
+        const Pass& o = ctx.passes[k];
+        if (k == slot || !o.in_flight) continue;
+        for (size_t e = 0; e < p.entries.size(); ++e)
+            if (o.entries.size() == 1 && o.entries[0].seq == p.entries[e].seq && o.start[0] > p.start[e]) later.push_back(k);
+    }
+    std::sort(later.begin(), later.end(), [&](size_t a, size_t b) { return ctx.passes[a].start[0] > ctx.passes[b].start[0]; });
+    for (size_t k : later) {
+        roll_back(ctx.passes[k]);
+        release(ctx.passes[k]);
+    }
     roll_back(p);
     release(p);
+    return later;
 }
 
 // A pass's plan: its rows in entry order, their positions after each history, and the rows the head reads, from logits row `logits_base` on, with nothing reserved yet, since each stage reserves the blocks of the storage it writes.
-// A context reserved for passes is not grown: a pass that needs more rows or logits rows than it holds is refused here.
-inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base) {
+// A context reserved for passes is not grown: a pass that needs more rows or logits rows than it holds is refused here; a sequence in flight is refused unless begin_pass found it `continues`.
+inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, size_t n_entries, size_t logits_base, bool continues) {
     if (!entries || !n_entries) throw std::runtime_error("inference: empty batch");
     size_t rows = 0, want = 0;
     for (size_t e = 0; e < n_entries; ++e) {
         const BatchEntry& en = entries[e];
         if (!en.seq || en.seq->owner_ != this)
             throw std::runtime_error("inference: batch entry without a sequence of this model");
-        if (en.seq->in_flight_) throw std::logic_error("inference: a sequence already in flight");
+        if (en.seq->flights_ && !continues) throw std::logic_error("inference: a sequence already in flight");
         if (!en.ids || !en.n)
             throw std::runtime_error("inference: batch entry without tokens");
         // The position tables cover [0, context_length); a row past them would read off the end.
@@ -178,11 +209,9 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         rows += en.n;
         want += en.want_logits ? (en.every_logits ? en.n : 1) : 0;
     }
-    // None is in flight, so the first entry found marked is listed twice; the marks come off again here.
-    size_t marked = 0;
-    for (; marked < n_entries && !entries[marked].seq->in_flight_; ++marked) entries[marked].seq->in_flight_ = true;
-    for (size_t e = 0; e < marked; ++e) entries[e].seq->in_flight_ = false;
-    if (marked < n_entries) throw std::logic_error("inference: a sequence listed twice in a pass");
+    for (size_t e = 0; e < n_entries; ++e)
+        for (size_t f = 0; f < e; ++f)
+            if (entries[f].seq == entries[e].seq) throw std::logic_error("inference: a sequence listed twice in a pass");
     if (ctx.slots && (rows > ctx.pass_rows || want > ctx.logit_rows || logits_base > ctx.logit_rows - want))
         throw std::logic_error("inference: a pass beyond the rows or logits rows reserve_passes reserved");
     // Every entry holds a state slot from its first pass on, so a pass never runs short of one, and a keep entry a checkpoint slot; a pass that cannot take them all, is refused or fails to plan takes none.
@@ -281,8 +310,16 @@ inline void Model::run_stage(ExecContext& ctx, Pass& p, size_t s) {
     stage_commit(p, s);
 }
 
+// Each entry's history at stage s where the pass found it, before the stage takes anything: an earlier pass of a continued prompt has run the stage first.
+inline void Model::at_stage(const Pass& p, size_t s) const {
+    for (size_t e = 0; e < p.entries.size(); ++e)
+        if (p.entries[e].seq->stage_length(s) != p.start[e])
+            throw std::logic_error("inference: a pass at a stage its sequence's earlier pass has not run, or whose history went back");
+}
+
 // What a stage of one device takes of its histories and their pool before any device work: each entry's blocks and its view, and the slots its state is read from and written to.
 inline void Model::single_prepare(Pass& p, size_t s) {
+    at_stage(p, s);
     const Stage& st = stages_[s];
     Device& home = *devices_[st.device];
     const int storage = home.storage_index;
@@ -405,6 +442,7 @@ inline void Model::group_stage(ExecContext& ctx, Pass& p, size_t s) {
 
 // What a group's stage takes of its histories and their pool before any device work: each entry's blocks and its views on every member, and its state's slots, the same on every member, each of which keeps the state of its own heads there.
 inline void Model::group_prepare(Pass& p, size_t s) {
+    at_stage(p, s);
     const size_t g = stages_[s].device, W = width_;
     const int storage = devices_[g]->storage_index;
     for (size_t e = 0; devices_[g]->states && e < p.entries.size(); ++e) {

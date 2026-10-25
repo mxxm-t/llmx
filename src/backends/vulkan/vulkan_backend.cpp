@@ -115,6 +115,9 @@ struct Fn {
 const uint32_t kSpvAdd[] = {
 #include "vulkan/add.inc"
 };
+const uint32_t kSpvSumRows[] = {
+#include "vulkan/sum_rows.inc"
+};
 const uint32_t kSpvSiluMul[] = {
 #include "vulkan/silu_mul.inc"
 };
@@ -911,6 +914,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
     X(K_ADD, "add", kSpvAdd, sizeof(kSpvAdd), 2, nullptr) \
+    X(K_SUM_ROWS, "sum_rows", kSpvSumRows, sizeof(kSpvSumRows), 6, nullptr) \
     X(K_SILU_MUL, "silu_mul", kSpvSiluMul, sizeof(kSpvSiluMul), 4, nullptr) \
     X(K_GATHER_ROWS, "gather_rows", kSpvGatherRows, sizeof(kSpvGatherRows), 3, nullptr) \
     X(K_RMS_NORM_ROWS, "rms_norm_rows", kSpvRmsNormRows, sizeof(kSpvRmsNormRows), 4, nullptr) \
@@ -2796,6 +2800,16 @@ public:
         const uint32_t pc[1] = {u32(n)};
         dispatch(K_ADD, {bind(dst), bind(src)}, pc, sizeof(pc), groups(n, 256));
     }
+
+    // A tensor group's sum on this member (VulkanCollective): residual += the `members` sources added in member order, the summed values also written to `kept` where given (shaders/sum_rows.comp).
+    void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept) {
+        if (!n) return;
+        if (!members || members > kSumSources) throw std::logic_error("vulkan: a sum of no sources or more than the kernel takes");
+        const uint32_t pc[3] = {u32(n), u32(members), kept ? 1u : 0u};
+        auto source = [&](size_t k) { return bind(sources[k < members ? k : 0]); };
+        dispatch(K_SUM_ROWS, {bind(residual), kept ? bind(*kept) : bind(residual), source(0), source(1), source(2), source(3)}, pc, sizeof(pc), groups(n, 256));
+    }
+    static constexpr size_t kSumSources = 4;
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) override {
         if (!n) return;
@@ -4775,10 +4789,9 @@ private:
             VulkanBackend& b = *members_[m];
             acquire_inboxes(m, p, 0, bytes);
             auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
-            const CSlice first = source(0);
-            b.copy(*scratch_[m], 0, *first.buffer, first.offset * sizeof(float), bytes);
-            for (size_t k = 1; k < W; ++k) b.add(Slice{scratch_[m].get(), 0}, source(k), n);
-            b.add(residual[m], CSlice{scratch_[m].get(), 0}, n);
+            CSlice sources[VulkanBackend::kSumSources];
+            for (size_t k = 0; k < W; ++k) sources[k] = source(k);
+            b.sum_rows(residual[m], sources, W, n, nullptr);
         }
     }
 
@@ -4798,16 +4811,15 @@ private:
             VulkanBackend& b = *members_[k];
             acquire_inboxes(k, p, lo(k) * f, len(k) * f);
             auto source = [&](size_t j) { return CSlice{j == k ? partial_[k].get() : inbox_[p][k][j].get(), lo(k)}; };
-            const CSlice first = source(0);
             const Slice share{scratch_[k].get(), lo(k)};
-            b.copy(*scratch_[k], lo(k) * f, *first.buffer, first.offset * f, len(k) * f);
-            for (size_t j = 1; j < W; ++j) b.add(share, source(j), len(k));
+            CSlice sources[VulkanBackend::kSumSources];
+            for (size_t j = 0; j < W; ++j) sources[j] = source(j);
+            b.sum_rows(Slice{residual[k].buffer, residual[k].offset + lo(k)}, sources, W, len(k), &share);
             for (size_t t = 0; t < W; ++t)
                 if (t != k) {
                     b.copy(*gathered_[p][t][k], 0, *scratch_[k], lo(k) * f, len(k) * f);
                     b.external_ownership(*gathered_[p][t][k], 0, len(k) * f, false);
                 }
-            b.add(Slice{residual[k].buffer, residual[k].offset + lo(k)}, CSlice{scratch_[k].get(), lo(k)}, len(k));
         }
         exchange();
         for (size_t m = 0; m < W; ++m)
@@ -4935,6 +4947,7 @@ private:
 // A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files, under any PCI root complexes; none where a device lacks them, as on Windows.
 std::unique_ptr<Collective> VulkanBackend::join(const std::vector<Backend*>& members, size_t rows, size_t width) {
     if (members.empty() || members[0] != this) throw std::logic_error("backend: a collective is joined by its first member");
+    if (members.size() > kSumSources) throw std::runtime_error("backend: a Vulkan collective of more than " + std::to_string(kSumSources) + " devices");
     std::vector<VulkanBackend*> group;
     for (Backend* b : members) {
         auto* v = dynamic_cast<VulkanBackend*>(b);

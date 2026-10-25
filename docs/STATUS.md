@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## A tensor-group sum in one kernel (2026-10-25, branch feat/sum-rows on main 07facf1b6, item S of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, in progress)
+
+- **Goal:** each member of a tensor group adds its sum's sources and its residual in one dispatch after the exchange, the bits unchanged, removing W dispatches a sum (2 at width 2) on every model served on a group.
+- **The change:** `sum_rows` (`shaders/sum_rows.comp`) computes `x + (((p0 + p1) + p2) + p3)` element by element with the sources in member order, add's float operations; `VulkanCollective::sum` takes it in place of the copy to the scratch, the adds and the residual add, and `two_shots` takes it per share, writing the summed share the gather copies. A collective of more than four devices is refused, as the command line already refuses wider groups.
+- **Tests:** `backend-vulkan`'s collective, on devices that time their dispatches, holds each member's sum to one `sum_rows` and no `add` over two members and over three below the two-shot size, and to a `sum_rows` per share from it, beside its member-order bits; and refuses a collective of five.
+- **Gates so far (src of 4f8e3ffa4, before the rebase onto 07facf1b6):** `backend-vulkan` on three MI50s fails at the test commit (a member added a source of the sum in a kernel of its own) and passes at the change, 22 sums in member order, one `sum_rows` and no `add` at width 2 and at width 3 below the two-shot size, a `sum_rows` per share from it; `vulkan-buffer` and `vulkan-lifetime` pass; served byte identity against main 55a115a05, a 9000-character prompt and 64 greedy tokens with log-probabilities, on Flash UD-Q4_K_XL 2x2 at production's flags and on Qwen3.8-27B Q8_0 at width 2, both identical.
+- **Left:** CTest and the CPU suite at the rebased head, the timing round, the hosted run.
 ## A routing row with no candidate, on both backends (2026-10-25, branch fix/route-oob on main 07facf1b6, C2DEV's DECISIONs of 2026-10-24 10:40 and 2026-10-25 00:12, amendment 4, lands by fast-forward as two commits)
 
 - **The bug:** a row whose softmax is not finite (a NaN or infinite score, or every score -inf) has NaN probabilities, of which no pick is ever taken; the device then picked the invalid id, marked it at `prob[0xffffffff]` outside its shared table and gave each pick a weight of one k-th, while the CPU picked expert 0 again and again; `moe_group` counted the invalid id at `hist[0xffffffff]`, and the routed row kernels read the rows of expert 0xffffffff.

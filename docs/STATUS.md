@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The linked dead-code check reads objects by their path inside the build (2026-10-25, branch fix/dead-code-src-path on main fc6f53415, F2DEV's finding of 07:42, lands by fast-forward as two commits)
+
+- **The bug:** `tests/dead_code.py --linked` took every object whose full path held `/src/` as built from `src/`, so from a checkout under such a path (a container mounting the tree at `/src`) every test's objects counted and their functions were reported: 131 spurious `linked-test-only` findings on main there, none at a clean path, where the hosted Vulkan job runs.
+- **The fix:** `product_objects` reads the path inside the build's `CMakeFiles`, where CMake keeps an object under its target's directory by its source's path, and takes those under `src/`.
+- **Test:** the dead-code self-test builds a tree under a path holding `src/` with a test's object and a product's and requires only the product's; the first commit fails on main, the function missing.
+- **Gates:** to run: docs and dead-code, the linked check at a path holding `/src/` and at a clean one, and the hosted run.
+
 ## Independent depth-reference input reconstruction (2026-10-25)
 
 - **Done:** PRECISION documents the owner-approved general rule: each reference input follows the device's witnessed arithmetic, with independent reconstruction and fixed device tie rules. HF-only full/chunked and batched/singleton controls precede comparisons. The existing limits, F32 companion and narrowly scoped TQ baseline exception are unchanged. [Decision record](benchmarks/precision-input-policy-decision-20261025.json).

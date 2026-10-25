@@ -1265,6 +1265,18 @@ def linked_build(root, build, jobs):
         subprocess.run([cxx, obj, "-o", os.path.join(build, exe), "-Wl,--gc-sections", "-pthread"], check=True)
 
 
+def product_objects(build):
+    """The objects `build` compiled from src/: CMake keeps each under its target's directory by its source's path, so it is the path inside the build that is read, never the checkout's."""
+    root = os.path.join(build, "CMakeFiles")
+    out = []
+    for directory, _, files in os.walk(root):
+        for f in files:
+            parts = os.path.relpath(os.path.join(directory, f), root).replace(os.sep, "/").split("/")
+            if f.endswith(".o") and len(parts) > 2 and parts[1] == "src":
+                out.append(os.path.join(directory, f))
+    return out
+
+
 def linked_findings(texts, build):
     """`linked-unreached`: a src/ function no executable keeps; `linked-test-only`: one only test executables keep.
     Functions are their demangled signatures without template arguments; lambdas, function-local classes, special members nobody wrote or that are defaulted, constexpr functions and functions whose name only code a Linux build leaves out calls are left out, as are functions the name check already reports."""
@@ -1273,10 +1285,8 @@ def linked_findings(texts, build):
     for target, source in re.findall(r"add_executable\(([\w-]+)\s+([\w/.]+)", cmake):
         kinds[target] = "product" if source.startswith(("src/", "tools/")) else "test"
     universe = set()
-    for directory, _, files in os.walk(os.path.join(build, "CMakeFiles")):
-        for f in files:
-            if f.endswith(".o") and "/src/" in os.path.join(directory, f).replace(os.sep, "/"):
-                universe |= nm(os.path.join(directory, f))
+    for path in product_objects(build):
+        universe |= nm(path)
     kept = collections.defaultdict(set)
     for exe, kind in kinds.items():
         path = os.path.join(build, exe)
@@ -1344,7 +1354,7 @@ def plant(texts, path, before, add):
 
 
 def self_test(texts, found, listed):
-    """The planted faults: a dead function, one after a function with a braced default argument, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, one declared over several lines and one with a braced default argument, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, and a stale list entry.
+    """The planted faults: a dead function, one after a function with a braced default argument, a function only tests call, an unused value of an enum a template parameter shares a name with, a macro never used, an override nothing calls, one declared over several lines and one with a braced default argument, an unreached shader, a flag whose value only the help prints, a flag parsed and dropped, an unreached Python function, an option only another module's namespace reads, an unbuilt test source a record names, a test object under a path holding src/, and a stale list entry.
     The faults one check reports share a copy of the tree, so each check runs once."""
     # The planted flags go before the --ignore-eos branch, found by its comparison whatever the parser names its spelling.
     anchor = re.search(r'else if \(\w+ == "--ignore-eos"\)', texts[MAIN])

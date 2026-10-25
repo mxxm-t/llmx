@@ -303,7 +303,7 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
                 dispatch(K_KV_INDEX_SCORES, {qb, pb, scores, table_binding()}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
             }
             if (unordered_) barrier(open());
-            select_rows(scores, ob, table.words, u32(vi), row, rows, count, compression, budget, output_stride, false);
+            select_rows(scores, ob, table.words, u32(vi), row, rows, count, compression, budget, output_stride, count >= dev_->profile.select_wide_from);
         }
     }
 }
@@ -321,10 +321,29 @@ inline std::vector<VulkanBackend::Placed> VulkanBackend::place_views(const KVVie
 
 inline void VulkanBackend::select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,
                                        size_t groups, uint32_t compression, uint32_t budget, uint32_t stride, bool wide) {
-    (void)wide;
-    const uint32_t tc[] = {view, u32(row), u32(groups), compression, budget, stride};
-    dispatch(K_KV_INDEX_SELECT, {scores, ids, args(table.data(), table.size() * sizeof(uint32_t))}, tc, sizeof(tc), u32(rows));
-    if (unordered_) barrier(open());
+    if (!wide) {
+        const uint32_t tc[] = {view, u32(row), u32(groups), compression, budget, stride};
+        dispatch(K_KV_INDEX_SELECT, {scores, ids, args(table.data(), table.size() * sizeof(uint32_t))}, tc, sizeof(tc), u32(rows));
+        if (unordered_) barrier(open());
+        return;
+    }
+    if (rows > kSelectRows) throw std::runtime_error("vulkan: a wide selection of more rows than its state holds");
+    const size_t slices = (groups + kSelectSlice - 1) / kSelectSlice;
+    const size_t words = size_add(kSelectRows * kSelectRowWords, size_mul(size_mul(kSelectRows, slices), 2));
+    if (!select_state_ || select_state_->size() < words * sizeof(uint32_t)) {
+        // Zeroed once: the histograms are zero between calls, since each call's emission clears them.
+        grow(select_state_, words * sizeof(uint32_t));
+        VkCommandBuffer cmd = open();
+        dev_->fn.vkCmdFillBuffer(cmd, select_state_->handle(), 0, VK_WHOLE_SIZE, 0);
+        barrier(cmd);
+    }
+    const VkDescriptorBufferInfo state = bind(CSlice{select_state_.get(), 0}), tab = args(table.data(), table.size() * sizeof(uint32_t));
+    struct { uint32_t view, row, groups, compression, budget, stride, stage, slices; } pc{view, u32(row), u32(groups), compression, budget, stride, 0, u32(slices)};
+    for (uint32_t s = 0; s < 5; ++s) {
+        pc.stage = s;
+        dispatch(K_KV_INDEX_SELECT_WIDE, {scores, ids, tab, state}, &pc, sizeof(pc), u32(slices), u32(rows));
+        if (unordered_) barrier(open());
+    }
 }
 
 inline VulkanBackend::ViewTable VulkanBackend::view_table(size_t layer, const std::vector<Placed>& placed, bool writing) {

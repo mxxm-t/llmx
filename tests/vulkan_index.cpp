@@ -116,7 +116,7 @@ int run(backend::VulkanBackend& b) {
 int timing() {
     backend::VulkanBackend t(0, true);
     int failures = 0;
-    for (const size_t count : {size_t(1025), size_t(2048), size_t(4096), size_t(8192), size_t(16384), size_t(38912)}) {
+    for (const size_t count : {size_t(1025), size_t(2048), size_t(3072), size_t(4096), size_t(5120), size_t(6144), size_t(8192), size_t(16384), size_t(38912)}) {
         std::vector<float> scores(count);
         uint32_t seed = 7;
         for (float& s : scores) { seed = seed * 1664525u + 1013904223u; s = float(seed >> 8) / 16777216.0f; }
@@ -128,6 +128,10 @@ int timing() {
             for (const auto& k : t.kernel_times())
                 if (k.first.rfind("kv_index_select", 0) == 0) ms += k.second;
             const size_t dispatches = t.timed_dispatches() / 5;
+            if (!dispatches) {
+                std::cout << "vulkan-index: this device times no dispatches, so the selections' dispatches and times are not checked\n";
+                return failures;
+            }
             std::cout << "vulkan-index: " << (wide ? "wide" : "one-workgroup") << " selection of 512 of " << count << " groups, " << ms / 5
                       << " ms of device time a call over " << dispatches << " dispatches\n";
             if (dispatches != (wide ? 5u : 1u)) {

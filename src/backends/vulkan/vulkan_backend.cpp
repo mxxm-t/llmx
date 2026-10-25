@@ -1326,7 +1326,8 @@ public:
         size_t row0;
     };
     static std::vector<Placed> place_views(const KVView* views, size_t n_views);
-    // The groups a selection takes for `rows` rows from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp); one workgroup a row, `wide` or not.
+    // The groups a selection takes for `rows` rows (at most kSelectRows) from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp).
+    // `wide` spreads it over slices of kSelectSlice groups (shaders/kv_index_select_wide.comp): three histograms of 11, 11 and 10 bits, a count and an emission, five dispatches giving the same ids.
     void select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,
                      size_t groups, uint32_t compression, uint32_t budget, uint32_t stride, bool wide);
     // The table the batched cache kernels read (shaders/views.glsl) for a subset of a batch's views.
@@ -1484,6 +1485,7 @@ private:
     std::array<BufferPtr, sizeof(weight_formats) / sizeof(weight_formats[0])> lookup_grids_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     std::shared_ptr<VulkanBuffer> index_pool_;
+    std::shared_ptr<VulkanBuffer> select_state_;   // a wide selection's per-row histograms, prefixes and slice counts (select_rows)
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed
     static constexpr uint32_t kQueries = 8192;    // a pool's queries, two per dispatch
     size_t query_next_ = 0;        // the next query of the reading interval, across its pools

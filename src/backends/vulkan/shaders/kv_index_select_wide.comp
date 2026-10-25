@@ -1,0 +1,150 @@
+#version 450
+// kv_index_select.comp's selection over slices of 1024 groups (select_rows): histograms of 11, 11 and 10 bits of the scores, a count of each slice's taken groups, their emission.
+// Scores order by their raw F32 bits, NaN above +inf and -0 above every positive score, equal bits go to the earlier group, and no score past a row's groups is read.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint view; uint row; uint groups; uint compression; uint budget; uint stride; uint stage; uint slices; } p;
+layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
+layout(set = 0, binding = 1) writeonly buffer O { uint ids[]; };
+layout(set = 0, binding = 2) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 3) coherent buffer W { uint state[]; };
+#include "views.glsl"
+#define SLICE 1024u
+// Per row: the three histograms (2048, 2048 and 1024 bins, zero between calls), then the final prefix and rank; every row's slice counts follow.
+#define ROW_WORDS 5122u
+#define PREFIX 5120u
+#define RANK 5121u
+#define MAX_ROWS 16u
+shared uint bins[2048];
+shared uvec2 scan[256];
+shared uint found_prefix, found_mask, found_rank, emitted, equals, greater_n, equal_n;
+
+const uint shifts[3] = uint[3](21u, 10u, 0u);
+const uint widths[3] = uint[3](2048u, 2048u, 1024u);
+const uint offsets[3] = uint[3](0u, 2048u, 4096u);
+
+// The digit of pass k holding the rank left, from that pass's histogram, which counts only the scores matching the digits before it.
+void pick(uint st, uint k, uint lid) {
+    uint n = widths[k], per = n / 256u;
+    for (uint i = lid; i < n; i += 256u) bins[i] = state[st + offsets[k] + i];
+    barrier();
+    // Thread t sums the bins of its run, the runs taken from the top digit down.
+    uint top = n - 1u - lid * per, sum = 0u;
+    for (uint j = 0u; j < per; ++j) sum += bins[top - j];
+    scan[lid] = uvec2(sum, 0u);
+    barrier();
+    for (uint step = 1u; step < 256u; step <<= 1u) {
+        uint before = lid >= step ? scan[lid - step].x : 0u;
+        barrier();
+        scan[lid].x += before;
+        barrier();
+    }
+    uint upto = scan[lid].x, from = upto - sum, left = found_rank;
+    barrier();
+    if (left >= from && left < upto) {
+        left -= from;
+        for (uint j = 0u; j < per; ++j) {
+            uint h = bins[top - j];
+            if (left < h) {
+                found_prefix |= (top - j) << shifts[k];
+                found_mask |= (n - 1u) << shifts[k];
+                found_rank = left;
+                break;
+            }
+            left -= h;
+        }
+    }
+    barrier();
+}
+
+void main() {
+    uint slice = gl_WorkGroupID.x, r = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
+    uint visible = view_hist(p.view) + p.row + r + 1u;
+    uint count = visible / p.compression, take = min(count, p.budget / p.compression);
+    uint base = (view_row0(p.view) + p.row + r) * p.stride;
+    uint st = r * ROW_WORDS;
+    bool all = count == take;
+    uint first = slice * SLICE, end = min(count, first + SLICE);
+    if (lid == 0u) { found_prefix = 0u; found_mask = 0u; found_rank = take > 0u ? take - 1u : 0u; }
+    barrier();
+    if (p.stage < 3u) {
+        // One digit's histogram of the scores that match the digits found before it.
+        if (all) return;
+        for (uint k = 0u; k < p.stage; ++k) pick(st, k, lid);
+        uint shift = shifts[p.stage], n = widths[p.stage];
+        for (uint i = lid; i < n; i += 256u) bins[i] = 0u;
+        barrier();
+        for (uint i = first + lid; i < end; i += 256u) {
+            uint bits = floatBitsToUint(scores[r * p.groups + i]);
+            if ((bits & found_mask) == found_prefix) atomicAdd(bins[(bits >> shift) & (n - 1u)], 1u);
+        }
+        barrier();
+        for (uint i = lid; i < n; i += 256u)
+            if (bins[i] != 0u) atomicAdd(state[st + offsets[p.stage] + i], bins[i]);
+        return;
+    }
+    uint counts = MAX_ROWS * ROW_WORDS + (r * p.slices + slice) * 2u;
+    if (p.stage == 3u) {
+        // The take-th largest score's bits and the equals left to take, then each slice's greater and equal scores; the first slice also writes the row's tail and padding.
+        if (!all)
+            for (uint k = 0u; k < 3u; ++k) pick(st, k, lid);
+        uint pre = found_prefix, left = found_rank;
+        if (slice == 0u) {
+            if (lid == 0u) { state[st + PREFIX] = pre; state[st + RANK] = left; }
+            uint tail = visible % p.compression;
+            for (uint i = take * p.compression + lid; i < p.stride; i += 256u)
+                ids[base + i] = i < take * p.compression + tail ? count * p.compression + (i - take * p.compression) : 0xffffffffu;
+        }
+        if (lid == 0u) { greater_n = 0u; equal_n = 0u; }
+        barrier();
+        for (uint i = first + lid; i < end; i += 256u) {
+            uint bits = floatBitsToUint(scores[r * p.groups + i]);
+            if (all || bits > pre) atomicAdd(greater_n, 1u);
+            else if (bits == pre) atomicAdd(equal_n, 1u);
+        }
+        barrier();
+        if (lid == 0u) { state[counts] = greater_n; state[counts + 1u] = equal_n; }
+        return;
+    }
+    // Stage 4: the slice's groups in chronological order, after the greater and the earliest equal ones of the slices before it; the slices also clear the histograms for the next call.
+    uint pre = state[st + PREFIX], left = state[st + RANK];
+    for (uint i = slice * 256u + lid; i < PREFIX; i += p.slices * 256u) state[st + i] = 0u;
+    uvec2 mine = uvec2(0u);
+    for (uint s = lid; s < slice; s += 256u)
+        mine += uvec2(state[MAX_ROWS * ROW_WORDS + (r * p.slices + s) * 2u], state[MAX_ROWS * ROW_WORDS + (r * p.slices + s) * 2u + 1u]);
+    scan[lid] = mine;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) scan[lid] += scan[lid + k];
+        barrier();
+    }
+    if (lid == 0u) {
+        emitted = scan[0].x + min(scan[0].y, left + 1u);
+        equals = scan[0].y;
+    }
+    barrier();
+    for (uint start = first; start < end; start += 256u) {
+        uint i = start + lid;
+        uint bits = i < end ? floatBitsToUint(scores[r * p.groups + i]) : 0u;
+        scan[lid] = uvec2(i < end && (all || bits > pre) ? 1u : 0u, i < end && !all && bits == pre ? 1u : 0u);
+        barrier();
+        for (uint step = 1u; step < 256u; step <<= 1u) {
+            uvec2 before = lid >= step ? scan[lid - step] : uvec2(0u);
+            barrier();
+            scan[lid] += before;
+            barrier();
+        }
+        uint equal_before = equals + scan[lid].y;
+        uint allowed = min(scan[lid].y, left + 1u - min(equals, left + 1u));
+        bool selected = i < end && (all || bits > pre || (bits == pre && equal_before <= left + 1u));
+        if (selected) {
+            uint slot = emitted + scan[lid].x + allowed - 1u;
+            for (uint t = 0u; t < p.compression; ++t) ids[base + slot * p.compression + t] = i * p.compression + t;
+        }
+        barrier();
+        if (lid == 0u) {
+            emitted += scan[255].x + min(scan[255].y, left + 1u - min(equals, left + 1u));
+            equals += scan[255].y;
+        }
+        barrier();
+    }
+}

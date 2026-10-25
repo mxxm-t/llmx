@@ -731,6 +731,9 @@ const uint32_t kSpvKvIndexScores[] = {
 const uint32_t kSpvKvIndexSelect[] = {
 #include "vulkan/kv_index_select.inc"
 };
+const uint32_t kSpvKvIndexSelectWide[] = {
+#include "vulkan/kv_index_select_wide.inc"
+};
 
 const uint32_t kSpvSparseAttention[] = {
 #include "vulkan/sparse_attention.inc"
@@ -854,6 +857,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 6, nullptr) \
     X(K_KV_INDEX_SCORES, "kv_index_scores", kSpvKvIndexScores, sizeof(kSpvKvIndexScores), 4, nullptr) \
     X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
+    X(K_KV_INDEX_SELECT_WIDE, "kv_index_select_wide", kSpvKvIndexSelectWide, sizeof(kSpvKvIndexSelectWide), 4, nullptr) \
     X(K_MATMUL_TILE, "matmul_tile", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \
     X(K_MATMUL_ROW_Q4, "matmul_row_q4", kSpvMatmulRowQ4, sizeof(kSpvMatmulRowQ4), 12, kMatmulRowCounts, kSpvMatmulRowQ4Preserve, sizeof(kSpvMatmulRowQ4Preserve)) \
     X(K_MATMUL_ROW_Q5, "matmul_row_q5", kSpvMatmulRowQ5, sizeof(kSpvMatmulRowQ5), 12, kMatmulRowCounts, kSpvMatmulRowQ5Preserve, sizeof(kSpvMatmulRowQ5Preserve)) \

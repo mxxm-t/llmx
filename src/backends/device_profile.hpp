@@ -52,6 +52,8 @@ struct DeviceProfile {
     uint32_t float_tile_split_per_cu = 4;
     // Workgroups per compute unit the tallest tile must yield before a call takes it, for rows at least tile_narrow_nin wide and narrower: fewer leave too few waves per SIMD to hide the loads.
     uint32_t tile_tall_per_cu = 1, tile_tall_per_cu_narrow = 1;
+    // Complete groups from which the indexer's selection takes its wide form, where the two forms cross; both give the same ids (docs/VULKAN.md).
+    size_t select_wide_from = 4096;
     // Dispatches recorded before a submission, so the device starts on a pass while the host is still recording it.
     uint32_t dispatch_chunk = 64;
     // Whether the matmuls take their dots through the integer dot product instructions: measured per device and driver, since the same silicon gains under Mesa and loses under the AMD proprietary driver.
@@ -83,6 +85,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.moe_tile_from_q5k = 48;
              p.tile_tall_per_cu = 1;
              p.tile_tall_per_cu_narrow = 1;
+             p.select_wide_from = 5120;
          }},
         {"MI60 / MI50", "radv", [](DeviceProfile& p) {
              p.tile_from_8bit = 16;

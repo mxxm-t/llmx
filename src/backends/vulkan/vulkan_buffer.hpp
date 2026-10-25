@@ -53,6 +53,8 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
 
 // 64 tokens per KV block, half the CPU's: the attention workgroup reads a block per iteration, and a smaller block wastes less tail per sequence.
 const size_t kVkBlockTokens = 64;
+// A wide selection's slice of groups, its rows a call and a row's state words, as shaders/kv_index_select_wide.comp lays them out.
+const size_t kSelectSlice = 1024, kSelectRows = 16, kSelectRowWords = 5122;
 
 class VulkanBackend;
 

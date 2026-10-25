@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## The indexer's selection over many workgroups (2026-10-25, branch feat/index-select on main 14010059a, part 3 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits)
+
+- **Why:** at a 155648-token history a decode stage of Qwen3.8-Flash-Next on 2x2 spent 4.43 ms a token in `kv_index_select`, one workgroup a row running eight radix passes and a chronological scan over 38912 groups, of 8.4 ms that the indexer grows from 8k (2026-10-24 profiles, `castagna/run/out2`, `out3`).
+- **What lands:** from the device profile's `select_wide_from` groups (4096 by default, measured on the MI50; 5120 on the Radeon VII) `select_rows` takes `kv_index_select_wide`, five dispatches over slices of 1024 groups: three histograms of 11, 11 and 10 bits of the raw score bits, each workgroup taking the digits found before it from the histograms before, a count of each slice's greater and equal scores, and an emission placing each slice after the slices before it.
+  The ids are the one-workgroup selection's by construction: the same kth-largest bits and rank left within them, equal bits to the earlier group, raw-bit order (NaN above +inf, -0 above every positive score), and no score read past a row's visible groups.
+- **Tests:** the first commit, failing on main: `vulkan-index` gives both selections chosen scores and holds them to the contract's selection, and holds the wide one to five dispatches, which main's single dispatch fails.
+  Scores of five levels, NaN of both signs, +inf, -0, +0, the smallest subnormal and 1, or spread; equal top scores either side of a slice boundary; 1023-1025, 2047-2049, 5000 and 38912 groups; budgets taking 512, 4 and all groups; compressions 4 and 1; earlier rows seeing fewer groups, their stale scores left large: 144 selections, 2001264 ids equal.
+- **Measured** (MI50, GPU 9, a diagnostics backend's device time a call over one row, 512 groups taken):
+
+| Groups | One workgroup | Wide (5 dispatches) |
+|---|---|---|
+| 1025 | 0.068 ms | 0.162 ms |
+| 2048 | 0.093 ms | 0.166 ms |
+| 4096 | 0.155 ms | 0.161 ms |
+| 8192 | 0.322 ms | 0.158 ms |
+| 16384 | 0.605 ms | 0.159 ms |
+| 38912 | 1.385 ms | 0.149 ms |
+
+  The wide selection is a floor of five dispatches, about 30 us each with the digits taken again in each workgroup, so the crossover is near 4096 groups (16384 tokens at Flash's compression of 4); it takes 9.3 times less at 155648 tokens.
+  On the Radeon VII under the AMD proprietary driver 26.5.2 one workgroup takes 0.087 ms at 4096 groups against the wide selection's 0.104, and 0.112 against 0.103 at 5120, so its profile switches at 5120 (C2DEV's amendment 1); at 38912 groups 0.695 against 0.103.
+- **A hand check:** `vulkan-index` needs a Vulkan device and no hosted runner has one, so it runs by hand on the MI50 and the Radeon VII; on a device that times no dispatches it skips the dispatch count and the times.
+- **Left:** the gate, run on the three parts together (part 1's block); the hosted run; F2DEV's review of the head rebased on main.
+
 ## Vulkan allocation failure diagnostics (2026-10-25, branch fix/vulkan-allocation-error)
 
 - **Goal:** name the device, Vulkan result, allocation bytes and memory type on ordinary buffer allocation failure, preserving existing `std::bad_alloc` retry catches.

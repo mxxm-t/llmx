@@ -744,6 +744,10 @@ Every pair of extents `Backend::row_class` puts in one class gives the same bits
 It prints, without asserting it, a timed backend's `argmax_rows` time for one row of 248320 logits in device and in host-visible memory, in slices and in one workgroup, alone and after the output head's product, with the wall time of a call.
 It exits 77, which CTest reports as skipped, when there is no loader, the loader has no driver or is older than Vulkan 1.2, or device 0 is missing or lacks a feature the backend requires.
 
+`vulkan-index` drives the sparse-attention indexer's selection (`select_rows`) on chosen scores, with no model or cache: the one-workgroup and the wide selection must both give, every id of every row, the contract's selection written in the test, by raw score bits with the earlier group on equal bits, chronologically, then the causal tail and `UINT32_MAX`.
+Its scores are of five levels, of NaN of both signs, +inf, -0, +0, the smallest subnormal and 1, or spread, with equal top scores either side of a slice boundary, over 1023 to 1025, 2047 to 2049, 5000 and 38912 groups at compressions 4 and 1, budgets that take 512, 4 and all groups, and earlier rows of a batch seeing fewer groups than the last, their scores past them left large so a read of them shows.
+It also holds the wide selection to five dispatches and the other to one, and prints each one's device time from 1025 to 38912 groups without asserting it, both skipped on a device that times no dispatches.
+It exits 77 without a Vulkan device.
 `vulkan-quantization` reads the packed activation buffers before consumer arithmetic.
 It checks the 16-bit twin against the original finite inputs, using a representable-scale reconstruction bound independent of the runtime quantizer.
 Inputs cover every f32 exponent, reciprocal and normalization boundaries, seeded finite peaks and mixed exponents within a block.

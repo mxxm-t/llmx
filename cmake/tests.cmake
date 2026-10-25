@@ -365,6 +365,21 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_link_libraries(llmx-backend-vulkan-test PRIVATE llmx-vulkan)
     list(APPEND LLMX_TARGETS llmx-backend-vulkan-test)
     add_test(NAME backend-vulkan COMMAND llmx-backend-vulkan-test)
+    # Its write-set check reads each kernel's shader, the source every shader and variant entry names, as "name=source,...".
+    set(LLMX_VK_SHADER_SOURCES)
+    foreach(entry IN LISTS LLMX_VK_SHADERS LLMX_VK_VARIANTS)
+        string(REPLACE "=" ";" parts ${entry})
+        list(GET parts 0 shader)
+        set(source ${shader})
+        list(LENGTH parts nparts)
+        if(nparts EQUAL 3)
+            list(GET parts 1 source)
+        endif()
+        list(APPEND LLMX_VK_SHADER_SOURCES "${shader}=${source}")
+    endforeach()
+    string(REPLACE ";" "," LLMX_VK_SHADER_SOURCES "${LLMX_VK_SHADER_SOURCES}")
+    target_compile_definitions(llmx-backend-vulkan-test PRIVATE LLMX_VK_SHADER_DIR="${LLMX_VK_SHADER_DIR}"
+        LLMX_VK_SHADER_SOURCES="${LLMX_VK_SHADER_SOURCES}")
     # It checks millions of kernel outputs against the CPU backend, so it gets the longest timeout.
     set_tests_properties(backend-vulkan PROPERTIES TIMEOUT 900 SKIP_RETURN_CODE 77)
     # Includes the private implementation to inject resource failures without runtime hooks.

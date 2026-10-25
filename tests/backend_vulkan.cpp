@@ -573,6 +573,168 @@ size_t check_int8_twin_width() {
     return exact(expected, actual, "int8 twin reused across matrix widths changes output");
 }
 
+// Twins producers wrote stay with their activations through writes elsewhere in the same buffer: matmuls from them quantize nothing and equal matmuls from fresh copies of their floats (AGENTS.md, Tests).
+size_t check_twin_table() {
+    const auto owner = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *owner;
+    const auto native = vk.native_dtypes();
+    const size_t n_in = 1024, n_out = 96, k = 2, n_expert = 4;
+    std::vector<uint8_t> w8(n_out * (n_in / 32) * quant::Q8_0_TYPESIZE), e8(n_expert * n_out * (n_in / 32) * quant::Q8_0_TYPESIZE);
+    const auto wf = uniform(n_out * n_in, 1801), ef = uniform(n_expert * n_out * n_in, 1802);
+    for (size_t r = 0; r < n_out; ++r)
+        quant::quantize_row_q8_0(wf.data() + r * n_in, w8.data() + r * (n_in / 32) * quant::Q8_0_TYPESIZE, n_in / 32);
+    for (size_t r = 0; r < n_expert * n_out; ++r)
+        quant::quantize_row_q8_0(ef.data() + r * n_in, e8.data() + r * (n_in / 32) * quant::Q8_0_TYPESIZE, n_in / 32);
+    size_t values = 0;
+    bool timed = true;
+    for (const backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8}) {
+        if (std::find(native.begin(), native.end(), dtype) == native.end()) continue;
+        for (const size_t rows : {size_t(128), size_t(1)}) {
+            const size_t n = rows * n_in, bytes = n * sizeof(float), entries = rows * k;
+            const std::vector<backend::RowRun> one{{rows, rows}};
+            const backend::RowRuns rr{one.data(), one.size()};
+            const auto src = uniform(n, 1803), wn = uniform(n_in, 1804, 0.5f, 1.5f), g = uniform(n, 1805, -6.0f, 6.0f);
+            const auto u = uniform(n, 1806), other = uniform(n, 1807), xe = uniform(entries * n_in, 1808);
+            const auto scores = uniform(rows * n_expert, 1809, -3.0f, 3.0f);
+            // Every adoption and allocation first, since a new buffer drops every twin.
+            const auto wb = vk.adopt(w8.data(), w8.size()), eb = vk.adopt(e8.data(), e8.size());
+            const auto srcb = vk.adopt(src.data(), bytes), wnb = vk.adopt(wn.data(), n_in * sizeof(float));
+            const auto gb = vk.adopt(g.data(), bytes), ub = vk.adopt(u.data(), bytes), otherb = vk.adopt(other.data(), bytes);
+            const auto xeb = vk.adopt(xe.data(), entries * n_in * sizeof(float));
+            const auto scoresb = vk.adopt(scores.data(), scores.size() * sizeof(float));
+            // One buffer of five regions, as activations share one arena: A and D take producers' outputs, B a copy, C a routed sum and E nothing.
+            const auto arena = vk.alloc(5 * bytes, backend::Memory::device);
+            const auto idsb = vk.alloc(entries * sizeof(float), backend::Memory::device), wtsb = vk.alloc(entries * sizeof(float), backend::Memory::device);
+            std::vector<backend::BufferPtr> ys;
+            for (int i = 0; i < 8; ++i) ys.push_back(vk.alloc(rows * n_out * sizeof(float), backend::Memory::device));
+            const backend::Slice A{arena.get(), 0}, D{arena.get(), 3 * n};
+            const backend::Backend::Routing routing{{idsb.get(), 0}, {wtsb.get(), 0}, k, n_expert};
+            vk.route_experts({scoresb.get(), 0}, rows, n_expert, k, true, {idsb.get(), 0}, {wtsb.get(), 0});
+            // The first 8-bit matmul has the producers after it write the 8-bit twin.
+            if (dtype == backend::Dtype::int8)
+                vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {otherb.get(), 0}, {ys[7].get(), 0}, n_in, n_out, rows, rr, dtype);
+            auto matmul = [&](backend::CSlice x, const backend::BufferPtr& y) {
+                vk.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, x, {y.get(), 0}, n_in, n_out, rows, rr, dtype);
+            };
+            auto floats = [&](const backend::BufferPtr& b, size_t at, size_t count) {
+                std::vector<float> v(count);
+                vk.read(*b, at * sizeof(float), v.data(), count * sizeof(float));
+                return v;
+            };
+            // The matmuls `run` records quantize nothing, where the device times its dispatches.
+            auto quantizes_nothing = [&](const char* after, const std::function<void()>& run) {
+                (void)backend::vulkan_kernel_times(vk);
+                run();
+                const auto times = backend::vulkan_kernel_times(vk);
+                if (times.empty()) {
+                    timed = false;
+                    return;
+                }
+                for (const auto& t : times)
+                    if (t.first.rfind("quantize_x", 0) == 0) {
+                        std::fprintf(stderr, "  twin table, dtype %s, %zu rows: %s\n", backend::dtype_name(dtype), rows, t.first.c_str());
+                        require(false, after);
+                    }
+            };
+            try {
+                vk.rms_norm_rows(A, {srcb.get(), 0}, {wnb.get(), 0}, rows, n_in, n_in, 1e-6f, rr);
+                quantizes_nothing("a matmul from a norm's output quantized it", [&] { matmul(A, ys[0]); });
+                vk.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {xeb.get(), 0}, {arena.get(), 2 * n}, n_in, n_out, rows, routing, rr, dtype);
+                quantizes_nothing("a routed sum into another region dropped a norm's twin", [&] { matmul(A, ys[1]); });
+                vk.copy(*arena, n * sizeof(float), *otherb, 0, bytes);
+                quantizes_nothing("a copy into another region dropped a norm's twin", [&] { matmul(A, ys[2]); });
+                vk.silu_mul(D, {gb.get(), 0}, {ub.get(), 0}, n, rr);
+                quantizes_nothing("a second producer's twin replaced the first", [&] {
+                    matmul(A, ys[3]);
+                    matmul(D, ys[4]);
+                });
+                const auto a0 = floats(arena, 0, n), d0 = floats(arena, 3 * n, n);
+                // In place over part of a buffer and without a twin, a norm of rows narrower than their stride and a SiLU of a length off the blocks must drop the twins they overwrite.
+                vk.rms_norm_rows(D, D, {wnb.get(), 0}, rows, n_in - 24, n_in, 1e-6f, rr);
+                matmul(D, ys[5]);
+                vk.silu_mul(A, A, {ub.get(), 0}, n - 16, rr);
+                matmul(A, ys[6]);
+                const auto a1 = floats(arena, 0, n), d1 = floats(arena, 3 * n, n);
+                std::vector<std::vector<float>> got;
+                for (int i = 0; i < 7; ++i) got.push_back(floats(ys[i], 0, rows * n_out));
+                auto fresh = [&](const std::vector<float>& x) {
+                    const auto xb = vk.adopt(x.data(), bytes);
+                    matmul({xb.get(), 0}, ys[7]);
+                    return floats(ys[7], 0, rows * n_out);
+                };
+                const auto fa0 = fresh(a0), fd0 = fresh(d0), fa1 = fresh(a1), fd1 = fresh(d1);
+                values += exact(fa0, got[0], "a matmul from a norm's twin differs from one from a fresh copy");
+                values += exact(fa0, got[1], "a matmul from a norm's twin after a routed sum beside it differs from one from a fresh copy");
+                values += exact(fa0, got[2], "a matmul from a norm's twin after a copy beside it differs from one from a fresh copy");
+                values += exact(fa0, got[3], "a matmul from a norm's twin beside a second twin differs from one from a fresh copy");
+                values += exact(fd0, got[4], "a matmul from a SiLU's twin beside a norm's differs from one from a fresh copy");
+                values += exact(fd1, got[5], "a matmul read a twin a norm without one overwrote in place");
+                values += exact(fa1, got[6], "a matmul read a twin a SiLU without one overwrote in place");
+            } catch (const std::runtime_error&) {
+                std::fprintf(stderr, "  twin table, dtype %s, %zu rows\n", backend::dtype_name(dtype), rows);
+                throw;
+            }
+        }
+    }
+    if (!timed) std::cout << "backend-vulkan: the device times no dispatches, so the twin table's quantizations were not witnessed\n";
+    return values;
+}
+
+// Each kernel's write set as the backend derives it from its SPIR-V, against its shader's qualifiers: a binding whose every declaration is readonly is read only, and one with no readonly declaration is written (AGENTS.md, Tests).
+size_t check_write_sets() {
+    std::map<std::string, std::string> sources;
+    for (std::string list = LLMX_VK_SHADER_SOURCES; !list.empty();) {
+        const size_t comma = list.find(','), eq = list.find('=');
+        sources[list.substr(0, eq)] = list.substr(eq + 1, comma == std::string::npos ? std::string::npos : comma - eq - 1);
+        list = comma == std::string::npos ? std::string() : list.substr(comma + 1);
+    }
+    // The F32 rows' entry takes the plain row module, under a name of its own.
+    sources["matmul_row_f32"] = "matmul_row";
+    // A shader with its includes, each read once.
+    std::function<void(const std::string&, std::string&, std::vector<std::string>&)> read =
+        [&](const std::string& file, std::string& text, std::vector<std::string>& seen) {
+            if (std::find(seen.begin(), seen.end(), file) != seen.end()) return;
+            seen.push_back(file);
+            std::ifstream f(std::string(LLMX_VK_SHADER_DIR) + "/" + file);
+            require(f.good(), ("shader source missing: " + file).c_str());
+            for (std::string line; std::getline(f, line);) {
+                text += line + "\n";
+                const size_t inc = line.find("#include \"");
+                if (inc != std::string::npos) read(line.substr(inc + 10, line.find('"', inc + 10) - inc - 10), text, seen);
+            }
+        };
+    size_t bindings = 0;
+    for (const auto& kw : backend::vulkan_kernel_writes()) {
+        std::string name = kw.first;
+        if (!sources.count(name) && name.size() > 5 && name.compare(name.size() - 5, 5, "_tall") == 0) name.resize(name.size() - 5);
+        require(sources.count(name) == 1, ("no shader source for kernel " + kw.first).c_str());
+        std::string text;
+        std::vector<std::string> seen;
+        read(sources[name] + ".comp", text, seen);
+        // Per binding, whether some declaration is readonly and whether some is not.
+        std::map<size_t, std::pair<bool, bool>> declared;
+        for (size_t at = text.find("layout("); at != std::string::npos; at = text.find("layout(", at + 1)) {
+            const size_t close = text.find(')', at), binding = text.find("binding", at), end = text.find_first_of("{;", at);
+            if (close == std::string::npos || binding > close || end == std::string::npos) continue;
+            const std::string qualifiers = text.substr(close + 1, end - close - 1);
+            if (qualifiers.find("buffer") == std::string::npos) continue;
+            const size_t b = std::stoul(text.substr(text.find('=', binding) + 1));
+            (qualifiers.find("readonly") != std::string::npos ? declared[b].first : declared[b].second) = true;
+        }
+        for (size_t b = 0; b < kw.second.size(); ++b, ++bindings) {
+            const auto d = declared[b];
+            // No shader declares one binding both ways in different builds; one that does is refused until the check gives it an expectation of its own.
+            require(!(d.first && d.second), ("a binding declared both readonly and writable in " + kw.first).c_str());
+            if (kw.second[b] != d.second) {
+                std::fprintf(stderr, "  %s binding %zu: %s in the shader, %s in the write set\n", kw.first.c_str(), b,
+                             d.second ? "written" : "read only", kw.second[b] ? "written" : "read only");
+                require(false, "a kernel's write set differs from its shader's qualifiers");
+            }
+        }
+    }
+    return bindings;
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     const bool integer_dot = backend::vulkan_device_profile(p.vk).prefer_integer_dot;
@@ -4239,6 +4401,8 @@ int main(int argc, char** argv) {
         const size_t int8_values = check_int8(*b);
         std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";
         std::cout << "backend-vulkan: " << check_int8_twin_width() << " int8 outputs unchanged when the input row width changes\n";
+        std::cout << "backend-vulkan: " << check_write_sets() << " kernel bindings written or read as their shaders declare them\n";
+        std::cout << "backend-vulkan: " << check_twin_table() << " products from kept twins equal to products from fresh copies\n";
         const size_t values = check_kernels(*b) + check_qwen35(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";

@@ -198,7 +198,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   Q4_K and Q5_K rows take at most `k45_row_lanes`. There Q8_0 rows
   take `shaders/matmul_vec_q8.comp`, two-wide 16-bit dots of the weights widened to signed 16-bit pairs against the 16-bit twin (`shaders/dot16.glsl`, which the integer-dot tile shares),
   and F32 rows the plain build.
-  The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
+  The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), its one column in three builds, two rows and one step for rows narrower than the profile's `q8_decode_narrow_below`, else one row and four steps ahead below the knee of the activations' width in output rows of a call (`q8_decode_two_rows_from` for 8-bit activations, `q8_decode_one_row_below_16bit` for 16-bit) and from it two rows and two steps for 8-bit activations and two rows and one step for 16-bit, by the width, rows and activations `for_each_column_chunk` is given (`one_column_build`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
   A build takes the transposed reduction where it asks for it and the profile's `q8_decode_forms` allows it, and the half-block order (`kQ8Half`) wherever the profile allows it, in every build alike, since that order sums a column's products in another order than the quarter layout (`vec_forms`); `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
   `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
@@ -300,7 +300,16 @@ The Q8_0 row module describes each pipeline with `VecBuild`: columns per
 subgroup, rows, load steps, reduction forms and adjacent column groups.
 Variants 0, 1 and 2 are the wide, one-column and grouped builds; variants
 3 through 6 hold 2, 4, 16 and 32 columns respectively, the last using two
-groups of 16. Specialization constants 0, 9, 10, 11 and 13 carry these
+groups of 16. Variant 1 takes two rows and one load step; variants 7 and 8
+are the other one-column builds, one row and four steps and two rows and
+two steps. `one_column_build` gives a one-column chunk variant 1 for rows
+narrower than the profile's `q8_decode_narrow_below`, else variant 7 when
+the call computes fewer output rows than the knee of its activations' width,
+its projections' rows together and, routed, times its entries, else variant
+8 over 8-bit activations and variant 1 over 16-bit ones; the knees are the
+profile's `q8_decode_two_rows_from` and `q8_decode_one_row_below_16bit`.
+No other kernel has a variant 7 or 8 pipeline; their slots stay empty, since
+a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11 and 13 carry these
 properties. Constant 12 selects half-block order, fixed by the device profile
 for every build; the transposed reduction is allowed only where the subgroup
 uses its expected reduction pairs. These choices preserve a column's bits

@@ -185,6 +185,108 @@
   - The whole difference between the stages is in the routed tiles: the Q4_K gate and up products take 294.0, 242.7, 190.8 and 197.6 ms by stage and the Q5 down products 140.9, 144.4, 104.6 and 100.8 ms, on the same shapes and types, while every other kernel is level across stages within a few ms. That points at how full the tiles run, which depends on how a layer spreads its entries over the experts; the routed integer tile's narrow build (branch feat/routed-narrow) is aimed at that occupancy.
   - The wall time of the profiled pp2048, 1782 ms, is the bottleneck stage's 1016 ms of kernels and about 660 ms of pipeline fill and drain, three slices of the other stages after the last chunk leaves the first: 4 chunks over 4 stages.
 
+## One-column Q8_0 decode builds by row width, rows and activations (2026-10-25, branch feat/q8-one-col on feat/elementwise-preserve, item A1 of item B's decode stack after probe A0, approved by the reviewer, in progress)
+
+- **Goal:** a one-column call of the Q8_0 decode kernel (`matmul_vec_q8.comp`, the 16-bit and 8-bit builds alike) takes the build its shape and activations favour, by one rule whose numbers sit in the device profile, every column's bits unchanged.
+- **The change:** the one-column chunk has three builds: variant 1 of two rows and one step (`matmul_vec_q8_1col`, `matmul_vec_q8_i8_1col`, the build it had), variant 7 of one row and four steps loaded ahead (`..._1col_1row`) and variant 8 of two rows and two steps (`..._1col_2step`), in `vulkan_kernels.hpp`. `one_column_build` (`vulkan_matmul.hpp`) gives rows narrower than the profile's `q8_decode_narrow_below` variant 1; wider rows take variant 7 below the knee of their activations' width, counted in the output rows a dispatch computes, its projections' rows together and, routed, times its entries, and from it variant 8 over 8-bit activations and variant 1 over 16-bit ones. The reduction forms come from the profile as before.
+  `q8_decode_narrow_below` is 1024 on both profiles; the 8-bit knee `q8_decode_two_rows_from` is 2560 on the Radeon VII (and by default) and 4096 on the MI50 under RADV; the 16-bit knee `q8_decode_one_row_below_16bit` is 1280 on the Radeon VII, 1024 on the MI50 and 1024 by default, provisionally until the f16 sweep (gitea probe/a0-f16) runs on an MI50.
+  Cost: `kVariants` goes from 7 to 9, two more empty pipeline slots for every kernel, since pipelines are built on first dispatch; the Q8_0 decode kernels compile up to three one-column pipelines a dtype where the base compiled one, each only once a call takes it.
+- **The 8-bit rule, from probe A0's one-column int8 calls on both cards** (each build's column bits equal to the default's in every cell):
+  - Narrow rows (320 and 640 wide) lose with the one-row build on both cards, 11 to 39 percent on the Radeon VII and 6 to 20 percent on the MI50, and with two rows of two steps on the Radeon VII, 3 to 14 percent; the old two rows and one step is the fastest of the three there on the Radeon VII and within 3.4 percent of the fastest on the MI50 (two rows and two steps, 9.94 against 10.28 us at 320x10240).
+  - Wider rows: the one-row build gains 13 to 31 percent below 2560 output rows on the Radeon VII and 2 to 22 percent below 4096 on the MI50, where the half-block order makes it the same build as one row and one step.
+  - The knee on the MI50: the one-row build and two rows of two steps are within 1.7 percent everywhere above 3072 rows, the one-row build ahead on rows 2560 wide and the other on rows 4096 wide and wider. Over the 22 wider shapes 4096 gives the smallest total time (1133.8 against 1135.9 us at 16384) and the smallest worst loss against the fastest of the three, 1.1 percent at 2560x5120, against 1.7 percent at 17408x5120 with a knee of 16384; the mean loss is 0.15 percent at both.
+  - No simpler rule holds every measured shape within 1 percent of the fastest of the three on both cards: without the narrow build the narrow rows lose 3 to 14 percent on both cards; without two rows of two steps, the old build above the knee, the Radeon VII loses up to 5.6 percent on 15 shapes; without the one-row build the small products lose 13 to 23 percent; and without a knee, the one-row build on every wider shape, the Radeon VII loses up to 16 percent at the head. The rule as built leaves the MI50 3.4 percent behind the fastest at 320x10240, 1.2 percent at 320x2560 and 1.1 percent at 2560x5120, and the Radeon VII at most 0.8 percent (6144x2560).
+- **The 16-bit rule.** The 16-bit twin is twice the 8-bit one's bytes, and A0 swept int8 alone, so the MI50 round r29 found the one-row build 5 to 17 percent slower in f16 at 1280 to 3072 rows (6144x1280 17.81 against 15.19 us, 2560x3072 16.56 against 14.78, 3072x2560 15.30 against 14.57) while 3 to 13 percent faster up to 640 rows (2560x256, 2560x320, 2560x512, 2560x640, 10240x320). The extended A0 probe on the Radeon VII gives the same in f16: the one-row build 4 to 25 percent faster up to 1024 rows and slower from 1280 on most shapes 2560 to 6144 wide, two rows of two steps up to 9 percent faster on rows 4096 wide and wider but up to 6 percent slower on rows 2560 wide (us, the f16 cells; every build's bytes equal the default's in all 1220 cells of both dtypes):
+
+  | nin x nout | R2 S1 (base) | R1 S4 | R2 S2 | taken |
+  |---|---|---|---|---|
+  | 2560x10240 | 61.10 | 67.07 (+10%) | 60.40 (-1%) | R2 S1 |
+  | 2560x5120 | 34.92 | 38.57 (+10%) | 35.16 (+1%) | R2 S1 |
+  | 2560x6144 | 40.36 | 43.26 (+7%) | 40.43 (+0%) | R2 S1 |
+  | 2560x3072 | 24.44 | 26.54 (+9%) | 24.70 (+1%) | R2 S1 |
+  | 2560x12288 | 71.23 | 80.30 (+13%) | 75.28 (+6%) | R2 S1 |
+  | 2560x512 | 14.16 | 12.66 (-11%) | 15.33 (+8%) | R1 S4 |
+  | 2560x256 | 13.76 | 11.90 (-14%) | 14.48 (+5%) | R1 S4 |
+  | 6144x2560 | 44.30 | 42.57 (-4%) | 44.61 (+1%) | R2 S1 |
+  | 3072x2560 | 25.35 | 28.79 (+14%) | 25.93 (+2%) | R2 S1 |
+  | 6144x1280 | 29.48 | 31.41 (+7%) | 28.89 (-2%) | R2 S1 |
+  | 10240x320 | 33.06 | 24.79 (-25%) | 28.94 (-12%) | R1 S4 |
+  | 320x10240 | 20.70 | 27.93 (+35%) | 21.02 (+2%) | R2 S1 |
+  | 2560x640 | 14.18 | 13.66 (-4%) | 14.24 (+0%) | R1 S4 |
+  | 2560x320 | 13.52 | 12.56 (-7%) | 12.99 (-4%) | R1 S4 |
+  | 640x2560 | 14.63 | 17.49 (+20%) | 16.92 (+16%) | R2 S1 |
+  | 320x2560 | 11.13 | 12.34 (+11%) | 11.53 (+4%) | R2 S1 |
+  | 2560x124160 | 644.27 | 724.81 (+13%) | 665.64 (+3%) | R2 S1 |
+  | 4096x4096 | 42.80 | 46.31 (+8%) | 42.69 (-0%) | R2 S1 |
+  | 4096x1024 | 23.12 | 17.94 (-22%) | 21.33 (-8%) | R1 S4 |
+  | 4096x12288 | 108.58 | 112.93 (+4%) | 107.82 (-1%) | R2 S1 |
+  | 12288x4096 | 124.77 | 114.63 (-8%) | 113.74 (-9%) | R2 S1 |
+  | 5120x6144 | 74.83 | 77.14 (+3%) | 70.92 (-5%) | R2 S1 |
+  | 17408x5120 | 216.86 | 197.37 (-9%) | 197.04 (-9%) | R2 S1 |
+
+  So 16-bit activations take the one-row build below their own knee and keep the base's build above it, which loses nothing against the base on either card's f16 data; each knee falls between the last shape the one-row build won and the first it lost on that card.
+  r29's hc_up 320x10240 f16, 20.34 against 11.92 us with A1's minimum at 11.92, takes the same build in both arms (variant 1, its rows below the narrow width) with the same specialization data, workgroups and chunking; on the Radeon VII every call dispatched `matmul_vec_q8_1col` once and every repeat ran 18.7 to 20.6 us in both arms. A device timing state set by the probe's call order, which A1 changes by running hc_down before it in the one-row build, is the likely cause, and r29's int8 cells show the same spread in both arms; the probe on gitea probe/a0-f16 (`scratch/shapeprobe-a1.cpp`) prints each repeat and the dispatched kernels to settle it on an MI50.
+- **MI50 rates in probe A0, int8** (RADV, the profile's forms, kB/us, which is GB/s, and their share of the card's best measured rate there, 749 kB/us at the 124160-row head in two rows and four steps; floor 3.66 us):
+
+  | nin x nout | MB | R2 S1 (base) | R1 S4 | R2 S2 | taken | taken, time vs base |
+  |---|---|---|---|---|---|---|
+  | 2560x10240 | 27.9 | 693 (92%) | 706 (94%) | 700 (93%) | R2 S2 | -1.0% |
+  | 2560x5120 | 13.9 | 654 (87%) | 658 (88%) | 651 (87%) | R2 S2 | +0.6% |
+  | 2560x6144 | 16.7 | 660 (88%) | 667 (89%) | 666 (89%) | R2 S2 | -0.9% |
+  | 2560x3072 | 8.4 | 586 (78%) | 602 (80%) | 582 (78%) | R1 S4 | -2.8% |
+  | 2560x12288 | 33.4 | 696 (93%) | 708 (94%) | 703 (94%) | R2 S2 | -1.1% |
+  | 2560x512 | 1.4 | 218 (29%) | 265 (35%) | 235 (31%) | R1 S4 | -21.5% |
+  | 2560x256 | 0.7 | 125 (17%) | 144 (19%) | 133 (18%) | R1 S4 | -14.7% |
+  | 6144x2560 | 16.7 | 655 (87%) | 669 (89%) | 657 (88%) | R1 S4 | -2.0% |
+  | 3072x2560 | 8.4 | 613 (82%) | 624 (83%) | 611 (82%) | R1 S4 | -1.9% |
+  | 6144x1280 | 8.4 | 577 (77%) | 592 (79%) | 574 (77%) | R1 S4 | -2.6% |
+  | 10240x320 | 3.5 | 293 (39%) | 355 (47%) | 307 (41%) | R1 S4 | -21.0% |
+  | 320x10240 | 3.5 | 339 (45%) | 281 (38%) | 350 (47%) | R2 S1 | 0.0% |
+  | 2560x640 | 1.7 | 270 (36%) | 314 (42%) | 286 (38%) | R1 S4 | -16.6% |
+  | 2560x320 | 0.9 | 154 (21%) | 175 (23%) | 160 (21%) | R1 S4 | -13.9% |
+  | 640x2560 | 1.7 | 322 (43%) | 304 (41%) | 323 (43%) | R2 S1 | 0.0% |
+  | 320x2560 | 0.9 | 177 (24%) | 158 (21%) | 179 (24%) | R2 S1 | 0.0% |
+  | 2560x124160 | 337.7 | 730 (98%) | 739 (99%) | 742 (99%) | R2 S2 | -1.6% |
+  | 4096x4096 | 17.8 | 670 (89%) | 677 (90%) | 678 (90%) | R2 S2 | -1.1% |
+  | 4096x1024 | 4.5 | 443 (59%) | 465 (62%) | 442 (59%) | R1 S4 | -5.0% |
+  | 4096x12288 | 53.5 | 720 (96%) | 728 (97%) | 730 (97%) | R2 S2 | -1.3% |
+  | 12288x4096 | 53.5 | 706 (94%) | 710 (95%) | 714 (95%) | R2 S2 | -1.1% |
+  | 5120x6144 | 33.4 | 704 (94%) | 710 (95%) | 714 (95%) | R2 S2 | -1.4% |
+  | 17408x5120 | 94.7 | 714 (95%) | 707 (94%) | 719 (96%) | R2 S2 | -0.7% |
+- **Radeon VII timing** (AMD proprietary driver, default clocks, integer dot forced in a scratch probe as A0 forced it, per-call device time of the matmul kernel, median of 9 x 200 calls, three interleaved runs of the base and the change each, us, the medians of the three).
+  The matched round ran 16:53:41 to 16:54:51 local on 2026-10-25 with the card given to it alone, the base built at ca029ef3c and the change at 54d16095a, whose Vulkan sources are those of this branch's base and head; the empty-dispatch floor, a one-workgroup `add`, read 5.05 to 5.36 us in both arms; the CPU was 0 to 60 percent busy (a game client, the editor, the monitor) and another session's `llmx-placement-test`, which runs on the CPU alone, ran throughout. Outputs are byte-identical between the arms in all 50 cells.
+  Two earlier rounds shared the card with other sessions' correctness runs and do not count: the first, about 16:22 to 16:24, beside a `backend-vulkan` run, its figures lost when its files were removed before the rerun; the second, 16:24:31 to 16:25:43, inside another session's correctness window, its cells whose build did not change moving -2 to +2 percent.
+
+  | nin x nout | f16 build | f16 base | f16 change | int8 build | int8 base | int8 change |
+  |---|---|---|---|---|---|---|
+  | 2560x256 | R1 S4 | 13.54 | 11.91 (-12%) | R1 S4 | 13.60 | 11.63 (-14%) |
+  | 2560x512 | R1 S4 | 14.04 | 12.36 (-12%) | R1 S4 | 13.75 | 11.97 (-13%) |
+  | 2560x320 | R1 S4 | 13.53 | 11.75 (-13%) | R1 S4 | 13.52 | 11.43 (-15%) |
+  | 2560x640 | R1 S4 | 14.47 | 12.46 (-14%) | R1 S4 | 13.81 | 11.96 (-13%) |
+  | 10240x320 | R1 S4 | 32.57 | 24.27 (-25%) | R1 S4 | 32.57 | 22.90 (-30%) |
+  | 4096x1024 | R1 S4 | 22.73 | 18.72 (-18%) | R1 S4 | 20.61 | 17.00 (-18%) |
+  | 6144x1280 | R2 S1 | 29.74 | 29.71 (0%) | R1 S4 | 27.20 | 24.25 (-11%) |
+  | 3072x2560 | R2 S1 | 25.75 | 24.68 (-4%) | R2 S2 | 23.72 | 23.86 (+1%) |
+  | 6144x2560 | R2 S1 | 42.65 | 42.64 (0%) | R2 S2 | 40.84 | 39.13 (-4%) |
+  | 640x2560 | R2 S1 | 13.82 | 13.54 (-2%) | R2 S1 | 13.59 | 13.44 (-1%) |
+  | 320x2560 | R2 S1 | 10.88 | 10.72 (-1%) | R2 S1 | 10.89 | 10.69 (-2%) |
+  | 2560x3072 | R2 S1 | 25.04 | 25.00 (0%) | R2 S2 | 23.15 | 22.18 (-4%) |
+  | 4096x4096 | R2 S1 | 42.07 | 42.11 (0%) | R2 S2 | 39.78 | 39.12 (-2%) |
+  | 2560x5120 | R2 S1 | 34.23 | 34.03 (-1%) | R2 S2 | 32.78 | 31.83 (-3%) |
+  | 5120x6144 | R2 S1 | 70.30 | 70.32 (0%) | R2 S2 | 64.92 | 63.12 (-3%) |
+  | 2560x6144 | R2 S1 | 38.32 | 38.88 (+1%) | R2 S2 | 37.12 | 36.29 (-2%) |
+  | 2560x10240 | R2 S1 | 59.73 | 59.83 (0%) | R2 S2 | 55.21 | 54.39 (-1%) |
+  | 2560x12288 | R2 S1 | 69.58 | 69.62 (0%) | R2 S2 | 64.05 | 62.86 (-2%) |
+  | 320x10240 | R2 S1 | 19.28 | 19.37 (0%) | R2 S1 | 18.13 | 18.12 (0%) |
+  | 4096x12288 | R2 S1 | 106.26 | 106.19 (0%) | R2 S2 | 96.55 | 94.92 (-2%) |
+  | 12288x4096 | R2 S1 | 113.94 | 113.83 (0%) | R2 S2 | 103.57 | 100.97 (-3%) |
+  | 17408x5120 | R2 S1 | 189.92 | 189.82 (0%) | R2 S2 | 175.22 | 167.17 (-5%) |
+  | 2560x124160 | R2 S1 | 626.64 | 626.72 (0%) | R2 S2 | 565.15 | 558.53 (-1%) |
+
+  The cells whose build did not change, the narrow rows in both dtypes and f16 from its knee, move -4 to +1 percent, the band of this round; every one-row cell gains 11 to 30 percent, and every two-step cell 1 to 5 percent but 3072x2560 int8 (+1 percent).
+- **Gates (Radeon VII), at ca029ef3c and again at 32226850e for the test, `backend-vulkan` and identity:** the structural test fails at the test commit (a call of 256 rows 1024 wide, f16, took `matmul_vec_q8_1col` where `..._1col_1row` was expected) and passes at the change, 24 calls over both dtypes and 27024 Q8_0 decode columns a dtype on the backend taking the integer dot. CTest from a fresh build directory passes 82 of 83: `vulkan-quantization`, part one's test with its 120 s limit, timed out under `-j4` beside `backend-vulkan`, and it passes alone in 43 s against the base's 42 s. Dead-code and docs clean. Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (`logits --last 16`, greedy `generate -n 64`) and the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures (`llmx-model-logits` batched, decode and greedy, `logits --last 13` with and without `--per-token`) are byte-identical between the base and the change, 28 of 28 files at ca029ef3c and again at 32226850e, as they must be since this card's profile takes no Q8_0 decode kernel; with the integer dot forced in both arms by a local profile edit, the same 28 files are identical in f16 and the `llmx` ones again with `--dtype int8`, and `bench --profile` on Qwen3-0.6B Q8_0 shows its f16 decode taking the one-row and the base's builds and its int8 decode the one-row and the two-step builds. `--isa` from a fresh directory: on this driver the one-column build does not reduce over both shuffled and plain adds, so the 11 other Q8_0 decode builds of the integer dot over both dtypes are held to its kinds of operation alone, as the existing ones are here.
+- **Left:** the MI50's f16 sweep, which sets the provisional f16 knee, and `--isa` there, in DDEV's probe slot; then it lands with the decode stack by the reviewer's 16:34 decision, measured by the stack top's gate (HF per family on both cards, the 16k checks, one timing round against main on Flash 2x2 and layer 4 and the 35B-A3B, `--isa` on both cards, the hosted run), not by its own.
+
 ## Preserving elementwise modules and a twin writer of multiplies and adds (2026-10-25, branch feat/elementwise-preserve on refactor/row-bodies, part one of item B's decode stack, the writer's third form approved by the reviewer at 16:17)
 
 - **Goal:** item B fuses the steps between preserving row products into those products' kernels, so those steps must already compute in the products' float mode; and a twin must be one function of its floats in every module, since a twin dropped from the twin table is requantized by `quantize_x`.

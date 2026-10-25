@@ -1275,7 +1275,7 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
-const int kVariants = 7;
+const int kVariants = 9;
 
 // The Q8_0 reduction forms are selected by the device profile so every build gives a column the same bits.
 // The subgroup tree depends on the device's reduction pairs; half-block order is fixed for all builds (docs/src/backends-vulkan.md, Decode builds).
@@ -1288,7 +1288,10 @@ struct VecBuild {
     uint32_t capacity() const { return cols * span; }
 };
 const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1, kQ8Tree, 1}, {kRowColsOne, 2, 1, 0, 1}, {kRowColsWide, 4, 1, 0, 1},
-                                        {2, 2, 1, kQ8Tree, 1}, {4, 4, 1, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 2}};
+                                        {2, 2, 1, kQ8Tree, 1}, {4, 4, 1, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 2},
+                                        {kRowColsOne, 1, 4, 0, 1}, {kRowColsOne, 2, 2, 0, 1}};
+// Its other one-column builds, one row and four steps and two rows and two steps, which one_column_build picks in place of variant 1 by the call's shape.
+const int kVecOneRow = 7, kVecTwoSteps = 8;
 // Its builds for plain columns, narrowest first.
 const int kVecByWidth[] = {1, 3, 4, 0, 5, 6};
 
@@ -1313,7 +1316,7 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
 struct RowBuild {
     uint32_t cols, rows;
 };
-const RowBuild kRowBuilds[kVariants] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 2}};
+const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 2}};
 // The two-row builds, narrowest first.
 const int kRowByWidth[] = {3, 4, 5, 6};
 

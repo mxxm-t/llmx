@@ -342,6 +342,8 @@ public:
     static std::string kernel_variant_name(int id, int variant) {
         const bool tile = is_tile_kernel(static_cast<KernelId>(id));
         if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
+        if (is_vec_kernel((KernelId)id) && variant == kVecOneRow) return std::string(kKernelNames[id]) + "_1col_1row";
+        if (is_vec_kernel((KernelId)id) && variant == kVecTwoSteps) return std::string(kKernelNames[id]) + "_1col_2step";
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
         return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
     }
@@ -1250,9 +1252,10 @@ public:
     void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) const;
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0);
-    size_t column_builds(KernelId id, int (&out)[kVariants]) const;
+    size_t column_builds(KernelId id, size_t nin, size_t rows, int (&out)[kVariants]) const;
+    int one_column_build(size_t nin, size_t rows, bool x8) const;
     template <typename Fn>
-    void for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const;
+    void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, const Fn& each) const;
 
     // Choose a row module, layout and lanes per row from the weight format and input width.
     // The Q8_0 decode module instead takes its rows from the build (sg_rows).

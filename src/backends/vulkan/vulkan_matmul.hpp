@@ -270,18 +270,20 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
         }
     const RowPlan plan = row_plan(live[0]->type, nin, dtype);
     const VkDescriptorBufferInfo xqi = row_twin(X, plan, nbatch * nin, dtype);
-    for_each_column_chunk(plan.kernel, nbatch, [&](size_t col0, size_t ncols, int variant) {
+    size_t rows = 0;
+    for (const Projection* pr : live) rows += pr->rows;
+    for_each_column_chunk(plan.kernel, nbatch, nin, rows, [&](size_t col0, size_t ncols, int variant) {
         row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, variant);
     });
 }
 
 // Return the count of available decode builds, narrowest first, limited by the profile's Q8_0 or Q4/K-quant column limit.
-// Other row kernels use their one-column and wide builds.
-inline size_t VulkanBackend::column_builds(KernelId id, int (&out)[kVariants]) const {
+// Other row kernels use their one-column and wide builds; the Q8_0 decode kernel's one-column build follows the call's shape (one_column_build).
+inline size_t VulkanBackend::column_builds(KernelId id, size_t nin, size_t rows, int (&out)[kVariants]) const {
     size_t n = 0;
     if (is_vec_kernel(id)) {
         for (int v : kVecByWidth)
-            if (kVecBuilds[v].capacity() <= dev_->profile.q8_decode_cols) out[n++] = v;
+            if (kVecBuilds[v].capacity() <= dev_->profile.q8_decode_cols) out[n++] = v == 1 ? one_column_build(nin, rows, reads_x8(id)) : v;
         return n;
     }
     if (row_kernel_builds_one_column(id)) out[n++] = 1;
@@ -294,12 +296,20 @@ inline size_t VulkanBackend::column_builds(KernelId id, int (&out)[kVariants]) c
     return n;
 }
 
-// Call each(col0, ncols, variant), filling widest builds first and using the narrowest build for the remainder.
+// The Q8_0 decode kernel's one-column build for `rows` output rows `nin` wide: two rows and one step below the profile's narrow width, else one row and four steps below the knee of its activations' width.
+// Above that knee 8-bit activations take two rows and two steps and 16-bit ones two rows and one step.
+inline int VulkanBackend::one_column_build(size_t nin, size_t rows, bool x8) const {
+    if (nin < dev_->profile.q8_decode_narrow_below) return 1;
+    if (!x8) return rows < dev_->profile.q8_decode_one_row_below_16bit ? kVecOneRow : 1;
+    return rows < dev_->profile.q8_decode_two_rows_from ? kVecOneRow : kVecTwoSteps;
+}
+
+// Call each(col0, ncols, variant), filling widest builds first and using the narrowest build for the remainder; `rows` are the output rows a dispatch computes, each `nin` wide.
 // Every build gives a column the same bits (docs/src/backends-vulkan.md, Decode builds).
 template <typename Fn>
-inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, const Fn& each) const {
+inline void VulkanBackend::for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, const Fn& each) const {
     int builds[kVariants] = {};
-    const size_t n = column_builds(id, builds);
+    const size_t n = column_builds(id, nin, rows, builds);
     const size_t wide = build_cols(id, builds[n - 1]);
     size_t col0 = 0;
     for (; nbatch - col0 > wide; col0 += wide) each(col0, wide, builds[n - 1]);
@@ -484,7 +494,9 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         // Generated tokens whose entries average fewer than two an expert: each entry its own workgroup row, through the one-column build, since grouping them would save few reads and costs a dispatch.
         const RowPlan plan = row_plan(type, nin, dtype);
         const VkDescriptorBufferInfo xqi = row_twin(X, plan, xcols * nin, dtype);
-        for_each_column_chunk(plan.kernel, 1, [&](size_t, size_t, int variant) {
+        size_t rows = 0;
+        for (const Projection* pr : live) rows += pr->rows * entries;
+        for_each_column_chunk(plan.kernel, 1, nin, rows, [&](size_t, size_t, int variant) {
             row_dispatch(plan, live, X, xqi, nin, xcols, 0, 1, false, variant, u32(per), entries, bind(ids));
         });
         return;

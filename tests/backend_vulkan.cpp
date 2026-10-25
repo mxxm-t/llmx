@@ -4254,6 +4254,84 @@ size_t check_route_edges(backend::Backend& vk) {
     return checks;
 }
 
+// Routing at every expert count a build of moe_route covers, held to the CPU: ids exactly and weights within the routing check's 1e-6, normalized and not.
+// Each row kind is a case of the contract: spread scores, ties across and inside lanes, NaN first, middle and last, +inf, all -inf, all NaN, fewer finite experts than k, and gaps either side of FLT_MIN.
+size_t check_route_shapes() {
+    const auto owner = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *owner;
+    Pair p(vk);
+    const float nan = std::numeric_limits<float>::quiet_NaN(), inf = std::numeric_limits<float>::infinity();
+    // The expert count and the build it reaches, by the experts an invocation holds: moe_route_s1 up to 64, _s2 up to 128, _s4 up to 256, _s8 up to 512, moe_route up to 1024.
+    struct Shape { size_t n; const char* build; };
+    const Shape shapes[] = {{1, "moe_route_s1"}, {7, "moe_route_s1"}, {64, "moe_route_s1"}, {65, "moe_route_s2"}, {128, "moe_route_s2"}, {200, "moe_route_s4"},
+                            {256, "moe_route_s4"}, {257, "moe_route_s8"}, {512, "moe_route_s8"}, {1000, "moe_route"}, {1024, "moe_route"}};
+    size_t values = 0;
+    uint32_t seed = 2400;
+    for (const Shape& sh : shapes) {
+        const size_t n = sh.n;
+        std::vector<size_t> ks;
+        for (size_t k : {size_t(1), size_t(8), size_t(10), n})
+            if (k <= n && k <= 256 && std::find(ks.begin(), ks.end(), k) == ks.end()) ks.push_back(k);
+        for (size_t k : ks)
+            for (const bool normalize : {false, true}) {
+                const size_t kinds = 11, rows = 3 * kinds;
+                std::mt19937 rng(++seed);
+                std::uniform_real_distribution<float> spread(-4.0f, 4.0f);
+                std::vector<float> scores(rows * n);
+                for (size_t r = 0; r < rows; ++r) {
+                    float* s = scores.data() + r * n;
+                    for (size_t e = 0; e < n; ++e) s[e] = spread(rng);
+                    switch (r % kinds) {
+                    case 1: for (size_t e = 0; e < n; ++e) s[e] = 0.5f * (float)(rng() % 4); break;
+                    case 2: for (size_t e = 0; e < n; ++e) s[e] = e % 64 == r % 64 ? 2.0f : e % 64 == (r + 5) % 64 ? 1.0f : -3.0f; break;
+                    case 3: s[0] = nan; break;
+                    case 4: s[n / 2] = nan; break;
+                    case 5: s[n - 1] = nan; break;
+                    case 6: s[rng() % n] = inf; break;
+                    case 7: for (size_t e = 0; e < n; ++e) s[e] = -inf; break;
+                    case 8: for (size_t e = 0; e < n; ++e) s[e] = nan; break;
+                    case 9:
+                        for (size_t e = 0; e < n; ++e) s[e] = -inf;
+                        for (size_t f = 0; f < (k + 1) / 2; ++f) s[rng() % n] = spread(rng);
+                        break;
+                    case 10: for (size_t e = 0; e < n; ++e) s[e] = -(float)(rng() % 121); break;
+                    default: break;
+                    }
+                }
+                Pair::In si = p.in(scores);
+                Pair::Out ids = p.out(rows * k), wts = p.out(rows * k);
+                p.cpu.route_experts(si.cs(), rows, n, k, normalize, ids.cs(), wts.cs());
+                p.vk.route_experts(si.vs(), rows, n, k, normalize, ids.vs(), wts.vs());
+                const auto ri = p.results(ids), rw = p.results(wts);
+                const std::string label = std::to_string(n) + " experts (" + sh.build + "), k " + std::to_string(k) + (normalize ? ", normalized" : "");
+                for (size_t i = 0; i < rows * k; ++i)
+                    if (std::memcmp(&ri.first[i], &ri.second[i], sizeof(float)) != 0) {
+                        uint32_t c, d;
+                        std::memcpy(&c, &ri.first[i], sizeof(c));
+                        std::memcpy(&d, &ri.second[i], sizeof(d));
+                        std::fprintf(stderr, "  row %zu (kind %zu), pick %zu: cpu %u device %u\n", i / k, i / k % kinds, i % k, c, d);
+                        require(false, ("routing ids differ from the CPU at " + label).c_str());
+                    }
+                values += rows * k;
+                values += close(rw.first, rw.second, 1e-6, ("routing weights differ beyond 1e-6 at " + label).c_str());
+            }
+    }
+    // More experts than a build holds are refused.
+    {
+        const std::vector<float> scores(1025, 0.0f);
+        Pair::In si = p.in(scores);
+        Pair::Out ids = p.out(8), wts = p.out(8);
+        bool refused = false;
+        try {
+            p.vk.route_experts(si.vs(), 1, 1025, 8, true, ids.vs(), wts.vs());
+        } catch (const std::runtime_error&) {
+            refused = true;
+        }
+        require(refused, "routing over 1025 experts was not refused on the device");
+    }
+    return values;
+}
+
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -4269,6 +4347,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
         size_t checks = check_collective(b);
         checks += check_route_edges(*b);
+        std::cout << "backend-vulkan: " << check_route_shapes() << " routing picks and weights at every routing build against the CPU\n";
         // The backend's identity names the device and its driver, and a second backend of the same device has the same one.
         require(b->identity().rfind("vulkan ", 0) == 0 && b->identity().find(backend::vulkan_device_name(*b)) != std::string::npos &&
                     backend::make_vulkan_backend(0, false)->identity() == b->identity(),

@@ -1,5 +1,6 @@
 #version 450
 // Add a row's block into each residual stream with 2 * sigmoid(gate / streams).
+#include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint rows; uint streams; uint dim; uint n; } p;
 layout(set = 0, binding = 0) buffer D { float dst[]; };

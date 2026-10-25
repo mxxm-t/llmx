@@ -25,24 +25,53 @@ float xq_shift(float v, int shift) {
     return uintBitsToFloat(signbit | mantissa);
 }
 
-// Extreme blocks are normalized before division; ordinary blocks keep their original operations.
+// The twin's scale and reciprocal take correctly rounded multiplies and adds alone, so a twin is the same in any module (docs/VULKAN.md, Kernel notes).
+// a / b for a positive normal a and b of 32767 or 127: a times the correctly rounded 1 / b.
+float xq_div(float a, uint b) {
+    precise float d = a * uintBitsToFloat(b == 32767u ? 0x38000100u : 0x3C010204u);
+    return d;
+}
+// a / b for an integer a and a positive finite b whose quotient is not subnormal: a times the reciprocal of b's significand, from a seed of its bits and four Newton steps, then the exponent; a quotient past the largest float is infinity.
+float xq_rdiv(uint a, float b) {
+    uint bits = floatBitsToUint(b), m = bits & 0x7FFFFFu;
+    int e = int(bits >> 23u) - 127;
+    if ((bits >> 23u) == 0u) {
+        int up = 23 - findMSB(m);
+        m <<= uint(up);
+        e = -126 - up;
+    }
+    float s = uintBitsToFloat((m & 0x7FFFFFu) | 0x3F800000u);
+    precise float y = uintBitsToFloat(0x7EF311C3u - floatBitsToUint(s));
+    y = y * (2.0 - s * y);
+    y = y * (2.0 - s * y);
+    y = y * (2.0 - s * y);
+    y = y * (2.0 - s * y);
+    precise float q = float(a) * y;
+    int qe;
+    frexp(q, qe);
+    if (qe - e > 128) return uintBitsToFloat(0x7F800000u);
+    return ldexp(q, -e);
+}
+
+// Extreme blocks are normalized before division; ordinary blocks keep their original operations, every quotient through xq_div and xq_rdiv.
 void xq_scale(uint top, float levels, out float d, out float id, out int shift) {
     float amax = uintBitsToFloat(top);
+    uint ilevels = uint(levels);
     shift = 0;
     if (top != 0u && (top < 0x08800000u || top >= 0x7E800000u) && top < 0x7F800000u) {
         int exponent = int(top >> 23u);
         if (exponent == 0) exponent = findMSB(top) - 22;
         shift = 127 - exponent;
         float normalized = xq_shift(amax, shift);
-        uint scale = max(1u, floatBitsToUint(xq_shift(normalized / levels, -shift)));
+        uint scale = max(1u, floatBitsToUint(xq_shift(xq_div(normalized, ilevels), -shift)));
         d = xq_shift(uintBitsToFloat(scale), shift);
         if (scale < 0x00800000u && d * levels < normalized) d = xq_shift(uintBitsToFloat(++scale), shift);
         // The largest finite input must not round its reconstruction to infinity.
         if (floatBitsToUint(xq_shift(d * levels, -shift)) == 0x7F800000u) d = xq_shift(uintBitsToFloat(scale - 1u), shift);
-        id = 1.0 / d;
+        id = xq_rdiv(1u, d);
     } else {
-        d = amax / levels;
-        id = amax > 0.0 ? levels / amax : 0.0;
+        d = amax > 0.0 ? xq_div(amax, ilevels) : 0.0;
+        id = amax > 0.0 ? xq_rdiv(ilevels, amax) : 0.0;
     }
 }
 

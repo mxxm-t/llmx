@@ -498,6 +498,15 @@ const uint32_t kSpvMatmulRowQ8wPreserve[] = {
 const uint32_t kSpvMatmulVecQ8Preserve[] = {
 #include "vulkan/matmul_vec_q8_preserve.inc"
 };
+const uint32_t kSpvSiluScaledPreserve[] = {
+#include "vulkan/silu_scaled_preserve.inc"
+};
+const uint32_t kSpvMixStreamsPreserve[] = {
+#include "vulkan/mix_streams_preserve.inc"
+};
+const uint32_t kSpvInjectStreamsPreserve[] = {
+#include "vulkan/inject_streams_preserve.inc"
+};
 const uint32_t kSpvMatmulVecQ8I8[] = {
 #include "vulkan/matmul_vec_q8_i8.inc"
 };
@@ -1023,9 +1032,9 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_DELTA_RULE_SHORT, "delta_rule_short", kSpvDeltaRuleShort, sizeof(kSpvDeltaRuleShort), 8, nullptr) \
     X(K_EMBED_IDS_MXFP4, "embed_ids_mxfp4", kSpvEmbedIdsMxfp4, sizeof(kSpvEmbedIdsMxfp4), 4, nullptr) \
     X(K_GROUP_RMS_NORM, "group_rms_norm", kSpvGroupRmsNorm, sizeof(kSpvGroupRmsNorm), 4, nullptr) \
-    X(K_SILU_SCALED, "silu_scaled", kSpvSiluScaled, sizeof(kSpvSiluScaled), 3, nullptr) \
-    X(K_MIX_STREAMS, "mix_streams", kSpvMixStreams, sizeof(kSpvMixStreams), 4, nullptr) \
-    X(K_INJECT_STREAMS, "inject_streams", kSpvInjectStreams, sizeof(kSpvInjectStreams), 3, nullptr) \
+    X(K_SILU_SCALED, "silu_scaled", kSpvSiluScaled, sizeof(kSpvSiluScaled), 3, nullptr, kSpvSiluScaledPreserve, sizeof(kSpvSiluScaledPreserve)) \
+    X(K_MIX_STREAMS, "mix_streams", kSpvMixStreams, sizeof(kSpvMixStreams), 4, nullptr, kSpvMixStreamsPreserve, sizeof(kSpvMixStreamsPreserve)) \
+    X(K_INJECT_STREAMS, "inject_streams", kSpvInjectStreams, sizeof(kSpvInjectStreams), 3, nullptr, kSpvInjectStreamsPreserve, sizeof(kSpvInjectStreamsPreserve)) \
     X(K_SIGNED_SQRT_GATE, "signed_sqrt_gate", kSpvSignedSqrtGate, sizeof(kSpvSignedSqrtGate), 5, nullptr) \
     X(K_DILATED_CONV_SILU_ADD, "dilated_conv_silu_add", kSpvDilatedConvSiluAdd, sizeof(kSpvDilatedConvSiluAdd), 6, nullptr) \
     X(K_EMBED_WF16, "embed_wf16", kSpvEmbedWf16, sizeof(kSpvEmbedWf16), 4, nullptr) \

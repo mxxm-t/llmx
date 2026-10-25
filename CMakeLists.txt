@@ -164,6 +164,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_reduce_preserve=matmul_reduce=LLMX_PRESERVE_F32
         matmul_row_q8w_preserve=matmul_row=LLMX_Q8W+LLMX_PRESERVE_F32
         matmul_vec_q8_preserve=matmul_vec_q8=LLMX_PRESERVE_F32
+        silu_scaled_preserve=silu_scaled=LLMX_PRESERVE_F32 mix_streams_preserve=mix_streams=LLMX_PRESERVE_F32
+        inject_streams_preserve=inject_streams=LLMX_PRESERVE_F32
         matmul_row_q4_preserve=matmul_row=LLMX_Q4+LLMX_PRESERVE_F32
         matmul_row_q4_dot_preserve=matmul_row=LLMX_Q4+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_k4_dot_preserve=matmul_row=LLMX_K4+LLMX_DOT+LLMX_PRESERVE_F32

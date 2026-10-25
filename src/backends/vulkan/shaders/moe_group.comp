@@ -30,7 +30,9 @@ void main() {
     uint e = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
     for (uint x = t; x < p.n_expert; x += 256u) hist[x] = 0u;
     barrier();
-    for (uint i = t; i < p.entries; i += 256u) atomicAdd(hist[ids[i]], 1u);
+    // An entry without an expert (the invalid id) belongs to no expert's tiles.
+    for (uint i = t; i < p.entries; i += 256u)
+        if (ids[i] < p.n_expert) atomicAdd(hist[ids[i]], 1u);
     barrier();
     // This expert's first entry and first tile follow the experts below it; expert 0's workgroup also clears the tiles past the last one used.
     uint f = 0u, tl = 0u;

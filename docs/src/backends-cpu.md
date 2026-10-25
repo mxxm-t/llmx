@@ -158,7 +158,7 @@ A compile without them stops at one `#error` at the top of the header.
   The device comparison references and float-kernel checks request F32 on each matrix call; no mutable backend precision switch is needed.
   `each_run` reads the runs through `backend.hpp` `for_each_run`, keyed by whether a run is a generated token's.
 - `route_experts`, `matmul_experts`, `matmul_experts_add`: routing in
-  float, then the entries grouped by expert. For types with integer dots, a generated token's entries take
+  float, a row whose sum is NaN given `kNoExpert` picks, then the entries grouped by expert, those without an expert left out. For types with integer dots, a generated token's entries take
   the decode dots, every such entry's rows of a call in one pool dispatch. A
   prompt's entries take the prompt dots (`q8_dots.hpp` `dot_block`): stretches
   of 16 of an expert's rows handed to workers as they free up, each against

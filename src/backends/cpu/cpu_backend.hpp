@@ -1875,6 +1875,14 @@ public:
             for (size_t e = 1; e < n_expert; ++e) top = std::max(top, p[e]);
             float sum = 0.0f;
             for (float& v : p) { v = std::exp(v - top); sum += v; }
+            // Probabilities that are not finite make every one NaN, which no pick takes.
+            if (std::isnan(sum)) {
+                for (size_t j = 0; j < k; ++j) {
+                    std::memcpy(ids + r * k + j, &kNoExpert, sizeof(kNoExpert));
+                    weights[r * k + j] = 0.0f;
+                }
+                return;
+            }
             for (float& v : p) v /= sum;
             // Probabilities are never negative, so a taken expert is marked below every candidate.
             float chosen[256], total = 0.0f;
@@ -1925,10 +1933,14 @@ public:
                         decode_rows(nrows, runs), dtype);
         const float* w = at(routing.weights);
         float* Y = at(Y_s);
+        std::vector<uint32_t> ids(entries);
+        std::memcpy(ids.data(), at(routing.ids), entries * sizeof(uint32_t));
         spread(nrows, [&](size_t r) {
             for (size_t o = 0; o < nout; ++o) {
                 float s = 0.0f;
-                for (size_t j = 0; j < k; ++j) s += w[r * k + j] * expert_out_[(r * k + j) * nout + o];
+                // A slot without an expert adds nothing (route_experts).
+                for (size_t j = 0; j < k; ++j)
+                    if (ids[r * k + j] != kNoExpert) s += w[r * k + j] * expert_out_[(r * k + j) * nout + o];
                 Y[r * nout + o] += s;
             }
         });
@@ -1974,13 +1986,15 @@ private:
         std::vector<uint32_t> ids(entries);
         std::memcpy(ids.data(), raw, entries * sizeof(uint32_t));
         for (uint32_t id : ids) {
+            if (id == kNoExpert) continue;
             if (id >= routing.n_expert) throw std::runtime_error("backend: routed expert out of range");
             ++g.start[id + 1];
         }
         for (size_t e = 0; e < routing.n_expert; ++e) g.start[e + 1] += g.start[e];
-        g.order.resize(entries);
+        g.order.resize(g.start[routing.n_expert]);
         std::vector<size_t> next(g.start.begin(), g.start.end() - 1);
-        for (size_t i = 0; i < entries; ++i) g.order[next[ids[i]]++] = (uint32_t)i;
+        for (size_t i = 0; i < entries; ++i)
+            if (ids[i] != kNoExpert) g.order[next[ids[i]]++] = (uint32_t)i;
         return g;
     }
 

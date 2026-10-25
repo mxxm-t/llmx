@@ -1,5 +1,5 @@
 #version 450
-// Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, divided by their sum when `normalize`.
+// Expert routing (backend.hpp route_experts): per row the k most probable experts, ties to the lower id, divided by their sum with `normalize`; a NaN row picks the invalid id with weight 0.
 // 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one, the reductions joined through shared memory when there are two.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_arithmetic : require
@@ -15,6 +15,7 @@ shared float prob[MAX_EXPERTS];
 shared float part_v[2];
 shared uint part_i[2];
 shared float chosen[256];
+shared uint chosen_id[256];
 
 float group_max(float v) {
     v = subgroupMax(v);
@@ -80,10 +81,11 @@ void main() {
             if (prob[e] > bv) { bv = prob[e]; bi = e; }
         float m = group_max(bv);
         uint id = group_min(bv == m ? bi : 0xffffffffu);
-        // The chosen expert belongs to invocation id % 64, which marks it and records its probability.
+        // The chosen expert belongs to invocation id % 64, which marks it and records its probability; where none is left the pick is the invalid id, which marks nothing.
         if (t == id % 64u) {
-            chosen[j] = m;
-            prob[id] = -1.0;
+            chosen[j] = id < p.n_expert ? m : 0.0;
+            chosen_id[j] = id;
+            if (id < p.n_expert) prob[id] = -1.0;
             ids[r * p.k + j] = id;
         }
     }
@@ -91,6 +93,6 @@ void main() {
     if (t == 0u) {
         float total = 0.0;
         for (uint j = 0u; j < p.k; ++j) total += chosen[j];
-        for (uint j = 0u; j < p.k; ++j) weights[r * p.k + j] = p.normalize != 0u ? chosen[j] / total : chosen[j];
+        for (uint j = 0u; j < p.k; ++j) weights[r * p.k + j] = chosen_id[j] >= p.n_expert ? 0.0 : p.normalize != 0u ? chosen[j] / total : chosen[j];
     }
 }

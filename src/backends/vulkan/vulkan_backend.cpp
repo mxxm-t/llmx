@@ -996,7 +996,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MATMUL_ROW_K5_I8, "matmul_row_k5_i8", kSpvMatmulRowK5I8, sizeof(kSpvMatmulRowK5I8), 12, kMatmulRowCounts, kSpvMatmulRowK5I8Preserve, sizeof(kSpvMatmulRowK5I8Preserve)) \
     X(K_MATMUL_ROW_K_I8, "matmul_row_k_i8", kSpvMatmulRowKI8, sizeof(kSpvMatmulRowKI8), 12, kMatmulRowCounts, kSpvMatmulRowKI8Preserve, sizeof(kSpvMatmulRowKI8Preserve)) \
     X(K_MOE_ROUTE, "moe_route", kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr) \
-    X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 3, nullptr) \
+    X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 4, nullptr) \
     X(K_MOE_GROUP, "moe_group", kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr) \
     X(K_ATTENTION_G4, "attention_g4", kSpvAttentionG4, sizeof(kSpvAttentionG4), 7, nullptr) \
     X(K_ATTENTION_K16_G4, "attention_k16_g4", kSpvAttentionK16G4, sizeof(kSpvAttentionK16G4), 7, nullptr) \
@@ -3699,7 +3699,7 @@ public:
             routed_call({&one}, at_float(X, first * k * nin), nin, count * k, count, k, at_float(routing.ids, first * k),
                         routing.n_expert, tile, dtype, 1);
             const uint32_t pc[3] = {u32(count), u32(nout), u32(k)};
-            dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(part)), bind(at_float(routing.weights, first * k))},
+            dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(part)), bind(at_float(routing.weights, first * k)), bind(at_float(routing.ids, first * k))},
                      pc, sizeof(pc), groups(count * nout, 256));
         });
     }

@@ -587,17 +587,20 @@ public:
         size_t k, n_expert;
     };
 
-    // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
-    // The softmax is over all n_expert scores.
+    // The id of a pick where a row has no candidate: its probabilities are not finite, from a NaN or infinite score or every score -inf.
+    static constexpr uint32_t kNoExpert = 0xffffffffu;
+
+    // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability over all n_expert, the most probable first and ties to the lower id, with their probabilities, divided by their sum when `normalize`.
+    // A row without a candidate gives k picks of kNoExpert with weights 0.
     virtual void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize,
                                Slice ids, Slice weights) = 0;
 
-    // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections.
+    // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections, an entry of kNoExpert left unwritten.
     // A projection's data holds its n_expert matrices of `rows` rows each back to back; `runs` are matmul's, over the `nrows` token rows.
     virtual void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin,
                                 size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
-    // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j.
+    // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j, an entry of kNoExpert adding nothing.
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;

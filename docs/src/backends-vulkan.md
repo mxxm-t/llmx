@@ -237,7 +237,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   weight descriptor's selected crossover in `DeviceProfile`; a routed tile is never split, so an entry
   computes the same whatever else is routed beside it. The down
   projection's slots land in scratch and `shaders/moe_combine.comp` adds
-  their weighted sum to the residual; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
+  their weighted sum to the residual, a slot without an expert (`kNoExpert`, which the routed row kernels leave unwritten and `moe_group` counts in no tile) adding nothing; it reuses the grouping made for gate and up and reads the twin the SiLU writes for its input, while the router and gate and up share their input's twin.
 - The KV cache is `VulkanKVStorage`, blocks of 64 tokens in f32 or f16, written and read through view tables, so every view of a batch goes through one dispatch of each cache kernel.
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
@@ -520,7 +520,7 @@ From the comment at line 143:
 
 From the comment at line 2:
 
-- Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`.
+- Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`; a row of NaN probabilities picks the invalid id with weight 0 and marks nothing.
 - 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one; the reductions are subgroup operations, joined through shared memory when there are two.
 
 ### `src/backends/vulkan/shaders/norm_rope_kv.comp`

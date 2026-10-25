@@ -222,7 +222,9 @@ placement contracts in `docs/EXECUTION.md`.
   softmax probability per row, most probable first and ties to the lower
   id, with their probabilities renormalized over the k when asked. Slot `j`
   of row `r` is entry `r*k + j`; the ids are 32-bit integers in float-sized
-  slots, so they stay in the activation arena.
+  slots, so they stay in the activation arena. A row whose probabilities are
+  not finite has no candidate: its k ids are `kNoExpert` with weights 0, and
+  the routed products leave such an entry's rows unwritten and add nothing for it.
 - `matmul_experts(projections, X, nin, nrows, routing, runs)`: up to three
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its

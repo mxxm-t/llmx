@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## A routing row with no candidate, on both backends (2026-10-25, branch fix/route-oob on main 07facf1b6, C2DEV's DECISIONs of 2026-10-24 10:40 and 2026-10-25 00:12, amendment 4, lands by fast-forward as two commits)
+
+- **The bug:** a row whose softmax is not finite (a NaN or infinite score, or every score -inf) has NaN probabilities, of which no pick is ever taken; the device then picked the invalid id, marked it at `prob[0xffffffff]` outside its shared table and gave each pick a weight of one k-th, while the CPU picked expert 0 again and again; `moe_group` counted the invalid id at `hist[0xffffffff]`, and the routed row kernels read the rows of expert 0xffffffff.
+- **The contract (backend.hpp):** such a row has no candidate, its k ids are `Backend::kNoExpert` with weights 0, and the routed products leave an entry without an expert unwritten and add nothing for it.
+- **The fix:** `route_experts` on the CPU gives a row whose sum is NaN `kNoExpert` picks, and its grouping and weighted sum pass them over; on the device `moe_route` marks nothing for an invalid pick and weights it 0, `moe_group` counts it in no tile, the routed row kernels (`matmul_row.comp`, `matmul_vec_q8.comp`) return for it before reading a row, and `moe_combine` skips its slot, reading the ids beside the weights.
+- **Test:** `backend-vulkan`, on the CPU and the device, routes a row of NaN scores, a row with one NaN among finite scores and a row with one finite score and the rest -inf, and runs the routed gate-up and down calls on two decode rows and on a 70-row prompt at extent 512 with every second row without candidates; it fails on main on the CPU's ids and passes with the fix on the Radeon VII; `backend-group` holds the CPU's half on the hosted runners.
+- **Gates:** to run before landing: byte identity against main on a device for the tiny qwen3moe, qwen35moe and Flash fixtures and a routed real model on an MI50, CTest and the CPU suite, the Radeon VII device tests, and the hosted run.
 ## A model bench's ids span the vocabulary (2026-10-25, branch feat/bench-ids on main 07facf1b6, the coordinator's order of 2026-10-25, lands by fast-forward as two commits)
 
 - **The bug:** `bench --model` drew every id below 1000, so on Qwen3.8-Flash-Next its prompts read a few cached rows of the 26.8 GiB per-layer table, where a text reads a distinct row a token from the file.

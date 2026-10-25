@@ -109,6 +109,8 @@ void main() {
         wrow0 = tab[4u * y] * nout;
     } else if (p.per != 0u) {
         uint e = gl_WorkGroupID.y;
+        // An entry without an expert has no product, and its rows are left as they were.
+        if (ids[e] == 0xffffffffu) return;
         col0 = e / p.per;
         out0 = e;
         wrow0 = ids[e] * nout;

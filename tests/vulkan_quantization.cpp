@@ -46,6 +46,31 @@ struct VulkanQuantizationTest {
         else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, &n, sizeof(n), (n + 255) / 256, 1, 1);
     }
     static size_t x8_base_words(size_t n) { return VulkanBackend::x8_base_bytes(n) / 4; }
+    static uint32_t x8_columns(uint32_t cols) { return VulkanBackend::x8_columns(cols); }
+    static void set_twin8(VulkanBackend& b, bool on) { b.want_x8_ = on; }
+    static bool prefers_integer_dot(VulkanBackend& b) { return b.dev_->profile.prefer_integer_dot; }
+    // Where the device does not prefer the integer dot, preferring it reaches the tile's twin layouts, which change only where a twin's values lie.
+    static void prefer_integer_dot(VulkanBackend& b, bool on) { b.dev_->profile.prefer_integer_dot = on; }
+    static bool tile_reads(VulkanBackend& b, size_t nin, size_t nbatch, RowRuns runs) { return b.tile_reads(nin, nbatch, runs); }
+    // The words of the twin the table keeps for the n floats at x, and its layout; empty when no producer left one.
+    static std::vector<uint32_t> kept_twin(VulkanBackend& b, CSlice x, size_t n, uint32_t& major, bool& has8) {
+        const VkDescriptorBufferInfo xf = b.bind(x);
+        for (const auto& t : b.twins_)
+            if (t.n == n && t.x.buffer == xf.buffer && t.x.offset == xf.offset) {
+                std::vector<uint32_t> words(t.buffer->size() / 4);
+                b.read(*t.buffer, 0, words.data(), words.size() * 4);
+                major = t.major;
+                has8 = t.has8;
+                return words;
+            }
+        return {};
+    }
+    // The twin the quantizers write for the n floats at x into y: the lane writer, or the word writer in `major`'s layout, the 8-bit twin after it when twin8.
+    static void quantize(VulkanBackend& b, CSlice x, CSlice y, uint32_t n, bool words, uint32_t major, bool twin8) {
+        const uint32_t pc[] = {n, major};
+        if (words) b.dispatch(K_QUANTIZE_XW, {b.bind(x), b.bind(y)}, pc, sizeof(pc), (n / 4 + 255) / 256, 1, twin8 ? 1 : 0);
+        else b.dispatch(K_QUANTIZE_X, {b.bind(x), b.bind(y)}, pc, sizeof(uint32_t), (n + 255) / 256, 1, twin8 ? 1 : 0);
+    }
     static void prior_layout(VulkanBackend& b) {
         const uint32_t major = 1;
         const auto& k = b.kernel(K_QUANTIZE_XW, 1);
@@ -507,12 +532,138 @@ void check(backend::VulkanBackend& b) {
     std::cout << "vulkan-quantization: " << peaks.size() << " blocks of the 8-bit twin, " << lane_words8 << " identical lane/word words, " << failures8 << " failing\n";
     require(failures8 == 0, "8-bit twin reconstruction or sums exceed their bounds");
 }
+
+// The words a twin of n values holds in `major`'s layout: the 16-bit twin, then the 8-bit one when twin8, without a block-major twin's padding columns.
+std::vector<size_t> twin_words(size_t n, bool twin8, uint32_t major) {
+    std::vector<size_t> at;
+    for (size_t i = 0; i < n / 2 + n / 16; ++i) at.push_back(i);
+    if (!twin8) return at;
+    const size_t base = backend::VulkanQuantizationTest::x8_base_words(n);
+    if (!major) {
+        for (size_t i = 0; i < n / 4 + n / 16; ++i) at.push_back(base + i);
+        return at;
+    }
+    const size_t cols = n / 32 / major, pad = backend::VulkanQuantizationTest::x8_columns(uint32_t(cols)), tab = base + pad * major * 8;
+    for (size_t k = 0; k < major; ++k)
+        for (size_t c = 0; c < cols; ++c) {
+            const size_t blk = k * pad + c;
+            for (size_t w = 0; w < 8; ++w) at.push_back(base + blk * 8 + w);
+            at.push_back(tab + 2 * blk);
+            at.push_back(tab + 2 * blk + 1);
+        }
+    return at;
+}
+
+// Grouped RMSNorm against a double reference, the twin it leaves against the quantizers' twin of its output, and each row alone against the same row among others, all bit for bit but the reference.
+void check_group_rms_norm(backend::VulkanBackend& b) {
+    using T = backend::VulkanQuantizationTest;
+    constexpr double U = 0x1p-24;
+    constexpr float eps = 1e-6f;
+    uint32_t seed = 2027;
+    size_t cases = 0, values = 0, words = 0, alone = 0, tiled = 0, major_cases = 0, twin8_cases = 0;
+    auto run_case = [&](size_t dim, size_t groups, size_t rows, size_t extent, bool twin8) {
+        const size_t width = groups * dim, n = rows * width;
+        std::vector<float> x(n), w(width), y(n), single(width);
+        for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 23405.0f;
+        for (float& v : w) v = 0.6f + float(random_bits(seed) % 65536u) / 81920.0f;
+        // Every allocation first, since a new buffer drops every twin.
+        const auto dev = backend::Memory::device;
+        const auto xs = b.alloc(n * 4, dev), ws = b.alloc(width * 4, dev), ys = b.alloc(n * 4, dev), one = b.alloc(width * 4, dev), ip = b.alloc(n * 4, dev);
+        const auto ref = b.alloc(T::x8_base_words(n) * 4 + (n + n / 32 * 8) / 4 * 5, dev);
+        b.write(*xs, 0, x.data(), n * 4);
+        b.write(*ws, 0, w.data(), width * 4);
+        b.write(*ip, 0, x.data(), n * 4);
+        T::set_twin8(b, twin8);
+        const backend::RowRun run{rows, extent};
+        const backend::RowRuns runs{&run, 1};
+        const bool quant = dim % 32 == 0, tile = quant && T::tile_reads(b, width, rows, runs);
+        b.group_rms_norm({ys.get(), 0}, {xs.get(), 0}, {ws.get(), 0}, rows, groups, dim, eps, runs);
+        uint32_t major = 0;
+        bool has8 = false;
+        const auto kept = T::kept_twin(b, {ys.get(), 0}, n, major, has8);
+        b.read(*ys, 0, y.data(), n * 4);
+        require(kept.empty() != quant, "grouped RMSNorm left a twin other than where its groups are whole blocks");
+        if (quant) {
+            require(has8 == twin8, "grouped RMSNorm's twin lacks or adds the 8-bit twin");
+            T::quantize(b, {ys.get(), 0}, {ref.get(), 0}, uint32_t(n), tile, major, twin8);
+            std::vector<uint32_t> expected(ref->size() / 4);
+            b.read(*ref, 0, expected.data(), expected.size() * 4);
+            for (size_t at : twin_words(n, twin8, major)) {
+                if (at >= kept.size() || kept[at] != expected[at]) {
+                    std::fprintf(stderr, "grouped RMSNorm twin: dim %zu groups %zu rows %zu extent %zu twin8 %d major %u word %zu\n",
+                                 dim, groups, rows, extent, int(twin8), major, at);
+                    require(false, "grouped RMSNorm's twin differs from the quantizers' twin of its output");
+                }
+                ++words;
+            }
+            tiled += tile;
+            major_cases += major != 0;
+            twin8_cases += twin8;
+        }
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t g = 0; g < groups; ++g) {
+                const size_t at = r * width + g * dim;
+                double square = 0;
+                for (size_t d = 0; d < dim; ++d) square += double(x[at + d]) * x[at + d];
+                const double inv = 1.0 / std::sqrt(square / double(dim) + eps);
+                for (size_t d = 0; d < dim; ++d) {
+                    const double e = double(x[at + d]) * inv * w[g * dim + d];
+                    if (!(std::abs(double(y[at + d]) - e) <= double(dim + 12) * U * std::abs(e) + 1e-30)) {
+                        std::fprintf(stderr, "grouped RMSNorm: dim %zu groups %zu rows %zu value %zu device %.9g expected %.9g\n",
+                                     dim, groups, rows, at + d, y[at + d], e);
+                        require(false, "grouped RMSNorm exceeds its bound against the double reference");
+                    }
+                    ++values;
+                }
+            }
+        // Exactly in place, as the model also calls it, the output and twin must be the same.
+        b.group_rms_norm({ip.get(), 0}, {ip.get(), 0}, {ws.get(), 0}, rows, groups, dim, eps, runs);
+        uint32_t ip_major = 0;
+        const auto ip_kept = T::kept_twin(b, {ip.get(), 0}, n, ip_major, has8);
+        std::vector<float> in_place(n);
+        b.read(*ip, 0, in_place.data(), n * 4);
+        require(std::memcmp(in_place.data(), y.data(), n * 4) == 0, "grouped RMSNorm in place differs from out of place");
+        require(ip_kept.empty() == kept.empty() && ip_major == major, "grouped RMSNorm in place left another twin");
+        if (quant)
+            for (size_t at : twin_words(n, twin8, major))
+                require(ip_kept[at] == kept[at], "grouped RMSNorm's twin in place differs from out of place");
+        if (rows > 1)
+            for (size_t r = 0; r < rows; ++r) {
+                const backend::RowRun lone{1, extent};
+                b.group_rms_norm({one.get(), 0}, {xs.get(), r * width}, {ws.get(), 0}, 1, groups, dim, eps, {&lone, 1});
+                b.read(*one, 0, single.data(), width * 4);
+                require(std::memcmp(single.data(), y.data() + r * width, width * 4) == 0,
+                        "grouped RMSNorm row alone differs from the same row among others");
+                ++alone;
+            }
+        ++cases;
+    };
+    const size_t dims[] = {2560, 2048, 4128, 2501, 1000, 260, 64}, group_counts[] = {1, 4}, row_counts[] = {1, 3, 4, 33};
+    const bool preferred = T::prefers_integer_dot(b);
+    for (bool forced : {false, true}) {
+        if (forced && preferred) break;
+        T::prefer_integer_dot(b, preferred || forced);
+        for (size_t dim : dims)
+            for (size_t groups : group_counts)
+                for (size_t rows : row_counts)
+                    for (size_t extent : {size_t(1), size_t(512)})
+                        for (bool twin8 : {false, true})
+                            if (!forced || extent != 1) run_case(dim, groups, rows, extent, twin8);
+    }
+    T::prefer_integer_dot(b, preferred);
+    T::set_twin8(b, false);
+    std::cout << "vulkan-quantization: grouped RMSNorm, " << cases << " cases, " << values << " values within the reference bound, "
+              << words << " twin words equal to the quantizers' (" << twin8_cases << " cases with the 8-bit twin, " << tiled
+              << " tile layouts, " << major_cases << " block-major), " << alone << " rows alone equal\n";
+    require(tiled != 0 && major_cases != 0, "grouped RMSNorm never wrote the tile's twin or a block-major one");
+}
 }
 
 int main() {
     try {
         backend::VulkanBackend b(0);
         check(b);
+        check_group_rms_norm(b);
         for (size_t width : {size_t(32), size_t(64)})
             check_activation_range(b, width, backend::VulkanQuantizationTest::preserves_float32(b));
         backend::VulkanBackend fallback(0);

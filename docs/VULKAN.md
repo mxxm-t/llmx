@@ -722,7 +722,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   Three dispatches fewer per layer, 0.6B Q8_0 decode 202 to 221 tok/s under the matched protocol.
 - **silu_mul, add, gather_rows**: elementwise or gather kernels, one invocation per output float, or four a lane where the integer-dot tile reads `silu_mul`'s output next.
 - **rms_norm_rows**: a row over one or more workgroups, each summing the whole row's squares in a tree and writing its own chunks.
-- **embed**: a workgroup per gathered row, dequantizing it on the way.
+- **embed**: a workgroup per gathered row, dequantizing it on the way, one dispatch a view of the table (`table_views`), each view whole rows within one storage binding's range and 32-bit byte indices, so a table past 4 GiB reads every row.
 - **The qwen35 layers** (docs/QWEN35.md): `sigmoid_mul` and `gated_rms_norm`,
   which write the copy of their output the next matmul reads as `silu_mul`
   and `rms_norm_rows` do; `causal_conv_silu`, one dispatch of an invocation

@@ -1,5 +1,5 @@
 #version 450
-// One workgroup per gathered row: dst row i = table row ids[i], decoded.
+// One workgroup per gathered row: dst row i = table row ids[i], decoded from one view of rows lo to hi that starts `skew` bytes before row lo (table_views).
 // With LLMX_DEVICE_IDS the ids are read on the device, as a draft chain feeds its drafts back (embed_ids), and an id of nrows or more writes a zero row and reads no row of the table.
 #include "q.glsl"
 #if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
@@ -12,9 +12,9 @@
 #endif
 layout(local_size_x = 256) in;
 #ifdef LLMX_DEVICE_IDS
-layout(push_constant) uniform P { uint nin; uint type; uint nrows; } p;
+layout(push_constant) uniform P { uint nin; uint type; uint skew; uint lo; uint hi; uint nrows; } p;
 #else
-layout(push_constant) uniform P { uint nin; uint type; } p;
+layout(push_constant) uniform P { uint nin; uint type; uint skew; uint lo; uint hi; } p;
 #endif
 layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
 layout(set = 0, binding = 1) readonly buffer TF { float table_f[]; };
@@ -40,27 +40,31 @@ void main() {
     uint out_base = i * p.nin;
 #ifdef LLMX_DEVICE_IDS
     if (id >= p.nrows) {
-        for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = 0.0;
+        if (p.hi == p.nrows)
+            for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = 0.0;
         return;
     }
 #endif
+    // Another view's dispatch writes a row this view does not hold.
+    if (id < p.lo || id >= p.hi) return;
+    id -= p.lo;
 #if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
-    uint base = id * p.nin * 2u;
+    uint base = p.skew + id * p.nin * 2u;
     for (uint j = lid; j < p.nin; j += 256u) {
         uint at = base + 2u * j;
         dst[out_base + j] = WEIGHT_FLOAT(QBYTE(at) | (QBYTE(at + 1u) << 8u));
     }
 #elif defined(LLMX_MXFP4)
-    uint base = id * (p.nin / MXFP4_BLOCK) * MXFP4_BYTES;
+    uint base = p.skew + id * (p.nin / MXFP4_BLOCK) * MXFP4_BYTES;
     for (uint j = lid; j < p.nin; j += 256u)
         dst[out_base + j] = mxfp4_at(base + (j / MXFP4_BLOCK) * MXFP4_BYTES, j % MXFP4_BLOCK);
 #else
     if (p.type == TYPE_F32) {
-        uint base = id * p.nin;
+        uint base = p.skew / 4u + id * p.nin;
         for (uint j = lid; j < p.nin; j += 256u) dst[out_base + j] = table_f[base + j];
     } else if (p.type == TYPE_Q8_0) {
         uint blocks = p.nin / Q8_0_BLOCK;
-        uint base = id * blocks * Q8_0_BYTES;
+        uint base = p.skew + id * blocks * Q8_0_BYTES;
         for (uint j = lid; j < p.nin; j += 256u) {
             uint b = j / Q8_0_BLOCK, k = j - b * Q8_0_BLOCK;
             uint o = base + b * Q8_0_BYTES;
@@ -70,7 +74,7 @@ void main() {
     } else {
         // Q4_0, Q4_1 and the K-quants, one value at a time through the decoders.
         uint bv = block_values(p.type), bb = block_bytes(p.type);
-        uint base = id * (p.nin / bv) * bb;
+        uint base = p.skew + id * (p.nin / bv) * bb;
         for (uint j = lid; j < p.nin; j += 256u) {
             uint b = j / bv, k = j - b * bv;
             uint o = base + b * bb;

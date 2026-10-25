@@ -156,6 +156,8 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   Padded copies enter their owning cache before their copy command is recorded;
   a replaced copy is retained by the command-buffer slot first.
   A buffer `alloc` zero-fills or `adopt` copies into is held by each command-buffer slot that names it until the slot retires, so a caller may drop it before anything is submitted.
+- `table_views(base, rows, row_bytes, max_range, align)` and `gather_views`: a table `embed` and `embed_ids` read, as views of whole rows each within the device's storage-buffer range and 32-bit byte indices, each beginning on the storage-buffer offset alignment with its first row `skew` bytes in.
+  `gather_views` records one dispatch a view with the view's rows and skew as push constants (`shaders/embed.comp`), a workgroup writing its row only where its view holds it and the last view the zero rows of device ids past the table; a table that fits one binding is one view and one dispatch.
 - `check_matrix(type, data, nin, rows, what)`: the one check of a weight operand, made by `check_group` for a matmul and by the routed products and `embed` before they record a dispatch.
   `check_group` checks a matmul call whole, weights, outputs and X, before `matmul_runs` records any of the calls its runs split it into, so a call it refuses records and writes nothing.
   `supports_type`, through the weight descriptor, decides which types have kernels, and a type without one is refused with the unsupported-type error that `tests/common.py` matches, naming the operand as `what`, a matrix or an embedding.

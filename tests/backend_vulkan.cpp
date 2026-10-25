@@ -207,6 +207,73 @@ size_t check_q5_embedding(backend::Backend& vk, uint32_t type) {
     return expected.size() * (symmetric ? 2 : 1);
 }
 
+// A table past 4 GiB, as Qwen3.8-Flash-Next's per-layer table is (table_views, shaders/embed.comp): F32, Q8_0 and IQ4_NL rows written at the start, either side of 2^32 bytes and at the end of a zeroed table.
+// They must read back, bit for bit, as the same rows of a small table on the CPU, through host and device ids, with an id past the table a zero row; a device that cannot hold the table says so and checks nothing.
+size_t check_large_table(backend::Backend& vk) {
+    struct Kind {
+        uint32_t type;
+        size_t nin;
+        const char* name;
+    };
+    size_t checked = 0;
+    uint32_t seed = 12345;
+    const auto next = [&seed] { seed = seed * 1664525u + 1013904223u; return seed >> 8; };
+    for (const Kind k : {Kind{quant::GGML_TYPE_F32, 16, "F32"}, Kind{quant::GGML_TYPE_Q8_0, 32, "Q8_0"}, Kind{quant::GGML_TYPE_IQ4_NL, 160, "IQ4_NL"}}) {
+        const size_t rb = quant::row_bytes(k.type, k.nin), edge = (size_t(1) << 32) / rb, rows = edge + 4096;
+        const std::vector<size_t> at = {0, 1, edge - 1, edge, edge + 1, rows - 1};
+        backend::BufferPtr big;
+        try {
+            big = vk.alloc(rows * rb);
+        } catch (const std::exception& e) {
+            std::cout << "backend-vulkan: a " << k.name << " table of " << rows * rb << " bytes not checked, the device holds no such buffer (" << e.what() << ")\n";
+            continue;
+        }
+        std::vector<uint8_t> small(at.size() * rb);
+        for (size_t i = 0; i < small.size(); ++i) small[i] = uint8_t(next());
+        for (size_t r = 0; r < at.size(); ++r) {
+            uint8_t* row = small.data() + r * rb;
+            if (k.type == quant::GGML_TYPE_F32) {
+                for (size_t j = 0; j < k.nin; ++j) {
+                    const float v = float(int(next() % 2001) - 1000) / 64.0f;
+                    std::memcpy(row + 4 * j, &v, 4);
+                }
+            } else {
+                // Each block's scale a finite half from 1/64 to just under 1, either sign.
+                const size_t block = k.type == quant::GGML_TYPE_Q8_0 ? 34 : 18;
+                for (size_t b = 0; b < rb / block; ++b) {
+                    const uint16_t h = uint16_t(0x2400 + next() % 0x1800) | uint16_t(next() % 2 ? 0x8000 : 0);
+                    row[b * block] = uint8_t(h), row[b * block + 1] = uint8_t(h >> 8);
+                }
+            }
+            vk.write(*big, at[r] * rb, row, rb);
+        }
+        backend::CpuBackend cpu;
+        const auto table = cpu.adopt(small.data(), small.size());
+        const std::vector<uint32_t> small_ids = {5, 3, 0, 4, 2, 1, 3}, big_ids = {uint32_t(at[5]), uint32_t(at[3]), uint32_t(at[0]), uint32_t(at[4]), uint32_t(at[2]), uint32_t(at[1]), uint32_t(at[3])};
+        const size_t n = small_ids.size();
+        std::vector<float> want((n + 1) * k.nin, 0.0f), got(want.size(), 19.0f);
+        const auto c = cpu.alloc(n * k.nin * sizeof(float), backend::Memory::device);
+        cpu.embed({c.get(), 0}, k.type, {table.get(), 0}, k.nin, at.size(), small_ids.data(), n);
+        cpu.read(*c, 0, want.data(), n * k.nin * sizeof(float));
+        const auto y = vk.adopt(got.data(), got.size() * sizeof(float));
+        vk.embed({y.get(), 0}, k.type, {big.get(), 0}, k.nin, rows, big_ids.data(), n);
+        vk.read(*y, 0, got.data(), got.size() * sizeof(float));
+        require(std::memcmp(got.data(), want.data(), n * k.nin * sizeof(float)) == 0 && got.back() == 19.0f,
+                (std::string("a ") + k.name + " table past 4 GiB gives other rows than the CPU").c_str());
+        std::vector<uint32_t> device_ids = big_ids;
+        device_ids.push_back(uint32_t(rows));
+        const auto ids = vk.adopt(device_ids.data(), device_ids.size() * sizeof(uint32_t));
+        std::fill(got.begin(), got.end(), 19.0f);
+        vk.write(*y, 0, got.data(), got.size() * sizeof(float));
+        vk.embed_ids({y.get(), 0}, k.type, {big.get(), 0}, k.nin, rows, {ids.get(), 0}, device_ids.size());
+        vk.read(*y, 0, got.data(), got.size() * sizeof(float));
+        require(std::memcmp(got.data(), want.data(), want.size() * sizeof(float)) == 0,
+                (std::string("a ") + k.name + " table past 4 GiB gives other rows than the CPU through device ids").c_str());
+        checked += 2 * n * k.nin + k.nin;
+    }
+    return checked;
+}
+
 // Choose the nearest BF16 neighbour independently; non-BF16 weights check that only inputs round.
 // Zero sign is excluded because accumulation may turn -0 into +0.
 size_t check_bf16_rounding(backend::Backend& vk) {
@@ -4065,6 +4132,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << testq::check_matrix_precision(*b) << " shared matrix precision values passed\n";
         std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_1) << " exact Q5_1 embedding values passed\n";
         std::cout << "backend-vulkan: " << check_q5_embedding(*b, quant::GGML_TYPE_Q5_0) << " exact Q5_0 embedding values passed\n";
+        std::cout << "backend-vulkan: " << check_large_table(*b) << " embedding values of tables past 4 GiB passed\n";
         std::cout << "backend-vulkan: " << check_matrix_witness(*b) << " matrix-path witnesses match arithmetic\n";
         const size_t int8_values = check_int8(*b);
         std::cout << "backend-vulkan: " << int8_values << " int8 outputs against the CPU on 8-bit activations, sliced prompts, and types without an 8-bit build as f16\n";

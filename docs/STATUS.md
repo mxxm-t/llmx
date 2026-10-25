@@ -1,5 +1,21 @@
 # llmx - Development Status
 
+## A Vulkan table past 4 GiB gathered through views of whole rows (2026-10-25, branch feat/lookup-wide on main 07facf1b6, the coordinator's order of 2026-10-25, lands by fast-forward as two commits)
+
+- **The bug:** `embed` and `embed_ids` bound a table once and indexed it with 32-bit byte offsets, so a resident table past 4 GiB, Qwen3.8-Flash-Next's 26.8 GiB per-layer table with `--lookup-storage device`, gave other rows than its own past 2^32 bytes and a binding past the device's storage-buffer range.
+- **The fix:** the gather takes the table as views of whole rows (`table_views`), each within one binding's range and 32-bit byte indices and beginning on the storage-buffer offset alignment with its first row a skew in, and records one dispatch a view (`gather_views`); `shaders/embed.comp` reads rows lo to hi of its view at the skew and leaves other rows to the other views, the last view writing the zero rows of device ids past the table.
+  A table that fits one binding is one view and one dispatch, as before.
+- **Tests:** the first commit, failing on main: `vulkan-buffer` holds the views of Flash's table (320001536 IQ4_NL rows of 90 bytes) and four other tables to one binding's range, the alignment and every row once; main's single binding fails four of its six cases.
+  With the fix, `backend-vulkan` reads F32, Q8_0 and IQ4_NL tables past 4 GiB through `embed` and `embed_ids` bit for bit against the CPU; with main's gather the same check fails (`a F32 table past 4 GiB gives other rows than the CPU`, MI50).
+- **Measured** (test machine, GPU 8, CPUs 2-5; branch and main 07facf1b6 each built clean from their own commit):
+  - A synthetic Qwen4Exp file, the tiny reference fixture with its per-layer table grown to 617401564 F32 rows (4.9 GB) and large hash multipliers, gives the same 28 logits rows with the table on the device and read from its file; main with the table on the device differs in all 28.
+  - Byte identity against main on the device for Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (16 logits rows of a 21-token prompt).
+  - Timing, Qwen3-0.6B Q8_0, ABBA twice, pp512 and tg128 with 5 counted runs: main 8746.4 and 402.8 tok/s, the branch 8747.5 and 402.7.
+  - Radeon VII under the AMD proprietary driver 26.5.2: `vulkan-buffer` and `backend-vulkan` pass, the tables past 4 GiB included.
+  - The numerics fingerprint changes with the shader, so the disk cache proves files of earlier builds at their first use, as for any kernel change.
+- **Reach on Flash:** a resident table sits whole on each device that runs its layer, so four 32 GB MI50s refuse it in two tensor groups (51.56 GiB needed on the first group's devices) and in a layer split (51.14 GiB); six in a layer split fit it beside layer 1 alone.
+- **Left:** the six-card real-text proof (served 4k, 8k and 16k wiki prompts and the 20 served prompts, the table on the devices against read from its file, greedy texts identical), which waits for GPUs 4-9; the suite on a device; the hosted run; C2DEV's review.
+
 ## A prompt in consecutive passes at consecutive stages (2026-10-23, branch feat/prompt-pipeline on main 07facf1b6, MULTI-DEVICE phase 4, DDEV's DESIGN of 15:16, F2DEV's DECISION of 15:18, C2DEV's review of 2026-10-25 00:12 and the coordinator's revision of F2DEV's first amendment, lands by fast-forward as two commits)
 
 - **Goal:** on a pipelined split a prompt's slices run on several stages at once, so prompt reading at depth stops taking the stages in turn (main's lone 8k tail at 100k depth had one stage busy 0.84 to 0.89 of the time), faster than main in every cell of the leg, the reply leads kept.

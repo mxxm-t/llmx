@@ -1433,9 +1433,21 @@ struct TableView {
     VkDeviceSize offset = 0, range = 0;
     uint32_t skew = 0, first = 0, end = 0;
 };
+// Each view begins on the device's storage-buffer offset alignment and spans whole rows within its storage-buffer range and 32-bit byte indices; a table that fits one binding is one view.
 inline std::vector<TableView> table_views(VkDeviceSize base, size_t rows, size_t row_bytes, VkDeviceSize max_range, VkDeviceSize align) {
-    (void)max_range, (void)align;
-    return {TableView{base, VkDeviceSize(rows) * row_bytes, 0, 0, uint32_t(rows)}};
+    if (rows > UINT32_MAX) throw std::runtime_error("vulkan: a table of more rows than 32-bit ids name");
+    align = std::max<VkDeviceSize>(align, sizeof(float));
+    const VkDeviceSize reach = std::min<VkDeviceSize>(max_range, UINT32_MAX);
+    std::vector<TableView> views;
+    for (size_t first = 0; first < rows || views.empty();) {
+        const VkDeviceSize at = base + VkDeviceSize(first) * row_bytes, offset = at - at % align, skew = at - offset;
+        const size_t n = std::min<size_t>(rows - first, size_t((reach - std::min(reach, skew)) / std::max<size_t>(row_bytes, 1)));
+        if (!n && rows) throw std::runtime_error("vulkan: a table row longer than one storage binding reaches");
+        views.push_back(TableView{offset, skew + VkDeviceSize(n) * row_bytes, uint32_t(skew), uint32_t(first), uint32_t(first + n)});
+        first += n;
+        if (!rows) break;
+    }
+    return views;
 }
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
@@ -3167,11 +3179,7 @@ public:
         check_matrix(type, table, nin, nrows, "embedding");
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
-        const uint32_t pc[2] = {u32(nin), type};
-        const VkDescriptorBufferInfo view = table_view(type, table, nin, nrows);
-        // Dictionary formats use the spare F32 table view for immutable format data.
-        dispatch(weight_kernels(type)->embed, {bind(dst), lookup_grid(type, view), view, args(ids, count * sizeof(uint32_t))},
-                 pc, sizeof(pc), u32(count));
+        gather_views(weight_kernels(type)->embed, dst, type, table, nin, nrows, args(ids, count * sizeof(uint32_t)), count, false);
     }
 
     // Ids past the table write zero rows; both embedding calls use the format's decoder (shaders/embed.comp).
@@ -3180,15 +3188,18 @@ public:
         check_matrix(type, table, nin, nrows, "embedding");
         if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
             throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
-        const uint32_t pc[3] = {u32(nin), type, u32(nrows)};
-        const VkDescriptorBufferInfo view = table_view(type, table, nin, nrows);
-        dispatch(weight_kernels(type)->embed_ids, {bind(dst), lookup_grid(type, view), view, bind(ids)}, pc, sizeof(pc), u32(count));
+        gather_views(weight_kernels(type)->embed_ids, dst, type, table, nin, nrows, bind(ids), count, true);
     }
-    // The table's one view (table_views).
-    VkDescriptorBufferInfo table_view(uint32_t type, CSlice table, size_t nin, size_t nrows) {
-        const TableView v = table_views(bind(table).offset, nrows, quant::row_bytes(type, nin), dev_->props.limits.maxStorageBufferRange,
-                                        dev_->props.limits.minStorageBufferOffsetAlignment).front();
-        return VkDescriptorBufferInfo{as_vulkan(*table.buffer).handle(), v.offset, VK_WHOLE_SIZE};
+    // One dispatch a view of the table (table_views), each workgroup writing its row where that view holds it; with device ids the last view also writes the zero rows of ids past the table.
+    void gather_views(KernelId kernel, Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, VkDescriptorBufferInfo ids, size_t count, bool device_ids) {
+        const VkBuffer buffer = as_vulkan(*table.buffer).handle();
+        for (const TableView& v : table_views(bind(table).offset, nrows, quant::row_bytes(type, nin), dev_->props.limits.maxStorageBufferRange,
+                                              dev_->props.limits.minStorageBufferOffsetAlignment)) {
+            const VkDescriptorBufferInfo view{buffer, v.offset, v.range};
+            const uint32_t pc[6] = {u32(nin), type, v.skew, v.first, v.end, u32(nrows)};
+            // Dictionary formats use the spare F32 table view for immutable format data.
+            dispatch(kernel, {bind(dst), lookup_grid(type, view), view, ids}, pc, device_ids ? sizeof(pc) : sizeof(pc) - sizeof(uint32_t), u32(count));
+        }
     }
 
     // A row past one slice is reduced by a workgroup a slice into partials, then a workgroup a row over them (shaders/argmax_rows.comp); a shorter row, or work recorded without barriers, takes one workgroup a row.

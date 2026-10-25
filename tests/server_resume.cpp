@@ -1998,27 +1998,43 @@ void trims_finished_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
                                  (next == Next::stripped ? "the reply's reasoning left out" : next == Next::kept ? "the reply kept" : next == Next::changed ? "a token changed" : "no next turn given");
         const Req first{prompt_of(5, 600, vocab), 200}, other{prompt_of(9, 40, vocab), 1900};
         auto model = make(4096, 0);
-        size_t blocks = 0;
+        size_t blocks = 0, readings = 0;
+        bool given = false;
         {
             // One request at a time, so the job its next turn starts waits while the other request decodes its 1900 tokens and leaves the donors as the trim made them.
+            // The ids are given and the donors read at that request's retiring passes, on the scheduler's thread, so both fall while it holds the seat however the test's thread is scheduled; once it ends, its history takes the one donor's place.
             server::Scheduler sched(*model, tok, 1, 64);
+            std::mutex m;
+            std::shared_ptr<server::Request> h, o;
+            std::vector<uint32_t> ids;
+            sched.on_retire = [&](const server::Scheduler::Retired& t) {
+                std::lock_guard<std::mutex> lock(m);
+                if (!o || std::find(t.requests.begin(), t.requests.end(), o.get()) == t.requests.end()) return;
+                if (!given) {
+                    if (next != Next::none) sched.follow(h, ids, true);
+                    given = true;
+                    return;
+                }
+                blocks = sched.stats().donor_blocks[0];
+                ++readings;
+            };
             std::thread runner([&] { sched.run(); });
             try {
-                const auto h = sched.submit(first.prompt, params_of(first));
+                const auto f = sched.submit(first.prompt, params_of(first));
                 std::vector<uint32_t> history = first.prompt;
-                for (uint32_t id : ids_of(drain(*h))) history.push_back(id);
-                const auto o = sched.submit(other.prompt, params_of(other));
-                std::vector<uint32_t> ids = history;
-                const auto joined = [](std::vector<uint32_t> a, const std::vector<uint32_t>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
-                if (next == Next::stripped) ids = joined(first.prompt, prompt_of(11, 100, vocab));
-                if (next == Next::kept) ids = joined(history, prompt_of(11, 30, vocab));
-                if (next == Next::changed) ids[300] = (ids[300] + 1) % vocab;
-                const size_t want = next == Next::stripped ? 4 : next == Next::changed ? 2 : 7;
-                if (next != Next::none) sched.follow(h, ids, true);
-                const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-                while ((blocks = sched.stats().donor_blocks[0]) != want && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                require(blocks == want, what + ": the donor holds " + std::to_string(blocks) + " blocks, against " + std::to_string(want));
-                drain(*o);
+                for (uint32_t id : ids_of(drain(*f))) history.push_back(id);
+                std::shared_ptr<server::Request> other_h;
+                {
+                    std::lock_guard<std::mutex> lock(m);
+                    const auto joined = [](std::vector<uint32_t> a, const std::vector<uint32_t>& b) { a.insert(a.end(), b.begin(), b.end()); return a; };
+                    ids = history;
+                    if (next == Next::stripped) ids = joined(first.prompt, prompt_of(11, 100, vocab));
+                    if (next == Next::kept) ids = joined(history, prompt_of(11, 30, vocab));
+                    if (next == Next::changed) ids[300] = (ids[300] + 1) % vocab;
+                    h = f;
+                    o = other_h = sched.submit(other.prompt, params_of(other));
+                }
+                drain(*other_h);
             } catch (...) {
                 sched.stop();
                 runner.join();
@@ -2027,6 +2043,9 @@ void trims_finished_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t 
             sched.stop();
             runner.join();
         }
+        const size_t want = next == Next::stripped ? 4 : next == Next::changed ? 2 : 7;
+        require(given && readings, what + ": the other request's passes did not retire after its first");
+        require(blocks == want, what + ": the donor holds " + std::to_string(blocks) + " blocks, against " + std::to_string(want));
         std::cout << "server-resume: " << what << ": the donor holds " << blocks << " blocks\n";
     }
 }

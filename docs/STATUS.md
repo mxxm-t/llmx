@@ -1,5 +1,20 @@
 # llmx - Development Status
 
+## The trimmed-donor check reads the donors on the scheduler's thread (2026-10-25, branch fix/trims-donor-timing on main 14010059a, tests only, the coordinator's work order on F2DEV's ANSWER of 19:10)
+
+- **Goal:** `server-resume`'s `trims_finished_donor` failed twice on the hosted Windows job (runs 40205143633 and 40213243850) with "the reply's reasoning left out: the donor holds 5 blocks, against 4", and never on a desktop (10 of 10 at main and at image step 4).
+- **The cause, the test's timing and not the scheduler:**
+  - The check served one request at a time, so the job its next turn starts waits while `other` decodes its 1900 tokens.
+  - Once `other` ends, its history takes the one donor's place, so the trimmed donor goes and the job reads from row 0. In passing runs it starts as "rows 0 to 640", as in the failing ones.
+  - The test's thread gave the ids and then polled the donors every millisecond, so it had to run inside `other`'s decode, about 0.1 to 0.2 s at 9000 to 17000 tokens a second.
+  - The log of 40213243850 shows the job starting only after `other` ended, as the round's admission requires (`Cache::follow_up` starts a job only while `active.size() < max_seqs_` and nothing waits). So no job ran beside the seat holder.
+  - The eviction line in that log ("a history of 256 tokens left the devices with no copy: 64.0 MiB ...") is a message of an earlier case that passed. It is printed in passing runs too.
+  - A 500 ms sleep of the test's thread after submitting `other` gives the hosted failure, word for word, on a desktop.
+- **The fix:** the next turn's ids are given at `other`'s first retiring pass and the donors read at each later one, on the scheduler's thread (`Scheduler::on_retire`). So both fall while `other` holds the seat, however the test's thread is scheduled.
+  The expectations are unchanged: four, seven, two and seven blocks.
+- **Checks:** at the fix, `llmx-server-resume-test cpu-cache` passes on a desktop, and passes again with the same 500 ms sleep of the test's thread.
+- **Left:** the hosted run.
+
 ## Weights cannot be taken from a temporary model (2026-10-25, branch fix/gguf-weights-temporary on main 6d6f0897d, from the routed-step test fault F2DEV closed at 15:15, lands by fast-forward as one commit)
 
 - **The hazard:** `infer::gguf_weights` returns views into the `gguf::GGUFModel` it reads, so weights taken from a temporary model point at freed memory once the statement ends; a CPU backend adopts host memory in place, so a model built on them reads that memory. An unlanded routed-step test did this on `tiny_qwen_moe(2, 128)` and saw logits change from run to run and a crash, which a model kept alive never showed (0 of 20 runs differing at 1 and 16 threads in f32, f16 and bf16, by the CLI and in-process).

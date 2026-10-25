@@ -1,0 +1,170 @@
+{
+  "base": "ab3ecbb5df17e2db8ec760aeee86ed3a3dc894e6",
+  "command": "ctest --test-dir build-float-controls/cmake -C Release -R ^vulkan-float-controls$ --output-on-failure",
+  "expected_exit_code": 8,
+  "modules": [
+    {
+      "module": "matmul_row_mxfp4",
+      "sha256": "81e3f1c712805b0428e00e76203c45830238131441ba827259d240497e97dc14",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_row_mxfp4_dot",
+      "sha256": "7987ddf26c70e8553df6cb84930b0a0c4b12e76423cd6c39a97284a2ff67b1ca",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_row_mxfp4_float_x",
+      "sha256": "57d6bfccf3af1d0143977f58fd34812ac0ddda8630c4dd213d180fa99b20a20c",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_tile_mxfp4",
+      "sha256": "f7a6d8b935846ee3a5194df1286ec72620f99339112fd0e1b11f40120f8bc3c7",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_tile_mxfp4_bf16",
+      "sha256": "2fb5aaba19abf240f5e5941e80800ffb5e906dc47d63ac7a9748181d43e267c2",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_reduce_mxfp4",
+      "sha256": "31af6a257c20a01b7fa3616c2f80fffa828c44b18fea64d7afd1aa38ff2f2500",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    },
+    {
+      "module": "matmul_tile_q8mx",
+      "sha256": "d8aae13c6737bc2578bb494799ccc890e7c51f54d5b940dd90688214106bcd0e",
+      "execution_modes": [
+        [
+          4,
+          17,
+          256,
+          1,
+          1
+        ],
+        [
+          4,
+          4459,
+          32
+        ],
+        [
+          4,
+          4461,
+          32
+        ]
+      ]
+    }
+  ],
+  "log_sha256": "25751c5d415d4ba1929d8157e644ffe3727c85ff425f367fe796f420e52036e8",
+  "test_sha256": "4c600300f92a08a1df4b052e6c410b08523745dbcdcd595a131febb5596d3adf"
+}

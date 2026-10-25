@@ -426,6 +426,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_link_libraries(llmx-vulkan-lifetime-test PRIVATE ${CMAKE_DL_LIBS})
     list(APPEND LLMX_TARGETS llmx-vulkan-lifetime-test)
     add_test(NAME vulkan-buffer COMMAND llmx-vulkan-lifetime-test)
+    add_test(NAME vulkan-float-controls COMMAND llmx-vulkan-lifetime-test --float-controls)
+    set_tests_properties(vulkan-float-controls PROPERTIES TIMEOUT 30)
     add_test(NAME vulkan-lifetime COMMAND llmx-vulkan-lifetime-test --queue)
     set_tests_properties(vulkan-buffer vulkan-lifetime PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
     # Reads the private packed activation buffers, before consumer float arithmetic can flush them.

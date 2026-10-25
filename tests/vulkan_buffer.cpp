@@ -1449,8 +1449,40 @@ int table_view_checks() {
     return failures;
 }
 
+int float_control_checks() {
+    const backend::KernelId ids[] = {backend::K_MATMUL_ROW_MXFP4, backend::K_MATMUL_ROW_MXFP4_DOT,
+        backend::K_MATMUL_ROW_MXFP4_FLOAT_X, backend::K_MATMUL_TILE_MXFP4,
+        backend::K_MATMUL_TILE_MXFP4_BF16, backend::K_MATMUL_REDUCE_MXFP4, backend::K_MATMUL_TILE_Q8MX};
+    int failures = 0;
+    for (const auto id : ids) {
+        const auto& source = backend::kKernels[id];
+        const uint32_t* words = source.words;
+        const size_t count = source.bytes / sizeof(uint32_t);
+        unsigned denorm32 = 0, special32 = 0, special64 = 0;
+        if (count < 5 || words[0] != 0x07230203u) throw std::runtime_error("float controls: invalid SPIR-V header");
+        for (size_t at = 5; at < count;) {
+            const uint32_t length = words[at] >> 16, opcode = words[at] & 0xffffu;
+            if (!length || length > count - at) throw std::runtime_error("float controls: invalid SPIR-V instruction");
+            if (opcode == 16u && length == 4u) {
+                const uint32_t mode = words[at + 2], width = words[at + 3];
+                denorm32 += mode == 4459u && width == 32u;
+                special32 += mode == 4461u && width == 32u;
+                special64 += mode == 4461u && width == 64u;
+            }
+            at += length;
+        }
+        const bool ok = denorm32 == 1 && special32 == 1 && special64 == 1;
+        std::cout << backend::kKernelNames[id] << " DenormPreserve32=" << denorm32
+                  << " SignedZeroInfNanPreserve32=" << special32 << " SignedZeroInfNanPreserve64=" << special64
+                  << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    return failures;
+}
+
 int main(int argc, char** argv) {
     try {
+        if (argc == 2 && std::string(argv[1]) == "--float-controls") return float_control_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +

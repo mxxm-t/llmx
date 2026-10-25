@@ -221,7 +221,7 @@ The split tool accepts an optional dtype (`auto`, `f16`, `bf16`, `f32` or `int8`
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
 - `llmx-vulkan`, the backend library the binary, tests and tools link, and `llmx-vulkan-shaders`, the step that compiles the shaders.
-- `llmx-backend-vulkan-test`, the CTest `backend-vulkan`, and `llmx-vulkan-lifetime-test`, the CTests `vulkan-buffer` and `vulkan-lifetime`.
+- `llmx-backend-vulkan-test`, the CTest `backend-vulkan`, and `llmx-vulkan-lifetime-test`, the CTests `vulkan-buffer`, `vulkan-float-controls` and `vulkan-lifetime`.
 - `llmx-vulkan-quantization-test`, the CTest `vulkan-quantization`, which checks packed activations and Q8 reconstruction at floating-point range boundaries.
 - The tools `llmx-multi-device-bench`, `llmx-moe-kernel-bench` and `llmx-vk-handoff`, which are not tests.
 

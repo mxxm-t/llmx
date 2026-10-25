@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Vulkan module float controls (in progress, 2026-10-26)
+
+- **Goal:** give each shader module one declared set of float controls and verify the words passed to module creation. Branch `fix/vulkan-float-controls-20261026` starts at main `ab3ecbb5d`; NVFP4 depends on this fix.
+- **Done:** the native regression confirms that repeated glslang execution-mode declarations lose the earlier width in seven MXFP4 modules, including the integer tile. The 64-bit signed-zero/Inf/NaN requirement remains necessary: finite F32 inputs can round to infinity under BF16, and MXFP4's double recomputation must preserve exceptional products and sums.
+- **Test-first checkpoint:** the fresh MSVC Release build succeeds. `vulkan-float-controls` fails all seven required 64-bit declarations on unchanged runtime code, while each module retains both required 32-bit declarations. The native test and generated-module hashes are in [the receipt](benchmarks/vulkan-float-controls-test-first-20261026.json). This intentional failing-test commit precedes the fix and is not merge-ready.
+- **Left:** implement the shared declaration owner, check every prepared module and actual module creation, then run the applicable device landing checks.
+- **Gotchas:** the missing declaration is proven, but no MXFP4 numerical failure has yet been demonstrated. Do not remove the device requirement or weaken numerical limits. Keep the NVFP4-specific repair off main and move that feature to this shared owner after qualification.
+
 ## A pipelined prompt records each stage that waits on its devices on a thread of its own (2026-10-25, branch feat/stage-threads on main 9df63df36, change 1 of the prompt-path PROPOSAL of 13:10 after the timeline of 14:44, F2DEV's review of 15:24, one owner of a stage's thread with the server after the coordinator's stop of 17:05 and my DESIGN of 17:12, in progress)
 
 - **Why:** Qwen3.8-Flash-Next UD-Q4_K_XL at pp2048 on 2x2 runs at 720 tok/s, 2.85 s, with each card busy 1.18-1.31 s of it (main 8e84e4c4f, `lw/pprof`).

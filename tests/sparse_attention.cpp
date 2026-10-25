@@ -29,6 +29,8 @@ constexpr size_t kQHeads = 4;
 constexpr size_t kKVHeads = 2;
 constexpr size_t kNq = 5;
 constexpr size_t kAuxDim = 8;
+// The groups whose pooled rows the auxiliary blocks keep, the selection's compression.
+constexpr size_t kCompression = 2;
 constexpr float kBound = 5e-4f;
 size_t checks = 0;
 
@@ -106,7 +108,7 @@ Data make_data(Backend& device, size_t dim, backend::KVType k_type, backend::KVT
     const size_t logical_blocks = backend::blocks_for(data.total_tokens, data.block_tokens);
     const size_t per_view = next_power_of_two(logical_blocks);
     data.storage = device.kv_alloc(1, kKVHeads, dim, 2 * per_view * data.block_tokens,
-                                   k_type, v_type, {kAuxDim});
+                                   k_type, v_type, {kAuxDim}, {kCompression});
     data.maps[0] = block_map(logical_blocks, 0, per_view);
     data.maps[1] = block_map(logical_blocks, per_view, per_view);
     data.views = {
@@ -308,13 +310,17 @@ void selector_chain(Backend& device, const Data& data) {
                              kQHeads, data.dim, 4, {q_gamma.get(), 0}, 1e-6f,
                              {cosbuf.get(), 0}, {sinbuf.get(), 0}, pos.data());
 
-    constexpr size_t compression = 2, budget = 4;
+    constexpr size_t compression = kCompression, budget = 4;
     const size_t stride = budget + compression - 1;
     BufferPtr selected = device.alloc((rows * stride + 2) * sizeof(uint32_t), backend::Memory::device);
     const uint32_t canary = 0xabcddcbau;
     std::vector<uint32_t> before(rows * stride + 2, canary);
     device.write(*selected, 0, before.data(), before.size() * sizeof(uint32_t));
     const Backend::IndexArgs args{kQHeads, data.dim, 4, compression, budget, 1e-6f};
+    // The history's groups are pooled as the passes that wrote it would have pooled them (Backend::pool_kv).
+    const KVView history[2] = {{data.storage.get(), data.maps[0].data(), data.maps[0].size(), 0, data.length},
+                               {data.storage.get(), data.maps[1].data(), data.maps[1].size(), 0, data.length}};
+    device.pool_kv(0, history, 2, args, {k_gamma.get(), 0}, {cosbuf.get(), 0}, {sinbuf.get(), 0});
     device.select_kv({norm_q.get(), 0}, 0, data.views.data(), data.views.size(), {selected.get(), 1}, args,
                      {k_gamma.get(), 0}, {cosbuf.get(), 0}, {sinbuf.get(), 0});
 

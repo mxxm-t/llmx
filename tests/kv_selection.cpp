@@ -181,12 +181,13 @@ struct Cache {
     size_t kv_row = 0;
     size_t block_tokens = 0;
 
-    Cache(Backend& b, size_t max_tokens, size_t aux_width, size_t kv_width = 1)
+    // The auxiliary blocks keep the rows and the pooled row of each complete group of `pool` tokens, as a QSA layer's do.
+    Cache(Backend& b, size_t max_tokens, size_t aux_width, size_t pool, size_t kv_width = 1)
         : device(b), block_tokens(b.kv_layout().block_tokens), kv_row(kv_width) {
         const size_t block_count = (max_tokens + block_tokens - 1) / block_tokens;
         const size_t padded_tokens = block_count * block_tokens;
         storage = device.kv_alloc(1, 1, kv_width, padded_tokens, backend::KVType::f32,
-                                  backend::KVType::f32, {aux_width});
+                                  backend::KVType::f32, {aux_width}, {pool});
         blocks.resize(block_count);
         for (size_t i = 0; i < block_count; ++i) blocks[i] = int32_t(i);
     }
@@ -232,6 +233,11 @@ std::vector<uint32_t> run_selection(Backend& device, const Config& c,
                              {cos.get(), 0}, {sin.get(), 0}, positions.data());
     const Backend::IndexArgs args{c.heads, c.dim, c.rope_dim, c.compression, c.budget, c.eps};
     device.unordered(unordered);
+    // The rows written before the selected ones pool their groups first, as the passes that wrote them would have (Backend::pool_kv); groups pooled already are pooled again to the same values.
+    std::vector<backend::KVView> history;
+    for (size_t v = 0; v < n_views; ++v)
+        if (views[v].length) history.push_back({views[v].storage, views[v].blocks, views[v].n_blocks, 0, views[v].length});
+    if (!history.empty()) device.pool_kv(0, history.data(), history.size(), args, {k_gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
     device.select_kv({qbuf.get(), 0}, 0, views, n_views, {ids.get(), 1}, args,
                      {k_gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
     device.unordered(false);
@@ -285,7 +291,7 @@ std::vector<uint32_t> fixture_full(Backend& device, const Config& c, const Fixtu
     const size_t rows = test.input_ids.size(), key_width = c.dim;
     require(data.raw_keys.size() == rows * key_width && data.query.size() == rows * c.heads * c.dim && data.selected.size() == rows,
             label + " HF intermediate dimensions differ");
-    Cache cache(device, 4 * device.kv_layout().block_tokens, key_width);
+    Cache cache(device, 4 * device.kv_layout().block_tokens, key_width, c.compression);
     const std::vector<uint32_t> logical = sequence_ids(cache.blocks.size(), 0);
     std::vector<int32_t> table(logical.begin(), logical.end());
     backend::KVView write_view = cache.view(0, rows, table);
@@ -299,7 +305,7 @@ std::vector<uint32_t> fixture_full(Backend& device, const Config& c, const Fixtu
 std::vector<uint32_t> fixture_sliced(Backend& device, const Config& c, const FixtureCase& test,
                                      const std::vector<float>& qnorm, const std::vector<float>& knorm,
                                      const RopeTables& rope) {
-    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim);
+    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim, c.compression);
     std::vector<int32_t> table(cache.blocks.begin(), cache.blocks.end());
     std::vector<uint32_t> result;
     size_t offset = 0;
@@ -324,7 +330,7 @@ std::vector<uint32_t> fixture_sliced(Backend& device, const Config& c, const Fix
 std::vector<uint32_t> fixture_cached(Backend& device, const Config& c, const FixtureCase& test,
                                      const std::vector<float>& qnorm, const std::vector<float>& knorm,
                                      const RopeTables& rope) {
-    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim);
+    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim, c.compression);
     std::vector<int32_t> table(cache.blocks.begin(), cache.blocks.end());
     std::vector<uint32_t> result;
     for (size_t offset = 0; offset < test.input_ids.size(); ++offset) {
@@ -345,7 +351,7 @@ std::vector<uint32_t> fixture_decode(Backend& device, const Config& c, const Fix
                                      const std::vector<float>& qnorm, const std::vector<float>& knorm,
                                      const RopeTables& rope) {
     require(test.decode.has_value(), test.name + " is missing its HF decode trace");
-    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim);
+    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim, c.compression);
     std::vector<int32_t> table(cache.blocks.begin(), cache.blocks.end());
     backend::KVView prefix = cache.view(0, test.input_ids.size(), table);
     cache.write(&prefix, 1, test.cached.raw_keys, test.input_ids.size());
@@ -428,7 +434,7 @@ void synthetic_long(Backend& device) {
     size_t per_view_capacity = 1;
     while (per_view_capacity < std::max(first_blocks, second_blocks)) per_view_capacity *= 2;
     const size_t physical_capacity = 2 * per_view_capacity;
-    Cache cache(device, physical_capacity * block_tokens, c.dim);
+    Cache cache(device, physical_capacity * block_tokens, c.dim, c.compression);
     std::vector<int32_t> first_map = physical_map(first_blocks, 0, per_view_capacity);
     std::vector<int32_t> second_map = physical_map(second_blocks, per_view_capacity, per_view_capacity);
 
@@ -485,7 +491,7 @@ void synthetic_long(Backend& device) {
 
     Config ties{4, 128, 4, 4, 8, 1e-6f, 10000.0f};
     const size_t tie_tokens = 273 * ties.compression + 2;
-    Cache tie_cache(device, ((tie_tokens + block_tokens - 1) / block_tokens) * block_tokens, ties.dim);
+    Cache tie_cache(device, ((tie_tokens + block_tokens - 1) / block_tokens) * block_tokens, ties.dim, ties.compression);
     std::vector<int32_t> tie_map(tie_cache.blocks.begin(), tie_cache.blocks.end());
     std::vector<float> same(tie_tokens * ties.dim, 0.0f);
     for (size_t t = 0; t < 273 * ties.compression; ++t) same[t * ties.dim] = 1.0f;
@@ -515,10 +521,62 @@ void synthetic_long(Backend& device) {
                   &across, "selected ties across scan boundary");
 }
 
+// The pooled rows are kept: pool_kv writes the rows of exactly the groups its rows complete, and a later selection reads a group's kept row rather than pooling it again.
+// Group 0's kept row is replaced by one the query favours; pooled again from its raw keys it would lose to group 5, whose keys lean furthest toward the query.
+void pooled_rows_kept(Backend& device) {
+    const Config k{1, 8, 2, 4, 4, 1e-6f, 10000.0f};
+    const size_t groups = 6, tokens = groups * k.compression + 1;
+    Cache cache(device, tokens, k.dim, k.compression);
+    std::vector<int32_t> map(cache.blocks.begin(), cache.blocks.end());
+    std::vector<float> raw(tokens * k.dim, 1.0f);
+    for (size_t t = 0; t < tokens; ++t) raw[t * k.dim] = 0.1f * float(t / k.compression + 1);
+    backend::KVView all = cache.view(0, tokens, map);
+    cache.write(&all, 1, raw, tokens);
+    const std::vector<float> ones(k.dim, 1.0f), cosine(tokens + 1, 1.0f), sine(tokens + 1, 0.0f);
+    BufferPtr gamma = upload(device, ones), cos = upload(device, cosine), sin = upload(device, sine);
+    const Backend::IndexArgs args{k.heads, k.dim, k.rope_dim, k.compression, k.budget, k.eps};
+    auto& storage = dynamic_cast<backend::BlockKVStorage&>(*cache.storage);
+    backend::Buffer& plane = *storage.auxiliary_buffer(0);
+    const auto row_at = [&](size_t g) {
+        const size_t t = g * k.compression;
+        return size_t(map[t / cache.block_tokens]) * storage.auxiliary_block_bytes(0) + storage.auxiliary_rows_bytes(0) + (t % cache.block_tokens) / k.compression * k.dim * sizeof(float);
+    };
+    require(storage.auxiliary_pool(0) == k.compression && storage.auxiliary_rows_bytes(0) == cache.block_tokens * k.dim * sizeof(float) &&
+            storage.auxiliary_block_bytes(0) == (cache.block_tokens + cache.block_tokens / k.compression) * k.dim * sizeof(float),
+            "the auxiliary blocks do not hold the token rows and then a row a group");
+    // Rows 11 and 12 complete group 2 alone.
+    backend::KVView two = cache.view(2 * k.compression + 3, 2, map);
+    device.pool_kv(0, &two, 1, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
+    for (size_t g = 0; g < groups; ++g) {
+        const auto row = read_values<float>(device, plane, row_at(g), k.dim);
+        const bool written = std::any_of(row.begin(), row.end(), [](float v) { return v != 0.0f; });
+        require(written == (g == 2), "pool_kv wrote the pooled row of group " + std::to_string(g) + (written ? "" : " not") + " completed by its rows");
+    }
+    device.pool_kv(0, &all, 1, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
+    std::vector<float> favoured(k.dim, 0.0f);
+    favoured[0] = 100.0f;
+    device.write(plane, row_at(0), favoured.data(), favoured.size() * sizeof(float));
+    std::vector<float> query(k.heads * k.dim, 0.0f);
+    query[0] = 1.0f;
+    BufferPtr q = upload(device, query);
+    const size_t stride = k.budget + k.compression - 1;
+    BufferPtr out = device.alloc(stride * sizeof(uint32_t), backend::Memory::device);
+    // One more row at the end of the history reads every complete group's kept row.
+    std::vector<float> one(k.dim, 1.0f);
+    std::vector<int32_t> grown = map;
+    backend::KVView next = cache.view(tokens, 1, grown);
+    cache.write(&next, 1, one, 1);
+    next = cache.view(tokens, 1, grown);
+    device.select_kv({q.get(), 0}, 0, &next, 1, {out.get(), 0}, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0});
+    const auto ids = read_values<uint32_t>(device, *out, 0, stride);
+    require(ids[0] == 0 && ids[k.compression - 1] == k.compression - 1, "a selection pooled group 0 again rather than reading its kept row, taking group " +
+                                                                        std::to_string(ids[0] / k.compression));
+}
+
 void invalid_inputs(Backend& device, const Config& c, const FixtureCase& test,
                     const std::vector<float>& qnorm, const std::vector<float>& knorm,
                     const RopeTables& rope) {
-    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim);
+    Cache cache(device, 4 * device.kv_layout().block_tokens, c.dim, c.compression);
     std::vector<int32_t> map(cache.blocks.begin(), cache.blocks.end());
     backend::KVView write = cache.view(0, test.input_ids.size(), map);
     cache.write(&write, 1, test.full.raw_keys, test.input_ids.size());
@@ -570,7 +628,7 @@ void invalid_inputs(Backend& device, const Config& c, const FixtureCase& test,
             "short output span was modified before refusal");
 
     // The selector validates every view before writing even the first output row.
-    Cache bad_cache(device, 4 * device.kv_layout().block_tokens, c.dim - 1);
+    Cache bad_cache(device, 4 * device.kv_layout().block_tokens, c.dim - 1, c.compression);
     std::vector<int32_t> bad_map(bad_cache.blocks.begin(), bad_cache.blocks.end());
     backend::KVView bad_view = bad_cache.view(0, 1, bad_map);
     std::vector<float> q14 = test.full.query;
@@ -645,6 +703,7 @@ int main(int argc, char** argv) {
             invalid_inputs(*device, c, test, qnorm, knorm, rope);
         }
         synthetic_long(*device);
+        pooled_rows_kept(*device);
         std::cout << "kv-selection: PASS (" << checks << " checks) on " << device_name << '\n';
         return 0;
     } catch (const std::exception& error) {

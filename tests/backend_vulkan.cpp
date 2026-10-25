@@ -2810,8 +2810,10 @@ size_t check_weight_dispatch() {
                         size_t products = 0;
                         for (const auto& entry : times) {
                             if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
+                            // A routed tile of few entries takes the narrow build of its tall module, or of its one module (kNarrowCols).
+                            const bool narrow = routed && tile && integer && (entry.first == expected + "_tall_narrow" || entry.first == expected + "_narrow");
                             require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_1col_1row" ||
-                                        entry.first == expected + "_1col_2step" || entry.first == expected + "_small",
+                                        entry.first == expected + "_1col_2step" || entry.first == expected + "_small" || narrow,
                                     ("weight dispatch expected " + expected + ", got " + entry.first).c_str());
                             ++products;
                         }
@@ -2858,7 +2860,7 @@ size_t check_weight_dispatch() {
             size_t products = 0;
             for (const auto& entry : times) {
                 if (entry.first.rfind("matmul_", 0) != 0 || entry.first.rfind("matmul_reduce", 0) == 0) continue;
-                require(entry.first == expected || entry.first == expected + "_tall", "Q5 affine tail did not use its integer tile");
+                require(entry.first == expected || entry.first == expected + "_tall" || (routed && entry.first == expected + "_tall_narrow"), "Q5 affine tail did not use its integer tile");
                 std::cout << "backend-vulkan: Q5 affine tail " << (routed ? "routed " : "dense ") << entry.first << "\n";
                 ++products;
             }
@@ -4239,6 +4241,112 @@ size_t check_collective(const backend::BackendPtr& first) {
     return checks + 3;
 }
 
+// A routed integer tile of few entries an expert takes the narrow build of 16 columns, and each entry gives the bits the 64-column build gives it (kNarrowCols).
+// Call A routes 200 rows over 64 experts, one of them 40 entries so its runs cross 16; call B adds 400 rows repeating them, which takes the 64-column build, and its first 200 rows must equal A's.
+size_t check_routed_narrow() {
+    const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *timed;
+    const size_t nin = 256, nout = 160, experts = 64, k = 2, few = 200, many = 600;
+    size_t checks = 0;
+    // The narrow build is the integer tile's: a device whose profile takes the float tile has none.
+    if (!backend::vulkan_device_profile(vk).prefer_integer_dot) {
+        std::cout << "backend-vulkan: this device takes the float tile, so it has no narrow routed build\n";
+        return 0;
+    }
+    for (const uint32_t type : {quant::GGML_TYPE_Q4_0, quant::GGML_TYPE_Q8_0, quant::GGML_TYPE_Q4_K, quant::GGML_TYPE_Q5_K, quant::GGML_TYPE_Q6_K}) {
+        if (!vk.supports_type(type)) continue;
+        std::vector<uint8_t> packed(experts * nout * quant::row_bytes(type, nin));
+        uint32_t seed = 21 + type;
+        for (auto& b : packed) {
+            seed = seed * 1664525u + 1013904223u;
+            b = uint8_t(seed >> 24);
+        }
+        std::vector<float> x(many * nin);
+        for (size_t i = 0; i < x.size(); ++i) x[i] = float(int((i * 2654435761u) >> 24) % 33 - 16) / 16.0f;
+        std::vector<uint32_t> ids(many * k);
+        for (size_t r = 0; r < many; ++r)
+            for (size_t j = 0; j < k; ++j) {
+                const size_t a = r % few;
+                ids[r * k + j] = j == 0 && a < 40 ? 5u : uint32_t((a * 7 + j * 13 + 1) % experts);
+            }
+        const auto w = vk.adopt(packed.data(), packed.size()), xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto ib = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t));
+        for (const auto dtype : {backend::Dtype::int8, backend::Dtype::f16}) {
+            std::vector<std::vector<float>> out;
+            std::vector<std::string> builds;
+            for (const size_t rows : {few, many}) {
+                const auto y = vk.alloc(rows * k * nout * sizeof(float));
+                const backend::RowRun run{rows, rows};
+                const backend::Backend::Routing routing{{ib.get(), 0}, {}, k, experts};
+                (void)backend::vulkan_kernel_times(vk);
+                vk.matmul_experts({{type, {w.get(), 0}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {&run, 1}, dtype);
+                std::string build;
+                for (const auto& t : backend::vulkan_kernel_times(vk))
+                    if (t.first.rfind("matmul_tile", 0) == 0) build = t.first;
+                builds.push_back(build);
+                out.emplace_back(rows * k * nout);
+                vk.read(*y, 0, out.back().data(), out.back().size() * sizeof(float));
+            }
+            const bool timed_names = !builds[0].empty();
+            require(!timed_names || (builds[0].find("_narrow") != std::string::npos && builds[1].find("_narrow") == std::string::npos),
+                    ("routed builds " + builds[0] + " and " + builds[1] + " are not the narrow and the 64-column one").c_str());
+            require(std::memcmp(out[0].data(), out[1].data(), out[0].size() * sizeof(float)) == 0, "a narrow routed tile's entries differ from the 64-column build's");
+            ++checks;
+        }
+    }
+    return checks;
+}
+
+// Printed, not asserted: a routed Q4_K product at Qwen3.8-Flash-Next's expert shape (2560 into 640, 512 experts, 10 a row) over 512 and 2048 rows of int8 activations.
+// Picks spread over every expert leave about 10 or 40 entries an expert in tiles of 64 columns; the same picks on 80 experts fill them, so the two per-entry times bound what a narrower routed tile can win.
+void report_routed_occupancy() {
+    const backend::BackendPtr timed = backend::make_vulkan_backend(0, true);
+    backend::Backend& vk = *timed;
+    const size_t nin = 2560, nout = 640, experts = 512, k = 10, row = quant::row_bytes(quant::GGML_TYPE_Q4_K, nin);
+    std::vector<uint8_t> packed(experts * nout * row);
+    uint32_t seed = 5;
+    for (auto& b : packed) {
+        seed = seed * 1664525u + 1013904223u;
+        b = uint8_t(seed >> 24);
+    }
+    // Each block's scales are 1.0, so the products stay finite.
+    for (size_t at = 0; at + 4 <= packed.size(); at += 144) {
+        packed[at] = 0x00;
+        packed[at + 1] = 0x3c;
+        packed[at + 2] = 0x00;
+        packed[at + 3] = 0x3c;
+    }
+    const auto w = vk.adopt(packed.data(), packed.size());
+    for (const size_t rows : {size_t(512), size_t(2048)}) {
+        std::vector<float> x(rows * nin);
+        for (size_t i = 0; i < x.size(); ++i) x[i] = float(int(i % 17) - 8) / 8.0f;
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto y = vk.alloc(rows * k * nout * sizeof(float));
+        for (const size_t over : {experts, size_t(80)}) {
+            std::vector<uint32_t> ids(rows * k);
+            for (size_t r = 0; r < rows; ++r)
+                for (size_t j = 0; j < k; ++j) ids[r * k + j] = uint32_t((r * 37 + j * (over / k)) % over);
+            const auto ib = vk.adopt(ids.data(), ids.size() * sizeof(uint32_t));
+            const backend::RowRun run{rows, rows};
+            const backend::Backend::Routing routing{{ib.get(), 0}, {}, k, experts};
+            const auto call = [&] { vk.matmul_experts({{quant::GGML_TYPE_Q4_K, {w.get(), 0}, {y.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {&run, 1}, backend::Dtype::int8); };
+            call();
+            (void)backend::vulkan_kernel_times(vk);
+            for (int i = 0; i < 3; ++i) call();
+            double ms = 0;
+            for (const auto& t : backend::vulkan_kernel_times(vk))
+                if (t.first.rfind("matmul_tile", 0) == 0) ms += t.second;
+            if (ms == 0) {
+                std::cout << "backend-vulkan: the routed occupancy needs device timestamps\n";
+                return;
+            }
+            ms /= 3;
+            std::cout << "backend-vulkan: routed Q4_K 2560 to 640, " << rows << " rows of 10 picks over " << over << " experts, " << ms << " ms, "
+                      << 1e6 * ms / double(rows * k) << " ns an entry\n";
+        }
+    }
+}
+
 // A row with no candidate (backend.hpp route_experts) on the CPU and the device: NaN scores give the invalid id with weight 0 at each pick, and one finite score among -inf takes that expert and then the others by lower id.
 // The routed products leave an entry without an expert unwritten and add nothing for it, so a row without candidates keeps its output, as decode rows and as a prompt's on the tile.
 size_t check_route_edges(backend::Backend& vk) {
@@ -4769,6 +4877,9 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";
+        report_routed_occupancy();
+        const size_t narrow_tiles = check_routed_narrow();
+        std::cout << "backend-vulkan: " << narrow_tiles << " routed narrow tiles equal to the 64-column build\n";
         std::cout << "backend-vulkan: " << check_timing_coverage() << " dispatches timed between two readings, past one query pool\n";
         print_argmax_after_head();
         std::cout << "backend-vulkan: " << check_bf16_batch_split(*b) << " BF16 outputs invariant across physical tile boundaries\n";

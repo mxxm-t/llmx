@@ -14,6 +14,11 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representatio
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
 
 # Interfaces of an approved plan whose product caller is a later step.
+override | src/backends/cpu/cpu_backend.hpp | CpuBackend::layer_norm_rows | 1 | the vision encoder's LayerNorm on the CPU, which only vision-ops calls until then; image input (docs/VISION.md), step 3: the encoder module calls it, which removes this line
+override | src/backends/cpu/cpu_backend.hpp | CpuBackend::gelu | 1 | the vision encoder's GELU on the CPU, which only vision-ops calls until then; image input (docs/VISION.md), step 3: the encoder module calls it, which removes this line
+override | src/backends/cpu/cpu_backend.hpp | CpuBackend::add_bias | 1 | the vision encoder's bias add on the CPU, which only vision-ops calls until then; image input (docs/VISION.md), step 3: the encoder module calls it, which removes this line
+override | src/backends/cpu/cpu_backend.hpp | CpuBackend::mix_rows | 1 | the vision encoder's row mix on the CPU, which only vision-ops calls until then; image input (docs/VISION.md), step 3: the encoder module calls it, which removes this line
+test-only | src/backends/backend.hpp | Backend::layer_norm_rows | 1 | the vision encoder's LayerNorm, which only vision-ops calls until then; image input (docs/VISION.md), step 3: the encoder module calls it, which removes this line
 test-only | src/image/image.hpp | decode_image | 1 | decodes and orients an image file as the vision models' processor receives it, which only image-decode calls until then; image input (docs/VISION.md), step 3: the encoder tool reads its image through it, which removes this line
 test-only | src/image/image.hpp | smart_resize | 1 | HF's size for an image, which only image-decode calls until then; image input (docs/VISION.md), step 3: the encoder tool reads its image through it, which removes this line
 test-only | src/image/image.hpp | resize_bicubic | 1 | torchvision's resize of an image, which only image-decode calls until then; image input (docs/VISION.md), step 3: the encoder tool reads its image through it, which removes this line

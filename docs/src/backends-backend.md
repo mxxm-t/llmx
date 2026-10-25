@@ -168,6 +168,7 @@ placement contracts in `docs/EXECUTION.md`.
   K and V independently support F32 or F16 storage. A row with no valid IDs
   writes zero. Backends preflight dimensions, views, spans and output aliases
   before writing. The default throws; CPU and Vulkan override it.
+- `KVView::causal`, true by default: a view whose `causal` is false lets every row of `attention` attend all `length + nq` positions of the view, as a vision encoder's rows see their whole image (`docs/VISION.md`, section 3); the encoder writes an image's K and V through `kv_write` and attends through the same `attention`, so attention keeps one owner. `implements(Op::attention_full)` says a backend reads such a view.
 - `Slice` / `CSlice`: where an operand lives, a buffer and a float offset.
   Device arithmetic uses these handles; host-visible results and transfer
   staging may expose host addresses. An empty allocation resolves to no address and is
@@ -195,7 +196,7 @@ placement contracts in `docs/EXECUTION.md`.
   against a shared weight. `runs`, when given, are the row runs of the matmul
   that reads `dst` next, so a device can also write `dst` in the form that
   matmul's kernel reads.
-- `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos)`:
+- `norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, streams)`:
   per-head RMS norm over `head_dim`, then RoPE on the first `rope_dim` dims
   only, over a batch of rows, from heads read at a stride of their own into
   contiguous heads, so qwen35 reads q between its gates in `attn_q`'s rows.
@@ -236,9 +237,11 @@ placement contracts in `docs/EXECUTION.md`.
 - `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
+- `RopeStreams` gives `norm_rope_partial` several positions a row: row `r`'s stream `k` is `pos[r * count + k]` and frequency `j` of the rope's half turns by stream `of[j]`, as Qwen's three position components and a vision encoder's patch row and column do; one stream is the plain rope, and a `w` with no buffer takes the rope without the norm. `implements(Op::rope_streams)` says a backend reads more than one stream or no norm.
+- The vision encoder's ops (`docs/VISION.md`, section 3), each with a base refusal until a backend implements it and an `Op` that says it does: `layer_norm_rows(dst, src, w, b, rows, n, stride, eps)`, the mean and biased variance of each row then `(x - mean) / sqrt(var + eps) * w + b`; `gelu(dst, src, n, form)`, `GeluForm::erf` or `GeluForm::tanh`; `add_bias(dst, bias, rows, width)`, a bias row added to each row; and `mix_rows(dst, table, width, table_rows, idx, weight, rows, taps)`, each row adding the weighted sum of its taps' table rows, taken in order, a row past the table refused.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
   Every backend implements them: the CPU (`backends-cpu.md`) and the Vulkan backend (`backends-vulkan.md`).
-  - `Op` names these five, the mixed routed projection capability above, the embedded drafter's `argmax_rows` and `embed_ids`, the separate PLE `dilated_conv_silu_add` primitive and QSA `select_kv` and `sparse_attention`; `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five qwen35 ops, the drafter's two, `dilated_conv_silu_add`, `select_kv` and `sparse_attention`.
+  - `Op` names these five, the mixed routed projection capability above, the embedded drafter's `argmax_rows` and `embed_ids`, the separate PLE `dilated_conv_silu_add` primitive, QSA `select_kv` and `sparse_attention`, and the vision encoder's six (`layer_norm`, `gelu`, `add_bias`, `mix_rows`, `rope_streams`, `attention_full`); `op_name(op)` spells each one. `implements(op)` is false unless the backend says otherwise; both backends support the five qwen35 ops, the drafter's two, `dilated_conv_silu_add`, `select_kv` and `sparse_attention`.
     A model's plan names the ops each part issues from this list, and the model refuses at load a placement that puts a part on a backend without one of them (`model-runtime.md`); a stream destination without one of a routed feed-forward part's ops leaves that layer on its host.
     It is the seam an architecture's new op comes through while one backend lacks it (`docs/ADDING-AN-ARCHITECTURE.md`, New backend ops); the five qwen35 ops are pure virtual, while optional additions such as `select_kv` and `sparse_attention` keep the base refusal until implemented by a backend.
   - `StateShape`: the common linear-attention state prefix for one sequence, K and V heads and their widths; `channels()` is the conv's channel count, the width of the raw projection row `[q | k | v]`, and `slot_floats()` counts every V head's `k_dim x v_dim` matrix laid out `[K row][V column]`, then the conv's `kConvTaps - 1` carried raw rows, oldest first, all F32.

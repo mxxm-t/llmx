@@ -179,7 +179,19 @@ struct KVView {
     size_t length;
     size_t nq;
     size_t extent = 0;
+    // A non-causal view's rows attend every position of the view, length + nq, as a vision encoder's rows see their whole image (docs/VISION.md, section 3).
+    bool causal = true;
 };
+
+// Several positions a row for a rope: row r's stream k is pos[r * count + k], and frequency j turns by stream of[j]'s (docs/VISION.md, section 4).
+// One stream, the default, is the plain rope.
+struct RopeStreams {
+    size_t count = 1;
+    const uint8_t* of = nullptr;
+};
+
+// GELU as x times the normal CDF of x, or its tanh approximation (Op::gelu).
+enum class GeluForm { tanh, erf };
 
 // The width of the linear-attention layers' causal conv, 4 in every qwen35 file; a slot carries the kConvTaps - 1 raw rows before a sequence's next token.
 inline constexpr size_t kConvTaps = 4;
@@ -276,7 +288,8 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 enum class NormGate : uint8_t { silu, sigmoid };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
 enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts, argmax_rows, embed_ids,
-                          group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention };
+                          group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
+                          layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full };
 inline const char* op_name(Op op) {
     switch (op) {
         case Op::causal_conv_silu: return "causal_conv_silu";
@@ -295,6 +308,12 @@ inline const char* op_name(Op op) {
         case Op::dilated_conv_silu_add: return "dilated_conv_silu_add";
         case Op::select_kv: return "select_kv";
         case Op::sparse_attention: return "sparse_attention";
+        case Op::layer_norm: return "layer_norm";
+        case Op::gelu: return "gelu";
+        case Op::add_bias: return "add_bias";
+        case Op::mix_rows: return "mix_rows";
+        case Op::rope_streams: return "rope_streams";
+        case Op::attention_full: return "attention_full";
     }
     return "an unknown op";
 }
@@ -544,11 +563,11 @@ public:
     virtual void rms_norm_rows(Slice dst, CSlice src, CSlice w,
                                size_t rows, size_t n, size_t stride, float eps, RowRuns runs = {}) = 0;
 
-    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position.
-    // Head h of row r starts at src + r * src_stride + h * src_head_stride, dst may alias src only if identical and contiguous, and with rope_dim equal to head_dim it is the whole head's rope (docs/QWEN35.md, Gated attention).
+    // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position, without the norm where `w` has no buffer.
+    // Head h of row r starts at src + r * src_stride + h * src_head_stride, dst may alias src only if identical and contiguous, and `streams` give a row several positions (docs/src/backends-backend.md).
     virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
                                    size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                                   CSlice cos, CSlice sin, const uint32_t* pos) = 0;
+                                   CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams = {}) = 0;
 
     // Normalize and rotate q and k in place over the whole head, then write k and v into the views' KV blocks using the primitive ops' row layouts.
     // A device may fuse these consecutive ops; k must still hold its normalized, rotated rows afterward.
@@ -566,6 +585,28 @@ public:
         norm_rope_partial(q, q, rows, q_stride, dim, n_head, dim, dim, q_w, rope.eps, rope.cos, rope.sin, rope.pos);
         norm_rope_partial(k, k, rows, kv_stride, dim, n_head_kv, dim, dim, k_w, rope.eps, rope.cos, rope.sin, rope.pos);
         kv_write(layer, views, n_views, k, v);
+    }
+
+    // The vision encoder's ops (docs/VISION.md, section 3), which a backend declares through implements.
+    // LayerNorm of `rows` rows of `n` floats, row r at src/dst + r*stride: the mean and biased variance of the row, then (x - mean) / sqrt(var + eps) * w + b.
+    virtual void layer_norm_rows(Slice dst, CSlice src, CSlice w, CSlice b, size_t rows, size_t n, size_t stride, float eps) {
+        (void)dst; (void)src; (void)w; (void)b; (void)rows; (void)n; (void)stride; (void)eps;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::layer_norm) + " is not implemented");
+    }
+    // dst[i] = gelu(src[i]) in the given form.
+    virtual void gelu(Slice dst, CSlice src, size_t n, GeluForm form) {
+        (void)dst; (void)src; (void)n; (void)form;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::gelu) + " is not implemented");
+    }
+    // dst row r += bias, `rows` rows of `width` floats.
+    virtual void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) {
+        (void)dst; (void)bias; (void)rows; (void)width;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::add_bias) + " is not implemented");
+    }
+    // dst row r += the sum over k of weight[r*taps + k] times table row idx[r*taps + k], the taps taken in order; a row past `table_rows` is refused.
+    virtual void mix_rows(Slice dst, CSlice table, size_t width, size_t table_rows, const uint32_t* idx, const float* weight, size_t rows, size_t taps) {
+        (void)dst; (void)table; (void)width; (void)table_rows; (void)idx; (void)weight; (void)rows; (void)taps;
+        throw std::runtime_error(std::string("backend: ") + op_name(Op::mix_rows) + " is not implemented");
     }
 
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.

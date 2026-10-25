@@ -2356,7 +2356,11 @@ public:
     }
 
     // State and gating ops are supported; grouped expert projections must share one storage type.
-    bool implements(Op op) const override { return op != Op::mixed_experts; }
+    // The vision encoder's ops come with its device step (docs/VISION.md, section 8).
+    bool implements(Op op) const override {
+        return op != Op::mixed_experts && op != Op::layer_norm && op != Op::gelu && op != Op::add_bias && op != Op::mix_rows &&
+               op != Op::rope_streams && op != Op::attention_full;
+    }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -3222,9 +3226,10 @@ public:
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                           CSlice cos, CSlice sin, const uint32_t* pos) override {
+                           CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams = {}) override {
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("vulkan: invalid partial rope dimensions");
+        if (streams.count != 1 || !w.buffer) throw std::runtime_error(std::string("vulkan: ") + op_name(Op::rope_streams) + " is not implemented");
         if (rows && !pos) throw std::runtime_error("vulkan: rope without positions");
         if (!rows) return;
         const size_t width = size_mul(heads, head_dim), half = rope_dim / 2;
@@ -4121,8 +4126,10 @@ public:
             throw std::runtime_error("vulkan: invalid attention dimensions");
         std::vector<Placed> placed = place_views(views, n_views);
         if (placed.empty()) return;
-        for (const Placed& pv : placed)
+        for (const Placed& pv : placed) {
             if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
+            if (!pv.view->causal) throw std::runtime_error(std::string("vulkan: ") + op_name(Op::attention_full) + " is not implemented");
+        }
         const size_t qstride = (size_t)n_head * head_dim;
         const float scale = 1.0f / std::sqrt((float)head_dim);
         const size_t rows = placed.back().row0 + placed.back().view->nq;

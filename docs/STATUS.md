@@ -93,10 +93,14 @@
 - **Plan:** [VISION](VISION.md), section 8: image decoding, the CPU ops, the encoder, the prompt of ids and encoder rows, cache identity, the routes, the Vulkan ops, then Flash-Next in production.
 - **Decided:** no positions stored for Flash-Next's sparse attention (its pooled-key change carries them as a call argument, so step 4 follows it); torchvision and Pillow pinned in the reference environment, recorded in each fixture; `--image-max-pixels` defaults to HF's 16777216; a `detail` other than absent or `auto` refused with the field named; one attention, one `gelu`, one rope rule; the reference runtime's comparison is the phase's final gate.
 - **Done:** the design (this block and VISION), on main.
-- **Step 1, image decoding (branch feat/image-decode):** `src/image/image.hpp` with `png.hpp`, `jpeg.hpp`, `inflate.hpp` and `raster.hpp` decode PNG and JPEG to the RGB bytes transformers' `load_image` gives, EXIF and XMP orientations applied, and size and resize them to the bytes of HF's smart_resize and torchvision's resize.
+- **Step 1, image decoding (on main at 45ccaa2ec, by fast-forward):** `src/image/image.hpp` with `png.hpp`, `jpeg.hpp`, `inflate.hpp` and `raster.hpp` decode PNG and JPEG to the RGB bytes transformers' `load_image` gives, EXIF and XMP orientations applied, and size and resize them to the bytes of HF's smart_resize and torchvision's resize.
   CTest `image-decode` holds 209 decodes, 202 resizes, 80 smart_resize cases, 10 refusals and a damage sweep to the fixture `tools/gen_baseline.py image-decode` wrote in the qwen35 reference environment, which gained torchvision 0.20.1+cpu and Pillow 13.0.0 (libjpeg-turbo 3.2.0, zlib 1.3.1) as decided; no text reference was regenerated, and every text fixture under `tests/data` is byte for byte main's.
   Nothing in the product calls the decoders yet; step 3's encoder tool is their first caller, which `tests/data/known_findings.txt` names.
-- **Left:** steps 2 to 8.
+- **Step 2, the CPU ops (branch feat/vision-ops):** `Backend` gains `layer_norm_rows`, `gelu` with its form, `add_bias` and `mix_rows`, `KVView::causal` for attention through a non-causal view, and `RopeStreams` for `norm_rope_partial` over several positions a row and without the norm, each declared by an `Op`; the CPU implements them and the Vulkan backend refuses them by name until step 7.
+  CTest `vision-ops` holds them to double-precision references, the thread counts and a row or image alone against beside others; the causal and one-stream paths are unchanged.
+  Only the rope's gathering path, over several streams or without the norm, is bounded, at 128 pairs on the stack; one stream with a norm rotates any width, as the synthetic bench's one head rotated whole needs, which `vision-ops` also holds.
+  Nothing in the product calls the new ops yet; step 3's encoder module is their first caller, which `tests/data/known_findings.txt` names.
+- **Left:** steps 3 to 8.
 - **Gotchas:** the GGUF `mmproj` carries neither the processor's pixel bounds nor the image token ids; the HF processor resizes on uint8 with antialiased bicubic and rounds to uint8 before normalizing, so decoding and resizing are held to bytes, not to a float bound.
 ## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, landed on main by fast-forward)
 
@@ -2934,7 +2938,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (record in [STATUS-2026-09](STATUS-2026-09.md)): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 landed with the activation dtype (its row above). Remaining weight types and the recorded speed gaps stay open |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (record in [STATUS-2026-09](STATUS-2026-09.md), design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
-| Image input ([VISION](VISION.md)) | In progress: designed and approved on 2026-10-25; step 1, image decoding, built on its branch |
+| Image input ([VISION](VISION.md)) | In progress: designed and approved on 2026-10-25; step 1, image decoding, on main; step 2, the CPU ops, on its branch |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |

@@ -854,7 +854,7 @@ public:
                 const size_t kvh = (size_t)(h / ratio);
                 float* scores = attention_scores_.data() + (size_t)h * sequence;
                 for (int b = 0; b < nbatch; ++b) {
-                    const size_t end = view.length + (size_t)b + 1;
+                    const size_t end = view.causal ? view.length + (size_t)b + 1 : sequence;
                     const float* q = Q + (size_t)b * q_stride + (size_t)h * hd;
                     float max_score = -std::numeric_limits<float>::infinity();
                     for (size_t t0 = 0; t0 < end; t0 += bt) {
@@ -1301,26 +1301,61 @@ public:
 
     void norm_rope_partial(Slice dst_s, CSlice src_s, size_t rows, size_t src_stride, size_t src_head_stride,
                            size_t heads, size_t head_dim, size_t rope_dim, CSlice w_s, float eps,
-                           CSlice cos_s, CSlice sin_s, const uint32_t* pos) override {
+                           CSlice cos_s, CSlice sin_s, const uint32_t* pos, RopeStreams streams = {}) override {
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("backend: invalid partial rope dimensions");
         if (rows && !pos) throw std::runtime_error("backend: partial rope without positions");
+        const size_t half = rope_dim / 2;
+        if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("backend: invalid rope streams");
+        // Only the gathering path holds a row's angles on the stack; one stream with a weight rotates any width, as it always has.
+        if ((streams.count > 1 || !w_s.buffer) && half > kRopeHalfMax)
+            throw std::runtime_error("backend: a rope gathered from streams or without a norm rotates at most " + std::to_string(kRopeHalfMax) + " pairs");
+        if (streams.count > 1)
+            for (size_t j = 0; j < half; ++j)
+                if (streams.of[j] >= streams.count) throw std::runtime_error("backend: a rope frequency names a stream past the row's streams");
         if (!rows) return;
         const size_t width = size_mul(heads, head_dim);
         span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
         const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
         span(*src_s.buffer, src_s.offset * sizeof(float), size_mul(last, sizeof(float)));
-        span(*w_s.buffer, w_s.offset * sizeof(float), size_mul(head_dim, sizeof(float)));
-        const size_t table = size_mul(size_add(*std::max_element(pos, pos + rows), 1), rope_dim / 2 * sizeof(float));
+        if (w_s.buffer) span(*w_s.buffer, w_s.offset * sizeof(float), size_mul(head_dim, sizeof(float)));
+        const size_t npos = size_mul(rows, streams.count);
+        const size_t table = size_mul(size_add(*std::max_element(pos, pos + npos), 1), half * sizeof(float));
         span(*cos_s.buffer, cos_s.offset * sizeof(float), table);
         span(*sin_s.buffer, sin_s.offset * sizeof(float), table);
         float* dst = at(dst_s);
         const float* src = at(src_s);
         if ((const float*)dst == src && (src_stride != width || src_head_stride != head_dim))
             throw std::runtime_error("backend: partial rope in place over heads that are not contiguous");
-        norm_rope_raw(dst, width, src, src_stride, src_head_stride, rows, heads, head_dim, rope_dim / 2,
-                      at(w_s), eps, at(cos_s), at(sin_s), pos);
+        if (streams.count == 1 && w_s.buffer) {
+            norm_rope_raw(dst, width, src, src_stride, src_head_stride, rows, heads, head_dim, half,
+                          at(w_s), eps, at(cos_s), at(sin_s), pos);
+            return;
+        }
+        // Each row's angles gathered from its streams' table rows, then the same rotation; the norm only where a weight is given.
+        const float* w = w_s.buffer ? at(w_s) : nullptr;
+        const float* cos = at(cos_s);
+        const float* sin = at(sin_s);
+        spread(rows, [&](size_t r) {
+            float c[kRopeHalfMax], s[kRopeHalfMax];
+            const uint32_t* p = pos + r * streams.count;
+            for (size_t j = 0; j < half; ++j) {
+                const size_t k = streams.count > 1 ? streams.of[j] : 0;
+                c[j] = cos[(size_t)p[k] * half + j];
+                s[j] = sin[(size_t)p[k] * half + j];
+            }
+            for (size_t h = 0; h < heads; h++) {
+                float* head = dst + r * width + h * head_dim;
+                const float* from = src + r * src_stride + h * src_head_stride;
+                if (w) rms_norm_raw(head, from, w, head_dim, eps);
+                else if (head != from) std::memmove(head, from, head_dim * sizeof(float));
+                rope_raw(head, c, s, (int)half);
+            }
+        });
     }
+
+    // The widest rope half whose angles a row gathers, a 256-wide head rotated whole.
+    static constexpr size_t kRopeHalfMax = 128;
 
     // RMS norm over each head's head_dim floats, then RoPE on its first 2 * half, from src's heads at src_head_stride into dst's at head_dim; in place when dst is src with contiguous heads.
     void norm_rope_raw(float* dst, size_t dst_stride, const float* src, size_t src_stride, size_t src_head_stride,
@@ -1354,6 +1389,72 @@ public:
         }
     }
 
+    void layer_norm_rows(Slice dst_s, CSlice src_s, CSlice w_s, CSlice b_s, size_t rows, size_t n, size_t stride, float eps) override {
+        if (!n || stride < n) throw std::runtime_error("backend: invalid layer norm dimensions");
+        if (!rows) return;
+        const size_t extent = size_mul(size_add(size_mul(rows - 1, stride), n), sizeof(float));
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), extent);
+        span(*src_s.buffer, src_s.offset * sizeof(float), extent);
+        span(*w_s.buffer, w_s.offset * sizeof(float), n * sizeof(float));
+        span(*b_s.buffer, b_s.offset * sizeof(float), n * sizeof(float));
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        const float* w = at(w_s);
+        const float* b = at(b_s);
+        // The row's statistics in double, in element order, so a row's bits are its own whatever the threads.
+        spread(rows, [&](size_t r) {
+            const float* x = src + r * stride;
+            double mean = 0.0, var = 0.0;
+            for (size_t i = 0; i < n; ++i) mean += x[i];
+            mean /= double(n);
+            for (size_t i = 0; i < n; ++i) var += (x[i] - mean) * (x[i] - mean);
+            const double inv = 1.0 / std::sqrt(var / double(n) + double(eps));
+            float* y = dst + r * stride;
+            for (size_t i = 0; i < n; ++i) y[i] = float((x[i] - mean) * inv * w[i] + b[i]);
+        });
+    }
+
+    void gelu(Slice dst_s, CSlice src_s, size_t n, GeluForm form) override {
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(n, sizeof(float)));
+        span(*src_s.buffer, src_s.offset * sizeof(float), size_mul(n, sizeof(float)));
+        float* dst = at(dst_s);
+        const float* src = at(src_s);
+        chunk(n, [&](size_t begin, size_t end) {
+            for (size_t i = begin; i < end; i++) dst[i] = gelu_of(src[i], form);
+        });
+    }
+
+    void add_bias(Slice dst_s, CSlice bias_s, size_t rows, size_t width) override {
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
+        span(*bias_s.buffer, bias_s.offset * sizeof(float), size_mul(width, sizeof(float)));
+        float* dst = at(dst_s);
+        const float* bias = at(bias_s);
+        spread(rows, [&](size_t r) {
+            float* y = dst + r * width;
+            for (size_t i = 0; i < width; ++i) y[i] += bias[i];
+        });
+    }
+
+    void mix_rows(Slice dst_s, CSlice table_s, size_t width, size_t table_rows, const uint32_t* idx, const float* weight, size_t rows,
+                  size_t taps) override {
+        const size_t n = size_mul(rows, taps);
+        if (n && (!idx || !weight)) throw std::runtime_error("backend: row mix without its taps");
+        for (size_t i = 0; i < n; ++i)
+            if (idx[i] >= table_rows) throw std::runtime_error("backend: a row mix reads a row past its table");
+        span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(rows, width), sizeof(float)));
+        span(*table_s.buffer, table_s.offset * sizeof(float), size_mul(size_mul(table_rows, width), sizeof(float)));
+        float* dst = at(dst_s);
+        const float* table = at(table_s);
+        spread(rows, [&](size_t r) {
+            float* y = dst + r * width;
+            for (size_t i = 0; i < width; ++i) {
+                float acc = 0.0f;
+                for (size_t k = 0; k < taps; ++k) acc = std::fma(weight[r * taps + k], table[(size_t)idx[r * taps + k] * width + i], acc);
+                y[i] += acc;
+            }
+        });
+    }
+
     void silu_mul(Slice dst_s, CSlice gate_s, CSlice up_s, size_t n, RowRuns = {}) override {
         float* dst = at(dst_s);
         const float* gate = at(gate_s);
@@ -1367,6 +1468,12 @@ public:
     // The transcendental steps of the elementwise ops, each computed here only, with std::exp per element, since a vectorized approximation would shift the logits (docs/src/backends-cpu.md).
     static float silu_of(float x) { return x / (1.0f + std::exp(-x)); }
     static float sigmoid_of(float x) { return 1.0f / (1.0f + std::exp(-x)); }
+    // GELU in double, rounded once: x times the normal CDF through erf, or its tanh approximation.
+    static float gelu_of(float x, GeluForm form) {
+        const double d = x;
+        if (form == GeluForm::erf) return float(0.5 * d * (1.0 + std::erf(d * 0.70710678118654752440)));
+        return float(0.5 * d * (1.0 + std::tanh(0.79788456080286535588 * (d + 0.044715 * d * d * d))));
+    }
     // log(1 + exp(x)), taken as x above 20, the one softplus of the ops; the log is taken in double and rounded once, since not every C library rounds the float log1p correctly.
     static float softplus_of(float x) { return x > 20.0f ? x : (float)std::log1p((double)std::exp(x)); }
     // The linear attention's decay factor exp(g), 0 below 2^-126 as on every backend, so the factor does not depend on the host's denormal handling, though a state it scales below the normal range does (docs/QWEN35.md, Linear attention).

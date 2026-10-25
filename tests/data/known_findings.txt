@@ -14,9 +14,6 @@ test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representatio
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
 
 # Interfaces of an approved plan whose product caller is a later step.
-override | src/model/arch/qwen3vl_vision.hpp | Module::positions | 1 | how the Qwen tower's rows take their positions, which no product reads before the prompt step; image input (docs/VISION.md), step 4: inference/media.hpp reads it to build a prompt of ids and encoder rows, which removes this line
-override | src/model/arch/qwen3vl_vision.hpp | Module::token_texts | 1 | the template's image token texts, which no product reads before the prompt step; image input (docs/VISION.md), step 4: inference/media.hpp reads it to build a prompt of ids and encoder rows, which removes this line
-test-only | src/model/encoder.hpp | VisionArchitecture::token_texts | 1 | the template's image token texts, which only arch-qwen3vl-vision reads before the prompt step; image input (docs/VISION.md), step 4: inference/media.hpp reads it to build a prompt of ids and encoder rows, which removes this line
 
 # Functions only test executables keep, from the linked build (tests/dead_code.py --linked, in the Vulkan job).
 linked-test-only | src/backends/cpu/cpu_backend.hpp | backend::CpuKVStorage::k(unsigned long, int) const | 1 | the const read of a key block, which kv-cache takes on a storage it holds const; product code holds its storage mutable

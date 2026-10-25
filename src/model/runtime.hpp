@@ -84,6 +84,13 @@ struct ModelOptions {
     std::function<std::optional<size_t>()> host_memory;
 };
 
+// An image's rows in a history (docs/VISION.md, section 4): its first row and its rows, the encoder's merged grid they fill row by row, and the encoder's rows, which a pass writes over their pad rows after the embedding.
+struct MediaRun {
+    size_t first = 0, rows = 0;
+    uint32_t grid_h = 0, grid_w = 0;
+    std::shared_ptr<const std::vector<float>> encoded;
+};
+
 // One request's history in a model's cache, made by Model::make_sequence: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it (docs/EXECUTION.md).
 // Movable, not copyable; from Model::begin_pass until its passes end it is in flight, when no reset or fork takes it and it must not move, and its prompt may continue in later passes (Model::begin_pass).
 class Sequence {
@@ -119,6 +126,12 @@ private:
     std::vector<backend::Ticket> last_;
     const Model* owner_ = nullptr;
     size_t flights_ = 0;                   // its passes in flight
+    // Its images in history order, each with its rows uploaded to every embedding device that has read them (Model::add_media).
+    struct Media {
+        MediaRun run;
+        std::vector<backend::BufferPtr> on;
+    };
+    std::vector<Media> media_;
 };
 
 class Model;
@@ -184,6 +197,7 @@ struct Pass {
     size_t rows = 0, want = 0;
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     std::vector<uint32_t> ids, pos, pick;
+    bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
     std::vector<uint32_t> previous_tokens;             // the token-history layer's preceding IDs, a fixed-width row per entry
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<std::vector<backend::StateView>> states;   // per device, per entry, on a device whose layers keep a state
@@ -840,6 +854,15 @@ public:
     size_t mark_slots() const { return state_layers_ ? options_.mark_slots : SIZE_MAX; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
 
+    // Defined in model/history.hpp: an image's rows in a sequence's history, from `run.first` at or past its history and every image before, read when passes reach them.
+    void add_media(Sequence& s, MediaRun run);
+    // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams) and no embedded drafter reads its rows, since drafting beside images comes with their cache identity (docs/VISION.md, section 8).
+    bool takes_images() const { return !plan_.image_streams.empty() && !plan_.drafter; }
+    // The width of an embedding row, which an encoder's rows must have.
+    size_t embedding_width() const { return plan_.residual; }
+    // The backend the embedding runs on, where an image is encoded.
+    backend::Backend& embedding_backend() const { return *devices_[(size_t)place_.embed_device]->b; }
+
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
 
     // Run one token through the model (prefill or continue).
@@ -863,12 +886,16 @@ public:
     void draft(uint32_t last, size_t k, std::vector<uint32_t>& out) { draft(seq_, last, k, out); }
 
     // Process a whole prompt with matrix-matrix matmuls instead of one token at a time, so each weight row is reused across the batch and only the last pass asks for the final token's logits.
-    // A `keep_at` inside the prompt keeps the state there as the sequence's checkpoint, the chunk before it cut to end there.
-    std::vector<float> prefill(const std::vector<uint32_t>& ids, size_t keep_at = 0) {
+    // A `keep_at` inside the prompt keeps the state there as the sequence's checkpoint, the chunk before it cut to end there; `media` are the prompt's images, counted from its first token.
+    std::vector<float> prefill(const std::vector<uint32_t>& ids, size_t keep_at = 0, const std::vector<MediaRun>& media = {}) {
         if (ids.empty()) throw std::runtime_error("inference: empty prompt");
         // The prompt is one transaction across its microbatches: a failure in any of them restores the history from before the call.
         const size_t start = seq_.length();
         auto work = [&] {
+            for (MediaRun run : media) {
+                run.first += start;
+                add_media(seq_, std::move(run));
+            }
             // Sized to the largest chunk this prompt will use, inside the scope, so a short prompt does not allocate scratch for a full ubatch.
             // Sized before any chunk runs, so nothing in flight loses its storage.
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), 1, handoffs(1));
@@ -925,10 +952,11 @@ public:
 
     // Every position's logits for a text from an empty history, through the batched passes prefill takes, handed to `each` as (position, logits) a microbatch at a time.
     // Scoring through this rather than step exercises the prompt path, whose kernels differ from the decode path's on a device (inference/perplexity.hpp).
-    void score(const std::vector<uint32_t>& ids, const std::function<void(size_t, const float*)>& each) {
+    void score(const std::vector<uint32_t>& ids, const std::function<void(size_t, const float*)>& each, const std::vector<MediaRun>& media = {}) {
         if (ids.empty()) throw std::runtime_error("inference: empty text");
         reset();
         auto work = [&] {
+            for (const MediaRun& run : media) add_media(seq_, run);
             ensure(ctx_, std::min((size_t)ubatch(), ids.size()), std::min((size_t)ubatch(), ids.size()), handoffs(1));
             for (size_t i = 0; i < ids.size();) {
                 const size_t B = std::min((size_t)ubatch(), ids.size() - i);
@@ -1271,6 +1299,11 @@ private:
     void ffn_split(ExecContext& ctx, const Pass& p, size_t dev, int l);
     Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, bool apart = false) const;
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
+    void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
+    bool meets_media(const Sequence& s, size_t first, size_t n) const;
+    void refuse_media(const Sequence& s, size_t length, const char* what) const;
+    void drop_media(Sequence& s, size_t length) noexcept;
+    void write_media(ExecContext& ctx, const Pass& p, size_t dev);
 
     // Whether `pos` is whole blocks in every KV storage, as a fork and a checkpoint need.
     bool whole_blocks(size_t pos) const {

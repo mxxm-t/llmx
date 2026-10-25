@@ -229,9 +229,14 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         if (entries[e].n > options_.mark_rows) throw std::logic_error("inference: a pass after a mark beyond the rows a mark saves");
         if (entries[e].keep) throw std::logic_error("inference: a checkpoint in a pass after a mark");
     }
-    for (size_t e = 0; keeps && e < n_entries; ++e)
+    for (size_t e = 0; keeps && e < n_entries; ++e) {
         if (entries[e].keep && !whole_blocks(history(*entries[e].seq) + entries[e].n))
             throw std::logic_error("inference: a checkpoint at a position of whole blocks in every storage");
+        if (entries[e].keep) refuse_media(*entries[e].seq, history(*entries[e].seq) + entries[e].n, "a checkpoint");
+    }
+    // A pass holding an image's rows gives every row the plan's three position streams; any other keeps one.
+    bool image_rows = false;
+    for (size_t e = 0; e < n_entries; ++e) image_rows = image_rows || meets_media(*entries[e].seq, history(*entries[e].seq), entries[e].n);
     if (!ctx.slots) ensure(ctx, rows, want, handoffs(1));
     p.entries.assign(entries, entries + n_entries);
     p.start.resize(n_entries);
@@ -242,7 +247,8 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.ran = 0;
     p.ids.resize(rows);
     p.previous_tokens.resize(backend::size_mul(n_entries, token_width_));
-    p.pos.resize(rows);
+    p.image_rows = image_rows;
+    p.pos.resize(image_rows ? backend::size_mul(rows, 3) : rows);
     p.pick.resize(want);
     p.runs.resize(n_entries);
     p.head_runs.clear();
@@ -259,10 +265,8 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         const BatchEntry& en = entries[e];
         const size_t len = history(*en.seq);
         p.start[e] = len;
-        for (size_t b = 0; b < en.n; ++b) {
-            p.ids[r + b] = en.ids[b];
-            p.pos[r + b] = (uint32_t)(len + b);
-        }
+        for (size_t b = 0; b < en.n; ++b) p.ids[r + b] = en.ids[b];
+        positions(*en.seq, len, en.n, image_rows, p.pos.data() + r * (image_rows ? 3 : 1));
         const size_t extent = en.extent ? en.extent : en.n;
         p.runs[e] = backend::RowRun{r + en.n, extent};
         // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
@@ -398,6 +402,7 @@ inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace
     if (s == 0) {
         cur = (size_t)place_.embed_device;
         arch_->embed(part(ctx, cur, pass_.data(), 0, 0, p.rows, all, p.apart), p.ids.data());
+        if (p.image_rows) write_media(ctx, p, cur);
     } else if (p.at != cur) {
         receive(ctx, p.at, p.handoff, p.sent, cur, 0, p.rows, p.apart);
     }
@@ -496,8 +501,12 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
     std::vector<backend::Slice> x(W);
     for (size_t m = 0; m < W; ++m) x[m] = slot(ctx, g + m, 0, p.apart);
     for (size_t m = 0; m < W; ++m) {
-        if (s == 0) arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all, p.apart), p.ids.data());
-        else receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows, p.apart);
+        if (s == 0) {
+            arch_->embed(part(ctx, g + m, pass_row(m), 0, 0, p.rows, all, p.apart), p.ids.data());
+            if (p.image_rows) write_media(ctx, p, g + m);
+        } else {
+            receive(ctx, p.at, p.handoff, p.sent, g + m, 0, p.rows, p.apart);
+        }
     }
     for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, g, l);
     for (int l = st.first; l < st.end; l++) {
@@ -856,6 +865,7 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
         s.state_layer = (size_t)d.local_layer[(size_t)l];
     }
     s.pos = p.pos.data();
+    if (p.image_rows) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};
     if (layer.lookup && home_[(size_t)l][layer.lookup->role].row_source) {
         const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
         s.lookup = &sc.lookups[size_t(l)].view;
@@ -866,6 +876,27 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
         s.previous_count = token_width_;
     }
     return s;
+}
+
+// Each image's rows the pass reads written over their pad rows of the residual on embedding device `dev`, right after the embedding.
+// An image's rows are uploaded there once, then copied for each entry's part of each image (docs/VISION.md, section 4).
+inline void Model::write_media(ExecContext& ctx, const Pass& p, size_t dev) {
+    backend::Backend& b = *devices_[dev]->b;
+    const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
+    const size_t W = plan_.residual, x = sc.offset[0];
+    for (size_t e = 0, r = 0; e < p.entries.size(); r += p.entries[e++].n) {
+        Sequence& q = *p.entries[e].seq;
+        const size_t len = p.start[e], n = p.entries[e].n;
+        for (Sequence::Media& m : q.media_) {
+            const size_t from = std::max(len, m.run.first), to = std::min(len + n, m.run.first + m.run.rows);
+            if (from >= to) continue;
+            if (!m.on[dev]) {
+                m.on[dev] = b.alloc(m.run.encoded->size() * sizeof(float));
+                b.write(*m.on[dev], 0, m.run.encoded->data(), m.run.encoded->size() * sizeof(float));
+            }
+            b.copy(*sc.arena, x + (r + from - len) * W * sizeof(float), *m.on[dev], (from - m.run.first) * W * sizeof(float), (to - from) * W * sizeof(float));
+        }
+    }
 }
 
 } // namespace infer

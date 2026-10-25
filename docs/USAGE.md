@@ -264,7 +264,7 @@ Print the top-N next-token logits for `text`, one `id value` pair per line after
 The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
-`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template.
+`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-pixels` read images into it as `generate` does; `--per-token` is refused beside them.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
@@ -569,6 +569,11 @@ Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--max-tokens`. Streams generated text as tokens arrive, reasoning included.
 `--file <path>` (`-f`) in place of the prompt reads it from a UTF-8 file, as `logits` and `perplexity` read their text, for a prompt longer than a command line holds.
 The prompt is raw text unless `--chat` is given, which sends it as one user message through the model's `tokenizer.chat_template` with the assistant's header after it and no system message, as `/v1/chat` renders a conversation of that one message; a template the renderer refuses stops the command, as it stops `chat`.
+`--mmproj F --image A[,B...]`, with `--chat`, reads images into the one user message, before its text: `F` is the vision encoder file beside the model (an `mmproj` GGUF), each image a PNG or JPEG file, and each is decoded, resized as the encoder's processor resizes it, encoded on the device of the model's embedding and placed among the prompt's positions as the model's own processor places it (docs/VISION.md, section 4).
+`--image-max-pixels N` bounds a resized image's pixels, by default at the encoder's bound.
+The three flags go together and with `--chat`; an image file whose name holds a comma cannot be named, as a `--device` entry cannot.
+A model whose architecture places no image rows, an encoder whose rows are not the embedding's width, a vocabulary without the token the encoder's template marks an image with, and a text whose own image tokens make the prompt mark more images than were given are refused by name.
+Images run on the CPU today, where the Vulkan backend refuses the encoder's ops by name, and with drafts off, which `--drafter` beside `--image` is refused for; their history is not forked, kept as a checkpoint, copied to host memory or taken back below an image's last row (docs/VISION.md, section 8).
 Stop matching retains the matching token in output, including any suffix
 within that token, as before.
 
@@ -617,6 +622,9 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--draft-max N`         | most drafts a verify takes, 1 to 63                  | 3       |
 | `-f`, `--file <path>`   | read the prompt from a UTF-8 file, right after the model | (none) |
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
+| `--mmproj PATH`         | vision encoder file of the model's images, with `--chat` and `--image` | (none) |
+| `--image PATH`          | images, comma-separated, placed before the text of the one user message | (none) |
+| `--image-max-pixels N`  | most pixels of a resized image                       | the encoder's |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back, and with a drafter the drafts kept by position, as `drafts kept:` and, for drafts the history gave ahead of a drafter, `own drafts kept:` | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.

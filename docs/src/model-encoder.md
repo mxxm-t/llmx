@@ -2,7 +2,7 @@
 
 The one interface the runtime calls for image input ([VISION](../VISION.md), sections 3 and 9).
 
-`VisionArchitecture` is what a vision model family's module implements: `preprocess()`, the `image::Params` that `image::prepare` applies; `tokens(grid_h, grid_w)`, the rows an image's patch grid gives; `positions()`, how those rows are placed among a prompt's positions; `token_texts()`, the texts of the tokens a chat template marks an image with; `plan(TensorIndex)`, its roles, the ops some backends lack, the floats a patch takes in each arena slot, its attention's heads, the width of an image token's row and its tables; `fill_tables`; `inputs(grid_h, grid_w)`, each patch's position streams and learned-position taps computed on the host; and `encode(EncodeStep)`, its math as backend ops.
+`VisionArchitecture` is what a vision model family's module implements: `preprocess()`, the `image::Params` that `image::prepare` applies; `tokens(grid_h, grid_w)`, the rows an image's patch grid gives; `positions()`, how those rows are placed among a prompt's positions, which `inference/media.hpp` holds to the grid the runtime places; `token_texts()`, the texts of the tokens a chat template marks an image with, whose pad token `inference/media.hpp` looks up; `plan(TensorIndex)`, its roles, the ops some backends lack, the floats a patch takes in each arena slot, its attention's heads, the width of an image token's row and its tables; `fill_tables`; `inputs(grid_h, grid_w)`, each patch's position streams and learned-position taps computed on the host; and `encode(EncodeStep)`, its math as backend ops.
 A member a later module needs comes with that module.
 
 `VisionEncoder` is the runner.

@@ -46,6 +46,7 @@
 #include "inference/perplexity.hpp"
 #include "inference/chat.hpp"
 #include "inference/load.hpp"
+#include "inference/media.hpp"
 #include "model/runtime.hpp"
 #include "model/arch/registry.hpp"
 #include "server/api.hpp"
@@ -642,12 +643,12 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
 // One turn's prompt, before its reply is generated: prefill `ids` on the prompt's worker count (--threads-batch, else `decode_threads`), then set `decode_threads` back, returning the logits after the last prompt token.
 // `prefilled`, called before the decode lines are shown, gets the prompt's time in milliseconds including the reset of the count, and a `keep_at` inside the turn keeps the model's state there as its checkpoint (infer::Model::prefill).
 std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, const std::vector<uint32_t>& ids, int decode_threads, bool progress,
-                                const std::function<void(double)>& prefilled = {}, size_t keep_at = 0) {
+                                const std::function<void(double)>& prefilled = {}, size_t keep_at = 0, const std::vector<infer::MediaRun>& media = {}) {
     model.set_threads(exec.threads_batch > 0 ? exec.threads_batch : decode_threads);
     if (exec.verbose) std::cerr << "threads: prefill " << model.threads_available() << "\n";
     if (progress) std::cerr << "Processing " << ids.size() << " prompt tokens...\n";
     const auto t0 = std::chrono::steady_clock::now();
-    std::vector<float> logits = model.prefill(ids, keep_at);
+    std::vector<float> logits = model.prefill(ids, keep_at, media);
     model.set_threads(decode_threads);
     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     if (prefilled) prefilled(ms);
@@ -657,8 +658,59 @@ std::vector<float> prefill_turn(infer::Model& model, const ExecOptions& exec, co
 }
 
 // The text `--chat` makes of a prompt: one user message through the model's chat template with the assistant's header after it, as the server's chat routes render a conversation of that one message.
-std::string chat_prompt(const chat::ChatFormat& format, const std::string& text) {
-    return format.render({ { "user", text, std::nullopt } }, true);
+// With `images` the message's content is that many images, then the text, as parts.
+std::string chat_prompt(const chat::ChatFormat& format, const std::string& text, size_t images = 0) {
+    chat::Message m{ "user", text, std::nullopt };
+    if (images) {
+        m.parts.assign(images, chat::ContentPart{ true, "" });
+        m.parts.push_back(chat::ContentPart{ false, text });
+    }
+    return format.render({ m }, true);
+}
+
+// --mmproj, --image and --image-max-pixels, which generate and logits take with --chat: the vision encoder's file and the images the one user message holds before its text (docs/VISION.md, section 6).
+struct Images {
+    std::string mmproj;
+    std::vector<std::string> files;
+    std::optional<uint64_t> max_pixels;
+    // Every image's bytes, read before the model is opened.
+    std::vector<std::string> read(const std::string& command) const {
+        std::vector<std::string> bytes;
+        for (const std::string& f : files) bytes.push_back(read_text_file(f, command));
+        return bytes;
+    }
+    // The flags given together and with --chat, or none of them.
+    void check(bool as_chat) const {
+        if (files.empty() && mmproj.empty() && !max_pixels) return;
+        if (files.empty()) throw UsageError(mmproj.empty() ? "--image-max-pixels sizes the images --image gives" : "--mmproj encodes the images --image gives");
+        if (mmproj.empty()) throw UsageError("--image needs the vision encoder --mmproj names");
+        if (!as_chat) throw UsageError("--image places its images in the one user message --chat sends");
+    }
+};
+
+// The files an `--image` value lists, comma-separated, an empty entry refused.
+std::vector<std::string> image_files(const std::string& list) {
+    std::vector<std::string> files;
+    for (const auto& entry : core::comma_list(list)) {
+        if (entry.empty()) throw UsageError("--image: an empty entry in '" + list + "'");
+        files.push_back(entry);
+    }
+    return files;
+}
+
+// One of the image flags; true when `f` is one of them.
+bool images_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Images& images) {
+    if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
+    else if (f == "--image") images.files = image_files(nonempty_value(argc, argv, i, a, "a path"));
+    else if (f == "--image-max-pixels") images.max_pixels = int_arg<uint64_t>(argc, argv, i, a, 1);
+    else return false;
+    return true;
+}
+
+// The prompt `--chat` makes of `text` with `images`: the rendered message's ids with each image's pad run, and the runs its rows are read from, the encoder opened on the model's embedding device at the model's dtype.
+infer::ImagePrompt image_turn(const infer::LoadedModel& loaded, const Images& images, const std::vector<std::string>& bytes, const std::string& text) {
+    const auto vision = infer::open_vision(images.mmproj, *loaded.model, *loaded.tok, loaded.dtype.effective, images.max_pixels);
+    return infer::image_prompt(*vision, loaded.tok->encode(chat_prompt(loaded.chat, text, bytes.size())), bytes);
 }
 
 // The sources a `--drafter` value lists, in the order they are tried: lookup, embedded or a drafter file, or off alone.
@@ -754,7 +806,8 @@ void Drafts::attach(const infer::LoadedModel& loaded, const ExecOptions& exec, b
 }
 
 int cmd_generate(const std::string& model_path, const std::string& prompt, bool as_chat, const infer::GenParams& gp, const ExecOptions& exec,
-                 Drafts& drafts) {
+                 Drafts& drafts, const Images& images = {}) {
+    const std::vector<std::string> image_bytes = images.read("generate");
     const bool progress = show_progress(exec);
     const auto loaded = open_model(model_path, exec, progress, exec.threads, 0, exec.verbose, nullptr, 0, 0, false, 0, drafts.mark_rows(), drafts.embedded, drafts.file);
     bpe::Tokenizer& tok = *loaded->tok;
@@ -764,14 +817,17 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     infer::RNG rng;
     if (gp.seed) rng.seed(gp.seed);
 
-    std::vector<uint32_t> ids = tok.encode(as_chat ? chat_prompt(loaded->chat, prompt) : prompt);
+    infer::ImagePrompt turn;
+    if (!image_bytes.empty()) turn = image_turn(*loaded, images, image_bytes, prompt);
+    else turn.ids = tok.encode(as_chat ? chat_prompt(loaded->chat, prompt) : prompt);
+    const std::vector<uint32_t>& ids = turn.ids;
     if (ids.empty()) throw std::runtime_error("generate: empty prompt");
 
     const std::vector<float> logits = prefill_turn(model, exec, ids, decode_threads, progress, [&](double pp_ms) {
         if (exec.verbose) std::cout << "prompt tokens: " << ids.size() << "\n";
         // Preserve fractional throughput for slow models.
         printf("pp: %zu tok, %.0f ms, %.2f tok/s\n", ids.size(), pp_ms, (double)ids.size() / (pp_ms / 1e3));
-    });
+    }, 0, turn.runs);
     const auto t0 = std::chrono::steady_clock::now();
     const auto drafting = drafts.drafting(ids);
     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text, drafting.get());
@@ -817,12 +873,16 @@ void matrix_record(infer::LoadedModel& loaded) {
 // `then_ids` appends exact generated IDs without re-tokenizing their text, and `last` reports the final positions, through the batched passes a prompt takes or with `per_token` one at a time through step.
 // These logits support the external correctness gate in docs/ROADMAP.md #8.
 int cmd_logits(const std::string& model_path, const std::string& text, bool as_chat,
-               int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false) {
+               int topn, const ExecOptions& exec, const std::string& then_ids = "", size_t last = 0, bool per_token = false, const Images& images = {}) {
+    const std::vector<std::string> image_bytes = images.read("logits");
     const auto loaded = open_model(model_path, exec, false, exec.threads);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
 
-    std::vector<uint32_t> ids = tok.encode(as_chat ? chat_prompt(loaded->chat, text) : text);
+    infer::ImagePrompt turn;
+    if (!image_bytes.empty()) turn = image_turn(*loaded, images, image_bytes, text);
+    else turn.ids = tok.encode(as_chat ? chat_prompt(loaded->chat, text) : text);
+    std::vector<uint32_t>& ids = turn.ids;
     if (!then_ids.empty()) {
         const std::vector<uint32_t> more = token_ids(read_text_file(then_ids, "logits"), model.n_vocab());
         ids.insert(ids.end(), more.begin(), more.end());
@@ -846,9 +906,9 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
             if (last) row(pos, logits.data());
         }
     } else if (last) {
-        model.score(ids, row);
+        model.score(ids, row, turn.runs);
     } else {
-        logits = model.prefill(ids);
+        logits = model.prefill(ids, 0, turn.runs);
     }
     if (!last)
         for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
@@ -1434,6 +1494,11 @@ bool print_usage(const std::string& command, std::ostream& out) {
         const backend::KVType other = d == backend::KVType::f16 ? backend::KVType::f32 : backend::KVType::f16;
         return std::string(backend::kv_type_name(d)) + " (default) or " + backend::kv_type_name(other);
     };
+    const auto image_options = [&]() {
+        page << "  --mmproj PATH           Vision encoder file of the model's images, with --chat and --image\n"
+             << "  --image PATH            Images, comma-separated, placed before the text of the one user message\n"
+             << "  --image-max-pixels N    Most pixels of a resized image (default: the encoder's)\n";
+    };
     const auto model_options = [&](bool batch_threads) {
         page << "\nExecution options:\n"
             << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan.\n"
@@ -1475,6 +1540,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
         if (!chat) page
             << "  --file PATH, -f         UTF-8 prompt file, immediately after the model\n"
             << "  --chat                  Send the prompt as one user message through the model's chat template\n";
+        if (!chat) image_options();
         page
             << "  -n N, --max-tokens N    Maximum generated tokens per turn (default: " << sampling.max_tokens << ")\n"
             << "  --stop TEXT             Stop when generated text contains TEXT\n"
@@ -1601,6 +1667,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --then-ids PATH         Append these token IDs, comma or whitespace separated\n"
             << "  --last N                Print each of the last N positions, one per line\n"
             << "  --per-token             Read every token through decode steps. Default uses batched passes\n";
+        if (!ppl) image_options();
         model_options(ppl);
         page << "\nExample: llmx " << command << " model.gguf "
             << (ppl ? "--file corpus.txt --ctx-size 512 --chunks 4\n"
@@ -1752,6 +1819,7 @@ int main(int argc, char** argv) {
             bool have_prompt = false, as_chat = false;
             GivenFlags given;
             Drafts drafts;
+            Images images;
             // generate takes its prompt from the file `--file` or `-f` names right after the model, as logits and perplexity take their text, for a prompt longer than a command line holds.
             const std::string third = argc > 3 ? argv[3] : "";
             const int first = !chat && (third == "--file" || third == "-f") ? text_arg(argc, argv) : 3;
@@ -1776,6 +1844,7 @@ int main(int argc, char** argv) {
                 else if (exec_flag(argc, argv, i, exec, true)) {}
                 else if (f == "--system" && chat) system = flag_value(argc, argv, i, a);
                 else if (f == "--chat" && !chat) as_chat = true;
+                else if (!chat && images_flag(argc, argv, i, a, f, images)) {}
                 else if (f == "--verbose") exec.verbose = true;
                 else if (!a.empty() && a[0] == '-') throw UsageError("unknown flag: " + a);
                 else if (chat) throw UsageError("chat reads its messages from standard input, not '" + a + "'");
@@ -1785,7 +1854,9 @@ int main(int argc, char** argv) {
             }
             if (chat) return cmd_chat(argv[2], system, gp, exec, drafts);
             if (!have_prompt) throw UsageError("missing the prompt");
-            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec, drafts);
+            images.check(as_chat);
+            if (!images.files.empty() && !drafts.sources.empty()) throw UsageError("--drafter beside --image comes with the images' cache identity");
+            return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec, drafts, images);
         }
 
         if (cmd == "perplexity") {
@@ -1820,6 +1891,7 @@ int main(int argc, char** argv) {
             size_t last = 0;
             bool per_token = false;
             bool as_chat = false;
+            Images images;
             GivenFlags given;
             const int first = text_arg(argc, argv);
             for (int i = first; i < argc; i++) {
@@ -1832,12 +1904,15 @@ int main(int argc, char** argv) {
                 else if (f == "--last") last = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
                 else if (f == "--chat") as_chat = true;
+                else if (images_flag(argc, argv, i, a, f, images)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
                 given.take(a, i > at);
             }
+            images.check(as_chat);
+            if (!images.files.empty() && per_token) throw UsageError("--per-token reads tokens one at a time, which an image's rows are not");
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
-            return cmd_logits(argv[2], text, as_chat, topn, exec, then_ids, last, per_token);
+            return cmd_logits(argv[2], text, as_chat, topn, exec, then_ids, last, per_token, images);
         }
 
         if (cmd == "tokenize") {

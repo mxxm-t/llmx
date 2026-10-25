@@ -4,6 +4,11 @@ The one owner of the operations on a sequence's history (`docs/SPECULATIVE.md`, 
 They are members of `Model`, declared in its class in `model/runtime.hpp` ([runtime](model-runtime.md)), which includes this file after the class, and defined here, beside the private steps only they take: `settle`, which refuses a sequence of another model or in flight and waits on its last tickets; `rewind`, which a retract, a failed pass and a prompt that fails part way go through; `restore_mark` and `drop_mark`; `save`, which a pass runs after each state layer's mixer, and `rerun`, both at the offsets `saved_at` gives.
 The blocks, slots and holds these operations move are `model/kv_cache.hpp`'s ([KV cache](model-kv_cache.md)).
 
+- Images ([VISION](../VISION.md), section 4): `add_media(sequence, run)` gives a sequence an image's rows, a `MediaRun` at or past its history and after every image it holds, refused on a model that takes no image rows or beside an embedded drafter, with rows that do not fill the image's merged grid or are not the embedding's width, or past the context.
+  The sequence keeps each image with its rows while it holds it, each uploaded to an embedding device the first time a pass there reads it, so a history recomputed over an image reads the same rows; `reset` drops every image and `rewind` those at or past the length it reaches.
+  `positions(sequence, first, n, streams, out)` is the one owner of a row's position, as HF's `get_rope_index` places Qwen's images: a text row at its index less what the images below it saved, an image's row at (p, p + row, p + column) of its merged grid, p the position its first row would have had as text, and the text after it at p plus the larger side of the grid; a history without images keeps its indices.
+  A fork, a checkpoint and a copy to host memory of rows that hold an image, and a retract below an image's last row, are refused (`refuse_media`) until the images' cache identity (docs/VISION.md, section 8, step 5).
+
 - `reset(sequence)`: the history returned
   to the pools, its blocks and its state slot, after waiting on its last
   ticket; a sequence in flight is refused.

@@ -75,6 +75,7 @@ delegated to a `backend::Backend`.
   [place](model-place.md)). Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
+- `MediaRun`: an image's rows in a history ([VISION](../VISION.md), section 4), its first row, its rows, the encoder's merged grid they fill row by row and the encoder's rows; a `Sequence` keeps its images in history order (`Sequence::Media`).
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per KV storage, the committed length
   of each stage, which is its KV sequence's where its layers keep KV and a
@@ -227,6 +228,7 @@ delegated to a `backend::Backend`.
   - `score(ids, each)`: the ids in chunks of `ubatch()` tokens from an empty
     history, each chunk an `every_logits` entry, calling `each(pos, logits)`
     for every position. This is the batched path perplexity scores through.
+  - `prefill` and `score` take a prompt's images beside its ids (`MediaRun`, counted from the prompt's first id), which `add_media` gives the sequence first ([history](model-history.md)); `takes_images()`, `embedding_width()` and `embedding_backend()` are what `inference/media.hpp` opens an encoder beside the model with.
   - `set_ubatch(n)` / `prefill_batch()`: physical batch, set by `--ubatch`
     through `place_model`; `ubatch()` is the private getter the passes
     use. llmx has no logical batch; see `docs/USAGE.md`.

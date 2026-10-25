@@ -44,7 +44,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   KV, the common recurrent-state prefix shape (`backend::StateShape`) of every layer
   whose cache is a state, with each layer's optional `state_tail` extending only
   its own slots, and the position
-  tables' sizes, `index_width`, the maximum number of host `uint32_t` lookup
+  tables' sizes, `image_streams` (per rotated pair, which of an image row's three positions turns it, empty where the model takes no image rows), `index_width`, the maximum number of host `uint32_t` lookup
   indices per activation row, reused by token embedding expansion and
   gathered-weight lookups (zero means no index scratch), and an embedded
   drafter's `LayerPlan` when a caller asked
@@ -80,7 +80,7 @@ never sees devices, placements, stages or caches beyond what a call hands it.
   call's first row (`x`), the rows and their runs, the row of weights by
   role id (the layer's, the pass's, or a streamed layer's copies and
   windows), the layer's kind, the cache views and the layer's index in its
-  storage, the rows' positions, the position tables on that device, a
+  storage, the rows' positions, one a row or three where a pass holds an image's rows (`streams`), the position tables on that device, a
   run list the part may rebuild, which the runtime reserves at a run per
   row so the part does not allocate, and for a layer whose cache is a state
   its views (`states`, one per entry, each reading and writing its

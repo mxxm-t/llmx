@@ -31,6 +31,7 @@ struct Config {
     float rms_eps = 1e-6f;
     int k_heads = 0, v_heads = 0, k_dim = 0, v_dim = 0;   // the linear attention's heads and widths
     std::vector<uint8_t> full;    // per decoder layer, whether it is a full-attention layer
+    std::vector<uint8_t> image_streams;   // per rotated pair, the position an image row turns it by (ModelPlan::image_streams); empty without rope sections
     // qwen35moe: experts per layer, experts each token takes, a routed expert's and the shared expert's hidden widths, and whether the chosen probabilities are renormalized to sum to one.
     int n_expert = 0, n_expert_used = 0, n_ff_exp = 0, n_ff_shexp = 0;
     bool expert_norm = true;
@@ -91,6 +92,15 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
         int64_t sum = 0;
         for (int s : sections) sum += s;
         if (2 * sum != c.rope_dim) throw std::runtime_error("inference: " + p + "rope.dimension_sections does not cover the rotary width");
+        // An image row's (start, row, column) interleaved over the pairs as HF's Qwen 3.5 interleaves them (docs/src/model-arch-qwen35.md).
+        // Pair j takes the row where j mod 3 is 1 inside three times its section, the column where it is 2 inside three times its own, and the start elsewhere.
+        if (sections.size() >= 3) {
+            c.image_streams.assign((size_t)c.rope_dim / 2, 0);
+            for (size_t j = 0; j < c.image_streams.size(); ++j) {
+                if (j % 3 == 1 && j < 3 * (size_t)sections[1]) c.image_streams[j] = 1;
+                if (j % 3 == 2 && j < 3 * (size_t)sections[2]) c.image_streams[j] = 2;
+            }
+        }
     }
     c.context_length = integer(m, p + "context_length");
     c.rope_theta = float(real(m, p + "rope.freq_base", c.rope_theta));
@@ -206,6 +216,7 @@ public:
         p.head_dim = (size_t)c.head_dim;
         p.state = backend::StateShape{(size_t)c.k_heads, (size_t)c.v_heads, (size_t)c.k_dim, (size_t)c.v_dim};
         p.tables.assign(2, (size_t)c.context_length * (size_t)(c.rope_dim / 2));
+        p.image_streams = c.image_streams;
         return p;
     }
 
@@ -436,8 +447,8 @@ private:
         b.matmul_group({blocks::projection(w[attn_q], r), blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
         const size_t R = (size_t)cfg_.rope_dim;
-        b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
-        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+        b.norm_rope_partial(q, r, s.rows, 2 * Hq * D, 2 * D, Hq, D, R, w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
+        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, R, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
         b.attention(q, s.kv_layer, s.views, s.n_views, o, (int)Hq, (int)Hkv, (int)D);
         b.sigmoid_mul(o, o, backend::CSlice{r.buffer, r.offset + D}, s.rows, Hq, D, 2 * Hq * D, 2 * D, s.runs);

@@ -141,6 +141,8 @@ struct ModelPlan {
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
     backend::StateShape state;          // the recurrent state of every layer whose cache is a state
     std::vector<size_t> tables;         // floats in each position table
+    // Per rotated pair, which of an image row's three positions turns it (backend::RopeStreams, docs/VISION.md, section 4); empty where the model takes no image rows.
+    std::vector<uint8_t> image_streams;
     // An embedded drafter, planned only when a caller asks for one (Architecture::plan_drafter): its roles, all Part::draft, its ops and its cache, KV in the head's device's storage beside the layers' (docs/SPECULATIVE.md, section 7).
     // Its context rows leave the target's final-normed rows in arena slot `draft_h`, which the model carries and saves, and a draft step's residual rows are in arena slot `draft_x`, which a tensor group sums its members' partial rows into.
     std::optional<LayerPlan> drafter;
@@ -201,6 +203,8 @@ struct Step {
     uint32_t* indices = nullptr;
     size_t indices_size = 0;
     const PreparedLookup* lookup = nullptr;
+    // How `pos` holds a row's positions: one, or three where a pass holds an image's rows (ModelPlan::image_streams).
+    backend::RopeStreams streams{};
     backend::Slice slot(size_t i) const { return {arena, offsets[i] / sizeof(float)}; }
 };
 

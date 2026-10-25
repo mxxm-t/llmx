@@ -35,6 +35,7 @@ conversation's prefix through state checkpoints ([server](server.md)).
     sections reduce to the plain rope over those dims; when
     `rope.dimension_sections` holds sections, twice their sum must be that
     width, and an absent key or an empty array is not checked.
+    With three sections or more the plan gives `image_streams`: an image row's (start, row, column) interleaved over the rotated pairs as HF's Qwen 3.5 interleaves them, pair j taking the row where j mod 3 is 1 inside three times the second section, the column where it is 2 inside three times the third, and the start elsewhere; the full-attention layers pass a pass's `Step::streams` to `norm_rope_partial`.
   - The linear attention: `ssm.conv_kernel`, which must be
     `backend::kConvTaps` (4), `ssm.state_size` (the K head width),
     `ssm.group_count` (K heads), `ssm.time_step_rank` (V heads) and

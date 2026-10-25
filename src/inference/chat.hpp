@@ -41,6 +41,12 @@ struct ToolCall {
     jmini::Value arguments;
 };
 
+// A part of a message's content given as parts: an image, or a text.
+struct ContentPart {
+    bool image = false;
+    std::string text;
+};
+
 // One turn of a conversation.
 // `reasoning_content` is an assistant turn's reasoning, held apart from its reply as clients pass it, and absent when the turn has none.
 struct Message {
@@ -49,6 +55,7 @@ struct Message {
     std::optional<std::string> reasoning_content;
     std::vector<ToolCall> tool_calls{};                     // an assistant turn's calls
     std::optional<std::string> tool_call_id{}, name{};      // the call a tool result answers, and a name the client gave the message
+    std::vector<ContentPart> parts{};                       // the content as parts, which the template reads in place of `content` where any are given
 };
 
 // An assistant turn split as the Qwen templates split one: the reply after the last </think> without the newlines that open it, and the reasoning before the first </think>, after the last <think> there, trimmed likewise.
@@ -3181,7 +3188,19 @@ inline jj::Value context(const std::vector<Message>& messages, bool add_generati
     for (const auto& m : messages) {
         auto o = std::make_shared<jj::Object>();
         o->set("role", Value::str(m.role));
-        o->set("content", Value::str(m.content));
+        if (m.parts.empty()) {
+            o->set("content", Value::str(m.content));
+        } else {
+            // As the reference renderer passes them: {"type": "image"} and {"type": "text", "text": ...}.
+            std::vector<Value> parts;
+            for (const ContentPart& part : m.parts) {
+                auto item = std::make_shared<jj::Object>();
+                item->set("type", Value::str(part.image ? "image" : "text"));
+                if (!part.image) item->set("text", Value::str(part.text));
+                parts.push_back(Value::dict(item));
+            }
+            o->set("content", Value::list(std::move(parts)));
+        }
         if (m.reasoning_content) o->set("reasoning_content", Value::str(*m.reasoning_content));
         if (!m.tool_calls.empty()) {
             std::vector<Value> calls;

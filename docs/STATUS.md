@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Layer-split shares by stage time, parked as fine-tuning (2026-10-25, no branch, a record only)
+
+- **What was proposed:** with a four-device layer split of Qwen3.8-Flash-Next UD-Q4_K_XL at equal shares (12 layers a stage, `--dtype int8`, ubatch 512, MI50s at default clocks), a pp2048 profile put stage 0 at 1015.9 ms of kernel time against 954.2, 866.5 and 879.1 ms on the others. Shares of 11,12,13,12 would have moved the bottleneck to about 954 ms, about -6% on prefill against a ceiling of -8.6% at perfect balance.
+- **Why it is parked:** rearranging layers trims the slowest stage's share of the same work; it is not a speed improvement, and the owner parked it. The discriminating run (devices permuted, the 11,12,13,12 split timed) was not made.
+- **What the profile says instead** (the same run, kernel timestamps summed per device):
+  - Each stage's span is 85 to 99% kernel time; the rest is idle waiting for the previous stage's handoff (6.4, 94.6, 174.4 and 138.0 ms). No submission waits on a peer, no kernel polls, and gaps inside submissions total 3 ms a stage, so host recording does not limit a layer-split prefill.
+  - The whole difference between the stages is in the routed tiles: the Q4_K gate and up products take 294.0, 242.7, 190.8 and 197.6 ms by stage and the Q5 down products 140.9, 144.4, 104.6 and 100.8 ms, on the same shapes and types, while every other kernel is level across stages within a few ms. That points at how full the tiles run, which depends on how a layer spreads its entries over the experts; the routed integer tile's narrow build (branch feat/routed-narrow) is aimed at that occupancy.
+  - The wall time of the profiled pp2048, 1782 ms, is the bottleneck stage's 1016 ms of kernels and about 660 ms of pipeline fill and drain, three slices of the other stages after the last chunk leaves the first: 4 chunks over 4 stages.
+
 ## Row kernel bodies as includes (2026-10-25, branch refactor/row-bodies on refactor/vulkan-split 4ab05bffe, item B1a, approved by the reviewer, no behaviour change)
 
 - **Goal:** item B fuses decode sublayers into fewer dispatches, and a fused kernel must compute each row with the unfused kernel's bits; the row kernels' bodies become text both include, so the row arithmetic has one owner (B1b's routed step and B2's stream mix build on it).

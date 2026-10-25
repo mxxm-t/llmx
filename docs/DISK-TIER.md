@@ -245,9 +245,9 @@ The index (tokens, row classes, ranking state) stays in the scheduler beside `ho
 ## Surface
 
 **Flags** (`serve`):
-- `--disk-cache-bytes N`: the disk tier's size; 0, the default, turns it off.
+- `--disk-cache-bytes SIZE`: the disk tier's size, a number of bytes or one with a unit such as `100gib` ([USAGE](USAGE.md)); 0, the default, turns it off.
 - `--disk-cache-dir PATH`: where it lives, by default `<home>/.cache/llmx/kv`.
-- `--disk-cache-floor N`: the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
+- `--disk-cache-floor SIZE`: the free space the file system keeps after every write, by default the larger of 16 GiB and a twentieth of the file system.
 - At startup the server prints the directory, the file system's free space and the floor, and refuses to start when the cap plus the floor exceed the free space, naming the three numbers.
 - `--disk-cache-keep`: write what memory holds to disk while idle and, on a clean exit, within the bound the server states (20 seconds or more), and keep the entries for the next server of the same numerics and model, which adopts them; without it nothing remains after a clean exit.
 - `--disk-cache-max-age TIME`: delete entries unused for longer than TIME, by default `24h`; `0` keeps them until room takes them.

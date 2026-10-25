@@ -1344,6 +1344,8 @@ def check_no_turns_line(model):
     assert len(none) == 1 and "--host-cache-bytes" in none[0] and "holds 0 MiB" in none[0], none
     # Given a tier that holds a history, the server takes turns and says nothing, wherever its caches are.
     assert lines("--host-cache-bytes", str(1 << 30)) == []
+    # A size with a unit reads as the same bytes: 1gib is 1 << 30 and 0kib is 0.
+    assert lines("--host-cache-bytes", "1gib") == [] and lines("--host-cache-bytes", "0kib") == none
     # At its default a server with its caches on the CPU keeps no host memory and has nothing to size, so it says nothing; one on a device says something only if its default tier is too small.
     if os.environ.get("LLMX_DEVICE") in (None, "", "cpu"):
         assert lines() == []

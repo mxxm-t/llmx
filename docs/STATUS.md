@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Sizes, token counts and durations with unit suffixes (2026-10-25, branch feat/size-suffixes on main 14010059a, the owner's decisions of 2026-10-25, lands by fast-forward as one commit)
+
+- **Goal:** `serve` takes sizes as `4g` or `100gib` and token counts as `256k`, so a command line need not carry `107374182400` or `262144`.
+- **Done:** one reader, `scaled_number` in `src/cli/main.cpp`, behind `bytes_arg` (`--host-cache-bytes`, `--disk-cache-bytes`, `--disk-cache-floor`), `count_arg` (`-n`, both `--ctx-size`, `--kv-tokens`, `--ubatch`, `--moe-stream-from`, `--last`, bench `--p`, `--n`, `--depth`) and `seconds_arg` (`--disk-cache-max-age`, unchanged in behaviour).
+  Sizes are binary and case-insensitive (b, k/kb/kib, m/mb/mib, g/gb/gib, t/tb/tib); counts take k (1024) and m (1048576); fractions are exact, need a suffix and must come out whole.
+  `--host-cache-bytes` no longer truncates silently past `size_t`, and an overflowing duration says it is too large.
+  Tests: `cli-output` (`number_readers`) and `tests/cli.py`; docs: help page, USAGE, DISK-TIER, OPERATING, `docs/src/cli-main.md`.
+- **Left:** the hosted run at the landing head.
+- **Gotchas:** the flag names keep `-bytes`; `--draft-max`, `--chunks`, `--top`, `--size`, `--r` and `--seqs` stay plain numbers since they are not counts of tokens; durations stay lowercase because `M` and `m` would differ.
+
 ## Layer-split shares by stage time, parked as fine-tuning (2026-10-25, no branch, a record only)
 
 - **What was proposed:** with a four-device layer split of Qwen3.8-Flash-Next UD-Q4_K_XL at equal shares (12 layers a stage, `--dtype int8`, ubatch 512, MI50s at default clocks), a pp2048 profile put stage 0 at 1015.9 ms of kernel time against 954.2, 866.5 and 879.1 ms on the others. Shares of 11,12,13,12 would have moved the bottleneck to about 954 ms, about -6% on prefill against a ceiling of -8.6% at perfect balance.

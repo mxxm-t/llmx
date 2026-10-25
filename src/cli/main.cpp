@@ -176,17 +176,93 @@ T int_arg(int argc, char** argv, int& i, const std::string& flag, T lo, T hi = s
     return whole_number<T>(flag_value(argc, argv, i, flag), flag, lo, hi);
 }
 
+// A suffix and what it multiplies by.
+struct Unit {
+    const char* name;
+    uint64_t scale;
+};
+
+enum class Scaled { ok, malformed, too_large };
+
+// The one reader of a number with a unit: digits, a fraction after a suffix when `fractions` that must scale to a whole number, then a suffix of `units`, in exact digit arithmetic.
+// Sizes and counts fold case, and durations do not, since m and M would differ.
+Scaled scaled_number(const std::string& text, const std::vector<Unit>& units, bool fold_case, bool fractions, uint64_t& out) {
+    const auto digit = [](char c) { return c >= '0' && c <= '9'; };
+    size_t p = 0;
+    while (p < text.size() && digit(text[p])) p++;
+    if (p == 0) return Scaled::malformed;
+    size_t q = p, frac = 0;
+    if (fractions && q < text.size() && text[q] == '.') {
+        const size_t start = ++q;
+        while (q < text.size() && digit(text[q])) q++;
+        frac = q - start;
+        if (frac == 0) return Scaled::malformed;
+    }
+    std::string suffix = text.substr(q);
+    if (fold_case) for (char& c : suffix) if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    uint64_t scale = 1;
+    if (!suffix.empty()) {
+        const Unit* found = nullptr;
+        for (const Unit& u : units) if (suffix == u.name) found = &u;
+        if (!found) return Scaled::malformed;
+        scale = found->scale;
+    } else if (frac) return Scaled::malformed;
+    std::vector<unsigned> v;
+    for (size_t k = 0; k < q; k++) if (digit(text[k])) v.push_back((unsigned)(text[k] - '0'));
+    for (uint64_t m = scale; m > 1;) {
+        const uint64_t f = m > (1u << 20) ? (1u << 20) : m;
+        m /= f;
+        uint64_t carry = 0;
+        for (size_t k = v.size(); k-- > 0;) {
+            const uint64_t x = v[k] * f + carry;
+            v[k] = (unsigned)(x % 10);
+            carry = x / 10;
+        }
+        std::vector<unsigned> top;
+        for (; carry; carry /= 10) top.push_back((unsigned)(carry % 10));
+        v.insert(v.begin(), top.rbegin(), top.rend());
+    }
+    for (size_t k = v.size() - frac; k < v.size(); k++) if (v[k]) return Scaled::malformed;
+    std::string whole;
+    for (size_t k = 0; k + frac < v.size(); k++) whole.push_back((char)('0' + v[k]));
+    const size_t lead = whole.find_first_not_of('0');
+    whole = lead == std::string::npos ? "0" : whole.substr(lead);
+    const auto parsed = std::from_chars(whole.data(), whole.data() + whole.size(), out);
+    return parsed.ec == std::errc() ? Scaled::ok : Scaled::too_large;
+}
+
+// The size after `flag`, in bytes: a whole number alone or a number (fractions allowed) followed by b, k, m, g or t, each also as kb or kib and so on, powers of 1024.
+uint64_t bytes_arg(int argc, char** argv, int& i, const std::string& flag, uint64_t hi = std::numeric_limits<uint64_t>::max()) {
+    static const std::vector<Unit> units = {{"b", 1ull}, {"k", 1ull << 10}, {"kb", 1ull << 10}, {"kib", 1ull << 10}, {"m", 1ull << 20}, {"mb", 1ull << 20}, {"mib", 1ull << 20},
+                                            {"g", 1ull << 30}, {"gb", 1ull << 30}, {"gib", 1ull << 30}, {"t", 1ull << 40}, {"tb", 1ull << 40}, {"tib", 1ull << 40}};
+    const std::string text = flag_value(argc, argv, i, flag);
+    uint64_t v = 0;
+    const Scaled r = scaled_number(text, units, true, true, v);
+    if (r == Scaled::malformed) throw UsageError(flag + ": '" + text + "' is not a size, a whole number of bytes or a number followed by b, k, m, g or t (kb, kib, ... also work)");
+    if (r == Scaled::too_large || v > hi) throw UsageError(flag + ": '" + text + "' is too large");
+    return v;
+}
+
+// The whole number after `flag`, from `lo` to `hi`, alone or followed by k (1024) or m (1048576), for a count of tokens.
+template <class T = int>
+T count_arg(int argc, char** argv, int& i, const std::string& flag, T lo, T hi = std::numeric_limits<T>::max()) {
+    static const std::vector<Unit> units = {{"k", 1ull << 10}, {"m", 1ull << 20}};
+    const std::string text = flag_value(argc, argv, i, flag);
+    uint64_t v = 0;
+    if (scaled_number(text, units, true, true, v) != Scaled::ok || v < (uint64_t)lo || v > (uint64_t)hi)
+        throw UsageError(flag + ": '" + text + "' is not a whole number " + range_text(lo, hi) + ", alone or followed by k or m");
+    return (T)v;
+}
+
 // The length of time after `flag`, in seconds: a whole number alone or followed by s, m, h or d.
 uint64_t seconds_arg(int argc, char** argv, int& i, const std::string& flag) {
+    static const std::vector<Unit> units = {{"s", 1}, {"m", 60}, {"h", 3600}, {"d", 86400}};
     const std::string text = flag_value(argc, argv, i, flag);
-    const char last = text.empty() ? '\0' : text.back();
-    const uint64_t unit = last == 'm' ? 60 : last == 'h' ? 3600 : last == 'd' ? 86400 : 1;
-    const bool suffix = last == 's' || unit > 1;
-    try {
-        return whole_number<uint64_t>(suffix ? text.substr(0, text.size() - 1) : text, flag, 0, std::numeric_limits<uint64_t>::max() / unit) * unit;
-    } catch (const UsageError&) {
-        throw UsageError(flag + ": '" + text + "' is not a length of time, a whole number of seconds or one followed by s, m, h or d");
-    }
+    uint64_t v = 0;
+    const Scaled r = scaled_number(text, units, false, false, v);
+    if (r == Scaled::malformed) throw UsageError(flag + ": '" + text + "' is not a length of time, a whole number of seconds or one followed by s, m, h or d");
+    if (r == Scaled::too_large) throw UsageError(flag + ": '" + text + "' is too large");
+    return v;
 }
 
 // The decimal number after `flag`, from `lo` to `hi`: digits, a point and an exponent, so no infinity, NaN or hexadecimal form.
@@ -459,10 +535,10 @@ bool exec_flag(int argc, char** argv, int& i, ExecOptions& exec, bool batch_thre
     else if (f == "--tensor-width") exec.tensor_width = int_arg(argc, argv, i, a, 1);
     else if (f == "--n-cpu-moe") exec.cpu_moe = int_arg(argc, argv, i, a, 0);
     else if (f == "--cpu-moe") exec.cpu_moe = -1;
-    else if (f == "--moe-stream-from") exec.moe_stream_from = int_arg(argc, argv, i, a, 0);
+    else if (f == "--moe-stream-from") exec.moe_stream_from = count_arg(argc, argv, i, a, 0);
     else if (f == "--threads") exec.threads = int_arg(argc, argv, i, a, 0);
     else if (batch_threads && f == "--threads-batch") exec.threads_batch = int_arg(argc, argv, i, a, 0);
-    else if (f == "--ubatch") exec.ubatch = int_arg(argc, argv, i, a, 1);
+    else if (f == "--ubatch") exec.ubatch = count_arg(argc, argv, i, a, 1);
     else if (f == "--cache-type-k") exec.cache_type_k = cache_type_arg(argc, argv, i, a);
     else if (f == "--cache-type-v") exec.cache_type_v = cache_type_arg(argc, argv, i, a);
     else if (f == "--load-mode") exec.load_mode = load_mode_arg(argc, argv, i, a);
@@ -1386,7 +1462,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          Device keeps the whole table on the devices, giving up KV room if it must.\n"
             << "                          File reads the rows from the model file. Auto takes device where it fits\n"
             << "                          beside the fitted KV budget, else file. Independent of --load-mode.\n"
-            << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n";
+            << "  --load-mode M           How weights are read: auto, mapped or direct (default: " << infer::load_mode_name(defaults.load_mode) << ")\n"
+            << "\nA count of tokens may end in k (1024) or m (1048576), as in 32k.\n";
     };
     if (command == "chat" || command == "generate") {
         const bool chat = command == "chat";
@@ -1450,13 +1527,15 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --generating-share X    Instead of that rule, a fixed share of each device's time for requests\n"
             << "                          already generating while prompts are read, above 0 up to 0.9. A value of 0 keeps\n"
             << "                          the rule (default: " << cfg.generating_share << ")\n"
-            << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt):\n"
-            << "  --host-cache-bytes N    Host memory for prefixes the devices evict. A value of 0 keeps none\n"
+            << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt).\n"
+            << "A SIZE is a number of bytes, or a number followed by b, k, m, g or t (also kb, kib and so on),\n"
+            << "powers of 1024 in any case: 4g, 4GiB and 4096mb are 4294967296 bytes. A fraction needs a suffix, as in 1.5g.\n"
+            << "  --host-cache-bytes SIZE  Host memory for prefixes the devices evict. A value of 0 keeps none\n"
             << "                          (default: room for --max-seqs full histories, within half the free\n"
             << "                          host memory. None when every cache is on the CPU)\n"
-            << "  --disk-cache-bytes N    Disk for what the host cache drops. Needs a host cache (default: 0, none)\n"
+            << "  --disk-cache-bytes SIZE  Disk for what the host cache drops. Needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
-            << "  --disk-cache-floor N    Free space the disk keeps after every write\n"
+            << "  --disk-cache-floor SIZE  Free space the disk keeps after every write\n"
             << "                          (default: the larger of 16 GiB and a twentieth of the disk)\n"
             << "  --disk-cache-keep       Write what memory holds to disk while idle and at a clean exit, and keep it\n"
             << "                          for the next server. The exit takes " << server::kDiskFlush.count() << " s or more, and prints its bound\n"
@@ -1489,7 +1568,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "Sampling settings belong in each request's JSON body.\n\n"
             << "Examples:\n"
             << "  llmx serve model.gguf --device vulkan:0 --port 8080\n"
-            << "  llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 107374182400 --disk-cache-keep\n"
+            << "  llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 100gib --disk-cache-keep\n"
             << "  llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4\n";
     } else if (command == "pull") {
         const hub::PullOptions pull;
@@ -1682,7 +1761,7 @@ int main(int argc, char** argv) {
                 const std::string a = argv[i];
                 const std::string_view f = long_spelling(a);
                 if (!chat) no_second_text(a);
-                if (f == "--max-tokens") gp.max_tokens = int_arg(argc, argv, i, a, 1);
+                if (f == "--max-tokens") gp.max_tokens = count_arg(argc, argv, i, a, 1);
                 else if (f == "--temp") gp.temp = float_arg(argc, argv, i, a, infer::Sampling::temp_range.lo, infer::Sampling::temp_range.hi);
                 else if (f == "--topk") gp.top_k = int_arg(argc, argv, i, a, infer::Sampling::top_k_range.lo, infer::Sampling::top_k_range.hi);
                 else if (f == "--topp") gp.top_p = float_arg(argc, argv, i, a, infer::Sampling::top_p_range.lo, infer::Sampling::top_p_range.hi);
@@ -1720,7 +1799,7 @@ int main(int argc, char** argv) {
                 const std::string a = argv[i];
                 const std::string_view f = long_spelling(a);
                 no_second_text(a);
-                if (f == "--ctx-size") context_size = int_arg(argc, argv, i, a, infer::kMinPerplexityWindow);
+                if (f == "--ctx-size") context_size = count_arg(argc, argv, i, a, infer::kMinPerplexityWindow);
                 else if (f == "--chunks") chunks = int_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
                 else if (f == "--verbose") exec.verbose = true;
@@ -1750,7 +1829,7 @@ int main(int argc, char** argv) {
                 no_second_text(a);
                 if (f == "--top") topn = int_arg(argc, argv, i, a, 1);
                 else if (f == "--then-ids") then_ids = nonempty_value(argc, argv, i, a, "a path");
-                else if (f == "--last") last = (size_t)int_arg(argc, argv, i, a, 1);
+                else if (f == "--last") last = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--per-token") per_token = true;
                 else if (f == "--chat") as_chat = true;
                 else if (exec_flag(argc, argv, i, exec, false)) {}
@@ -1801,10 +1880,10 @@ int main(int argc, char** argv) {
                 else if (f == "--generating-share") cfg.generating_share = float_arg(argc, argv, i, a, 0.0f, 0.9f);
                 else if (f == "--no-pacing") cfg.no_pacing = true;
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
-                else if (f == "--host-cache-bytes") host_bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
-                else if (f == "--disk-cache-bytes") cfg.disk.bytes = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--host-cache-bytes") host_bytes = bytes_arg(argc, argv, i, a, std::numeric_limits<size_t>::max());
+                else if (f == "--disk-cache-bytes") cfg.disk.bytes = bytes_arg(argc, argv, i, a);
                 else if (f == "--disk-cache-dir") cfg.disk.dir = nonempty_value(argc, argv, i, a, "a path");
-                else if (f == "--disk-cache-floor") cfg.disk.floor = int_arg<uint64_t>(argc, argv, i, a, 0);
+                else if (f == "--disk-cache-floor") cfg.disk.floor = bytes_arg(argc, argv, i, a);
                 else if (f == "--disk-cache-keep") cfg.disk.keep = true;
                 else if (f == "--disk-cache-max-age") cfg.disk.max_age = seconds_arg(argc, argv, i, a);
                 else if (f == "--disk-cache-adopt") {
@@ -1818,8 +1897,8 @@ int main(int argc, char** argv) {
                     if (v != "refuse" && v != "shift") throw UsageError("--context-overflow takes refuse or shift, not " + v);
                     cfg.context_shift = v == "shift";
                 }
-                else if (f == "--ctx-size") cfg.ctx_size = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (f == "--kv-tokens") exec.kv_tokens = int_arg(argc, argv, i, a, 1);
+                else if (f == "--ctx-size") cfg.ctx_size = (size_t)count_arg(argc, argv, i, a, 1);
+                else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
@@ -1844,13 +1923,13 @@ int main(int argc, char** argv) {
                 const std::string_view f = long_spelling(a);
                 if (f == "--size") { n.size = int_arg(argc, argv, i, a, 32); if (synthetic_only.empty()) synthetic_only = a; }
                 else if (f == "--iters") { n.iters = int_arg(argc, argv, i, a, 1); if (synthetic_only.empty()) synthetic_only = a; }
-                else if (f == "--p") n.prompt = int_arg(argc, argv, i, a, 1);
-                else if (f == "--n") n.decode = int_arg(argc, argv, i, a, 1);
+                else if (f == "--p") n.prompt = count_arg(argc, argv, i, a, 1);
+                else if (f == "--n") n.decode = count_arg(argc, argv, i, a, 1);
                 else if (f == "--model") model_path = nonempty_value(argc, argv, i, a, "a path");
                 else if (exec_flag(argc, argv, i, exec, false)) { if (f != "--device" && f != "--threads" && model_only.empty()) model_only = a; }
                 else if (f == "--r") { n.repeats = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
                 else if (f == "--seqs") { n.seqs = int_arg(argc, argv, i, a, 1); if (model_only.empty()) model_only = a; }
-                else if (f == "--depth") { n.depth = int_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
+                else if (f == "--depth") { n.depth = count_arg(argc, argv, i, a, 0); if (model_only.empty()) model_only = a; }
                 else if (f == "--profile") { profile = true; if (model_only.empty()) model_only = a; }
                 else if (f == "--drafter") { drafter = flag_value(argc, argv, i, a); if (model_only.empty()) model_only = a; }
                 else if (f == "--draft-max") { draft_max = (size_t)int_arg(argc, argv, i, a, 1, infer::spec::kMaxDrafts); if (model_only.empty()) model_only = a; }

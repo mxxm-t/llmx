@@ -203,6 +203,20 @@ def check_usage_errors():
         for value in values:
             usage_error(["generate", model, "a", flag, value], "generate")
         usage_error(["generate", model, "a", flag], "generate")
+    # Sizes and durations of serve, and counts of tokens with a k or m suffix, are refused by their reasons.
+    size_bad = ["", "-1", "4x", "4 g", "1.5", "0.1g", "gb", "4gbb", "0x10", "18446744073709551616", "17179869184g"]
+    for flag in ("--host-cache-bytes", "--disk-cache-bytes", "--disk-cache-floor"):
+        for value in size_bad:
+            too_large = value in ("18446744073709551616", "17179869184g")
+            usage_error(["serve", model, flag, value], "serve", flag + ": '" + value + "' is too large" if too_large else flag + ": '" + value + "' is not a size" if value else "")
+        usage_error(["serve", model, flag], "serve")
+    for value in ("1w", "1H", "-1h", "1.5h", "213503982334602d"):
+        usage_error(["serve", model, "--disk-cache-max-age", value], "serve")
+    for args, page in ((["serve", model, "--ctx-size", "0k"], "serve"), (["serve", model, "-c", "1kb"], "serve"), (["serve", model, "--kv-tokens", "1g"], "serve"),
+                       (["serve", model, "--kv-tokens", "0.1k"], "serve"), (["generate", model, "a", "-n", "1.5"], "generate"),
+                       (["generate", model, "a", "--ubatch", "1KiB"], "generate"), (["logits", model, "a", "--last", "1b"], "logits"),
+                       (["bench", "--depth", "1gb"], "bench"), (["bench", "--p", "2097152k"], "bench")):
+        usage_error(args, page)
     for args, page in ((["serve", model, "--port", "65536"], "serve"), (["serve", model, "--port", "-1"], "serve"),
                        (["serve", model, "--max-seqs", "0"], "serve"), (["serve", model, "--max-queue", "0"], "serve"),
                        (["serve", model, "--passes", "0"], "serve"),
@@ -264,7 +278,7 @@ def listed_flags(page):
 
 
 # What each placeholder stands for in a line that takes the flag, a value every command listing that flag accepts.
-PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "M": "auto", "HOW": "refuse", "WHICH": "exact", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1", "S": "auto"}
+PLACEHOLDERS = {"N": "1", "F": "1", "X": "0.5", "D": "cpu", "T": "f16", "TIME": "24h", "SIZE": "4gb", "M": "auto", "HOW": "refuse", "WHICH": "exact", "A,B": "1", "TEXT": "x", "PATH": "missing.txt", "NAME": "x", "REF": "main", "H": "127.0.0.1", "S": "auto"}
 
 # The last line a taken line prints: a missing input file's error, which a command may prefix with its name, or pull's on its empty quant.
 UNREACHED = re.compile(r"error: (\w+: )?cannot open (file: )?missing\.|error: pull: quant is required$")

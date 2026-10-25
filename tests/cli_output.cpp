@@ -228,6 +228,36 @@ bool number_readers() {
          read_flag({"--disk-cache-max-age", "24h"}, age) == 86400 && read_flag({"--disk-cache-max-age", "7d"}, age) == 604800;
     for (const char* bad : {"", "h", "-1h", "+1h", "1.5h", "1hh", "1 h", "1w", "1H", "213503982334602d", "18446744073709551616"})
         ok = ok && !read_flag({"--disk-cache-max-age", bad}, age);
+    ok = ok && read_flag({"--disk-cache-max-age", "213503982334602d"}, age) == std::nullopt && !read_flag({"--disk-cache-max-age", "90S"}, age) && !read_flag({"--disk-cache-max-age", "1.5h"}, age);
+    // A size is bytes alone or followed by a binary unit in any case, with an exact fraction after a suffix only.
+    const auto size = [](int argc, char** argv, int& i) { return bytes_arg(argc, argv, i, "--disk-cache-bytes"); };
+    // The host flag's ceiling is size_t; half of it stands in so the refusal runs on a 64-bit build too.
+    const auto host = [](int argc, char** argv, int& i) { return bytes_arg(argc, argv, i, "--host-cache-bytes", (uint64_t)std::numeric_limits<size_t>::max() >> 1); };
+    const auto bytes = [&](const char* text) { return read_flag({"--disk-cache-bytes", text}, size); };
+    const uint64_t gib4 = 4294967296ull;
+    for (const char* same : {"4294967296", "4g", "4G", "4gb", "4GB", "4Gb", "4gib", "4GiB", "4gIb", "4096m", "4096mb", "4096MiB", "4194304k", "4194304kb", "4194304KiB", "4294967296b", "4294967296B", "0004g", "4.0g", "4.000gib", "4096.0m"})
+        ok = ok && bytes(same) == gib4;
+    ok = ok && bytes("0") == 0 && bytes("0g") == 0 && bytes("0.0g") == 0 && bytes("1") == 1 && bytes("010") == 10 && bytes("512b") == 512 &&
+         bytes("1k") == 1024 && bytes("1kb") == 1024 && bytes("1kib") == 1024 && bytes("1KiB") == 1024 && bytes("1m") == 1048576 && bytes("1t") == (1ull << 40) &&
+         bytes("1tb") == (1ull << 40) && bytes("1TiB") == (1ull << 40) && bytes("1.5g") == 1610612736 && bytes("0.5m") == 524288 && bytes("0.25k") == 256 &&
+         bytes("2.25gib") == 2415919104ull && bytes("1.0g") == (1ull << 30) && bytes("0.0009765625k") == 1 && bytes("1.5b") == std::nullopt &&
+         bytes("18446744073709551615") == UINT64_MAX && bytes("18446744073709551615b") == UINT64_MAX && bytes("16777215t") == 16777215ull * (1ull << 40) &&
+         bytes("17592186044415m") == 17592186044415ull * (1ull << 20) && bytes("17179869183g") == 17179869183ull * (1ull << 30) && bytes("18014398509481983k") == 18014398509481983ull * 1024;
+    for (const char* bad : {"", "g", "gb", "b", ".g", "x", "4x", "4w", "4 g", " 4g", "4g ", "4 ", "+4g", "-1g", "-0", "-0g", "0x10", "0x10g", "1e3", "1e3g", "1,5g", "1..5g", ".5g", "5.g", "1.5", "1.", "4gbb", "4gib b", "4mg", "4gg", "4mbit", "4Gbit", "4kbb", "4ib", "4kiB ", "0.1g", "0.3k", "1.5b", "0.00000000000000000000001g", "1.0000000000000000000000001m", "1.5e3g",
+                           "18446744073709551616", "18446744073709551616b", "16777216t", "17592186044416m", "17179869184g", "18014398509481984k", "99999999999999999999999999g", "4g4", "g4"})
+        ok = ok && !bytes(bad);
+    ok = ok && !read_flag({"--host-cache-bytes", "9223372036854775808"}, host) && read_flag({"--host-cache-bytes", "9223372036854775807"}, host) == (uint64_t)std::numeric_limits<size_t>::max() >> 1 &&
+         !read_flag({"--host-cache-bytes", "8589934592g"}, host) && read_flag({"--host-cache-bytes", "4g"}, host) == gib4;
+    // A count of tokens takes k (1024) and m (1048576) only, in any case, and the flag's range still holds.
+    const auto tokens = [](int argc, char** argv, int& i) { return count_arg(argc, argv, i, "--ctx-size", 1); };
+    const auto depth = [](int argc, char** argv, int& i) { return count_arg(argc, argv, i, "--depth", 0); };
+    ok = ok && read_flag({"--ctx-size", "256k"}, tokens) == 262144 && read_flag({"--ctx-size", "256K"}, tokens) == 262144 && read_flag({"--ctx-size", "1m"}, tokens) == 1048576 &&
+         read_flag({"--ctx-size", "1M"}, tokens) == 1048576 && read_flag({"--ctx-size", "4096"}, tokens) == 4096 && read_flag({"--ctx-size", "0.5k"}, tokens) == 512 &&
+         read_flag({"--ctx-size", "1.5m"}, tokens) == 1572864 && read_flag({"--ctx-size", "2097151k"}, tokens) == 2097151 * 1024 && read_flag({"--depth", "0"}, depth) == 0 &&
+         read_flag({"--depth", "0k"}, depth) == 0;
+    for (const char* bad : {"", "k", "0", "0k", "-1k", "+1k", "1kb", "1kib", "1g", "1b", "1t", "1 k", "1kk", "1.5", "0.1k", "0.0001k", "1e3k", "0x10", "2097152k", "2147483648", "99999999999999999999k", ".5k"})
+        ok = ok && !read_flag({"--ctx-size", bad}, tokens);
+    ok = ok && !read_flag({"--depth", "-1"}, depth) && !read_flag({"--ctx-size"}, tokens) && !read_flag({"--disk-cache-bytes"}, size) && !read_flag({"--disk-cache-max-age"}, age);
     // A flag at the end of the line has no value, for every reader.
     return ok && !read_flag({"--threads"}, threads) && !read_flag({"--temp"}, temp) && !read_flag({"--seed"}, seed) &&
            !read_flag({"--device"}, [](int argc, char** argv, int& i) { return flag_value(argc, argv, i, "--device"); });

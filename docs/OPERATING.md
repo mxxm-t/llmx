@@ -30,7 +30,7 @@ The final write takes at least 20 seconds and longer for a large cache: the serv
 A cache of tens of gigabytes needs more than the 10 seconds `docker stop` waits by default, so set the time well above the bound.
 
 ```
-llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 107374182400 --disk-cache-dir /var/cache/llmx --disk-cache-keep
+llmx serve model.gguf --device vulkan:0,vulkan:1 --disk-cache-bytes 100gib --disk-cache-dir /var/cache/llmx --disk-cache-keep
 docker stop -t 120 CONTAINER
 ```
 

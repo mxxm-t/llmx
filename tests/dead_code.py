@@ -14,6 +14,7 @@ import io
 import os
 import re
 import shutil
+import tempfile
 import socket
 import subprocess
 import sys
@@ -1404,6 +1405,18 @@ def self_test(texts, found, listed):
             if key not in got or key in found:
                 print("  self-test: %s was not reported as %s" % (what, " | ".join(key)))
                 ok = False
+    # The linked check's objects are those built from src/, wherever the tree is checked out: a tree under a path holding src/ must not make a test's objects count.
+    with tempfile.TemporaryDirectory() as tmp:
+        build = os.path.join(tmp, "src", "llmx", "build")
+        made = [os.path.join(build, "CMakeFiles", "llmx-json-test.dir", "tests", "json.cpp.o"),
+                os.path.join(build, "CMakeFiles", "llmx.dir", "src", "cli", "main.cpp.o")]
+        for path in made:
+            os.makedirs(os.path.dirname(path))
+            open(path, "wb").close()
+        count += 1
+        if sorted(product_objects(build)) != [made[1]]:
+            print("  self-test: a test object under a path holding src/ was taken for a product source")
+            ok = False
     stale = dict(listed)
     stale[("unused", "src/core/utf8.hpp", "planted_gone")] = (1, "a planted entry")
     if common.settle_findings(found, SOURCE_CHECKS, stale, say=lambda *a: None):

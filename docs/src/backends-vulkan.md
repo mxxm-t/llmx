@@ -236,6 +236,8 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   The row count where the tile starts winning is one of four measured thresholds in `backends/device_profile.hpp` (8-bit or other types, narrower or at least 4096 wide), which `tile_from` takes once per call from the types of the projections that have rows, Q8_0 grouped with F32 and the width split at the profile's `tile_narrow_nin` (4096).
   A mixed-type group on the row kernel becomes a dispatch per type, each kept on the row kernel.
   `tile_rows_for` picks a height of 128, 64 or 32 rows from the workgroups each height gives, the output rows over the height times the column groups, against the profile's workgroups per compute unit and the device's compute units, by the projection's width.
+  An integer tile's variants are its id's own height (variant 0), the small height of 32 rows for the short ids (variant 1) and the narrow build (variant 2, `_narrow`), whose workgroup takes 16 columns rather than 64 (specialization constant 8, `NARROW`, in `shaders/matmul_tile_q.comp`) with each thread still on its rows by 4 columns in the same order, so a column gives the 64-column build's bits.
+  `routed_call` takes the narrow build at the tall height, or the short one for a type with one integer module, where a call's entries are at most `kNarrowCols` (16) times the experts it can touch, and groups the entries in runs of 16 to match.
 - Batch invariance: with row runs (`backend.hpp` `RowRuns`) a row's
   matmul kernel and split follow its prompt's extent rather than the
   call's width. Attention uses that extent for tiled versus row dispatch

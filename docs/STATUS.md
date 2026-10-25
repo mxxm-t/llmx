@@ -59,6 +59,40 @@
   - the hosted run;
   - F2DEV's review of the lanes.
 
+## A routed integer tile of few entries takes a narrow build (2026-10-25, branch feat/routed-narrow, change 2 of the prompt-path PROPOSAL, design approved by the reviewer at 18:02, lands by fast-forward as two commits)
+
+- **Why:** a routed prompt spreads its entries over the experts, and the integer tile took them in runs of 64 columns.
+  Qwen3.8-Flash-Next's 512-row slice routes 10 picks a row over 512 experts, about 10 entries an expert, so most of each tile's columns were empty.
+- **What lands:**
+  - The integer tile gets a narrow build of 16 columns, variant 2 of its id (`_narrow`, specialization constant 8, `NARROW`, in `matmul_tile_q.comp`). Each thread keeps its rows by 4 columns in the same k order, so a column gives the 64-column build's bits.
+  - `routed_call` takes it, at the tall height (the short one for a type with one integer module), where a call's entries are at most `kNarrowCols` (16) times the experts it can touch, and groups the entries in runs of 16.
+  - No flag: the threshold is the build's own width.
+- **Tests:** `backend-vulkan`'s `check_routed_narrow` routes 200 rows over 64 experts, one expert taking 40 entries so its runs cross 16, then 600 rows repeating them, on Q4_0, Q8_0, Q4_K, Q5_K and Q6_K in int8 and f16.
+  The first call must take the narrow build and the second the 64-column one, by name where the device has timestamps, and the 200 rows' entries must be the same bits in both.
+  It must fail on the base by the build's name. A device whose profile takes the float tile, the Radeon VII among them, skips it by name.
+  The test also prints the time per entry of a routed Q4_K product at Flash's expert shape.
+- **Gate** (Qwen3.8-Flash-Next UD-Q4_K_XL, `--dtype int8`, f16 KV, ubatch 512, MI50 GPUs 4-7 at default clocks):
+  - On GPU 4, `check_routed_narrow` passes (10 calls) with every routed build named `_narrow` and the bits equal.
+  - The printed Q4_K occupancy: 657 ns an entry at 512 rows over 512 experts (10 an expert, narrow), against 282 at 2048 rows (40 an expert) and 265 and 184 with the same picks over 80 experts.
+  - `bench --p 2048 --n 8 --r 2`, main 8e84e4c4f against the branch on 6d6f0897d, interleaved main, new, new, main:
+
+| Placement | Main pp2048 tok/s | Narrow pp2048 tok/s | Change |
+|---|---|---|---|
+| 2x2 | 722.2, 718.2 | 794.9, 791.8 | +10.2% |
+| layer 4 | 1109.6, 1118.1 | 1274.1, 1270.8 | +14.2% |
+
+  - tg8 is level within its noise (2x2 43.6 and 42.4 against 42.8 and 42.4; layer 4 44.5 and 43.3 against 44.3 and 43.1): decode runs never take the tile.
+  - The main arm lacks 6d6f0897d's six vision-encoder commits, which no Flash path runs, so the landing round below builds both arms on the same base.
+- **Landing timing round** against main 14010059a, both arms built from detached checkouts, the same model and flags, GPUs 4-7 on cores 4-7, interleaved main, new, new, main:
+
+| Placement | Main pp2048 tok/s | Narrow pp2048 tok/s | Change |
+|---|---|---|---|
+| 2x2 | 722.2, 721.5 | 794.9, 794.8 | +10.1% |
+| layer 4 | 1139.0, 1118.9 | 1278.2, 1271.9 | +12.9% |
+
+  - tg8 is level. Another job's builds ran on other cores during two of the 2x2 cells (721.5 and 794.9), each within 0.1% of its partner, so the block was not repeated.
+- **Left:** the Radeon VII takes the float tile, which gets the same change afterwards under the same rule and test (the reviewer's ANSWER of 18:02).
+
 ## The indexer keeps each complete group's pooled key (2026-10-25, branch feat/index-pool on feat/index-scores, part 1 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits after parts 3 and 2)
 
 - **Why:** `kv_index_pool` pooled every complete group of a history again at every pass: 2.54 ms a decode stage of Qwen3.8-Flash-Next on 2x2 at a 155648-token history (2026-10-24 profiles), against 0.21 at 8k.

@@ -6,7 +6,7 @@
 #define LLMX_K23
 #endif
 // Y[b*nout + o] = dot(row o, X column b) for wide batches through the two-wide 16-bit integer dot, where it is native, against the activations' 16-bit twin (xquant.glsl), which the row kernels read too.
-// A workgroup computes a TILE_ROWS x 64 tile, walking the inner dimension one quant block of 32 at a time, over all of it or one part when split (parts added by matmul_reduce.comp); LLMX_I8 builds read the 8-bit twin (docs/PRECISION.md).
+// A workgroup computes a TILE_ROWS x COLS tile, walking the inner dimension one quant block of 32 at a time, over all of it or one part when split (parts added by matmul_reduce.comp); LLMX_I8 builds read the 8-bit twin (docs/PRECISION.md).
 #ifndef LLMX_I8
 #extension GL_EXT_shader_16bit_storage : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
@@ -43,6 +43,10 @@ int dot_word(uvec2 w, uvec2 x, int acc) { return dot_pairs(w, x, acc); }
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
+// A narrow build's 16 columns, for routed runs of few entries: each thread still computes its rows by 4 columns with the same loop, so a column gives the 64-column build's bits.
+layout(constant_id = 8) const uint NARROW = 0;
+const uint COLS = NARROW != 0u ? 16u : 64u;
+const uint TC = COLS / 4u;   // threads across the columns, each on 4 of them
 // Up to three projections of one X and one type per dispatch, workgroups start0, start1 and start2 on beginning each projection's row tiles; kper is the quant blocks a workgroup sums, xcols the columns of X the twin holds.
 // When the call is split, projection q's part z goes to y at parts * nbatch * (rows of the projections before q) + z * nbatch * nout_q, all projections sharing one scratch buffer.
 layout(push_constant) uniform P {
@@ -165,7 +169,7 @@ bool wide_scale(float c) {
 #endif
 
 
-#define MROWS (TILE_ROWS / 16u)
+#define MROWS (TILE_ROWS * TC / 256u)
 #define WPR (256u / TILE_ROWS)   // threads that stage one row's 8 words
 #define WW (8u / WPR)            // and how many words each
 
@@ -177,15 +181,15 @@ bool wide_scale(float c) {
 #endif
 // k-major: word w of every row, then of every column, each four values; block s of a step at words 8s to 8s + 7.
 shared TWORD wq[8u * STEP][TILE_ROWS];
-shared TWORD xw[8u * STEP][64];
+shared TWORD xw[8u * STEP][COLS];
 #ifdef LLMX_Q8
 shared float wsc[STEP * TILE_ROWS];   // per row and block: the scale
 // Per column and block: the activation scale, one stored by each of a column's four threads, so a step of two leaves two unused.
-shared float xsc[4u * 64u];
+shared float xsc[4u * COLS];
 #else
 // Per row and block: the scale of each half and the minimum it subtracts; Q2_K, Q3_K and Q6_K scale their halves apart.
 shared vec4 wsc[STEP * TILE_ROWS];
-shared vec2 xsc[STEP * 64u];     // per column and block: the activation scale and scale times integer sum
+shared vec2 xsc[STEP * COLS];    // per column and block: the activation scale and scale times integer sum
 #endif
 
 #if !defined(LLMX_Q8) && !defined(LLMX_Q6) && !defined(LLMX_K23)
@@ -232,17 +236,18 @@ void store_scales(uint wrow, uint wseg, bool ok, vec4 v) {
 #endif
 // Stores them from the registers they were loaded into, zero past the batch or the thread's part of the inner dimension.
 void store_x(uint k0, uint kend, bool xin, uint xcol, uint xseg, XVEC xv[STEP], float xf[XSC]) {
+    if (xcol >= COLS) return;
     for (uint s = 0u; s < STEP; ++s) {
         bool colv = xin && k0 + s < kend;
         xw[s * 8u + xseg * 2u][xcol] = colv ? XLO(xv[s]) : TZERO;
         xw[s * 8u + xseg * 2u + 1u][xcol] = colv ? XHI(xv[s]) : TZERO;
     }
 #ifdef LLMX_Q8
-    xsc[xseg * 64u + xcol] = xin && xseg < STEP && k0 + xseg < kend ? xf[0] : 0.0;
+    xsc[xseg * COLS + xcol] = xin && xseg < STEP && k0 + xseg < kend ? xf[0] : 0.0;
 #else
     for (uint k = 0u; k < XSC; ++k) {
         uint s = xseg % STEP;
-        xsc[s * 64u + xcol][xseg / STEP + k * (4u / STEP)] = xin && k0 + s < kend ? xf[k] : 0.0;
+        xsc[s * COLS + xcol][xseg / STEP + k * (4u / STEP)] = xin && k0 + s < kend ? xf[k] : 0.0;
     }
 #endif
 }
@@ -257,10 +262,10 @@ void main() {
     if (p.nproj > 2u && wg >= p.start2) pi = 2u;
     uint nout = pi == 0u ? p.nout0 : (pi == 1u ? p.nout1 : p.nout2);
     uint row_base = (wg - (pi == 0u ? p.start0 : (pi == 1u ? p.start1 : p.start2))) * TILE_ROWS;
-    uint ncg = (p.nbatch + 63u) / 64u;                 // column tiles; the workgroup's y is column tile plus ncg times its part
+    uint ncg = (p.nbatch + COLS - 1u) / COLS;          // column tiles; the workgroup's y is column tile plus ncg times its part
     uint part = gl_WorkGroupID.y / ncg;
-    uint col_base = (gl_WorkGroupID.y - part * ncg) * 64u;
-    uint expert = 0u, first = 0u, ncols = 64u;
+    uint col_base = (gl_WorkGroupID.y - part * ncg) * COLS;
+    uint expert = 0u, first = 0u, ncols = COLS;
     if (p.per != 0u) {
         uint y = gl_WorkGroupID.y;
         expert = tab[4u * y];
@@ -270,7 +275,7 @@ void main() {
         part = 0u;
         col_base = 0u;
     }
-    uint tr = tid / 16u, tc = tid - tr * 16u;         // micro-tile at rows tr*MROWS.., columns tc*4..
+    uint tr = tid / TC, tc = tid - tr * TC;           // micro-tile at rows tr*MROWS.., columns tc*4..
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W stager: row wrow, words wseg*WW..
     uint xcol = tid / 4u, xseg = tid - xcol * 4u;     // X stager: column xcol, words xseg*4..
     uint nblk = p.nin / 32u;
@@ -283,9 +288,9 @@ void main() {
     uint yo = parts > 1u ? p.nbatch * (parts * before + part * nout) : 0u;
     // The X column this thread stages.
     uint xc = col_base + xcol;
-    bool xin = xc < p.nbatch;
+    bool xin = xc < p.nbatch && xcol < COLS;
     if (p.per != 0u) {
-        xin = xcol < ncols;
+        xin = xcol < ncols && xcol < COLS;
         xc = xin ? tab[p.order0 + first + xcol] / p.per : 0u;
     }
     float acc[MROWS][4];
@@ -566,11 +571,11 @@ void main() {
         // Word w of every row of the thread against word w of its four columns, so all 4 * MROWS dot sums of the block stay live and a column word is read once.
         // Each sum still takes the block's eight words in order, so it is the integer a row at a time gave.
 #ifdef LLMX_Q8
-        float c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
-        float c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+        float c0 = xsc[s * COLS + tc * 4u], c1 = xsc[s * COLS + tc * 4u + 1u];
+        float c2 = xsc[s * COLS + tc * 4u + 2u], c3 = xsc[s * COLS + tc * 4u + 3u];
 #else
-        vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
-        vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+        vec2 c0 = xsc[s * COLS + tc * 4u], c1 = xsc[s * COLS + tc * 4u + 1u];
+        vec2 c2 = xsc[s * COLS + tc * 4u + 2u], c3 = xsc[s * COLS + tc * 4u + 3u];
 #endif
 #ifdef LLMX_Q8MX
         if (wide_scale(c0)) wide |= 1u;
@@ -629,8 +634,8 @@ void main() {
         }
 #else
         // The same word-outer form, the block's two halves of 16 summed apart since Q2_K, Q3_K and Q6_K scale them apart; these take only the short and small heights (qtile), so a thread's rows are all live at once.
-        vec2 c0 = xsc[s * 64u + tc * 4u], c1 = xsc[s * 64u + tc * 4u + 1u];
-        vec2 c2 = xsc[s * 64u + tc * 4u + 2u], c3 = xsc[s * 64u + tc * 4u + 3u];
+        vec2 c0 = xsc[s * COLS + tc * 4u], c1 = xsc[s * COLS + tc * 4u + 1u];
+        vec2 c2 = xsc[s * COLS + tc * 4u + 2u], c3 = xsc[s * COLS + tc * 4u + 3u];
         {
             int l[MROWS][4], h[MROWS][4];
             for (uint i = 0u; i < MROWS; ++i) for (uint j = 0u; j < 4u; ++j) { l[i][j] = 0; h[i][j] = 0; }

@@ -502,7 +502,10 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         return;
     }
     // Grouped by expert: the tiles in runs of 64, the row kernels in runs of their column count, so an expert's rows are read once per run rather than once per entry; at most one partial run per expert that has any.
-    const size_t chunk = tile ? 64 : kRowColsWide;
+    // Where the entries average 16 an expert or fewer the integer tile takes its narrow build, in runs of 16, whose columns give the 64-column build's bits.
+    const bool integer = tile && (dtype == Dtype::f16 || dtype == Dtype::int8) && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4;
+    const bool narrow = integer && entries <= kNarrowCols * std::min(n_expert, entries);
+    const size_t chunk = narrow ? kNarrowCols : tile ? 64 : kRowColsWide;
     const size_t max_tiles = (entries + chunk - 1) / chunk + std::min(n_expert, entries);
     const size_t tab_bytes = (4 * max_tiles + entries) * sizeof(uint32_t);
     if (!moe_tab_ || moe_tab_->size() < tab_bytes) {
@@ -529,11 +532,11 @@ inline void VulkanBackend::routed_call(const std::vector<const Projection*>& liv
         row_dispatch(plan, live, X, xqi, nin, xcols, 0, kRowColsWide, false, 2, u32(per), max_tiles, bind(ids), order0, tab, entries);
         return;
     }
-    if ((dtype == Dtype::f16 || dtype == Dtype::int8) && integer_dot_tile(type) && type != quant::GGML_TYPE_MXFP4) {
+    if (integer) {
         const bool i8 = dtype == Dtype::int8 && weight_kernels(type)->int8_tile != K_COUNT;
         uint32_t xpad = 0;
         const VkDescriptorBufferInfo xt = tile_twin(X, xcols * nin, nin, i8, xpad);
-        const QTile t = qtile(live, max_tiles, nin, i8);
+        const QTile t = qtile(live, max_tiles, nin, i8, narrow);
         const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
         const uint32_t pc[16] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
                                  t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols), xpad};
@@ -567,15 +570,16 @@ inline bool VulkanBackend::integer_dot_tile(uint32_t type) const {
     return dev_->profile.prefer_integer_dot && weight_kernels(type)->integer_tile != K_COUNT;
 }
 
-inline VulkanBackend::QTile VulkanBackend::qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8) const {
+inline VulkanBackend::QTile VulkanBackend::qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8, bool narrow) const {
     QTile t;
     for (const Projection* pr : ps) t.rows += pr->rows;
-    t.height = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
+    t.height = narrow ? kTileRowsTall : tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, t.rows, column_groups, nin);
     const WeightKernels& format = *weight_kernels(ps[0]->type);
     const KernelId tile = i8 ? format.int8_tile : format.integer_tile, tall = i8 ? format.int8_tall_tile : format.integer_tall_tile;
     // Types with one integer module keep the short height to bound live half sums.
     if (tile == tall && t.height == kTileRowsTall) t.height = kTileRowsShort;
     t.kernel = t.height == kTileRowsTall ? tall : tile;
+    t.variant = narrow ? 2 : t.height == kTileRowsSmall ? 1 : 0;
     for (size_t i = 0; i < 3; ++i) {
         t.p[i] = i < ps.size() ? ps[i] : ps[0];
         if (i >= ps.size()) continue;
@@ -592,7 +596,7 @@ inline void VulkanBackend::dispatch_qtile(const QTile& tile, std::array<VkDescri
                                           VkDescriptorBufferInfo activation, VkDescriptorBufferInfo grouping,
                                           const uint32_t (&pc)[16], uint32_t groups_y, std::array<size_t, 3> reach) {
     const Projection &a = *tile.p[0], &b = *tile.p[1], &c = *tile.p[2];
-    const int variant = tile.height == kTileRowsSmall ? 1 : 0;
+    const int variant = tile.variant;
     if (a.type == quant::GGML_TYPE_IQ1_S || a.type == quant::GGML_TYPE_IQ1_M || a.type == quant::GGML_TYPE_IQ3_S || a.type == quant::GGML_TYPE_IQ2_S || a.type == quant::GGML_TYPE_IQ3_XXS || a.type == quant::GGML_TYPE_IQ2_XXS || a.type == quant::GGML_TYPE_IQ2_XS)
         dispatch(tile.kernel, {output[0], output[1], output[2], bind(a.data), bind(b.data), bind(c.data), activation, activation, grouping,
                                lookup_grid(a.type, activation)}, pc, sizeof(pc), u32(tile.gx), groups_y, variant, {reach[0], reach[1], reach[2]});

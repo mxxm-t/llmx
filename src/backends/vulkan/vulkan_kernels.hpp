@@ -1443,6 +1443,8 @@ inline uint32_t build_cols(KernelId id, int variant) {
 
 // The tile kernel's row count, specialization constant 0: the shorter heights fill a device a taller tile would leave idle, the taller reads less shared memory per product.
 const uint32_t kTileRowsSmall = 32, kTileRowsShort = 64, kTileRowsTall = 128;   // the small height is variant 1 of the short kernels
+// The columns of an integer tile's narrow build, variant 2 (shaders/matmul_tile_q.comp, NARROW).
+const size_t kNarrowCols = 16;
 
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")

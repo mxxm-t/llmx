@@ -347,7 +347,7 @@ public:
     // A compiled kernel's name, a row kernel's builds other than the wide one marked by their columns or as grouped.
     static std::string kernel_variant_name(int id, int variant) {
         const bool tile = is_tile_kernel(static_cast<KernelId>(id));
-        if (variant == 2) return std::string(kKernelNames[id]) + "_grouped";
+        if (variant == 2) return std::string(kKernelNames[id]) + (tile ? "_narrow" : "_grouped");
         if (is_vec_kernel((KernelId)id) && variant == kVecOneRow) return std::string(kKernelNames[id]) + "_1col_1row";
         if (is_vec_kernel((KernelId)id) && variant == kVecTwoSteps) return std::string(kKernelNames[id]) + "_1col_2step";
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
@@ -1317,12 +1317,14 @@ public:
     // Unused slots repeat the first projection, which no workgroup reaches.
     struct QTile {
         uint32_t height = 0;
+        int variant = 0;   // 1 the small height, 2 the narrow build of 16 columns
         KernelId kernel = K_MATMUL_TILE_Q;
         size_t rows = 0, gx = 0;
         uint32_t start[3] = {0, 0, 0}, nout[3] = {0, 0, 0};
         const Projection* p[3] = {nullptr, nullptr, nullptr};
     };
-    QTile qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8 = false) const;
+    // A `narrow` call takes the build of 16 columns at the tall height, or the short one for a type with one integer module.
+    QTile qtile(const std::vector<const Projection*>& ps, size_t column_groups, size_t nin, bool i8 = false, bool narrow = false) const;
     void dispatch_qtile(const QTile& tile, std::array<VkDescriptorBufferInfo, 3> output,
                         VkDescriptorBufferInfo activation, VkDescriptorBufferInfo grouping,
                         const uint32_t (&pc)[16], uint32_t groups_y, std::array<size_t, 3> reach = {});

@@ -303,9 +303,7 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
                 dispatch(K_KV_INDEX_SCORES, {qb, pb, scores, table_binding()}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
             }
             if (unordered_) barrier(open());
-            const uint32_t tc[] = {u32(vi), u32(row), u32(count), compression, budget, output_stride};
-            dispatch(K_KV_INDEX_SELECT, {scores, ob, table_binding()}, tc, sizeof(tc), u32(rows));
-            if (unordered_) barrier(open());
+            select_rows(scores, ob, table.words, u32(vi), row, rows, count, compression, budget, output_stride, false);
         }
     }
 }
@@ -319,6 +317,14 @@ inline std::vector<VulkanBackend::Placed> VulkanBackend::place_views(const KVVie
         row0 = size_add(row0, views[i].nq);
     }
     return placed;
+}
+
+inline void VulkanBackend::select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,
+                                       size_t groups, uint32_t compression, uint32_t budget, uint32_t stride, bool wide) {
+    (void)wide;
+    const uint32_t tc[] = {view, u32(row), u32(groups), compression, budget, stride};
+    dispatch(K_KV_INDEX_SELECT, {scores, ids, args(table.data(), table.size() * sizeof(uint32_t))}, tc, sizeof(tc), u32(rows));
+    if (unordered_) barrier(open());
 }
 
 inline VulkanBackend::ViewTable VulkanBackend::view_table(size_t layer, const std::vector<Placed>& placed, bool writing) {

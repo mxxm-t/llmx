@@ -29,6 +29,7 @@ namespace {
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
     friend struct VulkanQuantizationTest;
+    friend struct VulkanIndexTest;
 public:
     explicit VulkanBackend(int index, bool diagnostics = false) : dev_(std::make_shared<Device>()), timed_(diagnostics) {
         Device& d = *dev_;
@@ -1325,6 +1326,9 @@ public:
         size_t row0;
     };
     static std::vector<Placed> place_views(const KVView* views, size_t n_views);
+    // The groups a selection takes for `rows` rows from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp); one workgroup a row, `wide` or not.
+    void select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,
+                     size_t groups, uint32_t compression, uint32_t budget, uint32_t stride, bool wide);
     // The table the batched cache kernels read (shaders/views.glsl) for a subset of a batch's views.
     // Every view is checked against the storage by BlockKVStorage::check_view, which backs the blocks a writing op's rows land in and requires a reading op's written.
     struct ViewTable {

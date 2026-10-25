@@ -423,6 +423,15 @@ if(LLMX_HAS_BACKEND_VULKAN)
     list(APPEND LLMX_TARGETS llmx-vulkan-quantization-test)
     add_test(NAME vulkan-quantization COMMAND llmx-vulkan-quantization-test)
     set_tests_properties(vulkan-quantization PROPERTIES TIMEOUT 120 SKIP_RETURN_CODE 77)
+    # Includes the private implementation to drive the indexer's kernels on chosen inputs.
+    add_executable(llmx-vulkan-index-test tests/vulkan_index.cpp)
+    add_dependencies(llmx-vulkan-index-test llmx-vulkan-shaders)
+    target_include_directories(llmx-vulkan-index-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
+    target_link_libraries(llmx-vulkan-index-test PRIVATE ${CMAKE_DL_LIBS})
+    list(APPEND LLMX_TARGETS llmx-vulkan-index-test)
+    add_test(NAME vulkan-index COMMAND llmx-vulkan-index-test)
+    set_tests_properties(vulkan-index PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)
     # Not a test: times the routed expert projections against dense matmuls of the same bytes.
     add_executable(llmx-moe-kernel-bench tools/moe_kernel_bench.cpp)
     target_link_libraries(llmx-moe-kernel-bench PRIVATE llmx-vulkan)

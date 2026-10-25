@@ -25,6 +25,7 @@ out src/core/sha.hpp | hashes
 out src/core/crc32c.hpp | checksums
 out src/core/cgroup.hpp | reads the limits a process runs under
 out src/core/cpus.hpp | chooses thread counts, across which the tests hold every result bit-identical
+out src/image | turns image files into pixels, which no history reads before image input's prompt step; from then the digest of those pixels keys an image's rows (docs/VISION.md, section 5), so a change here changes the key and never a matched entry's bits
 
 allow src/core/cpus.hpp | the CPU backend takes its worker count from it; results do not depend on the count
 allow src/core/cgroup.hpp | host_memory.hpp reads a limit through it; a size, not a value

@@ -604,6 +604,7 @@ It holds HF's ids for its texts and the part of the vocabulary those texts reach
 It keeps apart the 7 control tokens only `tokenizer_config.json` adds, which `tests/tokenizer.py` holds to one id each, and gives every added token the type the GGUF files give it.
 
 It was generated in a second isolated venv, which the qwen35 references share and which leaves the transformers 4.55.2 environment above as it is: Python 3.12.13 with torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6 and Jinja2 3.1.6.
+Since 2026-10-25 it also holds torchvision 0.20.1+cpu and Pillow 13.0.0 for the image references below, which `qwen35_environment` requires of every qwen35 reference; no text reference was regenerated, and every text fixture's bytes are unchanged.
 
 Every Qwen3.5, 3.6 and 3.8 GGUF read on the Linux machine holds the same 248,320 tokens, token types and 247,587 merges.
 That is 45 distinct files: 18 qwen35 and 11 qwen35moe models, 2 DFlash drafters (`dflash`), and 14 files of Qwen3.8-Flash-Next (`qwen4exp`) and its MTP heads, which carry the same tokenizer.
@@ -613,6 +614,14 @@ That gives 27 control and 6 user-defined tokens in each file.
 
 transformers 5.17.0 loads this repository as `Qwen2Tokenizer`, which replaces the file's pretokenizer with the qwen2 regex and adds the 7 control tokens.
 Its ids therefore differ from `tokenizer.json` on text with combining marks (Thai and Devanagari) and on those 7 tokens, so the qwen35 tokenizer golden takes its ids from `tokenizers` and the file itself, and any qwen35 reference that tokenizes through `AutoTokenizer` must be checked against it.
+
+#### The image decoding references
+
+`tools/gen_baseline.py image-decode` (`tools/image_reference.py`) writes `tests/data/image_decode.json` and the image files under `tests/data/images` that `image-decode` reads ([VISION](VISION.md), section 2); it takes only `--output-dir` and is not part of `all`.
+It runs in the qwen35 venv above, with its pinned torchvision and Pillow, and refuses another Pillow wheel or codec: the wheel tagged `cp312-cp312-manylinux_2_27_x86_64` and `manylinux_2_28_x86_64`, reporting libjpeg-turbo 3.2.0 and zlib 1.3.1, each recorded in the fixture (the coordinator's and F2DEV's decision of 2026-10-25).
+It was generated on 2026-10-25 in a `python:3.12.13-slim` container on the Linux machine (an AMD EPYC 7262, which takes torch's AVX2 resize kernel).
+It makes its own images: PNGs by a writer of the module over zlib, so every color type, bit depth, filter and interlace is reached, and JPEGs, GIF and WebP by Pillow.
+The reference for each is transformers' `load_image` (Pillow's decoding, `exif_transpose` and conversion to RGB), then `Qwen2VLImageProcessor`'s smart_resize and torchvision resize at the Qwen 3.5 and 3.8 processor's settings; the fixture keeps the digests of those bytes, and the bytes themselves for images of 4096 pixels or fewer, so the suite needs neither Pillow nor torchvision.
 
 #### The tiny qwen35 references
 

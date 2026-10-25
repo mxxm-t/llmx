@@ -454,6 +454,11 @@ It also holds the int8 dtype to the rule every value follows: auto never chooses
 every finite half must encode back to its own bits, and floats at a fixed stride through the magnitudes below 2 of both signs, with eight chosen values such as the largest half and the smallest normal and subnormal ones, must each encode to the nearest half, ties to even.
 Named cases pin the mantissa's carry into the exponent, overflow by rounding to infinity, both zeros, an underflow to zero, infinity and a NaN that keeps a payload.
 
+`image-decode` holds `image::decode_image`, `smart_resize` and `resize_bicubic` (`src/image/image.hpp`) to the bytes the Qwen vision models' processor gives, from `tests/data/image_decode.json`, which `tools/gen_baseline.py image-decode` writes in the qwen35 reference environment with its pinned torchvision and Pillow (docs/ASSETS.md).
+Every PNG of every color type and bit depth, filtered by each filter and interlaced or not, gray and palette images with tRNS, and JPEGs of 4:4:4, 4:2:2 and 4:2:0 sampling, baseline and progressive, gray, Adobe RGB, optimized and with restart intervals, at sizes from 1 by 1 to 300 by 200 and qualities 30 to 100, must decode to the RGB bytes transformers' `load_image` gives, EXIF orientations 0 to 9 in JPEG and PNG (eXIf, a tEXt `exif` chunk and raw EXIF profiles), big-endian and long EXIF and XMP orientations included; the small images' bytes are committed beside their digests, so a mismatch names its first pixel.
+Every image of 225 pixels or more must resize to the size HF's smart_resize gives and to torchvision's bytes at the processor's pixel bounds and at a pair that shrinks the larger ones, and 80 smart_resize cases must give HF's size or its refusal.
+CMYK, arithmetic-coded, lossless and 12-bit JPEG, GIF, WebP, 16-bit PNG, a bad CRC, a palette index past the palette and a text file are refused with their texts, an image one pixel past the limit is refused and one at it is not, and every prefix of every image (97 a file) is refused while 24 flipped bits a file are refused or decoded, never anything else.
+
 `cpus` holds the automatic worker count of `core/cpus.hpp`, and the cgroup reading of `core/cgroup.hpp` it goes through, on file texts and field values rather than a real cgroup or job object.
 It reads cgroup v2's `cpu.max` ("max 100000" as no limit, "600000 100000" as 6 CPUs, "150000 100000" rounded up to 2) and v1's `cpu.cfs_quota_us` over `cpu.cfs_period_us` (-1 as no limit), every malformed text as nothing, the process's cgroup in `/proc/self/cgroup` for v2 and for v1's cpu controller, refusing a path that is not absolute or climbs, and the cgroup mounts in `/proc/self/mountinfo` with their roots and escapes.
 Over a file system held in a map it reads the quota in the process's own cgroup, found under its mount by taking the mount's root off its path, and in each cgroup above it up to the mount point, v1, v2 and both, the smallest winning: a child cgroup inside a container is read, a cgroup inside one that shares a name with the container's path on the host is not, and a path no mount's root holds reads nothing.
@@ -1126,6 +1131,7 @@ See `docs/CI.md` for workflow coverage and reproduction commands.
   For `file-exact` it checks the argument combinations it refuses, that `tests/baseline.py --file-exact` fails when the device has no kernel for the file, the HF parameters a few GGUF tensor names take under the one map `tests/f32.py` holds for the tiny models and file-exact alike, and a tiny GGUF's tensors reaching their parameters with reversed dimensions and unchanged values.
   Every qwen35 reference runs through one check of its environment (`qwen35_environment` in `tools/gen_baseline.py`), whose doubles must see a torch, transformers or tokenizers version other than the pinned ones refused, transformers pinned as the chat renderer pins it, and an installed `kernels`, `fla` or `causal_conv1d` package refused, since HF would run it in place of its torch functions.
   For `qwen35-tiny` its doubles hold the generator offline, to float32 and eager attention, and to its key checks: only `mtp.*` and `model.visual.*` keys unused, and none missing.
+  For the image references it checks that the committed `tests/data/image_decode.json` records the environment and codecs the generator holds itself to (`QWEN35_ENV`, `QWEN35_IMAGE_CODECS`), its processor and its cases, and that every image file is the one its digest names; and that another libjpeg-turbo, zlib or Pillow wheel is refused before any image is written.
   The converter's tiled V-head order has one owner, `tests/qwen35.py`, for the tiny writer, file-exact and the layered reference alike, and the test maps HF's `dt_bias` of one Qwen3.5-4B layer onto that layer's `ssm_dt.bias` in a 4B GGUF bit for bit through it (`tests/data/qwen35_4b_dt_bias.json`), so a misreading of the order that the writer and the kernels share cannot pass the Hv = 3 Hk fixture.
   It also checks `tests/data/fixtures.json`: each file pinned once with every field, the gate's models those with bounds, UD-Q8_K_XL hosted and gated at Q8_0's bounds, IQ4_XS and Q2_K marked hosted but not in the gate, and of the qwen35 files the two 0.8B ones hosted and in the gate and the 4B checked by hand. The released Q2_K file also contains Q3_K tensors; both implementations need qualification before that mixed file can be claimed qualified.
   The qwen35 tokenizer golden, on a made-up vocabulary, must keep a merge that joins across a cut HF makes and drop one no text reaches.
@@ -1210,7 +1216,7 @@ The `vulkan-quantization` offset-range regression checks zero rows beside a unit
 
 See `docs/ARCHITECTURE.md` for the layer diagram and rules. The rule that
 matters: **each layer depends only on the layers below it** -
-`cli > server > inference > model > backends > tokenizer > format > quant > core`;
+`cli > server > inference > model > backends > tokenizer > format > quant > core`, with `image/` beside `tokenizer/` on `core/` alone;
 `server/` uses the inference layer and adds only scheduling and transport.
 
 | Directory    | Contents                                        |
@@ -1220,6 +1226,7 @@ matters: **each layer depends only on the layers below it** -
 | `quant/`     | storage metadata and checked row sizes in types.hpp, decoder registry, F16/BF16 widening and the Q, K, IQ, MXFP4 and TQ family decoders |
 | `format/`    | GGUF v3 reader/writer (headers, then mapping, then reading in), file spans, a file read at offsets, output files published whole, raw F32 tensors to and from GGUF |
 | `tokenizer/` | byte-level BPE, Qwen2/Qwen3/Qwen3.5 pretokenizer |
+| `image/`     | image files decoded, oriented and resized for a vision encoder, beside the tokenizer; depends on core alone |
 | `model/`     | runtime (sequences and their histories, passes, stages, the arena, placement), one module per architecture under `arch/` chosen by the registry (qwen3 and qwen3moe, qwen35 and qwen35moe, qwen4exp) with their shared graph pieces, KV cache and recurrent state slots, layer split over devices, tensor shards |
 | `backends/`  | Backend interface + cpu/ (AVX2) and vulkan/ impls; one worker pool; `device_profile.hpp`, the device numbers a GPU backend shapes its kernels by |
 | `inference/` | model loading, sampler, log-probabilities, generate, perplexity, chat template renderer |

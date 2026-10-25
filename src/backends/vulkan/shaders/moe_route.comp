@@ -9,9 +9,18 @@ layout(set = 0, binding = 0) readonly buffer S { float scores[]; };
 layout(set = 0, binding = 1) buffer I { uint ids[]; };
 layout(set = 0, binding = 2) buffer W { float weights[]; };
 
-const uint MAX_EXPERTS = 1024u;
-const uint kHeld = 4u;   // scores an invocation holds in registers: every expert up to 256
-shared float prob[MAX_EXPERTS];
+// Invocation t holds experts t + 64 q, q < kHeld, in registers; route_experts takes the build of the fewest slots that hold the row.
+#if defined(LLMX_SLOTS1)
+const uint kHeld = 1u;
+#elif defined(LLMX_SLOTS2)
+const uint kHeld = 2u;
+#elif defined(LLMX_SLOTS4)
+const uint kHeld = 4u;
+#elif defined(LLMX_SLOTS8)
+const uint kHeld = 8u;
+#else
+const uint kHeld = 16u;
+#endif
 shared float part_v[2];
 shared uint part_i[2];
 shared float chosen[256];
@@ -48,54 +57,49 @@ uint group_min(uint v) {
 void main() {
     uint r = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
     uint base = r * p.n_expert;
-    // An invocation's first scores are loaded together, rather than each loop waiting on each load in turn.
-    float sc[kHeld];
-    for (uint q = 0u; q < kHeld; ++q) sc[q] = t + 64u * q < p.n_expert ? scores[base + t + 64u * q] : 0.0;
+    // Every score is loaded at once, a slot past the experts reading the last one, which it then leaves out.
+    float pr[kHeld];
+    for (uint q = 0u; q < kHeld; ++q) pr[q] = scores[base + min(t + 64u * q, p.n_expert - 1u)];
     float top = -1.0 / 0.0;
     for (uint q = 0u; q < kHeld; ++q)
-        if (t + 64u * q < p.n_expert) top = max(top, sc[q]);
-    for (uint e = t + 64u * kHeld; e < p.n_expert; e += 64u) top = max(top, scores[base + e]);
+        if (t + 64u * q < p.n_expert) top = max(top, pr[q]);
     top = group_max(top);
     float part = 0.0;
-    for (uint q = 0u; q < kHeld; ++q) {
-        uint e = t + 64u * q;
-        if (e < p.n_expert) {
-            float v = exp(sc[q] - top);
-            prob[e] = v;
+    for (uint q = 0u; q < kHeld; ++q)
+        if (t + 64u * q < p.n_expert) {
+            float v = exp(pr[q] - top);
+            pr[q] = v;
             part += v;
         }
-    }
-    for (uint e = t + 64u * kHeld; e < p.n_expert; e += 64u) {
-        float v = exp(scores[base + e] - top);
-        prob[e] = v;
-        part += v;
-    }
     float sum = group_sum(part);
-    // Each invocation reads back only the experts it wrote, so no barrier is needed before the division; a probability below FLT_MIN counts as 0 under any float mode.
-    for (uint e = t; e < p.n_expert; e += 64u) {
-        float v = prob[e] / sum;
-        prob[e] = v < uintBitsToFloat(0x00800000u) ? 0.0 : v;
+    // A probability below FLT_MIN counts as 0 under any float mode, and a slot past the experts holds -2, which no pick takes.
+    for (uint q = 0u; q < kHeld; ++q) {
+        float v = pr[q] / sum;
+        pr[q] = t + 64u * q >= p.n_expert ? -2.0 : v < uintBitsToFloat(0x00800000u) ? 0.0 : v;
     }
+    // Every invocation adds the picks in j order, the sum the weights are divided by.
+    float total = 0.0;
     for (uint j = 0u; j < p.k; ++j) {
         // The largest untaken probability, then the lowest id holding it; a taken expert holds -1, below every probability.
         float bv = -2.0;
         uint bi = 0xffffffffu;
-        for (uint e = t; e < p.n_expert; e += 64u)
-            if (prob[e] > bv) { bv = prob[e]; bi = e; }
+        for (uint q = 0u; q < kHeld; ++q)
+            if (pr[q] > bv) { bv = pr[q]; bi = t + 64u * q; }
         float m = group_max(bv);
         uint id = group_min(bv == m ? bi : 0xffffffffu);
-        // The chosen expert belongs to invocation id % 64, which marks it and records its probability; where none is left the pick is the invalid id, which marks nothing.
-        if (t == id % 64u) {
-            chosen[j] = id < p.n_expert ? m : 0.0;
+        // Where none is left the pick is the invalid id, which marks nothing and adds 0.
+        for (uint q = 0u; q < kHeld; ++q)
+            if (t + 64u * q == id) pr[q] = -1.0;
+        float c = id < p.n_expert ? m : 0.0;
+        total += c;
+        if (t == 0u) {
+            chosen[j] = c;
             chosen_id[j] = id;
-            if (id < p.n_expert) prob[id] = -1.0;
-            ids[r * p.k + j] = id;
         }
     }
     barrier();
-    if (t == 0u) {
-        float total = 0.0;
-        for (uint j = 0u; j < p.k; ++j) total += chosen[j];
-        for (uint j = 0u; j < p.k; ++j) weights[r * p.k + j] = chosen_id[j] >= p.n_expert ? 0.0 : p.normalize != 0u ? chosen[j] / total : chosen[j];
+    for (uint j = t; j < p.k; j += 64u) {
+        ids[r * p.k + j] = chosen_id[j];
+        weights[r * p.k + j] = chosen_id[j] >= p.n_expert ? 0.0 : p.normalize != 0u ? chosen[j] / total : chosen[j];
     }
 }

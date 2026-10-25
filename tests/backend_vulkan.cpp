@@ -4265,7 +4265,7 @@ size_t check_route_shapes() {
     struct Shape { size_t n; const char* build; };
     const Shape shapes[] = {{1, "moe_route_s1"}, {7, "moe_route_s1"}, {64, "moe_route_s1"}, {65, "moe_route_s2"}, {128, "moe_route_s2"}, {200, "moe_route_s4"},
                             {256, "moe_route_s4"}, {257, "moe_route_s8"}, {512, "moe_route_s8"}, {1000, "moe_route"}, {1024, "moe_route"}};
-    size_t values = 0;
+    size_t values = 0, witnessed = 0;
     uint32_t seed = 2400;
     for (const Shape& sh : shapes) {
         const size_t n = sh.n;
@@ -4301,9 +4301,15 @@ size_t check_route_shapes() {
                 Pair::In si = p.in(scores);
                 Pair::Out ids = p.out(rows * k), wts = p.out(rows * k);
                 p.cpu.route_experts(si.cs(), rows, n, k, normalize, ids.cs(), wts.cs());
+                (void)backend::vulkan_kernel_times(vk);
                 p.vk.route_experts(si.vs(), rows, n, k, normalize, ids.vs(), wts.vs());
                 const auto ri = p.results(ids), rw = p.results(wts);
                 const std::string label = std::to_string(n) + " experts (" + sh.build + "), k " + std::to_string(k) + (normalize ? ", normalized" : "");
+                // Where the device times its dispatches, the call took the build the shape names.
+                const auto times = backend::vulkan_kernel_times(vk);
+                require(times.empty() || std::any_of(times.begin(), times.end(), [&](const auto& kt) { return kt.first == sh.build; }),
+                        ("routing did not take its build at " + label).c_str());
+                witnessed += !times.empty();
                 for (size_t i = 0; i < rows * k; ++i)
                     if (std::memcmp(&ri.first[i], &ri.second[i], sizeof(float)) != 0) {
                         uint32_t c, d;
@@ -4329,6 +4335,7 @@ size_t check_route_shapes() {
         }
         require(refused, "routing over 1025 experts was not refused on the device");
     }
+    if (!witnessed) std::cout << "backend-vulkan: the device times no dispatches, so the routing builds were not witnessed\n";
     return values;
 }
 

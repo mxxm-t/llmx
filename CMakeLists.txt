@@ -73,7 +73,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
         kv_index_pool kv_index_scores kv_index_select)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
-    set(LLMX_VK_VARIANTS matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32
+    set(LLMX_VK_VARIANTS moe_route_s1=moe_route=LLMX_SLOTS1 moe_route_s2=moe_route=LLMX_SLOTS2 moe_route_s4=moe_route=LLMX_SLOTS4 moe_route_s8=moe_route=LLMX_SLOTS8
+        matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_iq4_xs_dot=matmul_row=LLMX_IQ4+LLMX_IQ4_XS+LLMX_DOT+LLMX_PRESERVE_F32
         matmul_row_mxfp4=matmul_row=LLMX_MXFP4+LLMX_PRESERVE_F32
         matmul_row_mxfp4_dot=matmul_row=LLMX_MXFP4+LLMX_DOT+LLMX_PRESERVE_F32

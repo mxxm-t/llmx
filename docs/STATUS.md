@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## Expert routing by slot count (2026-10-25, branch feat/route-fast on main b9c6e7314, item K4 step 1 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15, the coordinator's gate of 2026-10-25 05:05 with C2DEV's additions of 05:06, F2DEV's REVIEW of 05:49, lands by fast-forward as two commits before K1's two)
+
+- **Goal:** `moe_route` at least twice as fast at Qwen3.8-Flash-Next's shape (512 experts, k 10, one row), the bits unchanged, as the first step of K4; the second step, the route folded into the router's dispatch, is not part of this branch.
+- **The change:** `moe_route.comp` holds an invocation's scores and probabilities in registers instead of shared memory, loads every score at once, and writes the ids and weights a pick per invocation after one barrier, each invocation adding the picks to their sum in pick order. It is built once per slot count, `moe_route_s1`, `_s2`, `_s4` and `_s8` for up to 64, 128, 256 and 512 experts and `moe_route` for up to 1024, and `route_experts` takes the build of the fewest slots that hold the row. The softmax, the FLT_MIN clamp, the strict `>` scan, the subgroup maximum and minimum, the -1 marker and each weight's division are the same operations in the same order, so the outputs are the base kernel's bits.
+- **Floor on the Radeon VII (Windows, AMD driver, default clocks):** an empty dispatch of the kernel's bindings that only writes its ids takes 3.8 us by the device's timestamps, one load of the scores beside it 5.5 us, and a 64-float `add` 5.1 us, so the first gate of 5 us a call was under any kernel that reads its input.
+- **Probe, us a call, median of 9 rounds of 200 calls on the Radeon VII, the base kernel of aae80f1db against this branch:**
+
+  | Experts / k | Rows | Base | This branch | Speed-up |
+  |---|---|---|---|---|
+  | 512 / 10 (Qwen3.8-Flash-Next) | 1 | 20.91 | 8.49 | 2.46x |
+  | 512 / 10 | 4 | 21.60 | 8.01 | 2.70x |
+  | 128 / 8 (qwen3moe) | 1 | 12.30 | 6.79 | 1.81x |
+  | 128 / 8 | 4 | 11.85 | 6.48 | 1.83x |
+  | 256 / 8 (qwen35moe) | 1 | 13.73 | 7.25 | 1.89x |
+  | 256 / 8 | 4 | 13.32 | 6.88 | 1.94x |
+  | 64 / 8 | 1 | 11.64 | 6.49 | 1.79x |
+  | 1024 / 10 | 1 | 33.25 | 10.33 | 3.22x |
+
+  Each call run after a 2048x2048 F32 matvec, so the device stays busy as in a decoded token, gives the same figures within 0.4 us (512 / 10: 20.77 against 8.86).
+- **Bits:** the scratch probe's dump of every id and weight over 35 shapes (1, 7, 64, 65, 128, 200, 256, 257, 512, 1000 and 1024 experts at k 1, 8, 10 and k = n up to 256), normalized and not, 3920 rows and 100016 picks, with ties, NaN, +inf, all -inf, all NaN, fewer finite experts than k and score gaps from 0 to 1000, is byte-identical between the base and this branch, and every id equals the CPU's.
+- **Tests:** backend-vulkan's routing check at every expert count a build covers holds the device's ids exactly and its weights within 1e-6 to the CPU, gaps either side of FLT_MIN included, refuses 1025 experts and, where the device times its dispatches, requires each count's build; it lands first and passes on the base too, since the bits do not change.
+- **Gates:** on the Radeon VII, backend-vulkan passes on the base and on this branch; the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures (`llmx-model-logits` batched, decode and greedy captures and `logits --last 13` with and without `--per-token`) and Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (`logits --last 16`, greedy `generate -n 64`) are byte-identical to the base, 28 of 28 files; CTest 82 of 82 on the Radeon VII; dead-code and docs clean.
+- **MI50 round (runs/r27; RADV, default clocks, both arms built the same way from archives of their commits, interleaved; the base is the subnormal fix aae80f1db, whose kernel this replaces):**
+  - Per call alone on one MI50, median of three runs of nine medians of 200 calls, the empty dispatch beside it at 3.64-3.71 us: 512 / 10 one row 21.62 to 11.74 us (1.84x) and four rows 21.75 to 7.12 us (3.1x); 256 / 8 one row 13.56 to 8.54 us and four rows 12.76 to 6.95 us; 128 / 8 one row 12.06 to 7.41 us and four rows 11.20 to 6.64 us, so the qwen3moe and qwen35moe shapes are faster, not only no slower.
+  - A lone one-row call runs below its rate inside a token; in the model, `bench --model --profile` on Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 int8, decode, the route's device time is 16.75 to 7.07 ms on the first stage and 16.38 to 6.98 ms on the second over the same 27356 and 27260 dispatches, about 21.8 to 9.2 us a call (2.4x), which meets the gate of 2x a call at Flash's shape.
+  - Decode on Flash 2x2 int8 without the profile, three runs each interleaved with main and K1 on GPUs 4-7, GPUs 8-9 idle: main 40.48, 40.30, 40.33 tok/s, this branch 41.83, 41.70, 41.96 (mean 41.83 against 40.37, +3.6%); pp64 level (287.6 against 286.3).
+  - backend-vulkan passes on an MI50, the routing check at every build included (117876 picks and weights).
+  - Byte identity against main: the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures on one MI50, Qwen3.6-35B-A3B Q4_K_M on one MI50 (16 logits rows and 64 greedy tokens), and Flash UD-Q4_K_XL 2x2 int8 (16 logits rows and 64 greedy tokens).
+- **Step 2, the route folded into the router's dispatch:** after this step the route is 0.22 ms of device time a member a token on Flash 2x2, of which its floor, 24 calls at 3.66 us, is 0.09 ms; what folding could remove, the floor and the gap between two dispatches, stays under F2DEV's 0.3 ms a token, so it is recorded as measured and not built (F2DEV's REVIEW of 05:49); B's fusion of the MoE step reaches the same dispatch.
+- **Hand check:** the routing check needs a device, and no hosted runner has one, so `llmx-backend-vulkan-test` on the Radeon VII and an MI50 is its record, as above.
+- **Left:** the hosted run.
+
 ## Image input (2026-10-25, branches docs/vision and then the eight steps of [VISION](VISION.md), F2DEV's DECISION of 06:18 on VDEV's DESIGN of 06:13 and the coordinator's and F2DEV's DECISION on the reference environment, in progress)
 
 - **Goal:** images in chat requests for the Qwen 3.5, 3.6 and 3.8 models and Qwen3.8-Flash-Next, read through the `mmproj` GGUF that ships beside the text file, with HF's bytes at every stage; ROADMAP 10.

@@ -691,6 +691,18 @@ const uint32_t kSpvMatmulReducePreserve[] = {
 const uint32_t kSpvMoeRoute[] = {
 #include "vulkan/moe_route.inc"
 };
+const uint32_t kSpvMoeRouteS1[] = {
+#include "vulkan/moe_route_s1.inc"
+};
+const uint32_t kSpvMoeRouteS2[] = {
+#include "vulkan/moe_route_s2.inc"
+};
+const uint32_t kSpvMoeRouteS4[] = {
+#include "vulkan/moe_route_s4.inc"
+};
+const uint32_t kSpvMoeRouteS8[] = {
+#include "vulkan/moe_route_s8.inc"
+};
 const uint32_t kSpvMoeCombine[] = {
 #include "vulkan/moe_combine.inc"
 };
@@ -999,6 +1011,10 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MATMUL_ROW_K4_I8, "matmul_row_k4_i8", kSpvMatmulRowK4I8, sizeof(kSpvMatmulRowK4I8), 12, kMatmulRowCounts, kSpvMatmulRowK4I8Preserve, sizeof(kSpvMatmulRowK4I8Preserve)) \
     X(K_MATMUL_ROW_K5_I8, "matmul_row_k5_i8", kSpvMatmulRowK5I8, sizeof(kSpvMatmulRowK5I8), 12, kMatmulRowCounts, kSpvMatmulRowK5I8Preserve, sizeof(kSpvMatmulRowK5I8Preserve)) \
     X(K_MATMUL_ROW_K_I8, "matmul_row_k_i8", kSpvMatmulRowKI8, sizeof(kSpvMatmulRowKI8), 12, kMatmulRowCounts, kSpvMatmulRowKI8Preserve, sizeof(kSpvMatmulRowKI8Preserve)) \
+    X(K_MOE_ROUTE_S1, "moe_route_s1", kSpvMoeRouteS1, sizeof(kSpvMoeRouteS1), 3, nullptr) \
+    X(K_MOE_ROUTE_S2, "moe_route_s2", kSpvMoeRouteS2, sizeof(kSpvMoeRouteS2), 3, nullptr) \
+    X(K_MOE_ROUTE_S4, "moe_route_s4", kSpvMoeRouteS4, sizeof(kSpvMoeRouteS4), 3, nullptr) \
+    X(K_MOE_ROUTE_S8, "moe_route_s8", kSpvMoeRouteS8, sizeof(kSpvMoeRouteS8), 3, nullptr) \
     X(K_MOE_ROUTE, "moe_route", kSpvMoeRoute, sizeof(kSpvMoeRoute), 3, nullptr) \
     X(K_MOE_COMBINE, "moe_combine", kSpvMoeCombine, sizeof(kSpvMoeCombine), 4, nullptr) \
     X(K_MOE_GROUP, "moe_group", kSpvMoeGroup, sizeof(kSpvMoeGroup), 2, nullptr) \
@@ -3739,7 +3755,9 @@ public:
         if (floats_from(scores) < rows * n_expert || floats_from(ids) < rows * k || floats_from(weights) < rows * k)
             throw std::runtime_error("vulkan: routing operand outside its allocation");
         const uint32_t pc[3] = {u32(n_expert), u32(k), normalize ? 1u : 0u};
-        dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows), 1, 0, {0, rows * k, rows * k});
+        // The build holding the fewest experts an invocation needs, e = t + 64 q (shaders/moe_route.comp).
+        const KernelId kernel = n_expert <= 64 ? K_MOE_ROUTE_S1 : n_expert <= 128 ? K_MOE_ROUTE_S2 : n_expert <= 256 ? K_MOE_ROUTE_S4 : n_expert <= 512 ? K_MOE_ROUTE_S8 : K_MOE_ROUTE;
+        dispatch(kernel, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows), 1, 0, {0, rows * k, rows * k});
         group_tag_ = GroupTag{};
     }
 

@@ -527,10 +527,9 @@ From the comment at line 2:
 
 - Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`; a row of NaN probabilities picks the invalid id with weight 0 and marks nothing.
 - 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one; the reductions are subgroup operations, joined through shared memory when there are two.
-
-From the comment at line 74:
-
-- Each invocation divides only the probabilities it wrote, and a probability below FLT_MIN is written as 0, explicitly, so the picks are the CPU's under any float mode.
+- Invocation t holds experts t + 64 q in registers, q under the build's slot count: `moe_route_s1`, `_s2`, `_s4` and `_s8` hold 1, 2, 4 and 8 (up to 64, 128, 256 and 512 experts) and `moe_route` 16 (up to 1024), and `route_experts` takes the build of the fewest slots that hold the row.
+- Every score is loaded at once; each probability is divided by the sum as before and written as 0 below FLT_MIN, explicitly, so the picks are the CPU's under any float mode; a pick scans the invocation's registers for its largest untaken probability, the first in expert order with a strict `>` against -2, takes the subgroup maximum and the lowest id holding it, and marks the taken expert -1, the same comparisons in the same order whatever the build.
+- Every invocation adds the picks to their sum in pick order, and the invocations write the ids and weights a pick each after one barrier, each weight divided as before, so the outputs are the bits a serial pass gives.
 
 ### `src/backends/vulkan/shaders/norm_rope_kv.comp`
 

@@ -138,5 +138,15 @@
     "size": 2707513696,
     "gate": false,
     "hosted": false
+  },
+  {
+    "family": "vision",
+    "repo": "unsloth/Qwen3.5-0.8B-GGUF",
+    "file": "mmproj-BF16.gguf",
+    "revision": "6ab461498e2023f6e3c1baea90a8f0fe38ab64d0",
+    "sha256": "d312c4d02fd46eea7a16e4f3bbb58840e6222209322ca1e33ca03247ad8935d6",
+    "size": 207346528,
+    "gate": true,
+    "hosted": true
   }
 ]

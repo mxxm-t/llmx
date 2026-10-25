@@ -575,7 +575,7 @@ class ReferenceGenerator(unittest.TestCase):
         for spec in pinned:
             with self.subTest(file=spec["file"]):
                 self.assertEqual(set(spec), {"family", "repo", "file", "revision", "sha256", "size", "gate", "hosted"})
-                self.assertIn(spec["family"], ("qwen3", "qwen35"))
+                self.assertIn(spec["family"], ("qwen3", "qwen35", "vision"))
                 self.assertRegex(spec["revision"], r"^[0-9a-f]{40}$")
                 self.assertRegex(spec["sha256"], r"^[0-9a-f]{64}$")
                 self.assertTrue(type(spec["size"]) is int and spec["size"] > 0)
@@ -601,6 +601,9 @@ class ReferenceGenerator(unittest.TestCase):
         self.assertEqual(sorted(spec["file"] for spec in qwen35 if not spec["hosted"]), ["Qwen3.5-4B-Q4_K_M.gguf"])
         self.assertEqual(sorted(spec["file"] for spec in qwen35),
                          sorted(file for model in generator.QWEN35_MODELS.values() for file in model["gguf_files"]))
+        # The vision family: the 0.8B mmproj, hosted and in the gate, whose file-exact goldens tests/vision.py names.
+        vision = [spec for spec in pinned if spec["family"] == "vision"]
+        self.assertEqual([(spec["file"], spec["gate"], spec["hosted"]) for spec in vision], [("mmproj-BF16.gguf", True, True)])
 
     def test_qwen35_selection(self):
         args = generator.parse_args(["qwen35", "--model", "Qwen3.5-4B", "--threads", "3"])

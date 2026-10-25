@@ -11,6 +11,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from baseline_8b import file_sha256
 import baseline_qwen35
+import vision
 import common
 from common import run as cli
 
@@ -45,7 +46,9 @@ with io.open(FIXTURES, encoding="utf-8") as f:
     PINNED = json.load(f)
 # Each model is pinned once in a family with goldens, and every gate model needs bounds, and only those.
 assert len({spec["file"] for spec in PINNED}) == len(PINNED), "tests/data/fixtures.json pins a file twice"
-assert all(spec["family"] in ("qwen3", "qwen35") for spec in PINNED), "tests/data/fixtures.json names a family without goldens"
+assert all(spec["family"] in ("qwen3", "qwen35", "vision") for spec in PINNED), "tests/data/fixtures.json names a family without goldens"
+# A vision encoder's gate file is checked by tests/vision.py against the file-exact goldens it names.
+assert all(spec["file"] in vision.FILE_EXACT for spec in PINNED if spec["gate"] and spec["family"] == "vision"), "tests/data/fixtures.json gates a vision encoder without goldens in tests/vision.py"
 GATE_FILES = sorted(spec["file"] for spec in PINNED if spec["gate"] and spec["family"] == "qwen3")
 assert GATE_FILES == sorted(BOUNDS), "tests/data/fixtures.json gates %s, but tests/baseline.py bounds %s" % (GATE_FILES, sorted(BOUNDS))
 assert all(baseline_qwen35.bounds_for(spec) for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"), "tests/data/fixtures.json gates a qwen35 model without bounds in tests/baseline_qwen35.py"
@@ -253,9 +256,9 @@ def find_model(spec):
 
 def missing_gate_models():
     """The gate models of every family that a run finds no file for, which a run that requires the baseline refuses."""
-    qwen35 = [spec for spec in PINNED if spec["gate"] and spec["family"] == "qwen35"]
+    others = [spec for spec in PINNED if spec["gate"] and spec["family"] in ("qwen35", "vision")]
     return ([spec["file"] for spec in BASELINE_MODELS if not find_fixture(spec)] +
-            [spec["file"] for spec in qwen35 if not snapshot_path(spec["repo"], spec["revision"], spec["file"]).exists()])
+            [spec["file"] for spec in others if not snapshot_path(spec["repo"], spec["revision"], spec["file"]).exists()])
 
 
 def run():

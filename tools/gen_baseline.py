@@ -3,9 +3,10 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
+    python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
 
 Defaults use the pinned Qwen3-0.6B reference.
 Another model requires --repo, --revision (full commit SHA), --output-dir, --gguf-repo and --gguf-file.
@@ -23,6 +24,7 @@ tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenize
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
 qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
+vision-tiny writes the tiny vision encoder's mmproj and rows (tools/vision_reference.py); vision-file-exact holds a released mmproj's every tensor to the checkpoint directory's model.visual.* and writes HF's rows with its weights; neither is part of all.
 image-decode writes the image decoding references of tests/image_decode.cpp (tools/image_reference.py) in the qwen35 environment with its pinned Pillow and torchvision, takes only --output-dir and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
@@ -1666,12 +1668,13 @@ FIXED_KINDS = {
     "qwen35-mtp": "uses fixed synthetic weights and one thread",
     "qwen4exp-tiny": "uses fixed synthetic weights and one thread",
     "image-decode": "makes its own images",
+    "vision-tiny": "uses fixed synthetic weights and one thread",
 }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1680,7 +1683,17 @@ def parse_args(argv=None):
     parser.add_argument("--threads", type=int, help="HF CPU threads for real-model logits/PPL (default: 6)")
     parser.add_argument("--weights-gguf", help="file-exact: the qwen3, qwen3moe or pinned qwen35 GGUF whose weights the reference model takes, which labels the goldens")
     parser.add_argument("--model", choices=sorted(QWEN35_MODELS), help="qwen35: the pinned checkpoint whose goldens to write")
+    parser.add_argument("--checkpoint", help="vision-file-exact: the HF checkpoint directory whose model.visual.* the mmproj must equal")
     args = parser.parse_args(argv)
+    if args.kind == "vision-file-exact":
+        if not args.weights_gguf or not args.checkpoint or not os.path.isfile(args.weights_gguf) or not os.path.isdir(args.checkpoint):
+            parser.error("vision-file-exact needs --weights-gguf, an mmproj file, and --checkpoint, its checkpoint's directory")
+        args.output_dir = os.path.abspath(args.output_dir or OUT_DIR)
+        args.family = "vision"
+        args.chunked_calls = True
+        return args
+    if args.checkpoint:
+        parser.error("--checkpoint applies to vision-file-exact only")
     args.family = "qwen3"
     if os.path.isdir(args.repo):
         parser.error("--repo must identify a Hub repository, not a local directory that bypasses revision pinning")
@@ -1816,6 +1829,13 @@ def main(argv=None):
     if args.kind == "image-decode":
         import image_reference
         image_reference.generate(args.output_dir)
+    if args.kind == "vision-tiny":
+        import vision_reference
+        vision_reference.tiny(args.output_dir)
+    if args.kind == "vision-file-exact":
+        import vision_reference
+        vision_reference.file_exact(args.output_dir, args.weights_gguf, args.checkpoint)
+        return
     if args.kind == "tensor-split-moe":
         gen_tensor_split_moe(args.output_dir)
     if args.kind == "tensor-split":

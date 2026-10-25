@@ -90,6 +90,17 @@ void resizes(const std::filesystem::path& dir, const jmini::Value& doc) {
                                                                           std::to_string(number(c, "width")) + "x" + std::to_string(number(c, "height")));
         const image::Raster out = image::resize_bicubic(img, w, h);
         require(sha256(out.rgb.data(), out.rgb.size()) == text(c, "rgb_sha256"), at + ": the resized bytes are not torchvision's");
+        // The processor's pixel_values: the same image normalized and cut into patches in merge-block order.
+        image::Params params;
+        params.patch = uint32_t(number(*doc.get("processor"), "patch_size"));
+        params.merge = uint32_t(number(*doc.get("processor"), "merge_size"));
+        params.min_pixels = number(c, "min_pixels");
+        params.max_pixels = number(c, "max_pixels");
+        const image::Prepared prep = image::prepare(img, params);
+        const auto& grid = c.get("grid")->asArray();
+        require(prep.grid_h == size_t(grid[0].asNumber()) && prep.grid_w == size_t(grid[1].asNumber()), at + ": the patch grid is not the processor's");
+        require(sha256(reinterpret_cast<const uint8_t*>(prep.patches.data()), prep.patches.size() * sizeof(float)) == text(c, "patches_sha256"),
+                at + ": the prepared patches are not the processor's pixel_values");
     }
 }
 

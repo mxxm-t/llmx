@@ -2,7 +2,7 @@
 
 Each image file is made here: PNG by a writer of this module over zlib, so every color type, bit depth, filter and interlace is reached, and JPEG, GIF and WebP by Pillow.
 The reference for each is what the model processor receives: transformers' load_image (decoding, the EXIF orientation and Pillow's conversion to RGB), then Qwen2VLImageProcessor's smart_resize and torchvision resize.
-The committed fixture holds the files, the digests of those bytes and the bytes themselves for the small images, so the suite needs neither Pillow nor torchvision.
+The committed fixture holds the files, the digests of those bytes and the bytes themselves for the small images, and the digest of the processor's pixel_values at each resize, so the suite needs neither Pillow nor torchvision.
 """
 
 import hashlib
@@ -325,8 +325,20 @@ def generate(output_dir):
             for mn, mx in RESIZE_BOUNDS:
                 out = proc.resize(images=tensor[None], size=SizeDict(shortest_edge=mn, longest_edge=mx), resample=proc.resample, factor=FACTOR)[0]
                 hwc = out.permute(1, 2, 0).contiguous().numpy()
+                # The processor's own pixel_values at these bounds, each patch's repeated frame taken once: what image::prepare gives the encoder.
+                feat = proc._preprocess([tensor], do_resize=True, size=SizeDict(shortest_edge=mn, longest_edge=mx), resample=proc.resample, do_rescale=True,
+                                        rescale_factor=1 / 255, do_normalize=True, image_mean=tuple(PROCESSOR["image_mean"]), image_std=tuple(PROCESSOR["image_std"]),
+                                        patch_size=PROCESSOR["patch_size"], temporal_patch_size=PROCESSOR["temporal_patch_size"],
+                                        merge_size=PROCESSOR["merge_size"], disable_grouping=True, return_tensors=None)
+                pv = feat["pixel_values"].numpy().astype(np.float32)
+                grid = [int(v) for v in feat["image_grid_thw"][0]]
+                frames = pv.reshape(pv.shape[0], 3, PROCESSOR["temporal_patch_size"], PROCESSOR["patch_size"], PROCESSOR["patch_size"])
+                if not np.array_equal(frames[:, :, 0], frames[:, :, 1]):
+                    raise SystemExit("image references: an image's temporal frames differ")
+                once = np.ascontiguousarray(frames[:, :, 0])
                 doc["resize"].append({"file": name, "min_pixels": mn, "max_pixels": mx, "height": int(hwc.shape[0]), "width": int(hwc.shape[1]),
-                                      "rgb_sha256": hashlib.sha256(hwc.tobytes()).hexdigest()})
+                                      "rgb_sha256": hashlib.sha256(hwc.tobytes()).hexdigest(), "grid": grid[1:],
+                                      "patches_sha256": hashlib.sha256(once.tobytes()).hexdigest()})
     for name, data, error in refusal_cases():
         with open(os.path.join(root, name), "wb") as f:
             f.write(data)

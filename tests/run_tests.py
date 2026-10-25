@@ -48,6 +48,7 @@ import reference_generator
 import reference_consumer
 import device_reference
 import baseline
+import vision
 import common
 
 
@@ -139,6 +140,7 @@ def main():
                   ("tq1-0", tq.run_tq1),
                   ("tq2-0", tq.run_tq2),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
+                  ("vision", lambda: vision.run(require=args.require_tools)),
                   ("split", lambda: split.run(require=args.require_tools)),
                   ("tensor-split", lambda: tensor_split.run(require=args.require_tools)),
                   ("decode-probe", lambda: decode_probe.run(require=args.require_tools)),

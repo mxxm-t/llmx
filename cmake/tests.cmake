@@ -147,6 +147,11 @@ add_test(NAME chat-template COMMAND llmx-chat-template-test
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-0.8b/baseline_chat.json
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-4b/baseline_chat.json)
 set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
+add_executable(llmx-arch-qwen3vl-vision-test tests/arch_qwen3vl_vision.cpp)
+target_include_directories(llmx-arch-qwen3vl-vision-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-arch-qwen3vl-vision-test)
+add_test(NAME arch-qwen3vl-vision COMMAND llmx-arch-qwen3vl-vision-test)
+set_tests_properties(arch-qwen3vl-vision PROPERTIES TIMEOUT 60)
 add_executable(llmx-vision-ops-test tests/vision_ops.cpp)
 target_include_directories(llmx-vision-ops-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-vision-ops-test)

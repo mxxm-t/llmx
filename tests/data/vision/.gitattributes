@@ -1,0 +1,3 @@
+# The vision fixtures are bytes the tests read and hash; no line-ending conversion may touch them.
+* binary
+*.json -binary

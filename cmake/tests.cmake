@@ -429,6 +429,10 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_include_directories(llmx-vulkan-index-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/generated ${LLMX_VULKAN_INCLUDE_DIR})
     target_link_libraries(llmx-vulkan-index-test PRIVATE ${CMAKE_DL_LIBS})
+    if(NOT MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        # The scores' reference sums in F32 as the kernel does, so no product of it may fuse into an add.
+        target_compile_options(llmx-vulkan-index-test PRIVATE -ffp-contract=off)
+    endif()
     list(APPEND LLMX_TARGETS llmx-vulkan-index-test)
     add_test(NAME vulkan-index COMMAND llmx-vulkan-index-test)
     set_tests_properties(vulkan-index PROPERTIES TIMEOUT 300 SKIP_RETURN_CODE 77)

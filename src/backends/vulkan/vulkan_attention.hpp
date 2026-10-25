@@ -295,14 +295,7 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
         if (unordered_) barrier(open());
         for (size_t row = 0; row < views[vi].nq; row += 16) {
             const size_t rows = std::min<size_t>(16, views[vi].nq - row);
-            struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; }
-                sc{u32(vi), u32(row), 0, u32(count), heads, dim, compression, 1.0f / std::sqrt(float(index.dim))};
-            const size_t pairs = size_mul(rows, count);
-            for (size_t first = 0; first < pairs; first += limit) {
-                sc.first = u32(first);
-                dispatch(K_KV_INDEX_SCORES, {qb, pb, scores, table_binding()}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
-            }
-            if (unordered_) barrier(open());
+            score_rows(qb, pb, scores, table.words, u32(vi), row, rows, count, heads, dim, compression, 1.0f / std::sqrt(float(index.dim)));
             select_rows(scores, ob, table.words, u32(vi), row, rows, count, compression, budget, output_stride, count >= dev_->profile.select_wide_from);
         }
     }
@@ -317,6 +310,19 @@ inline std::vector<VulkanBackend::Placed> VulkanBackend::place_views(const KVVie
         row0 = size_add(row0, views[i].nq);
     }
     return placed;
+}
+
+inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table, uint32_t view,
+                                      size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
+    const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
+    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
+    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; } sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale};
+    const size_t pairs = size_mul(rows, groups);
+    for (size_t first = 0; first < pairs; first += limit) {
+        sc.first = u32(first);
+        dispatch(K_KV_INDEX_SCORES, {query, pooled, scores, tab}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
+    }
+    if (unordered_) barrier(open());
 }
 
 inline void VulkanBackend::select_rows(VkDescriptorBufferInfo scores, VkDescriptorBufferInfo ids, const std::vector<uint32_t>& table, uint32_t view, size_t row, size_t rows,

@@ -1,5 +1,10 @@
 // Inspect the private packed activation buffers without adding a runtime probe API.
 #include "backends/vulkan/vulkan_backend.cpp"
+#include "backends/cpu/cpu_backend.hpp"
+#include <algorithm>
+#include <cstring>
+#include <functional>
+#include <random>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -196,7 +201,7 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
     }
     const float factors[] = {1, -1, 0, .5f, -.5f, 1.0f / 3, -1.0f / 7, .015625f};
     size_t checked = 0, failed = 0, skipped = 0;
-    for (int producer = 0; producer < 3; ++producer) for (float peak : peaks) {
+    for (int producer = 0; producer < 5; ++producer) for (float peak : peaks) {
         std::vector<float> input(width), output(width);
         for (size_t j = 0; j < width; ++j) input[j] = peak * factors[j % 8];
         const auto x = b.adopt(input.data(), input.size() * sizeof(float));
@@ -210,6 +215,14 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
                 for (size_t j = 0; j < width; ++j) source[j] = input[j] / 32;
                 const auto up = b.adopt(source.data(), source.size() * sizeof(float));
                 b.silu_mul({produced.get(), 0}, {a.get(), 0}, {up.get(), 0}, width);
+                b.sync();
+            } else if (producer == 3) {
+                b.silu_scaled({produced.get(), 0}, {x.get(), 0}, 1, width, 1.0f);
+                b.sync();
+            } else if (producer == 4) {
+                std::vector<float> gate(width, 32.0f);
+                const auto gb = b.adopt(gate.data(), gate.size() * sizeof(float));
+                b.mix_streams({produced.get(), 0}, {x.get(), 0}, {gb.get(), 0}, 1, 1, width);
                 b.sync();
             } else {
                 b.rms_norm_rows({produced.get(), 0}, {a.get(), 0}, {x.get(), 0}, 1, width, width, 0);
@@ -659,6 +672,219 @@ void check_group_rms_norm(backend::VulkanBackend& b) {
 }
 }
 
+// The elementwise kernels a fused product chain folds in (silu_scaled, mix_streams, inject_streams) on inputs whose results are subnormal and exact.
+// A device reporting both preservation properties must give the CPU's values, which keep subnormals by gradual underflow; one that does not must give the flushed zero of today's modules.
+size_t check_elementwise_subnormals(backend::VulkanBackend& b) {
+    const bool keeps = backend::VulkanQuantizationTest::preserves_float32(b);
+    backend::CpuBackend cpu;
+    cpu.set_threads(1);
+    const float tiny = std::ldexp(1.0f, -140);   // subnormal; halving it stays subnormal and exact
+    size_t checks = 0;
+    auto expect = [&](const std::vector<float>& got, const std::vector<float>& ref, const char* what) {
+        for (size_t i = 0; i < got.size(); ++i) {
+            const bool sub = ref[i] != 0.0f && std::fabs(ref[i]) < std::numeric_limits<float>::min();
+            const bool ok = keeps || !sub ? std::memcmp(&got[i], &ref[i], sizeof(float)) == 0 : got[i] == 0.0f;
+            if (!ok) std::fprintf(stderr, "%s: element %zu device %.9g cpu %.9g\n", what, i, got[i], ref[i]);
+            require(ok, (std::string(what) + (keeps ? " did not keep a subnormal result" : " did not flush a subnormal result")).c_str());
+            if (sub) ++checks;
+        }
+    };
+    auto run = [&](backend::Backend& be, const std::vector<std::vector<float>>& inputs, size_t outputs, const std::function<void(backend::Backend&, const std::vector<backend::BufferPtr>&, backend::Slice)>& op) {
+        std::vector<backend::BufferPtr> in;
+        for (const auto& v : inputs) in.push_back(be.adopt(v.data(), v.size() * sizeof(float)));
+        const auto out = be.alloc(outputs * sizeof(float), backend::Memory::device);
+        std::vector<float> zero(outputs, 0.0f);
+        be.write(*out, 0, zero.data(), zero.size() * sizeof(float));
+        op(be, in, {out.get(), 0});
+        be.sync();
+        std::vector<float> got(outputs);
+        be.read(*out, 0, got.data(), got.size() * sizeof(float));
+        return got;
+    };
+    auto both = [&](const std::vector<std::vector<float>>& inputs, size_t outputs, const char* what,
+                    const std::function<void(backend::Backend&, const std::vector<backend::BufferPtr>&, backend::Slice)>& op) {
+        expect(run(b, inputs, outputs, op), run(cpu, inputs, outputs, op), what);
+    };
+    const size_t n = 64;
+    std::vector<float> x(n), zeros(n, 0.0f);
+    for (size_t i = 0; i < n; ++i) x[i] = (i % 2 ? -1.0f : 1.0f) * tiny * float(1 + i % 3);
+    // silu(v) = v / (1 + exp(-v)) = v / 2 for a subnormal v.
+    both({x}, n, "silu_scaled", [&](backend::Backend& be, const std::vector<backend::BufferPtr>& in, backend::Slice out) {
+        be.silu_scaled(out, {in[0].get(), 0}, 2, n / 2, 1.0f);
+    });
+    // Two streams of 32: each term x * (1 / 2), their sum, then halved by the stream count.
+    both({x, zeros}, 32, "mix_streams", [&](backend::Backend& be, const std::vector<backend::BufferPtr>& in, backend::Slice out) {
+        be.mix_streams(out, {in[0].get(), 0}, {in[1].get(), 0}, 1, 2, 32);
+    });
+    // A zero residual plus a subnormal block times 2 sigmoid(0) = 1, into each of two streams.
+    both({std::vector<float>(x.begin(), x.begin() + 32), std::vector<float>(2, 0.0f)}, 64, "inject_streams",
+         [&](backend::Backend& be, const std::vector<backend::BufferPtr>& in, backend::Slice out) {
+             be.inject_streams(out, {in[0].get(), 0}, {in[1].get(), 0}, 1, 2, 32);
+         });
+    std::cout << "vulkan-quantization: " << checks << " subnormal elementwise results " << (keeps ? "kept as the CPU keeps them" : "flushed, as the device's modules flush") << "\n";
+    return checks;
+}
+
+// The elementwise kernels' preserving modules must be within 1 percent as near a double reference as their ordinary ones, a sum's error counted in units in the last place of its terms' mean magnitude.
+void check_elementwise_reference(backend::VulkanBackend& preserved, backend::VulkanBackend& ordinary) {
+    if (!backend::VulkanQuantizationTest::preserves_float32(preserved)) {
+        std::cout << "vulkan-quantization: elementwise reference comparison skipped without float preservation\n";
+        return;
+    }
+    const size_t n = 4096, streams = 4, dim = 1024;
+    std::mt19937 rng(77);
+    std::uniform_real_distribution<float> d(-3.0f, 3.0f);
+    std::vector<float> a(n), g(n);
+    for (auto& v : a) v = d(rng);
+    for (auto& v : g) v = d(rng);
+    auto sig = [](double x) { return 1.0 / (1.0 + std::exp(-x)); };
+    auto ulp = [](double ref) { return double(std::nextafter(float(std::fabs(ref)), std::numeric_limits<float>::infinity())) - double(float(std::fabs(ref))); };
+    struct Kernel {
+        const char* name;
+        size_t count;
+        std::function<void(backend::Backend&, backend::CSlice, backend::CSlice, backend::Slice)> op;
+        std::function<double(size_t)> ref;
+        std::function<double(size_t)> scale;   // the magnitude the sum's own F32 error scales with, or 0 for a single correctly rounded result
+    };
+    const std::vector<Kernel> kernels = {
+        {"silu_scaled", n, [&](backend::Backend& be, backend::CSlice x, backend::CSlice, backend::Slice o) { be.silu_scaled(o, x, 4, n / 4, 0.25f); },
+         [&](size_t i) { const double v = double(a[i]) * 0.25; return v * sig(v); }, [](size_t) { return 0.0; }},
+        {"mix_streams", dim, [&](backend::Backend& be, backend::CSlice x, backend::CSlice y, backend::Slice o) { be.mix_streams(o, x, y, 1, streams, dim); },
+         [&](size_t i) { double s = 0.0; for (size_t k = 0; k < streams; ++k) s += double(a[k * dim + i]) * sig(double(g[k * dim + i])); return s / double(streams); },
+         [&](size_t i) { double s = 0.0; for (size_t k = 0; k < streams; ++k) s += std::fabs(double(a[k * dim + i]) * sig(double(g[k * dim + i]))); return s / double(streams); }},
+        // 256 rows of 4 streams of 4, so 1024 gates and not 4 decide the comparison.
+        {"inject_streams", n, [&](backend::Backend& be, backend::CSlice x, backend::CSlice y, backend::Slice o) { be.inject_streams(o, x, y, 256, streams, 4); },
+         [&](size_t i) { return double(a[(i / 16) * 4 + i % 4]) * 2.0 * sig(double(g[(i / 16) * 4 + (i / 4) % 4]) / double(streams)); }, [](size_t) { return 0.0; }},
+    };
+    for (const Kernel& k : kernels) {
+        std::vector<float> out[2];
+        backend::VulkanBackend* bes[2] = {&preserved, &ordinary};
+        for (int m = 0; m < 2; ++m) {
+            backend::Backend& be = *bes[m];
+            const auto ab = be.adopt(a.data(), n * sizeof(float)), gb = be.adopt(g.data(), n * sizeof(float));
+            const auto ob = be.alloc(n * sizeof(float), backend::Memory::device);
+            std::vector<float> zero(n, 0.0f);
+            be.write(*ob, 0, zero.data(), n * sizeof(float));
+            k.op(be, {ab.get(), 0}, {gb.get(), 0}, {ob.get(), 0});
+            be.sync();
+            out[m].resize(k.count);
+            be.read(*ob, 0, out[m].data(), k.count * sizeof(float));
+        }
+        double sum[2] = {0.0, 0.0}, worst[2] = {0.0, 0.0};
+        size_t differ = 0;
+        for (size_t i = 0; i < k.count; ++i) {
+            // A single correctly rounded result's error counts in its own units; a sum's in units of its largest partial magnitude, where cancellation leaves the result small.
+            const double ref = k.ref(i), u = k.scale(i) > 0.0 ? ulp(k.scale(i)) : ulp(ref);
+            for (int m = 0; m < 2; ++m) {
+                const double e = std::fabs(double(out[m][i]) - ref) / u;
+                sum[m] += e;
+                worst[m] = std::max(worst[m], e);
+            }
+            if (std::memcmp(&out[0][i], &out[1][i], sizeof(float)) != 0) ++differ;
+            // A sum's F32 evaluation errs by up to about (terms + 1) units of the largest partial magnitude; the preserving module must sit inside it.
+            const double bound = k.scale(i) > 0.0 ? (double(streams) + 2.0) * double(std::numeric_limits<float>::epsilon()) * k.scale(i) + 2.0 * ulp(ref) : 3.0 * u;
+            require(std::fabs(double(out[0][i]) - ref) <= bound, (std::string(k.name) + "'s preserving module lies outside its F32 evaluation's own error").c_str());
+        }
+        std::printf("vulkan-quantization: %s, %zu of %zu outputs differ between modules; mean error preserving %.3f ulp, ordinary %.3f ulp; worst %.1f and %.1f ulp\n",
+                    k.name, differ, k.count, sum[0] / double(k.count), sum[1] / double(k.count), worst[0], worst[1]);
+        require(sum[0] <= 1.01 * sum[1], (std::string(k.name) + "'s preserving module is less near exact than its ordinary module beyond 1 percent").c_str());
+    }
+}
+
+// Every 16-bit twin word equals the host's run of the writer's arithmetic (xquant.glsl xq_div and xq_rdiv), the quantizer's and a producer's in either module, so a twin is one function of its floats (AGENTS.md, Tests).
+size_t check_twin_quotients(backend::VulkanBackend& b) {
+    const size_t blocks = 4096, n = blocks * 32;
+    std::mt19937 rng(91);
+    // Blocks whose peaks lie between two float bit patterns, each block's first value its peak and the rest spread below it.
+    auto blocks_between = [&](uint32_t lo, uint32_t hi) {
+        std::vector<float> v(n);
+        for (size_t k = 0; k < blocks; ++k) {
+            const uint32_t top = lo + uint32_t(rng() % (hi - lo));
+            float peak;
+            std::memcpy(&peak, &top, sizeof peak);
+            for (size_t j = 0; j < 32; ++j) v[k * 32 + j] = peak * (j == 0 ? 1.0f : float(int(rng() % 65535) - 32767) / 32767.0f);
+        }
+        return v;
+    };
+    const std::vector<float> x = blocks_between(0x08800000u, 0x7E800000u);
+    auto host_twin = [&](const std::vector<float>& v) {
+        std::vector<uint32_t> words(n / 2 + 2 * blocks);
+        for (size_t k = 0; k < blocks; ++k) {
+            float amax = 0.0f;
+            for (size_t j = 0; j < 32; ++j) amax = std::max(amax, std::fabs(v[k * 32 + j]));
+            uint32_t top;
+            std::memcpy(&top, &amax, sizeof top);
+            if (top == 0u || top < 0x08800000u || top >= 0x7E800000u) return std::vector<uint32_t>();
+            // d: the peak times the correctly rounded 1 / 32767; id: 32767 times the reciprocal of the peak's significand from a seed and four Newton steps, then its exponent.
+            float factor;
+            const uint32_t factor_bits = 0x38000100u;
+            std::memcpy(&factor, &factor_bits, sizeof factor);
+            const float d = amax * factor;
+            const uint32_t sig = (top & 0x7FFFFFu) | 0x3F800000u, seed = 0x7EF311C3u - sig;
+            float sf, y;
+            std::memcpy(&sf, &sig, sizeof sf);
+            std::memcpy(&y, &seed, sizeof y);
+            for (int i = 0; i < 4; ++i) y = y * (2.0f - sf * y);
+            const float id = std::ldexp(32767.0f * y, 127 - int(top >> 23));
+            int q[32], s = 0;
+            for (size_t j = 0; j < 32; ++j) {
+                const float r = v[k * 32 + j] * id;
+                q[j] = std::clamp(int((r > 0.0f ? 1.0f : r < 0.0f ? -1.0f : 0.0f) * std::floor(std::fabs(r) + 0.5f)), -32767, 32767);
+                s += q[j];
+            }
+            for (size_t j = 0; j < 32; ++j)
+                if ((j & 3u) < 2u) words[k * 16 + 2 * (j >> 2) + (j & 3u)] = (uint32_t(q[j]) & 0xFFFFu) | (uint32_t(q[j + 2]) << 16);
+            float values[2] = {d, d * float(s)};
+            std::memcpy(&words[n / 2 + 2 * k], values, sizeof values);
+        }
+        return words;
+    };
+    size_t checked = 0;
+    auto compare = [&](const std::vector<uint32_t>& got, const std::vector<float>& v, const char* what) {
+        const std::vector<uint32_t> want = host_twin(v);
+        require(!want.empty() && got.size() >= want.size(), (std::string(what) + ": a block left the ordinary range").c_str());
+        size_t differ = 0;
+        for (size_t i = 0; i < want.size(); ++i) differ += got[i] != want[i];
+        if (differ) std::fprintf(stderr, "%s: %zu of %zu twin words differ from the host's\n", what, differ, want.size());
+        require(differ == 0, (std::string(what) + "'s twin differs from the host's run of the writer's arithmetic").c_str());
+        checked += want.size();
+    };
+    {
+        const auto xb = b.adopt(x.data(), n * sizeof(float));
+        const auto qb = b.alloc((n / 2 + 2 * blocks) * sizeof(uint32_t), backend::Memory::device);
+        backend::VulkanQuantizationTest::run(b, {xb.get(), 0}, {qb.get(), 0}, uint32_t(n), false);
+        b.sync();
+        std::vector<uint32_t> got(n / 2 + 2 * blocks);
+        b.read(*qb, 0, got.data(), got.size() * sizeof(uint32_t));
+        compare(got, x, "quantize_x");
+    }
+    {
+        // Peaks from 2^-90 to 2^120 keep silu's output, about v for v above a few and about v / 2 near zero, inside the ordinary range.
+        const std::vector<float> src = blocks_between(0x12800000u, 0x7B800000u);
+        const auto sb = b.adopt(src.data(), n * sizeof(float));
+        const auto ob = b.alloc(n * sizeof(float), backend::Memory::device);
+        b.silu_scaled({ob.get(), 0}, {sb.get(), 0}, 1, n, 1.0f);
+        b.sync();
+        std::vector<float> out(n);
+        b.read(*ob, 0, out.data(), n * sizeof(float));
+        uint32_t major = 0;
+        bool has8 = false;
+        const std::vector<uint32_t> kept = backend::VulkanQuantizationTest::kept_twin(b, {ob.get(), 0}, n, major, has8);
+        bool in_range = true;
+        for (size_t k = 0; k < blocks && in_range; ++k) {
+            float amax = 0.0f;
+            for (size_t j = 0; j < 32; ++j) amax = std::max(amax, std::fabs(out[k * 32 + j]));
+            uint32_t top;
+            std::memcpy(&top, &amax, sizeof top);
+            in_range = top >= 0x08800000u && top < 0x7E800000u;
+        }
+        require(in_range && !kept.empty() && major == 0, "silu_scaled's twin was not kept in the row layout for its ordinary-range blocks");
+        compare(kept, out, "silu_scaled");
+    }
+    std::cout << "vulkan-quantization: " << checked << " twin words equal to the host's run of the writer's arithmetic\n";
+    return checked;
+}
+
 int main() {
     try {
         backend::VulkanBackend b(0);
@@ -672,6 +898,11 @@ int main() {
         require(guard.modules != 0, "unsupported-mode check created no modules");
         std::cout << "vulkan-quantization: " << guard.modules << " modules accepted without float preservation\n";
         check_ordinary_identity(b, fallback);
+        check_elementwise_reference(b, fallback);
+        check_twin_quotients(b);
+        check_twin_quotients(fallback);
+        check_elementwise_subnormals(b);
+        check_elementwise_subnormals(fallback);
         check_float_identity(b, fallback);
         check_offset_range(b);
         backend::VulkanBackend tiled(0, true);

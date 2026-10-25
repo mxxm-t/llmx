@@ -57,7 +57,7 @@ It follows transformers' `load_image` and `Qwen2VLImageProcessor` (torchvision b
 An image gives gh * gw / 4 tokens, gh and gw being its patch grid: 64 at least, 1024 for 1024 by 1024 pixels and 16384 at most.
 `--image-max-pixels`, on the CLI and the server, is HF's `max_pixels` processor argument with HF's default, 16777216, so llmx's output equals HF's for any image a user gives; the fit charges the encoder's scratch at the bound, and an image whose tokens do not fit the context is refused by name.
 
-The decoders are written here (`format/`), PNG with its inflate and JPEG with libjpeg-turbo's integer IDCT, fancy upsampling and color tables, since the reference decodes through Pillow's libjpeg-turbo.
+The decoders are written here (`image/`, section 9), PNG with its inflate and JPEG with libjpeg-turbo's integer IDCT, fancy upsampling and color tables, since the reference decodes through Pillow's libjpeg-turbo.
 
 ## 3. The encoder (planned)
 
@@ -73,7 +73,7 @@ The backend gains, each with a CPU implementation and a test against a reference
 - `norm_rope_partial`'s rule extended to per-row position streams with a per-frequency stream map, and its rope taken without the norm, rather than a second rope;
 - non-causal attention over one image's rows: the existing `attention` taken as a non-causal view at head widths 64 and 72, or a second kernel only on a stated reason it cannot, meeting the Vulkan head-width rule.
 
-The encoder has no sequences and no caches, so it has a contract of its own, `model/encoder.hpp`, holding only what the image encoder reads, with its module at `model/arch/qwen3vl_vision.hpp` chosen in the registry by `clip` and `clip.projector_type`.
+The encoder has no sequences and no caches, so it has a contract of its own, `model/encoder.hpp`, sized for the known vision models (section 9), with its module at `model/arch/qwen3vl_vision.hpp` chosen in the registry by `clip` and `clip.projector_type`.
 It runs on the device that holds the embedding, counted in that device's fit, one image a call, so an image's rows never depend on another image.
 
 ## 4. A prompt of token ids and encoder rows (planned)
@@ -124,3 +124,56 @@ Each step is a branch of its own, its failing test first.
 6. `feat/image-routes`: content parts, limits and errors.
 7. `feat/vision-vulkan`: the device ops, identity and speed.
 8. `feat/image-flash`: Flash-Next's released checks, the encoder's work split under pacing, then production.
+
+## 9. Addendum of 2026-10-25: where the code lives, and other vision models (planned)
+
+F2DEV's decisions of 07:45 and 07:46, on the owner's rules that each concern is kept in one place and that image input serves future vision models too.
+
+**Five owners, no more.**
+- `src/image/`, beside `tokenizer/` on `core/` alone: everything from a file's bytes to what an encoder reads (decode, orient, size, resize, normalize, patchify, and the digest of the resized pixels), under parameters the encoder module hands it.
+- The encoder: `model/encoder.hpp`, the one interface the rest of the runtime calls, and one module a vision model family, `model/arch/qwen3vl_vision.hpp` first, chosen by a registry from the mmproj's `general.architecture` (`clip`) and `clip.projector_type`; the backend ops it needs live in the backends beside the ops they resemble.
+- `inference/media.hpp`: a rendered prompt with image parts made into ids with pad runs and media runs, and the pad-count rule; `chat.hpp` only carries parts to the template, and the positions' delta is `model/history.hpp`'s.
+- `server/api.hpp`: the data URL, the limits and the refusals, and one call into `image/`; `/v1/tokenize` counts through `media.hpp`.
+- The cache: media runs compared in the one place row classes are, and hashed into `DiskIndex::digests` there and nowhere else.
+
+**The encoder interface, sized for the known kinds.**
+The projector types the reference runtime reads show what the next modules need: Qwen 2.5 and 3 (`qwen2.5vl_merger`, `qwen3vl_merger`), MiMo-VL (`mimovl`, Qwen-style sizing with banded window attention), Gemma 3 (`gemma3`, SigLIP at a fixed 896 by 896 with a 4 by 4 average pool to 256 tokens and bilinear resizing), Gemma 4 (`gemma4v`, variable resolution of 70 to 1120 tokens, a 3 by 3 pool, a 2D rope and a learned normalization), and the InternVL, Pixtral, Idefics and GLM families.
+`model/encoder.hpp` therefore carries what every one of them must give, and the Qwen module implements each member now:
+- the preprocessing parameters `image/` applies: patch size, merge, the temporal repeat, mean and std, the size rule (HF's `smart_resize` with its factor and pixel bounds, or a fixed square) and the resample (antialiased bicubic, or bilinear);
+- the tokens an image's grid gives;
+- the positions its rows take: Qwen's three components with the delta after the image, or a plain run of text positions;
+- the texts of the tokens a template marks an image with, read from the text file's vocabulary;
+- `encode`: one image's prepared rows to embedding rows at the text model's width, on the device that holds the embedding.
+
+A member only a later module needs comes with that module and no earlier, as ADDING-AN-ARCHITECTURE has it: Gemma's attention that sees an image's rows both ways inside the text model, and MiMo's banded window attention, are the first such members on the list.
+A new vision model is then one module, one registry row and its fixtures, with no change to `image/`, `media.hpp`, the routes or the cache.
+
+## 10. Speed (planned)
+
+The owner's gate for the phase: image input beats the reference runtime's mtmd path heavily, the owner's fork and the castagna-veloce build, on the same MI50s, model, mmproj and images at default clocks, in three figures:
+- the encode time of one image;
+- the time to the first token of a request with images;
+- tokens a second with several images in one request, and with several requests with images at once.
+
+The references' figures are recorded first, on one image set whose grids both runtimes take unchanged: sides that are multiples of 32, between 64 and 4096 tokens an image (512 by 512, 1024 by 1024, 1280 by 768, 2048 by 1024 and 2048 by 2048), on Qwen3.8-Flash-Next and Qwen3.5-0.8B with their BF16 mmproj files, each figure with its conditions.
+Every step's design states its cost per image; the CPU steps record their encode time as a figure the device step must beat as well; step 7 measures the gate and the phase's final gate holds it.
+
+Speed designed in from the start:
+- Decoding, resizing and the digest run on the connection's thread, never on the scheduler's.
+- As section 5 has it, a request keeps its resized pixels for its life and its encoder rows until its prompt is read, and prefix reuse covers the same image at the same place; a cache of encoder rows keyed by digest is a tier of its own and comes only on a measured gain, since the gate's workloads, fresh images a request, gain nothing from it.
+- Images of one shape in a request go to the encoder in one pass, their attention kept apart by segment, so a pass's bits stay each image's alone.
+- On the device an image stays on the device from its patches to its rows, with no host round trip a layer, and few launches an image: the patch embedding and position mix in one kernel, a layer's norm and projections fused where the kernels allow, attention in one kernel a layer, the merger fused; about 6 launches a layer and under 200 an image.
+- The encoder's work in a server is cut into pieces of whole layers that the scheduler's pacing admits beside generating requests (CACHE-PLAN P6).
+
+The cost of each step at one 1024 by 1024 image (1024 tokens, 4096 patches) on the 27-layer, 1152-wide tower, before any measurement:
+
+| Step | What it costs an image | Expected |
+|---|---|---|
+| 1, decoding | a 1024 by 1024 JPEG decoded, an unchanged size resized (the identity) | about 10 to 20 ms, on the connection's thread |
+| 2, CPU ops | the ops alone, no image path | the ops' own rates in `vision-ops` |
+| 3, CPU encoder | about 5.5 TFLOP: 3.4 in the blocks' products, 2.1 in attention over 4096 patches, 0.08 in the patch embedding and the merger | about 10 to 15 s on the rig's 16 cores, the figure step 7 must beat |
+| 4, prompt | 1024 encoder rows written over the pad rows, positions from the runs | well under 1 ms; the text model's prefill of 1024 tokens dominates the first token |
+| 5, cache | SHA-256 of 3 MB of pixels; a prefix hit skips the image's encode and its prefill | about 10 ms |
+| 6, routes | base64 of about 1.4 MB | about 2 ms |
+| 7, Vulkan encoder | the 5.5 TFLOP at F16 on one MI50 | under 0.4 s, under 200 launches; owns the speed gate |
+| 8, Flash-Next | encoder pieces under pacing; the first token after the image's 1024 prompt rows | the gate's three figures on production's placement |

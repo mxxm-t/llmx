@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Vulkan allocation failure diagnostics (2026-10-25, branch fix/vulkan-allocation-error)
+
+- **Goal:** report the device, Vulkan result, allocation bytes and memory type when buffer allocation fails, while preserving `std::bad_alloc` catches used for retries.
+- **Done:** four injected-allocation checks fail against an exact source copy of main `6d6f0897d`, each reporting only "bad allocation". They cover both Vulkan OOM results, host-visible and device-local paths, a size above 32 bits, the actual memory type and allocation bytes, cleanup, catching through `std::bad_alloc` and retrieval without another allocation. The Windows Release build succeeds. Logs and pins are retained under `build-allocation-isolated-red/`. Earlier runs under `build-allocation-red-evidence/` armed the injector before MSVC's map construction and do not prove the corrected check. Their queue leg also opened the real device, contrary to its initial scope label, and is not claimed as isolated. The separate NVFP4 suite's startup allocation cause is not established.
+- **Left:** implement the error in the Vulkan buffer owner, then run builds, CTest, docs/dead-code and hosted CI. The coordinator assigned this error-only scope on TUI at 17:37 UTC.
+- **Gotchas:** the error must not allocate while reporting allocation failure. No numerical, kernel, placement or retry-policy change is intended. Keep this fix separate from NVFP4.
+
 ## The trimmed-donor check reads the donors on the scheduler's thread (2026-10-25, branch fix/trims-donor-timing on main 14010059a, tests only, the coordinator's work order on F2DEV's ANSWER of 19:10)
 
 - **Goal:** `server-resume`'s `trims_finished_donor` failed twice on the hosted Windows job (runs 40205143633 and 40213243850) with "the reply's reasoning left out: the donor holds 5 blocks, against 4", and never on a desktop (10 of 10 at main and at image step 4).

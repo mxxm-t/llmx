@@ -1232,6 +1232,11 @@ struct Calls {
     Failure failure = Failure::none;
     int buffers = 0, memory = 0, maps = 0;
     bool bad_release = false;
+    VkDeviceSize allocation_bytes = 64;
+    uint32_t memory_types = 1;
+    VkDeviceSize requested_bytes = 0;
+    uint32_t requested_type = 0;
+    bool fail_reporting_allocation = false;
     unsigned char bytes[64]{};
 } calls;
 
@@ -1245,9 +1250,12 @@ VKAPI_ATTR void VKAPI_CALL destroy_buffer(VkDevice, VkBuffer, const VkAllocation
     if (--calls.buffers != 0) calls.bad_release = true;
 }
 VKAPI_ATTR void VKAPI_CALL memory_requirements(VkDevice, VkBuffer, VkMemoryRequirements* out) {
-    *out = VkMemoryRequirements{64, 4, 1};
+    *out = VkMemoryRequirements{calls.allocation_bytes, 4, calls.memory_types};
 }
-VKAPI_ATTR VkResult VKAPI_CALL allocate_memory(VkDevice, const VkMemoryAllocateInfo*, const VkAllocationCallbacks*, VkDeviceMemory* out) {
+VKAPI_ATTR VkResult VKAPI_CALL allocate_memory(VkDevice, const VkMemoryAllocateInfo* info, const VkAllocationCallbacks*, VkDeviceMemory* out) {
+    calls.requested_bytes = info->allocationSize;
+    calls.requested_type = info->memoryTypeIndex;
+    if (calls.fail_reporting_allocation) allocation_countdown = 1;
     if (calls.failure == Failure::allocate_device) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     if (calls.failure == Failure::allocate_host) return VK_ERROR_OUT_OF_HOST_MEMORY;
     *out = (VkDeviceMemory)(uintptr_t)2;
@@ -1284,6 +1292,46 @@ std::shared_ptr<backend::Device> fake_device(Failure failure) {
     fn.vkMapMemory = map_memory;
     fn.vkUnmapMemory = unmap_memory;
     return dev;
+}
+
+int allocation_error_checks() {
+    int failures = 0;
+    for (const Failure failure : {Failure::allocate_device, Failure::allocate_host}) {
+        for (const bool host_visible : {false, true}) {
+            calls = Calls{};
+            calls.failure = failure;
+            calls.fail_reporting_allocation = true;
+            calls.allocation_bytes = host_visible ? 4294967360ull : 64;
+            calls.memory_types = host_visible ? 4 : 1;
+            const uint32_t memory_type = host_visible ? 2 : 0;
+            auto dev = fake_device(failure);
+            dev->caps.device = "test allocation GPU";
+            dev->memory.memoryTypes[memory_type] = dev->memory.memoryTypes[0];
+            dev->memory.memoryTypeCount = memory_type + 1;
+            const char* result = failure == Failure::allocate_device ? "VK_ERROR_OUT_OF_DEVICE_MEMORY" : "VK_ERROR_OUT_OF_HOST_MEMORY";
+            const std::string expected = std::string("vulkan: test allocation GPU: vkAllocateMemory failed with ") + result +
+                " for " + std::to_string(calls.allocation_bytes) + " bytes (memory type " + std::to_string(memory_type) + ")";
+            bool caught = false, no_allocation = false, matches = false;
+            std::string message;
+            try {
+                backend::VulkanBuffer buffer(dev, 17, host_visible);
+            } catch (const std::bad_alloc& error) {
+                caught = true;
+                matches = std::strcmp(error.what(), expected.c_str()) == 0;
+                no_allocation = allocation_countdown == 1;
+                allocation_countdown = -1;
+                message = error.what();
+            } catch (...) {
+                allocation_countdown = -1;
+            }
+            allocation_countdown = -1;
+            const bool ok = caught && no_allocation && matches && calls.requested_bytes == calls.allocation_bytes &&
+                calls.requested_type == memory_type && !calls.buffers && !calls.memory && !calls.maps && !calls.bad_release;
+            std::cout << "allocation error " << result << " host_visible=" << host_visible << ": " << message << (ok ? " PASS\n" : " FAIL\n");
+            failures += !ok;
+        }
+    }
+    return failures;
 }
 }
 
@@ -1399,7 +1447,7 @@ int main(int argc, char** argv) {
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;
-        int failures = 0, cases = 0;
+        int failures = allocation_error_checks(), cases = 0;
         for (const Failure failure : {Failure::none, Failure::create, Failure::memory_type,
                 Failure::allocate_device, Failure::allocate_host, Failure::bind, Failure::map}) {
             calls = Calls{}; calls.failure = failure;

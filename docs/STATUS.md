@@ -2,10 +2,12 @@
 
 ## Vulkan allocation failure diagnostics (2026-10-25, branch fix/vulkan-allocation-error)
 
-- **Goal:** report the device, Vulkan result, allocation bytes and memory type when buffer allocation fails, while preserving `std::bad_alloc` catches used for retries.
-- **Done:** four injected-allocation checks fail against an exact source copy of main `6d6f0897d`, each reporting only "bad allocation". They cover both Vulkan OOM results, host-visible and device-local paths, a size above 32 bits, the actual memory type and allocation bytes, cleanup, catching through `std::bad_alloc` and retrieval without another allocation. The Windows Release build succeeds. Logs and pins are retained under `build-allocation-isolated-red/`. Earlier runs under `build-allocation-red-evidence/` armed the injector before MSVC's map construction and do not prove the corrected check. Their queue leg also opened the real device, contrary to its initial scope label, and is not claimed as isolated. The separate NVFP4 suite's startup allocation cause is not established.
-- **Left:** implement the error in the Vulkan buffer owner, then run builds, CTest, docs/dead-code and hosted CI. The coordinator assigned this error-only scope on TUI at 17:37 UTC.
-- **Gotchas:** the error must not allocate while reporting allocation failure. No numerical, kernel, placement or retry-policy change is intended. Keep this fix separate from NVFP4.
+- **Goal:** name the device, Vulkan result, allocation bytes and memory type on ordinary buffer allocation failure, preserving existing `std::bad_alloc` retry catches.
+- **Done:** four fake-device cases fail against pre-fix source snapshot `6d6f0897d` with generic "bad allocation" and pass with the fix. They cover both OOM results and memory paths, an allocation above 32 bits, actual size/type, cleanup and message retrieval while heap allocation is forbidden. Private `AllocationError` keeps its text in a fixed array beside the buffer constructor in `vulkan_buffer.hpp`.
+- **Validation:** before integration, the Windows Release build, 69 selected CPU/native CTests, fake-only `vulkan-buffer`, docs and dead-code passed. The two commits now integrate main `14010059a`, moving the diagnostic into the new buffer header, including `<cstdio>` directly and running the new cases only in the fake-only leg. Final build, CTest, docs/dead-code and hosted checks remain pending for this integrated tree.
+- **Left:** finish those checks, including `vulkan-lifetime` after the shared Radeon handoff. The coordinator assigned the error-only scope. Successful allocations, numerical paths and retry policy are unchanged, so numerical and timing gates are outside this fix's scope.
+- **Docs and ownership:** the changed coverage in AGENTS, Vulkan design, source page and this record were reviewed against the code and tests. Unchanged pages carry the prior review. Earlier unsuccessful diagnostic attempts and their corrections remain in the local test logs.
+- **Gotchas:** reporting allocation failure must not allocate. Keep this fix separate from NVFP4; it does not establish the cause of that suite's earlier startup failure.
 
 ## The trimmed-donor check reads the donors on the scheduler's thread (2026-10-25, branch fix/trims-donor-timing on main 14010059a, tests only, the coordinator's work order on F2DEV's ANSWER of 19:10)
 

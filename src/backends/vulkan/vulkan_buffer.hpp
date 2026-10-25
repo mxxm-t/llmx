@@ -2,6 +2,7 @@
 // Device memory: the buffer, the rule for padded F32 copies, a table's storage views and the KV storage.
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <map>
 #include <memory>
@@ -66,6 +67,17 @@ private:
     void retire(const BufferPtr& old) override;
 };
 
+class AllocationError final : public std::bad_alloc {
+    char message_[512];
+public:
+    AllocationError(const Device& device, VkResult result, const VkMemoryAllocateInfo& info) noexcept {
+        std::snprintf(message_, sizeof message_, "vulkan: %s: vkAllocateMemory failed with %s for %llu bytes (memory type %u)",
+                      device.caps.device.c_str(), vk_result_name(result),
+                      static_cast<unsigned long long>(info.allocationSize), info.memoryTypeIndex);
+    }
+    const char* what() const noexcept override { return message_; }
+};
+
 class VulkanBuffer final : public Buffer {
 public:
     VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, bool host_visible)
@@ -96,7 +108,7 @@ public:
             const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory);
             if (r != VK_SUCCESS) {
                 if (r == VK_ERROR_OUT_OF_DEVICE_MEMORY || r == VK_ERROR_OUT_OF_HOST_MEMORY)
-                    throw std::bad_alloc();
+                    throw AllocationError(*dev_, r, ai);
                 check(r, "vkAllocateMemory");
             }
             memory_ = memory;

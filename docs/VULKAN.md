@@ -45,7 +45,7 @@ The facts the design depends on:
 | `minStorageBufferOffsetAlignment` | 4 bytes | A float offset into a buffer is a legal binding offset |
 | `maxComputeSharedMemorySize` | 32 KiB | Prefill tiles stage dequantized weights through shared memory |
 | Cooperative matrix | absent | Matmul is subgroup dot products, not matrix cores |
-| `maxMemoryAllocationCount` | 4096 | Separate allocation per buffer; allocation failures are reported by Vulkan |
+| `maxMemoryAllocationCount` | 4096 | Separate allocation per buffer; ordinary buffer allocation OOM errors name the device, Vulkan result, bytes and memory type |
 | `VK_EXT_memory_budget` | yes | The free-memory query `memory_available` reports |
 
 Memory heaps and the types this backend uses:
@@ -110,7 +110,9 @@ option is on, one translation unit with a header per concern beside it
 - **Buffers.** `VulkanBuffer` is one `VkBuffer` bound to its own
   `VkDeviceMemory`. `host_ptr()` is the mapped pointer for host-visible
   memory and null for device memory. Each buffer uses a separate device
-  allocation; failures are reported by Vulkan. Construction releases acquired
+  allocation. An OOM error in its ordinary allocation constructor names the device, Vulkan result, allocation
+  bytes and memory type, and remains a `std::bad_alloc` for existing retry paths.
+  Its fixed message buffer needs no further allocation. Construction releases acquired
   handles if memory selection, allocation, binding or mapping fails. Zero-fill on `alloc` is a `vkCmdFillBuffer` in the current command
   buffer, so it is ordered like every other op, and that slot holds the new buffer until it retires, as each slot an adoption copies through does, so a buffer dropped at once leaves no command naming freed memory. A buffer's size is
   rounded up to whole 32-bit words, since a tensor with an odd block

@@ -108,7 +108,10 @@ The lifetime and packed-quantization tests include the implementation and use te
   read-only reporting: nothing in the runtime path depends on them, and a
   backend not opened for diagnostics times nothing.
 - Buffers are `VulkanBuffer`, device-local or host-visible, sized in whole
-  32-bit words; every op is
+  32-bit words. Its ordinary allocation constructor throws `AllocationError` on OOM, a `std::bad_alloc`
+  with the device, Vulkan result, allocation bytes and memory type in a fixed
+  message buffer, so reporting it requires no further allocation and existing
+  retry catches still work. Every op is
   recorded into a ring of 16 command buffers and submitted in chunks of 64
   dispatches, the first after 8 where no submitted dispatch is still running,
   so the device starts a pass while the host records the rest,

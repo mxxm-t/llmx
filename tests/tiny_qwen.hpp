@@ -1,8 +1,11 @@
 #pragma once
 #include <cstdint>
 #include <cstring>
+#include <mutex>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
@@ -96,6 +99,11 @@ struct FailingCpu : backend::CpuBackend {
     int syncs = 0, submits = 0, waits = 0, reads = 0;
     backend::Ticket last_wait = 0;
     std::vector<size_t> histories;
+    // Playing a device, a stage on it waits on its devices (Model::stage_waits), so a pipelined prompt records it on a thread of its own; `submitters` names the threads that submitted.
+    bool plays_device = false;
+    std::mutex submitters_mutex;
+    std::set<std::thread::id> submitters;
+    bool is_cpu() const override { return !plays_device; }
     void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (nout == 16) {
@@ -111,7 +119,14 @@ struct FailingCpu : backend::CpuBackend {
         backend::CpuBackend::attention(q, layer, views, n_views, out, n_head, n_head_kv, head_dim);
     }
     void sync() noexcept override { ++syncs; backend::CpuBackend::sync(); }
-    backend::Ticket submit() override { ++submits; return backend::CpuBackend::submit(); }
+    backend::Ticket submit() override {
+        ++submits;
+        {
+            std::lock_guard<std::mutex> lk(submitters_mutex);
+            submitters.insert(std::this_thread::get_id());
+        }
+        return backend::CpuBackend::submit();
+    }
     void wait(backend::Ticket t) noexcept override {
         ++waits;
         last_wait = t;

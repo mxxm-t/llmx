@@ -715,7 +715,8 @@ infer::PlacedModel pipelined(const gguf::GGUFModel& weights, std::vector<backend
 }
 
 // The prompt, decode steps after it, a second prompt continuing that history, every row score() hands out, and a pass of a decoding sequence beside a fresh prompt, each exact against one backend.
-void pipelined_matches_single() {
+// With backends playing devices every stage past the first waits on its devices, so the prompt records it on a thread of its own (Model::run_chunks), and those stages must have submitted from no thread but theirs.
+void pipelined_matches_single(bool devices) {
     for (bool tied : {true, false}) {
         const auto weights = tiny_qwen(3, 2 * 128, tied);
         for (const PipelinedSplit& ps : kPipelined) {
@@ -723,13 +724,22 @@ void pipelined_matches_single() {
             one->set_threads(1);
             infer::Model single(infer::gguf_weights(weights), one);
             single.set_ubatch(3);
+            std::vector<std::shared_ptr<FailingCpu>> stages;
             std::vector<backend::BackendPtr> cpus;
-            for (size_t i = 0; i < ps.shares.size(); ++i) cpus.push_back(std::make_shared<backend::CpuBackend>());
+            for (size_t i = 0; i < ps.shares.size(); ++i) {
+                stages.push_back(std::make_shared<FailingCpu>());
+                stages.back()->plays_device = devices;
+                cpus.push_back(stages.back());
+            }
             infer::PlacedModel placed = pipelined(weights, cpus, ps.shares);
             infer::Model& split = *placed.model;
             const size_t V = single.n_vocab();
 
+            for (auto& s : stages) s->submitters.clear();
             exact(single.prefill(kPrompt), split.prefill(kPrompt), "pipelined prefill differs from one device");
+            for (size_t i = 1; i < stages.size(); ++i)
+                require(!stages[i]->submitters.empty() && (stages[i]->submitters.count(std::this_thread::get_id()) == 0) == devices,
+                        devices ? "a stage that waits on its devices was recorded on the prompt's thread" : "a stage on the host was recorded on another thread");
             for (int t : {7, 9, 3}) exact(single.step(t), split.step(t), "step after a pipelined prefill differs from one device");
             const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
             exact(single.prefill(more), split.prefill(more), "a pipelined prompt continuing a history differs from one device");
@@ -775,8 +785,8 @@ void pipelined_matches_single() {
 }
 
 // A backend on the last stage fails while the first stage is chunks ahead, on top of a history: at its first attention on chunk 2 of 5, and at the head on the last chunk.
-// Every storage must be back at the history, which the first attention each device runs next reads, and the same prompt again must be exact.
-void pipelined_failure_rolls_back() {
+// Every storage must be back at the history and the same prompt again exact; with backends playing devices the last stage fails on its own thread, the first stage then at the failing chunk at least.
+void pipelined_failure_rolls_back(bool devices) {
     const auto weights = tiny_qwen(3, 2 * 128, true);
     for (const PipelinedSplit& ps : kPipelined) {
         auto plain = std::make_shared<backend::CpuBackend>();
@@ -784,7 +794,10 @@ void pipelined_failure_rolls_back() {
         infer::Model control(infer::gguf_weights(weights), plain);
         control.set_ubatch(3);
         std::vector<std::shared_ptr<FailingCpu>> stages;
-        for (size_t i = 0; i < ps.shares.size(); ++i) stages.push_back(std::make_shared<FailingCpu>());
+        for (size_t i = 0; i < ps.shares.size(); ++i) {
+            stages.push_back(std::make_shared<FailingCpu>());
+            stages.back()->plays_device = devices;
+        }
         infer::PlacedModel placed = pipelined(weights, std::vector<backend::BackendPtr>(stages.begin(), stages.end()), ps.shares);
         infer::Model& split = *placed.model;
         FailingCpu& first = *stages.front();
@@ -803,7 +816,7 @@ void pipelined_failure_rolls_back() {
             try { split.prefill(kPrompt); } catch (const std::runtime_error&) { failed = true; }
             require(failed && !last.fail_output && !last.fail_attention, "the injected failure did not fire");
             // Chunk 2 starts 6 tokens past the history and the last chunk 12; the first stage had begun chunk 3 at least.
-            require(last.histories.back() == before + (at_head ? 12 : 6) && first.histories.back() >= before + 9,
+            require(last.histories.back() == before + (at_head ? 12 : 6) && first.histories.back() >= before + (devices ? (at_head ? 12 : 6) : 9),
                     "the failure was not on the last stage with the first chunks ahead");
             require((size_t)split.n_tokens() == before && split.kv_used_bytes() == used, "a failed pipelined prompt changed the history");
 
@@ -2085,8 +2098,10 @@ int main() {
         histories_fit_the_pool();
         kv_fitted();
         bad_placements_refused();
-        pipelined_matches_single();
-        pipelined_failure_rolls_back();
+        for (bool devices : {false, true}) {
+            pipelined_matches_single(devices);
+            pipelined_failure_rolls_back(devices);
+        }
         replay_over_stages();
         passes_refused();
         passes_continue();

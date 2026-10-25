@@ -3958,6 +3958,34 @@ size_t check_collective(const backend::BackendPtr& first) {
     } else {
         std::cout << "backend-vulkan: no third device, so no sum in two shots\n";
     }
+    // After the exchange each member adds every source and its residual in one kernel (sum_rows), in member order, and records no add of its own.
+    // Among three devices the same holds below the two-shot size, and from it a sum_rows per share beside the gather's adds of the other shares.
+    {
+        auto witness = [&](std::vector<backend::BackendPtr> group, size_t wide, std::initializer_list<size_t> counts, bool gathered) {
+            std::vector<backend::Backend*> raw;
+            for (const auto& g : group) raw.push_back(g.get());
+            std::unique_ptr<backend::Collective> c = raw[0]->join(raw, 96, wide);
+            for (backend::Backend* m : raw) (void)backend::vulkan_kernel_times(*m);
+            sums(raw, *c, wide, counts);
+            for (backend::Backend* m : raw) {
+                const auto times = backend::vulkan_kernel_times(*m);
+                if (times.empty()) return false;
+                bool summed = false;
+                for (const auto& t : times) {
+                    require(gathered || t.first != "add", "a member added a source of the sum in a kernel of its own");
+                    summed = summed || t.first == "sum_rows";
+                }
+                require(summed, "a member's sum took no sum_rows");
+            }
+            return true;
+        };
+        const bool timed = witness({backend::make_vulkan_backend(0, true), backend::make_vulkan_backend(1, true)}, width, {1, 7, 64}, false);
+        if (timed && third) {
+            witness({backend::make_vulkan_backend(0, true), backend::make_vulkan_backend(1, true), backend::make_vulkan_backend(2, true)}, 4097, {79}, false);
+            witness({backend::make_vulkan_backend(0, true), backend::make_vulkan_backend(1, true), backend::make_vulkan_backend(2, true)}, 4097, {80}, true);
+        }
+        std::cout << "backend-vulkan: " << (timed ? "each member's sum one sum_rows and no add, in one shot and in two" : "the devices time no dispatches, so the sum's kernels are not witnessed") << "\n";
+    }
     auto refused = [](const std::function<void()>& f) {
         try { f(); } catch (const std::exception&) { return true; }
         return false;
@@ -3969,6 +3997,11 @@ size_t check_collective(const backend::BackendPtr& first) {
     require(refused([&] { first->join(mixed, 1, 1); }), "a Vulkan collective over the CPU was made");
     std::vector<backend::Backend*> twice{first.get(), first.get()};
     require(refused([&] { first->join(twice, 1, 1); }), "a Vulkan collective over one device twice was made");
+    // Five entries of one device, which the device-twice rule would also refuse, so the text shows which refusal fired.
+    std::vector<backend::Backend*> five(5, first.get());
+    std::string five_why;
+    try { first->join(five, 1, 1); } catch (const std::exception& e) { five_why = e.what(); }
+    require(five_why.find("more than 4 devices") != std::string::npos, "a Vulkan collective of five devices was not refused for its size");
     std::cout << "backend-vulkan: the collective of devices 0 and 1, " << checks << " sums in member order and its refusals\n";
     return checks + 3;
 }

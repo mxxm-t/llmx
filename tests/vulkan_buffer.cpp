@@ -575,7 +575,7 @@ struct CollectiveCalls {
     struct Shared { size_t member, payload; VkBuffer buffer; };
     struct Command {
         VkCommandBuffer cmd; size_t member; std::vector<Event> events;
-        VkDescriptorBufferInfo source{}; uint32_t count = 0;
+        std::vector<VkDescriptorBufferInfo> sources; uint32_t count = 0;   // a dispatch's bindings past the first, which a sum's kernel reads
     };
     struct Submitted { size_t member; std::vector<Event> events; std::vector<size_t> dependencies; };
     struct Signal { size_t member; VkSemaphore semaphore; size_t submission; };
@@ -698,7 +698,7 @@ struct CollectiveCalls {
     static VKAPI_ATTR VkResult VKAPI_CALL begin(VkCommandBuffer cmd, const VkCommandBufferBeginInfo* info) {
         auto& q = *collective_calls;
         auto& c = q.command(cmd);
-        c.events.clear(); c.source = {}; c.count = 0;
+        c.events.clear(); c.sources.clear(); c.count = 0;
         return q.original[c.member].vkBeginCommandBuffer(cmd, info);
     }
     static VKAPI_ATTR void VKAPI_CALL copy(VkCommandBuffer cmd, VkBuffer src, VkBuffer dst, uint32_t n, const VkBufferCopy* regions) {
@@ -723,8 +723,8 @@ struct CollectiveCalls {
             uint32_t set, uint32_t n, const VkWriteDescriptorSet* writes) {
         auto& q = *collective_calls;
         auto& c = q.command(cmd);
-        c.source = {};
-        for (uint32_t i = 0; i < n; ++i) if (writes[i].dstBinding == 1 && writes[i].pBufferInfo) c.source = *writes[i].pBufferInfo;
+        c.sources.clear();
+        for (uint32_t i = 0; i < n; ++i) if (writes[i].dstBinding >= 1 && writes[i].pBufferInfo) c.sources.push_back(*writes[i].pBufferInfo);
         q.original[c.member].vkCmdPushDescriptorSetKHR(cmd, point, layout, set, n, writes);
     }
     static VKAPI_ATTR void VKAPI_CALL constants(VkCommandBuffer cmd, VkPipelineLayout layout, VkShaderStageFlags stages,
@@ -737,8 +737,9 @@ struct CollectiveCalls {
     static VKAPI_ATTR void VKAPI_CALL dispatch(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t z) {
         auto& q = *collective_calls;
         auto& c = q.command(cmd);
-        if (const size_t p = q.payload(c.member, c.source.buffer))
-            c.events.push_back({Op::read, p, c.source.offset, VkDeviceSize(c.count) * sizeof(float), 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT});
+        for (const VkDescriptorBufferInfo& source : c.sources)
+            if (const size_t p = q.payload(c.member, source.buffer))
+                c.events.push_back({Op::read, p, source.offset, VkDeviceSize(c.count) * sizeof(float), 0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT});
         q.original[c.member].vkCmdDispatch(cmd, x, y, z);
     }
     static VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice d, const VkSemaphoreCreateInfo* info, const VkAllocationCallbacks* alloc, VkSemaphore* out) {

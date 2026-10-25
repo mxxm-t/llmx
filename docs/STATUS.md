@@ -1,5 +1,47 @@
 # llmx - Development Status
 
+## Grouped RMSNorm in slices (2026-10-25, branch feat/group-norm on feat/route-fast, on main b9c6e7314, item K1 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15, the coordinator's gate of 2026-10-25 05:05 with C2DEV's additions of 05:06, F2DEV's REVIEW of 05:49, lands by fast-forward as two commits after K4's two)
+
+- **Goal:** Qwen3.8-Flash-Next's hyper-connection stream norm (`group_rms_norm`, 4 groups of 2560, 96 calls a token) took 27.5 us a call in the model and 21 us alone on decode, its bits unchanged.
+- **Where the time went (Radeon VII, Windows AMD driver, per-dispatch timestamps back to back, default clocks; one row of 4 x 2560 unless noted):** the kernel ran one workgroup per (row, group), so 4 workgroups, one wave per SIMD, where each wave's chain of dependent instructions and loads sets the time. Its reduction loop waited on each of its 10 strided loads in turn (10.6 us with nothing written after it), and its output loop loaded and wrote one value a lane per step through the per-value twin writer.
+  | Probe | us a call |
+  |---|---|
+  | base, block twin | 19.4-20.6 |
+  | base, block twin and the 8-bit twin | 25.0-26.4 |
+  | base, no twin | 14.7-14.9 |
+  | base, twin written four values a lane | 13.4-13.7 |
+  | base, reduction only | 10.6 |
+  | empty dispatch of the same shader | 5.06-5.2 |
+  | one / two dependent load round trips | 5.5 / 5.9 |
+  | add of the same 10240 floats | 5.4-5.8 |
+
+  The 4 us target was set where an add costs 2.3 us; here an empty dispatch takes 5.06 us and an add 5.4 us, so the gate became the same bits, at least 2x a call at Flash's shape on an MI50 with the floor beside it, and a token rate no worse than main (the coordinator, 05:05).
+- **The change:** the dispatch's second axis cuts each group into slices; slice s of S writes the group's 1024-value chunks s, s + S, ..., four consecutive values a lane through the word twin writer (`xquant_word`, in the lane writer's layout where no tile reads it next). Every slice repeats the group's whole reduction, each lane's partial over its values lid, lid + 256, ... in order, eight loaded at a time with a masked last eight whose missing values add 0 * 0, then the same tree, its steps within a subgroup taken by shuffles, so every slice has the same rms bits. The host gives a group as many slices as fill four workgroups a compute unit, at most one per chunk, as `rms_norm_rows` does, and one exactly in place. The ISA on the Radeon VII keeps the base's float operations: each square an unfused `v_mac_f32`, the mean `v_mac_f32` of the sum by `v_rcp_f32` of the width onto eps, then `v_rsq_f32`, the tree's shuffle steps `v_add_f32` in the tree's operand order, and the output `(r * x) * w`. The written extents are unchanged: the output's n floats and the twin.
+- **Tests:** the first commit adds a `vulkan-quantization` check of grouped RMSNorm over 336 cases (dims 2560, 2048, 4128, 2501, 1000, 260 and 64, groups 1 and 4, rows 1, 3, 4 and 33, decode and prompt extents, the 8-bit twin on and off, the integer dot forced so the tile's and block-major layouts are reached on every device): each output within the double reference's bound, the twin word for word the quantizers' twin of the output, each row alone bit for bit the row among others, and the call in place bit for bit the call out of place. It passes on the base kernel, since the change keeps every bit; it guards that, and a host that slices an in-place call fails it. A scratch dump of the 336 cases' outputs, twins and rows alone (153 MB) is byte-identical between the base and the change.
+- **Measured** (same card and harness, base and change built the same way from detached worktrees, interleaved, three rounds of nine medians of 200 calls; CPU 9-17% busy in the final rounds), us a call, the three rounds' medians:
+  | 4 x 2560, rows | 8-bit twin | base | change |
+  |---|---|---|---|
+  | 1 | no | 19.44 19.50 20.56 | 8.59 8.60 8.62 |
+  | 1 | yes | 25.22 25.47 26.05 | 9.04 9.05 9.08 |
+  | 4 | no | 19.13 19.14 19.23 | 8.63 8.63 8.68 |
+  | 4 | yes | 24.67 24.78 25.77 | 8.94 9.07 9.08 |
+  | 16 | no | 19.14 19.22 19.37 | 10.23 10.23 10.25 |
+  | 16 | yes | 25.13 25.20 25.50 | 11.30 11.34 11.34 |
+  | 64 (prompt) | no | 26.17 26.19 26.40 | 16.56 16.58 16.59 |
+  | 64 (prompt) | yes | 38.04 39.14 39.18 | 19.51 19.54 19.73 |
+  | 512 (prompt) | no | 120.47 120.50 120.57 | 89.04 89.08 89.09 |
+  | 512 (prompt) | yes | 188.34 188.41 188.59 | 100.97 101.06 101.07 |
+
+  An earlier candidate with three slices at every batch and 16 loads a lane regressed 512 prompt rows without the 8-bit twin to 132-172 us, which the slice rule and the eight-wide loads removed.
+- **Gates so far (Radeon VII):** `vulkan-quantization` passes at both commits; the tiny Flash, qwen35moe, qwen3moe and qwen3moe Q8_0 fixtures (`llmx-model-logits` batched, decode and greedy, `logits --last 13` with and without `--per-token`) and Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M (`logits --last 16`, 64 greedy tokens) are byte-identical between the base and the change; CTest, dead-code and docs pass.
+- **MI50 round (runs/r27; RADV, default clocks, Qwen3.8-Flash-Next UD-Q4_K_XL on GPUs 4-7 with GPUs 8-9 idle, both arms built the same way from archives of their commits, interleaved):**
+  - Per call, one MI50, median of three runs of nine medians of 200 calls, the empty dispatch beside it at 3.62-3.69 us: one row of 4 x 2560 21.64 to 9.84 us (2.2x), with the 8-bit twin 26.07 to 11.18 us (2.3x), 4 rows 21.23 to 5.39 us (3.9x), 64 rows 22.96 to 15.27 us, 512 rows 106.5 to 96.4 us.
+  - In the model, `bench --model --profile` on Flash 2x2 int8, decode: `group_rms_norm_x8` 42.13 to 16.04 ms of device time on the first stage and 38.97 to 14.89 ms on the second over the same 27356 and 27260 dispatches (2.6x).
+  - Decode on Flash 2x2 int8 without the profile, `bench --model --p 64 --n 32`, three runs each in the order main, K1, K4, K4, K1, main, main, K1, K4: main 40.48, 40.30, 40.33 tok/s, this branch 43.23, 41.80, 43.65 (mean 42.89 against 40.37, +6.2%); pp64 level (288.5 against 286.3).
+  - `vulkan-quantization` passes on an MI50 (224 cases, 64 tile layouts and 8 block-major ones).
+  - Byte identity against main: the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures on one MI50, Qwen3.6-35B-A3B Q4_K_M on one MI50 (a 6000-character prompt, 16 logits rows and 64 greedy tokens), and Flash UD-Q4_K_XL 2x2 int8 (16 logits rows and 64 greedy tokens of a 3000-character prompt, the first identity that runs several slices a group).
+- **Hand check:** the new check needs a device, and no hosted runner has one, so `llmx-vulkan-quantization-test` on the Radeon VII and an MI50 is its record, as above.
+- **Left:** the hosted run.
 ## Expert routing by slot count (2026-10-25, branch feat/route-fast on main b9c6e7314, item K4 step 1 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15, the coordinator's gate of 2026-10-25 05:05 with C2DEV's additions of 05:06, F2DEV's REVIEW of 05:49, lands by fast-forward as two commits before K1's two)
 
 - **Goal:** `moe_route` at least twice as fast at Qwen3.8-Flash-Next's shape (512 experts, k 10, one row), the bits unchanged, as the first step of K4; the second step, the route folded into the router's dispatch, is not part of this branch.
@@ -43,7 +85,7 @@
   Nothing in the product calls the decoders yet; step 3's encoder tool is their first caller, which `tests/data/known_findings.txt` names.
 - **Left:** steps 2 to 8.
 - **Gotchas:** the GGUF `mmproj` carries neither the processor's pixel bounds nor the image token ids; the HF processor resizes on uint8 with antialiased bicubic and rounds to uint8 before normalizing, so decoding and resizing are held to bytes, not to a float bound.
-## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, in progress)
+## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, landed on main by fast-forward)
 
 - **Goal:** one routing answer on every device whatever its denormal mode. The CPU kept a subnormal `exp(v - top) / sum` and ordered such picks by value, while a device that flushes denormals (the Radeon VII, RADV by default) made them 0 and took the lower id.
 - **The change:** a probability below FLT_MIN counts as 0, clamped after the division on the CPU (`route_experts`) and explicitly in `moe_route.comp`, so the shader gives the same ids under any float mode; backend.hpp says beside `kNoExpert` that HF orders such picks by value and that their weights, below 1e-38, change no output.
@@ -51,14 +93,14 @@
 - **Gates:** byte identity against the base 38efef383 on the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures, on the CPU and the Radeon VII: 40 of 40 files identical (`llmx-model-logits` batched, decode and greedy rows, `logits --then-ids` and `--per-token`). CTest 82 of 82 on Windows with the Vulkan backend, docs and dead-code pass.
 - **Left:** a routed real model on an MI50 against the base in the K4 round, then K4 takes these rows back into its tests.
 
-## Twins kept with their activation (2026-10-25, branch feat/twin-table on main 07facf1b6, item K3 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, in progress)
+## Twins kept with their activation (2026-10-25, branch feat/twin-table on main 07facf1b6, item K3 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, landed on main by fast-forward)
 
 - **Goal:** a matmul reads the twin its input's producer wrote instead of quantizing the input again. Qwen3.8-Flash-Next recorded 193 standalone `quantize_x`/`quantize_xw` dispatches a token, about 6.2 us each, because the backend kept one twin and dropped it at almost every dispatch: `moe_combine` dropped the twin of the shared expert's input, a copy that zeroes another region dropped it, and the `inject` matmul read `hc_normed` after later producers had replaced its twin; Qwen3.5-35B-A3B lost one a layer to `moe_combine`. PLE embeddings, which have no producer, are left as they are.
 - **The change:** the Vulkan backend keeps a table of four twins, each with its own scratch, least recently used replaced (`twins_`, `take_twin`, `keep_twin`, `twin`). Each kernel's written bindings are derived once from its SPIR-V (`spirv_writes`, `kernel_writes`); `dispatch` drops only the twins whose input a written range overlaps, a call stating the floats an output's writes reach (`extents`) for the matmul outputs, the routing's ids and weights, `moe_combine`, the producers, `add` and `inject_streams`, and any other written binding counting to the end of its buffer. The exemption list and the per-call output checks are gone; `copy` and `write` drop only what their destination overlaps, a new buffer still drops everything, and the routed grouping is also dropped by a write reaching its ids. A norm or SiLU without a twin, written in place, now drops the twin it overwrites, which main kept (the case fix/stale-twin fixes there). A kept twin is the bytes a standalone quantize writes, so products are unchanged.
 - **Tests:** the first commit fails on main: it does not build without `vulkan_kernel_writes`, and its twin-table check, built against main with the write-set check left out, fails on the Radeon VII at the first witness (a decode-row matmul from a norm's output quantizes it again after a routed sum into the same buffer), and every witness and the in-place norm's product fail with the witnesses off. With the change, `backend-vulkan` passes on the Radeon VII (1705 bindings' write sets against their shaders, 86688 products from kept twins against fresh copies; this card lists no int8, and its 128-row Q8_0 products take the float tile, so the int8 and integer-tile witnesses wait for an MI50), as do `vulkan-buffer`, `vulkan-lifetime`, `vulkan-quantization`, the rest of CTest, docs and dead-code. Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M give main's logits (`--last 16`) and greedy text (64 tokens) on the Radeon VII.
 - **C2DEV's review of 2026-10-25 01:32:** a collective's inbox acquire forgets the twins of the range it hands over, since a peer's copy into this device's imported memory is recorded on the peer; a mapped buffer is written from the host only through `write`, which the `Twin` comment states.
 - **Left:** the standalone-quantize count a token before and after on Qwen3.8-Flash-Next and Qwen3.5-35B-A3B, byte identity on the routed fixtures, a routed real model and a 16k prompt on an MI50, the timing round, the hosted run.
-## A tensor-group sum in one kernel (2026-10-25, branch feat/sum-rows on main 07facf1b6, item S of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, in progress)
+## A tensor-group sum in one kernel (2026-10-25, branch feat/sum-rows on main 07facf1b6, item S of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, landed on main by fast-forward)
 
 - **Goal:** each member of a tensor group adds its sum's sources and its residual in one dispatch after the exchange, the bits unchanged, removing W dispatches a sum (2 at width 2) on every model served on a group.
 - **The change:** `sum_rows` (`shaders/sum_rows.comp`) computes `x + (((p0 + p1) + p2) + p3)` element by element with the sources in member order, add's float operations; `VulkanCollective::sum` takes it in place of the copy to the scratch, the adds and the residual add, and `two_shots` takes it per share, writing the summed share the gather copies. A collective of more than four devices is refused, as the command line already refuses wider groups.

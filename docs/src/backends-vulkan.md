@@ -584,8 +584,11 @@ Q5_0 reuses those families through `LLMX_Q50` builds, with a 22-byte block and n
 
 ### `src/backends/vulkan/shaders/group_rms_norm.comp`
 
-One workgroup reduces each row's group, using that group's weight slice.
-Groups aligned to 32 values also produce the activation twin for a later matrix consumer; other widths leave packing to the consumer.
+Each row's group is normalized with that group's weight slice by one or more workgroups, the slices of the dispatch's second axis; slice s of S writes the group's 1024-value chunks s, s + S, ..., a lane four consecutive values.
+Every slice computes the group's whole sum of squares itself, each of 256 lanes summing its values lid, lid + 256, ... in order, eight loaded at a time, then the same 256-lane tree (shared-memory steps down to the subgroup width, shuffles below it), so every slice takes the same rms bits and the output is the single-workgroup kernel's, bit for bit.
+The host gives a group as many slices as fill four workgroups a compute unit, at most one per chunk, as `rms_norm_rows` does, and one slice when the call is exactly in place, where a slice's writes would meet another's reads; on Qwen3.8-Flash-Next's stream norm (4 groups of 2560) decode takes three slices a group.
+Each slice's first chunk is loaded before the reduction so its latency overlaps it.
+Groups aligned to 32 values also produce the activation twin for a later matrix consumer through the word writer (`xquant_word`), in the tile's layout where the tile reads it next and otherwise in the lane writer's; other widths leave packing to the consumer.
 
 ### `src/backends/vulkan/shaders/silu_scaled.comp`
 

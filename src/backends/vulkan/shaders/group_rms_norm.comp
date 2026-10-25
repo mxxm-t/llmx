@@ -1,5 +1,6 @@
 #version 450
-// Groupwise RMSNorm: one workgroup per (row, group), with each group using its own slice of w.
+// Groupwise RMSNorm: workgroups (row, group) by slice, each group using its own slice of w; slice s of S writes the group's 1024-value chunks s, s + S, ..., each lane four consecutive values.
+// Every slice repeats its group's whole reduction, the same partials in the same order and the same tree, so all slices of a group take the same rms bits.
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
@@ -10,39 +11,69 @@ layout(set = 0, binding = 2) readonly buffer W { float w[]; };
 layout(set = 0, binding = 3) writeonly buffer Q { uint xq[]; };
 #include "xquant.glsl"
 shared float red[256];
+
+// The four values from `first` and their weights, at indices clamped to the group so no load leaves it; four consecutive loads where the group is whole words.
+void load4(uint base, uint wb, uint first, out vec4 xv, out vec4 wv) {
+    if ((p.dim & 3u) == 0u) {
+        uint i = min(first, p.dim - 4u);
+        xv = vec4(src[base + i], src[base + i + 1u], src[base + i + 2u], src[base + i + 3u]);
+        wv = vec4(w[wb + i], w[wb + i + 1u], w[wb + i + 2u], w[wb + i + 3u]);
+        return;
+    }
+    uvec4 at = min(uvec4(first, first + 1u, first + 2u, first + 3u), uvec4(p.dim - 1u));
+    xv = vec4(src[base + at.x], src[base + at.y], src[base + at.z], src[base + at.w]);
+    wv = vec4(w[wb + at.x], w[wb + at.y], w[wb + at.z], w[wb + at.w]);
+}
+
 void main() {
-    uint row_group = gl_WorkGroupID.x;
+    uint row_group = gl_WorkGroupID.x, slice = gl_WorkGroupID.y, slices = gl_NumWorkGroups.y;
     uint row = row_group / p.groups, group = row_group - row * p.groups;
-    uint base = row * p.groups * p.dim + group * p.dim;
+    uint base = row * p.groups * p.dim + group * p.dim, wb = group * p.dim;
     uint lid = gl_LocalInvocationID.x;
+    // The slice's first chunk is loaded before the reduction so its latency overlaps it.
+    vec4 xv, wv;
+    load4(base, wb, slice * 1024u + 4u * lid, xv, wv);
+    // Each lane sums the squares of its values lid, lid + 256, ... in order, eight loaded at a time; in the last eight, one past the group adds 0 * 0, which leaves the sum's bits.
     float s = 0.0;
-    for (uint i = lid; i < p.dim; i += 256u) { float v = src[base + i]; s += v * v; }
+    uint i0 = lid;
+    for (; i0 + 7u * 256u < p.dim; i0 += 8u * 256u) {
+        float v[8];
+        for (uint k = 0u; k < 8u; ++k) v[k] = src[base + i0 + 256u * k];
+        for (uint k = 0u; k < 8u; ++k) s += v[k] * v[k];
+    }
+    if (i0 < p.dim) {
+        float v[8];
+        for (uint k = 0u; k < 8u; ++k) {
+            uint i = i0 + 256u * k;
+            float a = src[base + min(i, p.dim - 1u)];
+            v[k] = i < p.dim ? a : 0.0;
+        }
+        for (uint k = 0u; k < 8u; ++k) s += v[k] * v[k];
+    }
     red[lid] = s;
     barrier();
-    for (uint k = 128u; k > 0u; k >>= 1u) {
+    uint k = 128u;
+    for (; k >= gl_SubgroupSize; k >>= 1u) {
         if (lid < k) red[lid] += red[lid + k];
         barrier();
     }
-    float r = 1.0 / sqrt(red[0] / float(p.dim) + p.eps);
-    if (p.quant == 2u) {
-        for (uint chunk = 0u; chunk < (p.dim / 4u + 255u) / 256u; ++chunk) {
-            uint j = chunk * 256u + lid;
+    // The tree's steps within a subgroup add the same pairs in the same order by shuffles, every subgroup from the first gl_SubgroupSize partials.
+    float t = red[gl_SubgroupInvocationID];
+    for (; k > 0u; k >>= 1u) t += subgroupShuffleXor(t, k);
+    float r = 1.0 / sqrt(subgroupShuffle(t, 0u) / float(p.dim) + p.eps);
+    for (uint c = slice; c * 1024u < p.dim; c += slices) {
+        uint first = c * 1024u + 4u * lid;
+        if (c != slice) load4(base, wb, first, xv, wv);
+        vec4 v = xv * r * wv;
+        if (p.quant != 0u) {
+            // Groups of whole blocks: lane j of the group's words writes word j and its twin (shaders/xquant.glsl), a chunk holding whole blocks.
+            uint j = c * 256u + lid;
             bool live = j < p.dim / 4u;
-            vec4 v = vec4(0.0);
-            if (live) {
-                uint i = base + 4u * j;
-                uint wi = group * p.dim + 4u * j;
-                v = vec4(src[i], src[i + 1u], src[i + 2u], src[i + 3u]) * r *
-                    vec4(w[wi], w[wi + 1u], w[wi + 2u], w[wi + 3u]);
-                dst[i] = v.x; dst[i + 1u] = v.y; dst[i + 2u] = v.z; dst[i + 3u] = v.w;
-            }
-            xquant_word(v, live, j & 7u, (base / 4u + j) / 8u, p.n, p.major);
+            if (live) { dst[base + first] = v.x; dst[base + first + 1u] = v.y; dst[base + first + 2u] = v.z; dst[base + first + 3u] = v.w; }
+            xquant_word(live ? v : vec4(0.0), live, j & 7u, (base / 4u + j) / 8u, p.n, p.major);
+        } else {
+            for (uint e = 0u; e < 4u; ++e)
+                if (first + e < p.dim) dst[base + first + e] = v[e];
         }
-        return;
-    }
-    for (uint i = lid; i < p.dim; i += 256u) {
-        float v = src[base + i] * r * w[group * p.dim + i];
-        dst[base + i] = v;
-        if (p.quant != 0u) xquant_block(base + i, v, p.n);
     }
 }

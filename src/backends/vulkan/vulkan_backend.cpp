@@ -2962,11 +2962,16 @@ public:
         const bool quant = dim % 32 == 0;
         const bool tile = quant && tile_reads(width, rows, runs);
         const uint32_t major = tile ? x8_major(width, rows) : 0;
+        // Slices of a group each repeat its reduction and write a share of its chunks (shaders/group_rms_norm.comp), up to what fills the device.
+        // One in place, where a slice's writes would meet another's reads.
+        const size_t fill = (4 * dev_->caps.compute_units + rows * group_count - 1) / (rows * group_count);
+        const bool in_place = dst.buffer == src.buffer && dst.offset == src.offset;
+        const size_t slices = in_place ? 1 : std::max<size_t>(1, std::min((dim + 1023) / 1024, fill));
         struct { uint32_t rows, groups, dim, quant, n, major; float eps; }
-            pc{u32(rows), u32(group_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major, eps};
+            pc{u32(rows), u32(group_count), u32(dim), quant ? 1u : 0u, u32(n), major, eps};
         const size_t slot = quant ? take_twin(n) : 0;
         dispatch(K_GROUP_RMS_NORM, {bind(dst), bind(src), bind(w), quant ? twin_binding(slot) : bind(dst)},
-                 &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+                 &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), u32(slices), quant ? twin_variant() : 0, {n, 0, 0, n});
         if (quant) keep_twin(slot, bind(dst), n, major);
     }
 

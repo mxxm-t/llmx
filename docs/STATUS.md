@@ -1,5 +1,11 @@
 # llmx - Development Status
 
+## Independent depth-reference input reconstruction (2026-10-25)
+
+- **Done:** PRECISION documents the owner-approved general rule: each reference input follows the device's witnessed arithmetic, with independent reconstruction and fixed device tie rules. HF-only full/chunked and batched/singleton controls precede comparisons. The existing limits, F32 companion and narrowly scoped TQ baseline exception are unchanged. [Decision record](benchmarks/precision-input-policy-decision-20261025.json).
+- **Scope:** documentation only, based on main `fc6f53415`. No runtime, producer, fixture or numerical budget changes. Existing numerical evidence is not reclassified as a pass.
+- **Validation:** docs reports zero findings and catches 21 planted faults; dead-code reconciles nine listed findings and catches 18 planted faults. All 140 tracked Markdown pages were reconciled against main's review: only this status record and PRECISION need edits, including the historical IQ1/TQ references and the unchanged scoped baseline exception. No executable behavior changes, so runtime and performance gates are not applicable. This docs-only change lands by fast-forward after the final tree's static checks.
+
 ## Grouped RMSNorm in slices (2026-10-25, branch feat/group-norm on feat/route-fast, on main b9c6e7314, item K1 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15, the coordinator's gate of 2026-10-25 05:05 with C2DEV's additions of 05:06, F2DEV's REVIEW of 05:49, lands by fast-forward as two commits after K4's two)
 
 - **Goal:** Qwen3.8-Flash-Next's hyper-connection stream norm (`group_rms_norm`, 4 groups of 2560, 96 calls a token) took 27.5 us a call in the model and 21 us alone on decode, its bits unchanged.

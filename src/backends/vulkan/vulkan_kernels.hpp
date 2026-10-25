@@ -725,8 +725,8 @@ const uint32_t kSpvMatmulTileQ8mx[] = {
 const uint32_t kSpvKvIndexPool[] = {
 #include "vulkan/kv_index_pool.inc"
 };
-const uint32_t kSpvKvIndexScores[] = {
-#include "vulkan/kv_index_scores.inc"
+const uint32_t kSpvKvIndexScoresTile[] = {
+#include "vulkan/kv_index_scores_tile.inc"
 };
 const uint32_t kSpvKvIndexSelect[] = {
 #include "vulkan/kv_index_select.inc"
@@ -855,7 +855,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_SPARSE_ATTENTION_VEC_D256_KV16, "sparse_attention_vec_d256_kv16", kSpvSparseAttentionVecD256Kv16, sizeof(kSpvSparseAttentionVecD256Kv16), 8, nullptr) \
     X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
     X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 6, nullptr) \
-    X(K_KV_INDEX_SCORES, "kv_index_scores", kSpvKvIndexScores, sizeof(kSpvKvIndexScores), 4, nullptr) \
+    X(K_KV_INDEX_SCORES_TILE, "kv_index_scores_tile", kSpvKvIndexScoresTile, sizeof(kSpvKvIndexScoresTile), 4, nullptr) \
     X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
     X(K_KV_INDEX_SELECT_WIDE, "kv_index_select_wide", kSpvKvIndexSelectWide, sizeof(kSpvKvIndexSelectWide), 4, nullptr) \
     X(K_MATMUL_TILE, "matmul_tile", kSpvMatmulTile, sizeof(kSpvMatmulTile), 6, nullptr, kSpvMatmulTilePreserve, sizeof(kSpvMatmulTilePreserve)) \

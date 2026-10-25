@@ -316,11 +316,12 @@ inline void VulkanBackend::score_rows(VkDescriptorBufferInfo query, VkDescriptor
                                       size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale) {
     const VkDescriptorBufferInfo tab = args(table.data(), table.size() * sizeof(uint32_t));
     const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
-    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; } sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale};
-    const size_t pairs = size_mul(rows, groups);
-    for (size_t first = 0; first < pairs; first += limit) {
+    struct { uint32_t view, row, first, groups, heads, dim, compression; float scale; uint32_t tile; }
+        sc{view, u32(row), 0, u32(groups), heads, dim, compression, scale, u32(kScoreTile)};
+    const size_t tiles = (groups + kScoreTile - 1) / kScoreTile;
+    for (size_t first = 0; first < tiles; first += limit) {
         sc.first = u32(first);
-        dispatch(K_KV_INDEX_SCORES, {query, pooled, scores, tab}, &sc, sizeof(sc), u32(std::min(pairs - first, limit)));
+        dispatch(K_KV_INDEX_SCORES_TILE, {query, pooled, scores, tab}, &sc, sizeof(sc), u32(std::min(tiles - first, limit)), u32(rows));
     }
     if (unordered_) barrier(open());
 }

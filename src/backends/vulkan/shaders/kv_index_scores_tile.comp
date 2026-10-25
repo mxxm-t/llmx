@@ -1,0 +1,37 @@
+#version 450
+#extension GL_KHR_shader_subgroup_shuffle : require
+// The indexer's scores (score_rows in vulkan_backend.cpp): a workgroup scores a tile of groups for one query row, 32 lanes a group, summing its heads' rectified dots in turn.
+// Each dot sums 256 slots, +0 past the head's width, as a tree of steps k = 128 to 1: lane l holds slots l + 32c, the steps 128, 64 and 32 add within a lane and 16 to 1 across lanes, nothing contracted.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint view; uint row; uint first; uint groups; uint heads; uint dim; uint compression; float scale; uint tile; } p;
+layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
+layout(set = 0, binding = 1) readonly buffer K { float pooled[]; };
+layout(set = 0, binding = 2) writeonly buffer O { float scores[]; };
+layout(set = 0, binding = 3) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+void main() {
+    uint t = p.first + gl_WorkGroupID.x, r = gl_WorkGroupID.y, lid = gl_LocalInvocationID.x;
+    uint visible = view_hist(p.view) + p.row + r + 1u;
+    uint count = visible / p.compression;
+    uint g0 = t * p.tile, end = min(count, g0 + p.tile);
+    // A lane group of 32 within the subgroup, which a 64-lane subgroup holds two of: its shuffles stay inside it.
+    uint lane = gl_SubgroupInvocationID & 31u, half_base = gl_SubgroupInvocationID & ~31u, team = lid / 32u;
+    uint qrow = (view_row0(p.view) + p.row + r) * p.heads * p.dim;
+    for (uint g = g0 + team; g < end; g += 8u) {
+        float k[8];
+        for (uint c = 0u; c < 8u; ++c) k[c] = lane + 32u * c < p.dim ? pooled[g * p.dim + lane + 32u * c] : 0.0;
+        precise float score = 0.0;
+        for (uint h = 0u; h < p.heads; ++h) {
+            precise float x[8];
+            for (uint c = 0u; c < 8u; ++c) x[c] = lane + 32u * c < p.dim ? q[qrow + h * p.dim + lane + 32u * c] * k[c] : 0.0;
+            for (uint c = 0u; c < 4u; ++c) x[c] = x[c] + x[c + 4u];
+            for (uint c = 0u; c < 2u; ++c) x[c] = x[c] + x[c + 2u];
+            x[0] = x[0] + x[1];
+            precise float a = x[0];
+            for (uint s = 16u; s > 0u; s >>= 1u) a = a + subgroupShuffle(a, half_base + min(lane + s, 31u));
+            score += max(a, 0.0);
+        }
+        precise float scaled = score * p.scale;
+        if (lane == 0u) scores[r * p.groups + g] = scaled;
+    }
+}

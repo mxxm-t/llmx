@@ -1326,7 +1326,7 @@ public:
         size_t row0;
     };
     static std::vector<Placed> place_views(const KVView* views, size_t n_views);
-    // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart (shaders/kv_index_scores.comp).
+    // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart, kScoreTile groups a workgroup (shaders/kv_index_scores_tile.comp).
     void score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table, uint32_t view,
                     size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale);
     // The groups a selection takes for `rows` rows (at most kSelectRows) from `row` on, their scores a row of `groups` apart (shaders/kv_index_select.comp).

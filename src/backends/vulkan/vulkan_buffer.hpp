@@ -55,6 +55,8 @@ inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s)
 const size_t kVkBlockTokens = 64;
 // A wide selection's slice of groups, its rows a call and a row's state words, as shaders/kv_index_select_wide.comp lays them out.
 const size_t kSelectSlice = 1024, kSelectRows = 16, kSelectRowWords = 5122;
+// The groups a workgroup of the scoring takes (shaders/kv_index_scores_tile.comp), one to each of its eight lane groups of 32.
+const size_t kScoreTile = 8;
 
 class VulkanBackend;
 

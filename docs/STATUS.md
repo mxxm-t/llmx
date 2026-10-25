@@ -1,5 +1,28 @@
 # llmx - Development Status
 
+## The indexer scores a tile of groups a workgroup (2026-10-25, branch feat/index-scores on feat/index-select, part 2 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits after part 3)
+
+- **Why:** `kv_index_scores` took a workgroup per (row, group), four heads of a 256-lane tree each with eight barrier steps: 2.56 ms a decode stage of Qwen3.8-Flash-Next on 2x2 at a 155648-token history (2026-10-24 profiles).
+- **What lands:** `kv_index_scores_tile` (`score_rows`) takes 8 groups a workgroup, one to each 32-lane group of its subgroups (two to a 64-lane subgroup, whose shuffles stay in their half).
+  Each (group, head) dot keeps the old kernel's sum: lane l holds slots l + 32c, the tree's steps k = 128, 64 and 32 add within the lane and k = 16 to 1 across lanes by shuffle, each add the same pair in the same order, the products and adds `precise` so nothing contracts where shared memory used to prevent it; the slots past the head's width are +0.0 and the step k = 128 adds them, as the 256-slot tree does.
+  `kv_index_scores` is removed with its kernel id (C2DEV's amendment of 03:58): the test's host reference now holds its sum.
+- **Tests:** the first commit, failing on part 3's head: `vulkan-index` computes the 256-slot tree on the host in F32 in the old kernel's order, built with `-ffp-contract=off` as backend-group is, and holds every score bit for bit, subnormal cases only on a device that keeps F32 subnormals; it also requires the scoring to dispatch `kv_index_scores_tile` with no fused float multiply-add in its ISA, which the old kernel's dispatch fails.
+  A row of 524296 groups in 65537 tiles meets the reference too (F2DEV's request of 11:35): past 65535 workgroups the scoring takes its tiles in more than one dispatch, which a device whose width limit is 65535 does; RADV and the AMD proprietary driver both report 2^32 - 1, so on the MI50 and the Radeon VII it is one dispatch.
+  At the first commit the old kernel met the reference on all 360 scorings and 942660 scores on the Radeon VII, subnormal ones included, so the reference is that kernel's sum; the tiled kernel meets it on the Radeon VII under the AMD proprietary driver 26.5.2 and on the MI50 under RADV, with 0 fused float multiply-adds in its ISA on both.
+- **Measured** (device time a call over one row of Flash's indexer, 4 heads 128 wide, old kernel against tiled):
+
+| Groups | MI50 old | MI50 tiled | Radeon VII tiled |
+|---|---|---|---|
+| 1025 | 0.046 ms | 0.033 ms | 0.023 ms |
+| 4096 | 0.103 ms | 0.041 ms | 0.028 ms |
+| 16384 | 0.344 ms | 0.094 ms | 0.059 ms |
+| 38912 | 0.794 ms | 0.185 ms | 0.119 ms |
+
+  4.3 times less on the MI50 at 155648 tokens; the old kernel was not timed on the Radeon VII, since the first commit's run stops at the dispatch check.
+  A first form of a tile of 16 groups a workgroup, its dots in shared memory, was slower than the old kernel (1.16 ms at 38912 groups), and one of a thread a dot with its partials indexed at run time slower still (1.64 ms); both kept the bits.
+- **A hand check:** as part 3's, `vulkan-index` runs by hand on the MI50 and the Radeon VII.
+- **Left:** as part 3's: the gate, run on the three parts together (part 1's block); the hosted run; F2DEV's review of the head rebased on main.
+
 ## The indexer's selection over many workgroups (2026-10-25, branch feat/index-select on main 14010059a, part 3 of the indexer DESIGN of 01:13 with C2DEV's amendments of 02:17 and 03:58, lands by fast-forward as two commits)
 
 - **Why:** at a 155648-token history a decode stage of Qwen3.8-Flash-Next on 2x2 spent 4.43 ms a token in `kv_index_select`, one workgroup a row running eight radix passes and a chronological scan over 38912 groups, of 8.4 ms that the indexer grows from 8k (2026-10-24 profiles, `castagna/run/out2`, `out3`).

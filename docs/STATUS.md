@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Weights cannot be taken from a temporary model (2026-10-25, branch fix/gguf-weights-temporary on main 6d6f0897d, from the routed-step test fault F2DEV closed at 15:15, lands by fast-forward as one commit)
+
+- **The hazard:** `infer::gguf_weights` returns views into the `gguf::GGUFModel` it reads, so weights taken from a temporary model point at freed memory once the statement ends; a CPU backend adopts host memory in place, so a model built on them reads that memory. An unlanded routed-step test did this on `tiny_qwen_moe(2, 128)` and saw logits change from run to run and a crash, which a model kept alive never showed (0 of 20 runs differing at 1 and 16 threads in f32, f16 and bf16, by the CLI and in-process).
+- **The fix:** an overload for a const rvalue model is deleted beside `gguf_weights` in `src/model/arch/registry.hpp`, and beside `vision_weights`, whose views point into an mmproj file the same way, so a call on a temporary, const or not, does not compile; the two test sites the compiler named, `heterogeneous_saved_fits` in `tests/placement.cpp`, which read only sizes, and the tied-head read in `tests/model_validation.cpp`, whose temporary outlived its call, now name their models.
+- **Test:** none fails, since the compiler refuses the call; no product path took weights from a temporary.
+- **Gates:** on main 6d6f0897d, built with CMake (Release, Vulkan on) and `build.bat`; CTest passes on the CPU, 71 of 71, with the Vulkan tests left out since nothing they reach changed; docs and dead-code pass; Qwen3-0.6B Q8_0 on the CPU, `logits --last 16` batched and `--per-token` and `generate --temp 0 -n 64` in f16, int8 and f32, byte-identical to main built the same way. On main 9df63df36, before the rebase moved only the patch's context, the whole CPU suite passed, all 43 components. The hosted run to come.
+
 ## Sizes, token counts and durations with unit suffixes (2026-10-25, branch feat/size-suffixes on main 14010059a, the owner's decisions of 2026-10-25, lands by fast-forward as one commit)
 
 - **Goal:** `serve` takes sizes as `4g` or `100gib` and token counts as `256k`, so a command line need not carry `107374182400` or `262144`.

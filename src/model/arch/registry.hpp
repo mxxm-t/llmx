@@ -67,6 +67,9 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
     return w;
 }
 
+// The weights are views into the model, so a temporary model, const or not, would leave them dangling.
+ModelWeights gguf_weights(const gguf::GGUFModel&&) = delete;
+
 // A vision encoder llmx runs, by the general.architecture and clip.projector_type an mmproj file gives, and the reader of its files (docs/VISION.md, section 9).
 struct VisionEntry {
     const char* architecture;
@@ -114,6 +117,9 @@ inline VisionWeights vision_weights(const gguf::GGUFModel& m) {
     }
     return w;
 }
+
+// The weights are views into the model, so a temporary model, const or not, would leave them dangling.
+VisionWeights vision_weights(const gguf::GGUFModel&&) = delete;
 
 // The shape of the model llmx bench times without a file.
 struct SyntheticShape {

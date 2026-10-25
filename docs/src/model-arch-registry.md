@@ -29,7 +29,16 @@ which variant it reads and under which prefix.
   match its tensors, with a rank above four, or an offset or extent outside
   the payload, which includes a payload its owner released. A view's data
   is null while its tensor's file is not mapped (`gguf::map_payload`). The
-  loader, the tests and the synthetic bench call it.
+  views point into the model, so a call on a temporary model is deleted and
+  does not compile. The loader, the tests and the synthetic bench call it.
+- `VisionEntry`, `kVisionEncoders`, `vision_of(file)`: the vision encoders
+  llmx runs, each by the `general.architecture` and `clip.projector_type` an
+  mmproj file gives, its reader and its default dtype; another architecture
+  or projector is refused by name (docs/VISION.md, section 9).
+- `vision_weights(GGUFModel)`: an mmproj file's encoder module and a view per
+  tensor (`VisionWeights`), with the same refusals as `gguf_weights`. Its views
+  point into the model too, so a call on a temporary model is deleted and does
+  not compile.
 - `SyntheticShape`, `synthetic_model(shape)`: the model `llmx bench` times
   without `--model`, with random weights, Q8_0 matrices and F32 norms,
   written by the first entry's module as a file that names that entry,

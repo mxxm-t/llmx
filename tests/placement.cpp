@@ -279,7 +279,8 @@ void lookup_scratch_fits() {
 }
 
 void heterogeneous_saved_fits() {
-    const infer::ModelWeights weights = infer::gguf_weights(fixture());
+    const gguf::GGUFModel file = fixture();
+    const infer::ModelWeights weights = infer::gguf_weights(file);
     infer::ModelPlan plan = infer::plan_model(weights);
     plan.state = {2, 2, 4, 4};
     plan.slots = {8, 6};

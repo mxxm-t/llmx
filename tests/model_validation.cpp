@@ -348,7 +348,8 @@ void reader_checks() {
     infer::Placement across;
     across.mixer_device = {0}; across.ffn_device = {1};
     across.embed_device = 0; across.output_device = 1;
-    const Reads tied = read_in_place(infer::gguf_weights(fixture(true)), {device, second}, across);
+    const gguf::GGUFModel tied_file = fixture(true);
+    const Reads tied = read_in_place(infer::gguf_weights(tied_file), {device, second}, across);
     require(tied.order == "token_embd.weight@0 token_embd.weight@1 output_norm.weight@1 "
                           "blk.0.attn_norm.weight@0 blk.0.attn_q_norm.weight@0 blk.0.attn_k_norm.weight@0 blk.0.attn_q.weight@0 "
                           "blk.0.attn_k.weight@0 blk.0.attn_v.weight@0 blk.0.attn_output.weight@0 "

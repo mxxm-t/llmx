@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, in progress)
+
+- **Goal:** one routing answer on every device whatever its denormal mode. The CPU kept a subnormal `exp(v - top) / sum` and ordered such picks by value, while a device that flushes denormals (the Radeon VII, RADV by default) made them 0 and took the lower id.
+- **The change:** a probability below FLT_MIN counts as 0, clamped after the division on the CPU (`route_experts`) and explicitly in `moe_route.comp`, so the shader gives the same ids under any float mode; backend.hpp says beside `kNoExpert` that HF orders such picks by value and that their weights, below 1e-38, change no output.
+- **Tests:** backend-group's routing check and backend-vulkan's, on the CPU and the device, route a row with score gaps of 87, 90, 95 and 100: the expert at 87 stays above FLT_MIN and keeps its place, the others go by lower id with weight 0. Both fail at the test commit on the CPU and pass at the change on the Radeon VII.
+- **Gates:** byte identity against the base 38efef383 on the tiny qwen3moe, its Q8_0 variant, qwen35moe and Flash fixtures, on the CPU and the Radeon VII: 40 of 40 files identical (`llmx-model-logits` batched, decode and greedy rows, `logits --then-ids` and `--per-token`). CTest 82 of 82 on Windows with the Vulkan backend, docs and dead-code pass.
+- **Left:** a routed real model on an MI50 against the base in the K4 round, then K4 takes these rows back into its tests.
+
 ## Twins kept with their activation (2026-10-25, branch feat/twin-table on main 07facf1b6, item K3 of DDEV's fused-kernel DESIGN of 2026-10-24 13:15 and C2DEV's DECISION of 10:40, in progress)
 
 - **Goal:** a matmul reads the twin its input's producer wrote instead of quantizing the input again. Qwen3.8-Flash-Next recorded 193 standalone `quantize_x`/`quantize_xw` dispatches a token, about 6.2 us each, because the backend kept one twin and dropped it at almost every dispatch: `moe_combine` dropped the twin of the shared expert's input, a copy that zeroes another region dropped it, and the `inject` matmul read `hc_normed` after later producers had replaced its twin; Qwen3.5-35B-A3B lost one a layer to `moe_combine`. PLE embeddings, which have no producer, are left as they are.

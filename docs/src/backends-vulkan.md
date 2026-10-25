@@ -528,6 +528,10 @@ From the comment at line 2:
 - Expert routing (backend.hpp route_experts): a workgroup per row takes the k experts of highest softmax probability, the most probable first and ties to the lower id, with their probabilities, divided by the k probabilities' sum when `normalize`; a row of NaN probabilities picks the invalid id with weight 0 and marks nothing.
 - 64 invocations, one subgroup on a 64-wide device and two on a 32-wide one; the reductions are subgroup operations, joined through shared memory when there are two.
 
+From the comment at line 74:
+
+- Each invocation divides only the probabilities it wrote, and a probability below FLT_MIN is written as 0, explicitly, so the picks are the CPU's under any float mode.
+
 ### `src/backends/vulkan/shaders/norm_rope_kv.comp`
 
 From the comment at line 2:

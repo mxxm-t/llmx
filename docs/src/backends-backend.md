@@ -225,6 +225,9 @@ placement contracts in `docs/EXECUTION.md`.
   slots, so they stay in the activation arena. A row whose probabilities are
   not finite has no candidate: its k ids are `kNoExpert` with weights 0, and
   the routed products leave such an entry's rows unwritten and add nothing for it.
+  A probability below FLT_MIN counts as 0, so such picks go by lower id on every
+  device whatever its denormal mode, where HF orders them by value; their weights
+  are below 1e-38, so no output changes.
 - `matmul_experts(projections, X, nin, nrows, routing, runs)`: up to three
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its

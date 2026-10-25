@@ -1883,7 +1883,11 @@ public:
                 }
                 return;
             }
-            for (float& v : p) v /= sum;
+            // A probability below FLT_MIN counts as 0 (backend.hpp kNoExpert), so every device orders the same picks.
+            for (float& v : p) {
+                v /= sum;
+                if (v < std::numeric_limits<float>::min()) v = 0.0f;
+            }
             // Probabilities are never negative, so a taken expert is marked below every candidate.
             float chosen[256], total = 0.0f;
             for (size_t j = 0; j < k; ++j) {

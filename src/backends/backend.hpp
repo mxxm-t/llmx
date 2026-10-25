@@ -589,6 +589,7 @@ public:
 
     // The id of a pick where a row has no candidate: its probabilities are not finite, from a NaN or infinite score or every score -inf.
     static constexpr uint32_t kNoExpert = 0xffffffffu;
+    // A probability below FLT_MIN counts as 0, so such picks go by lower id whatever a device's denormal mode; HF orders them by value, which changes no output, since their weights are below 1e-38.
 
     // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability over all n_expert, the most probable first and ties to the lower id, with their probabilities, divided by their sum when `normalize`.
     // A row without a candidate gives k picks of kNoExpert with weights 0.

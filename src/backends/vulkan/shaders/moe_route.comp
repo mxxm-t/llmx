@@ -71,8 +71,11 @@ void main() {
         part += v;
     }
     float sum = group_sum(part);
-    // Each invocation reads back only the experts it wrote, so no barrier is needed before the division.
-    for (uint e = t; e < p.n_expert; e += 64u) prob[e] /= sum;
+    // Each invocation reads back only the experts it wrote, so no barrier is needed before the division; a probability below FLT_MIN counts as 0 under any float mode.
+    for (uint e = t; e < p.n_expert; e += 64u) {
+        float v = prob[e] / sum;
+        prob[e] = v < uintBitsToFloat(0x00800000u) ? 0.0 : v;
+    }
     for (uint j = 0u; j < p.k; ++j) {
         // The largest untaken probability, then the lowest id holding it; a taken expert holds -1, below every probability.
         float bv = -2.0;

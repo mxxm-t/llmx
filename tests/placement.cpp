@@ -1657,6 +1657,132 @@ void passes_refused() {
 }
 }
 
+// A prompt in consecutive passes at consecutive stages against prefill on one device, bit for bit, over 2, 3 and 4 stages (docs/MULTI-DEVICE.md, phase 4).
+// Each refusal changes nothing, and abandoning a slice, or a failure at its last stage, leaves the history where the first slice found it.
+void passes_continue() {
+    const auto weights = tiny_qwen(4, 2 * 128, true);
+    const std::vector<std::vector<int>> splits{{1, 1}, {1, 1, 2}, {1, 1, 1, 1}};
+    for (const std::vector<int>& shares : splits) {
+        const size_t S = shares.size();
+        int total = 0;
+        for (int sh : shares) total += sh;
+        const int last_layers = 4 * shares.back() / total;   // the layers the last stage runs, an attention each a slice
+        auto one = std::make_shared<backend::CpuBackend>();
+        one->set_threads(1);
+        infer::Model single(infer::gguf_weights(weights), one);
+        single.set_ubatch(3);
+        std::vector<std::shared_ptr<FailingCpu>> stages;
+        for (size_t i = 0; i < S; ++i) stages.push_back(std::make_shared<FailingCpu>());
+        infer::PlacedModel placed = pipelined(weights, std::vector<backend::BackendPtr>(stages.begin(), stages.end()), shares);
+        infer::Model& m = *placed.model;
+        const size_t V = single.n_vocab();
+        infer::ExecContext ctx;
+        m.reserve_passes(ctx, S, 3, 1);
+        infer::Sequence q = m.make_sequence(), other = m.make_sequence();
+        const std::vector<uint32_t>& ids = kPrompt;
+        std::vector<infer::BatchEntry> chunk;
+        for (size_t i = 0; i < ids.size(); i += 3) {
+            const size_t n = std::min<size_t>(3, ids.size() - i);
+            infer::BatchEntry e{&q, ids.data() + i, n, i + n == ids.size()};
+            e.extent = ids.size();
+            chunk.push_back(e);
+        }
+        const size_t C = chunk.size();
+        auto refused = [&](const std::function<void()>& call, const char* what) {
+            bool caught = false;
+            try { call(); } catch (const std::logic_error&) { caught = true; }
+            require(caught, what);
+            ++checked;
+        };
+        // Stage s of chunk t - s at step t, the first stage first, as prefill runs them; a chunk is begun as its first stage runs and ended after its last.
+        const auto run = [&](size_t until) {
+            std::vector<float> logits;
+            for (size_t t = 0; t + 1 < C + S && t < until; ++t)
+                for (size_t st = 0; st < S; ++st) {
+                    if (t < st || t - st >= C) continue;
+                    const size_t c = t - st, slot = c % S;
+                    if (st == 0) m.begin_pass(ctx, slot, &chunk[c], 1, 0);
+                    m.run_pass_stage(ctx, slot, st);
+                    if (st + 1 < S) continue;
+                    if (chunk[c].want_logits) logits.assign(m.pass_logits(ctx, slot, 0), m.pass_logits(ctx, slot, 0) + V);
+                    m.end_pass(ctx, slot);
+                }
+            return logits;
+        };
+        exact(single.prefill(ids), run(SIZE_MAX), "a prompt in consecutive passes differs from prefill on one device");
+        require(!q.in_flight() && q.length() == ids.size(), "a prompt in consecutive passes left its sequence in flight or short");
+        const uint32_t next = 7;
+        const infer::BatchEntry step{&q, &next, 1, true};
+        m.begin_pass(ctx, 0, &step, 1, 0);
+        for (size_t st = 0; st < S; ++st) m.run_pass_stage(ctx, 0, st);
+        require(!std::memcmp(m.pass_logits(ctx, 0, 0), single.step(next).data(), V * sizeof(float)), "a step after a prompt in consecutive passes differs from one device");
+        m.end_pass(ctx, 0);
+        checked += 2;
+
+        // Refusals, each leaving the history and the passes in flight as they were.
+        m.reset(q);
+        single.reset();
+        m.begin_pass(ctx, 0, &chunk[0], 1, 0);
+        refused([&] { m.begin_pass(ctx, 1, &chunk[1], 1, 0); }, "a slice begun before the one before it ran its first stage");
+        m.run_pass_stage(ctx, 0, 0);
+        const uint32_t lone = 5;
+        const infer::BatchEntry beside[2] = {chunk[1], {&other, &lone, 1, true}};
+        refused([&] { m.begin_pass(ctx, 1, beside, 2, 0); }, "a continued sequence beside another in its pass");
+        require(!other.in_flight() && q.length() == 3, "a refused continuation changed a sequence");
+        m.begin_pass(ctx, 1, &chunk[1], 1, 0);
+        m.run_pass_stage(ctx, 1, 0);
+        refused([&] { m.run_pass_stage(ctx, 1, 1); }, "a slice's stage run before the slice before it ran that stage");
+        require(q.in_flight() && q.length() == 6, "a refused stage changed the history or took its pass out of flight");
+        // Abandoning the first slice takes the second with it: both slots free, the history empty.
+        const std::vector<size_t> later = m.abort_pass(ctx, 0);
+        require(later == std::vector<size_t>{1} && !q.in_flight() && q.length() == 0, "abandoning a slice did not take the later one with it or left a history");
+        refused([&] { m.abort_pass(ctx, 1); }, "a slice abandoned with an earlier one was still in flight");
+        exact(single.prefill(ids), run(SIZE_MAX), "a prompt after its slices were abandoned differs from one device");
+        checked += 3;
+
+        // A slice that wants its logits takes no continuation.
+        m.reset(q);
+        single.reset();
+        infer::BatchEntry wanting = chunk[0];
+        wanting.want_logits = true;
+        m.begin_pass(ctx, 0, &wanting, 1, 0);
+        m.run_pass_stage(ctx, 0, 0);
+        refused([&] { m.begin_pass(ctx, 1, &chunk[1], 1, 0); }, "a continuation beside a pass that wants the sequence's logits");
+        m.abort_pass(ctx, 0);
+
+        // Nor does a slice whose pass holds another sequence, which abandoning a later slice would otherwise take with it.
+        infer::BatchEntry head{&q, ids.data(), 2, false};
+        head.extent = ids.size();
+        const infer::BatchEntry shared[2] = {head, {&other, &lone, 1, false}};
+        m.begin_pass(ctx, 0, shared, 2, 0);
+        m.run_pass_stage(ctx, 0, 0);
+        refused([&] { m.begin_pass(ctx, 1, &chunk[1], 1, 0); }, "a continuation of a slice whose pass holds another sequence");
+        require(!ctx.passes[1].in_flight && q.length() == 2 && other.length() == 1, "a refused continuation changed a sequence or took a slot");
+        m.abort_pass(ctx, 0);
+        m.reset(other);
+
+        // A failure at the last stage on the second slice: that slice gone, the later ones refused at their next stage and abandoned, the history back where the first found it.
+        m.reset(q);
+        single.reset();
+        stages.back()->fail_attention = last_layers + 1;
+        bool failed = false;
+        try { run(SIZE_MAX); } catch (const std::runtime_error&) { failed = true; }
+        require(failed && !stages.back()->fail_attention, "the injected failure did not fire");
+        std::vector<size_t> live;
+        for (size_t slot = 0; slot < S; ++slot)
+            if (ctx.passes[slot].in_flight) live.push_back(slot);
+        require(!live.empty(), "no later slice was in flight at the failure");
+        std::sort(live.begin(), live.end(), [&](size_t a, size_t b) { return ctx.passes[a].start[0] < ctx.passes[b].start[0]; });
+        refused([&] { m.run_pass_stage(ctx, live.front(), ctx.passes[live.front()].ran); }, "a slice after a failed one took its next stage");
+        const std::vector<size_t> rest = m.abort_pass(ctx, live.front());
+        require(rest.size() + 1 == live.size() && !q.in_flight(), "abandoning the slice after a failed one did not take the rest");
+        require(q.length() == 3, "a failed slice did not leave the history where it found it");
+        m.reset(q);
+        exact(single.prefill(ids), run(SIZE_MAX), "a prompt after a failed slice differs from one device");
+        checked += 4;
+    }
+}
+
 // A tensor split (docs/TENSOR-SPLIT.md, step 2): one stage of width 2 against two stages of width 2 on four CPU backends, bit for bit, through prompts, decode steps, scored rows and a two-sequence pass; against one device within an F32 bound.
 void tensor_groups() {
     auto grouped = [](const gguf::GGUFModel& weights, size_t devices, const std::vector<int>& shares, int ubatch) {
@@ -1962,6 +2088,7 @@ int main() {
         pipelined_failure_rolls_back();
         replay_over_stages();
         passes_refused();
+        passes_continue();
         passes_match_alone();
         std::cout << "placement: " << checked << " checks across two, three and four CPU backends\n";
         return 0;

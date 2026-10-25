@@ -883,10 +883,10 @@ void boundary_faults(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, 
 }
 
 // A reply read again as prompt rows (docs/SPECULATIVE.md, section 2, Idle re-prefill): the ids a 300-token prompt's next turn begins with go to the scheduler, whose job reads them on a fork and keeps a donor for a follow-up to fork.
-// The variants (idle, `interrupt` k, `small`, `writing`, `at_once`) are listed in AGENTS.md, Tests, and each gives every reply its reply alone.
+// The variants (idle, `interrupt` k, `small`, `writing`, `at_once`, `passes`) are in AGENTS.md, Tests; each gives every reply its reply alone, and with two passes on a split the job's slices must continue each other.
 enum class When { idle, writing, at_once };
 
-void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false) {
+void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t interrupt, When when, const std::string& what, bool small = false, size_t passes = 1) {
     const bool writing = when != When::idle;
     const Req first{prompt_of(5, 300, vocab), writing ? 400 : 100}, other{prompt_of(9, small ? 40 : 700, vocab), 20};
     // Answered at once, the follow-up must fit beside the job and the donor it forked, or the job gives way to it; the other request, but a small one, cannot be admitted beside the job.
@@ -900,7 +900,7 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     Reply follow_reply, other_reply;
     std::vector<uint32_t> next;
     {
-        server::Scheduler sched(*model, tok, 3, 64);
+        server::Scheduler sched(*model, tok, 3, 64, passes);
         std::shared_ptr<server::Request> h, interrupter;
         size_t job_passes = 0, request_passes = 0;
         std::mutex handles;
@@ -984,6 +984,7 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
             const server::Scheduler::Stats stats = sched.stats();
             require(stats.reprefills == 1 && stats.reprefill_cancels == (interrupt && !small ? 1u : 0u),
                     what + ": " + std::to_string(stats.reprefills) + " jobs done and " + std::to_string(stats.reprefill_cancels) + " cancelled");
+            require(passes == 1 || stats.continued > 0, what + ": the job's slices never continued each other");
             ledger(stats, *model, what);
         } catch (...) {
             sched.stop();
@@ -5298,6 +5299,9 @@ int main(int argc, char** argv) {
                 const std::string when = w == When::writing ? " while it is written" : w == When::at_once ? " and answered at once" : "";
                 reprefilled(one, tok, vocab, 0, w, "a reply read again" + when);
                 reprefilled(on(weights, [] { return cpus(2); }), tok, vocab, 0, w, "a reply read again over a two-CPU split" + when);
+                if (w == When::idle) {
+                    reprefilled(on(weights, [] { return cpus(2); }), tok, vocab, 0, w, "a reply read again over a two-CPU split with two passes in flight", false, 2);
+                }
                 const bpe::Tokenizer mixed_tok(mixed);
                 const Make kept = on(mixed, [] { return cpus(1); }, 3, 3);
                 for (size_t k = 0; k <= (w == When::idle ? 7u : 0u); ++k)

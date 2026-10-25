@@ -52,7 +52,7 @@ struct Sim {
         bool uncapped = false, stalled = false, cancel = false;
         size_t prompt = 0, max_tokens = 0, gen = 0, len = 0;   // len: what its cache holds, a pass in flight's rows not counted
         size_t read_alone = 0;                                // prompt rows it read while alone (server::prompt_slice)
-        size_t slot = npos;                                   // the slot of the pass it is in flight in
+        std::vector<size_t> in;                               // the slots of its passes in flight, oldest first: one, or a prompt's consecutive slices (docs/MULTI-DEVICE.md, phase 4)
         uint64_t since = 0, cancelled = 0;                    // the round it last got a token or could not, and the round its cancel was first seen in
         uint64_t landed = 0;                                  // the formation order of the last pass it left flight from
         // A read of its history from disk (docs/DISK-TIER.md, Restore): whether it has one, the round the read ends, failed or not, and the round its bound passes; it waits while both are ahead.
@@ -75,6 +75,8 @@ struct Sim {
         double ready = 0;            // when its last recorded stage ends on its device
     };
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
+    std::vector<size_t> failed_now;   // the slots a failure emptied in this round's steps
+    uint64_t formed_before = 0;       // the passes formed before this round's steps
     // A model whose layers keep a recurrent state and no checkpoint slots: each active request holds one of max_seqs state slots, and no request leaves a donor.
     bool stateful = false;
     // Turns at the pool's edge (server::Growth::yields): whether a yielding request's history can be kept, as with a host tier that has room, and the steps of a turn.
@@ -107,7 +109,7 @@ struct Sim {
         uint64_t until = 0;
     };
     std::vector<Recording> recording;
-    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
+    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0;
     server::LogitRows rows;
     std::vector<double> device_free;
     std::vector<uint64_t> device_last;       // per device, the formation order of the last pass it ran
@@ -228,20 +230,31 @@ struct Sim {
             if (!slots[k].live) return k;
         return npos;
     }
-    // Rows a pass in flight adds to a request's history.
+    // Rows its passes in flight add to a request's history, each pass's prepared blocks counted once.
     size_t flying_rows(const Req& r) const {
-        if (r.slot == npos) return 0;
-        const Pass& p = slots[r.slot];
-        for (size_t e = 0; e < p.ids.size(); ++e)
-            if (p.ids[e] == r.id) return p.rows[e];
-        return 0;
+        size_t n = 0;
+        for (size_t k : r.in)
+            for (size_t e = 0; e < slots[k].ids.size(); ++e)
+                if (slots[k].ids[e] == r.id) n += slots[k].rows[e];
+        return n;
     }
-    bool ready(const Req& r) const { return r.slot == npos && !r.stalled; }
+    bool ready(const Req& r) const { return r.in.empty() && !r.stalled; }
+    // Whether a request in flight continues its prompt in a pass of its own, as the scheduler's continues: each of its passes holds it alone, has run the first stage and does not want its logits.
+    // It follows a slice formed in an earlier round; nothing continues while a request could not grow, nor a cancelled request, and beside generated rows a slot stays free.
+    bool continues(const Req& r) const {
+        if (r.in.empty() || r.cancel || r.decoding() || std::any_of(active.begin(), active.end(), [](const Req& q) { return q.stalled; })) return false;
+        for (size_t k : r.in)
+            if (slots[k].ids.size() != 1 || !slots[k].ran || slots[k].wants[0] || slots[k].formed > formed_before) return false;
+        size_t free = 0;
+        for (size_t k = 0; k < P; ++k) free += !slots[k].live;
+        const bool generating = std::any_of(active.begin(), active.end(), [](const Req& q) { return !server::reads_prompt(q.gen, q.len, q.history()); });
+        return free > (generating ? 1u : 0u);
+    }
     // A paused request's history stays as a donor however short, so what it keeps is what it holds.
     std::vector<server::Holder> holders() const {
         std::vector<server::Holder> h;
         for (const Req& r : active)
-            h.push_back({r.admission, r.uncapped, r.len ? blocks_for(r.len) : std::vector<size_t>(pools.blocks.size(), 0), r.slot != npos});
+            h.push_back({r.admission, r.uncapped, r.len ? blocks_for(r.len) : std::vector<size_t>(pools.blocks.size(), 0), !r.in.empty()});
         return h;
     }
     std::vector<std::vector<size_t>> needs() const {
@@ -269,7 +282,14 @@ struct Sim {
             const bool next = grown && r.decoding() && ready(r);
             const std::vector<size_t> held = blocks_for(r.len + flying_rows(r) + (next ? 1 : 0));
             for (size_t s = 0; s < held.size(); ++s) require(held[s] <= r.need[s], at + ": a request holds more than it reserved");
-            require(r.slot == npos || (r.slot < slots.size() && slots[r.slot].live), at + ": a request in flight in no pass");
+            for (size_t k : r.in) require(k < slots.size() && slots[k].live, at + ": a request in flight in no pass");
+            // A request's passes in flight are its prompt's consecutive slices, each a pass of its own, oldest first, each past the stages of the one after it, and only the last wanting logits.
+            for (size_t j = 1; j < r.in.size(); ++j) {
+                const Pass& a = slots[r.in[j - 1]];
+                const Pass& b = slots[r.in[j]];
+                require(a.formed < b.formed && a.ran >= b.ran && a.ids.size() == 1 && b.ids.size() == 1 && !a.wants[0],
+                        at + ": a request's passes in flight are not its prompt's consecutive slices");
+            }
         }
         for (const auto& d : donors) add(sum, d.blocks);
         for (size_t s = 0; s < sum.size(); ++s) {
@@ -277,7 +297,7 @@ struct Sim {
             require(reserved[s] == sum[s], at + ": the ledger does not add up in pool " + std::to_string(s));
         }
         for (const auto* waiting : {&queue, &paused})
-            for (const Req& r : *waiting) require(r.slot == npos, at + ": a waiting request in flight");
+            for (const Req& r : *waiting) require(r.in.empty(), at + ": a waiting request in flight");
         // The slot ledger: a state slot for each active request, and none held by a donor.
         require(active.size() <= max_seqs, at + ": more requests active than there are slots");
         require(!stateful || donors.empty(), at + ": a model keeping a recurrent state kept a donor");
@@ -288,7 +308,7 @@ struct Sim {
             require(!p.ids.empty(), at + ": an empty pass in flight");
             for (uint64_t id : p.ids) {
                 const size_t i = find(id);
-                require(i != npos && active[i].slot == k, at + ": a pass holds a request that is not in flight in it");
+                require(i != npos && std::find(active[i].in.begin(), active[i].in.end(), k) != active[i].in.end(), at + ": a pass holds a request that is not in flight in it");
             }
             for (size_t j = 0; j < slots.size(); ++j)
                 if (j != k && slots[j].live) require(slots[j].formed != p.formed, at + ": two passes formed as one");
@@ -325,7 +345,7 @@ struct Sim {
     // A request leaves the active set: its history a donor when it holds at least `least` tokens and the model keeps no state, its blocks returned otherwise; the donor's id, 0 when none.
     uint64_t park(size_t i, size_t least) {
         Req r = active[i];
-        require(r.slot == npos, at + ": a request in flight parked");
+        require(r.in.empty(), at + ": a request in flight parked");
         active.erase(active.begin() + (std::ptrdiff_t)i);
         sub(reserved, r.need);
         if (stateful || !r.len || r.len < least) return 0;
@@ -427,7 +447,7 @@ struct Sim {
     }
     void sweep_active() {
         for (size_t i = 0; i < active.size();)
-            if (active[i].cancel && active[i].slot == npos) finish(i);
+            if (active[i].cancel && active[i].in.empty()) finish(i);
             else ++i;
     }
 
@@ -464,20 +484,32 @@ struct Sim {
         return true;
     }
 
-    // A failed pass fails as the scheduler's fail_pass does: every device drained, the pass abandoned and its requests ended with the error, while every other pass in flight goes on.
+    // A failed pass fails as the scheduler's fail_pass does: every device drained, the pass abandoned and its requests ended with the error, while every other pass in flight goes on but a continued prompt's other slices, which go with it.
     void fail(size_t k) {
         for (double t : device_free) clock = std::max(clock, t);
         const size_t flying = in_flight();
         const std::vector<uint64_t> ids = slots[k].ids;
+        size_t taken = 0;
+        for (uint64_t id : ids)
+            for (size_t j : active[find(id)].in) {
+                if (j == k) continue;
+                for (Recording& rec : recording)
+                    if (rec.busy && rec.slot == j) rec.busy = false;
+                server::give_rows(ring(slots[j]), slots[j].base, slots[j].want);
+                clear(slots[j]);
+                failed_now.push_back(j);
+                ++taken;
+            }
         server::give_rows(ring(slots[k]), slots[k].base, slots[k].want);
         clear(slots[k]);
+        failed_now.push_back(k);
         for (uint64_t id : ids) {
             const size_t i = find(id);
             sub(reserved, active[i].need);
             active.erase(active.begin() + (std::ptrdiff_t)i);
             ++ended;
         }
-        require(in_flight() + 1 == flying, at + ": a failed pass took other passes with it");
+        require(in_flight() + 1 + taken == flying, at + ": a failed pass took other passes with it than its prompt's slices");
         ++failures;
     }
 
@@ -492,10 +524,10 @@ struct Sim {
         }
         for (size_t e = 0; e < p.ids.size(); ++e) {
             const size_t i = find(p.ids[e]);
-            require(i != npos && active[i].slot == k, at + ": a retired pass's request not in flight in it");
+            require(i != npos && !active[i].in.empty() && active[i].in.front() == k, at + ": a retired pass's request not in flight in it, or a later slice retired first");
             Req& r = active[i];
             r.len += p.rows[e];
-            r.slot = npos;
+            r.in.erase(r.in.begin());
             r.landed = p.formed;
             if (p.wants[e] && !r.cancel) {
                 ++r.gen;
@@ -519,7 +551,7 @@ struct Sim {
         for (size_t i = 0; i < active.size(); ++i) {
             Req& r = active[i];
             r.stalled = false;
-            if (r.slot != npos) continue;
+            if (!r.in.empty()) continue;
             const std::vector<size_t> step = growth.step(pools, r.uncapped, r.decoding(), r.len, r.need);
             if (step.empty()) continue;
             // Its turn at the pool's edge over, it gives its room to the uncapped request paused longest, which must then fit: that one is ahead of it in the line, so it is admitted before the yielder is.
@@ -538,7 +570,7 @@ struct Sim {
             const server::Taken t = room_of(pools.blocks, reserved, donor_blocks(), npos, false, holders(), needs(), r.admission, true, step);
             require(t.paused.size() <= 1, at + ": a growth plan paused " + std::to_string(t.paused.size()) + " requests, though one uncapped request's reservation holds a step");
             if (i == 0 && waiter == r.id) {
-                if (find(waited) == npos || active[find(waited)].slot == npos) {
+                if (find(waited) == npos || active[find(waited)].in.empty()) {
                     require(t.enough && !t.wait, at + ": the oldest request's plan still waits once the request it waited on left flight");
                     ++resolved;
                 }
@@ -565,7 +597,7 @@ struct Sim {
             }
             for (const auto& p : t.paused) require(active[p.first].uncapped && active[p.first].admission > r.admission, at + ": a request paused one it may not");
             if (t.wait) {
-                require(active[t.paused[0].first].slot != npos, at + ": a plan waited on no request in flight");
+                require(!active[t.paused[0].first].in.empty(), at + ": a plan waited on no request in flight");
                 if (i == 0) {
                     if (waiter != r.id) waiting_from = round_no;
                     waiter = r.id;
@@ -650,19 +682,27 @@ struct Sim {
             bool held = false;
             for (Req& r : active) {
                 if (r.decoding() || !budget || r.len >= r.history()) continue;
-                const server::PromptSlice s = server::prompt_slice(r.history() - r.len, S, ubatch, alone, r.read_alone);
-                if (r.slot != npos) {
+                const size_t at_len = r.len + flying_rows(r);
+                if (at_len >= r.history()) continue;
+                const server::PromptSlice s = server::prompt_slice(r.history() - at_len, S, ubatch, alone, r.read_alone);
+                // A prompt whose slices in flight have each run the first stage continues in a pass of its own.
+                const bool continued = !r.in.empty();
+                if (continued && !(p.ids.empty() && continues(r))) {
                     held = s.closes;
                     if (held) break;
                     continue;
                 }
-                if (!ready(r)) continue;
-                const size_t n = std::min({budget, s.most, r.history() - r.len});
+                if (!continued && !ready(r)) continue;
+                const size_t n = std::min({budget, s.most, r.history() - at_len});
                 budget -= n;
-                r.read_alone = alone && r.len + n < r.history() ? r.read_alone + n : 0;
+                r.read_alone = alone && at_len + n < r.history() ? r.read_alone + n : 0;
                 p.ids.push_back(r.id);
                 p.rows.push_back(n);
-                p.wants.push_back(r.len + n == r.history());
+                p.wants.push_back(at_len + n == r.history());
+                if (continued) {
+                    ++continued_passes;
+                    break;
+                }
                 if (s.closes) break;
             }
             if (p.ids.empty()) {
@@ -677,7 +717,7 @@ struct Sim {
             p.live = true;
             p.formed = ++formed;
             slots[k] = p;
-            for (uint64_t id : p.ids) active[find(id)].slot = k;
+            for (uint64_t id : p.ids) active[find(id)].in.push_back(k);
             check();
             // Now and then a request is cancelled while its pass is formed and not yet recorded.
             if (rng() % 40 == 0) {
@@ -700,8 +740,12 @@ struct Sim {
         for (const auto& a : st.advance) require(!slots[a.first].recording && !recording[a.second + (slots[a.first].apart ? S : 0)].busy, "the round gave a stage a pass while it records one of its kind, or a pass being recorded");
         for (size_t k : st.retire) require(!slots[k].recording, "the round retired a pass being recorded");
         std::vector<std::pair<size_t, size_t>> deferred;
+        formed_before = formed;
         at = "advance";
+        failed_now.clear();
         for (const auto& a : st.advance) {
+            // A failure this round takes a continued prompt's other slices, which the round's steps may still name; the scheduler passes over them.
+            if (!slots[a.first].live && std::count(failed_now.begin(), failed_now.end(), a.first)) continue;
             require(slots[a.first].live && slots[a.first].ran == a.second, at + ": a stage given a pass that does not wait for it");
             if (host[a.second]) {
                 deferred.push_back(a);
@@ -712,6 +756,7 @@ struct Sim {
         }
         at = "retirement";
         for (size_t k : st.retire) {
+            if (!slots[k].live && std::count(failed_now.begin(), failed_now.end(), k)) continue;
             retire(k);
             check();
         }
@@ -726,7 +771,7 @@ struct Sim {
         }
         at = "host stages";
         for (const auto& a : deferred)
-            if (slots[a.first].live && slots[a.first].ran == a.second) {
+            if (slots[a.first].live && slots[a.first].ran == a.second && (!a.second || slots[a.first].formed <= formed_before)) {
                 record(a.first, a.second);
                 check();
             }
@@ -758,7 +803,7 @@ struct Sim {
         size_t k = rng() % n;
         if (k < active.size()) {
             active[k].cancel = true;
-            flying_cancels += active[k].slot != npos;
+            flying_cancels += !active[k].in.empty();
         } else if ((k -= active.size()) < paused.size()) {
             paused[k].cancel = true;
         } else {
@@ -772,7 +817,7 @@ struct Sim {
         recording.assign(recording.size(), Recording{});
         for (Pass& p : slots)
             if (p.live) {
-                for (uint64_t id : p.ids) active[find(id)].slot = npos;
+                for (uint64_t id : p.ids) active[find(id)].in.clear();
                 server::give_rows(ring(p), p.base, p.want);
                 clear(p);
             }
@@ -1280,7 +1325,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0;
+    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -1317,17 +1362,19 @@ void random_schedules(size_t n) {
         held_formations += sim.held_formations;
         formed_apart += sim.formed_apart;
         passed += sim.passed;
+        continued_passes += sim.continued_passes;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000) {
         require(formed_apart > 0 && passed > 0, "the schedules formed " + std::to_string(formed_apart) + " passes apart, of which " + std::to_string(passed) + " stages passed an older pass");
         require(recorded > 0 && record_failures > 0 && held_formations > 0, "the schedules met no stage recorded on a thread of its own, none that failed while it was recorded, or no formation held for the first stage's recorder");
+        require(continued_passes > 0, "the schedules met no prompt continued while its slice before was in flight");
     }
     if (n >= 1000)
         for (size_t i = 1; i < 14; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound, reads that failed and turns at the pool's edge");
     std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads, %zu turns at the pool's edge\n",
                 n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12], totals[13]);
-    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder\n", recorded, record_failures, held_formations);
+    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight\n", recorded, record_failures, held_formations, continued_passes);
 }
 
 } // namespace

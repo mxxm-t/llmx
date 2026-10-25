@@ -2237,6 +2237,60 @@ void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = fal
     two.reset(d);
 }
 
+// A 200-token prompt in consecutive passes of 16 rows over the split whose first stage holds only a linear-attention layer's state (docs/MULTI-DEVICE.md, phase 4).
+// Against prefill on one backend, bit for bit: the prompt's logits, the checkpoint the slice ending at 128 keeps and a decode step.
+void split_continued(const gguf::GGUFModel& m) {
+    const infer::ModelWeights w = infer::gguf_weights(m);
+    infer::ModelOptions options;
+    options.state_slots = 2;
+    options.checkpoint_slots = 1;
+    options.kv_tokens = 2 * 128;
+    infer::Model one(w, backend::make_cpu_backend(), options);
+    infer::Placement place;
+    place.mixer_device = place.ffn_device = {0, 1, 1, 1};
+    place.embed_device = 0;
+    place.output_device = 1;
+    infer::Model two(w, {backend::make_cpu_backend(), backend::make_cpu_backend()}, place, options);
+    one.set_ubatch(16);
+    two.set_ubatch(16);
+    std::vector<uint32_t> ids(200);
+    for (size_t i = 0; i < ids.size(); ++i) ids[i] = uint32_t(1 + i * 7 % (VOCAB - 1));
+    const std::vector<float> want = one.prefill(ids, 128);
+    infer::ExecContext ctx;
+    two.reserve_passes(ctx, 2, 16, 1);
+    infer::Sequence q = two.make_sequence();
+    std::vector<infer::BatchEntry> chunk;
+    for (size_t i = 0; i < ids.size(); i += 16) {
+        const size_t n = std::min<size_t>(16, ids.size() - i);
+        infer::BatchEntry e{&q, ids.data() + i, n, i + n == ids.size()};
+        e.extent = ids.size();
+        e.keep = i + n == 128;
+        chunk.push_back(e);
+    }
+    std::vector<float> got;
+    for (size_t t = 0; t <= chunk.size(); ++t)
+        for (size_t st = 0; st < 2; ++st) {
+            if (t < st || t - st >= chunk.size()) continue;
+            const size_t c = t - st, slot = c % 2;
+            if (st == 0) two.begin_pass(ctx, slot, &chunk[c], 1, 0);
+            two.run_pass_stage(ctx, slot, st);
+            if (st == 0) continue;
+            if (chunk[c].want_logits) got.assign(two.pass_logits(ctx, slot, 0), two.pass_logits(ctx, slot, 0) + VOCAB);
+            two.end_pass(ctx, slot);
+        }
+    require(same(want, got), "a prompt in consecutive passes over a stage of states differs from one backend");
+    require(q.length() == ids.size() && two.checkpoint(q) == std::optional<size_t>(128) && one.checkpoints_free() == 0,
+            "a prompt in consecutive passes did not keep its state at 128 as prefill does");
+    const uint32_t next = 9;
+    const infer::BatchEntry step{&q, &next, 1, true};
+    two.begin_pass(ctx, 0, &step, 1, 0);
+    two.run_pass_stage(ctx, 0, 0);
+    two.run_pass_stage(ctx, 0, 1);
+    require(!std::memcmp(two.pass_logits(ctx, 0, 0), one.step((int)next).data(), VOCAB * sizeof(float)), "a step after a prompt in consecutive passes differs from one backend");
+    two.end_pass(ctx, 0);
+    two.reset(q);
+}
+
 // In this fixture only the router projects E to X and only the shared gate E to 1.
 // Hold their policy separately: a whole-model witness cannot show one projection silently using the default.
 struct GatePolicy : backend::CpuBackend {
@@ -2360,6 +2414,7 @@ int main(int argc, char** argv) {
             drafts();
             slices(tiny());
             split_with_a_stage_of_states(tiny());
+            split_continued(tiny([](gguf::GGUFModel& g) { set(g, "context_length", 512); }));
             experts();
         }
         if (part != "models") {

@@ -362,6 +362,8 @@ void scenario(const Make& make, const bpe::Tokenizer& tok, uint32_t v, const std
         const size_t b_evicted = report[5].evicted, b_gave_way = report[5].gave_way;
         table.push_back({"past half the pool a turn's donor stays beside its job", "P3", true, !report[5].consumed});
         table.push_back({"a job that gives way to another conversation's request loses no row a later turn needs", "P1, P7", true, !b_evicted});
+        // With passes in flight the job's slices continue each other (docs/MULTI-DEVICE.md, phase 4), so it gives way by abandoning its passes (Scheduler::recall).
+        require(sched.stats().passes == 1 || sched.stats().continued > 0, "leg B on passes in flight: no slice continued another");
         // The job's rows kept as a donor when it gives way (S8), so the next turn forks them while the other request runs.
         require(b_gave_way == 1 && b_evicted == 0 && report[5].reused == 896 && !sched.stats().moves[(size_t)server::Move::job_lost],
                 "leg B's witness: " + std::to_string(b_gave_way) + " jobs gave way, " + std::to_string(report[5].reused) + " rows reused, " + std::to_string(b_evicted) + " evicted and " +

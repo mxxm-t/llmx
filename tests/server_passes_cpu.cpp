@@ -211,25 +211,31 @@ void slices(const Make& one, const std::function<Make(size_t)>& split, const bpe
                 require(t.rows[e] == 1 || t.rows[e] == (size_t)kWide, "a burst of four prompts took a cut slice of " + std::to_string(t.rows[e]) + " rows");
         for (size_t i = 0; i < burst.size(); ++i) same(alone_on_one(burst[i]), got[i], "the burst, request " + std::to_string(i));
     }
-    // The arrival mid-prompt: the lone prompt's first slice a quarter of its 768 rows, and after the second request's submission 64 rows in a pass no other prompt shares, then whole slices.
+    // The arrival mid-prompt: the lone prompt's first slice a quarter of its 768 rows, cut slices while it is alone, then whole slices, the second request's only after it.
+    // Slices continue each other (docs/MULTI-DEVICE.md, phase 4), so the cut slices before the arrival follow the stages' timing, and the slices are held to that rule, not to a count.
     {
         const Req lone{prompt_of(50, 768, vocab), 4}, late{prompt_of(51, 40, vocab), 4};
         std::vector<server::Scheduler::Retired> passes;
         std::vector<std::shared_ptr<server::Request>> handles;
         const std::vector<Reply> got = run({lone}, &late, passes, handles);
         std::vector<size_t> rows;
+        size_t read = 0;
         for (const auto& t : passes)
             for (size_t e = 0; e < t.requests.size(); ++e)
                 if (t.requests[e] == handles[0].get() && t.rows[e] > 1) {
                     rows.push_back(t.rows[e]);
-                    if (rows.size() == 2)
-                        for (size_t o = 0; o < t.requests.size(); ++o)
-                            require(o == e || t.rows[o] == 1, "the slice that brought the lone prompt back to a whole ubatch shared its pass with another prompt");
+                    read += t.rows[e];
                 } else if (t.requests[e] == handles[1].get() && t.rows[e] > 1) {
-                    require(rows.size() >= 2, "the request that arrived took a prompt slice before the lone prompt was back on a whole ubatch");
+                    require(read % kWide == 0 || read == 768, "the request that arrived took a prompt slice before the lone prompt was back on a whole ubatch");
                 }
-        require(rows.size() == 4 && rows[0] == 192, "the lone prompt's first slice was not a quarter of its rows");
-        require(rows[1] == 64 && rows[2] == (size_t)kWide && rows[3] == (size_t)kWide, "the lone prompt was not brought back to whole slices after a request arrived");
+        require(!rows.empty() && rows[0] == 192 && read == 768, "the lone prompt's first slice was not a quarter of its rows, or its slices did not add up");
+        bool whole = false;
+        for (size_t i = 0, sum = 0; i < rows.size(); ++i) {
+            if (whole) require(rows[i] == (size_t)kWide || sum + rows[i] == 768, "the lone prompt took a cut slice after it was back on whole slices");
+            sum += rows[i];
+            whole = whole || sum % kWide == 0;
+        }
+        require(whole || rows.size() == 1, "the lone prompt was not brought back to whole slices after a request arrived");
         same(alone_on_one(lone), got[0], "the lone prompt");
         same(alone_on_one(late), got[1], "the request that arrived mid-prompt");
     }
@@ -278,6 +284,7 @@ void in_place(const Make& one, const std::function<Make(size_t)>& split, const b
 struct Ended {
     std::vector<Reply> replies;
     std::vector<std::string> finish, error;
+    uint64_t continued = 0;   // the scheduler's passes that continued a prompt (Stats::continued)
 };
 Ended hooked_run(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, const Run& run, size_t pool,
                  const std::function<void(const std::vector<std::shared_ptr<server::Request>>&, size_t)>& hook,
@@ -299,6 +306,7 @@ Ended hooked_run(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, cons
                 out.error.push_back(r->error());
             }
             const auto work = sched.stats();
+            out.continued = work.continued;
             ledger(work, *model, name(run));
             uint64_t published = 0;
             for (const Reply& reply : out.replies) published += reply.size();
@@ -376,6 +384,27 @@ void failed(const gguf::GGUFModel& weights, const Make& one, const bpe::Tokenize
         require(errors > 0 && (!shared || errors < reqs.size()),
                 what + ": " + std::to_string(errors) + " of " + std::to_string(reqs.size()) + " requests ended with the error");
         whole_pool_free(*model, pool, vocab, what);
+    }
+}
+
+// A lone prompt whose slice fails at the last stage while the slice after it is in flight at an earlier one: the request ends with the error and the pool comes back whole.
+// The last stage takes 2 ms a submission, so a slice waits there and the next continues behind it.
+void failed_continued(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const size_t pool = 16 * kBlock;
+    const std::vector<Req> lone{{prompt_of(7, 300, vocab), 3}};
+    for (const Run& run : runs()) {
+        if (run.stages < 2 || run.passes < run.stages) continue;
+        for (size_t at : {size_t(2), size_t(3)}) {
+            const std::string what = "a continued prompt's slice failing at the last stage's submission " + std::to_string(at) + " on " + name(run);
+            std::unique_ptr<infer::Model> model;
+            const Ended e = hooked_run(weights, tok, run, pool, [at](const std::vector<std::shared_ptr<server::Request>>&, size_t n) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                if (n == at) throw std::runtime_error("injected");
+            }, lone, model);
+            require(e.finish[0] == "error" && e.error[0] == "injected", what + ": it ended with " + e.finish[0]);
+            require(e.continued > 0, what + ": no slice continued another, so none was in flight beside the failing one");
+            whole_pool_free(*model, pool, vocab, what);
+        }
     }
 }
 
@@ -619,6 +648,7 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     in_place(one, split, tok, vocab);
     cancelled(weights, one, tok, vocab);
     failed(weights, one, tok, vocab);
+    failed_continued(weights, tok, vocab);
     stopped(weights, tok, vocab);
 }
 
@@ -726,8 +756,9 @@ void recorded_stages(const gguf::GGUFModel& weights, uint32_t vocab) {
         const std::string what = "stages that are no CPU's on " + name(run);
         auto model = split(run.stages)(pool, kUbatch);
         seen.clear();
-        same(ref[0], serve(*model, tok, kSeqs, {{reqs[0]}}, nullptr, run.passes)[0], what + ", a request alone");
-        require(seen.count() == 1, what + ": " + std::to_string(seen.count()) + " threads submitted a lone request's stages, against the scheduler's alone");
+        // A request alone whose prompt is one slice has one pass in flight at a time; a longer prompt's slices continue each other (continued) and are recorded on the stages' threads.
+        same(ref[4], serve(*model, tok, kSeqs, {{reqs[4]}}, nullptr, run.passes)[0], what + ", a request alone");
+        require(seen.count() == 1, what + ": " + std::to_string(seen.count()) + " threads submitted the stages of a lone request of one slice, against the scheduler's alone");
         model = split(run.stages)(pool, kUbatch);
         seen.clear();
         const std::vector<Reply> got = serve(*model, tok, kSeqs, {reqs}, nullptr, run.passes);
@@ -1770,6 +1801,42 @@ void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
         }
 }
 
+// A prompt in consecutive passes (docs/MULTI-DEVICE.md, phase 4) on layer splits of two and three slow devices, none a CPU, at P = S and S + 1, without pacing and under the interleaved rule.
+// A lone prompt of 300 tokens continues while its slice before is in flight (Stats::continued), and beside a reply only with a slot left for it; every reply is its reply alone and the ledger adds up.
+void continued(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 16 * kBlock;
+    Submitters seen;
+    const Make one = on(weights, [] { return cpus(1); });
+    const std::vector<Req> lone{{prompt_of(61, 300, vocab), 3}};
+    const std::vector<Req> beside{{prompt_of(62, 4, vocab), 40}, {prompt_of(63, 300, vocab), 3}};
+    const std::vector<Reply> own_lone = alone(one, tok, pool, lone), own_beside = alone(one, tok, pool, beside);
+    for (const size_t stages : {size_t(2), size_t(3)})
+        for (const size_t passes : {stages, stages + 1})
+            for (const bool rule : {false, true}) {
+                const std::string where = "a continued prompt on " + std::to_string(stages) + " devices at P = " + std::to_string(passes) + (rule ? " under the interleaved rule" : "");
+                const Make split = on(weights, [&seen, stages] {
+                    std::vector<backend::BackendPtr> v;
+                    for (size_t i = 0; i < stages; ++i) v.push_back(std::make_shared<Slow>(&seen, 2));
+                    return v;
+                });
+                const server::Pacing pacing = rule ? server::Pacing::interleaved() : server::Pacing{};
+                {
+                    auto model = split(pool, kUbatch);
+                    server::Scheduler::Stats st;
+                    const std::vector<Reply> got = serve(*model, tok, kSeqs, {lone}, &st, passes, 0, nullptr, 0, false, pacing);
+                    same(own_lone[0], got[0], where + ", alone");
+                    require(st.continued > 0, where + ": a lone prompt never continued while its slice before was in flight");
+                    ledger(st, *model, where + ", alone");
+                }
+                auto model = split(pool, kUbatch);
+                server::Scheduler::Stats st;
+                const std::vector<Reply> got = serve(*model, tok, kSeqs, {beside}, &st, passes, 0, nullptr, 0, false, pacing);
+                for (size_t i = 0; i < beside.size(); ++i) same(own_beside[i], got[i], where + ", beside a reply, request " + std::to_string(i));
+                ledger(st, *model, where + ", beside a reply");
+            }
+}
+
 int main(int argc, char** argv) {
     try {
         // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a pass's draft rows, at most 64 and at most --draft-max a request, in each logits ring.
@@ -1800,6 +1867,7 @@ int main(int argc, char** argv) {
         pieces_staircase(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         interleaved(served(kSplit), (uint32_t)kSplit.vocab);
+        continued(served(kSplit), (uint32_t)kSplit.vocab);
         fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.

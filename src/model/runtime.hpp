@@ -1139,21 +1139,7 @@ private:
             if (!role.tensor) throw TensorIndex::missing(role.alias.empty() ? role.name : role.alias);
             const size_t i = *role.tensor;
             const TensorView& t = weights.tensors[i];
-            bool valid;
-            if (role.kind == RoleKind::experts) {
-                valid = t.shape.size() == 3 && t.shape[0] == role.in && t.shape[1] == role.out && t.shape[2] == role.experts;
-            } else {
-                const bool norm = role.kind == RoleKind::norm;
-                valid = !t.shape.empty() && t.shape[0] == role.in;
-                if (norm) {
-                    valid = valid && t.type == quant::GGML_TYPE_F32;
-                } else {
-                    valid = valid && t.shape.size() >= 2 && t.shape[1] == role.out;
-                    if (role.kind == RoleKind::table) valid = valid && t.type == quant::GGML_TYPE_F32;
-                }
-                for (size_t d = norm ? 1 : 2; d < t.shape.size(); ++d) valid = valid && t.shape[d] == 1;
-            }
-            if (!valid) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
+            if (!role_fits(role, t.shape, t.type)) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
             if (t.row_source) return Weight{t.type, {}, size_t(role.in), size_t(role.out), t.row_source};
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.

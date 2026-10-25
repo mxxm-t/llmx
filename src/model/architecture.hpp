@@ -61,6 +61,21 @@ struct Role {
     Shard shard{};
 };
 
+// Whether a tensor of `shape` and `type` fits `role` by its kind: a stack's exact three axes, or `in` first, F32 for a norm or a table, `out` second for the rest, and every further axis one.
+inline bool role_fits(const Role& role, const std::vector<uint64_t>& shape, uint32_t type) {
+    if (role.kind == RoleKind::experts) return shape.size() == 3 && shape[0] == role.in && shape[1] == role.out && shape[2] == role.experts;
+    const bool norm = role.kind == RoleKind::norm;
+    bool valid = !shape.empty() && shape[0] == role.in;
+    if (norm) {
+        valid = valid && type == quant::GGML_TYPE_F32;
+    } else {
+        valid = valid && shape.size() >= 2 && shape[1] == role.out;
+        if (role.kind == RoleKind::table) valid = valid && type == quant::GGML_TYPE_F32;
+    }
+    for (size_t d = norm ? 1 : 2; d < shape.size(); ++d) valid = valid && shape[d] == 1;
+    return valid;
+}
+
 // What a layer keeps for each sequence from one pass to the next: keys and values for every position it has read, a recurrent state of fixed size, or nothing.
 enum class Cache : uint8_t { kv, state, none };
 

@@ -13,4 +13,6 @@ It then turns the image by its EXIF orientation as Pillow's `exif_transpose` doe
 
 `image::resize_bicubic` is torchvision's v2 resize of an 8-bit image with bicubic interpolation and antialiasing, as the processor calls it: the width first and then the height, a pass skipped where its size is unchanged, each output sample a fixed-point sum of 16-bit weights of the Keys kernel (a = -0.5) widened by the downscale factor, the weights given the most fraction bits that keep the largest inside 16 bits, and each pass rounded and clamped to 8 bits.
 
-`image-decode` holds all three to the reference processor's bytes over its fixtures (tests/data/image_decode.json).
+`image::prepare` takes an encoder's `image::Params` (patch, merge, mean, std and smart_resize's pixel bounds): it sizes and resizes the image, normalizes it in F32 as the processor's fused rescale and normalize, `(x - 255 mean) / (255 std)`, and cuts it into patches in merge-block order, each patch's values in (channel, row, column) order, once however many temporal frames the encoder's kernels take.
+
+`image-decode` holds all four to the reference processor's bytes over its fixtures (tests/data/image_decode.json), `prepare` to its `pixel_values` with each patch's repeated frame taken once.

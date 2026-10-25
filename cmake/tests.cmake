@@ -344,6 +344,13 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_link_libraries(llmx-split-check PRIVATE llmx-vulkan)
 endif()
 list(APPEND LLMX_TARGETS llmx-split-check)
+# Not a CTest: an image's rows from an mmproj file, which the suite's `vision` component holds to HF (docs/VISION.md, section 8).
+add_executable(llmx-encode-image tools/encode_image.cpp)
+target_include_directories(llmx-encode-image PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(LLMX_HAS_BACKEND_VULKAN)
+    target_link_libraries(llmx-encode-image PRIVATE llmx-vulkan)
+endif()
+list(APPEND LLMX_TARGETS llmx-encode-image)
 # Not a CTest either: a fixture's forced reply read through the decode path of a real model, run by hand (AGENTS.md, Tests).
 add_executable(llmx-decode-probe tools/decode_probe.cpp)
 target_include_directories(llmx-decode-probe PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src)

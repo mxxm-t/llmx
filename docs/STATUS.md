@@ -100,7 +100,10 @@
   CTest `vision-ops` holds them to double-precision references, the thread counts and a row or image alone against beside others; the causal and one-stream paths are unchanged.
   Only the rope's gathering path, over several streams or without the norm, is bounded, at 128 pairs on the stack; one stream with a norm rotates any width, as the synthetic bench's one head rotated whole needs, which `vision-ops` also holds.
   Nothing in the product calls the new ops yet; step 3's encoder module is their first caller, which `tests/data/known_findings.txt` names.
-- **Left:** steps 3 to 8.
+- **Step 3, the encoder (branch feat/vision-encoder, on feat/vision-ops):** `model/encoder.hpp` holds the vision encoder's contract and runner, `model/arch/qwen3vl_vision.hpp` the Qwen tower, chosen by the registry's `kVisionEncoders`, `image::prepare` the processor's normalization and patches, and `llmx-encode-image` writes an image's rows.
+  The tiny HF fixture's rows match within 1.81e-6 of the row scale against 1e-5; the 0.8B mmproj's within 1.55e-5, 7.53e-6 and 1.08e-5 of HF float64 against the frozen 1.18e-4, where HF float32 itself sits at 5.91e-5, 6.16e-6 and 1.69e-5; every tensor equals the checkpoint's.
+  CPU encode time, the mark step 7 must beat: 241 ms for 280 patches on the 0.8B tower at 16 threads, 1.9 s on Flash-Next's tower at 8.
+- **Left:** steps 4 to 8.
 - **Gotchas:** the GGUF `mmproj` carries neither the processor's pixel bounds nor the image token ids; the HF processor resizes on uint8 with antialiased bicubic and rounds to uint8 before normalizing, so decoding and resizing are held to bytes, not to a float bound.
 ## Routing probabilities below FLT_MIN count as 0 (2026-10-25, branch fix/route-subnormal on gate/train3 38efef383, C2DEV's DECISION of 2026-10-25 05:06 on DDEV's RESULT of 07:04, landed on main by fast-forward)
 
@@ -2938,7 +2941,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Quantization coverage: F16/BF16, MXFP4, IQ4, Q3_K, Q2_K | In progress (record in [STATUS-2026-09](STATUS-2026-09.md)): the spec decoders, fixtures and MXFP4 writer merged at `e9b13dec`; CPU MXFP4 and explicit capture shares merged at `d81ed428`; Vulkan MXFP4 landed with the activation dtype (its row above). Remaining weight types and the recorded speed gaps stay open |
 | More model architectures (Llama, ...)    | Planned  |
 | Qwen 3.5, 3.6 and 3.8 (`qwen35`, `qwen35moe`) | In progress (record in [STATUS-2026-09](STATUS-2026-09.md), design in [QWEN35](QWEN35.md)), built in the background; step 4's references and CPU ops merged at `a730810`, and its model, which runs dense qwen35 on the CPU, merged at `c348cfb0`; step 5, the Vulkan backend, merged at `8d68d529` |
-| Image input ([VISION](VISION.md)) | In progress: designed and approved on 2026-10-25; step 1, image decoding, on main; step 2, the CPU ops, on its branch |
+| Image input ([VISION](VISION.md)) | In progress: designed and approved on 2026-10-25; step 1, image decoding, on main; step 2, the CPU ops, and step 3, the encoder, on their branches |
 | Qwen3.8-Flash-Next (`qwen4exp`) | Done (first support), decode speed gate open (record of 2026-10-19 above) |
 | Architecture modules: one runtime, a module per architecture, one registry | Done: merged at `3e73ffb` (record in [STATUS-2026-09](STATUS-2026-09.md)); the CPU timing on a quiet host follows |
 | More formats (safetensors, ...)          | Planned  |

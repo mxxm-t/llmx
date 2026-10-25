@@ -10,6 +10,8 @@
 #include "model/arch/qwen3.hpp"
 #include "model/arch/qwen35.hpp"
 #include "model/arch/qwen4exp.hpp"
+#include "model/arch/qwen3vl_vision.hpp"
+#include "model/encoder.hpp"
 
 // The architectures llmx runs, by the name a file gives: the one place such a name is read and accepted, and the one step from a file's metadata to its architecture.
 
@@ -59,6 +61,54 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
         const uint64_t bytes = t.data_size();
         if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() ||
             bytes > m.payload_size() - m.offsets[i])
+            throw std::runtime_error("inference: invalid tensor storage " + t.name);
+        w.tensors.push_back({t.name, t.ne, t.type, m.tensor_data(i), (size_t)bytes});
+    }
+    return w;
+}
+
+// A vision encoder llmx runs, by the general.architecture and clip.projector_type an mmproj file gives, and the reader of its files (docs/VISION.md, section 9).
+struct VisionEntry {
+    const char* architecture;
+    const char* projector;
+    std::shared_ptr<const VisionArchitecture> (*read)(const gguf::GGUFModel&);
+    backend::Dtype dtype;
+};
+
+inline const VisionEntry kVisionEncoders[] = {
+    {"clip", "qwen3vl_merger", qwen3vl_vision::open, backend::Dtype::bf16},
+};
+
+// The entry an mmproj file names; another architecture or projector is refused by name.
+inline const VisionEntry& vision_of(const gguf::GGUFModel& m) {
+    const auto* a = m.find("general.architecture");
+    const auto* p = m.find("clip.projector_type");
+    const std::string arch = a && a->vtype == gguf::V_STRING ? a->s : std::string();
+    const std::string projector = p && p->vtype == gguf::V_STRING ? p->s : std::string();
+    for (const VisionEntry& e : kVisionEncoders)
+        if (arch == e.architecture && projector == e.projector) return e;
+    if (arch != "clip") throw std::runtime_error("inference: unsupported vision encoder general.architecture");
+    throw std::runtime_error("inference: unsupported vision encoder clip.projector_type");
+}
+
+// An mmproj file's encoder module and a view of every tensor, whose data is null while the file is not mapped.
+struct VisionWeights {
+    std::shared_ptr<const VisionArchitecture> arch;
+    std::vector<TensorView> tensors;
+    backend::Dtype declared_dtype = backend::Dtype::bf16;
+};
+
+inline VisionWeights vision_weights(const gguf::GGUFModel& m) {
+    const VisionEntry& entry = vision_of(m);
+    VisionWeights w;
+    w.arch = entry.read(m);
+    w.declared_dtype = entry.dtype;
+    if (m.offsets.size() != m.tensors.size()) throw std::runtime_error("inference: tensor storage count mismatch");
+    for (size_t i = 0; i < m.tensors.size(); ++i) {
+        const auto& t = m.tensors[i];
+        if (t.ne.size() > 4) throw std::runtime_error("inference: invalid tensor rank " + t.name);
+        const uint64_t bytes = t.data_size();
+        if (m.offsets[i] % alignof(float) || m.offsets[i] > m.payload_size() || bytes > m.payload_size() - m.offsets[i])
             throw std::runtime_error("inference: invalid tensor storage " + t.name);
         w.tensors.push_back({t.name, t.ne, t.type, m.tensor_data(i), (size_t)bytes});
     }

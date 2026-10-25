@@ -623,6 +623,12 @@ It was generated on 2026-10-25 in a `python:3.12.13-slim` container on the Linux
 It makes its own images: PNGs by a writer of the module over zlib, so every color type, bit depth, filter and interlace is reached, and JPEGs, GIF and WebP by Pillow.
 The reference for each is transformers' `load_image` (Pillow's decoding, `exif_transpose` and conversion to RGB), then `Qwen2VLImageProcessor`'s smart_resize and torchvision resize at the Qwen 3.5 and 3.8 processor's settings; the fixture keeps the digests of those bytes, and the bytes themselves for images of 4096 pixels or fewer, so the suite needs neither Pillow nor torchvision.
 
+#### The vision encoder references
+
+`tools/gen_baseline.py vision-tiny` (`tools/vision_reference.py`) builds a random-weight `Qwen3_5VisionModel` with HF's own code in the qwen35 venv above, two blocks 32 wide of two heads, an MLP of 64, a 4 by 4 learned grid and 48-wide rows at seed 20261025, writes it as `tests/data/vision/tiny-mmproj.gguf` the way the converter names and lays out its tensors, and keeps HF float32's rows with eager attention for three fixture images in `tests/data/baseline_vision_tiny.json`; it takes only `--output-dir` and is not part of `all`.
+`tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ --checkpoint DIR` first holds every tensor of the mmproj to the checkpoint's `model.visual.*` bit for bit, which proves the name map, then keeps the rows of HF's float64 tower holding the mmproj's own weights, with eager attention, and HF float32's worst per-row error against them for each image; the bound is twice the worst of those over every image, frozen before any candidate's rows are compared (F2DEV's decision of 2026-10-25 11:50).
+For the 0.8B mmproj (unsloth `Qwen3.5-0.8B-GGUF` revision `6ab46149`, SHA-256 `d312c4d0...`) against Qwen/Qwen3.5-0.8B at `2fc06364`, generated on 2026-10-25 on the Linux machine, the errors are 5.91e-5, 6.16e-6 and 1.69e-5 and the bound 1.18e-4; the rows are committed in `tests/data/vision/` as F32.
+
 #### The tiny qwen35 references
 
 `qwen35-tiny` writes `tests/data/baseline_qwen35.json` (73,812 bytes) for the tiny models of `tests/qwen35.py`, accepts only `--output-dir` and is not part of `all`.

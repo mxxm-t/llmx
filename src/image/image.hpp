@@ -271,4 +271,48 @@ inline Raster resize_bicubic(const Raster& in, uint32_t out_w, uint32_t out_h) {
     return cur;
 }
 
+// How a vision encoder wants its images, which its module hands to prepare (docs/VISION.md, section 9): its patch and merge sizes, the normalization, and smart_resize's pixel bounds.
+struct Params {
+    uint32_t patch = 16, merge = 2;
+    float mean[3] = {0.5f, 0.5f, 0.5f}, std[3] = {0.5f, 0.5f, 0.5f};
+    uint64_t min_pixels = 65536, max_pixels = 16777216;
+};
+
+// An image ready for its encoder: its patch grid and each patch's values in (channel, row, column) order, normalized, the patches in merge-block order.
+struct Prepared {
+    uint32_t grid_h = 0, grid_w = 0;
+    std::vector<float> patches;
+};
+
+// The image sized by smart_resize, resized, normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), and cut into patches block by block of merge by merge.
+inline Prepared prepare(const Raster& img, const Params& p) {
+    if (!p.patch || !p.merge) throw std::runtime_error("image: an empty patch or merge");
+    const auto [h, w] = smart_resize(img.height, img.width, p.patch * p.merge, p.min_pixels, p.max_pixels);
+    const Raster r = resize_bicubic(img, w, h);
+    Prepared out;
+    out.grid_h = h / p.patch;
+    out.grid_w = w / p.patch;
+    const size_t P = p.patch, M = p.merge, row = 3 * P * P;
+    out.patches.resize(size_t(out.grid_h) * out.grid_w * row);
+    // The processor fuses its 1/255 rescale into the mean and std in float, so 0.5 becomes 127.5.
+    float m[3], s[3];
+    for (int c = 0; c < 3; ++c) {
+        m[c] = p.mean[c] * float(1.0 / (1.0 / 255.0));
+        s[c] = p.std[c] * float(1.0 / (1.0 / 255.0));
+    }
+    size_t k = 0;
+    for (size_t by = 0; by < out.grid_h / M; ++by)
+        for (size_t bx = 0; bx < out.grid_w / M; ++bx)
+            for (size_t iy = 0; iy < M; ++iy)
+                for (size_t ix = 0; ix < M; ++ix) {
+                    const size_t y0 = (by * M + iy) * P, x0 = (bx * M + ix) * P;
+                    float* dst = out.patches.data() + k * row;
+                    for (int c = 0; c < 3; ++c)
+                        for (size_t y = 0; y < P; ++y)
+                            for (size_t x = 0; x < P; ++x) dst[(size_t(c) * P + y) * P + x] = (float(r.at(x0 + x, y0 + y)[c]) - m[c]) / s[c];
+                    ++k;
+                }
+    return out;
+}
+
 }  // namespace image

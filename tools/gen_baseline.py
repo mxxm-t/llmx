@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
 
@@ -23,11 +23,12 @@ tokenizer-qwen35 writes the qwen35 tokenizer golden from its own pinned tokenize
 qwen35-tiny writes the goldens of the tiny qwen35 fixtures of tests/qwen35.py from HF Qwen3_5ForCausalLM's token-by-token cached forward, takes only --output-dir, and is not part of all.
 qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from an assembled HF reference, HF's own full-attention Qwen3_5DecoderLayer with the block's input norms, fc, final norm and the target's head around it, since HF drops mtp.*; it takes only --output-dir and is not part of all.
 qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
+image-decode writes the image decoding references of tests/image_decode.cpp (tools/image_reference.py) in the qwen35 environment with its pinned Pillow and torchvision, takes only --output-dir and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
 Those two segfault together in some environments (any `from transformers import Auto*` dies); an isolated venv with numpy<2.3, torch 2.5.1+cpu and transformers 4.55.2 is known to work.
 file-exact also needs numpy.
-The qwen35 goldens come from a second isolated venv, so the first stays as it is: Python 3.12.13 with torch 2.5.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6 and Jinja2 3.1.6.
+The qwen35 goldens come from a second isolated venv, so the first stays as it is: Python 3.12.13 with torch 2.5.1+cpu, torchvision 0.20.1+cpu, transformers 5.17.0, tokenizers 0.23.2, huggingface_hub 1.33.0, safetensors 0.8.0, numpy 2.2.6, Jinja2 3.1.6 and Pillow 13.0.0.
 """
 
 import argparse
@@ -548,7 +549,9 @@ def gen_perplexity(args, loaded=None):
 
 
 # The versions every qwen35 reference is made with, the second reference environment of docs/ASSETS.md, which the chat renderer shares; another is refused, since only the recorded fields would show the change.
-QWEN35_ENV = {"torch": "2.5.1+cpu", "transformers": CHAT_REFERENCE["transformers"], "tokenizers": "0.23.2"}
+QWEN35_ENV = {"torch": "2.5.1+cpu", "transformers": CHAT_REFERENCE["transformers"], "tokenizers": "0.23.2", "torchvision": "0.20.1+cpu", "pillow": "13.0.0"}
+# The Pillow wheel the image references decode with and the codecs it reports (docs/VISION.md, section 7), which tools/image_reference.py holds the environment to.
+QWEN35_IMAGE_CODECS = {"pillow_wheel": ["cp312-cp312-manylinux_2_27_x86_64", "cp312-cp312-manylinux_2_28_x86_64"], "libjpeg_turbo": "3.2.0", "zlib": "1.3.1"}
 # HF's qwen3_5 code runs the linear-attention or conv package in place of its own torch functions whenever one is installed, and a hub kernel whenever a load asks the kernels package for one, so none may be installed.
 QWEN35_REPLACEMENTS = ("kernels", "fla", "causal_conv1d")
 # The checkpoint keys Qwen3_5ForCausalLM may leave unused: the MTP block and the vision tower, which it drops at load.
@@ -560,10 +563,13 @@ def qwen35_runtime():
     for name in QWEN35_REPLACEMENTS:
         if importlib.util.find_spec(name) is not None:
             raise SystemExit("qwen35: the %s package is installed, and HF would run it in place of its torch functions" % name)
+    import PIL
     import torch
     import tokenizers
+    import torchvision
     import transformers
-    found = {"torch": torch.__version__, "transformers": transformers.__version__, "tokenizers": tokenizers.__version__}
+    found = {"torch": torch.__version__, "transformers": transformers.__version__, "tokenizers": tokenizers.__version__,
+             "torchvision": torchvision.__version__, "pillow": PIL.__version__}
     if found != QWEN35_ENV:
         raise SystemExit("qwen35: the references are made with %s; this environment has %s" % (QWEN35_ENV, found))
     return torch, transformers, importlib.import_module("transformers.models.qwen3_5.modeling_qwen3_5")
@@ -1659,12 +1665,13 @@ FIXED_KINDS = {
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
     "qwen35-mtp": "uses fixed synthetic weights and one thread",
     "qwen4exp-tiny": "uses fixed synthetic weights and one thread",
+    "image-decode": "makes its own images",
 }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1806,6 +1813,9 @@ def main(argv=None):
     if args.kind == "qwen4exp-tiny":
         from qwen4exp_reference import generate
         generate(args.output_dir)
+    if args.kind == "image-decode":
+        import image_reference
+        image_reference.generate(args.output_dir)
     if args.kind == "tensor-split-moe":
         gen_tensor_split_moe(args.output_dir)
     if args.kind == "tensor-split":

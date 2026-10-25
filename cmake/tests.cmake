@@ -147,6 +147,11 @@ add_test(NAME chat-template COMMAND llmx-chat-template-test
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-0.8b/baseline_chat.json
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/qwen35-4b/baseline_chat.json)
 set_tests_properties(chat-template PROPERTIES TIMEOUT 30)
+add_executable(llmx-image-decode-test tests/image_decode.cpp)
+target_include_directories(llmx-image-decode-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+list(APPEND LLMX_TARGETS llmx-image-decode-test)
+add_test(NAME image-decode COMMAND llmx-image-decode-test ${CMAKE_CURRENT_SOURCE_DIR}/tests/data/image_decode.json)
+set_tests_properties(image-decode PROPERTIES TIMEOUT 120)
 add_executable(llmx-mxfp4-test tests/mxfp4.cpp)
 target_include_directories(llmx-mxfp4-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 list(APPEND LLMX_TARGETS llmx-mxfp4-test)

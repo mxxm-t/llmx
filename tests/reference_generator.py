@@ -745,7 +745,8 @@ class ReferenceGenerator(unittest.TestCase):
             modules = {"torch": torch, "tokenizers": SimpleNamespace(__version__=tokenizers_version),
                        "transformers": SimpleNamespace(__version__=transformers_version, Qwen3_5ForCausalLM=causal),
                        "transformers.models": SimpleNamespace(), "transformers.models.qwen3_5": SimpleNamespace(modeling_qwen3_5=modeling),
-                       "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
+                       "transformers.models.qwen3_5.modeling_qwen3_5": modeling,
+                       "torchvision": SimpleNamespace(__version__=generator.QWEN35_ENV["torchvision"]), "PIL": SimpleNamespace(__version__=generator.QWEN35_ENV["pillow"])}
             args = generator.parse_args(["qwen35", "--model", "Qwen3.5-0.8B", "--threads", "2"])
             with patch.dict(sys.modules, modules), patch.object(generator, "qwen35_checkpoint", return_value="checkpoint"), \
                  patch.object(generator, "Qwen35Tokenizer"), patch.object(importlib.util, "find_spec", side_effect=lambda name: name in installed or None):
@@ -939,7 +940,8 @@ class ReferenceGenerator(unittest.TestCase):
         def modules(**versions):
             found = dict(generator.QWEN35_ENV, **versions)
             return {"torch": SimpleNamespace(__version__=found["torch"]), "tokenizers": SimpleNamespace(__version__=found["tokenizers"]),
-                    "transformers": SimpleNamespace(__version__=found["transformers"]), "transformers.models.qwen3_5.modeling_qwen3_5": modeling}
+                    "transformers": SimpleNamespace(__version__=found["transformers"]), "transformers.models.qwen3_5.modeling_qwen3_5": modeling,
+                    "torchvision": SimpleNamespace(__version__=found["torchvision"]), "PIL": SimpleNamespace(__version__=found["pillow"])}
 
         with patch.dict(os.environ), patch.dict(sys.modules, modules()), \
              patch.object(generator.importlib.util, "find_spec", return_value=None) as find:
@@ -948,7 +950,7 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertIs(generator.qwen35_environment()[2], modeling)
             self.assertEqual((os.environ["HF_HUB_OFFLINE"], os.environ["TRANSFORMERS_OFFLINE"]), ("1", "1"))
             self.assertEqual(sorted(c.args[0] for c in find.call_args_list), ["causal_conv1d", "fla", "kernels"])
-        for change in ({"torch": "2.6.0+cpu"}, {"transformers": "5.16.0"}, {"tokenizers": "0.22.1"}):
+        for change in ({"torch": "2.6.0+cpu"}, {"transformers": "5.16.0"}, {"tokenizers": "0.22.1"}, {"torchvision": "0.21.0+cpu"}, {"pillow": "12.0.0"}):
             with self.subTest(change=change), patch.dict(os.environ), patch.dict(sys.modules, modules(**change)), \
                  patch.object(generator.importlib.util, "find_spec", return_value=None), self.assertRaisesRegex(SystemExit, re.escape(list(change.values())[0])):
                 generator.qwen35_environment()
@@ -957,6 +959,43 @@ class ReferenceGenerator(unittest.TestCase):
                  patch.object(generator.importlib.util, "find_spec", side_effect=lambda name: object() if name == package else None), \
                  self.assertRaisesRegex(SystemExit, "the %s package" % package):
                 generator.qwen35_environment()
+
+    def test_committed_image_fixture_is_the_generators(self):
+        # The image decoding fixture records the environment the generator holds itself to, and its processor and cases are the generator's, so neither changes without regenerating it.
+        sys.path.insert(0, str(SCRIPT.parent))
+        import image_reference
+        doc = json.loads((Path(generator.OUT_DIR) / "image_decode.json").read_text(encoding="utf-8"))
+        env = dict(doc["environment"])
+        self.assertEqual({k: env.pop(k) for k in ("pillow_wheel", "libjpeg_turbo", "zlib")}, generator.QWEN35_IMAGE_CODECS)
+        self.assertEqual({k: env[k] for k in ("torch", "transformers", "torchvision", "pillow")}, {k: generator.QWEN35_ENV[k] for k in ("torch", "transformers", "torchvision", "pillow")})
+        self.assertEqual(doc["processor"], image_reference.PROCESSOR)
+        self.assertEqual(doc["generator"], "tools/gen_baseline.py image-decode")
+        self.assertEqual(len(doc["smart_resize"]), 20 * (len(image_reference.RESIZE_BOUNDS) + 2))
+        root = Path(generator.OUT_DIR) / "images"
+        for case in doc["decode"] + doc["refuse"]:
+            self.assertEqual(hashlib.sha256((root / case["file"]).read_bytes()).hexdigest(), case["sha256"], case["file"])
+
+    def test_image_environment_refuses_other_codecs(self):
+        # The Pillow wheel and the codecs it reports are part of the reference, so another wheel, libjpeg-turbo or zlib is refused before any image is written.
+        sys.path.insert(0, str(SCRIPT.parent))
+        import image_reference
+        wheel = "".join("Tag: %s\n" % t for t in generator.QWEN35_IMAGE_CODECS["pillow_wheel"])
+        codecs = {"libjpeg_turbo": generator.QWEN35_IMAGE_CODECS["libjpeg_turbo"], "zlib": generator.QWEN35_IMAGE_CODECS["zlib"]}
+        runtime = (SimpleNamespace(__version__=generator.QWEN35_ENV["torch"]), SimpleNamespace(__version__=generator.QWEN35_ENV["transformers"]))
+        for change in ({}, {"libjpeg_turbo": "3.1.0"}, {"zlib": "1.3.0"}, {"wheel": "Tag: cp312-cp312-win_amd64\n"}):
+            versions = dict(codecs, **{k: v for k, v in change.items() if k != "wheel"})
+            features = SimpleNamespace(version=lambda name, v=versions: v[name])
+            pil = SimpleNamespace(__version__=generator.QWEN35_ENV["pillow"], features=features)
+            dist = SimpleNamespace(read_text=lambda name, w=change.get("wheel", wheel): w)
+            modules = {"PIL": pil, "PIL.features": features, "numpy": SimpleNamespace(__version__="2.2.6"),
+                       "torchvision": SimpleNamespace(__version__=generator.QWEN35_ENV["torchvision"])}
+            with self.subTest(change=change), patch.dict(sys.modules, modules), patch.object(image_reference, "_env_runtime", return_value=runtime), \
+                 patch("importlib.metadata.distribution", return_value=dist):
+                if change:
+                    with self.assertRaisesRegex(SystemExit, "image references are made with"):
+                        image_reference.environment()
+                else:
+                    self.assertEqual(image_reference.environment()["libjpeg_turbo"], codecs["libjpeg_turbo"])
 
     def test_qwen35_loading_holds_float32_eager_attention_and_the_keys(self):
         # The model loads from local files in float32 with eager attention, may leave only mtp.* and model.visual.* keys unused, and may miss none.
@@ -1171,7 +1210,8 @@ class LayeredReference(unittest.TestCase):
         torch = SimpleNamespace(__version__=generator.QWEN35_ENV["torch"], set_num_threads=MagicMock())
         transformers = SimpleNamespace(__version__=generator.QWEN35_ENV["transformers"])
         modules = {"torch": torch, "transformers": transformers, "tokenizers": SimpleNamespace(__version__=generator.QWEN35_ENV["tokenizers"]),
-                   "transformers.models.qwen3_5.modeling_qwen3_5": SimpleNamespace()}
+                   "transformers.models.qwen3_5.modeling_qwen3_5": SimpleNamespace(),
+                   "torchvision": SimpleNamespace(__version__=generator.QWEN35_ENV["torchvision"]), "PIL": SimpleNamespace(__version__=generator.QWEN35_ENV["pillow"])}
         with patch.dict(os.environ), patch.dict(sys.modules, modules):
             for package in generator.QWEN35_REPLACEMENTS:
                 with self.subTest(package=package), \

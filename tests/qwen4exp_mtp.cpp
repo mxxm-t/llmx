@@ -19,6 +19,7 @@
 #include "inference/load.hpp"
 #include "server/disk_tier.hpp"
 #include "qwen4exp_mtp_fixture.hpp"
+#include "moe_step.hpp"
 #include "tiny_qwen.hpp"
 
 namespace {
@@ -452,6 +453,19 @@ void streamed_host_history(const std::string& device, const std::vector<std::str
               << " block_tokens=" << length << " devices=" << destinations.size() << " passed\n";
 }
 
+// Each trunk layer's routed and shared experts take one routed step a pass (Backend::moe_step) and no routed op outside it, with the logits of a plain CPU backend.
+void routed_steps() {
+    Fixture fixture(false, 0);
+    auto counting = std::make_shared<moe::CountingCpu>();
+    infer::Model counted(fixture.weights, infer::plan_model(fixture.weights, false), {counting}, infer::Placement{}, options());
+    infer::Model plain(fixture.weights, infer::plan_model(fixture.weights, false), {cpu()}, infer::Placement{}, options());
+    auto a = counted.make_sequence(), b = plain.make_sequence();
+    const std::vector<uint32_t> prompt{1, 4, 2, 6, 3}, next{5};
+    same(feed(counted, a, prompt, prompt.size()), feed(plain, b, prompt, prompt.size()), "routed steps' prompt logits");
+    same(feed(counted, a, next, 1), feed(plain, b, next, 1), "routed steps' decode logits");
+    require(counting->steps == 2 * size_t(fixture.c.n_layer) && counting->outside == 0, "a routed layer did not take one routed step a pass");
+}
+
 void run(bool split, int compression, const std::string& device) {
     Fixture fixture(split, compression);
     auto reference = model(fixture, true);
@@ -583,6 +597,7 @@ int main(int argc, char** argv) {
         }
         if (group_devices.empty() && group_width != 2) throw std::runtime_error(usage);
         qwen35_pairing();
+        routed_steps();
         streamed_host_history(device);
         if (group_devices.empty()) {
             streamed_host_history("cpu", {"cpu", "cpu"}, 2);

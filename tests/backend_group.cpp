@@ -11,6 +11,7 @@
 #include "backends/cpu/cpu_backend.hpp"
 #include "quantizers.hpp"
 #include "row_classes.hpp"
+#include "moe_step.hpp"
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
@@ -451,6 +452,27 @@ static size_t check_row_classes(backend::CpuBackend& cpu) {
                               });
 }
 
+// The routed step's base op (Backend::moe_step), which the CPU runs, against the calls the three architectures made before it, written out in the test: each type combination, decode rows and a prompt, every output bit for bit.
+static size_t check_moe_step(backend::CpuBackend& cpu, const moe::Matrix& matrix) {
+    const moe::Shape shapes[] = {{256, 16, 4, 64, moe::kFlash, true}, {256, 16, 4, 256, moe::k35b, false}, {256, 16, 4, 64, moe::k30b, false}};
+    size_t values = 0;
+    for (const moe::Shape& s : shapes) {
+        const moe::Weights w = moe::weights(cpu, s, matrix, 71);
+        for (size_t rows : {size_t(1), size_t(3), size_t(5)}) {
+            const std::vector<float> h = moe::inputs(rows, s.E, 72), y0 = moe::residual(rows, s.E, 73);
+            const std::vector<backend::RowRun> prompt = {{rows, rows}};
+            for (const auto& runs : {moe::decode_runs(rows), prompt})
+                for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::f16}) {
+                    std::string what;
+                    const size_t n = moe::same(moe::run(cpu, w, h, y0, rows, runs, dtype, moe::How::op), moe::run(cpu, w, h, y0, rows, runs, dtype, moe::How::calls), what);
+                    require(n != 0, ("the routed step's " + what + " differ from the calls it replaced").c_str());
+                    values += n;
+                }
+        }
+    }
+    return values;
+}
+
 // The CPU half of backend-vulkan's no-candidate routing check (backend.hpp route_experts): NaN scores give kNoExpert with weight 0, one finite score among -inf that expert, then the others by id.
 // The routed gate-up and down calls leave an entry without an expert unwritten and add nothing for it, on two decode rows and on a 70-row prompt, every second row without candidates.
 size_t check_route_edges(backend::CpuBackend& cpu) {
@@ -555,6 +577,12 @@ int main() {
         const size_t magnitudes = check_magnitudes(cpu);
         const size_t summed = check_collective();
         const size_t routed = check_route_edges(cpu);
+        const moe::Matrix matrix = [](uint32_t type, size_t nin, size_t rows, uint32_t seed) {
+            (void)seed;
+            const Matrix m(type, rows, nin, 1);
+            return std::vector<uint8_t>(m.data(), m.data() + m.bytes());
+        };
+        const size_t steps = check_moe_step(cpu, matrix), step_classes = moe::check_row_classes(cpu, matrix);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -601,6 +629,7 @@ int main() {
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
                   << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routing edge cases; "
+                  << steps << " routed step outputs equal to the calls it replaced; " << step_classes << " pairs of extents of one class with the same bits through the routed step; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

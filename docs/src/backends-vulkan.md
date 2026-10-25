@@ -48,7 +48,7 @@ kernel notes and measurements are `docs/VULKAN.md`.
 The unit holds the `VulkanBackend` class with its construction, queue, submissions, diagnostics and the elementwise, norm, state, gather and embedding ops, and includes a header per concern.
 The first three come before the class; the others define members the class declares, and the unit includes them after it.
 
-- `vulkan_device.hpp`: the loader, the entry points fetched through it, `Device`, and what the kernels need of a device (`missing_device_need`, `attention_head_fits`).
+- `vulkan_device.hpp`: the loader, the entry points fetched through it, `Device`, and what the kernels need of a device (`missing_device_need`, `attention_head_fits`) and what the fused routed step needs beyond that (`missing_counter_need`).
 - `vulkan_kernels.hpp`: the kernel table (`LLMX_VULKAN_KERNELS`) and the embedded modules, each weight format's kernels (`weight_kernels`), the row and Q8_0 decode builds, the bindings and the write sets (`kernel_writes`).
 - `vulkan_buffer.hpp`: `VulkanBuffer`, the padded F32 rule (`pads_f32`), a table's storage views (`table_views`) and `VulkanKVStorage`.
 - `vulkan_memory.hpp`: allocation and adoption, reads, writes and copies through staging, stream-ordered scratch (`grow`), padded F32 copies, the argument arena (`args`) and the lookup grids (`lookup_grid`).

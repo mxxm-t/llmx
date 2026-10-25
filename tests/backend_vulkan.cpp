@@ -26,6 +26,7 @@
 #include "quantizers.hpp"
 #include "matrix_precision.hpp"
 #include "row_classes.hpp"
+#include "moe_step.hpp"
 
 namespace {
 void require(bool ok, const char* message) {
@@ -4409,6 +4410,193 @@ size_t check_route_shapes() {
     return values;
 }
 
+// Each fused routed build's float multiplies and adds less its build without the row products (`_noroles`) must be whole copies of its component one-column builds' (FloatOps).
+// A component's residual add on each row it stores, which a fused role does not make, leaves its counts: one for a row family, the build's rows for the Q8_0 decode kernel.
+struct MoeIsa { size_t checked = 0, missing = 0; };
+MoeIsa check_moe_step_isa(const std::vector<std::pair<std::string, std::string>>& reps) {
+    std::map<std::string, FloatOps> ops;
+    for (const auto& kr : reps) ops[kr.first] = float_ops(kr.second);
+    auto ends = [](const std::string& s, const std::string& t) { return s.size() >= t.size() && s.compare(s.size() - t.size(), t.size(), t) == 0; };
+    auto starts = [](const std::string& s, const std::string& t) { return s.rfind(t, 0) == 0; };
+    MoeIsa result;
+    for (const auto& kr : reps) {
+        const std::string& name = kr.first;
+        if (!starts(name, "moe_step_") || starts(name, "moe_step_act") || ends(name, "_noroles")) continue;
+        const auto bare = ops.find(name + "_noroles");
+        require(bare != ops.end(), "a fused routed kernel has no build without its row products");
+        const bool i8 = name.find("_i8") != std::string::npos;
+        // The build suffix, and the Q8_0 decode kernel's name for the same one-column build.
+        const std::string build = ends(name, "_1row") ? "_1row" : ends(name, "_2step") ? "_2step" : ends(name, "_1col") ? "_1col" : "";
+        const std::string vec = std::string(i8 ? "matmul_vec_q8_i8" : "matmul_vec_q8") + (build == "_1row" ? "_1col_1row" : build == "_2step" ? "_1col_2step" : "_1col");
+        const std::string dot = i8 ? "_i8_1col" : "_dot_1col";
+        std::vector<std::string> parts;
+        if (starts(name, "moe_step_route")) parts = {"matmul_row_f32" + build};
+        else if (starts(name, "moe_step_up_k4q8")) parts = {"matmul_row_k4" + dot, vec};
+        else if (starts(name, "moe_step_up_k4")) parts = {"matmul_row_k4" + dot};
+        else if (starts(name, "moe_step_down_q5q8")) parts = {"matmul_row_q5" + dot, vec};
+        else if (starts(name, "moe_step_down_q8")) parts = {vec};
+        else if (starts(name, "moe_step_down_k")) parts = {"matmul_row_k" + dot};
+        std::vector<FloatOps> c;
+        for (const std::string& p : parts) {
+            const auto it = ops.find(p);
+            if (it == ops.end()) break;
+            const size_t stores = p.rfind("matmul_vec_q8", 0) == 0 ? (ends(p, "_1row") ? 1 : 2) : 1;
+            FloatOps own = it->second;
+            own.add = own.add >= stores ? own.add - stores : 0;
+            c.push_back(own);
+        }
+        if (c.size() != parts.size()) {
+            std::cout << "backend-vulkan: " << name << "'s component builds were not dispatched, so its counts were not held\n";
+            ++result.missing;
+            continue;
+        }
+        const FloatOps full = ops[name], none = bare->second;
+        const FloatOps delta{full.mul - none.mul, full.mad - none.mad, full.fused - none.fused, full.add - none.add, full.lane_add - none.lane_add};
+        bool held = false;
+        for (size_t a = 1; a <= 4 && !held; ++a)
+            for (size_t b = c.size() > 1 ? 1 : 0; b <= (c.size() > 1 ? 4u : 0u) && !held; ++b) {
+                auto at = [&](size_t i) { return i < c.size() ? c[i] : FloatOps{}; };
+                const FloatOps x = at(0), y = at(1);
+                held = delta.mul == a * x.mul + b * y.mul && delta.mad == a * x.mad + b * y.mad && delta.fused == a * x.fused + b * y.fused &&
+                       delta.lane_add == a * x.lane_add + b * y.lane_add && delta.add == a * x.add + b * y.add;
+            }
+        std::cout << "backend-vulkan: " << name << " row products: mul " << delta.mul << ", mad " << delta.mad << ", fused " << delta.fused << ", add " << delta.add
+                  << ", lane add " << delta.lane_add << (held ? ", whole copies of its components'" : ", NOT copies of its components'");
+        for (size_t i = 0; i < c.size(); ++i)
+            std::cout << "; " << parts[i] << " mul " << c[i].mul << ", mad " << c[i].mad << ", fused " << c[i].fused << ", add " << c[i].add << ", lane add " << c[i].lane_add;
+        std::cout << "\n";
+        require(held, "a fused routed kernel's row products are not those of the kernels whose bodies it holds");
+        ++result.checked;
+    }
+    return result;
+}
+
+// The fused routed step (Backend::moe_step): a decode step of each type combination in four dispatches, none an unfused routing, combine or gate kernel, and a prompt's step unfused.
+size_t check_moe_step_dispatches(backend::Backend& vk) {
+    const moe::Shape shapes[] = {{2560, 16, 10, 640, moe::kFlash, true}, {2048, 16, 8, 512, moe::k35b, false}, {2048, 16, 8, 768, moe::k30b, false}};
+    size_t steps = 0;
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
+        for (const moe::Shape& s : shapes) {
+            const moe::Weights w = moe::weights(vk, s, matrix, 31);
+            const auto h = moe::inputs(2, s.E, 32), y0 = moe::residual(2, s.E, 33);
+            auto kernels = [&](const std::vector<backend::RowRun>& runs, size_t rows) {
+                vk.sync();
+                (void)backend::vulkan_kernel_times(vk);
+                moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::op);
+                std::vector<std::string> names;
+                for (const auto& t : backend::vulkan_kernel_times(vk)) names.push_back(t.first);
+                return std::make_pair(names, backend::vulkan_timed_dispatches(vk));
+            };
+            auto has = [](const std::vector<std::string>& names, const char* prefix) {
+                for (const std::string& n : names) if (n.rfind(prefix, 0) == 0) return true;
+                return false;
+            };
+            const auto decode = kernels(moe::decode_runs(1), 1);
+            const size_t quantize = has(decode.first, "quantize_x") ? 1 : 0;
+            require(decode.second - quantize == 4, "a fused routed decode step does not take four dispatches");
+            require(has(decode.first, "moe_step_route") && has(decode.first, "moe_step_down"), "a routed decode step did not take the fused kernels");
+            require(!has(decode.first, "moe_route") && !has(decode.first, "moe_combine") && !has(decode.first, "sigmoid_mul"),
+                    "a fused routed decode step ran an unfused routing, combine or gate kernel");
+            if (s.t.sh_gate) require(has(decode.first, "moe_step_up") && has(decode.first, "moe_step_act") && !has(decode.first, "silu_mul"),
+                                     "a fused routed decode step with a shared expert ran an unfused SiLU");
+            const std::vector<backend::RowRun> prompt = {{2, 2}};
+            const auto prefill = kernels(prompt, 2);
+            require(has(prefill.first, "moe_route") && !has(prefill.first, "moe_step_route"), "a prompt's routed step did not take the unfused kernels");
+            ++steps;
+        }
+    return steps;
+}
+
+// The fused routed step against its base sequence on the same device, every poisoned output bit for bit: each type combination at its file's widths, and at small widths with 60 to 1000 experts.
+size_t check_moe_step(backend::Backend& vk) {
+    struct Case { moe::Shape s; std::vector<size_t> rows; };
+    const Case cases[] = {
+        {{2560, 16, 10, 640, moe::kFlash, true}, {1, 2, 3}},
+        {{2048, 16, 8, 512, moe::k35b, false}, {1, 2, 3}},
+        {{2048, 16, 8, 768, moe::k30b, false}, {1, 2, 3}},
+        {{256, 60, 8, 64, moe::k30b, false}, {1, 5, 7}},
+        {{256, 100, 8, 64, moe::kFlash, true}, {1, 4, 12}},
+        {{256, 200, 8, 256, moe::k35b, false}, {1, 9, 24}},
+        {{256, 512, 10, 64, moe::kFlash, false}, {1, 17, 64}},
+        {{256, 1000, 8, 64, moe::k30b, true}, {1, 33, 64}},
+    };
+    size_t values = 0;
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
+        for (const Case& c : cases) {
+            const moe::Weights w = moe::weights(vk, c.s, matrix, 41);
+            for (size_t rows : c.rows) {
+                const auto h = moe::inputs(rows, c.s.E, 42 + uint32_t(rows)), y0 = moe::residual(rows, c.s.E, 43);
+                const auto runs = moe::decode_runs(rows);
+                std::string what;
+                const size_t n = moe::same(moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::op), moe::run(vk, w, h, y0, rows, runs, dtype, moe::How::base), what);
+                if (!n) {
+                    std::fprintf(stderr, "  moe step: E %zu, %zu experts, ff %zu, %zu rows, %s\n", c.s.E, c.s.n_expert, c.s.ff, rows, backend::dtype_name(dtype));
+                    throw std::runtime_error("a fused routed step's " + what + " differ from its unfused calls");
+                }
+                values += n;
+            }
+        }
+    return values;
+}
+
+// A token's fused step at 1 to 64 tokens gives the bits of the token alone, as do 50 steps of random counts with unfused steps between, so the routing's counter is zero after every call.
+size_t check_moe_step_columns(backend::Backend& vk) {
+    const moe::Shape shapes[] = {{256, 512, 10, 64, moe::kFlash, true}, {256, 512, 8, 256, moe::k35b, false}, {256, 512, 8, 64, moe::k30b, false}};
+    const size_t widest = 64;
+    size_t columns = 0;
+    std::mt19937 rng(57);
+    for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
+        for (const moe::Shape& s : shapes) {
+            const moe::Weights w = moe::weights(vk, s, matrix, 51);
+            const bool shared = s.t.sh_gate != 0;
+            const auto h = moe::inputs(widest, s.E, 52), y0 = moe::residual(widest, s.E, 53);
+            // Token t's outputs from a step over `rows` tokens from `first`.
+            auto token = [&](const moe::Out& o, size_t rows, size_t t) {
+                moe::Out one;
+                auto part = [](const std::vector<float>& v, size_t at, size_t n) { return std::vector<float>(v.begin() + long(at), v.begin() + long(at + n)); };
+                one.y = part(o.y, t * s.E, s.E);
+                one.scores = part(o.scores, t * s.n_expert, s.n_expert);
+                one.weights = part(o.weights, t * s.k, s.k);
+                one.ids.assign(o.ids.begin() + long(t * s.k), o.ids.begin() + long((t + 1) * s.k));
+                one.row_gate = part(o.row_gate, t, 1);
+                for (auto* v : {&one.g, &one.u, &one.act}) {
+                    const std::vector<float>& src = v == &one.g ? o.g : v == &one.u ? o.u : o.act;
+                    *v = part(src, t * s.k * s.ff, s.k * s.ff);
+                    if (shared) {
+                        const std::vector<float> sh = part(src, rows * s.k * s.ff + t * s.ff, s.ff);
+                        v->insert(v->end(), sh.begin(), sh.end());
+                    }
+                }
+                return one;
+            };
+            auto step = [&](size_t first, size_t rows, bool base) {
+                const std::vector<float> hh(h.begin() + long(first * s.E), h.begin() + long((first + rows) * s.E));
+                const std::vector<float> yy(y0.begin() + long(first * s.E), y0.begin() + long((first + rows) * s.E));
+                return moe::run(vk, w, hh, yy, rows, moe::decode_runs(rows), dtype, base ? moe::How::base : moe::How::op);
+            };
+            std::vector<moe::Out> alone;
+            for (size_t t = 0; t < widest; ++t) alone.push_back(step(t, 1, false));
+            auto check = [&](size_t rows, const char* what) {
+                const moe::Out o = step(0, rows, false);
+                for (size_t t = 0; t < rows; ++t) {
+                    std::string which;
+                    if (!moe::same(token(o, rows, t), alone[t], which)) {
+                        std::fprintf(stderr, "  moe step columns: token %zu of %zu, E %zu, ff %zu, %s\n", t, rows, s.E, s.ff, backend::dtype_name(dtype));
+                        throw std::runtime_error(std::string(what) + ": " + which);
+                    }
+                }
+                columns += rows;
+            };
+            for (size_t rows = 1; rows <= widest; ++rows) check(rows, "a fused routed step's token differs from the same token alone");
+            std::uniform_int_distribution<size_t> pick(1, widest);
+            for (int i = 0; i < 50; ++i) {
+                if (i % 3 == 0) (void)step(0, pick(rng), true);
+                check(pick(rng), "a fused routed step after other steps differs from the same token alone");
+            }
+        }
+    return columns;
+}
+
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -4597,6 +4785,10 @@ int main(int argc, char** argv) {
             q8b.reset();
         } else {
             std::cout << "backend-vulkan: " << check_q8_one_column_builds(*q8b) << " one-column Q8_0 decode calls in the build their shape gives\n";
+            std::cout << "backend-vulkan: " << check_moe_step_dispatches(*q8b) << " fused routed decode steps in four dispatches, prompts' steps unfused\n";
+            std::cout << "backend-vulkan: " << check_moe_step(*q8b) << " fused routed step outputs equal to its unfused calls'\n";
+            std::cout << "backend-vulkan: " << check_moe_step_columns(*q8b) << " fused routed step tokens equal to the same tokens alone, after any step\n";
+            std::cout << "backend-vulkan: " << moe::check_row_classes(*q8b, matrix) << " pairs of extents of one class with the same bits through the fused routed step\n";
             if (q8_forced)
                 for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8})
                     std::cout << "backend-vulkan: " << check_decode_columns(*q8b, dtype, true) << " Q8_0 decode columns on the integer dot, " << backend::dtype_name(dtype)
@@ -4640,6 +4832,20 @@ int main(int argc, char** argv) {
                 const ContractionChecks q = check_contraction(q8_builds);
                 std::cout << "backend-vulkan: " << q8_written << " Q8_0 decode builds of the integer dot written; against their one-column build: " << q.decode
                           << " those their shape and forms give, " << q.kinds_only << " their kinds only\n";
+            }
+            // The fused routed kernels the backend taking the integer dot built, with their builds without the row products, held to the kernels whose bodies they hold.
+            if (q8b) {
+                const auto moe_reps = backend::vulkan_kernel_representations(*q8b);
+                size_t moe_written = 0;
+                for (const auto& kr : moe_reps)
+                    if (kr.first.rfind("moe_step_", 0) == 0) {
+                        std::ofstream f(isa_dir + "/" + kr.first + ".txt");
+                        f << kr.second;
+                        moe_written += f.good() ? 1 : 0;
+                    }
+                const MoeIsa m = check_moe_step_isa(moe_reps);
+                std::cout << "backend-vulkan: " << moe_written << " fused routed kernel builds written; " << m.checked << " held to whole copies of their components' products, "
+                          << m.missing << " without their components dispatched\n";
             }
         }
         return 0;

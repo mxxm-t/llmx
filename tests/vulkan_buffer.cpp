@@ -1367,6 +1367,17 @@ int device_need_checks() {
     f12.shaderInt8 = VK_FALSE; expect("no 8-bit integers", "8-bit integer arithmetic"); f12.shaderInt8 = VK_TRUE;
     f11.storageBuffer16BitAccess = VK_FALSE; expect("no 16-bit storage", "16-bit storage"); f11.storageBuffer16BitAccess = VK_TRUE;
     f12.storageBuffer8BitAccess = VK_FALSE; expect("no 8-bit storage", "8-bit storage"); f12.storageBuffer8BitAccess = VK_TRUE;
+    // The fused routed step's routing is its own need: a device whose subgroups are not 32 or 64 lanes opens and takes the unfused step, the need named.
+    const auto counter = [&](const char* what, const std::string& need) {
+        const std::string got = backend::missing_counter_need(sg.subgroupSize);
+        const bool ok = (need.empty() ? got.empty() : got.find(need) != std::string::npos) && backend::missing_device_need(sg, f2, f11, f12).empty();
+        std::cout << "counter_need " << what << ": \"" << got << "\"" << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    };
+    sg.subgroupSize = 64; counter("64 lanes", "");
+    sg.subgroupSize = 32; counter("32 lanes", "");
+    sg.subgroupSize = 128; counter("128 lanes", "32 or 64 lanes");
+    sg.subgroupSize = 64;
     // Heads 128 and 256 wide take kernels whose lane groups fit any subgroup the device check accepts, 256 on a 32-lane device included.
     // Other widths take the per-row kernel, which reads four elements of a head per lane of a subgroup, so such a head wider than four subgroups does not fit.
     const bool widths = backend::attention_head_fits(128, 32) && backend::attention_head_fits(256, 32) && !backend::attention_head_fits(192, 32) &&

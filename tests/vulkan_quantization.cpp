@@ -179,6 +179,89 @@ void check_float_identity(backend::VulkanBackend& preserved, backend::VulkanBack
     require(failed == 0, "F32 rows changed under Q8 preservation");
 }
 
+// The routed combine's preserving module (moe_combine.glsl) gives the ordinary module's bits on normal inputs: F32 down rows, which take the ordinary row kernel in both, so the combine is all that differs.
+// Scores spread enough that later picks' weights underflow to 0 put signed zero products into the sums, and residual rows hold -0.
+void check_combine_identity(backend::VulkanBackend& preserved, backend::VulkanBackend& ordinary) {
+    if (!backend::VulkanQuantizationTest::preserves_float32(preserved)) {
+        std::cout << "vulkan-quantization: ordinary combine comparison skipped without float preservation\n";
+        return;
+    }
+    uint32_t seed = 517;
+    const size_t n_expert = 16, nin = 64, nout = 300;
+    std::vector<float> down(n_expert * nout * nin);
+    for (float& v : down) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+    size_t checked = 0, failed = 0;
+    for (size_t k : {size_t(1), size_t(2), size_t(8), size_t(10)})
+        for (size_t rows : {size_t(1), size_t(5), size_t(33)}) {
+            std::vector<float> scores(rows * n_expert), x(rows * k * nin), y(rows * nout), actual(rows * nout), expected(rows * nout);
+            for (size_t i = 0; i < scores.size(); ++i) scores[i] = float(int(random_bits(seed) % 2001u) - 1000) / ((i / n_expert) % 2 ? 2.0f : 200.0f);
+            for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+            for (size_t i = 0; i < y.size(); ++i) y[i] = i % 5 == 2 ? -0.0f : float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+            float* out[2] = {actual.data(), expected.data()};
+            backend::VulkanBackend* side[2] = {&preserved, &ordinary};
+            for (int i = 0; i < 2; ++i) {
+                backend::VulkanBackend& b = *side[i];
+                const auto db = b.adopt(down.data(), down.size() * sizeof(float)), sb = b.adopt(scores.data(), scores.size() * sizeof(float));
+                const auto xb = b.adopt(x.data(), x.size() * sizeof(float)), yb = b.adopt(y.data(), y.size() * sizeof(float));
+                const auto ids = b.alloc(rows * k * sizeof(float), backend::Memory::device), wts = b.alloc(rows * k * sizeof(float), backend::Memory::device);
+                b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
+                const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
+                const backend::RowRun decode{rows, 1};
+                b.matmul_experts_add(quant::GGML_TYPE_F32, {db.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, {&decode, 1}, backend::Dtype::f16);
+                b.read(*yb, 0, out[i], rows * nout * sizeof(float));
+            }
+            for (size_t i = 0; i < actual.size(); ++i) {
+                if (std::memcmp(&actual[i], &expected[i], sizeof(float)) != 0) {
+                    if (failed < 8) std::fprintf(stderr, "ordinary combine identity: k %zu rows %zu output %zu preserved %.9g ordinary %.9g\n", k, rows, i, actual[i], expected[i]);
+                    ++failed;
+                }
+                ++checked;
+            }
+        }
+    std::cout << "vulkan-quantization: " << checked << " routed combine outputs, " << failed << " differ between modules\n";
+    require(failed == 0, "the preserving routed combine differs from the ordinary module");
+}
+
+// A routed down projection's combine keeps a subnormal sum on a device whose modules preserve them, as the CPU computes it, and flushes it where they do not.
+// F32 experts whose row o holds 1 at column o take the ordinary row kernel either way, so their normal products reach the combine, whose weights 2^-140 make every term and sum subnormal and exact.
+size_t check_combine_subnormals(backend::VulkanBackend& b) {
+    const bool keeps = backend::VulkanQuantizationTest::preserves_float32(b);
+    backend::CpuBackend cpu;
+    cpu.set_threads(1);
+    const float tiny = std::ldexp(1.0f, -140);
+    const size_t nin = 32, nout = 4, n_expert = 3, k = 3;
+    std::vector<float> w(n_expert * nout * nin, 0.0f), x(k * nin), weights(k, tiny), ids(k), zero(nout, 0.0f);
+    for (size_t e = 0; e < n_expert; ++e)
+        for (size_t o = 0; o < nout; ++o) w[(e * nout + o) * nin + o] = 1.0f;
+    for (size_t i = 0; i < x.size(); ++i) x[i] = (i % 3 ? 1.0f : -1.0f) * float(1 + i % 4);
+    for (size_t j = 0; j < k; ++j) {
+        const uint32_t id = uint32_t(j);
+        std::memcpy(&ids[j], &id, sizeof id);
+    }
+    auto run = [&](backend::Backend& be) {
+        const auto wb = be.adopt(w.data(), w.size() * sizeof(float)), xb = be.adopt(x.data(), x.size() * sizeof(float));
+        const auto ib = be.adopt(ids.data(), ids.size() * sizeof(float)), gb = be.adopt(weights.data(), weights.size() * sizeof(float));
+        const auto yb = be.adopt(zero.data(), zero.size() * sizeof(float));
+        const backend::Backend::Routing routing{{ib.get(), 0}, {gb.get(), 0}, k, n_expert};
+        be.matmul_experts_add(quant::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, 1, routing, {}, backend::Dtype::f32);
+        std::vector<float> y(nout);
+        be.read(*yb, 0, y.data(), y.size() * sizeof(float));
+        return y;
+    };
+    const std::vector<float> got = run(b), ref = run(cpu);
+    size_t subnormal = 0;
+    for (size_t o = 0; o < nout; ++o) {
+        const bool sub = ref[o] != 0.0f && std::fabs(ref[o]) < std::numeric_limits<float>::min();
+        require(sub, "the routed combine's reference sum is not subnormal");
+        const bool ok = keeps ? std::memcmp(&got[o], &ref[o], sizeof(float)) == 0 : got[o] == 0.0f;
+        if (!ok) std::fprintf(stderr, "routed combine subnormal: output %zu device %.9g cpu %.9g\n", o, got[o], ref[o]);
+        require(ok, keeps ? "the routed combine did not keep a subnormal sum" : "the routed combine did not flush a subnormal sum");
+        ++subnormal;
+    }
+    std::cout << "vulkan-quantization: " << subnormal << " subnormal routed combine sums " << (keeps ? "kept as the CPU keeps them" : "flushed, as the ordinary module flushes") << "\n";
+    return subnormal;
+}
+
 // An identity matrix reads each activation back through the public quantized matmul, so the oracle is the original input rather than the device's quantization formula.
 size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_float32) {
     const size_t blocks = width / 32, row_bytes = blocks * quant::Q8_0_TYPESIZE;
@@ -904,6 +987,9 @@ int main() {
         check_elementwise_subnormals(b);
         check_elementwise_subnormals(fallback);
         check_float_identity(b, fallback);
+        check_combine_identity(b, fallback);
+        check_combine_subnormals(b);
+        check_combine_subnormals(fallback);
         check_offset_range(b);
         backend::VulkanBackend tiled(0, true);
         check_offset_range(tiled, true);

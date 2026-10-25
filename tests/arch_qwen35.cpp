@@ -24,6 +24,7 @@
 #include "model/arch/registry.hpp"
 #include "tiny_qwen.hpp"
 #include "tiny_qwen35.hpp"
+#include "moe_step.hpp"
 
 // Fails the calling thread's Nth allocation after arming, once, so a case can fail each allocation of one call in turn.
 static thread_local size_t fail_allocation = 0;
@@ -2215,7 +2216,7 @@ void split_continued(const gguf::GGUFModel& m) {
 
 // In this fixture only the router projects E to X and only the shared gate E to 1.
 // Hold their policy separately: a whole-model witness cannot show one projection silently using the default.
-struct GatePolicy : backend::CpuBackend {
+struct GatePolicy : moe::CountingCpu {
     backend::Dtype selected;
     size_t routers = 0, shared = 0;
     explicit GatePolicy(backend::Dtype dtype) : selected(dtype) { set_threads(1); }
@@ -2288,7 +2289,7 @@ void experts() {
             require(role.stream == (stack ? infer::Stream::window : infer::Stream::copy), "role " + role.name + "'s stream");
         }
     }
-    require(p.slots.size() == 14 && p.slots[9] == std::max(K * FE, FS) && p.slots[10] == X && p.slots[11] == K && p.slots[13] == 1, "a routed model's slots");
+    require(p.slots.size() == 14 && p.slots[9] == K * FE + FS && p.slots[10] == X && p.slots[11] == K && p.slots[13] == 1, "a routed model's slots");
     require(infer::gguf_weights(m).declared_dtype == backend::Dtype::bf16, "routed architecture dtype default");
     for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16}) {
         auto backend = std::make_shared<GatePolicy>(dtype);
@@ -2298,6 +2299,16 @@ void experts() {
         model.prefill({7, 3, 11});
         model.step(9);
         require(backend->routers == 8 && backend->shared == 8, "gate policy check missed a layer or phase");
+        require(backend->steps == 8 && backend->outside == 0, "a routed layer did not take one routed step a pass");
+        // A qwen3moe model's routed layers too (tiny_qwen_moe), with a plain CPU backend's logits; the file outlives the models, whose weights view it.
+        const gguf::GGUFModel f3 = tiny_qwen_moe(2, 128, false);
+        const infer::ModelWeights q3 = infer::gguf_weights(f3);
+        auto counting = std::make_shared<moe::CountingCpu>();
+        auto one = backend::make_cpu_backend();
+        one->set_threads(1);
+        infer::Model counted(q3, counting, options), plain(q3, one, options);
+        require(same(counted.prefill({7, 3, 11}), plain.prefill({7, 3, 11})) && same(counted.step(9), plain.step(9)), "a qwen3moe model's routed steps changed its logits");
+        require(counting->steps == 4 && counting->outside == 0, "a qwen3moe routed layer did not take one routed step a pass");
         slices(m, dtype);
         split_with_a_stage_of_states(m, false, dtype);
         split_with_a_stage_of_states(m, true, dtype);

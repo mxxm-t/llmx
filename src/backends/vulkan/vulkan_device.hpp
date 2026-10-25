@@ -122,6 +122,13 @@ inline std::string missing_device_need(const VkPhysicalDeviceSubgroupProperties&
     return {};
 }
 
+// What the fused routed step needs beyond the kernels' needs, its refusal's text, or empty: its last workgroup routes four rows at once, a row a quarter of 64 lanes, one subgroup or two (shaders/moe_step_route.comp).
+// A device without it takes the unfused step.
+inline std::string missing_counter_need(uint32_t subgroup_size) {
+    if (subgroup_size != 32 && subgroup_size != 64) return "has subgroups other than 32 or 64 lanes, which the fused routing's rows do not fit";
+    return {};
+}
+
 // Heads 128 and 256 wide take the tiled and vector kernels, whose lane groups fit every subgroup the device check accepts (shaders/attention_tile.comp, shaders/attention_vec.comp).
 // Other widths take the per-row kernel, which reads at most four elements of a head per lane of a subgroup (shaders/attention.comp); no head is wider than 256.
 inline size_t attention_row_width(uint32_t subgroup_size) { return std::min<size_t>(256, 4 * (size_t)subgroup_size); }

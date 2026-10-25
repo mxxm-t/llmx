@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <cstddef>
 #include <stdexcept>
@@ -112,6 +113,31 @@ struct RowRun {
 struct RowRuns {
     const RowRun* runs = nullptr;
     size_t n = 0;
+};
+
+// A routed feed-forward step's operands (Backend::moe_step): the shared expert's, beside the routed experts' below.
+// Its gate and up project one row a token into `out`, its row gate, an F32 vector, gives one value a row and has no data on an ungated expert.
+struct MoeShared {
+    Projection gate, up;
+    uint32_t down_type;
+    CSlice down;
+    Slice act;
+    Projection row_gate;
+};
+// The F32 router's n_expert scores into router.out, a row's k picks and weights, each stack's n_expert matrices of gate.rows rows writing k rows a token, and the slot the SiLU writes.
+// `zero`, a row of zeros as wide as y's rows, clears y before the sums join it; `scratch` holds the entry runs the routed SiLU takes.
+struct MoeStep {
+    Projection router;
+    size_t k;
+    bool normalize;
+    Slice ids, weights;
+    Projection gate, up;
+    uint32_t down_type;
+    CSlice down;
+    Slice act;
+    const MoeShared* shared;
+    const Buffer* zero;
+    std::vector<RowRun>* scratch;
 };
 
 // Calls `each(first, count, key)` over the stretches of adjacent runs whose `key(run)` is equal, once the runs are known to be in row order and to end at row `n`.
@@ -652,6 +678,42 @@ public:
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
     virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
+
+    // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
+    // The base runs those ops in that order; a device may fuse them where it gives the same bits.
+    virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
+        if (m.zero) repeat_row(y, *m.zero, rows, nin);
+        const size_t n_expert = m.router.rows, ff = m.gate.rows;
+        matmul(m.router.type, m.router.data, h, m.router.out, nin, n_expert, rows, runs, Dtype::f32);
+        route_experts(m.router.out, rows, n_expert, m.k, m.normalize, m.ids, m.weights);
+        const Routing routing{m.ids, m.weights, m.k, n_expert};
+        matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
+        // The routed down projection reads the SiLU's output as k entries a token row, each of its token's prompt.
+        std::vector<RowRun>& entry_runs = *m.scratch;
+        entry_runs.clear();
+        for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
+        silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, {entry_runs.data(), entry_runs.size()});
+        matmul_experts_add(m.down_type, m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
+        if (!m.shared) return;
+        const MoeShared& s = *m.shared;
+        const bool gated = s.row_gate.data.buffer != nullptr;
+        if (gated) matmul(s.row_gate.type, s.row_gate.data, h, s.row_gate.out, nin, 1, rows, runs, dtype);
+        matmul_group({s.gate, s.up}, h, nin, rows, runs, dtype);
+        silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, runs);
+        if (gated) sigmoid_mul(s.act, s.act, s.row_gate.out, rows, s.gate.rows, 1, 1, 0, runs);
+        matmul_add(s.down_type, s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
+    }
+
+    // Copy the first `width` floats of `row` into each of `rows` rows of dst, then double the copied rows, so clearing needs no host buffer or per-token upload.
+    void repeat_row(Slice dst, const Buffer& row, size_t rows, size_t width) {
+        if (!rows) return;
+        copy(*dst.buffer, dst.offset * sizeof(float), row, 0, width * sizeof(float));
+        for (size_t done = 1; done < rows;) {
+            const size_t count = std::min(done, rows - done);
+            copy(*dst.buffer, (dst.offset + done * width) * sizeof(float), *dst.buffer, dst.offset * sizeof(float), count * width * sizeof(float));
+            done += count;
+        }
+    }
 
     // The ops of the qwen35 layers (docs/QWEN35.md, The forward pass), with norm_rope_partial above.
 

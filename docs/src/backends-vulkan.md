@@ -430,7 +430,16 @@ From the comment at line 2:
 
 ### `src/backends/vulkan/shaders/matmul_row.comp`
 
-From the comment at line 2:
+The kernel's own part is `main`: a workgroup's projection, its rows, its columns and routed or grouped entries, and its stores, around the bodies of `matmul_row_one.glsl` and `matmul_row_two.glsl`, each included where it stood, with the declarations and helpers of `matmul_row.glsl`.
+Each body hands a sum to a store macro the kernel defines (`ROW_STORE`, `ROW_STORE2`), so the stores stay with the kernel; the split leaves every build's SPIR-V byte for byte as it was.
+
+### `src/backends/vulkan/shaders/matmul_row.glsl`
+
+The row kernel's bindings, push constants, specialization constants and per-family helpers, shared by `matmul_row.comp` and by any kernel that fuses a row product with other work.
+Such a kernel may widen the projection arrays (`LLMX_ROW_PROJ`), qualify the outputs (`LLMX_ROW_Y`), add push constants (`LLMX_ROW_PUSH`) and point the activation loads elsewhere: every load goes through one macro a view, `XQ2_AT` and `XQ4_AT` for the twin's words, `XT2_AT` and `XT4_AT` for its table, and `X_AT` and `X4_AT` for the original floats, which default to the bindings.
+The dictionary formats' float rows read their lookup table through the spare twin view directly, not through these macros.
+
+From the comment at line 14:
 
 - Y[b*nout + o] = dot(row o, X column b), the decode kernel, for up to three projections of one X in one dispatch (a layer's q, k and v, or gate and up).
 - Workgroups go to projections in order, so a workgroup's projection and buffers are uniform.
@@ -444,20 +453,29 @@ From the comment at line 2:
 - Q6_K: 210-byte blocks, eight lanes a block, every other block two bytes off word alignment.
 - Measurements behind these layouts are in docs/VULKAN.md.
 
-From the comment at line 81:
+From the comment at line 118:
 
 - A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
 - As a specialization it costs the plain and routed pipelines nothing.
 
-From the comment at line 85:
+From the comment at line 122:
 
 - Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
 - A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 
-From the comment at line 208:
+From the comment at line 364:
 
 - The sub-scales and sub-mins of groups 2c and 2c + 1 from the twelve packed bytes in three words (quant/k_quants.hpp): groups 0..3 are the low six bits of bytes 0..3 (scales) and 4..7 (mins), groups 4..7 the nibbles of bytes 8..11 with the earlier bytes' top two bits above.
 - Branch-free, since the lanes of a block hold different c.
+
+### `src/backends/vulkan/shaders/matmul_row_one.glsl`
+
+The one-row builds' body: a cluster's dot of one weight row with up to MAX_COLS columns, every family's block loop in turn under its define, then the reduction across the cluster, each column's sum handed to `ROW_STORE(c, s)`.
+The including function supplies the row, its weight row, the type, the column count and the `XCOL` and `OCOL` column maps, so a kernel that includes it in a function of its own computes a row with the same bits as the row kernel.
+
+### `src/backends/vulkan/shaders/matmul_row_two.glsl`
+
+The Q4 and K-quant families' two-row builds' body (`ROWS` above 1): a cluster's dots of two adjacent rows with up to MAX_COLS columns, each sum handed to `ROW_STORE2(c, r, s)`, then a return from the including function.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`
 
@@ -519,18 +537,28 @@ From the comment at line 2:
 - A build changes only how many columns and rows share a weight read and how the same operations are scheduled: a column's lanes, their block order, its products and sums and its reduction's pairs are the same in every build, so it computes the same bits in all of them (docs/VULKAN.md).
 - The 8-bit builds (LLMX_I8), --dtype int8 of docs/PRECISION.md, read the 8-bit twin (xquant8_block) against the raw weight words through the four-wide 8-bit dot, in the same lanes, blocks and order.
 
-From the comment at line 51:
+From the comment at line 46:
 
 - A grouped routed call, the wide build's third pipeline (GROUPED, specialization constant 8), runs one chunk of the grouping (moe_group.comp) per workgroup row y: up to MAX_COLS entries of one expert, whose rows are then read once for all of them.
 - As a specialization it costs the plain and routed pipelines nothing.
 
-From the comment at line 67:
+The kernel's own part is its bindings and `main`, a workgroup's projection, rows and columns and its stores (`VEC_STORE`, `VEC_TREE_STORE`), around the body of `matmul_vec_q8_one.glsl` with the helpers of `matmul_vec_q8.glsl`; the split leaves every build's SPIR-V byte for byte as it was.
+
+### `src/backends/vulkan/shaders/matmul_vec_q8.glsl`
+
+The Q8_0 decode kernel's helpers: the weight word's form and its dot, the column groups and the TREE reduction's pairs, and one macro a view for the activation loads, `XQ_AT` and `XQ8_AT` for the 16-bit and 8-bit twins' words and `XT2_AT` for the table, which a kernel fusing a Q8_0 row product with other work may point elsewhere.
+
+From the comment at line 13:
 
 - Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
 - A plain pass gives a build more than half the columns it holds (for_each_column_chunk), so in a build of one column group only a group past the first half can be past the count; the second group of a two-group build gets 1 to MAX_COLS columns and a grouped build any count, so those check before every group.
 - No other group ends a block before its loads.
 
-From the comment at line 143:
+### `src/backends/vulkan/shaders/matmul_vec_q8_one.glsl`
+
+The Q8_0 decode kernel's body: a subgroup's dots of its rows with up to MAX_COLS columns, in the half-block or the quarter layout, then the subgroup or TREE reduction, each row and column's sum handed to the kernel's store macros.
+
+From the comment at line 17:
 
 - Each row's first word, a multiple of 17 words since the row's first block is even; per lane its four quant words, a fifth where the bytes straddle (the fourth again where they do not), its scale word and its activation offsets, which a step moves by 272 words, 64 runs of 16 bytes and 32 blocks.
 

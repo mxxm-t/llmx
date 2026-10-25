@@ -1,5 +1,49 @@
 # llmx - Development Status
 
+## Row kernel bodies as includes (2026-10-25, branch refactor/row-bodies on refactor/vulkan-split 4ab05bffe, item B1a, approved by the reviewer, no behaviour change)
+
+- **Goal:** item B fuses decode sublayers into fewer dispatches, and a fused kernel must compute each row with the unfused kernel's bits; the row kernels' bodies become text both include, so the row arithmetic has one owner (B1b's routed step and B2's stream mix build on it).
+- **The change:** `matmul_row.comp` keeps its `main`, a workgroup's projection, rows, columns and stores, and includes `matmul_row.glsl` (its bindings, push and specialization constants and per-family helpers), `matmul_row_one.glsl` (the one-row builds' body, every family) and `matmul_row_two.glsl` (the Q4 and K-quant families' two-row body) where their text stood.
+  `matmul_vec_q8.comp` keeps its bindings, `main` and stores and includes `matmul_vec_q8.glsl` (its helpers) and `matmul_vec_q8_one.glsl` (its body: both layouts, the TREE and subgroup reductions).
+  Each body hands a sum to a store macro its kernel defines (`ROW_STORE`, `ROW_STORE2`, `VEC_STORE`, `VEC_TREE_STORE`), so stores stay with the callers; every activation load goes through one macro a view (`XQ2_AT`, `XQ4_AT`, `XT2_AT`, `XT4_AT`, `X_AT`, `X4_AT`; `XQ_AT`, `XQ8_AT`), and `matmul_row.glsl` takes `LLMX_ROW_PROJ`, `LLMX_ROW_Y` and `LLMX_ROW_PUSH`, which a fused kernel sets and nothing does yet (listed in `tests/data/known_findings.txt` for B1b and B2).
+  The bodies are included text rather than GLSL functions, so the kernels' preprocessed tokens are those they had: a function returning its sums would move the stores and change the code.
+- **Proof, on the Radeon VII (AMD proprietary driver, default clocks), both arms built the same way in fresh MSVC Release directories from detached worktrees at 6807750e6 and at the change:**
+  - All 266 generated kernel modules are byte-identical SPIR-V, the 87 builds of the two row kernels among them.
+  - `llmx-backend-vulkan-test --isa` passes in both arms and its 141 dumped kernel disassemblies are byte-identical, the 62 row-kernel and Q8_0 decode builds among them.
+  - Identity: the four tiny fixtures' `llmx-model-logits` files and `logits --then-ids` with and without `--per-token` on the CPU and vulkan:0 in f16 and int8, and Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M `logits --last 16` and `generate --temp 0 -n 64` on vulkan:0 in f16 and int8, 64 files, byte-identical.
+  - CTest passes; `tests/dead_code.py` and `tests/docs_check.py` report no finding against the list.
+  - Per-call device time of a decode routed step (the base sequence of B1's `moe_step`) on synthetic weights at the routed layers' shapes of Qwen3.8-Flash-Next UD-Q4_K_XL, Qwen3.6-35B-A3B Q4_K_M and Qwen3-30B-A3B Q8_0 (types, widths, experts and picks), integer dot forced, three interleaved rounds per arm, medians: every cell within -2.6 to +3.3 percent, with the same output hashes; with identical modules on both sides this is the run-to-run spread, and the empty-dispatch floor read 3.55 to 3.94 us across the rounds.
+    The machine ran other users' processes throughout (system CPU 17 to 43 percent, a game client and a browser), recorded beside every round.
+
+    | shape | dtype | tokens | before us | change us | change |
+    |---|---|---|---|---|---|
+    | Flash UD-Q4_K_XL | f16 | 1 | 247.6 | 244.6 | -1.2% |
+    | Flash UD-Q4_K_XL | f16 | 2 | 373.5 | 372.7 | -0.2% |
+    | Flash UD-Q4_K_XL | f16 | 4 | 643.0 | 640.2 | -0.4% |
+    | Flash UD-Q4_K_XL | f16 | 8 | 1210.1 | 1191.2 | -1.6% |
+    | Flash UD-Q4_K_XL | int8 | 1 | 230.2 | 227.7 | -1.1% |
+    | Flash UD-Q4_K_XL | int8 | 2 | 346.6 | 337.6 | -2.6% |
+    | Flash UD-Q4_K_XL | int8 | 4 | 573.8 | 572.2 | -0.3% |
+    | Flash UD-Q4_K_XL | int8 | 8 | 1051.4 | 1050.7 | -0.1% |
+    | 35B-A3B Q4_K_M | f16 | 1 | 170.7 | 172.0 | +0.8% |
+    | 35B-A3B Q4_K_M | f16 | 2 | 234.6 | 235.8 | +0.5% |
+    | 35B-A3B Q4_K_M | f16 | 4 | 358.4 | 366.1 | +2.2% |
+    | 35B-A3B Q4_K_M | f16 | 8 | 617.9 | 618.0 | +0.0% |
+    | 35B-A3B Q4_K_M | int8 | 1 | 163.2 | 164.7 | +0.9% |
+    | 35B-A3B Q4_K_M | int8 | 2 | 216.1 | 219.5 | +1.6% |
+    | 35B-A3B Q4_K_M | int8 | 4 | 327.5 | 329.2 | +0.5% |
+    | 35B-A3B Q4_K_M | int8 | 8 | 555.4 | 559.7 | +0.8% |
+    | 30B-A3B Q8_0 | f16 | 1 | 136.8 | 141.4 | +3.3% |
+    | 30B-A3B Q8_0 | f16 | 2 | 226.9 | 228.1 | +0.5% |
+    | 30B-A3B Q8_0 | f16 | 4 | 412.6 | 408.9 | -0.9% |
+    | 30B-A3B Q8_0 | f16 | 8 | 766.2 | 775.5 | +1.2% |
+    | 30B-A3B Q8_0 | int8 | 1 | 127.0 | 129.3 | +1.8% |
+    | 30B-A3B Q8_0 | int8 | 2 | 202.0 | 204.6 | +1.3% |
+    | 30B-A3B Q8_0 | int8 | 4 | 359.7 | 365.7 | +1.7% |
+    | 30B-A3B Q8_0 | int8 | 8 | 677.9 | 679.7 | +0.3% |
+
+- **Left:** the reviewer's review and the queue; B1b (feat/moe-step) rebases onto it.
+
 ## Vulkan backend split into headers by concern (2026-10-25, branch refactor/vulkan-split on main 8e84e4c4f, approved by the reviewer, move only)
 
 - **Goal:** `vulkan_backend.cpp` was one file of 5155 lines holding every concern of the backend; each concern gets one owner, so later features (fused decode kernels first) add their host code to the right header and only a declaration to the class.

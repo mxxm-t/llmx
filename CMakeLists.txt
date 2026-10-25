@@ -284,6 +284,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
             DEPENDS ${LLMX_VK_SHADER_DIR}/${source}.comp ${LLMX_VK_SHADER_DIR}/q.glsl
                     ${LLMX_VK_SHADER_DIR}/qdecode.glsl ${LLMX_VK_SHADER_DIR}/iq3_s.glsl ${LLMX_VK_SHADER_DIR}/lookup_cache.glsl ${LLMX_VK_SHADER_DIR}/iq1.glsl ${LLMX_VK_SHADER_DIR}/iq1_layout.glsl ${LLMX_VK_SHADER_DIR}/iq1_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_s.glsl ${LLMX_VK_SHADER_DIR}/iq2_dot.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs.glsl ${LLMX_VK_SHADER_DIR}/iq3_xxs_dot.glsl ${LLMX_VK_SHADER_DIR}/f16.glsl ${LLMX_VK_SHADER_DIR}/xquant.glsl
                     ${LLMX_VK_SHADER_DIR}/views.glsl ${LLMX_VK_SHADER_DIR}/float_controls.glsl ${LLMX_VK_SHADER_DIR}/dot16.glsl ${LLMX_VK_SHADER_DIR}/iq4_dot.glsl
+                    ${LLMX_VK_SHADER_DIR}/matmul_row.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_one.glsl ${LLMX_VK_SHADER_DIR}/matmul_row_two.glsl
+                    ${LLMX_VK_SHADER_DIR}/matmul_vec_q8.glsl ${LLMX_VK_SHADER_DIR}/matmul_vec_q8_one.glsl
                     ${LLMX_VK_SHADER_DIR}/tq.glsl ${LLMX_VK_SHADER_DIR}/tq_packed.glsl ${LLMX_VK_SHADER_DIR}/tq_dot.glsl ${LLMX_VK_SHADER_DIR}/tq_layout.glsl ${LLMX_VK_SHADER_DIR}/k23_dot.glsl ${LLMX_VK_SHADER_DIR}/iq2_small.glsl ${LLMX_VK_SHADER_DIR}/iq2_layout.glsl
             COMMENT "glslc ${shader}"
             VERBATIM)

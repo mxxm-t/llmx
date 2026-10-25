@@ -27,3 +27,15 @@ linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBacke
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::name() const | 1 | what vulkan_device_name returns; goes with it
 linked-test-only | src/backends/vulkan/vulkan_backend.cpp | backend::VulkanBackend::profile() const | 1 | what vulkan_device_profile returns; goes with it
 linked-test-only | src/model/kv_cache.hpp | infer::KVSequence::operator=(infer::KVSequence&&) | 1 | the move assignment beside the move constructor product code uses, which kv-cache takes to replace a sequence in place; a movable type without it would surprise its next user
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef LLMX_ROW_PROJ | 1 | a fused kernel widens, qualifies or extends the row kernel's declarations; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef LLMX_ROW_PUSH | 1 | a fused kernel widens, qualifies or extends the row kernel's declarations; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef LLMX_ROW_Y | 1 | a fused kernel widens, qualifies or extends the row kernel's declarations; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef X4_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef XQ2_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef XQ4_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef XT2_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef XT4_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_row.glsl | #ifndef X_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_vec_q8.glsl | #ifndef XQ8_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_vec_q8.glsl | #ifndef XQ_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it
+shader | src/backends/vulkan/shaders/matmul_vec_q8.glsl | #ifndef XT2_AT | 1 | an activation load a fused kernel points elsewhere; item B, step B1b (moe_step) and step B2 (stream_mix) override it

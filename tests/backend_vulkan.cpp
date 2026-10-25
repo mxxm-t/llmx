@@ -3973,6 +3973,74 @@ size_t check_collective(const backend::BackendPtr& first) {
     return checks + 3;
 }
 
+// A row with no candidate (backend.hpp route_experts) on the CPU and the device: NaN scores give the invalid id with weight 0 at each pick, and one finite score among -inf takes that expert and then the others by lower id.
+// The routed products leave an entry without an expert unwritten and add nothing for it, so a row without candidates keeps its output, as decode rows and as a prompt's on the tile.
+size_t check_route_edges(backend::Backend& vk) {
+    const size_t n_expert = 8, k = 4, nin = 256, nout = 64;
+    const float nan = std::numeric_limits<float>::quiet_NaN(), inf = std::numeric_limits<float>::infinity();
+    const uint32_t none = 0xffffffffu;   // backend::Backend::kNoExpert
+    auto cpu = backend::make_cpu_backend();
+    size_t checks = 0;
+    for (backend::Backend* b : {static_cast<backend::Backend*>(cpu.get()), &vk}) {
+        const std::string on = b == cpu.get() ? "on the CPU" : "on the device";
+        // Routing alone.
+        {
+            const size_t rows = 3;
+            std::vector<float> scores(rows * n_expert, nan);
+            for (size_t e = 0; e < n_expert; ++e) scores[n_expert + e] = e == 5 ? 1.0f : -inf;
+            for (size_t e = 0; e < n_expert; ++e) scores[2 * n_expert + e] = e == 3 ? nan : 0.25f * (float)e;
+            const auto sb = b->adopt(scores.data(), scores.size() * sizeof(float));
+            const auto ib = b->alloc(rows * k * sizeof(float), backend::Memory::device), wb = b->alloc(rows * k * sizeof(float), backend::Memory::device);
+            b->route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            std::vector<uint32_t> ids(rows * k);
+            std::vector<float> w(rows * k);
+            b->read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
+            b->read(*wb, 0, w.data(), w.size() * sizeof(float));
+            const std::vector<uint32_t> want_ids = {none, none, none, none, 5, 0, 1, 2, none, none, none, none};
+            const std::vector<float> want_w = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+            for (size_t i = 0; i < rows * k; ++i) {
+                require(ids[i] == want_ids[i], ("routing a row with no candidate gave another id than the defined one " + on).c_str());
+                require(std::memcmp(&w[i], &want_w[i], sizeof(float)) == 0, ("routing a row with no candidate gave another weight than the defined one " + on).c_str());
+            }
+            ++checks;
+        }
+        // The routed products: the gate-up call and the down call with its sum, on 2 decode rows and on a 70-row prompt read at extent 512, every second row without candidates.
+        for (const size_t rows : {size_t(2), size_t(70)}) {
+            const size_t entries = rows * k;
+            const std::vector<backend::RowRun> prompt{{rows, 512}};
+            const backend::RowRuns runs = rows > 2 ? backend::RowRuns{prompt.data(), prompt.size()} : backend::RowRuns{};
+            std::vector<float> scores = uniform(rows * n_expert, 120 + (uint32_t)rows, -3.0f, 3.0f);
+            for (size_t r = 0; r < rows; r += 2) scores[r * n_expert] = nan;
+            const auto w8 = matrix(quant::GGML_TYPE_Q8_0, nin, n_expert * nout, 121);
+            const auto x = uniform(rows * nin, 122), x2 = uniform(entries * nin, 123);
+            const std::vector<float> sentinel(entries * nout, 7.0f), y0 = uniform(rows * nout, 124);
+            const auto sb = b->adopt(scores.data(), scores.size() * sizeof(float)), eb = b->adopt(w8.data(), w8.size());
+            const auto xb = b->adopt(x.data(), x.size() * sizeof(float)), x2b = b->adopt(x2.data(), x2.size() * sizeof(float));
+            const auto ib = b->alloc(entries * sizeof(float), backend::Memory::device), wb = b->alloc(entries * sizeof(float), backend::Memory::device);
+            const auto gb = b->alloc(entries * nout * sizeof(float), backend::Memory::device), yb = b->alloc(rows * nout * sizeof(float), backend::Memory::device);
+            b->write(*gb, 0, sentinel.data(), sentinel.size() * sizeof(float));
+            b->write(*yb, 0, y0.data(), y0.size() * sizeof(float));
+            b->route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+            const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, n_expert};
+            b->matmul_experts({{quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
+            b->matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
+            std::vector<float> g(entries * nout), y(rows * nout);
+            b->read(*gb, 0, g.data(), g.size() * sizeof(float));
+            b->read(*yb, 0, y.data(), y.size() * sizeof(float));
+            for (size_t r = 0; r < rows; r += 2) {
+                for (size_t i = r * k * nout; i < (r + 1) * k * nout; ++i)
+                    require(g[i] == 7.0f, ("a routed product wrote the rows of an entry without an expert " + on).c_str());
+                for (size_t o = 0; o < nout; ++o)
+                    require(std::memcmp(&y[r * nout + o], &y0[r * nout + o], sizeof(float)) == 0, ("a routed sum added to a row without candidates " + on).c_str());
+            }
+            for (size_t r = 1; r < rows; r += 2)
+                for (size_t o = 0; o < nout; ++o) require(std::isfinite(y[r * nout + o]), ("a routed sum beside a row without candidates is not finite " + on).c_str());
+            ++checks;
+        }
+    }
+    return checks;
+}
+
 int main(int argc, char** argv) {
     const std::string isa_dir = argc == 3 && std::strcmp(argv[1], "--isa") == 0 ? argv[2] : "";
     backend::BackendPtr b;
@@ -3987,6 +4055,7 @@ int main(int argc, char** argv) {
         check_decode_contraction();
         std::cout << "backend-vulkan: " << backend::vulkan_device_name(*b) << "\n";
         size_t checks = check_collective(b);
+        checks += check_route_edges(*b);
         // The backend's identity names the device and its driver, and a second backend of the same device has the same one.
         require(b->identity().rfind("vulkan ", 0) == 0 && b->identity().find(backend::vulkan_device_name(*b)) != std::string::npos &&
                     backend::make_vulkan_backend(0, false)->identity() == b->identity(),

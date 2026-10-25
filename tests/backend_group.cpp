@@ -1,9 +1,11 @@
 #include <string>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include "backends/cpu/cpu_backend.hpp"
@@ -449,6 +451,78 @@ static size_t check_row_classes(backend::CpuBackend& cpu) {
                               });
 }
 
+// The CPU half of backend-vulkan's no-candidate routing check (backend.hpp route_experts): NaN scores give kNoExpert with weight 0, one finite score among -inf that expert, then the others by id.
+// The routed gate-up and down calls leave an entry without an expert unwritten and add nothing for it, on two decode rows and on a 70-row prompt, every second row without candidates.
+size_t check_route_edges(backend::CpuBackend& cpu) {
+    const size_t n_expert = 8, k = 4, nin = 256, nout = 64;
+    const float nan = std::numeric_limits<float>::quiet_NaN(), inf = std::numeric_limits<float>::infinity();
+    const uint32_t none = 0xffffffffu;   // backend::Backend::kNoExpert
+    uint32_t seed = 31;
+    auto next = [&] {
+        seed = seed * 1664525u + 1013904223u;
+        return float(int(seed >> 9) % 2001 - 1000) / 400.0f;
+    };
+    size_t checks = 0;
+    {
+        const size_t rows = 3;
+        std::vector<float> scores(rows * n_expert, nan);
+        for (size_t e = 0; e < n_expert; ++e) scores[n_expert + e] = e == 5 ? 1.0f : -inf;
+        for (size_t e = 0; e < n_expert; ++e) scores[2 * n_expert + e] = e == 3 ? nan : 0.25f * (float)e;
+        std::vector<float> ids_w(rows * k), w(rows * k);
+        const auto sb = cpu.adopt(scores.data(), scores.size() * sizeof(float));
+        const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
+        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        std::vector<uint32_t> ids(rows * k);
+        std::vector<float> got(rows * k);
+        cpu.read(*ib, 0, ids.data(), ids.size() * sizeof(uint32_t));
+        cpu.read(*wb, 0, got.data(), got.size() * sizeof(float));
+        const std::vector<uint32_t> want_ids = {none, none, none, none, 5, 0, 1, 2, none, none, none, none};
+        const std::vector<float> want_w = {0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        for (size_t i = 0; i < rows * k; ++i) {
+            require(ids[i] == want_ids[i], "routing a row with no candidate gave another id than the defined one");
+            require(std::memcmp(&got[i], &want_w[i], sizeof(float)) == 0, "routing a row with no candidate gave another weight than the defined one");
+        }
+        ++checks;
+    }
+    std::vector<float> wf(n_expert * nout * nin);
+    for (float& v : wf) v = next();
+    std::vector<uint8_t> w8(n_expert * nout * (nin / 32) * quant::Q8_0_TYPESIZE);
+    for (size_t r = 0; r < n_expert * nout; ++r) quant::quantize_row_q8_0(wf.data() + r * nin, w8.data() + r * (nin / 32) * quant::Q8_0_TYPESIZE, nin / 32);
+    const auto eb = cpu.adopt(w8.data(), w8.size());
+    for (const size_t rows : {size_t(2), size_t(70)}) {
+        const size_t entries = rows * k;
+        const std::vector<backend::RowRun> prompt{{rows, 512}};
+        const backend::RowRuns runs = rows > 2 ? backend::RowRuns{prompt.data(), prompt.size()} : backend::RowRuns{};
+        std::vector<float> scores(rows * n_expert), x(rows * nin), x2(entries * nin), y(rows * nout), g(entries * nout, 7.0f), ids_w(entries), w(entries);
+        for (float& v : scores) v = next();
+        for (size_t r = 0; r < rows; r += 2) scores[r * n_expert] = nan;
+        for (float& v : x) v = next();
+        for (float& v : x2) v = next();
+        for (float& v : y) v = next();
+        const std::vector<float> y0 = y;
+        const auto sb = cpu.adopt(scores.data(), scores.size() * sizeof(float)), xb = cpu.adopt(x.data(), x.size() * sizeof(float));
+        const auto x2b = cpu.adopt(x2.data(), x2.size() * sizeof(float)), yb = cpu.adopt(y.data(), y.size() * sizeof(float));
+        const auto gb = cpu.adopt(g.data(), g.size() * sizeof(float));
+        const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
+        cpu.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
+        const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, n_expert};
+        cpu.matmul_experts({{quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
+        cpu.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
+        std::vector<float> gout(entries * nout), yout(rows * nout);
+        cpu.read(*gb, 0, gout.data(), gout.size() * sizeof(float));
+        cpu.read(*yb, 0, yout.data(), yout.size() * sizeof(float));
+        for (size_t r = 0; r < rows; r += 2) {
+            for (size_t i = r * k * nout; i < (r + 1) * k * nout; ++i) require(gout[i] == 7.0f, "a routed product wrote the rows of an entry without an expert");
+            for (size_t o = 0; o < nout; ++o)
+                require(std::memcmp(&yout[r * nout + o], &y0[r * nout + o], sizeof(float)) == 0, "a routed sum added to a row without candidates");
+        }
+        for (size_t r = 1; r < rows; r += 2)
+            for (size_t o = 0; o < nout; ++o) require(std::isfinite(yout[r * nout + o]), "a routed sum beside a row without candidates is not finite");
+        ++checks;
+    }
+    return checks;
+}
+
 int main() {
     try {
         backend::CpuBackend cpu;
@@ -462,6 +536,7 @@ int main() {
         const size_t reductions = check_prefill_reduction();
         const size_t magnitudes = check_magnitudes(cpu);
         const size_t summed = check_collective();
+        const size_t routed = check_route_edges(cpu);
         size_t values = 0, cases = 0;
         for (int threads : {1, 2, 6}) {
             cpu.set_threads(threads);
@@ -507,7 +582,7 @@ int main() {
         require(rejected, "projection without storage was accepted");
         std::cout << "grouped projections: " << cases << " cases, " << values
                   << " outputs checked against separate calls and double dots; "
-                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; "
+                  << inputs << " Q8 products on original inputs; " << summed << " collective sums in member order; " << routed << " routings without a candidate; "
                   << classes << " pairs of extents of one class with the same bits; "
                   << scales << " exact finite Q8 scale/weight cases; "
                   << reductions << " ordered prefill reductions; "

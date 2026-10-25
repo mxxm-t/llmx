@@ -1488,6 +1488,60 @@ const KernelSource kKernels[K_COUNT] = { LLMX_VULKAN_KERNELS(LLMX_KERNEL_SOURCE)
 #undef LLMX_KERNEL_SOURCE
 #undef LLMX_VULKAN_KERNELS
 
+// The bindings a SPIR-V module writes, a bit each: a storage buffer is read only where its variable, or every member of its block, is NonWritable (GLSL readonly).
+uint32_t spirv_writes(const uint32_t* words, size_t count) {
+    if (count < 5) throw std::logic_error("vulkan: a kernel module without a header");
+    const uint32_t bound = words[3];
+    enum : uint32_t { kTypeArray = 28, kTypeRuntimeArray = 29, kTypeStruct = 30, kTypePointer = 32, kVariable = 59, kDecorate = 71, kMemberDecorate = 72 };
+    enum : uint32_t { kNonWritable = 24, kBinding = 33, kUniform = 2, kStorageBuffer = 12 };
+    // Per id: its binding, the type an array or pointer holds, a struct's members, and which are NonWritable.
+    std::vector<uint32_t> binding(bound, UINT32_MAX), inner(bound, 0), members(bound, 0);
+    std::vector<uint64_t> fixed_members(bound, 0);
+    std::vector<uint8_t> fixed(bound, 0);
+    std::vector<std::pair<uint32_t, uint32_t>> vars;   // (pointer type, variable)
+    auto id = [&](uint32_t v) {
+        if (v >= bound) throw std::logic_error("vulkan: a kernel module id out of bounds");
+        return v;
+    };
+    for (size_t at = 5; at < count;) {
+        const uint32_t op = words[at] & 0xffff, len = words[at] >> 16;
+        if (!len || at + len > count) throw std::logic_error("vulkan: a malformed kernel module");
+        const uint32_t* w = words + at;
+        if (op == kDecorate && len >= 4 && w[2] == kBinding) binding[id(w[1])] = w[3];
+        else if (op == kDecorate && len >= 3 && w[2] == kNonWritable) fixed[id(w[1])] = 1;
+        else if (op == kMemberDecorate && len >= 4 && w[3] == kNonWritable && w[2] < 64) fixed_members[id(w[1])] |= uint64_t(1) << w[2];
+        else if ((op == kTypeArray || op == kTypeRuntimeArray) && len >= 3) inner[id(w[1])] = id(w[2]);
+        else if (op == kTypePointer && len >= 4) inner[id(w[1])] = id(w[3]);
+        else if (op == kTypeStruct && len >= 2) members[id(w[1])] = len - 2;
+        else if (op == kVariable && len >= 4 && (w[3] == kStorageBuffer || w[3] == kUniform)) vars.emplace_back(id(w[1]), id(w[2]));
+        at += len;
+    }
+    uint32_t writes = 0;
+    for (const auto& v : vars) {
+        const uint32_t b = binding[v.second];
+        if (b == UINT32_MAX) continue;
+        if (b >= 32) throw std::logic_error("vulkan: a kernel binding past 31");
+        uint32_t t = inner[v.first];
+        while (!members[t] && inner[t]) t = inner[t];
+        const bool block_fixed = members[t] && members[t] <= 64 && fixed_members[t] == (members[t] == 64 ? ~uint64_t(0) : (uint64_t(1) << members[t]) - 1);
+        if (!fixed[v.second] && !block_fixed) writes |= 1u << b;
+    }
+    return writes;
+}
+
+// The bindings each kernel writes (spirv_writes), the union of its plain and its float-preserving module's.
+const std::array<uint32_t, K_COUNT>& kernel_writes() {
+    static const std::array<uint32_t, K_COUNT> table = [] {
+        std::array<uint32_t, K_COUNT> t{};
+        for (int i = 0; i < K_COUNT; ++i) {
+            const KernelSource& s = kKernels[i];
+            t[i] = spirv_writes(s.words, s.bytes / 4) | (s.preserved_words ? spirv_writes(s.preserved_words, s.preserved_bytes / 4) : 0u);
+        }
+        return t;
+    }();
+    return table;
+}
+
 // The variant of a cache kernel for a storage's K and V types.
 class VulkanKVStorage;
 inline KernelId kv_variant(KernelId f32, KernelId k16, const VulkanKVStorage& s);
@@ -2351,10 +2405,19 @@ public:
         return bytes + (product && pads_f32(type, nin) ? rows * (nin + kF32Pad) * sizeof(float) : 0);
     }
 
-    // The tags name a buffer by its handle, which a new buffer can take over once the buffer it named is freed, so a new buffer drops them as a write from the host does.
+    // The twins and the grouping name a buffer by its handle, which a new buffer can take over once the buffer it named is freed, so a new buffer drops them all.
     void drop_tags() {
-        xq_tag_ = XqTag{};
+        for (Twin& t : twins_) t.n = 0;
         group_tag_ = GroupTag{};
+    }
+
+    // Forget the twins whose input, and the grouping whose ids, overlap bytes [begin, end) of a buffer that is about to be written.
+    void forget_written(VkBuffer buffer, VkDeviceSize begin, VkDeviceSize end) {
+        for (Twin& t : twins_)
+            if (t.n && t.x.buffer == buffer && t.x.offset < end && begin < t.x.offset + t.n * sizeof(float)) t.n = 0;
+        if (group_tag_.entries && group_tag_.ids.buffer == buffer && group_tag_.ids.offset < end &&
+            begin < group_tag_.ids.offset + group_tag_.entries * sizeof(float))
+            group_tag_ = GroupTag{};
     }
 
     BufferPtr alloc(size_t bytes, Memory where) override {
@@ -2722,11 +2785,11 @@ public:
     }
 
     void write_now(Buffer& dst_b, size_t off, const void* src, size_t bytes) {
-        drop_tags();
         if (!src && bytes) throw std::runtime_error("vulkan: writing from null storage");
         VulkanBuffer& dst = as_vulkan(dst_b);
         drop_padded(dst);
         span(dst, off, bytes);
+        forget_written(dst.handle(), off, off + bytes);
         if (!bytes) return;
         if (dst.host_visible()) {
             // An enqueued op may still be reading or writing the range.
@@ -2739,12 +2802,12 @@ public:
 
     void copy(Buffer& dst_b, size_t dst_off, const Buffer& src_b, size_t src_off,
               size_t bytes) override {
-        drop_tags();
         VulkanBuffer& dst = as_vulkan(dst_b);
         const VulkanBuffer& src = as_vulkan(src_b);
         drop_padded(dst);
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
+        forget_written(dst.handle(), dst_off, dst_off + bytes);
         if (!bytes) return;
         VkCommandBuffer cmd = open();
         if (!unordered_) barrier(cmd);
@@ -2769,8 +2832,10 @@ public:
         return mb;
     }
 
+    // A peer's copy into memory this device imported is recorded on the peer, so the acquire is where this device learns the range changed.
     void external_ownership(const VkBufferMemoryBarrier* barriers, size_t count, bool acquire) {
         if (!count) return;
+        for (size_t i = 0; acquire && i < count; ++i) forget_written(barriers[i].buffer, barriers[i].offset, barriers[i].offset + barriers[i].size);
         const uint32_t n = u32(count);
         const VkPipelineStageFlags src = acquire ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
         const VkPipelineStageFlags dst = acquire ? VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
@@ -2798,7 +2863,7 @@ public:
     void add(Slice dst, CSlice src, size_t n) override {
         if (!n) return;
         const uint32_t pc[1] = {u32(n)};
-        dispatch(K_ADD, {bind(dst), bind(src)}, pc, sizeof(pc), groups(n, 256));
+        dispatch(K_ADD, {bind(dst), bind(src)}, pc, sizeof(pc), groups(n, 256), 1, 0, {n});
     }
 
     // A tensor group's sum on this member (VulkanCollective): residual += the `members` sources added in member order, the summed values also written to `kept` where given (shaders/sum_rows.comp).
@@ -2819,10 +2884,10 @@ public:
         const bool tile = quant && rows && n % rows == 0 && tile_reads(n / rows, rows, runs);
         const uint32_t major = tile ? x8_major(n / rows, rows) : 0;
         const uint32_t pc[3] = {u32(n), tile ? 2u : quant ? 1u : 0u, major};
-        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? xq_for(n) : bind(dst)}, pc, sizeof(pc),
-                 groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
-        else if (overlaps_twin(bind(dst), n)) xq_tag_ = XqTag{};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_SILU_MUL, {bind(dst), bind(gate), bind(up), quant ? twin_binding(slot) : bind(dst)}, pc, sizeof(pc),
+                 groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     // The output gate, and a scale of one value per row, one invocation per element; like silu_mul it writes the copy the matmul reading dst next takes (shaders/sigmoid_mul.comp).
@@ -2839,9 +2904,10 @@ public:
         const uint32_t major = tile ? x8_major(width, rows) : 0;
         struct { uint32_t n, quant, width, dim, gate_stride, gate_head_stride, major; }
             pc{u32(n), tile ? 2u : quant ? 1u : 0u, u32(width), u32(dim), u32(gate_stride), u32(gate_head_stride), major};
-        dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
@@ -2857,9 +2923,10 @@ public:
         const uint32_t major = tile ? x8_major(width, rows) : 0;
         struct { uint32_t heads, dim; float eps; uint32_t quant, n, major, gate; }
             pc{u32(heads), u32(dim), eps, tile ? 2u : quant ? 1u : 0u, u32(n), major, gate == NormGate::sigmoid ? 1u : 0u};
-        dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), u32(rows * heads), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_GATED_RMS_NORM, {bind(dst), bind(x), bind(z), bind(w), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), u32(rows * heads), 1, quant ? twin_variant() : 0, {n, 0, 0, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t group_count, size_t dim, float eps,
@@ -2881,9 +2948,10 @@ public:
         const uint32_t major = tile ? x8_major(width, rows) : 0;
         struct { uint32_t rows, groups, dim, quant, n, major; float eps; }
             pc{u32(rows), u32(group_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major, eps};
-        dispatch(K_GROUP_RMS_NORM, {bind(dst), bind(src), bind(w), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_GROUP_RMS_NORM, {bind(dst), bind(src), bind(w), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), groups(size_mul(rows, group_count), 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs = {}) override {
@@ -2899,9 +2967,10 @@ public:
         const bool tile = quant && tile_reads(width, rows, runs);
         const uint32_t major = tile ? x8_major(width, rows) : 0;
         struct { uint32_t n, quant, major; float scale; } pc{u32(n), tile ? 2u : quant ? 1u : 0u, major, scale};
-        dispatch(K_SILU_SCALED, {bind(dst), bind(src), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_SILU_SCALED, {bind(dst), bind(src), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim,
@@ -2920,9 +2989,10 @@ public:
         const uint32_t major = tile ? x8_major(dim, rows) : 0;
         struct { uint32_t rows, streams, dim, quant, n, major; }
             pc{u32(rows), u32(streams), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(out_n), major};
-        dispatch(K_MIX_STREAMS, {bind(dst), bind(src), bind(gate), quant ? xq_for(out_n) : bind(dst)},
-                 &pc, sizeof(pc), groups(tile ? out_n / 4 : out_n, 256), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), out_n, want_x8_, major};
+        const size_t slot = quant ? take_twin(out_n) : 0;
+        dispatch(K_MIX_STREAMS, {bind(dst), bind(src), bind(gate), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), groups(tile ? out_n / 4 : out_n, 256), 1, quant ? twin_variant() : 0, {out_n, 0, 0, out_n});
+        if (quant) keep_twin(slot, bind(dst), out_n, major);
     }
 
     void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) override {
@@ -2935,7 +3005,7 @@ public:
             overlaps(block, size_mul(rows, dim), gate, size_mul(rows, streams)))
             throw std::runtime_error("vulkan: stream injection operands must be disjoint");
         const struct { uint32_t rows, streams, dim, n; } pc{u32(rows), u32(streams), u32(dim), u32(n)};
-        dispatch(K_INJECT_STREAMS, {bind(dst), bind(block), bind(gate)}, &pc, sizeof(pc), groups(n, 256));
+        dispatch(K_INJECT_STREAMS, {bind(dst), bind(block), bind(gate)}, &pc, sizeof(pc), groups(n, 256), 1, 0, {n});
     }
 
     void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups_count, size_t dim,
@@ -2955,9 +3025,10 @@ public:
         struct { uint32_t rows, groups, dim, quant, n, major; float scale; }
             pc{u32(rows), u32(groups_count), u32(dim), tile ? 2u : quant ? 1u : 0u, u32(n), major,
                1.0f / std::sqrt(float(dim))};
-        dispatch(K_SIGNED_SQRT_GATE, {bind(dst), bind(key), bind(query), bind(value), quant ? xq_for(n) : bind(dst)},
-                 &pc, sizeof(pc), groups(size_mul(rows, groups_count), 1), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), n, want_x8_, major};
+        const size_t slot = quant ? take_twin(n) : 0;
+        dispatch(K_SIGNED_SQRT_GATE, {bind(dst), bind(key), bind(query), bind(value), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), groups(size_mul(rows, groups_count), 1), 1, quant ? twin_variant() : 0, {n, 0, 0, 0, n});
+        if (quant) keep_twin(slot, bind(dst), n, major);
     }
 
     // The storage of a call's state views, which must all be one, and the table the state kernels read: the view count, then per view its first batch row, rows, history length, source slot and destination slot; the conv appends its chunks.
@@ -3121,10 +3192,10 @@ public:
         const uint32_t major = tile ? x8_major(n, rows) : 0;
         struct { uint32_t rows, n, stride; float eps; uint32_t quant, chunks, major; }
             pc{u32(rows), u32(n), u32(stride), eps, tile ? 2u : quant ? 1u : 0u, u32(chunks), major};
-        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? xq_for(rows * n) : bind(dst)},
-                 &pc, sizeof(pc), u32(rows * chunks), 1, quant ? twin_variant() : 0);
-        if (quant) xq_tag_ = XqTag{bind(dst), rows * n, want_x8_, major};
-        else if (overlaps_twin(bind(dst), (rows - 1) * stride + n)) xq_tag_ = XqTag{};
+        const size_t slot = quant ? take_twin(rows * n) : 0, reach = (rows - 1) * stride + n;
+        dispatch(K_RMS_NORM_ROWS, {bind(dst), bind(src), bind(w), quant ? twin_binding(slot) : bind(dst)},
+                 &pc, sizeof(pc), u32(rows * chunks), 1, quant ? twin_variant() : 0, {reach, 0, 0, reach});
+        if (quant) keep_twin(slot, bind(dst), rows * n, major);
     }
 
     // One workgroup per (row, head), reading the heads at their strides and writing them contiguously (shaders/norm_rope_partial.comp).
@@ -3405,14 +3476,14 @@ public:
                         const size_t n = taken * pr->rows;
                         const uint32_t start = u32(groups(n, 256));
                         const uint32_t rc[7] = {u32(n), 0, 0, u32(parts), accumulate ? 1u : 0u, start, start + 1};
-                        dispatch(pr->type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, sizeof(rc), start);
+                        dispatch(pr->type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, sizeof(rc), start, 1, 0,
+                                 {n, n, n});
                     }
                 } else {
                     dispatch(kernel, {bind(pr->out), bind(pr->data), words, bind(X), bind(pr->data), bind(X)},
-                             pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small);
+                             pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small, {nbatch * pr->rows});
                 }
                 record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
-                if (overlaps_twin(bind(pr->out), nbatch * pr->rows)) xq_tag_ = XqTag{};
             }
             // The integer-dot tile takes the projections of one type in one dispatch, since each alone can be too small to fill the device.
             std::vector<const Projection*> pending;
@@ -3439,6 +3510,8 @@ public:
                 const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
                 const int small = t.height == kTileRowsSmall ? 1 : 0;
                 const bool mx = a.type == quant::GGML_TYPE_MXFP4;
+                // Each output's floats, an unused slot repeating the first's.
+                const std::array<size_t, 3> reach{nbatch * a.rows, nbatch * b.rows, nbatch * c.rows};
                 if (parts > 1) {
                     const size_t n = nbatch * t.rows;
                     const size_t bytes = size_mul(size_mul(parts, n), mx ? sizeof(double) : sizeof(float));
@@ -3457,17 +3530,15 @@ public:
                     const uint32_t rc[7] = {u32(n0), u32(n1), u32(n2), u32(parts), accumulate ? 1u : 0u,
                                             u32(n1 ? start1 : start2 + groups(n2, 256)), u32(n2 ? start2 : start2 + groups(n2, 256) + 1)};
                     dispatch(mx ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(a.out), bind(b.out), bind(c.out), pb}, rc, sizeof(rc),
-                             u32(start2 + groups(n2, 256)));
+                             u32(start2 + groups(n2, 256)), 1, 0, {reach[0], reach[1], reach[2]});
                 } else if (mx) {
                     dispatch(t.kernel, {bind(a.out), bind(b.out), bind(c.out), bind(a.data), bind(b.data), bind(c.data), xt, xt, xt,
                                        bind(*original(t.p[0])), bind(*original(t.p[1])), bind(*original(t.p[2]))},
-                             pc, sizeof(pc), u32(t.gx), u32(gy), small);
+                             pc, sizeof(pc), u32(t.gx), u32(gy), small, {reach[0], reach[1], reach[2]});
                 } else {
-                    dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, xt, pc, u32(gy));
+                    dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, xt, pc, u32(gy), reach);
                 }
                 record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
-                for (const Projection* pr : group)
-                    if (overlaps_twin(bind(pr->out), nbatch * pr->rows)) xq_tag_ = XqTag{};
             }
             return;
         }
@@ -3583,21 +3654,29 @@ public:
         return twin(X, n, reads_x8(plan.kernel), 0);
     }
 
-    // Bind a cached twin or pack it for the reader: tile_nin is the tile's input width, zero for a row kernel.
+    // Bind a kept twin or pack it for the reader: tile_nin is the tile's input width, zero for a row kernel; `kept_major` receives the bound twin's major.
     // Column-major int8 copies are reusable; block-major copies require the reader's row width.
-    VkDescriptorBufferInfo twin(CSlice X, size_t n, bool x8, size_t tile_nin) {
+    VkDescriptorBufferInfo twin(CSlice X, size_t n, bool x8, size_t tile_nin, uint32_t* kept_major = nullptr) {
         // The first matmul reading the 8-bit twin has it made here; producers after it write both.
         if (x8) want_x8_ = true;
         const VkDescriptorBufferInfo xf = bind(X);
-        VkDescriptorBufferInfo xq = xq_for(n);
         const uint32_t major = tile_nin ? x8_major(tile_nin, n / tile_nin) : 0;
-        if (!(xq_tag_.n == n && xq_tag_.x.buffer == xf.buffer && xq_tag_.x.offset == xf.offset &&
-              (!x8 || (xq_tag_.has8 && (!xq_tag_.major || xq_tag_.major == major))))) {
-            const uint32_t pc[2] = {u32(n), major};
-            if (tile_nin) dispatch(K_QUANTIZE_XW, {xf, xq}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
-            else dispatch(K_QUANTIZE_X, {xf, xq}, pc, sizeof(uint32_t), groups(n, 256), 1, twin_variant());
-            xq_tag_ = XqTag{xf, n, want_x8_, major};
+        size_t slot = kTwins;
+        for (size_t i = 0; i < kTwins; ++i) {
+            const Twin& t = twins_[i];
+            if (t.n == n && t.x.buffer == xf.buffer && t.x.offset == xf.offset && (!x8 || (t.has8 && (!t.major || t.major == major)))) slot = i;
         }
+        if (slot == kTwins) {
+            slot = take_twin(n, xf);
+            const uint32_t pc[2] = {u32(n), major};
+            if (tile_nin) dispatch(K_QUANTIZE_XW, {xf, twin_binding(slot)}, pc, sizeof(pc), groups(n / 4, 256), 1, twin_variant());
+            else dispatch(K_QUANTIZE_X, {xf, twin_binding(slot)}, pc, sizeof(uint32_t), groups(n, 256), 1, twin_variant());
+            keep_twin(slot, xf, n, major);
+        }
+        Twin& t = twins_[slot];
+        t.used = ++twin_clock_;
+        if (kept_major) *kept_major = t.major;
+        VkDescriptorBufferInfo xq = twin_binding(slot);
         if (x8) xq.offset = x8_base_bytes(n);
         return xq;
     }
@@ -3628,6 +3707,8 @@ public:
         // Dictionary float rows alias the first twin view; integer rows alias the unused F32 weight view.
         const VkDescriptorBufferInfo dictionary = (plan.kernel == K_MATMUL_ROW_IQ1_S || plan.kernel == K_MATMUL_ROW_IQ1_M || plan.kernel == K_MATMUL_ROW_IQ3_S || plan.kernel == K_MATMUL_ROW_IQ2_S || plan.kernel == K_MATMUL_ROW_IQ3_XXS || plan.kernel == K_MATMUL_ROW_IQ2_XXS || plan.kernel == K_MATMUL_ROW_IQ2_XS) ? lookup_grid(t, xqi) : xqi;
         const bool lookup_dot = plan.kernel == K_MATMUL_ROW_IQ1_S_DOT || plan.kernel == K_MATMUL_ROW_IQ1_M_DOT || plan.kernel == K_MATMUL_ROW_IQ3_S_DOT || plan.kernel == K_MATMUL_ROW_IQ2_S_DOT || (plan.kernel == K_MATMUL_ROW_IQ3_XXS_DOT || plan.kernel == K_MATMUL_ROW_IQ2_XXS_DOT || plan.kernel == K_MATMUL_ROW_IQ2_XS_DOT);
+        // The call's outputs are the projections' whole columns, a routed call's its entries'.
+        const size_t columns = routed ? routed : per ? entries : nbatch;
         // matmul_row.comp counts its rows by cluster, the Q8_0 decode kernel reads neither.
         const uint32_t pc[22] = {u32(nin), u32(nbatch), u32(col0), u32(ncols), plan.cluster, dev_->caps.subgroup_size / plan.cluster,
                                  (uint32_t)live.size(),
@@ -3644,12 +3725,9 @@ public:
                   bind(X),
                   bind(a.data), bind(b.data), bind(c.data),
                   dictionary, xqi, xqi, xqi, ids.buffer ? ids : bind(X), tab.buffer ? tab : bind(X)},
-                 pc, sizeof(pc), total, u32(entries), variant);
+                 pc, sizeof(pc), total, u32(entries), variant, {columns * a.rows, columns * b.rows, columns * c.rows});
         record_matrix_path(weight_kernels(a.type)->layout == RowLayout::values || plan.kernel == weight_kernels(a.type)->float_row ? MatrixPath::f32
                            : reads_x8(plan.kernel) ? MatrixPath::block_int8 : MatrixPath::block_int16);
-        // The outputs may overlap what the twin describes; a router's scores beside its input do not, so the experts read the same twin.
-        for (const Projection* pr : live)
-            if (overlaps_twin(bind(pr->out), (routed ? routed : per ? entries : nbatch) * pr->rows)) xq_tag_ = XqTag{};
     }
 
     // Routed entries take row kernels or per-expert tiles according to prompt extent and the type's crossover.
@@ -3661,9 +3739,8 @@ public:
         if (floats_from(scores) < rows * n_expert || floats_from(ids) < rows * k || floats_from(weights) < rows * k)
             throw std::runtime_error("vulkan: routing operand outside its allocation");
         const uint32_t pc[3] = {u32(n_expert), u32(k), normalize ? 1u : 0u};
-        dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows));
+        dispatch(K_MOE_ROUTE, {bind(scores), bind(ids), bind(weights)}, pc, sizeof(pc), u32(rows), 1, 0, {0, rows * k, rows * k});
         group_tag_ = GroupTag{};
-        if (overlaps_twin(bind(ids), rows * k) || overlaps_twin(bind(weights), rows * k)) xq_tag_ = XqTag{};
     }
 
     // Calls `each(first, count, tile)` over the token rows of a routed call, a call per stretch of rows that take the same kernel.
@@ -3714,7 +3791,7 @@ public:
                         routing.n_expert, tile, dtype, 1);
             const uint32_t pc[3] = {u32(count), u32(nout), u32(k)};
             dispatch(K_MOE_COMBINE, {bind(at_float(Y, first * nout)), bind(CSlice(part)), bind(at_float(routing.weights, first * k)), bind(at_float(routing.ids, first * k))},
-                     pc, sizeof(pc), groups(count * nout, 256));
+                     pc, sizeof(pc), groups(count * nout, 256), 1, 0, {count * nout});
         });
     }
 
@@ -3770,7 +3847,7 @@ public:
             const Projection &a = *t.p[0], &b = *t.p[1], &c = *t.p[2];
             const uint32_t pc[16] = {u32(nin), u32(xcols), type, 0, u32(nin / 32), u32(live.size()),
                                      t.nout[0], t.start[0], t.nout[1], t.start[1], t.nout[2], t.start[2], u32(per), order0, u32(xcols), xpad};
-            dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, tab, pc, u32(max_tiles));
+            dispatch_qtile(t, {bind(a.out), bind(b.out), bind(c.out)}, xt, tab, pc, u32(max_tiles), {entries * a.rows, entries * b.rows, entries * c.rows});
             record_matrix_path(i8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
         } else {
             for (const Projection* pr : live) {
@@ -3779,19 +3856,10 @@ public:
                 const uint32_t pc[10] = {u32(nin), u32(pr->rows), u32(xcols), type, 0, u32(per), order0, u32(nin), u32(max_tiles), u32(nin)};
                 dispatch(float_tile_kernel(height == kTileRowsTall, dtype, type),
                          {bind(pr->out), bind(pr->data), lookup_grid(type, bind(pr->data)), bind(X), bind(pr->data), tab},
-                         pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0);
+                         pc, sizeof(pc), groups(pr->rows, height), u32(max_tiles), height == kTileRowsSmall ? 1 : 0, {entries * pr->rows});
                 record_matrix_path(dtype == Dtype::bf16 ? MatrixPath::bf16 : MatrixPath::f32);
             }
         }
-        for (const Projection* pr : live)
-            if (overlaps_twin(bind(pr->out), entries * pr->rows)) xq_tag_ = XqTag{};
-    }
-
-    // Whether `floats` floats at a binding overlap the input the activations' twin was made from.
-    bool overlaps_twin(const VkDescriptorBufferInfo& b, size_t floats) const {
-        if (!xq_tag_.n || b.buffer != xq_tag_.x.buffer) return false;
-        const VkDeviceSize end = b.offset + floats * sizeof(float), tag_end = xq_tag_.x.offset + xq_tag_.n * sizeof(float);
-        return b.offset < tag_end && xq_tag_.x.offset < end;
     }
 
     // Throws unless the kernels decode `type` and `data` holds `rows` rows of `nin` values of it, each whole blocks.
@@ -3804,21 +3872,38 @@ public:
             throw std::runtime_error(std::string("vulkan: ") + what + " outside its allocation");
     }
 
-    // The scratch the twin of an n-value input lives in, the 8-bit twin after the 16-bit one once a matmul has read it.
-    VkDescriptorBufferInfo xq_for(size_t n) {
+    // A slot for the twin of an n-value input, emptied and with scratch to hold it, the 8-bit twin after the 16-bit one once a matmul has read it: the slot already holding `x`'s twin, else an empty one, else the least recently used.
+    size_t take_twin(size_t n, VkDescriptorBufferInfo x = {}) {
+        size_t slot = 0;
+        for (size_t i = 0; i < kTwins; ++i) {
+            const Twin &t = twins_[i], &best = twins_[slot];
+            const bool same = t.n && x.buffer && t.x.buffer == x.buffer && t.x.offset == x.offset;
+            if (same) { slot = i; break; }
+            if ((!t.n && best.n) || (!t.n == !best.n && t.used < best.used)) slot = i;
+        }
+        Twin& t = twins_[slot];
+        t.n = 0;
         // A block-major 8-bit twin pads its columns by at most seven, which from kX8MajorRows columns on is under a quarter.
         const size_t bytes = want_x8_ ? x8_base_bytes(n) + (n + (n / 32) * 8) / 4 * 5 : n * 2 + (n / 32) * 8;
-        if (!xq_ || xq_->size() < bytes) {
-            grow(xq_, bytes);
-            xq_tag_ = XqTag{};
-        }
-        return VkDescriptorBufferInfo{xq_->handle(), 0, VK_WHOLE_SIZE};
+        if (!t.buffer || t.buffer->size() < bytes) grow(t.buffer, bytes);
+        return slot;
+    }
+    VkDescriptorBufferInfo twin_binding(size_t slot) const { return VkDescriptorBufferInfo{twins_[slot].buffer->handle(), 0, VK_WHOLE_SIZE}; }
+    // Record what a slot's scratch now holds, once the dispatch writing it is recorded.
+    void keep_twin(size_t slot, VkDescriptorBufferInfo x, size_t n, uint32_t major) {
+        Twin& t = twins_[slot];
+        t.x = x;
+        t.n = n;
+        t.has8 = want_x8_;
+        t.major = major;
+        t.used = ++twin_clock_;
     }
 
     // The twin the integer-dot tile reads (twin); `xpad` receives the padded columns of a block-major 8-bit twin, zero for one that lies column after column.
     VkDescriptorBufferInfo tile_twin(CSlice X, size_t n, size_t nin, bool x8, uint32_t& xpad) {
-        const VkDescriptorBufferInfo xt = twin(X, n, x8, nin);
-        xpad = x8 && xq_tag_.major ? x8_columns(u32(n / 32 / xq_tag_.major)) : 0;
+        uint32_t major = 0;
+        const VkDescriptorBufferInfo xt = twin(X, n, x8, nin, &major);
+        xpad = x8 && major ? x8_columns(u32(n / 32 / major)) : 0;
         return xt;
     }
 
@@ -3867,17 +3952,18 @@ public:
     }
 
     // Ordinary and routed integer tiles share bindings; dictionary formats add their immutable table.
+    // `reach` is each output's floats, zero for a split call's partial sums.
     void dispatch_qtile(const QTile& tile, std::array<VkDescriptorBufferInfo, 3> output,
                         VkDescriptorBufferInfo activation, VkDescriptorBufferInfo grouping,
-                        const uint32_t (&pc)[16], uint32_t groups_y) {
+                        const uint32_t (&pc)[16], uint32_t groups_y, std::array<size_t, 3> reach = {}) {
         const Projection &a = *tile.p[0], &b = *tile.p[1], &c = *tile.p[2];
         const int variant = tile.height == kTileRowsSmall ? 1 : 0;
         if (a.type == quant::GGML_TYPE_IQ1_S || a.type == quant::GGML_TYPE_IQ1_M || a.type == quant::GGML_TYPE_IQ3_S || a.type == quant::GGML_TYPE_IQ2_S || a.type == quant::GGML_TYPE_IQ3_XXS || a.type == quant::GGML_TYPE_IQ2_XXS || a.type == quant::GGML_TYPE_IQ2_XS)
             dispatch(tile.kernel, {output[0], output[1], output[2], bind(a.data), bind(b.data), bind(c.data), activation, activation, grouping,
-                                   lookup_grid(a.type, activation)}, pc, sizeof(pc), u32(tile.gx), groups_y, variant);
+                                   lookup_grid(a.type, activation)}, pc, sizeof(pc), u32(tile.gx), groups_y, variant, {reach[0], reach[1], reach[2]});
         else
             dispatch(tile.kernel, {output[0], output[1], output[2], bind(a.data), bind(b.data), bind(c.data), activation, activation, grouping},
-                     pc, sizeof(pc), u32(tile.gx), groups_y, variant);
+                     pc, sizeof(pc), u32(tile.gx), groups_y, variant, {reach[0], reach[1], reach[2]});
     }
 
     // One bounded stream-ordered scratch holds this call's exact float-scale copies.
@@ -4039,11 +4125,12 @@ public:
             const uint32_t major = tile ? x8_major(qstride, rows) : 0;
             struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major; }
                 tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, tile ? 1u : 0u, u32(rows), major};
+            const size_t slot = tile ? take_twin(rows * qstride) : 0, n = rows * qstride;
             dispatch(head_dim == 256 ? kv_variant(K_ATTENTION_TILE_D256, K_ATTENTION_TILE_D256_K16, s) : kv_variant(K_ATTENTION_TILE, K_ATTENTION_TILE_K16, s),
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? xq_for(rows * qstride) : bind(out)},
-                     &tc, sizeof(tc), u32(tiles * (size_t)n_head), 1, tile ? twin_variant() : 0);
-            if (tile) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_, major};
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), tile ? twin_binding(slot) : bind(out)},
+                     &tc, sizeof(tc), u32(tiles * (size_t)n_head), 1, tile ? twin_variant() : 0, {0, n, 0, 0, 0, n});
+            if (tile) keep_twin(slot, bind(out), n, major);
         }
         if (!narrow.empty()) {
             ViewTable t = view_table(layer, narrow, false);
@@ -4051,7 +4138,8 @@ public:
             check_storage(s, n_head_kv, head_dim);
             // The output's 16-bit twin, written by whichever kernel writes the output, when the whole batch is this dispatch and a head is whole blocks.
             const bool quant = wide.empty() && head_dim % 32 == 0;
-            const VkDescriptorBufferInfo xq = quant ? xq_for(rows * qstride) : bind(out);
+            const size_t slot = quant ? take_twin(rows * qstride) : 0, n = rows * qstride;
+            const VkDescriptorBufferInfo xq = quant ? twin_binding(slot) : bind(out);
             // Choose attention splits from each row's history length, doubling the chunk until the profile's split limit fits.
             // A row computes identically beside longer rows, whose extra splits are empty for it.
             size_t longest = 0;
@@ -4084,12 +4172,12 @@ public:
             dispatch(kernel,
                      {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
                       table, scratch, xq},
-                     &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, quant ? twin_variant() : 0);
+                     &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
             if (nsplit > 1) {
                 const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
-                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0);
+                dispatch(K_ATTENTION_MERGE, {bind(out), scratch, table, xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
             }
-            if (quant) xq_tag_ = XqTag{bind(out), rows * qstride, want_x8_};
+            if (quant) keep_twin(slot, bind(out), n, 0);
         }
     }
 
@@ -4483,21 +4571,25 @@ private:
     }
 
     // One dispatch: bind the pipeline, push the buffers and constants, launch the workgroups, and fence it off from the next command.
+    // `extents` gives, buffer by buffer, the floats a written binding's writes reach from its offset where the call knows them, 0 for the rest of the buffer; it bounds only which twins the writes drop.
     void dispatch(KernelId id, std::initializer_list<VkDescriptorBufferInfo> buffers,
                   const void* push, size_t push_bytes, uint32_t groups_x, uint32_t groups_y = 1,
-                  int variant = 0) {
+                  int variant = 0, std::initializer_list<size_t> extents = {}) {
         Kernel& k = kernel(id, variant);
-        if (buffers.size() != k.buffers) throw std::logic_error("vulkan: kernel binding count");
-        // Routing and grouping write only ids, weights and their own table; route_experts checks those against the twin itself.
-        // A tile call, such as a router's before its experts, writes only its outputs, which the call checks against the twin itself.
-        if (!is_row_kernel(id) && id != K_QUANTIZE_X && id != K_QUANTIZE_XW && id != K_RMS_NORM_ROWS && id != K_SILU_MUL &&
-            id != K_MOE_ROUTE && id != K_MOE_GROUP && id != K_MATMUL_REDUCE && id != K_MATMUL_REDUCE_MXFP4 && id != K_COPY_MXFP4 && !is_tile_kernel(id))
-            xq_tag_ = XqTag{};
+        if (buffers.size() != k.buffers || extents.size() > buffers.size()) throw std::logic_error("vulkan: kernel binding count");
         if (push_bytes > kPushBytes) throw std::logic_error("vulkan: push constants exceed 128 bytes");
         for (const auto& b : buffers)
             if (!b.buffer) throw std::runtime_error("vulkan: dispatch over an empty allocation");
-        VkCommandBuffer cmd = open();
         const KernelSource& src = kKernels[id];
+        const uint32_t written = kernel_writes()[id];
+        for (uint32_t i = 0, e = 0; i < src.bindings; ++i)
+            for (uint32_t j = 0; j < (src.counts ? src.counts[i] : 1); ++j, ++e)
+                if (written >> i & 1) {
+                    const VkDescriptorBufferInfo& b = buffers.begin()[e];
+                    const size_t floats = e < extents.size() ? extents.begin()[e] : 0;
+                    forget_written(b.buffer, b.offset, floats ? b.offset + floats * sizeof(float) : VK_WHOLE_SIZE);
+                }
+        VkCommandBuffer cmd = open();
         std::vector<VkWriteDescriptorSet> writes(k.bindings);
         const VkDescriptorBufferInfo* next = buffers.begin();
         for (uint32_t i = 0; i < k.bindings; ++i) {
@@ -4662,19 +4754,28 @@ private:
     std::shared_ptr<VulkanBuffer> mx_copy_; // copies of one call, reused in queue order
     std::shared_ptr<VulkanBuffer> parts_;     // a split integer-dot tile call's partial sums
     std::shared_ptr<VulkanBuffer> argmax_parts_;   // an argmax's partials, a slice of a row each; likewise
-    std::shared_ptr<VulkanBuffer> xq_;        // the row kernel's quantized activations; likewise
     std::shared_ptr<VulkanBuffer> moe_out_;   // a routed down projection's slots before they are combined
     std::shared_ptr<VulkanBuffer> moe_tab_;   // a routed tile call's grouping (shaders/moe_group.comp)
-    // Which ids moe_tab_ groups: their location and count, cleared by every routing, by anything that writes a buffer from the host and by a new buffer (drop_tags).
+    // Which ids moe_tab_ groups: their location and count, cleared by every routing, by a new buffer (drop_tags) and by any write, copy or dispatch over its ids (forget_written).
     struct GroupTag { VkDescriptorBufferInfo ids{}; size_t entries = 0, n_expert = 0, chunk = 0; };
     GroupTag group_tag_;
-    // What the twin buffer holds: the float input it was made from, its length and whether the 8-bit twin follows; cleared by anything else that writes a buffer, since the input may be what was written, and by a new buffer (drop_tags).
-    // `major`: the blocks of a column where the 8-bit twin lies block-major (x8_major), zero where it lies column after column.
-    struct XqTag { VkDescriptorBufferInfo x{}; size_t n = 0; bool has8 = false; uint32_t major = 0; };
+    // A twin of a float input in its own stream-ordered scratch: the input's binding, its length and whether the 8-bit twin follows; empty once a write reaches the input (forget_written) and after a new buffer (drop_tags).
+    // `major`: the 8-bit twin's blocks a column where it lies block-major (x8_major), else zero; `used` orders the slots; a mapped buffer is written from the host only through `write`.
+    struct Twin {
+        VkDescriptorBufferInfo x{};
+        size_t n = 0;
+        bool has8 = false;
+        uint32_t major = 0;
+        uint64_t used = 0;
+        std::shared_ptr<VulkanBuffer> buffer;
+    };
+    // A few activations' twins stay alive at once, such as a layer's input beside its sublayers' outputs; the least recently used goes first.
+    static constexpr size_t kTwins = 4;
+    Twin twins_[kTwins];
+    uint64_t twin_clock_ = 0;
     // Whether a matmul has read the 8-bit twin, after which producers write it too (twin_variant); it changes which copies exist, never a result.
     bool want_x8_ = false;
 
-    XqTag xq_tag_;
     std::vector<std::shared_ptr<VulkanBuffer>> pending_[kRing];
     Arena arena_[kRing];
     Kernel kernels_[K_COUNT][kVariants];
@@ -5006,6 +5107,16 @@ std::string vulkan_kernel_statistics(const Backend& backend) {
 std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend) {
     auto* v = dynamic_cast<VulkanBackend*>(&backend);
     return v ? v->kernel_times() : std::vector<std::pair<std::string, double>>();
+}
+
+std::vector<std::pair<std::string, std::vector<bool>>> vulkan_kernel_writes() {
+    std::vector<std::pair<std::string, std::vector<bool>>> out;
+    for (int i = 0; i < K_COUNT; ++i) {
+        std::vector<bool> writes(kKernels[i].bindings);
+        for (uint32_t b = 0; b < kKernels[i].bindings; ++b) writes[b] = kernel_writes()[i] >> b & 1;
+        out.emplace_back(kKernelNames[i], writes);
+    }
+    return out;
 }
 
 size_t vulkan_timed_dispatches(const Backend& backend) {

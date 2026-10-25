@@ -11,6 +11,7 @@ test-only | src/backends/cpu/cpu_backend.hpp | CpuBackend::workers_started | 1 |
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_name | 1 | the device's name, which the Vulkan tests print so a hand run's log says which card and driver it ran on; goes if the tests stop printing it
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_device_profile | 1 | the device profile, which backend-vulkan and mxfp4-vulkan read to predict the backend's kernel choice at each crossover; goes only if those checks do
 test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_representations | 1 | the kernels' driver representations, which backend-vulkan --isa writes out for the hand check AGENTS.md asks at every row-kernel change; goes only with that check
+test-only | src/backends/vulkan/vulkan_backend.cpp | vulkan_kernel_writes | 1 | each kernel's write set as the backend derives it from its SPIR-V to drop overwritten twins, which backend-vulkan holds to the shaders' qualifiers; goes only with that check
 
 # Interfaces of an approved plan whose product caller is a later step.
 

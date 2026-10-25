@@ -43,6 +43,9 @@ std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(c
 // Reading it waits for the queue, so it is a diagnostic and not something a pass does.
 std::vector<std::pair<std::string, double>> vulkan_kernel_times(Backend& backend);
 
+// Each kernel's bindings, true for one it writes, as the backend derives them from the kernel's SPIR-V to drop the twins a dispatch overwrites; the test holds them to the shaders' qualifiers.
+std::vector<std::pair<std::string, std::vector<bool>>> vulkan_kernel_writes();
+
 // How many dispatches the last reading covered. The query pool bounds it, so a long interval is sampled from its first dispatches.
 size_t vulkan_timed_dispatches(const Backend& backend);
 

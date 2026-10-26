@@ -970,7 +970,9 @@ void loader_checks(const std::string& path, const std::string& device, const std
             request.lookup_storage = storage;
             request.ubatch = int(prompt.size());
             size_t done = 0, total = 0, reports = 0;
-            const auto progress = [&](size_t current, size_t bytes) {
+            const auto progress = [&](const infer::LoadStep& step) {
+                if (std::string(step.phase) != "weights") return;
+                const size_t current = step.completed, bytes = step.total;
                 if ((!reports && current) || current < done || current > bytes || (reports && bytes != total))
                     throw std::runtime_error("loader: inconsistent progress");
                 done = current;

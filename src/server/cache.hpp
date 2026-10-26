@@ -115,6 +115,7 @@ public:
         s.restore.timeouts = disk_wait_timeouts_;
         s.disk_in_flight = disk_ ? disk_->calls() : 0;
         s.disk_ready = disk_ && disk_->readable();
+        if (disk_) s.disk_digest = disk_->start();
         s.disk_limit = disk_ ? disk_->cap() : 0;
     }
     // Whether the cache has work for the round, a seat free for a job or not (`seat`), and whether the disk tier woke it; under the lock.

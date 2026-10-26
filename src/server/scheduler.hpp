@@ -537,6 +537,7 @@ public:
         RestoreTotals restore{};
         size_t disk_in_flight = 0;                // the write and the reads the disk tier has in flight now
         bool disk_ready = false;                  // the disk tier's store made, once the model file's digest is known
+        DiskTier::Start disk_digest{"off", {}, "off"};   // the tier's digest and adoption (DiskTier::Start), `off` without a tier
         uint64_t disk_bytes = 0, disk_bytes_written = 0;   // their files' bytes, and every finished write's
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept

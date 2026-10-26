@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -51,8 +52,8 @@ inline FileStamp file_stamp(const std::string& path) {
     return s;
 }
 
-// The SHA-256 of the whole file at `path`, as lowercase hex, read in order in 64 MiB pieces through the file cache; a `stop` set between pieces ends the read with an error.
-inline std::string file_sha256(const std::string& path, const std::atomic<bool>* stop = nullptr) {
+// The SHA-256 of the whole file at `path`, as lowercase hex, read in order in 64 MiB pieces through the file cache; a `stop` set between pieces ends the read with an error, and `read` is told the bytes of each piece.
+inline std::string file_sha256(const std::string& path, const std::atomic<bool>* stop = nullptr, const std::function<void(uint64_t)>& read = {}) {
     FileReader reader(path);
     core::Sha hash(true);
     std::vector<uint8_t> piece(size_t(64) << 20);
@@ -62,13 +63,14 @@ inline std::string file_sha256(const std::string& path, const std::atomic<bool>*
         if (!n) throw std::runtime_error("cannot read file: " + path + " ends before its size");
         hash.update(piece.data(), n);
         at += n;
+        if (read) read(n);
     }
     return hash.hex();
 }
 
 // The SHA-256 of the file at `path`, from the cache in directory `dir` where it holds one written with the file's present stamp, else read whole and cached there.
 // The cache holds a small file a path, named by the SHA-256 of the path, written whole or not at all; a digest whose file changed while it was read is returned but not cached.
-inline std::string cached_file_sha256(const std::string& dir, const std::string& path, const std::atomic<bool>* stop = nullptr) {
+inline std::string cached_file_sha256(const std::string& dir, const std::string& path, const std::atomic<bool>* stop = nullptr, const std::function<void(uint64_t)>& read = {}) {
     const std::string absolute = std::filesystem::absolute(std::filesystem::u8path(path)).u8string();
     core::Sha name(true);
     name.update(absolute.data(), absolute.size());
@@ -82,7 +84,7 @@ inline std::string cached_file_sha256(const std::string& dir, const std::string&
             (in >> stamp.size >> stamp.mtime >> stamp.inode >> digest) && stamp == before && digest.size() == 64)
             return digest;
     }
-    const std::string digest = file_sha256(path, stop);
+    const std::string digest = file_sha256(path, stop, read);
     if (!(file_stamp(path) == before)) return digest;
     std::filesystem::create_directories(std::filesystem::u8path(dir));
     OutputFile out(entry.u8string());

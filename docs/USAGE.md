@@ -761,7 +761,7 @@ server given `--kv-tokens` the devices hold does not.
 The server fits the budget as it loads: where the devices cannot hold a given
 `--kv-tokens` beside all that, it takes the most whole blocks they hold, and
 it backs the whole budget at load, so no request grows the cache; a model that
-leaves no room for one block is refused before the server listens.
+leaves no room for one block is refused before the server serves.
 A request holds at most the smallest of `--ctx-size`, the model's context and
 the pool, which `/v1/health` gives as `server.request_tokens`.
 `--ctx-size` reads differently for `perplexity`, where it is the scoring window,
@@ -903,7 +903,7 @@ A conversation the model's template raises on, such as one without a user messag
 `/v1/chat/completions` gives a reply's reasoning apart from its answer, as reasoning models' replies are shown: when the template leaves the reply inside an open `<think>`, as the Qwen 3.5 templates do, or the reply opens one itself, as Qwen3's do, the text up to the first `</think>` is `reasoning_content` and the rest `content`, whole and in each streamed delta; a reply cut off while it reasons is all `reasoning_content`, and one that opens no `<think>` is all `content`, as written. `/v1/chat` keeps the text whole.
 While idle the server reads such a reply again for the next turn as its content alone, as clients send it back; a client that also returns `reasoning_content`, under a template that keeps it, reuses the conversation only up to that turn's start.
 `chat_template_kwargs`, an object of booleans, numbers, strings or null, sets template variables on the chat routes and `/v1/tokenize`, a number written whole as an int and any other as a float, as transformers passes them (a whole number of 2^53 or more is refused with 400): `{"enable_thinking": false}` makes the Qwen templates close the `<think>` in the prompt, so the model answers without reasoning. A name the render sets itself (`messages`, `tools`, `documents`, `add_generation_prompt`, `bos_token`, `eos_token`) is refused with 400.
-A model whose template the renderer refuses is refused as `serve` starts, before it listens.
+A model whose template the renderer refuses is refused as `serve` starts, before it serves.
 A stream whose pass fails ends with one `data:` event holding the error in that shape, without `data: [DONE]`, since its 200 head has gone out.
 The native routes carry what the shape cannot: token ids and the `eos` finish.
 On every route `temperature` and `top_k` are at least 0, `top_p` is 0 to 1, `penalty`, or `repetition_penalty` on the compatible routes, is at least 1, `presence_penalty` and `frequency_penalty` are -2 to 2 and `min_p` is 0 to 1, as the CLI's flags are, and a value outside is refused with 400.
@@ -955,6 +955,7 @@ curl -d '{"text":"The capital of France is"}' http://127.0.0.1:8080/v1/tokenize
 
 `GET /v1/live` answers `{"status": "ok"}` from the HTTP layer without asking the scheduler, for a liveness probe that must not wait.
 `GET /v1/health` reads the scheduler's counters, which takes its lock, so a reply can wait up to the time of a stage; poll it with a timeout longer than that.
+The server listens before it loads its model: while it starts, `/v1/health` answers 503 with `"status": "starting"` and a `startup` object of the phases it has reached, their seconds and the weights' bytes read, `/v1/live` answers 200 and every other route 503; once it serves, `startup` stays with every phase done.
 Its groups put what is true now under `now` and counters that rise from zero at start under `since_start`, with the unit in the name (`_bytes`, `_tokens`, `_ms`, `_s`).
 A server without a disk tier or a drafter still prints the fields, as zeros, `false` and an empty list.
 

@@ -893,14 +893,14 @@ void rooms_by_hand() {
     require(t.enough && t.donors == std::vector<size_t>({0}), "the forked donor did not go last whatever its rank");
 }
 
-// The host tier's default size: max_seqs histories below half the free memory, half the free memory at and past it, a product that would overflow taken as past it, and none where the free memory is unknown or a history takes nothing.
+// The host tier's default size: max_seqs histories within the prefixes' share of the host budget (infer::host_shares), none where the share is unknown or a history takes nothing.
 void host_cache_by_hand() {
-    require(server::host_cache_default(100, 8, 2000) == 800, "8 histories of 100 bytes below half of 2000 bytes free did not take 800");
-    require(server::host_cache_default(100, 8, 1600) == 800, "8 histories of 100 bytes at half of 1600 bytes free did not take 800");
-    require(server::host_cache_default(100, 8, 1000) == 500, "8 histories of 100 bytes past half of 1000 bytes free did not take 500");
-    require(server::host_cache_default(std::numeric_limits<size_t>::max() / 2, 4, 1000) == 500, "histories whose sum overflows did not take half of the free memory");
-    require(server::host_cache_default(100, 8, std::nullopt) == 0, "an unknown free memory did not take none");
-    require(server::host_cache_default(0, 8, 1000) == 0, "histories of no bytes did not take none");
+    require(server::host_cache_default(100, 8, 1000) == 800, "8 histories of 100 bytes below a cap of 1000 bytes did not take 800");
+    require(server::host_cache_default(100, 8, 800) == 800, "8 histories of 100 bytes at a cap of 800 bytes did not take 800");
+    require(server::host_cache_default(100, 8, 500) == 500, "8 histories of 100 bytes past a cap of 500 bytes did not take 500");
+    require(server::host_cache_default(std::numeric_limits<size_t>::max() / 2, 4, 500) == 500, "histories whose sum overflows did not take the cap");
+    require(server::host_cache_default(100, 8, std::nullopt) == 0, "an unknown cap did not take none");
+    require(server::host_cache_default(0, 8, 500) == 0, "histories of no bytes did not take none");
 }
 
 // An idle step's history (grow_tokens): the longest whose copy fits the room and allocates no more fresh slabs than the step takes, counted a device, so idle slabs on one device do not pay for another's.

@@ -75,6 +75,109 @@ void check_rows(const infer::WeightRows& source, const std::vector<uint8_t>& ori
     }
 }
 
+// The bytes each of `ids` reads now, row after row in the order asked.
+std::vector<uint8_t> read_now(const infer::WeightRows& source, const std::vector<uint32_t>& ids) {
+    infer::WeightRows::Scratch scratch(source, ids.size());
+    const auto got = read_rows(source, ids.data(), ids.size(), scratch);
+    std::vector<uint8_t> out;
+    for (size_t i = 0; i < ids.size(); ++i)
+        out.insert(out.end(), got.data + got.remap[i] * got.row_bytes, got.data + (got.remap[i] + 1) * got.row_bytes);
+    return out;
+}
+
+// How many of `ids` read the bytes `version` gives them.
+size_t rows_of(const std::vector<uint8_t>& got, const std::vector<uint8_t>& version, const std::vector<uint32_t>& ids, size_t row_bytes) {
+    size_t n = 0;
+    for (size_t i = 0; i < ids.size(); ++i)
+        n += std::equal(got.begin() + i * row_bytes, got.begin() + (i + 1) * row_bytes, version.begin() + size_t(ids[i]) * row_bytes);
+    return n;
+}
+
+// A table's hot rows held in host memory. Off Windows, which refuses to rewrite a file its reader holds, the file is rewritten between reads, so a row read back with the old bytes came from the store.
+void store_checks(const std::filesystem::path& dir) {
+    const size_t rows = 4096, row_bytes = quant::row_bytes(quant::GGML_TYPE_Q8_0, 160);
+    auto v1 = payload(rows, row_bytes);
+    auto v2 = v1, v3 = v1;
+    for (auto& b : v2) b ^= 0xff;
+    for (auto& b : v3) b ^= 0x0f;
+    const auto path = dir / "weight-rows-store.bin";
+    save(path, v1);
+    auto reader = std::make_shared<const format::FileReader>(path.u8string());
+    const infer::WeightRows table(quant::GGML_TYPE_Q8_0, 160, rows, reader, 0, v1.size());
+
+    // The store's bytes are its real allocation, whole pages each part, and the slots a size holds the most whose store fits it.
+    for (size_t bytes : {size_t(0), size_t(1), size_t(100000), size_t(1) << 20, size_t(5000000)}) {
+        const size_t s = infer::WeightRows::store_slots_within(bytes, row_bytes);
+        require(infer::WeightRows::store_bytes_for(s, row_bytes) <= bytes && infer::WeightRows::store_bytes_for(s + 1, row_bytes) > bytes,
+                "the slots a size holds are not the most whose store fits it");
+    }
+    require(infer::WeightRows::store_bytes_for(0, row_bytes) == 0 && table.store_bytes() == 0 && table.host_bytes() == 0,
+            "a table that holds no rows counts host bytes");
+
+    const size_t budget = infer::WeightRows::store_bytes_for(100, row_bytes);
+    const size_t slots = infer::WeightRows::store_slots_within(budget, row_bytes);
+    table.hold(budget);
+    require(slots >= 100 && 2 * slots <= rows && table.store_bytes() == infer::WeightRows::store_bytes_for(slots, row_bytes) &&
+                table.host_bytes() == table.store_bytes(),
+            "a held table does not count its store's bytes once");
+
+    // A batch as large as the store is held whole: read again after the file changed, every row comes from memory.
+    std::vector<uint32_t> first, second;
+    for (uint32_t r = 0; r < slots; ++r) first.push_back(r * 2);
+    for (uint32_t r = 0; r < slots / 2; ++r) second.push_back(r * 2 + 1);
+    require(rows_of(read_now(table, first), v1, first, row_bytes) == first.size(), "a first read did not give the file's rows");
+    require(rows_of(read_now(table, first), v1, first, row_bytes) == first.size(), "held rows are not the file's rows");
+#if !defined(_WIN32)
+    save(path, v2);
+    require(rows_of(read_now(table, first), v1, first, row_bytes) == first.size(), "a held row was read from the file again");
+    // New rows take older ones' slots and the store keeps to its slots: the batch just read is held whole, and of the first batch only what the slots leave.
+    require(rows_of(read_now(table, second), v2, second, row_bytes) == second.size(), "missing rows were not read from the file");
+    save(path, v3);
+    require(rows_of(read_now(table, second), v2, second, row_bytes) == second.size(), "a publish gave up its own rows");
+    const auto again = read_now(table, first);
+    require(rows_of(again, v1, first, row_bytes) == slots - second.size() && rows_of(again, v3, first, row_bytes) == second.size(),
+            "the store held more rows than its slots, or gave up other rows than CLOCK's");
+#endif
+
+    // Readers on their own scratches share the table's store and each get the rows asked.
+    std::vector<std::thread> threads;
+    std::vector<int> ok(4, 0);
+    for (size_t t = 0; t < ok.size(); ++t)
+        threads.emplace_back([&, t] {
+            try {
+                std::vector<uint32_t> ids;
+                for (uint32_t r = 0; r < 300; ++r) ids.push_back(uint32_t((r * 7 + t * 11) % rows));
+                const auto got = read_now(table, ids);
+                size_t right = 0;
+                for (size_t i = 0; i < ids.size(); ++i) {
+                    const auto at = got.begin() + i * row_bytes;
+                    for (const auto* v : {&v1, &v2, &v3})
+                        if (std::equal(at, at + row_bytes, v->begin() + size_t(ids[i]) * row_bytes)) { ++right; break; }
+                }
+                ok[t] = right == ids.size();
+            } catch (...) {}
+        });
+    for (auto& thread : threads) thread.join();
+    for (int k : ok) require(k == 1, "readers sharing a store got other rows than a table's");
+
+    table.hold(0);
+    require(table.store_bytes() == 0 && table.host_bytes() == 0, "a table that gave up its store still counts it");
+#if !defined(_WIN32)
+    // Holding nothing reads every row from the file.
+    require(rows_of(read_now(table, first), v3, first, row_bytes) == first.size(), "a table that holds no rows read rows from memory");
+    // A read that fails publishes none of its rows, the ones read before the failure included.
+    table.hold(budget);
+    save(path, v1);
+    std::filesystem::resize_file(path, v1.size() - 1);
+    bool failed = false;
+    try { read_now(table, {0, uint32_t(rows - 1)}); }
+    catch (const std::runtime_error&) { failed = true; }
+    require(failed, "a short read of a held table was accepted");
+    save(path, v2);
+    require(rows_of(read_now(table, {0}), v2, {0}, row_bytes) == 1, "a failed read published its rows");
+#endif
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -97,7 +200,7 @@ int main(int argc, char** argv) {
         auto reader = std::make_shared<const format::FileReader>(path.u8string());
         const infer::WeightRows file(quant::GGML_TYPE_Q8_0, 160, rows, reader, 37, data.size());
         check_rows(file, data, row_bytes, ids, 8);
-        require(file.staging_bytes() == 0, "a buffered source counts I/O windows it does not hold");
+        require(file.host_bytes() == 0, "a buffered source counts I/O windows it does not hold");
 
         bool bad_width = false;
         try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 159, rows, reader, 37, data.size()); }
@@ -204,6 +307,8 @@ int main(int argc, char** argv) {
             file.start(ids.data(), ids.size(), dropped);
         }
 
+        store_checks(dir);
+
         // Many spans, more than the read threads, each read into its own place: a table of 600 rows asked for every third row and some twice.
         {
             const size_t many = 600;
@@ -271,7 +376,7 @@ int main(int argc, char** argv) {
             auto direct = std::make_shared<const format::FileReader>(eof_path.u8string(), true);
             const infer::WeightRows direct_source(quant::GGML_TYPE_Q8_0, 160, rows, direct, 37, data.size());
             check_rows(direct_source, data, row_bytes, ids, 8);
-            require(direct_source.staging_bytes() == infer::WeightRows::kReadThreads * direct->granule(),
+            require(direct_source.host_bytes() == infer::WeightRows::kReadThreads * direct->granule(),
                     "a direct source does not count an aligned window for each of its readers");
 
             if (direct->granule() <= (size_t(1) << 20)) {

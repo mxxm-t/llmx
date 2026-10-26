@@ -370,7 +370,7 @@ void external_lookup_fits() {
         const size_t count = token_rows * 2;
         return rounded(count * row_bytes) + count * (2 * sizeof(size_t) + 2 * sizeof(uint32_t));
     };
-    // The table's read windows are counted once, whatever scratches read it (WeightRows::staging_bytes).
+    // The table's own host bytes are counted once, whatever scratches read it (WeightRows::host_bytes).
     const size_t windows = rounded(page + 1);
     const size_t host_capacity_total = host_capacity(normal_rows) + host_capacity(apart_rows) + windows;
     auto device = [](size_t bytes) {
@@ -994,6 +994,9 @@ void lookup_storage_planned() {
     const auto bounded = infer::plan_placement(weights, {host, device}, request, options, candidates);
     require(bounded.lookups == std::vector<infer::LookupStorage>{infer::LookupStorage::file},
             "automatic lookup storage kept a table on a device it exceeds");
+    ++checked;
+    // That host device's budget has no room for the table's hot rows beside the rest, so the table holds none and reads every row from the file.
+    require(source->store_bytes() == 0, "a host without room for the hot rows kept them");
 
     request.names = {"device"};
     request.shares.clear();
@@ -1061,12 +1064,118 @@ void lookup_storage_planned() {
                 no_staging_kv.options.kv_tokens == full_plan.context_length,
             "automatic KV fitting rejected a resident lookup that avoids bounded host staging");
 
+    // A table read from its file holds its hot rows, its share of the one host budget (infer::host_shares) by its bytes a token: every row where the share holds them, at most the share otherwise, and none for 0 or on the devices.
+    {
+        const size_t row_bytes = columns * sizeof(float);
+        const size_t whole = infer::WeightRows::store_bytes_for(rows, row_bytes);
+        request.names = {"device"};
+        request.shares.clear();
+        request.lookup_storage = infer::LookupStorage::file;
+        request.fit_kv = false;
+        request.host_budget = 4 * whole;
+        infer::plan_placement(weights, {device}, request, options, candidates);
+        weights.tensors[tensor].row_source = source;
+        const infer::Footprint held = infer::footprint(weights, infer::plan_model(weights), options);
+        weights.tensors[tensor].row_source.reset();
+        require(source->store_bytes() == whole && source->host_bytes() == whole && held.lookups[0].io_bytes == whole,
+                "a table the rows' share holds was not held whole, or not counted once by the fit");
+        request.host_budget = whole;
+        infer::plan_placement(weights, {device}, request, options, candidates);
+        require(source->store_bytes() == infer::WeightRows::store_bytes_for(infer::WeightRows::store_slots_within(whole / 2, row_bytes), row_bytes),
+                "a table's store took other than half the host budget");
+        request.host_budget = 0;
+        infer::plan_placement(weights, {device}, request, options, candidates);
+        require(source->store_bytes() == 0, "a host budget of 0 kept lookup rows");
+        request.host_budget = 4 * whole;
+        request.lookup_storage = infer::LookupStorage::device;
+        device->room = size_t(64) << 20;
+        infer::plan_placement(weights, {device}, request, options, candidates);
+        require(source->store_bytes() == 0, "a table on the devices kept lookup rows in host memory");
+        checked += 4;
+    }
+
     // The loader attaches the selected source after planning, then construction consumes that same plan once.
     weights.tensors[tensor].row_source = source;
     auto constructed = infer::construct_model(weights, std::move(from_file), 2);
     require(constructed.model && constructed.model->kv_tokens_total() == hosted.options.kv_tokens && device->allocations > 0,
             "a planned external lookup model was not constructed with its fitted budget");
     checked += 20;
+}
+
+// The base architecture with a table at each of its two layers, of 2 and 3 rows a token, for the rows' budget split between tables.
+struct TwoLookups : infer::Architecture {
+    std::shared_ptr<const infer::Architecture> base;
+    explicit TwoLookups(std::shared_ptr<const infer::Architecture> b) : base(std::move(b)) {}
+    infer::ModelPlan plan(const infer::TensorIndex& tensors) const override {
+        infer::ModelPlan p = base->plan(tensors);
+        const char* names[] = {"placement.lookup", "placement.lookup2"};
+        for (size_t l = 0; l < 2; ++l) {
+            const size_t tensor = tensors.at(names[l]);
+            const auto& t = tensors.view(tensor);
+            infer::Role role{static_cast<uint16_t>(p.role_ids++), infer::Part::mixer, infer::RoleKind::gather, t.name, "", t.shape[0], t.shape[1]};
+            role.tensor = tensor;
+            p.layers[l].roles.push_back(role);
+            p.layers[l].lookup = infer::Lookup{role.id, l + 2};
+        }
+        return p;
+    }
+    void fill_tables(std::vector<std::vector<float>>& tables) const override { base->fill_tables(tables); }
+    void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
+    void mixer(const infer::Step& s) const override { base->mixer(s); }
+    void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void head(const infer::HeadStep& s) const override { base->head(s); }
+};
+
+// Two tables read from their files share the rows' budget by their bytes a token, each within its own cap, the two within half the budget; a budget past both caps holds both whole.
+void two_tables_share() {
+    const auto file = fixture();
+    infer::ModelWeights weights = infer::gguf_weights(file);
+    weights.arch = std::make_shared<TwoLookups>(weights.arch);
+    const size_t c1 = 16, r1 = size_t(1) << 18, c2 = 32, r2 = size_t(1) << 17;
+    std::vector<float> t1(c1 * r1), t2(c2 * r2);
+    const size_t i1 = weights.tensors.size();
+    weights.tensors.push_back({"placement.lookup", {c1, r1}, quant::GGML_TYPE_F32, reinterpret_cast<const uint8_t*>(t1.data()), t1.size() * sizeof(float)});
+    weights.tensors.push_back({"placement.lookup2", {c2, r2}, quant::GGML_TYPE_F32, reinterpret_cast<const uint8_t*>(t2.data()), t2.size() * sizeof(float)});
+    const auto s1 = table_source(quant::GGML_TYPE_F32, c1, r1, weights.tensors[i1].data, weights.tensors[i1].bytes);
+    const auto s2 = table_source(quant::GGML_TYPE_F32, c2, r2, weights.tensors[i1 + 1].data, weights.tensors[i1 + 1].bytes);
+    const std::vector<infer::LookupCandidate> candidates{{i1, s1}, {i1 + 1, s2}};
+    auto device = std::make_shared<SizedDevice>();
+    device->room = size_t(64) << 20;
+    device->copying = true;
+    device->set_threads(1);
+    infer::PlacementRequest request;
+    request.names = {"device"};
+    request.ubatch = 2;
+    request.lookup_storage = infer::LookupStorage::file;
+    const infer::ModelOptions options;
+    const size_t MiB = size_t(1) << 20, b1 = c1 * sizeof(float), b2 = c2 * sizeof(float);
+    const size_t cap1 = infer::WeightRows::store_bytes_for(r1, b1), cap2 = infer::WeightRows::store_bytes_for(r2, b2);
+    // 16 MiB gives the rows 8 MiB, split by 2 x 64 against 3 x 128 bytes a token: 2 MiB and 6 MiB.
+    request.host_budget = 16 * MiB;
+    infer::plan_placement(weights, {device}, request, options, candidates);
+    const auto within = [](size_t share, size_t row_bytes) { return infer::WeightRows::store_bytes_for(infer::WeightRows::store_slots_within(share, row_bytes), row_bytes); };
+    require(s1->store_bytes() == within(2 * MiB, b1) && s2->store_bytes() == within(6 * MiB, b2) && s1->store_bytes() + s2->store_bytes() <= 8 * MiB,
+            "two tables did not share the rows' budget by their bytes a token");
+    request.host_budget = 4 * (cap1 + cap2);
+    infer::plan_placement(weights, {device}, request, options, candidates);
+    require(s1->store_bytes() == cap1 && s2->store_bytes() == cap2, "two tables a budget holds were not each held whole within their caps");
+    checked += 2;
+}
+
+// One host budget for the lookup tables' hot rows and a server's evicted prefixes (infer::host_shares): the rows first, at most half the budget and at most their cap, the prefixes the rest;
+// without --host-cache-bytes the budget is half the host memory available, none where that is unknown, and 0 keeps neither.
+void host_budget_shared() {
+    const size_t GiB = size_t(1) << 30, MiB = size_t(1) << 20;
+    // Qwen3.8-Flash-Next's table: 16 rows of 90 bytes a token, at most the rows of infer::kRowStoreTokens tokens.
+    const size_t cap = infer::WeightRows::store_bytes_for(16 * infer::kRowStoreTokens, 90);
+    require(cap > 2300 * MiB && cap < 2500 * MiB, "Flash's hot rows do not take about 2.4 GiB in all");
+    const auto is = [](infer::HostShares s, size_t rows, size_t donors) { return s.rows == rows && s.donors == donors; };
+    require(is(infer::host_shares(4 * GiB, std::nullopt, cap), 2 * GiB, 2 * GiB) && is(infer::host_shares(6656 * MiB, std::nullopt, cap), cap, 6656 * MiB - cap) &&
+                is(infer::host_shares(0, 30 * GiB, cap), 0, 0) && is(infer::host_shares(std::nullopt, 30 * GiB, cap), cap, 15 * GiB - cap) &&
+                is(infer::host_shares(std::nullopt, 4 * GiB, cap), GiB, GiB) && is(infer::host_shares(std::nullopt, std::nullopt, cap), 0, 0) &&
+                is(infer::host_shares(4 * GiB, std::nullopt, 0), 0, 4 * GiB),
+            "the host budget is not split rows first, at most half, the prefixes taking the rest");
+    checked += 2;
 }
 
 // A server's KV budget (PlacementRequest::fit_kv): the request's budget where it fits, backed whole as the model is made, else the most whole blocks that fit; a load where not one block fits is refused.
@@ -2106,6 +2215,8 @@ int main() {
         heterogeneous_saved_fits();
         external_lookup_fits();
         lookup_storage_planned();
+        host_budget_shared();
+        two_tables_share();
         split_matches_single();
         layer_split_fits();
         histories_fit_the_pool();

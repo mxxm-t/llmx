@@ -551,6 +551,7 @@ public:
         uint64_t apart = 0, between = 0;          // since start, the passes of generated rows formed apart, and those of them a stage recorded between a prompt pass's pieces
         uint64_t prompt_passes = 0;               // since start, the passes that carried a request's prompt rows
         uint64_t continued = 0;                   // since start, those formed while the same prompt's pass before them was in flight (Scheduler::continues)
+        uint64_t short_passes = 0;                // since start, those that read a short prompt ahead of a long one (short_prompts)
         std::vector<SliceRecord> slices{};        // per stage, its last pass fed in pieces
         double share = 0;                         // the fixed share, 0 for none
         bool automatic = false;                   // generated rows are served by the automatic rule, whose clock the next four read
@@ -581,6 +582,7 @@ public:
         s.between = between_.load();
         s.prompt_passes = prompt_passes_.load();
         s.continued = continued_.load();
+        s.short_passes = short_passes_.load();
         for (const auto& pace : pace_) {
             std::lock_guard<std::mutex> pl(pace->m);
             s.slices.push_back(pace->slice);
@@ -671,6 +673,7 @@ public:
             // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
             std::vector<std::pair<size_t, size_t>> host;
             formed_before_ = formed_;
+            short_ahead_ = false;
             const Steps steps = round_steps(flights(), model_.stage_count());
             for (const auto& a : steps.advance) {
                 // A failure abandons a continued prompt's other slices, which this round's steps may still name.
@@ -877,6 +880,7 @@ private:
         bool paced = false;          // its stages are fed in pieces (infer::Pace): a pass with prompt rows beside other requests, where passes go apart
         bool continues = false;      // formed while its request's pass before it was in flight (Scheduler::continues)
         bool timed = false;          // under the interleaved rule, a prompt's slice beside replies, whose stage time each stage's thread measures for the next slice (Recorder::Timing)
+        bool short_pass = false;     // a pass that reads a short prompt ahead of a long one (short_prompts), whose time no stage's search takes
         uint64_t job = 0;            // its hand-over to a recorder, which the recorder's result names
         Clock::time_point begun;
         uint64_t prompt_of = 0;  // the admission of the first request whose prompt it slices, and that history's ends before and after it, which its pieces' record names (StagePace::piece_of)
@@ -1034,6 +1038,7 @@ private:
         f.first_row.clear();
         f.decoders = 0;
         f.want = 0;
+        f.short_pass = false;
         const auto add_entry = [&](const std::shared_ptr<Request>& r, const infer::BatchEntry& e) {
             entries_.push_back(e);
             f.members.push_back(r);
@@ -1137,12 +1142,42 @@ private:
         f.prompt_of = 0;
         f.prompt_from = 0;
         f.prompt_end = 0;
-        for (auto& r : active) {
+        // Short prompts beside a long one (docs/SERVER.md): the later prompts whose remaining rows fit a share of the ubatch are read whole ahead of the oldest long prompt, in arrival order (short_prompts).
+        // Beside generated rows one is read in a pass of its own, which no stage's search times; there, and ahead of a long prompt in flight, which would continue, only once a round.
+        std::vector<Request*> shorts;
+        const auto reads = [&](const Request& q) { return !q.job_ && !decoding(q) && q.seq_.length() < history_tokens(q); };
+        const auto lead = std::find_if(active.begin(), active.end(), [&](const std::shared_ptr<Request>& q) { return reads(*q); });
+        const size_t base = ubatch_;
+        // Only a long prompt, one past the share, has short ones read ahead of it, so short prompts keep their order among themselves; and not while its slice takes it back to a whole ubatch in a pass of its own (prompt_slice).
+        const size_t lead_left = lead == active.end() ? 0 : history_tokens(**lead) - std::min(history_tokens(**lead), (*lead)->seq_.length());
+        if (rows != Rows::generated && budget && lead_left > base / kShortShare && !prompt_slice(lead_left, model_.stage_count(), ubatch_, alone, (*lead)->read_alone_).closes) {
+            const bool ahead = cutting || (*lead)->seq_.in_flight();
+            if (!ahead || !short_ahead_) {
+                std::vector<size_t> waiting;
+                std::vector<Request*> later;
+                for (auto it = lead + 1; it != active.end(); ++it) {
+                    if (!reads(**it)) continue;
+                    later.push_back(it->get());
+                    waiting.push_back(ready(**it) && !(*it)->cancel_.load() ? history_tokens(**it) - (*it)->seq_.length() : 0);
+                }
+                for (size_t i : short_prompts(waiting, base)) shorts.push_back(later[i]);
+                if (cutting && shorts.size() > 1) shorts.resize(1);
+                short_ahead_ = short_ahead_ || (ahead && !shorts.empty());
+            }
+        }
+        const auto is_short = [&](const Request* q) { return std::find(shorts.begin(), shorts.end(), q) != shorts.end(); };
+        std::vector<std::shared_ptr<Request>> order;
+        for (auto& r : active)
+            if (is_short(r.get())) order.push_back(r);
+        for (auto& r : active)
+            if (!is_short(r.get())) order.push_back(r);
+        for (auto& r : order) {
             if (r->job_ || decoding(*r) || !budget) continue;
             if (one_slice && (f.prompt_of || (r->slice_ticket_ && !model_.stage_backend(0).done(r->slice_ticket_)))) continue;
             const size_t waiting_rows = history_tokens(*r) - std::min(history_tokens(*r), r->seq_.length());
             const PromptSlice s = prompt_slice(waiting_rows, model_.stage_count(), ubatch_, alone, r->read_alone_);
-            const size_t most = std::min(s.most, cutting ? piece_cut(*r) : ubatch_);
+            // A short prompt is read whole, within the share its selection kept.
+            const size_t most = is_short(r.get()) ? waiting_rows : std::min(s.most, cutting ? piece_cut(*r) : ubatch_);
             // A prompt whose slice in flight has committed the first stage continues in a pass of its own (continues).
             const bool continued = r->seq_.in_flight();
             if (continued && !(entries_.empty() && continues(*r, generating))) {
@@ -1167,6 +1202,7 @@ private:
             }
             const size_t before = entries_.size();
             slice(r, std::min(budget, most));
+            f.short_pass = f.short_pass || (is_short(r.get()) && entries_.size() > before);
             if (!f.prompt_of && entries_.size() > before) {
                 f.prompt_of = r->admission_;
                 f.prompt_from = r->seq_.length();
@@ -1175,6 +1211,8 @@ private:
             // What it read alone counts until company comes or its prompt has been sliced whole.
             if (!alone || entries_.size() == before || r->seq_.length() + entries_.back().n >= history_tokens(*r)) r->read_alone_ = 0;
             else r->read_alone_ += entries_.back().n;
+            // Beside generated rows a short prompt's pass holds no other prompt, so the long prompt's slices keep continuing its stages' search.
+            if (cutting && f.short_pass) break;
             if (continued && entries_.size() > before) {
                 budget = 0;
                 break;
@@ -1235,6 +1273,7 @@ private:
         apart_formed_ += f.apart;
         prompt_passes_ += f.prompt_of != 0;
         continued_ += continuing;
+        short_passes_ += f.short_pass;
         f.continues = continuing;
         if (f.apart) ride_run_.apart();
         if (normal_ < slots_.size() && !f.apart && f.decoders && f.members.size() > f.decoders) {
@@ -1243,7 +1282,7 @@ private:
         }
         // Under the automatic rule only a prompt's pass that generated rows do not ride is fed in pieces: a ridden pass has nothing to take between them.
         f.paced = normal_ < slots_.size() && !f.apart && (auto_ ? overlap_ && rows == Rows::prompt : requests(active) > 1);
-        f.timed = one_slice && f.prompt_of != 0;
+        f.timed = one_slice && f.prompt_of != 0 && !f.short_pass;
         if (interleave_ && overlap_.load()) {
             size_t prompts = 0;
             for (size_t e = 0; e < f.members.size(); ++e) prompts += !decoding(*f.members[e]) && !f.members[e]->job_;
@@ -2073,12 +2112,9 @@ private:
                     ++slots_[e.slot].ran;
                     if (e.rows) {
                         std::lock_guard<std::mutex> lk(pace_[s]->m);
-                        // A pass of another prompt, or one not continuing the last, starts the search again.
-                        if (pace_[s]->piece_of != slots_[e.slot].prompt_of || pace_[s]->piece_end != slots_[e.slot].prompt_from) pace_[s]->search = PieceSearch{};
-                        pace_[s]->search.add(e.rows, e.longest_ms, pace_[s]->apart_ms);
-                        pace_[s]->piece_of = slots_[e.slot].prompt_of;
-                        pace_[s]->piece_end = slots_[e.slot].prompt_end;
-                        pace_[s]->slice = e.slice;
+                        const Slot& f = slots_[e.slot];
+                        if (take_piece(pace_[s]->search, pace_[s]->piece_of, pace_[s]->piece_end, f.short_pass, f.prompt_of, f.prompt_from, f.prompt_end, e.rows, e.longest_ms, pace_[s]->apart_ms))
+                            pace_[s]->slice = e.slice;
                     }
                     continue;
                 }
@@ -2536,6 +2572,7 @@ private:
     bool jobs_yield_ = false;             // this round a request waits for a job's seat or room, or could not grow, so no job continues (continues)
     bool stalled_now_ = false;            // this round a request could not grow, so nothing continues and the request its plan waits on leaves flight
     uint64_t formed_before_ = 0;          // the passes formed before this round's steps: a deferred host stage is for one of them, and a continuation follows one of them
+    bool short_ahead_ = false;            // a short prompt went ahead of a long one in a pass of its own this round (short_prompts), which happens once a round
     std::atomic<bool> overlap_{false};    // written by the scheduler thread: replies and prompts both wait (demand)
     const Clock::time_point epoch_ = Clock::now();   // the stages' clocks count from here
     std::vector<char> plain_;             // per stage, whether it has a thread for passes that are neither fed in pieces nor apart
@@ -2591,6 +2628,7 @@ private:
     std::atomic<uint64_t> apart_formed_{0}, between_{0};                         // Stats::apart and Stats::between, the second counted by the stages' threads
     std::atomic<uint64_t> prompt_passes_{0};                                     // Stats::prompt_passes
     std::atomic<uint64_t> continued_{0};                                         // Stats::continued
+    std::atomic<uint64_t> short_passes_{0};                                      // Stats::short_passes
     uint64_t lines_ = 0;        // the numbers of Request::line_, under the lock
     // What a change of turn at the pool's edge takes (Growth::change over the last two timed, changed_ms_ the last), each from the yield (turned_) to the first pass retired that carries the request the turn went to.
     // That request is held by its first admission's number (turn_to_), given once and to no later request: met, it is set to 0; never met, its client gone before its pass, it is left and overwritten by the next yield.

@@ -490,6 +490,16 @@ struct PieceSearch {
     }
 };
 
+// A stage's search after a paced pass's piece (StagePace), false where it is not taken: a short prompt's pass leaves it to the long prompt (short_prompts), another prompt's pass starts it again.
+inline bool take_piece(PieceSearch& search, uint64_t& piece_of, size_t& piece_end, bool short_pass, uint64_t prompt_of, size_t prompt_from, size_t prompt_end, size_t rows, double ms, double apart_ms) {
+    if (short_pass || !rows) return false;
+    if (piece_of != prompt_of || piece_end != prompt_from) search = PieceSearch{};
+    search.add(rows, ms, apart_ms);
+    piece_of = prompt_of;
+    piece_end = prompt_end;
+    return true;
+}
+
 // Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.
 inline bool rides_within_gap(double prompt_ms) { return prompt_ms > 0 && prompt_ms <= kServiceGapMs; }
 
@@ -498,6 +508,24 @@ struct PromptSlice {
     size_t most;
     bool closes;
 };
+
+// A later prompt is short where its remaining rows fit this fraction of the ubatch (docs/SERVER.md, the round).
+inline constexpr size_t kShortShare = 4;
+
+// The short prompts read ahead of the oldest long one, indices into `waiting` (the later prompts' remaining rows in arrival order, 0 where not ready): the arrival-order prefix that fits `base` / kShortShare.
+// A prompt past the share is not short, and the first short one that does not fit what is left ends the prefix.
+inline std::vector<size_t> short_prompts(const std::vector<size_t>& waiting, size_t base) {
+    const size_t share = base / kShortShare;
+    std::vector<size_t> taken;
+    size_t used = 0;
+    for (size_t i = 0; i < waiting.size(); ++i) {
+        if (!waiting[i] || waiting[i] > share) continue;
+        if (used + waiting[i] > share) break;
+        used += waiting[i];
+        taken.push_back(i);
+    }
+    return taken;
+}
 
 // A request's next prompt slice when it lacks `waiting` prompt rows on `stages` stages: a ubatch, but for a lone request (`alone`, having read `read_alone` rows) about a 2 * stages-th of what it lacks, at least kMinSlice rows.
 // Once company comes, a prompt whose lone slices left it off a whole ubatch first takes the rows back to one, in a pass no other prompt shares (docs/STATUS.md, a lone prompt read by every stage).

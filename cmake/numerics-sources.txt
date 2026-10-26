@@ -23,6 +23,7 @@ out src/core/utf8.hpp | text
 out src/core/list.hpp | parses comma-separated lists
 out src/core/sha.hpp | hashes
 out src/core/crc32c.hpp | checksums
+out src/core/file_sync.hpp | flushes files already written, changing no byte of them
 out src/core/cgroup.hpp | reads the limits a process runs under
 out src/core/cpus.hpp | chooses thread counts, across which the tests hold every result bit-identical
 out src/image/png.hpp | decodes image files into pixels, whose digest keys an image's rows (docs/VISION.md, section 5), so a change here changes the key and never a matched entry's bits
@@ -37,6 +38,7 @@ allow src/core/cpus.hpp | the CPU backend takes its worker count from it; result
 allow src/core/cgroup.hpp | host_memory.hpp reads a limit through it; a size, not a value
 allow src/core/json.hpp | raw_convert.hpp reads a tensor list's schema with it
 allow src/core/list.hpp | devices.hpp parses the device list with it
+allow src/core/file_sync.hpp | file_writer.hpp flushes through it; a flush changes when a file is durable, not what it holds
 allow src/core/sha.hpp | file_digest.hpp hashes the model file with it
 allow src/inference/chat.hpp | load.hpp carries the chat format beside the model
 allow src/inference/sampler.hpp | spec.hpp accepts drafts with the sampler's draw; the rows a verify writes are the model's

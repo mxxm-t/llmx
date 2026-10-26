@@ -16,6 +16,7 @@
 #include <vector>
 #include "backends/cpu/cpu_backend.hpp"
 #include "core/crc32c.hpp"
+#include "core/file_sync.hpp"
 #include "server/disk_store.hpp"
 #include "server/disk_tier.hpp"
 
@@ -30,6 +31,12 @@ void require(bool ok, const std::string& what) {
 
 namespace fs = std::filesystem;
 constexpr size_t kSlab = size_t(1) << 20;
+// Windows keeps no directory to flush, so a durable write is one call there and two elsewhere.
+#if defined(_WIN32)
+constexpr uint64_t kDirectorySyncs = 0;
+#else
+constexpr uint64_t kDirectorySyncs = 1;
+#endif
 
 // Whether entry `key`'s file is in place in the store's directory.
 bool in_place(const server::DiskStore& store, uint64_t key) {
@@ -151,8 +158,11 @@ int main(int argc, char** argv) {
 #if !defined(_WIN32)
             require(fs::status(store.directory()).permissions() == fs::perms::owner_all, "the store's directory is not its owner's alone");
 #endif
+            // A write makes its file durable and then its directory, each through core::sync_handle, the one owner of the strongest flush a system has.
+            const uint64_t synced = core::sync_calls();
             const Outcome put = wait_put(store, key, "the blob", written);
             require(put.ok, "an entry was not written: " + put.error);
+            require(core::sync_calls() - synced == 1 + kDirectorySyncs, "a write did not flush its file and its directory through core/file_sync.hpp");
             require(in_place(store, key), "a written entry is not there");
             // The file's bytes at this version of the layout: a change to them without a new DiskStore::kVersion would let a server read another build's entries wrongly, so one that moves this digest moves the version with it.
             {
@@ -410,8 +420,10 @@ int main(int argc, char** argv) {
                 auto s = open(after, true);
                 require(s->adopted().size() == 1 && s->adopted()[0].unproved, "an entry left unproved was lost or taken as proved at the next start");
                 Call claimed;
+                const uint64_t synced = core::sync_calls();
                 s->claim(s->adopted()[0].key, claimed.done());
                 require(claimed.wait().ok, "an unproved entry was not claimed");
+                require(core::sync_calls() - synced == 1 + kDirectorySyncs, "a claim did not flush its file and its directory through core/file_sync.hpp");
                 auto back = runs_of(cpu, {kSlab + 99}, 23);
                 require(wait_get(*s, s->adopted()[0].key, back).ok && bytes_of(back) == left_bytes, "a claimed entry did not read as the bytes written");
             }

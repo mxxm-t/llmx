@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The load keeps eight reads in flight (2026-10-26, SDEV, branch feat/load-readers on main ac940c059, step 2 of the server startup plan the owner decided, lands by fast-forward as one commit)
+
+- **Goal:** the stream of a load read Qwen3.8-Flash-Next's 79.88 GiB in 174.7 s on production's cell, two 16 MiB reads in flight on a pool of SATA SSDs whose 16 KiB records stripe each read over four disks in 4 KiB pieces; eight readers and sixteen slots read it in 82.4 s (Server startup profiled end to end, below).
+- **Done:** the stream's ring takes eight readers and sixteen slots (`detail::kStreamReaders`, `detail::kStreamSlots`), constants of the code, the piece kept at 16 MiB and a load of fewer pieces taking no more slots than pieces; 256 MiB of host pages for the load's duration where it took 64, charged by the fit in neither case, since the ring lives after the model is built and before the server sizes its host tier. The server's streamed restore keeps its own two readers and four slots.
+- **Left:** CTest and the loader's timing cold and warm on the Radeon VII and on an NVMe disk, with no loss beyond the loader's spread, and on production's cell; F2DEV's review.
+- **Gotchas:** a pool that keeps up with two reads in flight gains nothing: a copy of shard 4 with 1M records read 3057 MB/s with two jobs and 2972 with eight, which the timing on other disks watches for.
+
 ## A lookup table keeps its hot rows in host memory under the one host budget (2026-10-26, branch feat/lookup-row-store on main 8632074e8, step 1 of docs/CACHE-PLAN.md section 9, the owner's decisions of 2026-10-26, lands by fast-forward as two commits)
 
 - **Goal:** Qwen3.8-Flash-Next's per-layer table (26.8 GiB, read from its file under `--lookup-storage file`) keeps the rows it has read in host memory, so a row read before is copied from memory and never read from the file again; CACHE-PLAN section 9 measured the rows' cost at 0.14 s of a fresh 2048-token prompt on production's cell and projects about 0.1 s from a 2 GiB store.

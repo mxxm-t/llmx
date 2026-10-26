@@ -218,6 +218,9 @@ inline std::vector<Piece> plan_pieces(const std::vector<size_t>& tensors, const 
     return pieces;
 }
 
+// The stream's reads in flight and its slots: eight 16 MiB reads keep a striped pool busy (docs/STATUS.md, Server startup profiled end to end).
+inline constexpr size_t kStreamReaders = 8, kStreamSlots = 16;
+
 // Read `pieces` through the read ring (ReadRing) and, on this thread, send each part to every upload of its tensor (`destinations`) in order, then report its bytes to `streamed`.
 // A backend that reads a slot in place (Backend::wrap_host) takes a part as a device copy out of it and the slot goes back once the copies retire; whatever fails, the copies are retired and the readers joined before the ring is freed.
 inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shared_ptr<const format::FileReader>>& readers,
@@ -229,7 +232,7 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shar
     ReadRing ring(pieces.size(), slot_bytes, [&](size_t k, uint8_t* into) {
         const Piece& p = pieces[k];
         return readers[p.file]->read(p.offset, p.into ? p.into : into, p.bytes);
-    });
+    }, kStreamSlots, kStreamReaders);
     const size_t slots = ring.slots();
 
     // The backends the parts go to, each with its view of every slot where it reads them in place, and per slot the ticket of its last copies out of it.

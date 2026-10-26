@@ -516,7 +516,7 @@ sides to store the cache exactly.
 
 Every command that runs a model takes `--load-mode`, which says how the weights are read from the file; it means the same on every backend.
 
-- `auto` (the default) fits and constructs the model before streaming the weights a device copies, so a placement that does not fit fails before those reads. Weight storage is reserved at construction; execution scratch and physical KV backing grow as needed. The loader reads copied weights in large reads, in file order, on up to two reader threads while earlier uploads proceed.
+- `auto` (the default) fits and constructs the model before streaming the weights a device copies, so a placement that does not fit fails before those reads. Weight storage is reserved at construction; execution scratch and physical KV backing grow as needed. The loader reads copied weights in large reads, in file order, on up to eight reader threads while earlier uploads proceed.
   The reads go through the operating system's file cache, so a model loaded again is served from it while the host has room; when the weights a device copies are more than the host's available memory, and the file system takes direct reads, they go around the cache.
   When a host backend reads weights in place, each file is mapped as a whole; the loader warms the tensors that host reads after the uploads, when the host has room for them.
   The progress starts once the model is built and reaches 100% after the last upload.

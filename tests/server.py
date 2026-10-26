@@ -2230,14 +2230,109 @@ def check_disk_identity(directory):
         assert all(d in text for d in ds), (text, ds)
 
 
+def starting_health(port):
+    """/v1/health while the server starts: its status code and its parsed body, or None while nothing listens."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/v1/health" % port, timeout=10) as r:
+            return r.status, json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read().decode("utf-8"))
+    except OSError:
+        return None
+
+
+def check_startup(model, directory):
+    """The server listens before it loads (docs/SERVER.md, Startup): with a model whose path is a pipe nothing writes yet, its load waits in reading the metadata, and /v1/health answers 503 with the start's record, the devices done and the metadata running, the server's and the requests' objects in their shapes, /v1/live answers 200, and every other route answers 503 in its clients' shape.
+    SIGTERM then ends it within seconds and nothing listens on its port; a pipe given bytes that are no model ends the load, and the server exits nonzero with the error.
+    A server that loads its model keeps the record once it serves: every phase in order done, the weights' bytes all read and each file streamed named, and the phase ready."""
+    if sys.platform == "win32":
+        return False
+    for ending in ("signal", "fault"):
+        pipe = os.path.join(directory, "startup-%s.gguf" % ending)
+        os.mkfifo(pipe)
+        port = common.free_port()
+        log = tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace")
+        proc = subprocess.Popen([common.exe_path()] + common.device_args(["serve", pipe], "f32") + ["--host", "127.0.0.1", "--port", str(port)],
+                                stdout=log, stderr=subprocess.STDOUT)
+        try:
+            deadline = time.time() + 60
+            got = None
+            while got is None or got[1]["startup"]["phase"] != "metadata":
+                assert proc.poll() is None and time.time() < deadline, "a server whose model is a pipe did not answer while it read the metadata: %s" % (got,)
+                got = starting_health(port)
+                time.sleep(0.05)
+            status, health = got
+            assert status == 503 and health["status"] == "starting", got
+            assert set(health) == {"status", "server", "requests", "startup"}, health
+            assert {"version", "numerics", "uptime_s", "model"} <= set(health["server"]) and health["requests"]["now"]["active"] == 0, health
+            startup = health["startup"]
+            assert [p["name"] for p in startup["phases"]] == ["devices", "metadata"], startup
+            assert [p["state"] for p in startup["phases"]] == ["done", "running"] and startup["elapsed_s"] >= 0 and startup["started_unix"] > 0, startup
+            with urllib.request.urlopen("http://127.0.0.1:%d/v1/live" % port, timeout=10) as r:
+                assert r.status == 200 and json.loads(r.read().decode("utf-8")) == {"status": "ok"}, "liveness did not answer while the server starts"
+            native = urllib.request.Request("http://127.0.0.1:%d/v1/generate" % port, data=b'{"text":"a"}', headers={"Content-Type": "application/json"})
+            compat = urllib.request.Request("http://127.0.0.1:%d/v1/completions" % port, data=b'{"prompt":"a"}', headers={"Content-Type": "application/json"})
+            for req, shape in ((native, str), (compat, dict)):
+                try:
+                    urllib.request.urlopen(req, timeout=10)
+                    raise AssertionError("a route answered while the server starts")
+                except urllib.error.HTTPError as e:
+                    body = json.loads(e.read().decode("utf-8"))
+                    assert e.code == 503 and isinstance(body["error"], shape), (e.code, body)
+            if ending == "signal":
+                began = time.time()
+                proc.send_signal(signal.SIGTERM)
+                proc.wait(timeout=10)
+                assert time.time() - began < 10 and proc.returncode != 0, proc.returncode
+                assert starting_health(port) is None, "a server stopped while it starts still listens"
+            else:
+                # The server may close its end once the first bytes show no model, before the write is flushed (macOS), which is no failure of the check.
+                try:
+                    with open(pipe, "wb") as f:
+                        f.write(b"no model at all")
+                except BrokenPipeError:
+                    pass
+                status = proc.wait(timeout=60)
+                log.seek(0)
+                text = log.read()
+                assert status != 0 and "serving" not in text and text.strip(), (status, text)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            log.close()
+    srv = Server(model)
+    try:
+        startup = srv.get("/v1/health")["startup"]
+        names = [p["name"] for p in startup["phases"]]
+        assert names == ["devices", "metadata", "fit", "allocate", "weights", "ready"] and all(p["state"] == "done" for p in startup["phases"]), startup
+        assert startup["phase"] == "ready" and "error" not in startup, startup
+        assert abs(startup["elapsed_s"] - sum(p["seconds"] for p in startup["phases"])) < 0.5 and srv.get("/v1/health")["startup"]["elapsed_s"] == startup["elapsed_s"], startup
+        weights = startup["phases"][4]
+        assert weights["bytes_total"] > 0 and weights["bytes_done"] == weights["bytes_total"], weights
+        # A file is named where its weights are streamed to a device; a host that reads its weights in place warms them, which names none.
+        assert all(f["bytes_done"] == f["bytes_total"] for f in weights["files"]), weights
+        assert sum(f["bytes_total"] for f in weights["files"]) <= weights["bytes_total"], weights
+    finally:
+        srv.close()
+    return True
+
+
 def check_disk_exit(model):
     """The disk tier's directory over a server's life (docs/DISK-TIER.md, Crash safety and cleanup) on the synthetic model: a server stopped by SIGTERM exits with status 0 and leaves no directory; one killed leaves its directory, which the next server's sweep removes; under --disk-cache-keep SIGTERM leaves the directory marked kept, which the next server under keep adopts and removes; a cap and floor past the free space and a disk tier without a host tier are refused as the server starts."""
     if sys.platform == "win32":
         return False
     with tempfile.TemporaryDirectory(prefix="llmx_disk_") as root:
         srv = Server(model, *disk_flags(root))
-        srv.wait(lambda h: h["reuse"]["disk"]["now"]["writing"] and len(servers_in(root)) == 1, "a disk tier made", 60)
+        health = srv.wait(lambda h: h["reuse"]["disk"]["now"]["ready"] and h["reuse"]["disk"]["now"]["adopt"]["state"] == "done" and len(servers_in(root)) == 1, "a disk tier made", 60)
+        # The tier's start: every file of the model read for its digest the first time, from the cache beside the entries the next.
+        digest, adopt = health["reuse"]["disk"]["now"]["digest"], health["reuse"]["disk"]["now"]["adopt"]
+        assert digest["state"] == "done" and digest["bytes_done"] == digest["bytes_total"] == os.path.getsize(model) and adopt["state"] == "done", (digest, adopt)
         assert terminate(srv) == 0 and not servers_in(root), servers_in(root)
+        again = Server(model, *disk_flags(root))
+        health = again.wait(lambda h: h["reuse"]["disk"]["now"]["ready"], "a disk tier made", 60)
+        assert health["reuse"]["disk"]["now"]["digest"]["state"] == "cached", health["reuse"]["disk"]["now"]["digest"]
+        assert terminate(again) == 0
         killed = Server(model, *disk_flags(root))
         killed.wait(lambda h: len(servers_in(root)) == 1, "a disk tier made", 60)
         left = servers_in(root)
@@ -2544,6 +2639,11 @@ def run(require=False):
         check_mxfp4(directory)
         check_disk_identity(directory)
         print("server: two models of three shards that share their first shard and differ in their tensors have different disk identities, each naming every file's digest  [ok]")
+        if check_startup(model, directory):
+            print("server: a server whose model is a pipe answers /v1/health with 503 and its start's record while it reads the metadata, every other route 503, "
+                  "a SIGTERM ending it within seconds and a fault in the file ending it nonzero, and a server that serves keeps its record, every phase done  [ok]")
+        else:
+            print("server: SKIP the startup checks - no pipes or SIGTERM on Windows")
         if check_disk_exit(model):
             print("server: synthetic F32 model, a disk tier's directory gone after SIGTERM, a killed server's swept by the next, a kept one adopted, and a tier past the free space or without a host tier refused  [ok]")
         else:

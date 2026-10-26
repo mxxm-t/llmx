@@ -332,6 +332,14 @@ private:
 
 class DiskTier {
 public:
+    // The tier's start, which /v1/health gives: the digest of the model's files and then the adoption of a kept directory, each with its state (docs/DISK-TIER.md, Surface).
+    struct Start {
+        std::string digest = "pending", file, adopt = "pending";
+        uint64_t done = 0, total = 0;
+        double seconds = 0;
+        size_t adopted = 0;
+    };
+
     // A call the store has finished: its key, whether it was a read, whether it succeeded, and why not.
     struct Finished {
         uint64_t key = 0;
@@ -348,8 +356,32 @@ public:
             std::unique_ptr<DiskStore> store;
             try {
                 std::string digest;
-                for (const std::string& file : model_files(options_.model_path))
-                    digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file, &stop_);
+                const std::vector<std::string> files = model_files(options_.model_path);
+                const auto t0 = std::chrono::steady_clock::now();
+                {
+                    std::lock_guard<std::mutex> lk(start_m_);
+                    for (const std::string& file : files) start_.total += format::file_stamp(file).size;
+                    start_.digest = "running";
+                }
+                bool read = false;
+                for (const std::string& file : files) {
+                    {
+                        std::lock_guard<std::mutex> lk(start_m_);
+                        start_.file = std::filesystem::u8path(file).filename().u8string();
+                    }
+                    digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file, &stop_, [&](uint64_t n) {
+                        read = true;
+                        std::lock_guard<std::mutex> lk(start_m_);
+                        start_.done += n;
+                        start_.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+                    });
+                }
+                {
+                    std::lock_guard<std::mutex> lk(start_m_);
+                    start_.digest = read ? "done" : "cached";
+                    start_.file.clear();
+                    start_.adopt = "running";
+                }
                 const std::string text = disk_identity(digest, layout, options_.build ? *options_.build : build_facts());
                 const std::array<uint8_t, 32> identity = DiskStore::identity_of(text);
                 DiskStore::Options o;
@@ -362,12 +394,20 @@ public:
                 o.proved = options_.adopt_proved;
                 o.identity = text;
                 store = std::make_unique<DiskStore>(o, identity);
+                {
+                    std::lock_guard<std::mutex> lk(start_m_);
+                    start_.adopt = "done";
+                    start_.adopted = store->adopted().size();
+                }
                 std::fprintf(stderr, "server: disk cache in %s, writes %s the file cache, numerics %.16s, %zu entries adopted\n", store->directory().u8string().c_str(),
                              store->direct() ? "around" : "through", LLMX_NUMERICS, store->adopted().size());
                 for (const std::string& why : store->refused()) std::fprintf(stderr, "server: a kept directory was not adopted, %s; it is kept until its age limit\n", why.c_str());
                 refused_dirs_ = store->refused().size();
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "server: no disk cache (%s)\n", e.what());
+                std::lock_guard<std::mutex> lk(start_m_);
+                if (start_.digest == "running") start_.digest = "failed";
+                else start_.adopt = "failed";
             }
             {
                 std::lock_guard<std::mutex> lk(m_);
@@ -394,6 +434,10 @@ public:
     DiskTier(const DiskTier&) = delete;
     DiskTier& operator=(const DiskTier&) = delete;
 
+    Start start() const {
+        std::lock_guard<std::mutex> lk(start_m_);
+        return start_;
+    }
     uint64_t cap() const { return options_.bytes; }
     bool keeps() const { return options_.keep; }
     std::chrono::milliseconds idle() const { return options_.idle; }
@@ -1212,6 +1256,8 @@ private:
     std::unique_ptr<DiskStore> store_;   // under m_, once made
     bool ready_ = false, writing_ = false, adopted_taken_ = false;   // under m_
     std::atomic<size_t> refused_dirs_{0};   // set once as the store is made
+    mutable std::mutex start_m_;
+    Start start_;                        // under start_m_
     uint64_t in_flight_ = 0;             // under m_, the key of the write in flight
     size_t errors_ = 0;                  // under m_
     std::chrono::steady_clock::time_point stopped_;   // under m_, when writing stopped or was last checked

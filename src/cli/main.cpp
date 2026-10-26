@@ -350,10 +350,12 @@ infer::ModelOptions model_options(const ExecOptions& exec) {
     return o;
 }
 
-// The loading progress on stderr: the share of the payload read, then the "Preparing model" line once it is complete, while the rest of the load runs.
-// A second report of completion prints nothing.
-format::LoadProgress progress_bar() {
-    return [previous = -1, finished = false](size_t completed, size_t total) mutable {
+// The loading progress on stderr: the share of the weights read, then the "Preparing model" line once it is complete, while the rest of the load runs.
+// A second report of completion prints nothing, and the other phases print nothing.
+infer::LoadReport progress_bar() {
+    return [previous = -1, finished = false](const infer::LoadStep& step) mutable {
+        if (std::string_view(step.phase) != "weights") return;
+        const size_t completed = step.completed, total = step.total;
         const int percent = total ? int(100.0 * double(completed) / double(total)) : 100;
         if (percent != previous) {
             previous = percent;
@@ -577,17 +579,24 @@ std::string load_timing(const infer::LoadTimes& t) {
     return line;
 }
 
+// The device specs the flags name, after the refusals the flags alone decide, which every model command meets before a file is read or a server listens.
+std::vector<std::string> exec_specs(const ExecOptions& exec) {
+    // Only experts on the CPU are streamed, and the flags alone say whether there are any.
+    if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
+    const auto specs = backend::device_specs(exec.device);
+    tensor_groups(exec, specs);
+    return specs;
+}
+
 // Open a model file as the flags ask, through infer::load_model: devices made first so a bad flag fails before the file is read, the model placed over them for its ubatch plus `decode_rows` generated tokens a pass.
 // The other parameters (threads, profiled, history_tokens, slots, timed, checkpoints, drafter, drafter_file, shared) are described in docs/src/cli-main.md, open_model.
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
                                                const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0,
-                                               std::optional<size_t> host_budget = std::nullopt) {
-    // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
-    if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
-    const auto specs = backend::device_specs(exec.device);
-    tensor_groups(exec, specs);
+                                               std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}) {
+    const auto specs = exec_specs(exec);
+    if (watch) watch({"devices"});
     auto backends = shared.empty() ? backend::make_backends(specs, profiled != nullptr || timed) : shared;
     // Beside the placement a command prints, so a quiet command stays quiet.
     if (exec.tensor_width > 1 && (progress || show_plan)) report_groups(specs, backends, (size_t)exec.tensor_width);
@@ -633,12 +642,17 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
         options.mark_rows = mark_rows;
         request.fit_marks = decode_rows > 0;
     }
-    format::LoadProgress shown;
+    infer::LoadReport shown;
     if (progress) {
         std::cerr << "Reading model metadata...\n";
         shown = progress_bar();
     }
-    auto loaded = infer::load_model(path, std::move(backends), request, options, shown, exec.load_mode, drafter_file);
+    // The bar and the caller's watch, where it has one, see each step.
+    const infer::LoadReport report = !watch ? shown : [&](const infer::LoadStep& step) {
+        if (shown) shown(step);
+        watch(step);
+    };
+    auto loaded = infer::load_model(path, std::move(backends), request, options, report, exec.load_mode, drafter_file);
     std::cerr << loaded->dtype.describe();
     if (show_plan) std::cerr << loaded->plan << load_timing(loaded->times);
     if (threads > 0) loaded->model->set_threads(threads);
@@ -1344,6 +1358,9 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     return 0;
 }
 
+void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, size_t apart,
+                  server::Front& front);
+
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 // The identity an image's digest begins with, the encoder file's SHA-256 (docs/VISION.md, section 5): cached under the disk tier's digests where a disk tier is given, else read once at start.
 std::array<uint8_t, 32> vision_identity(const std::string& path, const server::DiskOptions& disk) {
@@ -1356,12 +1373,32 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
     // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
     const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() ? drafts.draft_max : 0);
+    // The flags' own refusals and a model path with nothing there, as the load would refuse it, come before the server listens, so a mistyped line fails at once.
+    exec_specs(exec);
+    if (!std::filesystem::exists(std::filesystem::u8path(model_path))) throw std::runtime_error("cannot open file: " + model_path);
+    // The server listens before it loads, so /v1/health tells how its start goes (docs/SERVER.md, Startup).
+    http::Listener listener(cfg.host, cfg.port);
+    server::Startup startup(std::filesystem::u8path(model_path).filename().u8string());
+    server::Front front(listener, startup);
+    try {
+        serve_loaded(model_path, cfg, exec, drafts, images, slots, apart, front);
+    } catch (const std::exception& e) {
+        startup.fail(e.what());
+        throw;
+    }
+    return 0;
+}
+
+// The rest of `serve` once the server listens: the model loaded, the start recorded as it goes, then the routes served on `front`.
+void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, size_t apart,
+                  server::Front& front) {
+    server::Startup& startup = front.startup();
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart, cfg.host_cache_bytes);
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); });
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
-    // A template the renderer refuses stops the server before it listens, as it stops chat before a turn.
+    // A template the renderer refuses stops the server before it serves, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
     server::resolve_pacing(c, loaded->unpaced, loaded->pipelined_split);
@@ -1389,14 +1426,15 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // The vision encoder on the model's embedding device, which the chat routes encode a request's images with.
     std::unique_ptr<infer::Vision> vision;
     if (!images.mmproj.empty()) {
+        startup.begin("vision");
         vision = infer::open_vision(images.mmproj, model, tok, loaded->dtype.effective, images.max_pixels);
         c.vision = vision.get();
         c.vision_identity = vision_identity(images.mmproj, c.disk);
     }
-    http::Listener listener(c.host, c.port);
+    startup.begin("ready");
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
-    std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << listener.port()
+    std::cerr << "serving " << c.model_name << " on http://" << c.host << ":" << front.listener().port()
               << " (device " << exec.device << ", up to " << c.max_seqs << " sequences over "
               << model.kv_tokens_total() << " KV tokens, a request holding up to " << limit << " tokens"
               << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
@@ -1412,8 +1450,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
                   << (c.ctx_size ? c.ctx_size : (size_t)model.context_length()) << "\n";
     if (const std::string why = server::no_turns(model, *c.host_cache_bytes, host_given, limit); !why.empty())
         std::cerr << "server: " << why << "\n";
-    server::serve(model, tok, loaded->chat, c, listener);
-    return 0;
+    server::serve(model, tok, loaded->chat, c, front);
 }
 
 // Writes the overview, or `command`'s page, to `out`; false when there is no such command.

@@ -8,9 +8,11 @@
 #include <cmath>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -19,6 +21,7 @@
 #include "config.hpp"
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
+#include "inference/load.hpp"
 #include "inference/media.hpp"
 #include "model/place.hpp"
 #include "quant/types.hpp"
@@ -197,12 +200,113 @@ private:
     bool hit_ = false;
 };
 
+// The record of a server's start, which /v1/health gives while it starts and keeps once it serves (docs/SERVER.md, Startup): each phase reached, its state, seconds and bytes.
+class Startup {
+public:
+    explicit Startup(std::string model) : model_(utf8_sanitize(model)), started_((int64_t)std::time(nullptr)), t0_(std::chrono::steady_clock::now()) {}
+
+    // A step of the start: a phase the CLI, the loader (infer::LoadStep) or the server begins, which ends the one running, or the bytes a phase has read.
+    void step(const infer::LoadStep& s) {
+        std::lock_guard<std::mutex> lk(m_);
+        const auto now = std::chrono::steady_clock::now();
+        if (phases_.empty() || phases_.back().name != s.phase) {
+            if (!phases_.empty()) close(phases_.back(), "done", now);
+            phases_.push_back(Phase{s.phase, "running", now, 0, 0, 0, {}});
+        }
+        Phase& p = phases_.back();
+        if (!s.total) return;
+        p.completed = s.completed, p.total = s.total;
+        if (s.file.empty()) return;
+        const std::string name = utf8_sanitize(std::filesystem::u8path(s.file).filename().u8string());
+        auto f = std::find_if(p.files.begin(), p.files.end(), [&](const File& x) { return x.name == name; });
+        if (f == p.files.end()) f = p.files.insert(p.files.end(), File{name});
+        f->completed = s.file_completed, f->total = s.file_total;
+    }
+    void begin(const char* phase) { step(infer::LoadStep{phase}); }
+    // The start has ended: the server serves its routes.
+    void ready() {
+        std::lock_guard<std::mutex> lk(m_);
+        if (!phases_.empty()) close(phases_.back(), "done", std::chrono::steady_clock::now());
+        ready_ = true;
+        ended_ = std::chrono::steady_clock::now();
+    }
+    // The start failed with `error`, which the record keeps until the process ends.
+    void fail(const std::string& error) {
+        std::lock_guard<std::mutex> lk(m_);
+        if (!phases_.empty()) close(phases_.back(), "failed", std::chrono::steady_clock::now());
+        error_ = utf8_sanitize(error);
+        ended_ = std::chrono::steady_clock::now();
+    }
+    // The `startup` object of /v1/health.
+    std::string json() const {
+        std::lock_guard<std::mutex> lk(m_);
+        const auto now = std::chrono::steady_clock::now();
+        const auto n = [](uint64_t v) { return std::to_string(v); };
+        std::string phases;
+        for (const Phase& p : phases_) {
+            const double s = p.state == "running" ? seconds(p.begun, now) : p.seconds;
+            phases += std::string(phases.empty() ? "" : ",") + "{\"name\":" + jmini::quote(p.name) + ",\"state\":\"" + p.state + "\",\"seconds\":" + jmini::number(float(s));
+            if (p.total) {
+                phases += ",\"bytes_done\":" + n(p.completed) + ",\"bytes_total\":" + n(p.total) + ",\"bytes_per_s\":" + n(s > 0 ? uint64_t(double(p.completed) / s) : 0) + ",\"files\":[";
+                for (size_t i = 0; i < p.files.size(); ++i)
+                    phases += std::string(i ? "," : "") + "{\"name\":" + jmini::quote(p.files[i].name) + ",\"bytes_done\":" + n(p.files[i].completed) + ",\"bytes_total\":" + n(p.files[i].total) + "}";
+                phases += "]";
+            }
+            phases += "}";
+        }
+        const std::string phase = !error_.empty() ? "failed" : ready_ ? "ready" : phases_.empty() ? "" : phases_.back().name;
+        return "{\"started_unix\":" + std::to_string(started_) + ",\"elapsed_s\":" + jmini::number(float(seconds(t0_, ended_ ? *ended_ : now))) + ",\"phase\":" + jmini::quote(phase) +
+               (error_.empty() ? std::string() : ",\"error\":" + jmini::quote(error_)) + ",\"phases\":[" + phases + "]}";
+    }
+    // /v1/health's body while the server starts: its status, the server's and the requests' objects in their shapes, and the record.
+    std::string starting() const {
+        bool failed;
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            failed = !error_.empty();
+        }
+        const std::string numerics = std::string(LLMX_NUMERICS).substr(0, 16);
+        return std::string("{\"status\":\"") + (failed ? "failed" : "starting") + "\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
+               ",\"uptime_s\":" + std::to_string(std::max<int64_t>(0, (int64_t)std::time(nullptr) - started_)) + ",\"model\":" + jmini::quote(model_) +
+               "},\"requests\":{\"now\":{\"active\":0,\"queued\":0,\"paused\":0,\"kv_tokens\":0}},\"startup\":" + json() + "}";
+    }
+
+private:
+    struct File {
+        std::string name;
+        size_t completed = 0, total = 0;
+    };
+    struct Phase {
+        std::string name, state;
+        std::chrono::steady_clock::time_point begun;
+        double seconds = 0;
+        size_t completed = 0, total = 0;
+        std::vector<File> files;
+    };
+    static double seconds(std::chrono::steady_clock::time_point a, std::chrono::steady_clock::time_point b) { return std::chrono::duration<double>(b - a).count(); }
+    static void close(Phase& p, const char* state, std::chrono::steady_clock::time_point now) {
+        if (p.state != "running") return;
+        p.state = state;
+        p.seconds = seconds(p.begun, now);
+    }
+    const std::string model_;
+    const int64_t started_;
+    const std::chrono::steady_clock::time_point t0_;
+    mutable std::mutex m_;
+    std::vector<Phase> phases_;   // under m_
+    std::string error_;           // under m_
+    bool ready_ = false;          // under m_
+    std::optional<std::chrono::steady_clock::time_point> ended_;   // under m_, when the start was ready or failed
+};
+
+class Front;
+
 class Api {
 public:
     Api(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format, Scheduler& sched,
-        const Config& cfg)
+        const Config& cfg, const Startup* startup = nullptr)
         : model_(model), tok_(tok), format_(format), sched_(sched), cfg_(cfg),
-          cached_topology_json_(topology_json(model_.topology(), cfg_.dtype)), started_((int64_t)std::time(nullptr)) {
+          cached_topology_json_(topology_json(model_.topology(), cfg_.dtype)), startup_(startup), started_((int64_t)std::time(nullptr)) {
         // The model's name is its file's, which on Linux can hold bytes that are not UTF-8, and every reply that names the model carries it.
         cfg_.model_name = utf8_sanitize(cfg_.model_name);
     }
@@ -237,6 +341,7 @@ public:
     }
 
 private:
+    friend class Front;
     // How often a connection waiting on its request looks for a departed client.
     static constexpr std::chrono::milliseconds kProbe{100};
     // A chat reply's next turn is given to the scheduler again every this many tokens while it is written (Scheduler::follow).
@@ -271,6 +376,12 @@ private:
             return out;
         };
         const auto yes = [](bool v) { return std::string(v ? "true" : "false"); };
+        // The disk tier's digest of the model's files and its adoption of a kept directory, which run once the server listens (DiskTier::Start).
+        const auto digest_json = [&](const DiskTier::Start& d) {
+            const double s = d.seconds;
+            return "{\"state\":\"" + d.digest + "\",\"file\":" + jmini::quote(utf8_sanitize(d.file)) + ",\"bytes_done\":" + n(d.done) + ",\"bytes_total\":" + n(d.total) +
+                   ",\"bytes_per_s\":" + n(s > 0 ? uint64_t(double(d.done) / s) : 0) + ",\"seconds\":" + jmini::number(float(s)) + "},\"adopt\":{\"state\":\"" + d.adopt + "\",\"entries\":" + n(d.adopted) + "}";
+        };
         // What restores cost, each read and promotion once (Scheduler::Stats::RestoreTotals): counts, and each part's sum and largest in whole milliseconds.
         const auto restore_json = [&](const Scheduler::Stats::RestoreTotals& x) {
             const auto ms = [&](double v) { return n((uint64_t)v); };
@@ -306,7 +417,7 @@ private:
         c.respond(200, "application/json",
                   "{\"status\":\"ok\",\"server\":{\"version\":" + jmini::quote(LLMX_VERSION_STRING) + ",\"numerics\":" + jmini::quote(numerics) +
                   ",\"uptime_s\":" + n((uint64_t)std::max<int64_t>(0, up)) + ",\"model\":" + jmini::quote(cfg_.model_name) +
-                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" +
+                  ",\"context_tokens\":" + n(model_.context_length()) + ",\"request_tokens\":" + n(sched_.token_limit()) + ",\"kv_tokens\":" + n(model_.kv_tokens_total()) + ",\"devices\":[" + devices + "]}" + (startup_ ? ",\"startup\":" + startup_->json() : std::string()) +
                   ",\"topology\":" + cached_topology_json_ + ",\"precision\":" + dtype_json(cfg_.dtype) +
                   ",\"requests\":{\"now\":{\"active\":" + n(s.active) + ",\"queued\":" + n(s.queued) + ",\"paused\":" + n(s.paused) + ",\"kv_tokens\":" + n(s.kv_tokens) +
                   "},\"limits\":{\"active\":" + n(cfg_.max_seqs) + ",\"queued\":" + n(cfg_.max_queue) +
@@ -321,7 +432,7 @@ private:
                   ",\"host\":{\"now\":{\"entries\":" + n(s.host_donors) + ",\"bytes\":" + n(s.host_bytes) + ",\"limit_bytes\":" + n(s.host_limit) + ",\"allocated_bytes\":" + n(s.host_allocated) +
                   "},\"since_start\":{\"promotions\":" + n(s.host_hits) + ",\"yielded_bytes\":" + n(s.host_yielded) + ",\"bytes_moved\":" + n(s.host_bytes_moved) + "}}" +
                   ",\"disk\":{\"now\":{\"entries\":" + n(s.disk_entries) + ",\"segments\":" + n(s.disk_entries - s.disk_states) + ",\"states\":" + n(s.disk_states) + ",\"bytes\":" + n(s.disk_bytes) + ",\"limit_bytes\":" + n(s.disk_limit) +
-                  ",\"unproved\":" + n(s.disk_unproved) + ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) +
+                  ",\"unproved\":" + n(s.disk_unproved) + ",\"in_flight\":" + n(s.disk_in_flight) + ",\"ready\":" + yes(s.disk_ready) + ",\"writing\":" + yes(s.disk_writing) + ",\"digest\":" + digest_json(s.disk_digest) +
                   "},\"since_start\":{\"hits\":" + n(s.disk_hits) + ",\"bytes_read\":" + n(s.disk_bytes_read) + ",\"bytes_written\":" + n(s.disk_bytes_written) +
                   ",\"waits\":" + n(s.disk_waits) + ",\"wait_timeouts\":" + n(s.disk_wait_timeouts) + ",\"wait_ms\":" + n((uint64_t)s.disk_wait_ms) + ",\"errors\":" + n(s.disk_errors) +
                   ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + ",\"refused_directories\":" + n(s.disk_refused_dirs) +
@@ -1413,6 +1524,7 @@ private:
     Scheduler& sched_;
     Config cfg_;
     const std::string cached_topology_json_;
+    const Startup* startup_;   // the start's record, which health keeps, where the server has one
     const int64_t started_;
     std::atomic<uint64_t> shifts_{0}, shifted_tokens_{0};   // since start, the requests whose prompt a shift cut, and the tokens those cuts dropped
     std::atomic<uint64_t> next_id_{1};
@@ -1490,9 +1602,77 @@ inline std::string pacing_line(const Config& cfg) {
            " ms, where the device's steps allow)\n";
 }
 
-// Serve until the listener is closed, or a signal stops it (detail::StopOnSignal): the scheduler on its own thread, the accept loop here, one detached thread per connection.
+// The server's accept loop from the moment it listens, on a thread of its own: until the routes are published, health answers 503 with the start's record and every other route 503.
+// It ends when the listener closes; destroyed, it closes the listener and waits for its connections.
+class Front {
+public:
+    Front(http::Listener& listener, Startup& startup) : listener_(listener), startup_(startup) {
+        thread_ = std::thread([this] { loop(); });
+    }
+    ~Front() {
+        listener_.close();
+        wait();
+        drain();
+    }
+    Front(const Front&) = delete;
+    Front& operator=(const Front&) = delete;
+
+    http::Listener& listener() { return listener_; }
+    Startup& startup() { return startup_; }
+    // From now on each connection goes to `api`, which outlives the connections (drain).
+    void publish(Api* api) { api_.store(api); }
+    // Until the listener closes.
+    void wait() {
+        if (thread_.joinable()) thread_.join();
+    }
+    // Until every connection's thread has ended.
+    void drain() {
+        while (open_.load() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+private:
+    void loop() {
+        for (;;) {
+            http::Connection c = listener_.accept();
+            if (!c.open()) break;
+            ++open_;
+            std::thread([this](http::Connection conn) {
+                try {
+                    if (Api* api = api_.load()) api->handle(conn);
+                    else starting(conn);
+                } catch (...) {
+                }
+                --open_;
+            }, std::move(c)).detach();
+        }
+    }
+    // A request while the server starts: health gives the record with 503, so a readiness check on 200 keeps its meaning, liveness answers as ever, and every other route is refused with 503 in its clients' shape.
+    void starting(http::Connection& c) {
+        http::Request req;
+        int status = 0;
+        const http::Limits limits;
+        const bool read = c.read_request(req, limits, status);
+        const std::optional<Api::Route> route = Api::route_of(req.path);
+        const bool shape = route && Api::compat(*route);
+        if (!read) {
+            if (status) c.respond(status, "application/json", error_json(http::reason(status), shape));
+            return;
+        }
+        if (req.method == "GET" && req.path == "/v1/health") return c.respond(503, "application/json", startup_.starting());
+        if (req.method == "GET" && req.path == "/v1/live") return c.respond(200, "application/json", "{\"status\":\"ok\"}");
+        c.respond(503, "application/json", error_json("the server is starting", shape));
+    }
+
+    http::Listener& listener_;
+    Startup& startup_;
+    std::atomic<Api*> api_{nullptr};
+    std::atomic<int> open_{0};
+    std::thread thread_;
+};
+
+// Serve the routes on `front` until its listener is closed, or a signal stops it (detail::StopOnSignal): the scheduler on its own thread.
 inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::ChatFormat& format,
-                  const Config& cfg, http::Listener& listener) {
+                  const Config& cfg, Front& front) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing,
                     cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs, Scheduler::request_limit(model, cfg.ctx_size))), cfg.proposer, cfg.draft_max, true, cfg.disk,
                     cfg.pacing, cfg.ctx_size);
@@ -1501,23 +1681,16 @@ inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::Ch
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,
                  started.samplers == 1 ? "" : "s");
     std::fputs(pacing_line(cfg).c_str(), stderr);
-    Api api(model, tok, format, sched, cfg);
+    Api api(model, tok, format, sched, cfg, &front.startup());
     std::thread runner([&] { sched.run(); });
-    const detail::StopOnSignal stop_on_signal(listener);
-    std::atomic<int> open{0};
-    for (;;) {
-        http::Connection c = listener.accept();
-        if (!c.open()) break;
-        ++open;
-        std::thread([&api, &open](http::Connection conn) {
-            try { api.handle(conn); } catch (...) {}
-            --open;
-        }, std::move(c)).detach();
-    }
+    const detail::StopOnSignal stop_on_signal(front.listener());
+    front.startup().ready();
+    front.publish(&api);
+    front.wait();
     sched.stop();
     runner.join();
     // Connection threads still draining end with their requests cancelled.
-    while (open.load() > 0) std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    front.drain();
 }
 
 } // namespace server

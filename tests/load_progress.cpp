@@ -130,13 +130,19 @@ bool holds_tensors(const std::vector<backend::BufferPtr>& buffers, const gguf::G
     return !buffers.empty();
 }
 
-// Progress that starts at 0, only rises, and ends at its total.
+// A load's report: metadata first, the fit before the allocation, each phase once, and the weights' bytes starting at 0, only rising and ending at their total.
 struct Rising {
     std::vector<std::pair<size_t, size_t>> seen;
-    format::LoadProgress callback() {
-        return [this](size_t done, size_t total) { seen.push_back({done, total}); };
+    std::vector<std::string> phases;
+    infer::LoadReport callback() {
+        return [this](const infer::LoadStep& step) {
+            if (phases.empty() || phases.back() != step.phase) phases.push_back(step.phase);
+            if (std::string(step.phase) == "weights") seen.push_back({step.completed, step.total});
+        };
     }
     bool whole(size_t total) const {
+        const auto at = [&](const char* p) { return size_t(std::find(phases.begin(), phases.end(), std::string(p)) - phases.begin()); };
+        if (phases.size() != 4 || phases[0] != "metadata" || at("fit") >= at("allocate") || at("allocate") == 4 || at("weights") == 4) return false;
         if (seen.empty() || seen.front().first != 0 || seen.back().first != total) return false;
         for (size_t i = 0; i < seen.size(); ++i)
             if (seen[i].second != total || (i && seen[i].first <= seen[i - 1].first)) return false;
@@ -229,8 +235,8 @@ void loader_checks(const std::string& path) {
         infer::PlacementRequest request;
         request.names = {"cpu"};
         std::string error;
-        const format::LoadProgress progress = [&](size_t done, size_t) {
-            if (!failure && done) throw std::runtime_error("progress failure");
+        const infer::LoadReport progress = [&](const infer::LoadStep& step) {
+            if (!failure && step.completed) throw std::runtime_error("progress failure");
         };
         try { infer::load_model(path, {b}, request, {}, progress, infer::LoadMode::automatic); }
         catch (const std::runtime_error& e) { error = e.what(); }
@@ -452,7 +458,7 @@ void stream_checks(const std::string& path) {
         for (const auto& u : uploads) destinations[u.tensor].push_back(&u);
         infer::LoadTimes times;
         size_t bytes = 0;
-        infer::detail::stream(pieces, readers, destinations, [&](size_t n) { bytes += n; }, times);
+        infer::detail::stream(pieces, readers, destinations, [&](size_t, size_t n) { bytes += n; }, times);
         return bytes;
     };
     size_t payload = 0;

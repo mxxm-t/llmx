@@ -85,7 +85,7 @@ def run():
         write(model, "{% if false %}x{% endif %}")
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         assert p.returncode == 1 and b"empty prompt" in p.stderr, (p.returncode, p.stderr)
-        # A template the renderer refuses stops chat and serve before either takes a turn or listens, while generate, which renders no template, still runs on the file.
+        # A template the renderer refuses stops chat and serve before either takes a turn or serves, while generate, which renders no template, still runs on the file.
         write(model, "{% filter upper %}{{ messages[0]['content'] }}{% endfilter %}")
         p = common.run_process(["chat", str(model)], input=b"a\n", timeout=30)
         refusal = b"error: the model's chat template is refused: the tag 'filter' is not supported"

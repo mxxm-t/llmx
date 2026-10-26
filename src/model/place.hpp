@@ -947,8 +947,10 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
 }
 
 inline PlacedModel place_model(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
-                               ModelOptions options, const AdoptWeight& adopt = {}) {
-    return construct_model(weights, plan_placement(weights, std::move(backends), request, options), request.ubatch, adopt);
+                               ModelOptions options, const AdoptWeight& adopt = {}, const std::function<void()>& fitted = {}) {
+    PlannedModel planned = plan_placement(weights, std::move(backends), request, options);
+    if (fitted) fitted();
+    return construct_model(weights, std::move(planned), request.ubatch, adopt);
 }
 
 } // namespace infer

@@ -3600,6 +3600,34 @@ void disk_flush(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
     }
 }
 
+// A stop while the disk tier still reads the model file's digest ends that read between its pieces, and under --disk-cache-keep the flush does not wait for a store not yet made, so the server stops at once.
+void disk_stop_digest(const Make& make, const bpe::Tokenizer& tok) {
+#if defined(_WIN32)
+    (void)make;
+    (void)tok;
+    std::printf("server-resume: a stop during the model's digest is checked where a resized file has holes, not on Windows\n");
+#else
+    for (const bool keep : {false, true}) {
+        const std::string what = keep ? "a stop during the model's digest under --disk-cache-keep" : "a stop during the model's digest";
+        DiskRoot disk("digest-stop");
+        // The model file grown to 64 GiB of holes after its header: at about 2 GB/s, the SHA extensions' rate on a fast runner, its digest reads for about 32 s, so a stop that waits for it cannot pass the 10 s bound.
+        fs::resize_file(fs::u8path(disk.model), uint64_t(64) << 30);
+        server::DiskOptions options = disk.options(uint64_t(1) << 30);
+        options.keep = keep;
+        auto model = make(2048, 16);
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, options);
+        std::thread runner([&] { sched.run(); });
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        const bool ready = sched.stats().disk_ready;
+        const auto start = std::chrono::steady_clock::now();
+        sched.stop();
+        runner.join();
+        const double stop_s = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        require(!ready && stop_s < 10, what + " took " + std::to_string(stop_s) + " s, against 10, the tier " + (ready ? "made" : "not made"));
+    }
+#endif
+}
+
 // Disk writes write what changed (docs/DISK-TIER.md, Entries written as what changed): one conversation with replies read again, on `make`'s model, under --disk-cache-keep, writes after each of four turns what it added and nothing twice.
 // The bytes written are the bytes on disk and the stop writes nothing more, and a second server adopts the files, so a follow-up forks the whole conversation and an edit of its third message forks below it.
 void disk_increment(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
@@ -5217,6 +5245,7 @@ int main(int argc, char** argv) {
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);
+            disk_stop_digest(one, tok);
             disk_increment(one, tok, vocab, "disk writes of what changed");
             disk_increment(on(mixed, [] { return cpus(1); }, 3, 3), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "disk writes of what changed, a model keeping a state");
             disk_faults(one, tok, vocab, "files lost between two servers");

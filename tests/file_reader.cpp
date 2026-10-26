@@ -1,6 +1,8 @@
 // format::FileReader and core::HostPages: reads at any offset and length give the file's bytes and a read past the end is short by what the file lacks.
 // Also held are empty and tiny files, several threads on one reader, direct reads where the file system takes them, reserved pages committed and decommitted by range, and a size no whole number of pages holds refused.
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -224,6 +226,35 @@ int main(int argc, char** argv) {
             require(format::cached_file_sha256(cache.u8string(), file.u8string()) == again.hex(), "the changed file's digest was not cached");
             std::filesystem::remove(file);
             std::filesystem::remove(empty);
+        }
+        // A stop set before the call, and one set from another thread while the digest reads a file of 2 GiB of holes, each end it with an error and cache nothing; the next call without one reads it whole and caches it.
+        {
+            const std::filesystem::path file = dir / "stopped.bin", cache = dir / "stopped-digests";
+            std::filesystem::remove_all(cache);
+            save(file, {});
+            std::filesystem::resize_file(file, uint64_t(2) << 30);
+            const auto stopped = [&](std::atomic<bool>& stop, const std::string& what) {
+                try {
+                    (void)format::cached_file_sha256(cache.u8string(), file.u8string(), &stop);
+                    require(false, what + ": the digest ran to its end");
+                } catch (const std::runtime_error& e) {
+                    require(std::string(e.what()).find("was stopped before its end") != std::string::npos, what + ": " + e.what());
+                }
+                require(!std::filesystem::exists(cache) || std::filesystem::is_empty(cache), what + ": a digest was cached");
+            };
+            std::atomic<bool> before{true};
+            stopped(before, "a stop set before the digest");
+            std::atomic<bool> during{false};
+            std::thread setter([&] {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                during = true;
+            });
+            stopped(during, "a stop set while the digest reads");
+            setter.join();
+            const std::string whole = format::cached_file_sha256(cache.u8string(), file.u8string());
+            require(whole == format::file_sha256(file.u8string()), "a digest after a stopped one is not the file's");
+            require(std::filesystem::exists(cache) && !std::filesystem::is_empty(cache), "a digest after a stopped one was not cached");
+            std::filesystem::remove(file);
         }
         std::cout << "file-reader: " << checks << " checks passed\n";
         return 0;

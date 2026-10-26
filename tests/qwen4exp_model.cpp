@@ -1007,7 +1007,7 @@ void loader_checks(const std::string& path, const std::string& device, const std
 }
 
 infer::ModelWeights with_ple_row_source(const infer::ModelWeights& base, gguf::GGUFModel& gguf,
-                                       bool file_backed, std::shared_ptr<const format::FileReader>& retained_reader,
+                                       std::shared_ptr<const format::FileReader>& retained_reader,
                                        size_t& table_tensor) {
     infer::ModelWeights result = base;
     table_tensor = result.tensors.size();
@@ -1016,16 +1016,11 @@ infer::ModelWeights with_ple_row_source(const infer::ModelWeights& base, gguf::G
     if (table_tensor == result.tensors.size()) throw std::runtime_error("fixture: missing PLE table");
     auto& view = result.tensors[table_tensor];
     if (view.shape.size() != 2) throw std::runtime_error("fixture: PLE table is not a matrix");
-    if (file_backed) {
-        const format::FileSpan span = gguf.span(table_tensor);
-        retained_reader = std::make_shared<const format::FileReader>(span.file);
-        view.row_source = std::make_shared<const infer::WeightRows>(
-            view.type, size_t(view.shape[0]), size_t(view.shape[1]), retained_reader, span.offset, span.bytes);
-        view.data = nullptr;
-    } else {
-        view.row_source = std::make_shared<const infer::WeightRows>(
-            view.type, size_t(view.shape[0]), size_t(view.shape[1]), view.data, view.bytes);
-    }
+    const format::FileSpan span = gguf.span(table_tensor);
+    retained_reader = std::make_shared<const format::FileReader>(span.file);
+    view.row_source = std::make_shared<const infer::WeightRows>(
+        view.type, size_t(view.shape[0]), size_t(view.shape[1]), retained_reader, span.offset, span.bytes);
+    view.data = nullptr;
     return result;
 }
 
@@ -1034,10 +1029,10 @@ void row_source_checks(const infer::ModelWeights& base, gguf::GGUFModel& gguf, c
                        const std::vector<float>& hf_sliced, const std::vector<float>& hf_cached,
                        const Json& slice_lengths, const Json& item, size_t vocab, const std::string& name,
                        bool extended_checks) {
-    for (bool file_backed : {false, true}) {
+    {
         std::shared_ptr<const format::FileReader> reader_lifetime;
         size_t table_tensor = 0;
-        infer::ModelWeights source = with_ple_row_source(base, gguf, file_backed, reader_lifetime, table_tensor);
+        infer::ModelWeights source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
         const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b,
                                               const std::vector<infer::shard::Run>& runs) {
             if (tensor == table_tensor)
@@ -1052,7 +1047,7 @@ void row_source_checks(const infer::ModelWeights& base, gguf::GGUFModel& gguf, c
         // The model and its row source must own the file reader after construction.
         source.tensors[table_tensor].row_source.reset();
         reader_lifetime.reset();
-        const std::string mode = file_backed ? "file-backed rows" : "memory-backed rows";
+        const std::string mode = "file-backed rows";
         compare(score(model, prompt), hf_full, name + " " + mode + " full prompt");
         compare(score_slices(model, prompt, slice_lengths), hf_sliced, name + " " + mode + " sliced prompt");
         compare(score(model, prompt), hf_cached, name + " " + mode + " cached prompt");
@@ -1073,7 +1068,7 @@ void row_source_checks(const infer::ModelWeights& base, gguf::GGUFModel& gguf, c
 
         if (extended_checks) {
             // Reattach an owned source for models constructed by the history and batch helpers.
-            source = with_ple_row_source(base, gguf, file_backed, reader_lifetime, table_tensor);
+            source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
             history_checks(source, test_backend(device), prompt, hf_full, vocab, name + " " + mode);
             batch_and_scratch_checks(source, test_backend(device), prompt, hf_full, vocab, name + " " + mode);
             if (device == "cpu") cpu_layer_split_checks(source, prompt, hf_full, vocab, name + " " + mode);
@@ -1109,14 +1104,14 @@ void tensor_group_row_source_checks(const infer::ModelWeights& base, gguf::GGUFM
                                     const std::vector<float>& hf_sliced, const std::vector<float>& hf_cached,
                                     const Json& slice_lengths, const Json& item, size_t vocab,
                                     const std::string& name) {
-    for (bool file_backed : {false, true}) {
+    {
         std::shared_ptr<const format::FileReader> reader_lifetime;
         size_t table_tensor = 0;
-        infer::ModelWeights source = with_ple_row_source(base, gguf, file_backed, reader_lifetime, table_tensor);
+        infer::ModelWeights source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
         infer::Model model(source, tensor_group_backends(group_devices), tensor_placement(), model_options(2));
         source.tensors[table_tensor].row_source.reset();
         reader_lifetime.reset();
-        const std::string mode = file_backed ? "file-backed rows" : "memory-backed rows";
+        const std::string mode = "file-backed rows";
         compare(score(model, prompt), hf_full,
                 name + " padded shared width 8 tensor width 2 " + mode + " full prompt");
         compare(score_slices(model, prompt, slice_lengths), hf_sliced,
@@ -1155,7 +1150,7 @@ void tensor_group_row_source_checks(const infer::ModelWeights& base, gguf::GGUFM
             if (!refused)
                 throw std::runtime_error(name + ": apart reserve on an unpaced tensor group was accepted");
         }
-        source = with_ple_row_source(base, gguf, file_backed, reader_lifetime, table_tensor);
+        source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
         host_snapshot_restore_parity(source, config, tensor_group_backends(group_devices), tensor_placement(),
                                      prompt, hf_full, vocab,
                                      name + " padded shared width 8 tensor width 2 " + mode);
@@ -1163,7 +1158,7 @@ void tensor_group_row_source_checks(const infer::ModelWeights& base, gguf::GGUFM
                 name + " padded shared width 8 tensor width 2 " + mode + " normal after apart");
 
         const Json& decode = field(item, "decode_token");
-        if (!decode.isNumber()) continue;
+        if (!decode.isNumber()) return;
         const double raw = decode.asNumber();
         if (!std::isfinite(raw) || raw < 0 || raw > UINT32_MAX || std::floor(raw) != raw)
             throw std::runtime_error(name + ": invalid tensor-group row-source decode token");
@@ -1279,7 +1274,7 @@ private:
 void external_row_source_refusal(const infer::ModelWeights& base, gguf::GGUFModel& gguf) {
     std::shared_ptr<const format::FileReader> reader;
     size_t table = 0;
-    infer::ModelWeights malformed = with_ple_row_source(base, gguf, false, reader, table);
+    infer::ModelWeights malformed = with_ple_row_source(base, gguf, reader, table);
     size_t output = malformed.tensors.size();
     for (size_t i = 0; i < malformed.tensors.size(); ++i)
         if (malformed.tensors[i].name == "output.weight") output = i;

@@ -86,76 +86,6 @@ int main(int argc, char** argv) {
         const size_t rows = 9, row_bytes = quant::row_bytes(quant::GGML_TYPE_Q8_0, 160);
         const auto data = payload(rows, row_bytes);
         const std::vector<uint32_t> ids{8, 1, 8, 2, 4, 1};
-        const infer::WeightRows memory(quant::GGML_TYPE_Q8_0, 160, rows, data.data(), data.size());
-        check_rows(memory, data, row_bytes, ids, 8);
-
-        std::weak_ptr<std::vector<uint8_t>> memory_owner_lifetime;
-        std::unique_ptr<infer::WeightRows::Scratch> memory_owner_scratch;
-        const std::vector<uint32_t> owned_ids{5, 0, 5};
-        {
-            auto allocation = std::make_shared<std::vector<uint8_t>>(data);
-            memory_owner_lifetime = allocation;
-            std::shared_ptr<const void> owner = allocation;
-            const infer::WeightRows owned_memory(quant::GGML_TYPE_Q8_0, 160, rows,
-                                                 allocation->data(), allocation->size(), owner);
-            memory_owner_scratch = std::make_unique<infer::WeightRows::Scratch>(owned_memory, owned_ids.size());
-            allocation.reset();
-            owner.reset();
-            require(!memory_owner_lifetime.expired(), "memory source did not retain its shared owner");
-            const auto got = read_rows(owned_memory, owned_ids.data(), owned_ids.size(), *memory_owner_scratch);
-            require(got.unique == 2 && got.remap[0] == 1 && got.remap[1] == 0 && got.remap[2] == 1,
-                    "owned memory source lost request order or duplicates");
-            require(got.ids[0] == 0 && got.ids[1] == 5 &&
-                    std::equal(got.data, got.data + row_bytes, data.data()) &&
-                    std::equal(got.data + row_bytes, got.data + 2 * row_bytes, data.data() + 5 * row_bytes),
-                    "owned memory source did not read after the caller dropped its owner");
-        }
-        require(memory_owner_lifetime.expired(), "scratch unexpectedly retained the memory source owner");
-        memory_owner_scratch.reset();
-
-        bool bad_width = false;
-        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 159, rows, data.data(), data.size()); }
-        catch (const std::runtime_error&) { bad_width = true; }
-        require(bad_width, "a partial quantized row was accepted");
-        bool bad_extent = false;
-        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, rows, data.data(), data.size() - 1); }
-        catch (const std::invalid_argument&) { bad_extent = true; }
-        require(bad_extent, "a memory extent that disagrees with its shape was accepted");
-        bool zero_columns = false;
-        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 0, 1, nullptr, 0); }
-        catch (const std::invalid_argument&) { zero_columns = true; }
-        require(zero_columns, "a table with zero columns was accepted");
-        bool ids_overflow = false;
-        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, size_t(uint64_t(UINT32_MAX) + 2), data.data(), SIZE_MAX); }
-        catch (const std::invalid_argument&) { ids_overflow = true; }
-        require(ids_overflow, "a table with rows outside the ID range was accepted");
-
-        infer::WeightRows::Scratch scratch(memory, ids.size());
-        const auto empty = read_rows(memory, nullptr, 0, scratch);
-        require(!empty.data && !empty.ids && !empty.remap && !empty.unique && !empty.requested && empty.row_bytes == row_bytes,
-                "an empty null-ID request has the wrong result");
-        const auto previous = read_rows(memory, ids.data(), ids.size(), scratch);
-        std::vector<uint8_t> before(previous.data, previous.data + previous.unique * row_bytes);
-        bool invalid = false;
-        try {
-            const uint32_t bad_ids[] = {3, uint32_t(rows)};
-            read_rows(memory, bad_ids, 2, scratch);
-        } catch (const std::out_of_range&) { invalid = true; }
-        require(invalid, "an out-of-range row id was accepted");
-        require(std::equal(before.begin(), before.end(), previous.data), "an invalid id changed row output before refusal");
-        bool over_capacity = false;
-        infer::WeightRows::Scratch short_capacity(memory, 2);
-        const uint32_t small_ids[] = {2, 3};
-        const auto small = read_rows(memory, small_ids, 2, short_capacity);
-        std::vector<uint8_t> small_before(small.data, small.data + 2 * row_bytes);
-        try { read_rows(memory, ids.data(), ids.size(), short_capacity); }
-        catch (const std::length_error&) { over_capacity = true; }
-        require(over_capacity, "a request past scratch capacity was accepted");
-        require(std::equal(small_before.begin(), small_before.end(), small.data), "an over-capacity request changed row output");
-        bool missing_ids = false;
-        try { read_rows(memory, nullptr, 1, scratch); }
-        catch (const std::invalid_argument&) { missing_ids = true; }
-        require(missing_ids, "a nonempty null-ID request was accepted");
         const auto file_bytes = [&] {
             std::vector<uint8_t> v(37, 0xa5);
             v.insert(v.end(), data.begin(), data.end());
@@ -167,21 +97,62 @@ int main(int argc, char** argv) {
         auto reader = std::make_shared<const format::FileReader>(path.u8string());
         const infer::WeightRows file(quant::GGML_TYPE_Q8_0, 160, rows, reader, 37, data.size());
         check_rows(file, data, row_bytes, ids, 8);
-        require(file.staging_bytes() == 0 && memory.staging_bytes() == 0, "a buffered or memory source counts I/O windows it does not hold");
+        require(file.staging_bytes() == 0, "a buffered source counts I/O windows it does not hold");
+
+        bool bad_width = false;
+        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 159, rows, reader, 37, data.size()); }
+        catch (const std::runtime_error&) { bad_width = true; }
+        require(bad_width, "a partial quantized row was accepted");
+        bool bad_extent = false;
+        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, rows, reader, 37, data.size() - 1); }
+        catch (const std::invalid_argument&) { bad_extent = true; }
+        require(bad_extent, "a file extent that disagrees with its shape was accepted");
+        bool zero_columns = false;
+        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 0, 1, reader, 37, 0); }
+        catch (const std::invalid_argument&) { zero_columns = true; }
+        require(zero_columns, "a table with zero columns was accepted");
+        bool ids_overflow = false;
+        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, size_t(uint64_t(UINT32_MAX) + 2), reader, 37, SIZE_MAX); }
+        catch (const std::invalid_argument&) { ids_overflow = true; }
+        require(ids_overflow, "a table with rows outside the ID range was accepted");
+        bool no_reader = false;
+        try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, rows, nullptr, 37, data.size()); }
+        catch (const std::invalid_argument&) { no_reader = true; }
+        require(no_reader, "a table without a file reader was accepted");
+
+        infer::WeightRows::Scratch scratch(file, ids.size());
+        const auto empty = read_rows(file, nullptr, 0, scratch);
+        require(!empty.data && !empty.ids && !empty.remap && !empty.unique && !empty.requested && empty.row_bytes == row_bytes,
+                "an empty null-ID request has the wrong result");
+        const auto previous = read_rows(file, ids.data(), ids.size(), scratch);
+        std::vector<uint8_t> before(previous.data, previous.data + previous.unique * row_bytes);
+        bool invalid = false;
+        try {
+            const uint32_t bad_ids[] = {3, uint32_t(rows)};
+            read_rows(file, bad_ids, 2, scratch);
+        } catch (const std::out_of_range&) { invalid = true; }
+        require(invalid, "an out-of-range row id was accepted");
+        require(std::equal(before.begin(), before.end(), previous.data), "an invalid id changed row output before refusal");
+        bool over_capacity = false;
+        infer::WeightRows::Scratch short_capacity(file, 2);
+        const uint32_t small_ids[] = {2, 3};
+        const auto small = read_rows(file, small_ids, 2, short_capacity);
+        std::vector<uint8_t> small_before(small.data, small.data + 2 * row_bytes);
+        try { read_rows(file, ids.data(), ids.size(), short_capacity); }
+        catch (const std::length_error&) { over_capacity = true; }
+        require(over_capacity, "a request past scratch capacity was accepted");
+        require(std::equal(small_before.begin(), small_before.end(), small.data), "an over-capacity request changed row output");
+        bool missing_ids = false;
+        try { read_rows(file, nullptr, 1, scratch); }
+        catch (const std::invalid_argument&) { missing_ids = true; }
+        require(missing_ids, "a nonempty null-ID request was accepted");
         bool bad_file_extent = false;
         try { infer::WeightRows bad(quant::GGML_TYPE_Q8_0, 160, rows, reader, 37, data.size() + 1); }
         catch (const std::invalid_argument&) { bad_file_extent = true; }
         require(bad_file_extent, "a file span beyond the reader extent was accepted");
-        bool incompatible = false;
-        try { read_rows(file, ids.data(), ids.size(), scratch); }
-        catch (const std::invalid_argument&) { incompatible = true; }
-        require(incompatible, "memory scratch was reused for a file source");
-
         // A row wider than the I/O window is assembled from bounded reads.
         const size_t wide_row = quant::row_bytes(quant::GGML_TYPE_Q8_0, 4096);
         const auto wide = payload(4, wide_row);
-        const infer::WeightRows wide_memory(quant::GGML_TYPE_Q8_0, 4096, 4, wide.data(), wide.size());
-        check_rows(wide_memory, wide, wide_row, {3, 0, 3}, 3);
         const auto wide_path = dir / "weight-rows-wide.bin";
         std::vector<uint8_t> wide_file(11, 0x7c);
         wide_file.insert(wide_file.end(), wide.begin(), wide.end());
@@ -189,8 +160,13 @@ int main(int argc, char** argv) {
         auto wide_reader = std::make_shared<const format::FileReader>(wide_path.u8string());
         const infer::WeightRows wide_source(quant::GGML_TYPE_Q8_0, 4096, 4, wide_reader, 11, wide.size());
         check_rows(wide_source, wide, wide_row, {3, 0, 3}, 3);
+        bool incompatible = false;
+        infer::WeightRows::Scratch wide_scratch(wide_source, ids.size());
+        try { read_rows(file, ids.data(), ids.size(), wide_scratch); }
+        catch (const std::invalid_argument&) { incompatible = true; }
+        require(incompatible, "scratch of another row layout was reused");
 
-        // A read started ahead gives at finish the file's rows, from a file and from memory; finish without a start is refused.
+        // A read started ahead gives at finish the file's rows; finish without a start is refused.
         {
             infer::WeightRows::Scratch ahead(file, ids.size());
             file.start(ids.data(), ids.size(), ahead);
@@ -211,10 +187,6 @@ int main(int argc, char** argv) {
             require(next.unique == 2 && next.ids[0] == 6 && next.ids[1] == 7 && next.remap[0] == 0 && next.remap[2] == 0 &&
                         std::equal(next.data, next.data + 2 * row_bytes, data.data() + 6 * row_bytes),
                     "a read started over an abandoned one did not give its own rows");
-            infer::WeightRows::Scratch in_memory(memory, ids.size());
-            memory.start(ids.data(), ids.size(), in_memory);
-            const auto mem = memory.finish(in_memory);
-            require(mem.unique == 4 && std::equal(mem.data, mem.data + row_bytes, data.data() + 1 * row_bytes), "a memory read started ahead gave other rows");
             // A start that fails once its checks have passed, here at its first allocation, leaves finish refusing, never giving the last read's rows under the new ids.
             infer::WeightRows::Scratch failing(file, ids.size());
             read_rows(file, ids.data(), ids.size(), failing);

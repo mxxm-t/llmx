@@ -48,7 +48,7 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
   It validates before it swaps headers, keeps private globals under the MTP namespace, fills a complete PLE omission and restores only the legacy zero compression prefix.
   File spans, tensor order, offsets and payload owners are unchanged.
 
-The model takes resident PLE tables and explicit memory-backed or file-backed row sources.
+The model takes resident PLE tables and explicit file-backed row sources.
 The loader builds bounded sources from declared lookup tensor spans, and `PlacementRequest::lookup_storage` selects `auto`, `device` or `file` residency.
 The runtime stages requested packed rows for external sources, separately for normal and apart execution.
 

@@ -5,11 +5,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <random>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 #include "model/runtime.hpp"
@@ -31,6 +34,20 @@ void require(bool ok, const char* message) {
 
 // Two layers, so a layer boundary and a within-layer boundary can both be placed, and a context of two CPU blocks so a prompt can cross one.
 gguf::GGUFModel fixture() { return tiny_qwen(2, 2 * 128, true); }
+
+// A lookup table's source over `bytes` written to a file of its own, which main removes once every source and its reader are gone.
+std::vector<std::filesystem::path> table_files;
+std::shared_ptr<const infer::WeightRows> table_source(uint32_t type, size_t columns, size_t rows, const uint8_t* bytes, size_t size) {
+    const auto path = std::filesystem::temp_directory_path() /
+        ("llmx-placement-table-" + std::to_string(std::random_device{}()) + "-" + std::to_string(table_files.size()) + ".bin");
+    {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        out.write(reinterpret_cast<const char*>(bytes), std::streamsize(size));
+        if (!out) throw std::runtime_error("cannot write " + path.string());
+    }
+    table_files.push_back(path);
+    return std::make_shared<const infer::WeightRows>(type, columns, rows, std::make_shared<const format::FileReader>(path.u8string()), 0, size);
+}
 
 struct CountingCpu : backend::CpuBackend {
     int copies = 0, writes = 0, submits = 0;
@@ -326,8 +343,7 @@ void external_lookup_fits() {
 
     const infer::ModelOptions options;
     const infer::Footprint mapped = infer::footprint(weights, plan, options);
-    weights.tensors[tensor].row_source = std::make_shared<const infer::WeightRows>(type, columns, rows_in_table,
-                                                                                   table.data(), table.size());
+    weights.tensors[tensor].row_source = table_source(type, columns, rows_in_table, table.data(), table.size());
     const infer::Footprint external = infer::footprint(weights, plan, options);
     size_t mapped_layer_bytes = 0, external_layer_bytes = 0;
     for (const auto& matrix : mapped.layers[0]) mapped_layer_bytes += matrix.bytes;
@@ -920,8 +936,7 @@ void lookup_storage_planned() {
     const size_t tensor = weights.tensors.size();
     weights.tensors.push_back({"placement.lookup", {columns, rows}, quant::GGML_TYPE_F32,
                               reinterpret_cast<const uint8_t*>(table.data()), table.size() * sizeof(float)});
-    const auto source = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns, rows,
-                                                                 weights.tensors[tensor].data, weights.tensors[tensor].bytes);
+    const auto source = table_source(quant::GGML_TYPE_F32, columns, rows, weights.tensors[tensor].data, weights.tensors[tensor].bytes);
     const std::vector<infer::LookupCandidate> candidates{{tensor, source}};
     struct PlanningDevice : SizedDevice {
         size_t allocations = 0, adoptions = 0;
@@ -989,8 +1004,7 @@ void lookup_storage_planned() {
     };
     require(refused({{tensor, source}, {tensor, source}}) && refused({{tensor + 1, source}}) && refused({{tensor, {}}}),
             "invalid lookup candidates reached a placement probe");
-    const auto wrong = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns / 2, rows * 2,
-                                                                weights.tensors[tensor].data, weights.tensors[tensor].bytes);
+    const auto wrong = table_source(quant::GGML_TYPE_F32, columns / 2, rows * 2, weights.tensors[tensor].data, weights.tensors[tensor].bytes);
     require(refused({{tensor, wrong}}), "a lookup source with another row geometry reached a placement probe");
     for (infer::LookupStorage storage : {infer::LookupStorage::automatic, infer::LookupStorage::device, infer::LookupStorage::file})
         require(infer::lookup_storage_of(infer::lookup_storage_name(storage)) == storage, "lookup storage policy names do not round trip");
@@ -999,8 +1013,7 @@ void lookup_storage_planned() {
     infer::ModelWeights tiny = weights;
     tiny.tensors[tensor].shape[1] = 1;
     tiny.tensors[tensor].bytes = columns * sizeof(float);
-    const auto tiny_source = std::make_shared<const infer::WeightRows>(quant::GGML_TYPE_F32, columns, 1,
-                                                                     tiny.tensors[tensor].data, tiny.tensors[tensor].bytes);
+    const auto tiny_source = table_source(quant::GGML_TYPE_F32, columns, 1, tiny.tensors[tensor].data, tiny.tensors[tensor].bytes);
     const std::vector<infer::LookupCandidate> tiny_candidate{{tensor, tiny_source}};
     const auto tiny_plan = infer::plan_model(tiny);
     request.ubatch = 1024;
@@ -2107,6 +2120,7 @@ int main() {
         passes_continue();
         passes_match_alone();
         std::cout << "placement: " << checked << " checks across two, three and four CPU backends\n";
+        for (const auto& path : table_files) std::filesystem::remove(path);
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

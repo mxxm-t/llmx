@@ -532,7 +532,7 @@ All three give the same model, bit for bit. With `--verbose`, and always with `b
 
 Every model command accepts `--lookup-storage auto|device|file` for the immutable lookup tables an architecture declares; models without such tables are unchanged.
 `device` keeps the whole table on the devices that run its layers; where it fits only with less KV room the KV budget is cut to fit, and where it does not fit at all the load is refused.
-`file` reads each pass's rows from the model file and uploads only those packed rows: through the file's mapping in `--load-mode auto` and `mapped`, which commits no memory and leaves the rows to the page cache, and through direct reads in `direct`, which has no mapping.
+`file` reads each pass's rows from the model file on the table's own reader threads and uploads only those packed rows: buffered reads in `--load-mode auto` and `mapped`, which commit no memory and leave the rows to the file cache, and direct reads in `direct`; the table is never mapped.
 `auto` keeps the table on the devices where it fits beside the fitted KV budget, and otherwise reads it from the file.
 Lookup storage does not prefetch asynchronously or pin memory.
 

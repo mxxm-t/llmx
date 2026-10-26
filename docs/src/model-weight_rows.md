@@ -1,11 +1,7 @@
 # `src/model/weight_rows.hpp` - bounded immutable weight rows
 
-`infer::WeightRows` reads selected rows without mapping or reading an entire
-table. It retains a shared `format::FileReader` and a checked file span, or
-reads a memory span. The borrowed memory constructor leaves lifetime with its
-caller; the owning overload also accepts `shared_ptr<const void>` and keeps
-that owner until the `WeightRows` source is destroyed. This can retain a mapped
-file or other shared host allocation without coupling the reader to its type.
+`infer::WeightRows` reads selected rows from a table's file without mapping or reading the entire
+table. It retains a shared `format::FileReader` and a checked file span.
 Row size comes from the existing quantization storage description; reads
 preserve the stored bytes without dequantizing them.
 
@@ -14,11 +10,11 @@ A file source owns its readers, one set a table: `kReadThreads - 1` threads, sta
 `staging_bytes` is those windows' host bytes, `kReadThreads` granules for a direct source and none otherwise, which the fit counts once for the table (`LookupMemory::io_bytes`). Its capacity limits the number of requested
 rows, including duplicates. Physical page allocations round up to whole pages.
 Concurrent reads use separate scratch objects. Scratch is compatible only with
-the same row layout and source I/O mode and alignment.
+the same row layout.
 
 A read is `start` then `finish`, which a stage calls apart, across the layers before the one that uses the rows.
 `start` validates the request before changing output, sorts and deduplicates row IDs, and reads contiguous runs together.
-From a file it deals the runs to the table's `kReadThreads` readers on a thread `std::async` starts and returns at once; from memory it copies the rows before it returns.
+It deals the runs to the table's `kReadThreads` readers on a thread `std::async` starts and returns at once.
 `finish` waits for the read and returns the rows, rethrowing its failure; a `start` over a read never finished waits for that read and drops it, and a `Scratch` destroyed with a read in flight waits for it. Its result holds unique rows in
 ascending ID order and a remap restoring the original request order and
 duplicates. Buffered reads land in the row storage directly. Direct reads align their file ranges and use their reader's aligned
@@ -35,9 +31,7 @@ The `weight-rows` CTest fixture checks raw Q8_0 rows of width 160, request order
 duplicates, shape and extent refusals, unaligned spans, rows larger than the
 read window, concurrent reads, and direct I/O where the filesystem supports it.
 It checks a read started ahead against the file's rows, `finish` without a start refused, a start that fails after its checks leaving `finish` refusing, a start over an abandoned read, a scratch dropped with its read in flight, and a table of 600 rows read at every third row and some twice, more runs than readers.
-It also drops the caller's memory-owner reference, reads successfully while the
-source retains the allocation, and checks that Scratch does not extend that
-lifetime. On POSIX it truncates an open source and requires a short-read failure, at `finish` for a read started ahead.
+On POSIX it truncates an open source and requires a short-read failure, at `finish` for a read started ahead.
 
 ## Runtime integration
 
@@ -58,9 +52,8 @@ the host bytes before returning, and backend storage follows the execution
 context's ticket lifetime. File-backed GPU stages use the server's recorder
 outside its scheduler lock; the read runs on the table's readers while that thread records the layers before it.
 
-File sources retain their reader. Memory sources may borrow their span or
-retain a caller-supplied shared owner; Scratch never owns either source. The
-ordinary GGUF loader constructs bounded sources from declared tensor spans and
+A source retains its reader; Scratch never owns the source. The
+ordinary GGUF loader constructs bounded sources from declared tensor spans, buffered readers in `auto` and `mapped` and direct ones in `direct`, and
 applies the placement residency policy. This reader has
 no cross-pass row cache or concurrent-miss sharing, and reads no further ahead than its own stage. Addressing stays in the architecture and
 decoding in the backend; immutable table rows use no conversation-cache policy.

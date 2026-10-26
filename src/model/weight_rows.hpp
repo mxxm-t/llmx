@@ -19,8 +19,8 @@
 
 namespace infer {
 
-// Bounded immutable access to rows stored in their original GGUF format.
-// A file-backed table's rows are read on kReadThreads at once, its readers the table's, and a read can be started ahead of its use (start) and taken when needed (finish).
+// Bounded immutable access to rows stored in their original GGUF format, read from the table's file.
+// A table's rows are read on kReadThreads at once, its readers the table's, and a read can be started ahead of its use (start) and taken when needed (finish).
 class WeightRows {
 public:
     // A cold row of a compressed file system costs a record's read and decompression, so a table's rows are read in parallel (docs/STATUS.md, Lookup rows read ahead).
@@ -38,7 +38,7 @@ public:
     public:
         Scratch(const WeightRows& source, size_t max_rows)
             : type_(source.type_), columns_(source.columns_), row_bytes_(source.row_bytes_),
-              max_rows_(max_rows), file_(bool(source.reader_)),
+              max_rows_(max_rows),
               raw_(backend::size_mul(max_rows, source.row_bytes_)),
               order_(max_rows), remap_(max_rows), unique_(max_rows) {}
         Scratch(const Scratch&) = delete;
@@ -54,7 +54,6 @@ public:
         friend class WeightRows;
         uint32_t type_;
         size_t columns_, row_bytes_, max_rows_;
-        bool file_;
         core::HostPages raw_;
         std::vector<size_t> order_, remap_;
         std::vector<uint32_t> unique_;
@@ -62,19 +61,6 @@ public:
         bool started_ = false;
         std::future<void> pending_;          // a file read started and not yet finished
     };
-
-    WeightRows(uint32_t type, size_t columns, size_t rows, const uint8_t* memory, size_t bytes,
-               std::shared_ptr<const void> memory_owner = {})
-        : type_(type), columns_(columns), rows_(rows), row_bytes_(quant::row_bytes(type, columns)) {
-        if (!columns || (rows && rows - 1 > size_t(UINT32_MAX)))
-            throw std::invalid_argument("weight rows: dimensions exceed row ID range");
-        const size_t expected = backend::size_mul(row_bytes_, rows);
-        if (bytes != expected || (bytes && !memory))
-            throw std::invalid_argument("weight rows: memory extent does not match its shape");
-        memory_ = memory;
-        memory_owner_ = std::move(memory_owner);
-        bytes_ = bytes;
-    }
 
     WeightRows(uint32_t type, size_t columns, size_t rows,
                std::shared_ptr<const format::FileReader> reader, uint64_t offset, size_t bytes)
@@ -98,9 +84,9 @@ public:
     size_t row_bytes() const { return row_bytes_; }
     size_t bytes() const { return bytes_; }
     // The host bytes of the table's I/O windows, which the fit counts once for the table: a granule for each reader of a direct source, none for a buffered one, whose reads land in the rows.
-    size_t staging_bytes() const { return reader_ && reader_->direct() ? backend::size_mul(kReadThreads, reader_->granule()) : 0; }
+    size_t staging_bytes() const { return reader_->direct() ? backend::size_mul(kReadThreads, reader_->granule()) : 0; }
 
-    // Reads `ids` into `scratch`: from a file on its threads, returning at once, and from memory before it returns; finish takes the rows.
+    // Reads `ids` into `scratch` on the table's threads, returning at once; finish takes the rows.
     // A read the caller abandoned is waited for and dropped first, since a scratch holds one at a time; the ids are not kept, a request the table refuses throws here and a failed file read at finish.
     void start(const uint32_t* ids, size_t count, Scratch& scratch) const {
         if (scratch.pending_.valid()) {
@@ -110,7 +96,6 @@ public:
         scratch.started_ = false;
         if (scratch.type_ != type_ || scratch.columns_ != columns_ || scratch.row_bytes_ != row_bytes_)
             throw std::invalid_argument("weight rows: incompatible scratch");
-        if (scratch.file_ != bool(reader_)) throw std::invalid_argument("weight rows: scratch was made for another kind of source");
         if (count > scratch.max_rows_)
             throw std::length_error("weight rows: request exceeds scratch capacity");
         if (count && !ids) throw std::invalid_argument("weight rows: nonempty request has no IDs");
@@ -134,11 +119,6 @@ public:
             scratch.remap_[scratch.order_[i]] = scratch.unique_count_ - 1;
         }
 
-        if (!reader_) {
-            read_memory(scratch);
-            scratch.started_ = true;
-            return;
-        }
         // Contiguous ids are one span and each span one read, the spans dealt to the table's readers, the thread std::async starts among them; the table reads for one scratch at a time.
         std::vector<Span> spans;
         for (size_t i = 0, out = 0; i < scratch.unique_count_;) {
@@ -194,11 +174,6 @@ private:
         std::vector<core::HostPages> windows;
     };
 
-    void read_memory(Scratch& scratch) const {
-        for (size_t i = 0; i < scratch.unique_count_; ++i)
-            std::memcpy(scratch.raw_.data() + backend::size_mul(i, row_bytes_), memory_ + backend::size_mul(scratch.unique_[i], row_bytes_), row_bytes_);
-    }
-
     // A span read through an aligned window, a chunk the window holds at a time.
     static void read_direct(const format::FileReader& reader, const Span& s, uint8_t* window, size_t capacity) {
         const size_t g = reader.granule();
@@ -220,8 +195,6 @@ private:
 
     uint32_t type_;
     size_t columns_, rows_, row_bytes_, bytes_ = 0;
-    const uint8_t* memory_ = nullptr;
-    std::shared_ptr<const void> memory_owner_;
     std::shared_ptr<const format::FileReader> reader_;
     std::shared_ptr<Readers> readers_;
     uint64_t offset_ = 0;

@@ -380,9 +380,8 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     }
     std::optional<PlannedModel> placement;
     if (!lookups.empty()) placement = plan_placement(weights, backends, request, options, lookups);
-    // A table read from its file reads its rows through the mapping, so a load that maps maps the payload for it; it never joins the stream or the warming.
-    const bool lookup_file = placement && std::find(placement->lookups.begin(), placement->lookups.end(), LookupStorage::file) != placement->lookups.end();
-    if (mode == LoadMode::mapped || (mode == LoadMode::automatic && (host || lookup_file))) gguf::map_payload(file);
+    // A table read from its file reads through its own reader, so the payload is mapped only for weights a host reads in place; the table never joins the stream or the warming.
+    if (mode == LoadMode::mapped || (mode == LoadMode::automatic && host)) gguf::map_payload(file);
     for (size_t i : every) weights.tensors[i].data = file.tensor_data(i);
     // A direct load gives a host a copy of each file laid out as the file, so every weight keeps the offset within its page the mapping would give it: address space now, memory once the model says which weights the host reads.
     if (mode == LoadMode::direct && host) {
@@ -402,15 +401,9 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
         TensorView& t = weights.tensors[i];
         if (placement->lookups[n] == LookupStorage::device) continue;
         external[i] = 1;
-        // Under direct there is no mapping, so the rows are read through the file's direct reader; otherwise the rows are read in place from the mapping, which the source keeps.
-        if (mode == LoadMode::direct) {
-            t.row_source = lookups[n].file;
-            t.data = nullptr;
-        } else {
-            const format::FileSpan span = file.span(i);
-            const auto segment = std::find_if(file.segments.begin(), file.segments.end(), [&](const gguf::GGUFModel::Segment& s) { return s.path == span.file; });
-            t.row_source = std::make_shared<const WeightRows>(t.type, size_t(t.shape[0]), size_t(t.shape[1]), t.data, t.bytes, segment->file);
-        }
+        // In every mode the rows are read through the table's readers from the file's reader, direct under direct and buffered otherwise, never from a mapping.
+        t.row_source = lookups[n].file;
+        t.data = nullptr;
     }
     if (mode == LoadMode::mapped) {
         std::vector<size_t> warmed;

@@ -189,7 +189,7 @@ HF top-k tie behavior is unspecified, so the tests claim no HF tie-membership pa
 | Persistent sequence state and rollback | The shared runtime, history and backend storage, extended by declared state requirements (section 4) rather than architecture-name branches |
 | Immutable lookup rows | `src/model/weight_rows.hpp` (`WeightRows`) reads bounded rows from memory or a file; `TensorView::row_source` connects a declared lookup to the runtime, and `Model::start_lookup` and `Model::finish_lookup` in `src/model/passes.hpp` stage each pass's rows |
 | Lookup storage | `src/model/place.hpp`: `PlacementRequest::lookup_storage` and the fit choose `device` or `file` for each table (section 3) |
-| File opening, model spans and loading progress | `src/inference/load.hpp` builds each table's row source over its exact `format::FileSpan` before placement, and holds the mapping or the direct reader the chosen storage reads through |
+| File opening, model spans and loading progress | `src/inference/load.hpp` builds each table's row source over its exact `format::FileSpan` before placement, and holds the buffered or direct reader the chosen storage reads through |
 | Memory fit and placement | `src/model/place.hpp`, `layer_split.hpp` and `shard.hpp` over the module's declarations |
 | CLI and server | Parse supported settings and invoke the existing model path; no hash, tensor-layout, loading or table-residency logic |
 
@@ -203,7 +203,7 @@ Hashing, row layout interpretation and the learned operations stay in the archit
 `--lookup-storage` chooses where each declared table lives, independent of `--load-mode` ([USAGE](USAGE.md)):
 
 - `device` keeps the whole table on the devices that run its layer; under a fitted KV budget the budget is fitted beside the table, and otherwise a table that does not fit is refused.
-- `file` reads each pass's rows from the model file and uploads only those packed rows: through the file's mapping in `--load-mode auto` and `mapped`, and through direct reads in `direct`.
+- `file` reads each pass's rows from the model file on the table's reader threads and uploads only those packed rows: buffered reads in `--load-mode auto` and `mapped` and direct reads in `direct`; the table is never mapped.
 - `auto` takes `device` where the table fits beside the fitted KV budget, and `file` otherwise.
 
 The loader (`src/inference/load.hpp`) builds a `WeightRows` source over each table's exact file span, and placement (`plan_placement` in `src/model/place.hpp`) chooses each table's storage before the loader reads any whole table.

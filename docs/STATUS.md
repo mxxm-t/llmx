@@ -1,5 +1,16 @@
 # llmx - Development Status
 
+## A lookup table read from its file reads on its own readers in every load mode (2026-10-26, branch fix/lookup-rows-reader on main 7300e94ac, the owner's decision of 2026-10-26, lands by fast-forward as two commits)
+
+- **Why:** under `--load-mode auto` and `mapped` the loader gave a table read from its file a second source, a view over the payload's mapping, which `WeightRows::start` copied a row at a time on the stage's thread; only `direct` reached the table's readers that read ahead on 16 threads.
+  Qwen3.8-Flash-Next's table (`per_layer_token_embd`, IQ4_NL, 90-byte rows, 26.8 GiB, 16 random rows a token) is larger than production's 16 GiB ARC, so a fresh prompt waited on its cold rows one page fault at a time: production's flags gave fresh 2048-token prompts 331-415 tok/s against 951 for the warm bench (`lw/pc5`).
+  A probe of 8192 random rows of the table read 5.8-6.1K rows/s on one thread and 35-42K rows/s on 16, flat to 128 (`s8/rowprobe*`).
+- **The change:** the loader gives the table its file reader in every mode, buffered in `auto` and `mapped` and direct in `direct`, and maps the payload in `auto` only for weights a host reads in place. `WeightRows`' memory source and its memory copy go, so a table has one source and one read path.
+- **Tests:** the first commit, failing on main: `qwen4exp-model`'s loader checks require a table read from its file to hold no share of the payload's mapping under `auto` and `mapped`. `weight-rows`, `placement` and `qwen4exp-model` build their tables over files.
+- **Checked:** the test commit fails on main ("loader: auto reads its lookup table through the mapping") and passes here, with its 3 HF cases on the CPU in every load mode. CTest `load-progress`, `weight-rows`, `placement`, `arch-qwen4exp`, `qwen4exp-graph` and `kv-selection` pass, as do the `docs` and `dead-code` components. Greedy ids equal main's on the tiny Flash fixture on the CPU in `auto`, `mapped` and `direct` (3 prompts of 12 tokens), and on Qwen3.8-Flash-Next UD-Q4_K_XL on 2x2 (int8, 24 tokens after 3930 tokens of real text).
+- **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL, production's serve flags, GPUs 4-7 and CPUs 4-7,12-15 at default clocks, main 7300e94ac against 965a00472 built the same way, servers main, fix, fix, main, each given four fresh 2048-token prompts at max_tokens 1, `lw/rft`): main 334-360 tok/s with a time to first token of about 5.9 s, the fix 881-898 tok/s with 2.3 s.
+  Another project's model conversion held about 45 GiB of host memory and read and wrote the pool for the whole round, at times leaving the ARC at 2-3 GiB, so these figures are measured under that load; a block on a quiet host is a record that follows.
+
 ## One owner for making a file durable (2026-10-26, branch fix/file-sync-owner on main 7300e94ac, lands by fast-forward as two commits)
 
 - **Goal:** the disk store flushed with plain `fsync`, so on macOS a cache entry, a claim's identity write and a claimed file could sit in the drive's cache after the store reported them durable, while `FileWriter::sync` used `F_FULLFSYNC`. One owner in `core/file_sync.hpp` gives both the strongest call per platform.

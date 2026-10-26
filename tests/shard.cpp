@@ -172,7 +172,14 @@ std::vector<uint8_t> expected(const infer::Role& role, const infer::TensorView& 
     return out;
 }
 
-// The plan passes the checks at `width`, and each split role, every member: its runs pack the oracle's bytes, its shape counts them, and unless replicated the members' bytes add up to the tensor's.
+// The file runs of a member's copy, in the order the description gives them.
+std::vector<infer::shard::Run> file_runs(const infer::shard::Held& h) {
+    std::vector<infer::shard::Run> out;
+    infer::shard::file_runs(h, 0, SIZE_MAX, [&](const infer::shard::Run& r) { out.push_back(r); });
+    return out;
+}
+
+// The plan passes the checks at `width`, and each split role, every member: its copy packs the oracle's bytes, its shape counts them, and unless replicated the members' bytes add up to the tensor's.
 void reassemble(const infer::ModelPlan& plan, const std::vector<infer::TensorView>& views, size_t width, const std::string& label) {
     infer::shard::check_plan(plan, views, width);
     auto each = [&](const infer::Role& role) {
@@ -182,11 +189,11 @@ void reassemble(const infer::ModelPlan& plan, const std::vector<infer::TensorVie
         bool replicated = false;
         for (const infer::ShardSection& s : role.shard.sections) replicated = replicated || s.units % width != 0;
         for (size_t m = 0; m < width; ++m) {
-            const std::vector<infer::shard::Run> runs = infer::shard::runs(role, t, width, m);
-            std::vector<uint8_t> packed(infer::shard::bytes(runs));
-            infer::shard::pack(runs, t.data, packed.data());
+            const infer::shard::Held held = infer::shard::held(role, t, width, m);
+            const std::vector<infer::shard::Run> runs = file_runs(held);
+            std::vector<uint8_t> packed(held.bytes);
+            infer::shard::pack(held, t.data, packed.data());
             require(packed == expected(role, t, width, m), label + ": member " + std::to_string(m) + "'s bytes of " + role.name + " are not its shard");
-            require(infer::shard::held_bytes(role, t, width, m) == packed.size(), label + ": member " + std::to_string(m) + "'s held bytes of " + role.name + " are not its runs'");
             const std::vector<uint64_t> shape = infer::shard::shape(role, t, width, m);
             size_t rows = 1;
             for (size_t d = 1; d < shape.size(); ++d) rows *= size_t(shape[d]);
@@ -232,7 +239,7 @@ void spans_by_hand() {
     require(spans_text(infer::shard::spans(role_named(plan, "blk.0.ssm_conv1d.weight"), 2, 0)) == "[0+256][512+256][1024+512][2048+512][3072+512]", "the conv's channels at width 2");
     {
         const infer::Role norm = role_named(plan, "blk.0.ssm_norm.weight");
-        const std::vector<infer::shard::Run> runs = infer::shard::runs(norm, w.tensors[*norm.tensor], 4, 2);
+        const std::vector<infer::shard::Run> runs = file_runs(infer::shard::held(norm, w.tensors[*norm.tensor], 4, 2));
         require(runs.size() == 1 && runs[0].from == 0 && runs[0].bytes == 128 * 4 && runs[0].to == 0, "ssm_norm is whole on every member");
     }
     // A full-attention layer's q heads of 256 rows with their gates, and its heads' 256 columns of attn_output.
@@ -297,12 +304,12 @@ void covers() {
                 for (const char* name : {"blk.0.ffn_gate_exps.weight", "blk.0.ffn_up_exps.weight"}) {
                     const infer::Role role = role_named(plan, name);
                     const infer::TensorView& t = w.tensors[*role.tensor];
-                    const std::vector<infer::shard::Run> runs = infer::shard::runs(role, t, width, m);
+                    const infer::shard::Held held = infer::shard::held(role, t, width, m);
+                    const std::vector<infer::shard::Run> runs = file_runs(held);
                     const size_t row = quant::row_bytes(type, E);
-                    std::vector<uint8_t> packed(infer::shard::bytes(runs), 0xa5);
-                    infer::shard::pack(runs, t.data, packed.data());
+                    std::vector<uint8_t> packed(held.bytes, 0xa5);
+                    infer::shard::pack(held, t.data, packed.data());
                     require(packed.size() == X * (c1 - c0) * row && infer::shard::share(role, width, m) == c1 - c0 && infer::shard::shape(role, t, width, m)[1] == c1 - c0, at + ": the covered rows of " + name);
-                    require(infer::shard::held_bytes(role, t, width, m) == packed.size(), at + ": the held bytes of " + name + " are not its runs'");
                     bool ok = true;
                     for (size_t x = 0; x < X; ++x)
                         for (size_t r = c0; r < c1; ++r) {
@@ -312,14 +319,14 @@ void covers() {
                         }
                     require(ok, at + ": " + name + " does not hold the file's rows where it owns a column and zero rows elsewhere");
                     for (size_t k = 1; k < runs.size(); ++k)
-                        require(runs[k - 1].zero ? runs[k].zero : (runs[k].zero || runs[k].from >= runs[k - 1].from + runs[k - 1].bytes), at + ": the file's runs of " + name + " are not in the tensor's order before its zero runs");
+                        require(runs[k].from >= runs[k - 1].from + runs[k - 1].bytes && runs[k].to >= runs[k - 1].to + runs[k - 1].bytes, at + ": the file's runs of " + name + " are not in the tensor's order");
                 }
                 const infer::TensorView& t = w.tensors[*down.tensor];
-                const std::vector<infer::shard::Run> runs = infer::shard::runs(down, t, width, m);
-                std::vector<uint8_t> packed(infer::shard::bytes(runs));
-                infer::shard::pack(runs, t.data, packed.data());
+                const infer::shard::Held held = infer::shard::held(down, t, width, m);
+                std::vector<uint8_t> packed(held.bytes);
+                infer::shard::pack(held, t.data, packed.data());
                 const size_t row = quant::row_bytes(type, F), part = quant::row_bytes(type, c1 - c0), skip = quant::row_bytes(type, c0);
-                bool ok = packed.size() == X * E * part && infer::shard::shape(down, t, width, m)[0] == c1 - c0 && infer::shard::held_bytes(down, t, width, m) == packed.size();
+                bool ok = packed.size() == X * E * part && infer::shard::shape(down, t, width, m)[0] == c1 - c0;
                 for (size_t r = 0; ok && r < X * E; ++r) ok = !std::memcmp(packed.data() + r * part, t.data + r * row + skip, part);
                 require(ok, at + ": the down stack does not hold the file's bytes of every covered column");
             }
@@ -338,10 +345,10 @@ void covers() {
     for (size_t m = 0; m < 4; ++m) {
         const size_t c0 = m / 2 * 256, own0 = m * 128;
         require(spans_text(infer::shard::spans(down, 4, m)) == "[" + std::to_string(c0) + "+256]" && infer::shard::shape(down, w.tensors[*down.tensor], 4, m)[0] == 256, "a shared expert's down projection is not covered by one block at width 4");
-        const std::vector<infer::shard::Run> runs = infer::shard::runs(gate, t, 4, m);
-        std::vector<uint8_t> packed(infer::shard::bytes(runs), 0xa5);
-        infer::shard::pack(runs, t.data, packed.data());
-        bool ok = packed.size() == 256 * row && infer::shard::held_bytes(gate, t, 4, m) == packed.size();
+        const infer::shard::Held held = infer::shard::held(gate, t, 4, m);
+        std::vector<uint8_t> packed(held.bytes, 0xa5);
+        infer::shard::pack(held, t.data, packed.data());
+        bool ok = packed.size() == 256 * row;
         for (size_t r = 0; ok && r < 256; ++r)
             for (size_t b = 0; ok && b < row; ++b) ok = packed[r * row + b] == (c0 + r >= own0 && c0 + r < own0 + 128 ? t.data[(c0 + r) * row + b] : 0);
         require(ok, "a shared expert's gate rows at width 4, member " + std::to_string(m));

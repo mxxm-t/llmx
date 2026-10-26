@@ -24,7 +24,7 @@ struct Span {
 };
 
 // A run of a tensor's bytes a member holds: `bytes` from offset `from` in the tensor, at offset `to` in the member's packed copy.
-// A `zero` run is `bytes` of zeros at `to`, a covered row that is another member's; its `from` is the tensor's size, past every byte a file run names, and zero runs follow the file runs, which stay in the tensor's order.
+// A `zero` run is `bytes` of zeros at `to`, a covered row that is another member's.
 struct Run {
     size_t from = 0, bytes = 0, to = 0;
     bool zero = false;
@@ -111,65 +111,88 @@ inline void check_plan(const ModelPlan& plan, const std::vector<TensorView>& vie
     if (plan.drafter) each(plan.drafter->roles);
 }
 
-// The bytes of `role`'s tensor `t` member `member` of `width` holds, as runs of the tensor's bytes in the order they are packed: whole rows of each span on the row axis, and each row's spans on the column axis.
-// At width 1 or for an axis of none it is one run of the whole tensor; on the row axis a row another member covers is zero bytes, which every storage type decodes as zeros.
-inline std::vector<Run> runs(const Role& role, const TensorView& t, size_t width, size_t member) {
-    if (role.shard.axis == Axis::none || width == 1) return {Run{0, t.bytes, 0}};
+// A member's copy of a role's tensor, described without listing a run a row (docs/src/model-shard.md): the row axis's parts or the column axis's spans of a row.
+struct Held {
+    Axis axis = Axis::none;
+    size_t bytes = 0;          // the packed copy's size
+    size_t row = 0;            // a tensor row's bytes
+    size_t packed_row = 0;     // column axis: the bytes a row packs
+    size_t rows = 0;           // column axis: the tensor's rows
+    std::vector<Part> parts;   // row axis, in rows
+    std::vector<Run> columns;  // column axis: a row's spans as runs within one row
+};
+
+// Member `member` of `width`'s copy of `role`'s tensor `t`.
+inline Held held(const Role& role, const TensorView& t, size_t width, size_t member) {
+    Held h;
+    if (role.shard.axis == Axis::none || width == 1) {
+        h.bytes = t.bytes;
+        return h;
+    }
+    h.axis = role.shard.axis;
     const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);
-    const size_t row = quant::row_bytes(t.type, nin);
-    std::vector<Run> out, zeros;
-    size_t at = 0;
-    auto add = [&](std::vector<Run>& list, size_t from, size_t bytes, bool zero) {
-        if (bytes && !list.empty() && list.back().to + list.back().bytes == at && (zero || list.back().from + list.back().bytes == from)) list.back().bytes += bytes;
-        else if (bytes) list.push_back(Run{from, bytes, at, zero});
-        at += bytes;
-    };
-    if (role.shard.axis == Axis::rows) {
-        for (const Part& p : parts(role, width, member)) {
-            add(zeros, t.bytes, backend::size_mul(size_t(p.own.begin - p.cover.begin), row), true);
-            add(out, backend::size_mul(size_t(p.own.begin), row), backend::size_mul(size_t(p.own.count), row), false);
-            add(zeros, t.bytes, backend::size_mul(size_t(p.cover.begin + p.cover.count - p.own.begin - p.own.count), row), true);
+    h.row = quant::row_bytes(t.type, nin);
+    if (h.axis == Axis::rows) {
+        h.parts = parts(role, width, member);
+        for (const Part& p : h.parts) h.bytes = backend::size_add(h.bytes, backend::size_mul(size_t(p.cover.count), h.row));
+        return h;
+    }
+    for (const Span& s : spans(role, width, member)) {
+        const size_t n = quant::row_bytes(t.type, size_t(s.count));
+        h.columns.push_back(Run{quant::row_bytes(t.type, size_t(s.begin)), n, h.packed_row});
+        h.packed_row = backend::size_add(h.packed_row, n);
+    }
+    h.rows = h.row ? t.bytes / h.row : 0;
+    h.bytes = backend::size_mul(h.rows, h.packed_row);
+    return h;
+}
+
+// The file runs of `h` that meet the tensor's bytes [lo, hi), cut to that range, in the tensor's order and joined where they follow one another in the tensor and in the copy: f(Run) for each.
+template <class F>
+inline void file_runs(const Held& h, size_t lo, size_t hi, F f) {
+    Run open{0, 0, 0, false};
+    auto add = [&](size_t from, size_t bytes, size_t to) {
+        const size_t a = std::max(from, lo), b = std::min(from + bytes, hi);
+        if (a >= b) return;
+        if (open.bytes && open.from + open.bytes == a && open.to + open.bytes == to + (a - from)) {
+            open.bytes += b - a;
+            return;
         }
-    } else {
-        const std::vector<Span> held = spans(role, width, member);
-        const size_t rows = row ? t.bytes / row : 0;
-        for (size_t r = 0; r < rows; ++r)
-            for (const Span& s : held) add(out, r * row + quant::row_bytes(t.type, size_t(s.begin)), quant::row_bytes(t.type, size_t(s.count)), false);
+        if (open.bytes) f(open);
+        open = Run{a, b - a, to + (a - from), false};
+    };
+    if (h.axis == Axis::none) {
+        add(0, h.bytes, 0);
+    } else if (h.axis == Axis::rows) {
+        size_t base = 0;
+        for (const Part& p : h.parts) {
+            add(size_t(p.own.begin) * h.row, size_t(p.own.count) * h.row, base + size_t(p.own.begin - p.cover.begin) * h.row);
+            base += size_t(p.cover.count) * h.row;
+        }
+    } else if (h.row) {
+        for (size_t r = lo / h.row; r < h.rows && r * h.row < hi; ++r)
+            for (const Run& c : h.columns) add(r * h.row + c.from, c.bytes, r * h.packed_row + c.to);
     }
-    out.insert(out.end(), zeros.begin(), zeros.end());
-    return out;
+    if (open.bytes) f(open);
 }
 
-// The size of member `member`'s packed copy of `role`'s tensor `t`, as bytes(runs(...)) counts it, without listing the runs.
-inline size_t held_bytes(const Role& role, const TensorView& t, size_t width, size_t member) {
-    if (role.shard.axis == Axis::none || width == 1) return t.bytes;
-    const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);
-    const size_t row = quant::row_bytes(t.type, nin);
-    size_t n = 0;
-    if (role.shard.axis == Axis::rows) {
-        for (const Part& p : parts(role, width, member)) n = backend::size_add(n, backend::size_mul(size_t(p.cover.count), row));
-        return n;
+// The zero runs of `h`, the rows it covers on the row axis and another member owns, at their places in the copy: f(Run) for each.
+template <class F>
+inline void zero_runs(const Held& h, F f) {
+    if (h.axis != Axis::rows) return;
+    size_t base = 0;
+    for (const Part& p : h.parts) {
+        const size_t before = size_t(p.own.begin - p.cover.begin) * h.row, after = size_t(p.cover.begin + p.cover.count - p.own.begin - p.own.count) * h.row;
+        if (before) f(Run{0, before, base, true});
+        if (after) f(Run{0, after, base + before + size_t(p.own.count) * h.row, true});
+        base += size_t(p.cover.count) * h.row;
     }
-    for (const Span& s : spans(role, width, member)) n = backend::size_add(n, quant::row_bytes(t.type, size_t(s.count)));
-    return backend::size_mul(row ? t.bytes / row : 0, n);
 }
 
-// The bytes the runs pack.
-inline size_t bytes(const std::vector<Run>& runs) {
-    size_t n = 0;
-    for (auto r = runs.rbegin(); r != runs.rend(); ++r) {
-        n = std::max(n, r->to + r->bytes);
-        if (!r->zero) break;
-    }
-    return n;
-}
-
-// A member's packed copy of a tensor whose bytes are at `src`, into `dst`, which holds bytes(runs).
-inline void pack(const std::vector<Run>& runs, const uint8_t* src, uint8_t* dst) {
-    for (const Run& r : runs) {
-        if (r.zero) std::memset(dst + r.to, 0, r.bytes);
-        else std::memcpy(dst + r.to, src + r.from, r.bytes);
-    }
+// A member's packed copy of a tensor whose bytes are at `src`, into `dst`, which holds h.bytes.
+inline void pack(const Held& h, const uint8_t* src, uint8_t* dst) {
+    file_runs(h, 0, SIZE_MAX, [&](const Run& r) { std::memcpy(dst + r.to, src + r.from, r.bytes); });
+    zero_runs(h, [&](const Run& r) { std::memset(dst + r.to, 0, r.bytes); });
 }
 
 // The rows or columns of `role` member `member` of `width` holds along its axis, an expert stack's rows those of one expert.

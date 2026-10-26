@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Construct and the stream take a shard's description, not its runs (2026-10-26, SDEV, branch feat/shard-held on feat/load-readers, step 3 of the server startup plan the owner decided, lands by fast-forward as one commit after step 1)
+
+- **Goal:** construct took 12.0 s of Qwen3.8-Flash-Next's start on production's cell, listing about 63M runs a member of 32 bytes each, about 4 GB of host memory held through the load (estimated), for the rows of expert stacks' column shards that the stream packs anyway; a mapped load wrote each of those runs to its device one by one.
+- **Done:** `shard::Held` describes a member's copy (its size, the row axis's parts, the column axis's spans of a row), `file_runs` and `zero_runs` give its runs a range at a time, and `pack` makes it; the fit, construct (`AdoptWeight` takes the description), `planning_adopt` and the stream take it, `put_runs` sends a part's runs, packing those under a page, for the stream and a mapped load alike, and `shard::runs`, `shard::bytes` and step 1's `held_bytes` are gone.
+- **Measured** (production's cell, the slot of 2026-10-27 05:49-06:37 UTC, against step 1, arms built alike at main 458f45fda): the process's peak resident memory through the load 0.73 and 1.25 GiB against 4.19 and 4.19 GiB, 0.30 GiB against 4.19 as the stream starts; the fit and construct 8.1 and 6.8 s against 17.9 and 18.3 s; start to serving 252.5 and 186.6 s against 194.0 and 186.9 s, its run a streaming at 351 MB/s while other work kept the host's CPUs 96% busy, its run b level.
+- **Checked:** F2DEV approved (01:04) and confirmed after the rebase (02:56); CTest 90 of 90, docs and dead-code pass, and the hosted run passes at df33b34b4; Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M give main's 64 greedy tokens and logits on the CPU.
+- **Gates:** byte identity on the Radeon VII as step 1's, equal, and the suite on the Radeon VII at the stack's top, every component passing; and Qwen3.8-Flash-Next UD-Q4_K_XL over 2x2 with production's flags gives main 5e90171a8's 24 greedy ids after a 3930-token text, its construct taking 0.44 s against main's 13.38. Reviewed by F2DEV; lands by fast-forward after step 2.
+- **Gotchas:** depends on step 1 (feat/fit-shard-bytes), which lands first.
+
 ## The load keeps eight reads in flight (2026-10-26, SDEV, branch feat/load-readers on feat/fit-shard-bytes, step 2 of the server startup plan the owner decided, lands by fast-forward as one commit)
 
 - **Goal:** the stream of a load read Qwen3.8-Flash-Next's 79.88 GiB in 174.7 s on production's cell, two 16 MiB reads in flight on a pool of SATA SSDs whose 16 KiB records stripe each read over four disks in 4 KiB pieces; eight readers and sixteen slots read it in 82.4 s (Server startup profiled end to end, below).
@@ -13,11 +22,11 @@
 ## The fit counts a shard's bytes without listing its runs (2026-10-26, SDEV, branch feat/fit-shard-bytes on 5e90171a8, step 1 of the server startup plan the owner decided, lands by fast-forward as one commit)
 
 - **Goal:** the fit (`fitted_kv`) took 338.7 s of Qwen3.8-Flash-Next's 527.6 s start on production's cell, each `footprint` at tensor width 2 taking 14.9 s because `shard::runs` listed about 63M runs a member for `shard::bytes` to count them (Server startup profiled end to end, below).
-- **Done:** `shard::held_bytes` counts a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` takes a shard's bytes from it; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
+- **Done:** `shard::held_bytes` counted a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` took a shard's bytes from it, which step 3's description (`shard::Held`) now gives; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
 - **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL, production's serve flags over 2x2 on GPUs 4-7 and CPUs 4-7,12-15 at default clocks, 2026-10-27 05:49-06:37 UTC, arms built alike at main 458f45fda, in the order m s1 s2 s3 s3 s2 s1 m, production serving beside them): from the process's start to serving 528.8 and 522.9 s on main, 194.0 and 186.9 s here; the fit and construct 349.0 and 348.6 s against 17.9 and 18.3 s; every arm placed 599360 KV tokens, 16 checkpoints taking 40512 and the same split.
 - **Checked:** F2DEV approved (22:02) and confirmed after the rebase onto main ac940c059 (02:56); CTest 90 of 90, docs and dead-code pass, and the hosted run passes at b5b699f4e; Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M give main's 64 greedy tokens and logits on the CPU.
 - **Gates:** the model tier: byte identity on the Radeon VII too (Qwen3-0.6B BF16 on the device and Qwen3-30B-A3B Q4_K_M with 12 layers' experts on the CPU, 64 greedy tokens and logits, main ac940c059's), and the suite on the Radeon VII at b5b699f4e, every component passing; the timing round is the slot above. Reviewed by F2DEV; lands by fast-forward on main 5e90171a8.
-- **Gotchas:** `shard::runs` and `shard::bytes` stay for construct and the stream until step 3 moves them onto the same description, and the test of the two counts goes with them.
+- **Gotchas:** step 3 moved construct and the stream onto the same description, and the run list, its byte count and the test of the two counts went with it.
 
 ## A function call's value is written by the JSON types its schema admits (2026-10-27, TDEV, branch fix/tool-arg-types on main 5e90171a8, the owner's production report through the coordinator, lands by fast-forward as two commits)
 

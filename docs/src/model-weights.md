@@ -27,8 +27,8 @@ The part of the architecture contract that the loader and a file's reader use as
   gives an absent name as `nullopt` and `at` refuses it with `missing(name)`
   ("missing tensor"), the text the model's resolution also gives for a role
   without a tensor, so each has one owner. It lives no longer than the views.
-- `AdoptWeight`: `std::function<BufferPtr(size_t tensor, Backend&, const std::vector<shard::Run>& runs)>`, how
-  the model's builder puts a tensor on a backend: the whole tensor with no runs, or a tensor group's member's shard, the bytes `runs` names packed in their order ([shard](model-shard.md)). The model calls it once
+- `AdoptWeight`: `std::function<BufferPtr(size_t tensor, Backend&, const shard::Held* shard)>`, how
+  the model's builder puts a tensor on a backend: the whole tensor where `shard` is null, or a tensor group's member's shard, the copy `shard` describes ([shard](model-shard.md)). The model calls it once
   for each backend that hosts a weight's role, and without one it calls
   `Backend::adopt(view.data, view.bytes)`, or adopts a packed copy of a member's shard that it keeps. The loader's hook
   (`infer::planning_adopt`) adopts a weight on a backend that reads in place

@@ -349,7 +349,7 @@ public:
             try {
                 std::string digest;
                 for (const std::string& file : model_files(options_.model_path))
-                    digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file);
+                    digest += (digest.empty() ? "" : " ") + format::cached_file_sha256((std::filesystem::u8path(options_.dir) / "digests").u8string(), file, &stop_);
                 const std::string text = disk_identity(digest, layout, options_.build ? *options_.build : build_facts());
                 const std::array<uint8_t, 32> identity = DiskStore::identity_of(text);
                 DiskStore::Options o;
@@ -378,8 +378,9 @@ public:
             if (wake_) wake_();
         });
     }
-    // Stops the write in flight; the store then leaves or removes its directory, and no call reads a slab any more.
+    // Stops the write in flight, and a digest still being read; the store then leaves or removes its directory, and no call reads a slab any more.
     void close() {
+        stop_ = true;
         if (starter_.joinable()) starter_.join();
         std::unique_ptr<DiskStore> store;
         {
@@ -1206,6 +1207,7 @@ private:
     DiskOptions options_;
     std::function<void()> wake_;
     std::thread starter_;
+    std::atomic<bool> stop_{false};      // set by close, which a digest still being read stops at
     mutable std::mutex m_;
     std::unique_ptr<DiskStore> store_;   // under m_, once made
     bool ready_ = false, writing_ = false, adopted_taken_ = false;   // under m_

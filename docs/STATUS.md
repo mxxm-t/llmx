@@ -81,6 +81,12 @@ With steps 1 and 2 a start measured 101.8 s to listening against 527.6, and with
 - **Why:** `reference-generator` checked `iq3-s --threads 2` refused without taking stderr, so every suite run printed "run_tests.py: error: iq3-s uses fixed synthetic raw blocks and one thread; only --output-dir applies" into its log, where it reads as a failure.
 - **Done:** the check takes stderr as its neighbours do and also holds the exit status to 2. `tests/reference_generator.py` passes its 85 tests on the CPU with the line gone; the hosted run is the rest of its gate.
 
+## A stop ends the disk tier's model digest (2026-10-26, branch fix/disk-digest-stop on main 8632074e8, the image gate's leg 4 finding, lands by fast-forward as two commits)
+
+- **Why:** `DiskTier::close` joined the thread that reads every model file's SHA-256 before the store exists, and nothing stopped that read, so a server stopped within minutes of a start with uncached digests (a new disk directory or new model files) waited for the whole hash: the image gate's Flash-Next server, on a fresh disk directory, outlived `docker stop -t 120` that way with shards 2 to 4 still being read.
+- **Done:** `format::file_sha256` and `cached_file_sha256` take a stop flag checked between 64 MiB pieces, which `close` sets before the join; the starter then prints that there is no disk cache. `server-resume`'s `disk_stop_digest` grows the model file to 64 GiB of holes and requires a server stopped half a second after the start to stop within 10 s with no tier made, where it took 94 s before (on POSIX; Windows prints that it does not check). Under `--disk-cache-keep` a flush that finds the store not made yet writes nothing and does not wait out its 20 s bound (F2DEV's ruling of 20:31), held by the same case under keep. `file-reader` holds the stop itself: a stop set before the call and one set while a 2 GiB file of holes is read each end it with "was stopped before its end" and cache nothing, and the next call reads it whole and caches it.
+- **Left:** the hosted run at the landing head.
+
 ## A lookup table read from its file reads on its own readers in every load mode (2026-10-26, branch fix/lookup-rows-reader on main 7300e94ac, the owner's decision of 2026-10-26, lands by fast-forward as two commits)
 
 - **Why:** under `--load-mode auto` and `mapped` the loader gave a table read from its file a second source, a view over the payload's mapping, which `WeightRows::start` copied a row at a time on the stage's thread; only `direct` reached the table's readers that read ahead on 16 threads.

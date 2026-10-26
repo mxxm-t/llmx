@@ -1958,15 +1958,17 @@ inline void Cache::settle_disk(const Lines& lines) {
 inline void Cache::flush_disk(const Lines& lines, std::condition_variable& cv) {
     std::unique_lock<std::mutex> lk(m_);
     settle_disk(lines);
+    // A store not made yet, its model's digest still being read, takes nothing, so the stop does not wait for it.
+    const bool made = disk_->readable();
     // The bound is stated before the first write: kDiskFlush, or half as long again as what is left would take at the store's measured rate, plus five seconds for the copies off the devices.
     const uint64_t bytes = unwritten_bytes();
     const double rate = disk_->write_rate();
     const auto bound = std::max<std::chrono::steady_clock::duration>(kDiskFlush, rate > 0 ? std::chrono::seconds((long long)(1.5 * (double)bytes / rate) + 5) : kDiskFlush);
     const auto until = std::chrono::steady_clock::now() + bound;
-    std::fprintf(stderr, "server: writing %.1f MiB to disk for the next server, within %lld s\n", (double)bytes / (1 << 20), (long long)std::chrono::duration_cast<std::chrono::seconds>(bound).count());
+    if (made) std::fprintf(stderr, "server: writing %.1f MiB to disk for the next server, within %lld s\n", (double)bytes / (1 << 20), (long long)std::chrono::duration_cast<std::chrono::seconds>(bound).count());
     std::vector<uint64_t> tried;
-    const char* why = "";
-    for (;;) {
+    const char* why = made ? "" : ", the disk cache not made yet";
+    while (made) {
         settle_disk(lines);
         if (!disk_->writing()) { why = ", writing having stopped"; break; }
         if (disk_->can_write() && !flush_one(tried)) { why = ", refused room on disk or host memory"; break; }
@@ -1975,7 +1977,7 @@ inline void Cache::flush_disk(const Lines& lines, std::condition_variable& cv) {
     }
     disk_->cancel_write();
     const uint64_t left = unwritten_bytes();
-    std::fprintf(stderr, "server: %zu entries kept on disk for the next server, %.1f MiB not written%s\n", disk_->index().files().size(), (double)left / (1 << 20), left ? why : "");
+    std::fprintf(stderr, "server: %zu entries kept on disk for the next server, %.1f MiB not written%s\n", disk_->index().files().size(), (double)left / (1 << 20), left || !made ? why : "");
     // Each history left out, and why: superseded ones stand on a newer copy of their conversation, which the line before counts.
     const size_t bt = model_.kv_block_tokens();
     const auto said = [&](const std::vector<std::string>& d, size_t n, const char* reason, const char* where) {

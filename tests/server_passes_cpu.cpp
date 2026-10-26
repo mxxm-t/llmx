@@ -211,10 +211,10 @@ void slices(const Make& one, const std::function<Make(size_t)>& split, const bpe
                 require(t.rows[e] == 1 || t.rows[e] == (size_t)kWide, "a burst of four prompts took a cut slice of " + std::to_string(t.rows[e]) + " rows");
         for (size_t i = 0; i < burst.size(); ++i) same(alone_on_one(burst[i]), got[i], "the burst, request " + std::to_string(i));
     }
-    // The arrival mid-prompt: the lone prompt's first slice a quarter of its 768 rows, cut slices while it is alone, then whole slices, the second request's only after it.
+    // The arrival mid-prompt, past the share of a short prompt (server::short_prompts): the lone prompt's first slice a quarter of its 768 rows, cut slices while it is alone, then whole slices, the second request's only after it.
     // Slices continue each other (docs/MULTI-DEVICE.md, phase 4), so the cut slices before the arrival follow the stages' timing, and the slices are held to that rule, not to a count.
     {
-        const Req lone{prompt_of(50, 768, vocab), 4}, late{prompt_of(51, 40, vocab), 4};
+        const Req lone{prompt_of(50, 768, vocab), 4}, late{prompt_of(51, 100, vocab), 4};
         std::vector<server::Scheduler::Retired> passes;
         std::vector<std::shared_ptr<server::Request>> handles;
         const std::vector<Reply> got = run({lone}, &late, passes, handles);
@@ -239,6 +239,64 @@ void slices(const Make& one, const std::function<Make(size_t)>& split, const bpe
         same(alone_on_one(lone), got[0], "the lone prompt");
         same(alone_on_one(late), got[1], "the request that arrived mid-prompt");
     }
+}
+
+// Short prompts beside a long one (docs/SERVER.md): a 60-token prompt arriving behind a 2000-token one, on one CPU and over two and three at P = S and 2S, is read before the long prompt is,
+// and both replies are their replies alone.
+void short_beside_long(const std::function<Make(size_t)>& split, const Make& one, const bpe::Tokenizer& tok, uint32_t vocab) {
+    constexpr int kWide = 256;
+    const size_t pool = 32 * kBlock;
+    const Req long_one{prompt_of(60, 2000, vocab), 4}, short_one{prompt_of(61, 60, vocab), 4};
+    const auto alone_on_one = [&](const Req& r) {
+        auto model = one(pool, kWide);
+        return serve(*model, tok, kSeqs, {{r}}, nullptr, 1)[0];
+    };
+    const Reply own_long = alone_on_one(long_one), own_short = alone_on_one(short_one);
+    for (const size_t stages : {size_t(1), size_t(2), size_t(3)})
+        for (const size_t passes : {stages, 2 * stages}) {
+            if (stages == 1 && passes > 1) continue;
+            const std::string where = "a short prompt behind a long one on " + std::to_string(stages) + " CPU" + (stages == 1 ? "" : "s") + " at P = " + std::to_string(passes);
+            auto model = split(stages)(pool, kWide);
+            server::Scheduler sched(*model, tok, kSeqs, 64, passes);
+            std::vector<server::Scheduler::Retired> retired;
+            std::shared_ptr<server::Request> late;
+            std::atomic<bool> sent{false};
+            // The short prompt is submitted on the scheduler thread as the long prompt's first pass retires, so the long one is mid-prompt.
+            sched.on_retire = [&](const server::Scheduler::Retired& t) {
+                retired.push_back(t);
+                if (!sent.load()) {
+                    late = sched.submit(short_one.prompt, params_of(short_one));
+                    sent.store(true);
+                }
+            };
+            auto first = sched.submit(long_one.prompt, params_of(long_one));
+            std::thread runner([&] { sched.run(); });
+            Reply got_long, got_short;
+            try {
+                got_long = drain(*first);
+                while (!sent.load()) std::this_thread::yield();
+                got_short = drain(*late);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+            // The pass that ends each prompt: the short one's must retire before the long one's.
+            size_t long_end = retired.size(), short_end = retired.size();
+            for (size_t p = 0; p < retired.size(); ++p)
+                for (size_t e = 0; e < retired[p].requests.size(); ++e) {
+                    if (retired[p].from[e] + retired[p].rows[e] != retired[p].requests[e]->prompt_tokens()) continue;
+                    if (retired[p].requests[e] == first.get()) long_end = std::min(long_end, p);
+                    if (retired[p].requests[e] == late.get()) short_end = std::min(short_end, p);
+                }
+            require(short_end < long_end && long_end < retired.size(), where + ": the short prompt ended in pass " + std::to_string(short_end) + ", not before the long one's " + std::to_string(long_end));
+            require(sched.stats().short_passes > 0, where + ": no pass was counted as reading a short prompt ahead");
+            same(own_long, got_long, where + ", the long prompt");
+            same(own_short, got_short, where + ", the short prompt");
+            ++checks;
+        }
 }
 
 // The steady load at every run without logprobs, so no row is copied out of a pass's logits: every id its id alone, where the row is copied for its values, and no values.
@@ -645,6 +703,7 @@ void cases(const gguf::GGUFModel& weights, uint32_t vocab) {
     paused(one, split, tok, vocab);
     replayed(one, split, tok, vocab);
     slices(one, split, tok, vocab);
+    short_beside_long(split, one, tok, vocab);
     in_place(one, split, tok, vocab);
     cancelled(weights, one, tok, vocab);
     failed(weights, one, tok, vocab);
@@ -1111,6 +1170,95 @@ void pieces_staircase(const gguf::GGUFModel& weights, uint32_t vocab) {
     require(adaptive_cuts(cut), what + ": slices of " + seen_text + " rows after the probe, against a doubled probe then step-aligned adaptive cuts, with only the final tail allowed short");
     require(s.automatic && s.overlaps > 0 && s.between > 0 && s.longest_piece_ms > 0,
             what + ": automatic service between measured prompt pieces did not run");
+}
+
+// A short prompt arriving while a long one is read beside a reply under the automatic rule (docs/SERVER.md, Short prompts beside a long one), on one device whose attention grows with depth.
+// It is read in a pass of its own, counted as short and as a prompt pass, and the long prompt's slices keep their search across it (adaptive_cuts).
+void short_beside_automatic(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const std::string what = "a short prompt behind a long one beside a reply under the automatic rule";
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 32 * kBlock;
+    Submitters seen;
+    const Req reply{prompt_of(54, 4, vocab), 1000}, long_one{prompt_of(55, 1800, vocab), 3}, short_one{prompt_of(59, 8, vocab), 3};
+    const std::vector<Reply> own = alone(on(weights, [] { return cpus(1); }), tok, pool, {reply, long_one, short_one});
+    std::shared_ptr<Deep> device;
+    auto model = on(weights, [&seen, &device] {
+        device = std::make_shared<Deep>(&seen);
+        return std::vector<backend::BackendPtr>{device};
+    })(pool, 512);
+    device->deep = 1u << 30;
+    server::Scheduler sched(*model, tok, kSeqs, 64, 0, false, 0, nullptr, 0, false, {}, server::Pacing::automatic());
+    std::shared_ptr<server::Request> first, late;
+    std::atomic<bool> sent{false};
+    size_t arrival_cut = 0, pass = 0, long_end = 0, short_end = 0;
+    uint64_t prompt_passes = 0;
+    // The short prompt is submitted on the scheduler thread once a slice of the long one past its first has grown to four steps, or the long one is half read.
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        bool prompt_rows = false;
+        for (size_t e = 0; e < t.requests.size(); ++e) {
+            prompt_rows = prompt_rows || t.from[e] < t.requests[e]->prompt_tokens();
+            if (t.from[e] + t.rows[e] == t.requests[e]->prompt_tokens()) {
+                if (t.requests[e] == first.get() && !long_end) long_end = pass + 1;
+                if (late && t.requests[e] == late.get() && !short_end) short_end = pass + 1;
+            }
+            if (sent.load() || t.requests[e] != first.get() || !t.from[e]) continue;
+            if (t.rows[e] >= 4 * server::kPieceStep || 2 * (t.from[e] + t.rows[e]) >= long_one.prompt.size()) {
+                arrival_cut = t.rows[e];
+                late = sched.submit(short_one.prompt, params_of(short_one));
+                sent.store(true);
+            }
+        }
+        prompt_passes += prompt_rows;
+        ++pass;
+    };
+    const auto talking = sched.submit(reply.prompt, params_of(reply));
+    first = sched.submit(long_one.prompt, params_of(long_one));
+    std::thread runner([&] { sched.run(); });
+    std::vector<Reply> got;
+    server::Scheduler::Stats s;
+    try {
+        got.push_back(drain(*talking));
+        got.push_back(drain(*first));
+        require(sent.load(), what + ": the short prompt was never sent");
+        got.push_back(drain(*late));
+        s = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    for (size_t i = 0; i < own.size(); ++i) same(own[i], got[i], what + ", request " + std::to_string(i));
+    // The long prompt's slices cut alone in their passes from the first probe on, in order, and the slice before the short prompt's pass; every prompt at depth 0 is another's or its first pass.
+    std::vector<size_t> cut;
+    size_t before_short = 0;
+    {
+        std::lock_guard<std::mutex> lk(device->m);
+        size_t length = 0;
+        for (const Deep::Call& c : device->calls) {
+            if (c.views != 1) continue;
+            if (!c.length) {
+                if (!cut.empty() && c.rows == short_one.prompt.size() && !before_short) before_short = cut.back();
+                continue;
+            }
+            if ((cut.empty() && c.rows != server::kPieceStep) || (!cut.empty() && c.rows == cut.back() && c.length == length)) continue;
+            cut.push_back(c.rows);
+            length = c.length;
+        }
+    }
+    std::string seen_text;
+    for (size_t r : cut) seen_text += (seen_text.empty() ? "" : ", ") + std::to_string(r);
+    std::cout << "server-passes-cpu: " << what << ": slices of " << seen_text << " rows after the probe, the short prompt sent after a slice of " << arrival_cut
+              << " rows and read after one of " << before_short << ", " << s.short_passes << " short passes of " << s.prompt_passes << " prompt passes" << std::endl;
+    require(s.automatic && s.overlaps > 0 && s.between > 0, what + ": automatic service between measured prompt pieces did not run");
+    require(s.short_passes > 0, what + ": no pass was counted as reading a short prompt ahead");
+    require(adaptive_cuts(cut), what + ": slices of " + seen_text + " rows after the probe, against a doubled probe then step-aligned adaptive cuts, with only the final tail allowed short");
+    require(before_short > 0, what + ": the short prompt was not read in a pass of its own between the long prompt's slices");
+    require(short_end && long_end && short_end < long_end, what + ": the short prompt ended in pass " + std::to_string(short_end) + ", not before the long one's " + std::to_string(long_end));
+    // A short pass is a prompt pass too (Stats::prompt_passes counts every pass that carried prompt rows).
+    require(s.prompt_passes == prompt_passes, what + ": " + std::to_string(s.prompt_passes) + " prompt passes counted against " + std::to_string(prompt_passes) + " retired with prompt rows");
+    ++checks;
 }
 
 // The automatic rule (server::Pacing::automatic) on one device and on one tensor group of two, each no CPU's.
@@ -1798,6 +1946,27 @@ void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
             for (size_t p = last + 1; p < ends; ++p)
                 require(retired[p].size() == 1, where + ": pass " + std::to_string(p) + " after the prompt was sampled held " + std::to_string(retired[p].size()) + " of the two decoders");
             ledger(s, *model, where + ", a reply beside a prompt");
+            // A short prompt behind a long one beside a reply (docs/SERVER.md, Short prompts beside a long one): read in a pass of its own before the long prompt ends, every reply its reply alone.
+            {
+                const std::vector<Req> three{{prompt_of(56, 4, vocab), 40}, {prompt_of(57, 300, vocab), 3}, {prompt_of(58, 3, vocab), 3}};
+                const std::vector<Reply> own_three = alone(one, tok, pool, three);
+                auto m3 = split(pool, kUbatch);
+                server::Scheduler::Stats s3;
+                size_t pass = 0, long_end = 0, short_end = 0;
+                const auto ends = [&](const server::Scheduler::Retired& t) {
+                    for (size_t e = 0; e < t.requests.size(); ++e)
+                        if (t.from[e] + t.rows[e] == t.requests[e]->prompt_tokens()) {
+                            if (t.requests[e]->prompt_tokens() == three[1].prompt.size() && !long_end) long_end = pass + 1;
+                            if (t.requests[e]->prompt_tokens() == three[2].prompt.size() && !short_end) short_end = pass + 1;
+                        }
+                    ++pass;
+                };
+                const std::vector<Reply> got3 = serve(*m3, tok, kSeqs, {three}, &s3, passes, 0, nullptr, 0, false, server::Pacing::interleaved(), ends);
+                for (size_t i = 0; i < three.size(); ++i) same(own_three[i], got3[i], where + ", a short prompt behind a long one beside a reply, request " + std::to_string(i));
+                require(short_end && long_end && short_end < long_end, where + ": the short prompt ended in pass " + std::to_string(short_end) + ", not before the long one's " + std::to_string(long_end));
+                require(s3.short_passes > 0, where + ": no pass beside the reply was counted as reading a short prompt ahead");
+                ledger(s3, *m3, where + ", a short prompt behind a long one beside a reply");
+            }
         }
 }
 
@@ -1865,6 +2034,7 @@ int main(int argc, char** argv) {
         pieces_beside_slow_reply(served(kSplit), (uint32_t)kSplit.vocab);
         pieces_fixed_cost(served(kSplit), (uint32_t)kSplit.vocab);
         pieces_staircase(served(kSplit), (uint32_t)kSplit.vocab);
+        short_beside_automatic(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         interleaved(served(kSplit), (uint32_t)kSplit.vocab);
         continued(served(kSplit), (uint32_t)kSplit.vocab);

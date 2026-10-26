@@ -55,6 +55,7 @@ struct Sim {
         std::vector<size_t> in;                               // the slots of its passes in flight, oldest first: one, or a prompt's consecutive slices (docs/MULTI-DEVICE.md, phase 4)
         uint64_t since = 0, cancelled = 0;                    // the round it last got a token or could not, and the round its cancel was first seen in
         uint64_t landed = 0;                                  // the formation order of the last pass it left flight from
+        uint64_t sliced = 0, prompt_wait = 0;                 // the round a pass last read its prompt, and the round its wait for one began
         // A read of its history from disk (docs/DISK-TIER.md, Restore): whether it has one, the round the read ends, failed or not, and the round its bound passes; it waits while both are ahead.
         bool reads = false, read_fails = false;
         uint64_t read_end = 0, bound = 0;
@@ -77,6 +78,8 @@ struct Sim {
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
     std::vector<size_t> failed_now;   // the slots a failure emptied in this round's steps
     uint64_t formed_before = 0;       // the passes formed before this round's steps
+    bool short_ahead = false;         // a short prompt went ahead of a long one in flight this round (Scheduler::form, server::short_prompts)
+    uint64_t short_round = 0;         // the last round a pass read a short prompt ahead of a long one
     // A model whose layers keep a recurrent state and no checkpoint slots: each active request holds one of max_seqs state slots, and no request leaves a donor.
     bool stateful = false;
     // Turns at the pool's edge (server::Growth::yields): whether a yielding request's history can be kept, as with a host tier that has room, and the steps of a turn.
@@ -109,7 +112,7 @@ struct Sim {
         uint64_t until = 0;
     };
     std::vector<Recording> recording;
-    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0;
+    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0, short_reads = 0, shorts_ahead = 0;
     server::LogitRows rows;
     std::vector<double> device_free;
     std::vector<uint64_t> device_last;       // per device, the formation order of the last pass it ran
@@ -679,8 +682,28 @@ struct Sim {
                     ++p.decoders;
                 }
             const bool alone = active.size() == 1 && queue.empty() && paused.empty();
+            // Short prompts as the scheduler's form takes them outside an overlap, which the simulation has none of: read whole ahead of the oldest long prompt, ahead of one in flight once a round.
+            const auto left = [&](const Req& q) { return q.history() - std::min(q.history(), q.len + flying_rows(q)); };
+            std::vector<Req*> shorts;
+            const auto lead = std::find_if(active.begin(), active.end(), [&](const Req& q) { return !q.decoding() && left(q); });
+            if (budget && lead != active.end() && left(*lead) > ubatch / server::kShortShare && !server::prompt_slice(left(*lead), S, ubatch, alone, lead->read_alone).closes &&
+                (lead->in.empty() || !short_ahead)) {
+                std::vector<size_t> waiting;
+                std::vector<Req*> later;
+                for (auto it = lead + 1; it != active.end(); ++it) {
+                    if (it->decoding() || !left(*it)) continue;
+                    later.push_back(&*it);
+                    waiting.push_back(ready(*it) && !it->cancel ? left(*it) : 0);
+                }
+                for (size_t i : server::short_prompts(waiting, ubatch)) shorts.push_back(later[i]);
+                short_ahead = short_ahead || (!lead->in.empty() && !shorts.empty());
+            }
+            std::vector<Req*> order(shorts);
+            for (Req& r : active)
+                if (std::find(shorts.begin(), shorts.end(), &r) == shorts.end()) order.push_back(&r);
             bool held = false;
-            for (Req& r : active) {
+            for (Req* q : order) {
+                Req& r = *q;
                 if (r.decoding() || !budget || r.len >= r.history()) continue;
                 const size_t at_len = r.len + flying_rows(r);
                 if (at_len >= r.history()) continue;
@@ -693,8 +716,15 @@ struct Sim {
                     continue;
                 }
                 if (!continued && !ready(r)) continue;
-                const size_t n = std::min({budget, s.most, r.history() - at_len});
+                const bool short_one = std::find(shorts.begin(), shorts.end(), &r) != shorts.end();
+                if (short_one) {
+                    short_round = round_no;
+                    ++short_reads;
+                    shorts_ahead += !lead->in.empty();
+                }
+                const size_t n = short_one ? std::min(budget, r.history() - at_len) : std::min({budget, s.most, r.history() - at_len});
                 budget -= n;
+                r.sliced = round_no;
                 r.read_alone = alone && at_len + n < r.history() ? r.read_alone + n : 0;
                 p.ids.push_back(r.id);
                 p.rows.push_back(n);
@@ -741,6 +771,7 @@ struct Sim {
         for (size_t k : st.retire) require(!slots[k].recording, "the round retired a pass being recorded");
         std::vector<std::pair<size_t, size_t>> deferred;
         formed_before = formed;
+        short_ahead = false;
         at = "advance";
         failed_now.clear();
         for (const auto& a : st.advance) {
@@ -795,6 +826,17 @@ struct Sim {
         for (const auto* all : {&queue, &paused, &active})
             for (const Req& r : *all)
                 require(!r.cancelled || round_no < r.cancelled + lap, "round " + std::to_string(round_no) + ": a cancellation outlived a lap");
+        // Short prompts beside a long one: a ready short prompt behind a long one forms a slice within a lap of its wait's start, and short prompts read ahead keep the oldest prompt, while ready, from a slice for a lap at most.
+        const auto left = [&](const Req& q) { return q.history() - std::min(q.history(), q.len + flying_rows(q)); };
+        const auto lead = std::find_if(active.begin(), active.end(), [&](const Req& q) { return !q.decoding() && left(q); });
+        const bool long_lead = lead != active.end() && left(*lead) > ubatch / server::kShortShare;
+        for (Req& r : active) {
+            const bool is_lead = lead != active.end() && &r == &*lead;
+            const bool waits = left(r) && !r.decoding() && ready(r) && !r.cancel && (is_lead ? short_round == round_no : long_lead && left(r) <= ubatch / server::kShortShare);
+            if (!waits || r.sliced == round_no || !r.prompt_wait) r.prompt_wait = round_no;
+            require(round_no - r.prompt_wait <= lap, "round " + std::to_string(round_no) + ": " + (is_lead ? "the oldest prompt" : "a short prompt behind a long one") + " went " +
+                    std::to_string(round_no - r.prompt_wait) + " rounds without a slice, past a lap of " + std::to_string(lap));
+        }
     }
 
     void cancel() {
@@ -963,6 +1005,12 @@ void growth_by_hand() {
     require(server::decode_share(7, 2, 3) == 7, "passes that do not fill the stages held a decoding request back");
     require(server::recorded_apart(true, 1) && server::recorded_apart(true, 3), "a tensor group's stage stayed on the scheduler's thread");
     require(!server::recorded_apart(false, 1) && server::recorded_apart(false, 2), "a single device's stage left the scheduler's thread for a pass alone, or stayed on it beside another");
+    // Short prompts beside a long one: the arrival-order prefix of the ready ones that fit a kShortShare-th of the budget, 4 rows of 16 here.
+    using Taken = std::vector<size_t>;
+    require(server::short_prompts({4}, 16) == Taken{0} && server::short_prompts({5}, 16).empty(), "a prompt of the share's rows was not short, or one row more was");
+    require(server::short_prompts({3, 2, 1}, 16) == Taken{0}, "a short prompt was passed over for a smaller later one when the share was tight");
+    require(server::short_prompts({0, 9, 4}, 16) == Taken{2} && server::short_prompts({1, 1, 2}, 16) == (Taken{0, 1, 2}), "a not-ready or long prompt ended the prefix, or short ones that fit were left out");
+    require(server::short_prompts({1}, 3).empty() && server::short_prompts({0, 0}, 16).empty(), "a share below one row, or no ready short prompt, took one");
     const auto most = [](size_t waiting, size_t stages, size_t ubatch, bool alone) { return server::prompt_slice(waiting, stages, ubatch, alone, 0).most; };
     require(most(512, 1, 512, true) == 512 && most(2048, 2, 512, true) == 512 && most(9000, 3, 512, true) == 512, "a prompt slice was cut on one stage or past the ubatch");
     require(most(512, 2, 512, false) == 512 && most(300, 3, 512, false) == 512, "a prompt slice was cut beside other requests");
@@ -1255,6 +1303,23 @@ void automatic_by_hand() {
         }
         server::PieceSearch none;
         require(none.next(512) == 512 && none.next(16) == 16, "a prompt's slice with nothing measured was not a ubatch");
+        // A short prompt's pass between a long prompt's slices (server::take_piece) leaves the stage's search to the long prompt: its next cut is the cut it would have had without the short pass.
+        {
+            server::PieceSearch with, without;
+            uint64_t of_with = 0, of_without = 0;
+            size_t end_with = 0, end_without = 0, at = 0;
+            const std::vector<size_t> rows{16, 32, 64, 128};
+            for (size_t i = 0; i < rows.size(); ++i) {
+                server::take_piece(with, of_with, end_with, false, 7, at, at + rows[i], rows[i], 0.3 * (double)rows[i], 0);
+                server::take_piece(without, of_without, end_without, false, 7, at, at + rows[i], rows[i], 0.3 * (double)rows[i], 0);
+                at += rows[i];
+                if (i == 1) require(!server::take_piece(with, of_with, end_with, true, 9, 0, 60, 60, 18, 0), "a short prompt's pass was taken by the stage's search");
+            }
+            require(with.next(512) == without.next(512) && of_with == of_without && end_with == end_without, "a short prompt's pass changed the long prompt's next cut");
+            // Under the automatic rule a slice continues the search only where it starts at the last piece's end exactly; a short pass alone leaves that end at the long prompt's.
+            require(of_with == 7 && end_with == at, "a short prompt's pass moved the end the long prompt's next slice must continue from under the automatic rule");
+            require(server::take_piece(with, of_with, end_with, false, 9, 0, 60, 60, 18, 0) && with.next(512) == 120, "a pass of another prompt did not start the search again");
+        }
         // A wait for a donor's write (server::write_wait_ms): the time waited, then the remaining bytes at the measured rate, half as long again and 2 s more, never past recomputing, and nothing to go by with no rate.
         require(server::write_wait_ms(1e9, 0, 0, 1e9) == 0 && server::write_wait_ms(1e9, 1e9, 0, 0) == 0, "a write's wait was bounded with no rate or no measure of recomputing");
         require(server::write_wait_ms(1e9, 1e9, 0, 1e9) == 3500 && server::write_wait_ms(0, 1e9, 0, 1e9) == 2000 && server::write_wait_ms(-5, 1e9, 0, 1e9) == 2000,
@@ -1325,7 +1390,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0;
+    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, formed_apart = 0, passed = 0, continued_passes = 0, short_reads = 0, shorts_ahead = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -1363,18 +1428,22 @@ void random_schedules(size_t n) {
         formed_apart += sim.formed_apart;
         passed += sim.passed;
         continued_passes += sim.continued_passes;
+        short_reads += sim.short_reads;
+        shorts_ahead += sim.shorts_ahead;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000) {
         require(formed_apart > 0 && passed > 0, "the schedules formed " + std::to_string(formed_apart) + " passes apart, of which " + std::to_string(passed) + " stages passed an older pass");
         require(recorded > 0 && record_failures > 0 && held_formations > 0, "the schedules met no stage recorded on a thread of its own, none that failed while it was recorded, or no formation held for the first stage's recorder");
         require(continued_passes > 0, "the schedules met no prompt continued while its slice before was in flight");
+        require(short_reads > 0 && shorts_ahead > 0, "the schedules read no short prompt ahead of a long one, or none ahead of one in flight");
     }
     if (n >= 1000)
         for (size_t i = 1; i < 14; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound, reads that failed and turns at the pool's edge");
     std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads, %zu turns at the pool's edge\n",
                 n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12], totals[13]);
-    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight\n", recorded, record_failures, held_formations, continued_passes);
+    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight, %zu short prompts read ahead of a long one (%zu ahead of one in flight)\n",
+                recorded, record_failures, held_formations, continued_passes, short_reads, shorts_ahead);
 }
 
 } // namespace

@@ -47,8 +47,11 @@ struct SampleParams : infer::Sampling {
 };
 
 // One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
-// An image's encode as the scheduler runs it, a piece a call: null until the last piece has run, then the image's rows (docs/VISION.md, section 10).
-using ImageSteps = std::function<std::shared_ptr<const std::vector<float>>()>;
+// An image's encode as the scheduler runs it: `step` runs a piece a call, null until the last of its `pieces` has run, then the image's rows (docs/VISION.md, section 10).
+struct ImageSteps {
+    std::function<std::shared_ptr<const std::vector<float>>()> step;
+    size_t pieces = 0;
+};
 
 class Request {
 public:
@@ -479,6 +482,9 @@ public:
         uint64_t id = 0, prefilled_tokens = 0, published_tokens = 0, elapsed_ms = 0;
         size_t prompt_tokens = 0, reused_tokens = 0;
         const char* phase = "queued";
+        // In phase "encode": its image's place among the request's (from 1) and rows, the pieces run of the encode's and the time since it began, 0 of 0 in 0 ms while another image holds the encoder.
+        size_t image_index = 0, image_count = 0, image_rows = 0, pieces_done = 0, pieces_total = 0;
+        uint64_t image_elapsed_ms = 0;
     };
     struct LiveRequests {
         static constexpr size_t limit = 64;
@@ -1146,10 +1152,11 @@ private:
             // A prompt at an image without rows spends its turn on one piece of that image's encode, one a round, every piece while nothing else could use the stages, and the pass takes no more prompt rows (docs/VISION.md, section 10).
             if (Cache::image_stop(*r) <= r->seq_.length()) {
                 if (encoded_) continue;
+                // A health poll ends the run of pieces too, so the round boundary it waits for comes.
                 const auto more = [&] {
                     if (!alone || flying() || !entries_.empty() || r->cancel_.load()) return false;
                     std::lock_guard<std::mutex> lk(m_);
-                    return arrivals_ == seen_ && !stopping_;
+                    return arrivals_ == seen_ && !stopping_ && !live_requested_;
                 };
                 if (!continued && cache_.encode_piece(*r, more)) {
                     acted_ = encoded_ = true;
@@ -2490,7 +2497,20 @@ private:
         };
         for (const auto& r : active) {
             if (live_.count == LiveRequests::limit) break;
-            if (!r->job_) append(*r, r->gen_.empty() ? "prefill" : "generate");
+            if (r->job_) continue;
+            if (Cache::image_stop(*r) > r->seq_.length()) {
+                append(*r, r->gen_.empty() ? "prefill" : "generate");
+                continue;
+            }
+            append(*r, "encode");
+            RequestView& v = live_.items[live_.count - 1];
+            v.image_index = r->media_next_ + 1;
+            v.image_count = r->media_.size();
+            v.image_rows = r->media_[r->media_next_].rows;
+            const Cache::EncodeProgress e = cache_.encode_progress(*r);
+            v.pieces_done = e.done;
+            v.pieces_total = e.total;
+            if (e.total) v.image_elapsed_ms = (uint64_t)std::max<int64_t>(0, std::chrono::duration_cast<std::chrono::milliseconds>(now - e.began).count());
         }
         for (const auto* waiting : {&paused_, &queue_})
             for (const auto& r : *waiting) {

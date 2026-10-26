@@ -285,7 +285,10 @@ private:
             live += (i ? "," : "") + std::string("{\"id\":") + jmini::quote("r-" + n(r.id)) +
                     ",\"phase\":" + jmini::quote(r.phase) + ",\"prompt_tokens\":" + n(r.prompt_tokens) +
                     ",\"reused_tokens\":" + n(r.reused_tokens) + ",\"prefilled_tokens\":" + n(r.prefilled_tokens) +
-                    ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) + "}";
+                    ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) +
+                    (r.image_index ? ",\"image\":{\"index\":" + n(r.image_index) + ",\"count\":" + n(r.image_count) + ",\"rows\":" + n(r.image_rows) +
+                                         ",\"pieces_done\":" + n(r.pieces_done) + ",\"pieces_total\":" + n(r.pieces_total) + ",\"elapsed_ms\":" + n(r.image_elapsed_ms) + "}"
+                                   : std::string()) + "}";
         }
         size_t drafted = 0, kept = 0, own_drafted = 0, own_kept = 0;
         for (size_t x : s.own_drafted) own_drafted += x;
@@ -1210,7 +1213,7 @@ private:
             given.encode = [vision = cfg_.vision, resized](size_t i) {
                 auto e = std::make_shared<infer::ImageEncode>(*vision, *resized.at(i));
                 auto ms = std::make_shared<double>(0.0);
-                return ImageSteps([vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
+                return ImageSteps{[vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
                     const auto t0 = std::chrono::steady_clock::now();
                     const bool done = e->step();
                     *ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -1218,7 +1221,7 @@ private:
                     auto rows = e->rows();
                     std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms of them\n", rows->size() / vision->encoder->plan().out_width, e->pieces(), *ms);
                     return rows;
-                });
+                }, e->pieces()};
             };
         }
         try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped, std::move(given)); }

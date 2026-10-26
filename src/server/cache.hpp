@@ -768,8 +768,13 @@ public:
             if (!encoding_for_) {
                 encoding_ = r.encode_(r.media_next_);
                 encoding_for_ = &r;
+                encoded_pieces_ = 0;
+                encode_began_ = std::chrono::steady_clock::now();
             }
-            do rows = encoding_(); while (!rows && more());
+            do {
+                rows = encoding_.step();
+                ++encoded_pieces_;
+            } while (!rows && more());
         }
         if (!rows) return true;
         drop_encode(r);
@@ -780,9 +785,15 @@ public:
     // Ends r's encode at a piece boundary, as r ends or its sequence is replaced; the encoder is free for the next image.
     void drop_encode(const Request& r) {
         if (encoding_for_ != &r) return;
-        encoding_ = nullptr;
+        encoding_ = ImageSteps{};
         encoding_for_ = nullptr;
     }
+    // The pieces of r's encode run and in all and when it began, 0 of 0 where the encoder is not r's.
+    struct EncodeProgress {
+        size_t done = 0, total = 0;
+        std::chrono::steady_clock::time_point began{};
+    };
+    EncodeProgress encode_progress(const Request& r) const { return encoding_for_ == &r ? EncodeProgress{encoded_pieces_, encoding_.pieces, encode_began_} : EncodeProgress{}; }
 private:
     // Defined below, out of the class.
     void drop_donor(size_t i = 0, bool evicted = false);
@@ -1061,6 +1072,8 @@ private:
     // The one image encoding: its steps and the request it is for.
     ImageSteps encoding_;
     const Request* encoding_for_ = nullptr;
+    size_t encoded_pieces_ = 0;
+    std::chrono::steady_clock::time_point encode_began_{};
     // The ids a conversation's next turn begins with, given for request `of` (follow).
     struct Follow {
         std::shared_ptr<Request> of;

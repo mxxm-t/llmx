@@ -573,6 +573,81 @@ void pooled_rows_kept(Backend& device) {
                                                                         std::to_string(ids[0] / k.compression));
 }
 
+
+// Pooled groups turning at the positions a history with images gives them (backend::GroupPositions): each pair by the position its stream names, against a host reference of the mean, the norm and the rotation within 4 float units.
+// Positions each group's first token holds give the bits of a call without positions, and two views take their groups' positions in view order.
+void pooled_at_positions(Backend& device) {
+    const Config k{1, 8, 6, 4, 4, 1e-6f, 10000.0f};
+    const size_t groups = 9, tokens = groups * k.compression, half = k.rope_dim / 2;
+    std::vector<float> cosine(tokens * half), sine(tokens * half);
+    for (size_t p = 0; p < tokens; ++p)
+        for (size_t i = 0; i < half; ++i) {
+            const float f = float(1.0 / std::pow(double(k.theta), double(2 * i) / double(k.rope_dim)));
+            cosine[p * half + i] = std::cos(float(p) * f);
+            sine[p * half + i] = std::sin(float(p) * f);
+        }
+    std::vector<float> raw(tokens * k.dim), gamma_values(k.dim);
+    for (size_t i = 0; i < raw.size(); ++i) raw[i] = float(int((i * 37 + 11) % 29) - 14) / 16.0f;
+    for (size_t d = 0; d < k.dim; ++d) gamma_values[d] = 0.75f + 0.0625f * float(d);
+    BufferPtr gamma = upload(device, gamma_values), cos = upload(device, cosine), sin = upload(device, sine);
+    const Backend::IndexArgs args{k.heads, k.dim, k.rope_dim, k.compression, k.budget, k.eps};
+    const uint8_t of[] = {0, 1, 2};
+    // Group g of the first view turns at (s, s + g % 3, s + g % 2), s below its first token as images before it would leave it.
+    std::vector<uint32_t> pos;
+    for (size_t g = 0; g < groups; ++g) {
+        const uint32_t s = uint32_t(g * k.compression) / 2;
+        pos.insert(pos.end(), {s, s + uint32_t(g % 3), s + uint32_t(g % 2)});
+    }
+    const auto pooled = [&](const backend::GroupPositions& at, size_t split) {
+        Cache cache(device, tokens, k.dim, k.compression);
+        std::vector<int32_t> map(cache.blocks.begin(), cache.blocks.end());
+        backend::KVView all = cache.view(0, tokens, map);
+        cache.write(&all, 1, raw, tokens);
+        // The rows in two views of one history, the first completing `split` groups, as two entries of a pass would not, so the offsets are those of view order.
+        backend::KVView views[] = {cache.view(0, split * k.compression, map), cache.view(split * k.compression, tokens - split * k.compression, map)};
+        device.pool_kv(0, &views[0], 1, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0}, at);
+        backend::GroupPositions rest = at;
+        if (at.pos) rest.pos = at.pos + split * at.streams.count;
+        device.pool_kv(0, &views[1], 1, args, {gamma.get(), 0}, {cos.get(), 0}, {sin.get(), 0}, rest);
+        auto& storage = dynamic_cast<backend::BlockKVStorage&>(*cache.storage);
+        std::vector<float> out;
+        for (size_t g = 0; g < groups; ++g) {
+            const size_t t = g * k.compression;
+            const size_t at_byte = size_t(map[t / cache.block_tokens]) * storage.auxiliary_block_bytes(0) + storage.auxiliary_rows_bytes(0) +
+                                   (t % cache.block_tokens) / k.compression * k.dim * sizeof(float);
+            const auto row = read_values<float>(device, *storage.auxiliary_buffer(0), at_byte, k.dim);
+            out.insert(out.end(), row.begin(), row.end());
+        }
+        return out;
+    };
+    const std::vector<float> got = pooled({pos.data(), {3, of}}, 4);
+    double worst = 0.0;
+    for (size_t g = 0; g < groups; ++g) {
+        std::vector<double> mean(k.dim, 0.0);
+        for (size_t t = g * k.compression; t < (g + 1) * k.compression; ++t)
+            for (size_t d = 0; d < k.dim; ++d) mean[d] += raw[t * k.dim + d] / double(k.compression);
+        double squares = 0.0;
+        for (double v : mean) squares += v * v;
+        const double inv = 1.0 / std::sqrt(squares / double(k.dim) + k.eps);
+        std::vector<double> ref(k.dim);
+        for (size_t d = 0; d < k.dim; ++d) ref[d] = mean[d] * inv * gamma_values[d];
+        for (size_t i = 0; i < half; ++i) {
+            const size_t p = pos[g * 3 + of[i]];
+            const double c = cosine[p * half + i], s = sine[p * half + i], a = ref[i], b = ref[i + half];
+            ref[i] = a * c - b * s;
+            ref[i + half] = b * c + a * s;
+        }
+        for (size_t d = 0; d < k.dim; ++d)
+            worst = std::max(worst, std::fabs(got[g * k.dim + d] - ref[d]) / (4.0 * std::ldexp(std::max(std::fabs(ref[d]), 1.0), -23)));
+    }
+    require(worst <= 1.0, "pooled groups at their positions are " + std::to_string(worst) + " of their bound from the reference");
+    std::vector<uint32_t> own;
+    for (size_t g = 0; g < groups; ++g) own.insert(own.end(), 3, uint32_t(g * k.compression));
+    const std::vector<float> plain = pooled({}, 4), at_own = pooled({own.data(), {3, of}}, 4);
+    require(plain.size() == at_own.size() && !std::memcmp(plain.data(), at_own.data(), plain.size() * sizeof(float)),
+            "pooled groups at their first tokens' positions differ from a call without positions");
+}
+
 void invalid_inputs(Backend& device, const Config& c, const FixtureCase& test,
                     const std::vector<float>& qnorm, const std::vector<float>& knorm,
                     const RopeTables& rope) {
@@ -704,6 +779,7 @@ int main(int argc, char** argv) {
         }
         synthetic_long(*device);
         pooled_rows_kept(*device);
+        pooled_at_positions(*device);
         std::cout << "kv-selection: PASS (" << checks << " checks) on " << device_name << '\n';
         return 0;
     } catch (const std::exception& error) {

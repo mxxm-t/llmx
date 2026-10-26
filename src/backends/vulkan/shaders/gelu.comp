@@ -1,0 +1,20 @@
+#version 450
+// dst[i] = gelu(src[i]) in F32: with `erf_form` x times the normal CDF through erf, else its tanh approximation; dst may be src.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint erf_form; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer X { float src[]; };
+// erf by Abramowitz and Stegun 7.1.26, within 1.5e-7 of it; GLSL has none.
+float erf_of(float x) {
+    float a = abs(x), t = 1.0 / (1.0 + 0.3275911 * a);
+    float y = 1.0 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * exp(-a * a);
+    return x < 0.0 ? -y : y;
+}
+void main() {
+    for (uint i = gl_GlobalInvocationID.x; i < p.n; i += gl_NumWorkGroups.x * 256u) {
+        float x = src[i];
+        // tanh's argument is clamped where tanh is 1 in F32, so no driver's exp overflows to inf over inf.
+        float c = p.erf_form != 0u ? erf_of(x * 0.70710678) : tanh(clamp(0.79788456 * (x + 0.044715 * x * x * x), -10.0, 10.0));
+        dst[i] = 0.5 * x * (1.0 + c);
+    }
+}

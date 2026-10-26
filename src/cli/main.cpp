@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -16,6 +17,7 @@
 #include <charconv>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 
 #if defined(_WIN32)
@@ -36,6 +38,7 @@
 #include "core/list.hpp"
 #include "backends/devices.hpp"
 #include "hub/pull.hpp"
+#include "format/file_digest.hpp"
 #include "format/gguf.hpp"
 #include "format/raw_convert.hpp"
 #include "quant/quant.hpp"
@@ -830,6 +833,7 @@ int cmd_generate(const std::string& model_path, const std::string& prompt, bool 
     }, 0, turn.runs);
     const auto t0 = std::chrono::steady_clock::now();
     const auto drafting = drafts.drafting(ids);
+    if (drafting) drafting->images = model.image_rows();
     std::vector<uint32_t> gen = infer::generate(model, tok, gp, rng, logits, emit_text, drafting.get());
     std::cout << "\n";
     double tg_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -901,6 +905,7 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
     printf("tokens: %zu\n", ids.size());
     std::vector<float> logits;
     if (per_token) {
+        for (const infer::MediaRun& run : turn.runs) model.add_media(run);
         for (size_t pos = 0; pos < ids.size(); ++pos) {
             logits = model.step((int)ids[pos]);
             if (last) row(pos, logits.data());
@@ -1338,7 +1343,13 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
 }
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
-int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts) {
+// The identity an image's digest begins with, the encoder file's SHA-256 (docs/VISION.md, section 5): cached under the disk tier's digests where a disk tier is given, else read once at start.
+std::array<uint8_t, 32> vision_identity(const std::string& path, const server::DiskOptions& disk) {
+    const std::string digest = disk.bytes ? format::cached_file_sha256((std::filesystem::u8path(disk.dir) / "digests").u8string(), path) : format::file_sha256(path);
+    return infer::sha256_bytes({{digest.data(), digest.size()}});
+}
+
+int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images) {
     // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
     const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
     // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
@@ -1371,6 +1382,13 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     c.proposer = drafts.proposer.get();
     c.drafter_sources = drafts.sources;
     c.draft_max = drafts.draft_max;
+    // The vision encoder on the model's embedding device, which the chat routes encode a request's images with.
+    std::unique_ptr<infer::Vision> vision;
+    if (!images.mmproj.empty()) {
+        vision = infer::open_vision(images.mmproj, model, tok, loaded->dtype.effective, images.max_pixels);
+        c.vision = vision.get();
+        c.vision_identity = vision_identity(images.mmproj, c.disk);
+    }
     http::Listener listener(c.host, c.port);
     // A split's plan, what each device was given, so a lopsided placement shows in the log.
     std::cerr << loaded->plan;
@@ -1380,6 +1398,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
               << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
+              << (vision ? ", reading images of up to " + std::to_string(vision->params.max_pixels) + " pixels" : std::string())
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << ", queue of " << c.max_queue << ")\n";
     if (!loaded->kv_kept_context.empty()) std::cerr << "server: the KV pool is the model's context, without --kv-tokens: " << loaded->kv_kept_context << "\n";
@@ -1623,7 +1642,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "                          tokens that followed the last ones earlier), embedded (the MTP block the\n"
             << "                          file carries) or a file of MTP blocks beside the model. One that runs a\n"
             << "                          model comes last: embedded alone, or lookup,embedded (default: off)\n"
-            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n";
+            << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
+            << "\nImages (on the chat routes, as image_url parts holding data: URLs of PNG or JPEG):\n"
+            << "  --mmproj PATH           Vision encoder file of the model's images\n"
+            << "  --image-max-pixels N    Most pixels of a resized image (default: the encoder's)\n";
         model_options(false);
         page << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
@@ -1855,7 +1877,6 @@ int main(int argc, char** argv) {
             if (chat) return cmd_chat(argv[2], system, gp, exec, drafts);
             if (!have_prompt) throw UsageError("missing the prompt");
             images.check(as_chat);
-            if (!images.files.empty() && !drafts.sources.empty()) throw UsageError("--drafter beside --image comes with the images' cache identity");
             return cmd_generate(argv[2], first == 5 ? read_text_file(argv[4], cmd) : prompt, as_chat, gp, exec, drafts, images);
         }
 
@@ -1910,7 +1931,6 @@ int main(int argc, char** argv) {
                 given.take(a, i > at);
             }
             images.check(as_chat);
-            if (!images.files.empty() && per_token) throw UsageError("--per-token reads tokens one at a time, which an image's rows are not");
             const std::string text = first == 5 ? read_text_file(argv[4], cmd) : argv[3];
             return cmd_logits(argv[2], text, as_chat, topn, exec, then_ids, last, per_token, images);
         }
@@ -1942,6 +1962,7 @@ int main(int argc, char** argv) {
             ExecOptions exec;
             GivenFlags given;
             Drafts drafts;
+            Images images;
             std::optional<uint64_t> host_bytes;
             for (int i = 3; i < argc; i++) {
                 const int at = i;
@@ -1974,6 +1995,8 @@ int main(int argc, char** argv) {
                 }
                 else if (f == "--ctx-size") cfg.ctx_size = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
+                else if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
+                else if (f == "--image-max-pixels") images.max_pixels = int_arg<uint64_t>(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
@@ -1982,7 +2005,8 @@ int main(int argc, char** argv) {
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
             if (cfg.no_pacing && cfg.generating_share > 0) throw UsageError("--no-pacing serves no generating request apart; not with --generating-share");
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
-            return cmd_serve(argv[2], cfg, exec, drafts);
+            if (images.max_pixels && images.mmproj.empty()) throw UsageError("--image-max-pixels sizes the images the encoder --mmproj names reads");
+            return cmd_serve(argv[2], cfg, exec, drafts, images);
         }
         if (cmd == "bench") {
             BenchNumbers n;

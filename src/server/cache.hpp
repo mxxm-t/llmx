@@ -408,6 +408,7 @@ public:
     uint64_t park(std::vector<std::shared_ptr<Request>>& active, const Lines& lines, size_t i, const std::vector<uint32_t>& h, size_t least = 0, const char** why = nullptr) {
         auto r = active[i];
         active.erase(active.begin() + (std::ptrdiff_t)i);
+        drop_encode(*r);
         if (r->proof_) unprove(lines, *r);
         size_t held = r->seq_.length();
         if (model_.keeps_state() && held && !(least && quieted()->keep(r->seq_))) {
@@ -600,6 +601,12 @@ public:
             n->job_ = true;
             n->whole_ = f.whole;
             n->of_ = f.of;
+            // The conversation's images, which its ids hold, without their rows: the request's encoder gives them again where the job reads one.
+            for (infer::MediaRun m : f.of->media_) {
+                m.encoded.reset();
+                n->media_.push_back(std::move(m));
+            }
+            n->encode_ = f.of->encode_;
             // A job per conversation: one waiting that the new one's ids extend, or that reads for the same request, is that conversation's older read, and goes; at most max_seqs wait, the oldest dropped.
             stale(n->prompt_, n->of_.get(), "a newer job of the same conversation replaces it");
             if (jobs_.size() >= max_seqs_) jobs_.pop_front();
@@ -746,6 +753,36 @@ public:
         took_ = false;
         return took;
     }
+    // The position r's slices stop at, its next image's first row while that image waits for its rows, or npos.
+    static size_t image_stop(const Request& r) { return r.media_next_ < r.media_.size() ? r.media_[r.media_next_].first : npos; }
+    // One piece of r's waiting image's encode under the hold, a pass in flight possibly recording on its device, and more while `more` says so; true if a piece ran, the last giving the sequence its images.
+    // None runs while another request's image encodes, but a job's encode gives way to a request's, since a job takes turns only while no prompt waits.
+    bool encode_piece(Request& r, const std::function<bool()>& more) {
+        if (encoding_for_ && encoding_for_ != &r) {
+            if (r.job_ || !encoding_for_->job_) return false;
+            drop_encode(*encoding_for_);
+        }
+        std::shared_ptr<const std::vector<float>> rows;
+        {
+            const Held held = quieted();
+            if (!encoding_for_) {
+                encoding_ = r.encode_(r.media_next_);
+                encoding_for_ = &r;
+            }
+            do rows = encoding_(); while (!rows && more());
+        }
+        if (!rows) return true;
+        drop_encode(r);
+        r.media_[r.media_next_].encoded = std::move(rows);
+        give_ready_media(r);
+        return true;
+    }
+    // Ends r's encode at a piece boundary, as r ends or its sequence is replaced; the encoder is free for the next image.
+    void drop_encode(const Request& r) {
+        if (encoding_for_ != &r) return;
+        encoding_ = nullptr;
+        encoding_for_ = nullptr;
+    }
 private:
     // Defined below, out of the class.
     void drop_donor(size_t i = 0, bool evicted = false);
@@ -772,7 +809,7 @@ private:
     size_t alike(const std::vector<RowClass>& a, const std::vector<RowClass>& b, size_t n) const {
         size_t at = 0;
         for (size_t i = 0, j = 0; at < n && i < a.size() && j < b.size();) {
-            if (a[i].extent != b[j].extent && model_.row_class(a[i].extent) != model_.row_class(b[j].extent)) break;
+            if (a[i].image != b[j].image || (a[i].extent != b[j].extent && model_.row_class(a[i].extent) != model_.row_class(b[j].extent))) break;
             at = std::min({a[i].end, b[j].end, n});
             if (a[i].end <= at) ++i;
             if (b[j].end <= at) ++j;
@@ -954,6 +991,7 @@ private:
             }
             if (shared && !from) donors_[d].used = std::filesystem::file_time_type::clock::now();
         }
+        give_media(r);
         if (!first) return;
         if (shared) {
             r.reused_.store(shared);
@@ -962,7 +1000,12 @@ private:
         const size_t p = r.prompt_.size();
         if (r.job_) {
             r.source_ = shared && !from ? donors_[d].id : 0;
-            r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), p});
+            // A job reads every id it has at its prompt's extent, its last stretch open-ended, an image's rows under the image's digest.
+            prompt_classes(r, shared, r.classes_);
+            if (!r.classes_.empty() && r.classes_.back().end == p && r.classes_.back().image == std::array<uint8_t, 32>{} && r.classes_.back().extent == p)
+                r.classes_.back().end = std::numeric_limits<size_t>::max();
+            else
+                r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), p});
             r.reached_ = shared;
             return;
         }
@@ -970,7 +1013,7 @@ private:
             ++prefix_hits_;
             prefix_tokens_ += shared;
         }
-        r.classes_.push_back(RowClass{p, p});
+        prompt_classes(r, shared, r.classes_);
         r.classes_.push_back(RowClass{std::numeric_limits<size_t>::max(), 1});
         r.reached_ = shared;
         r.rng_.seed(r.params_.seed);
@@ -981,6 +1024,43 @@ private:
         const size_t message = std::min(r.message_, p - 1) / bt * bt;
         if (model_.checkpoint_slots() && host_cap_ && message > shared) r.boundary_at_ = message;
     }
+    // The stretches of a prompt read at its extent from `from` on, cut at each of its images' first and end rows, the image's rows carrying its digest, appended to `out`.
+    static void prompt_classes(const Request& r, size_t from, std::vector<RowClass>& out) {
+        const size_t p = r.prompt_.size();
+        for (const infer::MediaRun& m : r.media_) {
+            const size_t end = std::min(m.first + m.rows, p);
+            if (end <= from) continue;
+            if (m.first > from) out.push_back(RowClass{m.first, p});
+            out.push_back(RowClass{end, p, m.digest});
+            from = end;
+        }
+        if (from < p) out.push_back(RowClass{p, p});
+    }
+    // How a request not yet admitted would compute its prompt, which admission matches against what the tiers hold.
+    static std::vector<RowClass> first_classes(const Request& r) {
+        std::vector<RowClass> out;
+        prompt_classes(r, 0, out);
+        return out;
+    }
+    // The request's images given to a new sequence of it, a fork's or a restore's included, as far as they can be: those below its length without rows, and those with rows.
+    // The first whose rows it lacks waits for its encode, which the request's slice turns run (encode_piece).
+    void give_media(Request& r) {
+        drop_encode(r);
+        r.media_next_ = 0;
+        give_ready_media(r);
+    }
+    // Gives r's sequence its images from media_next_ on until one it reads needs rows it lacks.
+    void give_ready_media(Request& r) {
+        for (; r.media_next_ < r.media_.size(); ++r.media_next_) {
+            infer::MediaRun run = r.media_[r.media_next_];
+            if (run.first + run.rows > r.seq_.length() && !run.encoded) return;
+            model_.add_media(r.seq_, std::move(run));
+            r.media_[r.media_next_].encoded.reset();
+        }
+    }
+    // The one image encoding: its steps and the request it is for.
+    ImageSteps encoding_;
+    const Request* encoding_for_ = nullptr;
     // The ids a conversation's next turn begins with, given for request `of` (follow).
     struct Follow {
         std::shared_ptr<Request> of;
@@ -1323,7 +1403,7 @@ inline size_t Cache::shareable(const Request& r, const std::vector<uint32_t>& t,
 // The same for a history of `held` tokens whose state, on a model that keeps one, is kept at `kept`.
 inline size_t Cache::shareable(const Request& r, const std::vector<uint32_t>& t, const std::vector<RowClass>& classes, size_t held, std::optional<size_t> kept) const {
     const size_t bt = model_.kv_block_tokens(), h = history_tokens(r);
-    const std::vector<RowClass> first{RowClass{r.prompt_.size(), r.prompt_.size()}};
+    const std::vector<RowClass> first = first_classes(r);
     const std::vector<RowClass>& own = r.classes_.empty() ? first : r.classes_;
     size_t n = 0;
     // A request leaves its last token for the pass that gives its logits; a job wants none and shares every id a history holds.
@@ -1537,7 +1617,7 @@ inline std::pair<std::vector<uint32_t>, std::vector<RowClass>> Cache::asked(cons
     const size_t h = history_tokens(r), limit = r.job_ ? h : h - 1;
     std::vector<uint32_t> tokens(limit);
     for (size_t k = 0; k < limit; ++k) tokens[k] = *token_ptr(r, k);
-    return {std::move(tokens), r.classes_.empty() ? std::vector<RowClass>{RowClass{r.prompt_.size(), r.prompt_.size()}} : r.classes_};
+    return {std::move(tokens), r.classes_.empty() ? first_classes(r) : r.classes_};
 }
 
 // Whether a history of tokens `t` computed as `classes` record, `held` of them on hand, holds boundary b's rows: its tokens and row classes below b's position.
@@ -1786,7 +1866,7 @@ inline bool Cache::read_source(uint64_t id) const {
 // The digests of a history's whole blocks (DiskIndex::digests), each stretch of its rows under the key the model gives its extent (Model::row_class), which is what makes two histories' rows the same bits.
 inline std::vector<std::string> Cache::digests_of(const uint32_t* tokens, size_t n, const std::vector<RowClass>& classes) const {
     std::vector<ClassRun> runs;
-    for (const RowClass& c : classes) runs.push_back(ClassRun{c.end, model_.row_class(c.extent)});
+    for (const RowClass& c : classes) runs.push_back(ClassRun{c.end, model_.row_class(c.extent), c.image});
     if (runs.empty()) return {DiskIndex::root()};
     runs.back().end = std::numeric_limits<size_t>::max();
     return DiskIndex::digests(tokens, n, runs, model_.kv_block_tokens());
@@ -2166,6 +2246,7 @@ inline void Cache::prove(const Lines& lines, Request& r) {
             try { model_.reset(r.seq_); } catch (const std::exception&) {}
             try {
                 r.seq_ = quieted()->restore_host(*p->base);
+                give_media(r);
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "server: another build's history of %zu tokens was not restored to prove it (%s)\n", p->fork, e.what());
                 return unprove(lines, r);

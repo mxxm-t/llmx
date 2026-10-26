@@ -1,0 +1,30 @@
+#version 450
+// One workgroup a row: LayerNorm of n floats at row * stride, the mean, then the biased variance about it, each a fixed-order tree sum, then (x - mean) / sqrt(var + eps) * w + b; dst may be src.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint stride; float eps; } p;
+layout(set = 0, binding = 0) writeonly buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer X { float src[]; };
+layout(set = 0, binding = 2) readonly buffer W { float w[]; };
+layout(set = 0, binding = 3) readonly buffer B { float b[]; };
+shared float red[256];
+float row_sum(float s, uint lid) {
+    red[lid] = s;
+    barrier();
+    for (uint k = 128u; k > 0u; k >>= 1u) {
+        if (lid < k) red[lid] += red[lid + k];
+        barrier();
+    }
+    float total = red[0];
+    barrier();
+    return total;
+}
+void main() {
+    uint base = gl_WorkGroupID.x * p.stride, lid = gl_LocalInvocationID.x;
+    float s = 0.0;
+    for (uint i = lid; i < p.n; i += 256u) s += src[base + i];
+    float mean = row_sum(s, lid) / float(p.n);
+    float v = 0.0;
+    for (uint i = lid; i < p.n; i += 256u) { float d = src[base + i] - mean; v += d * d; }
+    float inv = 1.0 / sqrt(row_sum(v, lid) / float(p.n) + p.eps);
+    for (uint i = lid; i < p.n; i += 256u) dst[base + i] = (src[base + i] - mean) * inv * w[i] + b[i];
+}

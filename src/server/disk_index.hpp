@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -19,6 +20,7 @@ namespace server {
 struct ClassRun {
     size_t end = 0;
     std::vector<size_t> key;
+    std::array<uint8_t, 32> image{};   // the digest of the image whose rows these are, all zero for text
 };
 
 class DiskIndex {
@@ -55,7 +57,9 @@ public:
                 while (run < classes.size() && classes[run].end <= row) ++run;
                 if (run == classes.size()) throw std::logic_error("disk index: a history's classes end before its tokens");
                 size_t last = run;
-                while (last + 1 < classes.size() && classes[last].end < at + block && classes[last + 1].key == classes[run].key) ++last;
+                while (last + 1 < classes.size() && classes[last].end < at + block && classes[last + 1].key == classes[run].key &&
+                       classes[last + 1].image == classes[run].image)
+                    ++last;
                 const uint64_t stop = std::min(classes[last].end, at + block) - at, size = classes[run].key.size();
                 sha.update(&stop, sizeof stop);
                 sha.update(&size, sizeof size);
@@ -63,6 +67,8 @@ public:
                     const uint64_t v = k;
                     sha.update(&v, sizeof v);
                 }
+                // An image's digest after its class, and nothing for text, so a text history keeps its digests.
+                if (classes[run].image != std::array<uint8_t, 32>{}) sha.update(classes[run].image.data(), classes[run].image.size());
                 row = at + (size_t)stop;
             }
             d.push_back(sha.hex());

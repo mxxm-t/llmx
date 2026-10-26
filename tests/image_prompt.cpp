@@ -1,5 +1,5 @@
 // An image's rows in a prompt (docs/VISION.md, section 4) on a tiny qwen35 model built in memory: every position the rope reads against HF's get_rope_index written out, and the rows the same bits however the prompt is sliced or batched.
-// The encoder's rows overwrite their pad rows whatever the pad id embeds, and the refusals of what comes with the images' cache identity give their texts; the logits against HF are the suite's image component.
+// The encoder's rows overwrite their pad rows whatever the pad id embeds, and a fork, a host copy and a retract of a history with images continue with its bits; the logits against HF are the suite's image component.
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -39,10 +39,11 @@ bool same(const std::vector<float>& a, const std::vector<float>& b) {
     return a.size() == b.size() && !std::memcmp(a.data(), b.data(), a.size() * sizeof(float));
 }
 
-// The tiny model with a rotary width of 6, its three pairs taking an image row's start, row and column in turn, as sections [1, 1, 1] interleave them.
-gguf::GGUFModel model_file() {
-    return tiny35::tiny([](gguf::GGUFModel& m) {
+// The tiny model with a rotary width of 6, its three pairs taking an image row's start, row and column in turn, as sections [1, 1, 1] interleave them, and a context of `context` rows.
+gguf::GGUFModel model_file(uint64_t context = tiny35::CTX) {
+    return tiny35::tiny([context](gguf::GGUFModel& m) {
         for (auto& kv : m.kv) {
+            if (kv.first == "qwen35.context_length") kv.second.u = context;
             if (kv.first == "qwen35.rope.dimension_count") kv.second.u = 6;
             if (kv.first == "qwen35.rope.dimension_sections")
                 for (size_t i = 0; i < kv.second.arr.size(); ++i) kv.second.arr[i].i = i < 3 ? 1 : 0;
@@ -198,13 +199,12 @@ void beside_another() {
     model.reset(b);
 }
 
-// What the images' cache identity brings is refused by name, and so is an image the model or the history cannot take; a reset drops a sequence's images, so the same image may be given again.
+// An image the model or the history cannot take is refused by name, nothing left behind; a reset drops a sequence's images, so the same image may be given again.
 void refusals() {
     const gguf::GGUFModel m = model_file();
     const auto [ids, runs] = prompt(kPrompt, 5);
     infer::ModelOptions options;
     options.dtype = backend::Dtype::f32;
-    options.checkpoint_slots = 1;
     infer::Model model(infer::gguf_weights(m), backend::make_cpu_backend(), options);
     infer::MediaRun bad = runs[0];
     bad.grid_w = 2;
@@ -212,23 +212,19 @@ void refusals() {
     bad = runs[0];
     bad.encoded = std::make_shared<const std::vector<float>>(bad.rows * tiny35::E - 1, 0.0f);
     refuses("rows of another width", "rows of the embedding's", [&] { model.prefill(ids, 0, {bad}); });
-    refuses("images out of order", "an image before the history", [&] { model.prefill(ids, 0, {runs[1], runs[0]}); });
+    bad = runs[0];
+    bad.encoded.reset();
+    refuses("an image to read given without rows", "given without its rows", [&] { model.prefill(ids, 0, {bad}); });
+    refuses("images out of order", "an image before or over an image", [&] { model.prefill(ids, 0, {runs[1], runs[0]}); });
     bad = runs[0];
     bad.first = tiny35::CTX - 2;
     refuses("an image past the context", "context length exceeded", [&] { model.prefill(ids, 0, {bad}); });
     require(model.n_tokens() == 0, "a refused image left a history");
     infer::Sequence q = model.make_sequence();
     for (const infer::MediaRun& r : runs) model.add_media(q, r);
-    infer::ExecContext ctx;
-    const infer::BatchEntry e{&q, ids.data(), ids.size(), true};
-    model.forward(ctx, &e, 1);
-    refuses("an image inside the history", "an image before the history", [&] { model.add_media(q, runs[1]); });
-    refuses("a checkpoint", "a checkpoint of a history with images", [&] { model.keep(q); });
-    infer::HostHistory host;
-    refuses("a copy to host memory", "a copy to host memory of a history with images", [&] { model.save_host(q, ids.size(), host, SIZE_MAX); });
-    refuses("a fork", "a fork of a history with images", [&] { model.fork(q, ids.size()); });
-    refuses("a retract below an image's last row", "a retract below an image's last row", [&] { model.retract(q, runs[1].first + 1); });
-    require(q.length() == ids.size(), "a refused retract shortened the history");
+    bad = runs[1];
+    bad.digest[0] = 1;
+    refuses("another image given where the history holds one", "is not the image the history holds", [&] { model.add_media(q, bad); });
     model.reset(q);
     model.add_media(q, runs[0]);
     model.reset(q);
@@ -236,6 +232,85 @@ void refusals() {
     const gguf::GGUFModel dense = tiny_qwen(2, 64, true);
     infer::Model text(infer::gguf_weights(dense));
     refuses("a model whose architecture places no images", "takes no image rows", [&] { text.prefill(ids, 0, runs); });
+}
+
+// A history with images through every way a history continues (docs/VISION.md, section 5), its checkpoint inside the first image of a context of 512 rows.
+// Each continuation, given its images again, has the bits of the history never forked; rows dropped once read and not given again are refused.
+const std::vector<Segment> kLong = {{100, 0, 0}, {0, 6, 5}, {10, 0, 0}, {0, 4, 4}, {20, 0, 0}};
+
+std::vector<float> rows_after(infer::Model& model, infer::Sequence& s, const std::vector<uint32_t>& ids, size_t from) {
+    infer::ExecContext ctx;
+    const infer::BatchEntry e{&s, ids.data() + from, ids.size() - from, true};
+    model.forward(ctx, &e, 1);
+    std::vector<float> out(ctx.logits(0), ctx.logits(0) + tiny35::VOCAB);
+    for (uint32_t t : kSteps) {
+        const infer::BatchEntry step{&s, &t, 1, true};
+        model.forward(ctx, &step, 1);
+        out.insert(out.end(), ctx.logits(0), ctx.logits(0) + tiny35::VOCAB);
+    }
+    return out;
+}
+
+void histories() {
+    const gguf::GGUFModel m = model_file(512);
+    const auto [ids, runs] = prompt(kLong, 5);
+    infer::ModelOptions options;
+    options.dtype = backend::Dtype::f32;
+    options.state_slots = 3;
+    options.checkpoint_slots = 2;
+    options.kv_tokens = 4 * 512;
+    infer::Model model(infer::gguf_weights(m), backend::make_cpu_backend(), options);
+    const size_t at = 128;
+    require(runs[0].first < at && at < runs[0].first + runs[0].rows, "the checkpoint is not inside the first image");
+    // The history never forked: the prompt to the checkpoint, kept there, then the rest and three steps.
+    infer::Sequence a = model.make_sequence();
+    for (const infer::MediaRun& r : runs) model.add_media(a, r);
+    {
+        infer::ExecContext ctx;
+        infer::BatchEntry e{&a, ids.data(), at, false};
+        e.keep = true;
+        model.forward(ctx, &e, 1);
+    }
+    const std::vector<float> whole = rows_after(model, a, ids, at);
+
+    // A fork at the checkpoint carries the images below it, without rows: the image it ends inside needs its rows given again, and another image there is refused.
+    infer::Sequence f = model.fork(a, at);
+    refuses("a fork reading an image's rows not given again", "were not given again", [&] { rows_after(model, f, ids, at); });
+    require(f.length() == at, "a refused pass changed the fork's history");
+    infer::MediaRun other = runs[0];
+    other.digest[5] = 9;
+    refuses("another image given to a fork", "is not the image the history holds", [&] { model.add_media(f, other); });
+    for (const infer::MediaRun& r : runs) model.add_media(f, r);
+    require(same(rows_after(model, f, ids, at), whole), "a fork inside an image differs from the history never forked");
+    model.reset(f);
+
+    // A host copy at the checkpoint and its restore.
+    infer::HostHistory host;
+    model.save_host(a, at, host, SIZE_MAX);
+    infer::Sequence h = model.restore_host(host);
+    model.wait_host(host);
+    for (const infer::MediaRun& r : runs) model.add_media(h, r);
+    require(same(rows_after(model, h, ids, at), whole), "a host copy restored inside an image differs from the history never forked");
+    model.reset(h);
+    model.release_host(host);
+
+    // A state alone at the checkpoint and a fork with it, as a message boundary forks: it carries the images below it from the history it shares blocks with.
+    infer::HostHistory state;
+    model.save_host(a, at, state, SIZE_MAX, false);
+    infer::Sequence b = model.fork(a, at, state);
+    model.wait_host(state);
+    for (const infer::MediaRun& r : runs) model.add_media(b, r);
+    require(same(rows_after(model, b, ids, at), whole), "a fork with a state inside an image differs from the history never forked");
+    model.reset(b);
+    model.release_host(state);
+
+    // A retract below the second image's last row reaches the checkpoint inside the first; its images given again, the history recomputes the same bits.
+    const size_t reached = model.retract(a, runs[1].first + 3);
+    require(reached == at, "a retract below the second image did not reach the checkpoint (" + std::to_string(reached) + ")");
+    refuses("a recompute of an image read whole, its rows dropped", "were not given again", [&] { rows_after(model, a, ids, at); });
+    for (const infer::MediaRun& r : runs) model.add_media(a, r);
+    require(same(rows_after(model, a, ids, at), whole), "a retract below an image recomputed differs from the history first computed");
+    model.reset(a);
 }
 
 // The chat renderer hands a message's parts to the template as HF passes them, and a message without parts renders as its content.
@@ -260,6 +335,7 @@ int main() {
         positions_and_slices();
         beside_another();
         refusals();
+        histories();
         parts();
     } catch (const std::exception& e) {
         std::cerr << "image-prompt: FAIL " << e.what() << "\n";

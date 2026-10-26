@@ -1,4 +1,4 @@
-"""The vision encoder's references of tests/vision.py (docs/VISION.md, section 7), written by `tools/gen_baseline.py vision-tiny` and `vision-file-exact`.
+"""The vision encoder's references of tests/vision.py and tests/image.py (docs/VISION.md, section 7), written by `tools/gen_baseline.py vision-tiny`, `vision-file-exact`, `image-tiny` and `image-qwen4exp`.
 
 vision-tiny builds a random-weight Qwen3_5VisionModel with HF's own code in the qwen35 reference environment, writes it as an mmproj GGUF the way the converter names and lays out its tensors, and keeps HF's rows for fixture images at three grids.
 vision-file-exact holds a released mmproj's every tensor to the checkpoint's model.visual.* bit for bit, then keeps HF's rows in float64 for fixture images with the mmproj's own weights, and the bound: twice HF float32's own worst per-row error against them over every image.
@@ -316,3 +316,110 @@ def image_tiny(output_dir):
         json.dump(doc, f)
         f.write("\n")
     print("wrote %s and %s (%d cases)" % (path, mmproj, len(cases)))
+
+
+# The Flash-Next image fixture's text model: tools/qwen4exp_reference.py's tiny config over tests/image.py's vocabulary, heads 16 wide whose four rotated pairs take an image row's start, row, column and start.
+QWEN4EXP_TEXT = {"head_dim": 16, "max_position_embeddings": 1024, "eos_token_id": 256, "bos_token_id": 256, "pad_token_id": 0}
+# HF initializes the text matrices at a scale that leaves this tiny model's router and indexer scores nearly tied, so each is multiplied by this.
+QWEN4EXP_SCALE = 10.0
+QWEN4EXP_MARGIN = 1e-5
+QWEN4EXP_TORCHVISION = "0.26.0+cpu"
+
+
+def image_qwen4exp(output_dir):
+    """tests/image.py's Flash-Next goldens: HF Qwen4ExpForConditionalGeneration, its text model initialized as tools/qwen4exp_reference.py initializes its own over tests/image.py's vocabulary, beside a seeded tiny tower.
+    Each case's prompt is HF's processor's, its every row from HF's full forward with HF's image rows and positions, and its greedy ids from HF's cached forward; every router and indexer top-k boundary is held QWEN4EXP_MARGIN apart."""
+    import math
+    import PIL
+    import torchvision
+    import gen_baseline
+    import image
+    import qwen4exp_reference as q4
+    # The Qwen4-Exp reference's pinned environment (docs/ASSETS.md), offline, with the image references' Pillow and the torchvision of its torch.
+    os.environ["HF_HUB_OFFLINE"] = os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    torch, transformers, _, _, _ = q4.pinned_environment()
+    if PIL.__version__ != gen_baseline.QWEN35_ENV["pillow"] or torchvision.__version__ != QWEN4EXP_TORCHVISION:
+        raise SystemExit("image-qwen4exp: needs Pillow %s and torchvision %s, found %s and %s" % (gen_baseline.QWEN35_ENV["pillow"], QWEN4EXP_TORCHVISION,
+                                                                                                 PIL.__version__, torchvision.__version__))
+    torch.set_num_threads(1)
+    from transformers.models.qwen4_exp.configuration_qwen4_exp import Qwen4ExpConfig
+    from transformers.models.qwen4_exp import modeling_qwen4_exp as modeling
+    text = dict(q4.TINY_CONFIG, vocab_size=image.FIXTURE["vocab"], **QWEN4EXP_TEXT)
+    text["rope_parameters"] = dict(text["rope_parameters"], mrope_section=[2, 1, 1])
+    vision = {k: v for k, v in TINY.items() if k != "deepstack_visual_indexes"}
+    vision["out_hidden_size"] = text["hidden_size"]
+    config = Qwen4ExpConfig(text_config=text, vision_config=vision, image_token_id=image.IMAGE_PAD, vision_start_token_id=image.VISION_START,
+                            vision_end_token_id=image.VISION_END, tie_word_embeddings=False)
+    config._attn_implementation = config.text_config._attn_implementation = config.vision_config._attn_implementation = "eager"
+    torch.manual_seed(q4.SEED)
+    model = modeling.Qwen4ExpForConditionalGeneration(config).to(torch.float32).eval()
+    params = dict(model.named_parameters())
+    ple = params["model.language_model." + q4.PLE_NONZERO_PARAMETER[len("model."):]]
+    gen = torch.Generator().manual_seed(q4.SEED + 1)
+    with torch.no_grad():
+        for name, p in model.named_parameters():
+            if not name.startswith("model.visual.") and p.dim() >= 2:
+                p.mul_(QWEN4EXP_SCALE)
+        ple.copy_(torch.randn(ple.shape, generator=gen) * 0.01)
+        gen = torch.Generator().manual_seed(IMAGE_SEED)
+        for name, p in model.model.visual.named_parameters():
+            scale = 0.1 if "norm" in name and name.endswith("weight") else 0.3
+            base = 1.0 if "norm" in name and name.endswith("weight") else 0.0
+            p.copy_(base + scale * torch.randn(p.shape, generator=gen, dtype=torch.float32))
+    root = os.path.join(output_dir, "vision")
+    os.makedirs(root, exist_ok=True)
+    mmproj = os.path.join(root, "tiny-mmproj-qwen4exp.gguf")
+    write_mmproj(mmproj, vision, {k: v.detach().numpy() for k, v in model.model.visual.state_dict().items()})
+    state = {}
+    for name, value in model.state_dict().items():
+        if name.startswith("model.visual."):
+            continue
+        key = "model." + name[len("model.language_model."):] if name.startswith("model.language_model.") else name
+        state[key] = (tuple(value.shape), value.detach().reshape(-1).tolist())
+    gguf = os.path.join(root, "tiny-qwen4exp-image.gguf")
+    image.write_qwen4exp_fixture(gguf, text, state)
+    trace = q4._TopKTrace()
+    trace.attach(model)
+    cases = []
+    try:
+        with torch.no_grad(), trace.mode:
+            for case in image.CASES:
+                hf = hf_processor(transformers, case["max_pixels"] or MAX_PIXELS)
+                content = [{"type": "image", "path": os.path.join(output_dir, "images", f)} for f in case["images"]] + [{"type": "text", "text": case["text"]}]
+                feat = hf.apply_chat_template([{"role": "user", "content": content}], add_generation_prompt=True, tokenize=True, return_dict=True, return_tensors="pt")
+                ids = feat["input_ids"][0].tolist()
+                model.model.rope_deltas = None
+                out = model(input_ids=feat["input_ids"], pixel_values=feat["pixel_values"], image_grid_thw=feat["image_grid_thw"],
+                            mm_token_type_ids=feat["mm_token_type_ids"], use_cache=True, return_dict=True)
+                rows, cache = out.logits[0], out.past_key_values
+                greedy, gap, last = [], math.inf, rows[-1]
+                for k in range(image.GREEDY):
+                    scores = last.clone()
+                    scores[image.EOS] = -math.inf
+                    top = torch.topk(scores, 2)
+                    gap = min(gap, (top.values[0] - top.values[1]).item())
+                    greedy.append(int(top.indices[0]))
+                    if k + 1 < image.GREEDY:
+                        step = model(input_ids=torch.tensor([[greedy[-1]]]), past_key_values=cache, use_cache=True, return_dict=True)
+                        last, cache = step.logits[0, -1], step.past_key_values
+                if gap < gen_baseline.QWEN35_GREEDY_GAP:
+                    raise SystemExit("image-qwen4exp: a greedy step's top two logits are within %.2e" % gap)
+                cases.append(dict(case, ids=ids, grids=[[int(v) for v in g[1:]] for g in feat["image_grid_thw"]], logits=[[float(v) for v in r] for r in rows.tolist()],
+                                  greedy=greedy, min_gap=gap))
+                print("  %r: %d tokens, grids %s, greedy %s" % (case["text"], len(ids), cases[-1]["grids"], greedy))
+    finally:
+        trace.close()
+    margins = trace.margins()
+    for owner in ("router", "indexer"):
+        if not margins[owner] or min(margins[owner]) < QWEN4EXP_MARGIN:
+            raise SystemExit("image-qwen4exp: the %s's top-k boundary is %s apart (%s)" % (owner, min(margins[owner]) if margins[owner] else "never", trace.calls(owner)))
+    doc = {"generator": "tools/gen_baseline.py image-qwen4exp", "transformers": transformers.__version__, "torch": torch.__version__,
+           "torchvision": torchvision.__version__, "pillow": PIL.__version__, "dtype": "float32",
+           "attention": "eager", "text": text, "template": image.TEMPLATE, "vision": vision, "seed": [q4.SEED, IMAGE_SEED], "text_scale": QWEN4EXP_SCALE,
+           "margins": {k: min(v) for k, v in margins.items()}, "model_sha256": hashlib.sha256(open(gguf, "rb").read()).hexdigest(),
+           "mmproj_sha256": hashlib.sha256(open(mmproj, "rb").read()).hexdigest(), "cases": cases}
+    path = os.path.join(output_dir, "baseline_image_qwen4exp.json")
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(doc, f)
+        f.write("\n")
+    print("wrote %s, %s and %s (%d cases)" % (path, gguf, mmproj, len(cases)))

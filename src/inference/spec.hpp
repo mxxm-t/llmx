@@ -35,42 +35,62 @@ namespace spec {
 // The most drafts a verify takes: with the last pick 64 rows, the most generated tokens a pass's kernels are held to give the bits of single steps for (AGENTS.md, backend-vulkan).
 inline constexpr int kMaxDrafts = 63;
 
+// The rows of a history's images, [first, end) each in order, as its sequence's runs give them (Model::image_rows).
+using ImageRows = std::vector<std::pair<size_t, size_t>>;
+
 // A drafter of the next tokens of a history: it proposes, the verify decides, so a wrong proposal costs time and never output.
 // A proposer drafts deterministically and never touches a request's generator.
+
 class Proposer {
 public:
     virtual ~Proposer() = default;
     // Up to `k` tokens likely to follow `history`, in `out`; fewer, or none, where it has nothing to propose.
-    // `seq` is the history's sequence in the model, or null for the model's own, as `generate` runs it.
-    virtual void draft(Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out) = 0;
+    // `seq` is the history's sequence in the model, or null for the model's own, as `generate` runs it; `images` are the history's image rows, which are not tokens to draft from.
+    virtual void draft(Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out, const ImageRows& images = {}) = 0;
 
-    // One history's draft among several: its sequence in the model, its history, the most drafts it takes and its drafts.
+    // One history's draft among several: its sequence in the model, its history and its image rows, the most drafts it takes and its drafts.
     struct Ask {
         Sequence* seq = nullptr;
         std::vector<uint32_t> history;
+        ImageRows images;
         size_t k = 0;
         std::vector<uint32_t> out;
     };
     // Each of `n` asks' drafts, each what draft gives it alone; a proposer that drafts several histories at once does so here.
     virtual void draft_all(Ask* asks, size_t n) {
-        for (size_t i = 0; i < n; ++i) draft(asks[i].seq, asks[i].history, asks[i].k, asks[i].out);
+        for (size_t i = 0; i < n; ++i) draft(asks[i].seq, asks[i].history, asks[i].k, asks[i].out, asks[i].images);
     }
     // Whether a history's own convincing continuation is drafted in this proposer's place where it has one (lookup_first), as the commands ask of a proposer that runs a model.
     virtual bool after_lookup() const { return false; }
 };
 
+// Whether row `at` of a history is an image's.
+inline bool image_row(const ImageRows& images, size_t at) {
+    for (const auto& [first, end] : images)
+        if (first <= at && at < end) return true;
+    return false;
+}
+// Whether rows [from, to) hold no image row.
+inline bool text_rows(const ImageRows& images, size_t from, size_t to) {
+    for (const auto& [first, end] : images)
+        if (first < to && from < end) return false;
+    return true;
+}
+
 // Prompt lookup: the tokens that followed the latest earlier occurrence of the history's last three tokens, else two, else one.
+// An image's rows are no tokens (docs/VISION.md, section 5): no occurrence or tail holds one, and a draft stops where one begins.
 class Lookup final : public Proposer {
 public:
-    void draft(Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& images = {}) override {
         out.clear();
         const size_t size = h.size();
         for (size_t n = std::min<size_t>(3, size); n >= 1 && k; --n) {
             const auto tail = h.end() - (std::ptrdiff_t)n;
+            if (!text_rows(images, size - n, size)) continue;
             // An occurrence that ends before the history's last token, so a token follows it.
             for (size_t i = size - n; i-- > 0;) {
-                if (!std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n), tail)) continue;
-                for (size_t j = i + n; j < size && out.size() < k; ++j) out.push_back(h[j]);
+                if (!std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n), tail) || !text_rows(images, i, i + n)) continue;
+                for (size_t j = i + n; j < size && out.size() < k && !image_row(images, j); ++j) out.push_back(h[j]);
                 return;
             }
         }
@@ -82,16 +102,18 @@ public:
     static constexpr size_t kLongestMatch = 32;
     // Up to `k` tokens that followed the latest earlier occurrence of the history's last kConvincing tokens, in `out`, an occurrence that overlaps the history's end going on into the tokens drafted.
     // Returns the match's length, the occurrence extended backwards while it still matches the history's end, at most kLongestMatch, or 0 for none.
-    static size_t convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) {
+    static size_t convincing(const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& images = {}) {
         out.clear();
         const size_t size = h.size(), n = kConvincing;
-        if (size <= n || !k) return 0;
+        if (size <= n || !k || !text_rows(images, size - n, size)) return 0;
         const uint32_t last = h[size - 1];
         for (size_t i = size - n; i-- > 0;) {
-            if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n)) continue;
-            for (size_t j = i + n; out.size() < k; ++j) out.push_back(j < size ? h[j] : out[j - size]);
+            if (h[i + n - 1] != last || !std::equal(h.begin() + (std::ptrdiff_t)i, h.begin() + (std::ptrdiff_t)(i + n - 1), h.end() - (std::ptrdiff_t)n) ||
+                !text_rows(images, i, i + n))
+                continue;
+            for (size_t j = i + n; out.size() < k && !image_row(images, j); ++j) out.push_back(j < size ? h[j] : out[j - size]);
             size_t run = n;
-            while (run < kLongestMatch && i + n > run && h[i + n - 1 - run] == h[size - 1 - run]) ++run;
+            while (run < kLongestMatch && i + n > run && h[i + n - 1 - run] == h[size - 1 - run] && !image_row(images, i + n - 1 - run)) ++run;
             return run;
         }
         return 0;
@@ -102,7 +124,7 @@ public:
 class Embedded final : public Proposer {
 public:
     explicit Embedded(Model& model, bool after_lookup = false) : model_(model), after_lookup_(after_lookup) {}
-    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& = {}) override {
         out.clear();
         if (h.empty()) return;
         if (seq) model_.draft(*seq, h.back(), k, out);
@@ -130,7 +152,7 @@ private:
 class DraftModel final : public Proposer {
 public:
     explicit DraftModel(Model& model, bool after_lookup = false) : model_(model), after_lookup_(after_lookup) {}
-    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(Sequence* seq, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const ImageRows& = {}) override {
         out.clear();
         if (seq) throw std::logic_error("inference: a draft model drafts for one history, not a sequence of another model");
         if (h.empty() || !k) return;
@@ -257,13 +279,13 @@ inline size_t draft_length(size_t draft_max, size_t tokens_left, size_t context_
 // A request's draft ahead of its proposer (docs/SPECULATIVE.md, section 8): the convincing continuation of its own `history` (Lookup::convincing), up to the drafts draft_length allows the acceptance of its match's bucket, in `out`.
 // It sets the record's source and bucket and returns the drafts; with none the source is the proposer's, which the caller asks under that source's acceptance.
 inline size_t lookup_first(Record& r, size_t draft_max, size_t tokens_left, size_t context_left, size_t columns, const std::vector<uint32_t>& history,
-                           std::vector<uint32_t>& out) {
+                           std::vector<uint32_t>& out, const ImageRows& images = {}) {
     out.clear();
     r.drafted = Source::proposer;
     if (r.lookup_resting()) return 0;
     static const Acceptance fresh;
     const size_t k = draft_length(draft_max, tokens_left, context_left, columns, fresh);
-    const size_t match = k ? Lookup::convincing(history, k, out) : 0;
+    const size_t match = k ? Lookup::convincing(history, k, out, images) : 0;
     if (out.empty()) return 0;
     if (r.lookup[match_bucket(match)].resting()) {
         out.clear();
@@ -375,6 +397,7 @@ struct Drafting {
     Proposer* proposer = nullptr;
     size_t draft_max = 0;
     std::vector<uint32_t> history;
+    ImageRows images;   // the history's image rows
     Record record;
 };
 

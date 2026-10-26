@@ -1,5 +1,7 @@
 #pragma once
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
@@ -78,6 +80,8 @@ inline Config read_config(const gguf::GGUFModel& m) {
 // The roles, by id: the patch embedding, the learned positions, each block's twelve, the merger's six.
 enum : uint16_t { patch0, patch1, patch_bias, pos_table, kBlockBase };
 inline constexpr uint16_t kPerBlock = 12;
+// The multiply-adds of one piece's attention at most, about 60 ms on an MI50, so a server's replies wait at most that long for an image's encode (docs/VISION.md, section 10).
+inline constexpr size_t kPieceProducts = size_t(1) << 37;
 enum : uint16_t { ln1_w, ln1_b, qkv_w, qkv_b, out_w, out_b, ln2_w, ln2_b, up_w, up_b, down_w, down_b };
 enum : uint16_t { post_w, post_b, mm0_w, mm0_b, mm2_w, mm2_b, kMerger };
 
@@ -217,26 +221,45 @@ public:
         return in;
     }
 
-    void encode(const EncodeStep& s) const override {
+    // The patch embedding, then each block as its projections, its attention in runs of query rows of at most kPieceProducts multiply-adds, and the rest, then the merger.
+    size_t pieces(size_t patches) const override { return 2 + c_.blocks * (2 + attention_runs(patches)); }
+
+    void encode(const EncodeStep& s, size_t piece) const override {
         backend::Backend& b = s.b;
         const size_t D = c_.width, F = c_.mlp, n = s.patches, hd = D / c_.heads, M2 = c_.merge * c_.merge, T = n / M2;
         const size_t in = c_.patch * c_.patch * 3;
         const backend::RowRun run{n, n}, merged_run{T, T};
         const backend::RowRuns runs{&run, 1}, merged{&merged_run, 1};
         const Weight* w = s.w;
-        // The first head_dim / 4 frequencies turn by the patch's row, the rest by its column.
-        uint8_t of[128];
-        for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
-        // The patch embedding: both temporal kernels on the one frame, the bias, then the learned positions' taps.
-        b.matmul(w[patch0].type, w[patch0].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
-        b.matmul_add(w[patch1].type, w[patch1].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
-        b.add_bias(s.slot(s_x), w[patch_bias].slice(), n, D);
-        b.mix_rows(s.slot(s_x), w[pos_table].slice(), D, c_.side * c_.side, s.inputs->taps.data(), s.inputs->weights.data(), n, 4);
-        const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
-        for (size_t l = 0; l < c_.blocks; ++l) {
-            const Weight* lw = w + kBlockBase + l * kPerBlock;
+        const size_t per_block = 2 + attention_runs(n);
+        if (piece == 0) {
+            // The patch embedding: both temporal kernels on the one frame, the bias, then the learned positions' taps.
+            b.matmul(w[patch0].type, w[patch0].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
+            b.matmul_add(w[patch1].type, w[patch1].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
+            b.add_bias(s.slot(s_x), w[patch_bias].slice(), n, D);
+            b.mix_rows(s.slot(s_x), w[pos_table].slice(), D, c_.side * c_.side, s.inputs->taps.data(), s.inputs->weights.data(), n, 4);
+            return;
+        }
+        if (piece == pieces(n) - 1) {
+            // The merger: the norm over each patch, then four consecutive patches read as one token's row.
+            const Weight* mw = w + merger_base();
+            b.layer_norm_rows(s.slot(s_h), s.slot(s_x), mw[post_w].slice(), mw[post_b].slice(), n, D, D, c_.eps);
+            b.matmul(mw[mm0_w].type, mw[mm0_w].slice(), s.slot(s_h), s.slot(s_merge), M2 * D, M2 * D, T, merged, s.dtype);
+            b.add_bias(s.slot(s_merge), mw[mm0_b].slice(), T, M2 * D);
+            b.gelu(s.slot(s_merge), s.slot(s_merge), T * M2 * D, backend::GeluForm::erf);
+            b.matmul(mw[mm2_w].type, mw[mm2_w].slice(), s.slot(s_merge), s.slot(s_out), M2 * D, c_.out, T, merged, s.dtype);
+            b.add_bias(s.slot(s_out), mw[mm2_b].slice(), T, c_.out);
+            return;
+        }
+        const size_t l = (piece - 1) / per_block, part = (piece - 1) % per_block;
+        const Weight* lw = w + kBlockBase + l * kPerBlock;
+        const backend::Slice q = s.slot(s_q), k = s.slot(s_k), v = s.slot(s_v);
+        if (part == 0) {
+            // The first head_dim / 4 frequencies turn by the patch's row, the rest by its column.
+            uint8_t of[128];
+            for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
+            const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
             b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln1_w].slice(), lw[ln1_b].slice(), n, D, D, c_.eps);
-            const backend::Slice q = s.slot(s_q), k = s.slot(s_k), v = s.slot(s_v);
             b.matmul_group({{lw[qkv_w].type, row_block(lw[qkv_w], 0), q, D}, {lw[qkv_w].type, row_block(lw[qkv_w], D), k, D},
                             {lw[qkv_w].type, row_block(lw[qkv_w], 2 * D), v, D}},
                            s.slot(s_h), D, n, runs, s.dtype);
@@ -247,31 +270,33 @@ public:
             b.norm_rope_partial(q, q, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeStreams{2, of});
             b.norm_rope_partial(k, k, n, D, hd, c_.heads, hd, hd, {}, 0.0f, cos, sin, s.inputs->positions.data(), backend::RopeStreams{2, of});
             b.kv_write(0, s.view, 1, k, v);
-            b.attention(q, 0, s.view, 1, s.slot(s_attn), int(c_.heads), int(c_.heads), int(hd));
-            // The projection and its bias before the residual add, in HF's order.
-            b.matmul(lw[out_w].type, lw[out_w].slice(), s.slot(s_attn), s.slot(s_h), D, D, n, runs, s.dtype);
-            b.add_bias(s.slot(s_h), lw[out_b].slice(), n, D);
-            b.add(s.slot(s_x), s.slot(s_h), n * D);
-            b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln2_w].slice(), lw[ln2_b].slice(), n, D, D, c_.eps);
-            b.matmul(lw[up_w].type, lw[up_w].slice(), s.slot(s_h), s.slot(s_mlp), D, F, n, runs, s.dtype);
-            b.add_bias(s.slot(s_mlp), lw[up_b].slice(), n, F);
-            b.gelu(s.slot(s_mlp), s.slot(s_mlp), n * F, backend::GeluForm::tanh);
-            b.matmul(lw[down_w].type, lw[down_w].slice(), s.slot(s_mlp), s.slot(s_h), F, D, n, runs, s.dtype);
-            b.add_bias(s.slot(s_h), lw[down_b].slice(), n, D);
-            b.add(s.slot(s_x), s.slot(s_h), n * D);
+            return;
         }
-        // The merger: the norm over each patch, then four consecutive patches read as one token's row.
-        const Weight* mw = w + merger_base();
-        b.layer_norm_rows(s.slot(s_h), s.slot(s_x), mw[post_w].slice(), mw[post_b].slice(), n, D, D, c_.eps);
-        b.matmul(mw[mm0_w].type, mw[mm0_w].slice(), s.slot(s_h), s.slot(s_merge), M2 * D, M2 * D, T, merged, s.dtype);
-        b.add_bias(s.slot(s_merge), mw[mm0_b].slice(), T, M2 * D);
-        b.gelu(s.slot(s_merge), s.slot(s_merge), T * M2 * D, backend::GeluForm::erf);
-        b.matmul(mw[mm2_w].type, mw[mm2_w].slice(), s.slot(s_merge), s.slot(s_out), M2 * D, c_.out, T, merged, s.dtype);
-        b.add_bias(s.slot(s_out), mw[mm2_b].slice(), T, c_.out);
+        if (part + 1 < per_block) {
+            // A run of query rows over every key: a non-causal view of all n keys whose rows are the run's, each row's output that of the whole call.
+            const size_t rows = attention_rows(n), first = (part - 1) * rows, m = std::min(rows, n - first);
+            const backend::KVView view{s.view->storage, s.view->blocks, s.view->n_blocks, n - m, m, m, false};
+            b.attention({q.buffer, q.offset + first * D}, 0, &view, 1, {s.slot(s_attn).buffer, s.slot(s_attn).offset + first * D}, int(c_.heads), int(c_.heads), int(hd));
+            return;
+        }
+        // The projection and its bias before the residual add, in HF's order.
+        b.matmul(lw[out_w].type, lw[out_w].slice(), s.slot(s_attn), s.slot(s_h), D, D, n, runs, s.dtype);
+        b.add_bias(s.slot(s_h), lw[out_b].slice(), n, D);
+        b.add(s.slot(s_x), s.slot(s_h), n * D);
+        b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln2_w].slice(), lw[ln2_b].slice(), n, D, D, c_.eps);
+        b.matmul(lw[up_w].type, lw[up_w].slice(), s.slot(s_h), s.slot(s_mlp), D, F, n, runs, s.dtype);
+        b.add_bias(s.slot(s_mlp), lw[up_b].slice(), n, F);
+        b.gelu(s.slot(s_mlp), s.slot(s_mlp), n * F, backend::GeluForm::tanh);
+        b.matmul(lw[down_w].type, lw[down_w].slice(), s.slot(s_mlp), s.slot(s_h), F, D, n, runs, s.dtype);
+        b.add_bias(s.slot(s_h), lw[down_b].slice(), n, D);
+        b.add(s.slot(s_x), s.slot(s_h), n * D);
     }
 
 private:
     uint16_t merger_base() const { return uint16_t(kBlockBase + c_.blocks * kPerBlock); }
+    // A piece's attention rows: as many as keep its dots and weighted sums over all n keys within kPieceProducts, at least one, at most n.
+    size_t attention_rows(size_t n) const { return std::max<size_t>(1, std::min(n, kPieceProducts / std::max<size_t>(1, 2 * n * c_.width))); }
+    size_t attention_runs(size_t n) const { return (n + attention_rows(n) - 1) / attention_rows(n); }
     // The longest grid side, in patches, the default pixel bound allows under smart_resize's aspect limit.
     size_t max_side() const { return size_t(std::sqrt(kMaxAspect * double(kMaxPixels))) / c_.patch + 1; }
     // A matrix weight from row `first` on, which starts on a float boundary in every type the encoder reads.

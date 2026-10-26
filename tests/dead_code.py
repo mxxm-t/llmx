@@ -597,7 +597,7 @@ def shader_findings(texts):
     catalog_end = find(code, "#define LLMX_KERNEL_ID", VK, catalog_start)
     catalog = code[catalog_start:catalog_end]
     for inc, arr in sorted(arrays.items()):
-        if arr not in catalog:
+        if not re.search(r"\b%s\b" % re.escape(arr), catalog):
             add(VK, arr, "embedded from %s.inc but not in kKernels" % inc)
     ids = re.findall(r"X\((K_[A-Z0-9_]+),", catalog) + ["K_COUNT"]
     raw_catalog = vk[vk.index("#define LLMX_VULKAN_KERNELS(X)"):vk.index("#define LLMX_KERNEL_ID")]

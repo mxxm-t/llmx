@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -26,6 +26,7 @@ qwen35-mtp writes the draft goldens of the tiny fixture with an MTP block from a
 qwen4exp-tiny prepares a small independent Flash-Next reference with HF's own model, takes only --output-dir and is not part of all.
 vision-tiny writes the tiny vision encoder's mmproj and rows (tools/vision_reference.py); vision-file-exact holds a released mmproj's every tensor to the checkpoint directory's model.visual.* and writes HF's rows with its weights; neither is part of all.
 image-tiny writes the goldens of tests/image.py, a prompt with images on the tiny qwen35 fixture beside a tiny tower, from HF Qwen3_5ForConditionalGeneration stepped token by token (tools/vision_reference.py), takes only --output-dir and is not part of all.
+image-qwen4exp writes tests/image.py's Flash-Next goldens, the same prompts on a tiny qwen4exp model beside a tiny tower, from HF Qwen4ExpForConditionalGeneration, and the two GGUF files; it takes only --output-dir and is not part of all.
 image-decode writes the image decoding references of tests/image_decode.cpp (tools/image_reference.py) in the qwen35 environment with its pinned Pillow and torchvision, takes only --output-dir and is not part of all.
 
 Requires: tokenizers, huggingface_hub (tokenizer goldens) and, for the logit/PPL goldens, torch + transformers.
@@ -1671,12 +1672,13 @@ FIXED_KINDS = {
     "image-decode": "makes its own images",
     "vision-tiny": "uses fixed synthetic weights and one thread",
     "image-tiny": "uses fixed synthetic weights and one thread",
+    "image-qwen4exp": "uses fixed synthetic weights and one thread",
 }
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1837,6 +1839,9 @@ def main(argv=None):
     if args.kind == "image-tiny":
         import vision_reference
         vision_reference.image_tiny(args.output_dir)
+    if args.kind == "image-qwen4exp":
+        import vision_reference
+        vision_reference.image_qwen4exp(args.output_dir)
     if args.kind == "vision-file-exact":
         import vision_reference
         vision_reference.file_exact(args.output_dir, args.weights_gguf, args.checkpoint)

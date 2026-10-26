@@ -264,7 +264,7 @@ Print the top-N next-token logits for `text`, one `id value` pair per line after
 The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
-`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-pixels` read images into it as `generate` does; `--per-token` is refused beside them.
+`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-pixels` read images into it as `generate` does, `--per-token` included.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
@@ -573,7 +573,8 @@ The prompt is raw text unless `--chat` is given, which sends it as one user mess
 `--image-max-pixels N` bounds a resized image's pixels, by default at the encoder's bound.
 The three flags go together and with `--chat`; an image file whose name holds a comma cannot be named, as a `--device` entry cannot.
 A model whose architecture places no image rows, an encoder whose rows are not the embedding's width, a vocabulary without the token the encoder's template marks an image with, and a text whose own image tokens make the prompt mark more images than were given are refused by name.
-Images run on the CPU today, where the Vulkan backend refuses the encoder's ops by name, and with drafts off, which `--drafter` beside `--image` is refused for; their history is not forked, kept as a checkpoint, copied to host memory or taken back below an image's last row (docs/VISION.md, section 8).
+The encoder runs on the device of the model's embedding, the CPU or a Vulkan device.
+With `--drafter` the lookup drafts from the prompt's text and never from an image's rows, and the embedded drafter places its rows after an image as the model does, so the output is the same either way (docs/VISION.md, section 5).
 Stop matching retains the matching token in output, including any suffix
 within that token, as before.
 
@@ -789,6 +790,8 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Context | `--context-overflow HOW` | `refuse` | `refuse` returns 413; `shift` drops oldest turns when a prompt does not fit |
 | Speculative decoding | `--drafter D` | `off` | `off`, `lookup`, `embedded` (the model's MTP block), a drafter file with MTP blocks, or comma-separated sources with a model drafter last |
 | Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in one pass |
+| Images | `--mmproj PATH` | (none) | Vision encoder file beside the model; the chat routes then read `image_url` parts |
+| Images | `--image-max-pixels N` | the encoder's | At least 1; most pixels of a resized image; needs `--mmproj` |
 
 `--host-cache-bytes` and `--disk-cache-*` configure the two prefix-cache tiers. The disk tier holds entries the host tier drops; it requires a host cache, so it is unavailable when all caches are on the CPU or the host cache is set to 0.
 
@@ -880,7 +883,10 @@ On the last two an absent `max_tokens`, or `-1`, means no cap, as the standard h
 
 The last two are the shape the OpenAI clients speak, so a UI, an SDK or a script written for any such server connects to `llmx serve` unchanged: it lists `/v1/models`, sends the `id` it finds there as the model and streams `/v1/chat/completions`.
 Streamed, each `data:` line is a chunk whose first delta carries the role, the last carries `finish_reason` (`stop` for the end of text or a stop string, `length` for the token limit), a usage chunk follows when asked for, then `data: [DONE]`.
-A message's content is a string or an array of `{"type": "text", "text"}` parts, or null or left out in an assistant message that carries `tool_calls`, which renders as an empty content (the calls themselves are not rendered, since llmx does not call tools); non-text parts are refused with 400 in the clients' error shape, `{"error": {"message", "type"}}`.
+A message's content is a string or an array of `{"type": "text", "text"}` and `{"type": "image_url", "image_url": {"url"}}` parts, or null or left out in an assistant message that carries `tool_calls`, which renders as an empty content (the calls themselves are not rendered, since llmx does not call tools); other parts are refused with 400 in the clients' error shape, `{"error": {"message", "type"}}`.
+An image is read on `/v1/chat` and `/v1/chat/completions`, and counted by `/v1/tokenize`, by a server started with `--mmproj` (docs/VISION.md, section 6): its URL must be a `data:` URL of `image/png` or `image/jpeg` in strict base64, at most 20 MiB decoded, the format taken from the first bytes; `http`, `https` and `file` URLs are not fetched, and `image_url.detail` other than absent or `auto` is refused, since `--image-max-pixels` sizes every image.
+Each image is decoded, resized and hashed on the request's connection and encoded by the scheduler where a pass reads it, the times logged, and its rows take the place of its pad token as the CLI's `--image` places them, so a request gives the ids and log-probabilities the same prompt gives alone; a follow-up turn of the same image reuses the history past it, and another image, even of the same size, reuses nothing from its first row on.
+A cut under `--context-overflow shift` drops a message with its images.
 The role `developer` is rendered as `system`.
 Both chat routes take `tools`, function tools as the compatible API declares them (`{"type": "function", "function": {"name", "description", "parameters"}}`), and `tool_choice`, `"auto"` by default, which gives the tools to the model's chat template, or `"none"`, which is the request without them.
 On `/v1/chat/completions` a reply's tool calls come as `tool_calls`, `[{"id", "type": "function", "function": {"name", "arguments"}}]`, the arguments a JSON text, with a null `content` where the reply has no text and `finish_reason` `tool_calls`; a stream gives them as `delta.tool_calls` pieces, a call's first with its `index`, `id` and name, the later ones with its `index` and more of its arguments. `/v1/chat` keeps the reply's text whole, the calls in it as the model wrote them.

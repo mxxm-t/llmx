@@ -2,12 +2,15 @@
 // The routes of docs/SERVER.md: native /v1/generate, /v1/chat, /v1/tokenize, /v1/detokenize and /v1/health, and the OpenAI-compatible /v1/chat/completions, /v1/completions and /v1/models.
 // Both families share one parse, one scheduler request and one drain loop; one thread per connection parses, tokenizes, submits and drains.
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <limits>
+#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
@@ -16,6 +19,7 @@
 #include "config.hpp"
 #include "core/utf8.hpp"
 #include "inference/chat.hpp"
+#include "inference/media.hpp"
 #include "model/place.hpp"
 #include "quant/types.hpp"
 #include "server/context_cut.hpp"
@@ -63,7 +67,42 @@ struct Config {
     size_t draft_max = 0;
     bool context_shift = false;   // a prompt that does not fit is cut at a turn's end (--context-overflow shift) and not refused
     size_t ctx_size = 0;          // the tokens a request may hold that serve's --ctx-size asks, 0 for the model's context (Scheduler::request_limit)
+    // The vision encoder `--mmproj` opened, and its file's digest, which an image's digest begins with (docs/VISION.md, sections 5 and 6); none takes no images.
+    infer::Vision* vision = nullptr;
+    std::array<uint8_t, 32> vision_identity{};
 };
+
+// The most bytes an image of a request decodes to from its data URL (docs/VISION.md, section 6).
+inline constexpr size_t kMaxImageBytes = size_t(20) << 20;
+
+// Strict base64: the standard alphabet, padded to whole quadruples, nothing else; empty on any other text.
+inline std::optional<std::string> base64_decode(const std::string& text) {
+    if (text.size() % 4) return std::nullopt;
+    std::string out;
+    out.reserve(text.size() / 4 * 3);
+    const auto value = [](char c) -> int {
+        if (c >= 'A' && c <= 'Z') return c - 'A';
+        if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+        if (c >= '0' && c <= '9') return c - '0' + 52;
+        if (c == '+') return 62;
+        if (c == '/') return 63;
+        return -1;
+    };
+    for (size_t i = 0; i < text.size(); i += 4) {
+        const bool last = i + 4 == text.size();
+        const size_t pads = last ? (text[i + 3] == '=') + (text[i + 2] == '=' && text[i + 3] == '=') : 0;
+        int v[4];
+        for (size_t k = 0; k < 4; ++k) {
+            v[k] = k >= 4 - pads ? 0 : value(text[i + k]);
+            if (v[k] < 0) return std::nullopt;
+        }
+        const uint32_t n = uint32_t(v[0]) << 18 | uint32_t(v[1]) << 12 | uint32_t(v[2]) << 6 | uint32_t(v[3]);
+        out.push_back(char(n >> 16));
+        if (pads < 2) out.push_back(char(n >> 8 & 0xff));
+        if (pads < 1) out.push_back(char(n & 0xff));
+    }
+    return out;
+}
 
 // The longest prefix of `bytes` that ends on a complete UTF-8 character, so a token whose text ends mid-character is held until the rest comes.
 inline size_t utf8_complete(const std::string& bytes) {
@@ -434,23 +473,158 @@ private:
         return f->b;
     }
 
-    // A message's content: a string, or the array of text parts the compatible chat route accepts.
-    // An assistant message that carries tool_calls may leave its content null or out, which renders as an empty content.
-    static std::string content_of(const jmini::Value& m) {
+    // A message's content: a string, or the array of text and image parts the compatible chat route accepts, an image as {"type": "image_url", "image_url": {"url"}} (docs/VISION.md, section 6).
+    // An assistant message that carries tool_calls may leave its content null or out, which renders as an empty content; with an image, `parts` holds the content as parts.
+    static std::string content_of(const jmini::Value& m, std::vector<chat::ContentPart>* parts = nullptr) {
         const jmini::Value* content = m.get("content");
         if ((!content || content->t == jmini::Value::T::Null) && given(m, "tool_calls")) return {};
         if (!content) throw BadRequest(400, "every message needs a content");
         if (content->isString()) return content->asString();
-        if (!content->isArray()) throw BadRequest(400, "message content must be a string or an array of text parts");
+        if (!content->isArray()) throw BadRequest(400, "message content must be a string or an array of content parts");
         std::string text;
+        std::vector<chat::ContentPart> all;
+        bool image = false;
         for (const auto& part : content->asArray()) {
             const jmini::Value* type = part.get("type");
+            if (type && type->isString() && type->asString() == "image_url") {
+                (void)image_url_of(part);
+                all.push_back(chat::ContentPart{true, ""});
+                image = true;
+                continue;
+            }
             const jmini::Value* t = part.get("text");
             if (!type || !type->isString() || type->asString() != "text" || !t || !t->isString())
-                throw BadRequest(400, "only text content parts are supported");
+                throw BadRequest(400, "a content part must be a text or an image_url part");
             text += t->asString();
+            all.push_back(chat::ContentPart{false, t->asString()});
         }
+        if (image && parts) *parts = std::move(all);
         return text;
+    }
+
+    // An image part's data URL, its `detail` absent or "auto", the one sizing being --image-max-pixels.
+    static std::string image_url_of(const jmini::Value& part) {
+        const jmini::Value* image = part.get("image_url");
+        const jmini::Value* url = image && image->isObject() ? image->get("url") : nullptr;
+        if (!url || !url->isString()) throw BadRequest(400, "an image_url part needs image_url.url, a string");
+        const jmini::Value* detail = image->get("detail");
+        if (detail && detail->t != jmini::Value::T::Null && (!detail->isString() || detail->asString() != "auto"))
+            throw BadRequest(400, "image_url.detail is not taken: images are sized by the server's --image-max-pixels");
+        return url->asString();
+    }
+
+    // An image's file bytes from its data URL: data: alone, PNG or JPEG by its first bytes whatever the type says, strict base64, at most kMaxImageBytes decoded.
+    static std::string image_bytes(const std::string& url) {
+        const size_t comma = url.find(',');
+        if (url.rfind("data:", 0) != 0 || comma == std::string::npos)
+            throw BadRequest(400, "an image must be given as a data: URL; http, https and file URLs are not fetched");
+        const std::string head = url.substr(5, comma - 5);
+        if (head != "image/png;base64" && head != "image/jpeg;base64" && head != "image/jpg;base64")
+            throw BadRequest(400, "an image's data URL must be image/png or image/jpeg in base64");
+        if ((url.size() - comma - 1) / 4 * 3 > kMaxImageBytes) throw BadRequest(400, "an image is larger than its limit of 20 MiB");
+        const std::optional<std::string> bytes = base64_decode(url.substr(comma + 1));
+        if (!bytes) throw BadRequest(400, "an image's data URL is not strict base64");
+        if (bytes->size() > kMaxImageBytes) throw BadRequest(400, "an image is larger than its limit of 20 MiB");
+        const bool png = bytes->size() >= 8 && bytes->compare(0, 8, "\x89PNG\r\n\x1a\n", 8) == 0;
+        const bool jpeg = bytes->size() >= 3 && (unsigned char)(*bytes)[0] == 0xFF && (unsigned char)(*bytes)[1] == 0xD8 && (unsigned char)(*bytes)[2] == 0xFF;
+        if (!png && !jpeg) throw BadRequest(400, "an image is neither PNG nor JPEG by its first bytes");
+        return *bytes;
+    }
+
+    // The data URLs of a request's images in the order its prompt renders them, message by message.
+    static std::vector<std::string> image_urls(const jmini::Value& body) {
+        std::vector<std::string> urls;
+        const jmini::Value* msgs = body.get("messages");
+        if (!msgs || !msgs->isArray()) return urls;
+        for (const auto& m : msgs->asArray()) {
+            const jmini::Value* content = m.get("content");
+            if (!content || !content->isArray()) continue;
+            for (const auto& part : content->asArray()) {
+                const jmini::Value* type = part.get("type");
+                if (type && type->isString() && type->asString() == "image_url") urls.push_back(image_url_of(part));
+            }
+        }
+        return urls;
+    }
+
+    // A request's images, each URL decoded, resized and hashed once on the connection's thread, the times of each logged; the scheduler encodes them, since it alone runs the backends (docs/VISION.md, section 10).
+    struct RequestImages {
+        std::vector<std::string> urls;
+        std::map<std::string, infer::PreparedImage> prepared;
+    };
+    RequestImages images_of(const jmini::Value& body, Route route) const {
+        RequestImages out;
+        out.urls = image_urls(body);
+        if (out.urls.empty()) return out;
+        if (route != Route::chat && route != Route::chat_completions) throw BadRequest(400, "images are read in messages, on the chat routes");
+        if (!cfg_.vision) throw BadRequest(400, "this server reads no images; start it with --mmproj");
+        for (const std::string& url : out.urls) {
+            if (out.prepared.count(url)) continue;
+            const std::string bytes = image_bytes(url);
+            try {
+                const infer::PreparedImage e = infer::prepare_image(*cfg_.vision, bytes, &cfg_.vision_identity);
+                std::fprintf(stderr, "server: an image of grid %ux%u, %zu rows: decoded in %.1f ms, resized in %.1f ms, hashed in %.1f ms\n", e.grid_h, e.grid_w, e.tokens,
+                             e.decode_ms, e.resize_ms, e.digest_ms);
+                out.prepared.emplace(url, e);
+            } catch (const std::exception& e) {
+                throw BadRequest(400, std::string("an image was refused: ") + e.what());
+            }
+        }
+        return out;
+    }
+    // The rows of the images `body` holds now, in prompt order, a cut having dropped some.
+    static std::vector<size_t> image_rows_of(const jmini::Value& body, const RequestImages& images) {
+        std::vector<size_t> rows;
+        for (const std::string& url : image_urls(body)) rows.push_back(images.prepared.at(url).tokens);
+        return rows;
+    }
+    // A prompt's ids with its images' pad runs, `runs` taking each image's run where given; a body holding no image gives its ids as encode does.
+    std::vector<uint32_t> prompt_ids(const jmini::Value& body, const std::string& prompt, const RequestImages& images, std::vector<infer::MediaRun>* runs = nullptr) const {
+        std::vector<uint32_t> ids = encode(prompt);
+        const std::vector<std::string> urls = image_urls(body);
+        if (urls.empty()) return ids;
+        std::vector<infer::PreparedImage> list;
+        for (const std::string& url : urls) list.push_back(images.prepared.at(url));
+        try {
+            infer::ImagePrompt p = infer::expand(*cfg_.vision, ids, image_rows_of(body, images), &list);
+            if (runs) *runs = std::move(p.runs);
+            return std::move(p.ids);
+        } catch (const std::exception& e) {
+            throw BadRequest(400, e.what());
+        }
+    }
+    bool is_pad(uint32_t id) const { return cfg_.vision && id == cfg_.vision->pad; }
+    // `ids` with each of its pad ids made the next image's run of `rows`; none where it marks more images than `rows` gives, as a next turn's ids may not.
+    std::vector<uint32_t> with_runs(const std::vector<uint32_t>& ids, const std::vector<size_t>& rows) const {
+        std::vector<uint32_t> out;
+        size_t next = 0;
+        for (uint32_t id : ids) {
+            if (!is_pad(id)) out.push_back(id);
+            else if (next == rows.size()) return {};
+            else out.insert(out.end(), rows[next++], id);
+        }
+        return out;
+    }
+    // `ids` with each image's pad run made one pad, as the template renders it.
+    std::vector<uint32_t> one_pad(const std::vector<uint32_t>& ids) const {
+        std::vector<uint32_t> out;
+        for (size_t i = 0; i < ids.size(); ++i)
+            if (!is_pad(ids[i]) || !i || ids[i - 1] != ids[i]) out.push_back(ids[i]);
+        return out;
+    }
+    // How many of `ids`, which hold their images' pad runs, the first `n` ids of one_pad(ids) cover, an image's run whole.
+    size_t through_runs(const std::vector<uint32_t>& ids, size_t n) const {
+        size_t i = 0;
+        for (size_t k = 0; k < n && i < ids.size(); ++k)
+            for (const uint32_t id = ids[i++]; is_pad(id) && i < ids.size() && ids[i] == id;) ++i;
+        return i;
+    }
+    // Where each id of `ids` ends in its text, an image's pad run taking the bytes of its one pad, so a render with one pad an image places them.
+    std::vector<size_t> text_ends(const std::vector<uint32_t>& ids) const {
+        std::vector<size_t> ends;
+        size_t at = 0;
+        for (size_t i = 0; i < ids.size(); ++i) ends.push_back(at += is_pad(ids[i]) && i && ids[i - 1] == ids[i] ? 0 : tok_.decode({ids[i]}).size());
+        return ends;
     }
 
     // An assistant message's tool calls in the compatible chat API's form, {"id", "type": "function", "function": {"name", "arguments"}}, the arguments a JSON text or an object; none where the field is absent, null or empty.
@@ -496,9 +670,11 @@ private:
             if (!calls.empty() && role != "assistant") throw BadRequest(400, "only an assistant message may carry tool_calls");
             const jmini::Value* reasoning = m.get("reasoning_content");
             if (reasoning && reasoning->t != jmini::Value::T::Null && !reasoning->isString()) throw BadRequest(400, "reasoning_content must be a string");
-            if (reasoning && reasoning->isString()) messages.push_back({role, content_of(m), reasoning->asString()});
-            else if (role == "assistant") messages.push_back(format_.assistant(content_of(m)));
-            else messages.push_back({role, content_of(m), std::nullopt});
+            std::vector<chat::ContentPart> parts;
+            if (reasoning && reasoning->isString()) messages.push_back({role, content_of(m, &parts), reasoning->asString()});
+            else if (role == "assistant") messages.push_back(format_.assistant(content_of(m, &parts)));
+            else messages.push_back({role, content_of(m, &parts), std::nullopt});
+            messages.back().parts = std::move(parts);
             messages.back().tool_calls = std::move(calls);
             messages.back().tool_call_id = text_field(m, "tool_call_id");
             messages.back().name = text_field(m, "name");
@@ -588,9 +764,10 @@ private:
     }
 
     // How much of a request's prompt a follow-up turn begins with, where the model keeps a state a follow-up could fork (chat::stable_prefix for a chat route, a text's whole prompt); a model that keeps none is not asked to render again.
+    // The render holds one pad an image, so the prompt is compared with its runs made one pad and the count taken back through them.
     size_t stable_of(const jmini::Value& body, Route route, const std::vector<uint32_t>& prompt) const {
         if (!model_.checkpoint_slots() || (route != Route::chat && route != Route::chat_completions)) return prompt.size();
-        return chat::stable_prefix(format_, tok_, messages_of(body), prompt, template_vars(body));
+        return through_runs(prompt, chat::stable_prefix(format_, tok_, messages_of(body), one_pad(prompt), template_vars(body)));
     }
 
     // Where a chat request's last user message starts, for a model that keeps a state: the text two renders with different last user messages share, counted in the prompt's `ids` lying wholly within it.
@@ -615,18 +792,14 @@ private:
         }
         size_t shared = 0;
         while (shared < with[0].size() && shared < with[1].size() && shared < text.size() && with[0][shared] == with[1][shared] && with[0][shared] == text[shared]) ++shared;
-        size_t n = 0, at = 0;
-        for (uint32_t id : ids) {
-            at += tok_.decode({id}).size();
-            if (at > shared) break;
-            ++n;
-        }
-        return n;
+        const std::vector<size_t> ends = text_ends(ids);
+        return (size_t)(std::upper_bound(ends.begin(), ends.end(), shared) - ends.begin());
     }
 
     // The ids a chat request's next turn begins with after `text`, its reply as far as it is written, given back as a client of the route sends it (reply_sent_back, docs/SPECULATIVE.md, section 2, Idle re-prefill).
-    // None while the reply's reasoning or a call is still being written, which a next turn may drop or would write otherwise.
-    std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing) const {
+    // None while the reply's reasoning or a call is still being written, which a next turn may drop or would write otherwise; each image takes its run of `rows`, as the prompt does.
+    std::vector<uint32_t> next_turn(const jmini::Value& body, Route route, const std::string& prompt, const std::string& text, bool writing,
+                                    const std::vector<size_t>& rows) const {
         const bool opened = chat::opens_reasoning(prompt);
         if (writing && (opened || text.find("<think>") != std::string::npos) && text.find("</think>") == std::string::npos) return {};
         std::vector<chat::Message> messages = messages_of(body);
@@ -635,7 +808,7 @@ private:
         messages.push_back(reply_sent_back(format_, route == Route::chat_completions, opened, text,
                                            route == Route::chat_completions && tools.on ? format_.tool_format : chat::ToolFormat::none, tools.typed, tools.single, &open));
         if (writing && open) return {};
-        return chat::stable_prefix(format_, tok_, messages, writing, template_vars(body));
+        return with_runs(chat::stable_prefix(format_, tok_, messages, writing, template_vars(body)), rows);
     }
 
     // A render the template itself fails, such as its raise_exception on a conversation it does not take, is the request's fault.
@@ -883,7 +1056,21 @@ private:
         const jmini::Value* text = body.get("text");
         if (chat && text) throw BadRequest(400, "give text or messages, not both");
         if (!chat && (!text || !text->isString())) throw BadRequest(400, "text must be a string");
-        const std::vector<uint32_t> ids = encode(chat ? render_messages(body) : text->asString());
+        std::vector<uint32_t> ids = encode(chat ? render_messages(body) : text->asString());
+        // An image counts the rows its size gives, without being encoded.
+        const std::vector<std::string> urls = image_urls(body);
+        if (!urls.empty()) {
+            if (!cfg_.vision) throw BadRequest(400, "this server reads no images; start it with --mmproj");
+            std::vector<size_t> rows;
+            try {
+                for (const std::string& url : urls) rows.push_back(infer::image_tokens(*cfg_.vision, image_bytes(url)));
+                ids = infer::expand(*cfg_.vision, ids, rows).ids;
+            } catch (const BadRequest&) {
+                throw;
+            } catch (const std::exception& e) {
+                throw BadRequest(400, std::string("an image was refused: ") + e.what());
+            }
+        }
         c.respond(200, "application/json", "{\"tokens\":" + ids_json(ids) + ",\"count\":" + std::to_string(ids.size()) + "}");
     }
 
@@ -915,10 +1102,7 @@ private:
             std::string text;
             try { text = format_.render(std::vector<chat::Message>(messages.begin(), messages.begin() + (std::ptrdiff_t)k), false, vars); }
             catch (const chat::TemplateError&) { return std::nullopt; }
-            if (bytes->empty()) {
-                size_t at = 0;
-                for (uint32_t id : ids) bytes->push_back(at += tok_.decode({id}).size());
-            }
+            if (bytes->empty()) *bytes = text_ends(ids);
             // A part ends with its last text, as its end token ends it, not with the whitespace a template writes after the token.
             size_t len = text.size();
             while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == ' ')) --len;
@@ -927,8 +1111,8 @@ private:
     }
 
     // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
-    // A chat route drops its oldest messages after the system message and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
-    Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids) {
+    // A chat route drops its oldest messages after the system message, a dropped message's images with it, and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
+    Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids, const RequestImages& images) {
         // The rows the prompt may take beside its reply, the scheduler's rule, and the step a cut drops in.
         const size_t limit = sched_.token_limit(), n = ids.size(), room = sched_.prompt_room(params), step = limit / kCutTo;
         const auto fits = [&](size_t rows) { return rows <= room; };
@@ -963,7 +1147,7 @@ private:
                     arr.erase(arr.begin() + (std::ptrdiff_t)lead, arr.begin() + (std::ptrdiff_t)inside.user);
                 }
             prompt = prompt_of(body, route);
-            ids = encode(prompt);
+            ids = prompt_ids(body, prompt, images);
             f.messages = (inside.user - lead) + (inside.from - inside.user - (inside.from > inside.user ? 1 : 0));
             f.at_marker = true;
         } else {
@@ -1008,10 +1192,32 @@ private:
         const bool include_usage = so && so->isObject() && flag(*so, "include_usage");
 
         std::shared_ptr<Request> r;
-        std::vector<uint32_t> ids = encode(prompt);
-        const Fitted fitted = fit(body, route, params, prompt, ids);
+        const RequestImages images = images_of(body, route);
+        std::vector<uint32_t> ids = prompt_ids(body, prompt, images);
+        const Fitted fitted = fit(body, route, params, prompt, ids, images);
         const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
-        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped); }
+        // The images the prompt holds after any cut, which the scheduler encodes from their resized pixels wherever a sequence reads their rows, a recompute among them.
+        Scheduler::Images given;
+        const std::vector<size_t> image_rows = image_rows_of(body, images);
+        if (!image_rows.empty()) {
+            (void)prompt_ids(body, prompt, images, &given.runs);
+            std::vector<std::shared_ptr<const image::Raster>> resized;
+            for (const std::string& url : image_urls(body)) resized.push_back(images.prepared.at(url).resized);
+            given.encode = [vision = cfg_.vision, resized](size_t i) {
+                auto e = std::make_shared<infer::ImageEncode>(*vision, *resized.at(i));
+                auto ms = std::make_shared<double>(0.0);
+                return ImageSteps([vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
+                    const auto t0 = std::chrono::steady_clock::now();
+                    const bool done = e->step();
+                    *ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    if (!done) return nullptr;
+                    auto rows = e->rows();
+                    std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms of them\n", rows->size() / vision->encoder->plan().out_width, e->pieces(), *ms);
+                    return rows;
+                });
+            };
+        }
+        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped, std::move(given)); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
@@ -1044,7 +1250,7 @@ private:
         // A chat reply's next turn goes to the scheduler as it is written and, once, as it has ended, before the reply's last words go out, so its job knows them before a client can answer; nothing where the reply did not end as a reply.
         bool following = (route == Route::chat || route == Route::chat_completions) && sched_.follows();
         const auto close_follow = [&](bool ended) {
-            if (following) sched_.follow(r, ended ? next_turn(body, route, prompt, text, false) : std::vector<uint32_t>{}, true);
+            if (following) sched_.follow(r, ended ? next_turn(body, route, prompt, text, false, image_rows) : std::vector<uint32_t>{}, true);
             following = false;
         };
         try {
@@ -1071,7 +1277,7 @@ private:
                     r->cancel();
                     cut = true;
                 }
-                if (following && gen.size() % kFollowEvery == 0) sched_.follow(r, next_turn(body, route, prompt, text, true), false);
+                if (following && gen.size() % kFollowEvery == 0) sched_.follow(r, next_turn(body, route, prompt, text, true, image_rows), false);
                 Sampled s;
                 if (params.logprobs) {
                     s = Sampled{std::move(tok), std::move(bytes), chars};

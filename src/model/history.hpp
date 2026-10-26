@@ -19,7 +19,6 @@ inline Sequence Model::fork(const Sequence& src, size_t length) {
     if (src.owner_ != this) throw std::runtime_error("inference: sequence of another model");
     if (src.flights_) throw std::logic_error("inference: a fork of a sequence in flight");
     if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
-    refuse_media(src, length, "a fork");
     if (state_layers_ && (!src.kept_.held() || src.kept_.pos() != length))
         throw std::logic_error("inference: a fork of a model whose layers keep a recurrent state takes its source's checkpoint");
     if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
@@ -30,6 +29,7 @@ inline Sequence Model::fork(const Sequence& src, size_t length) {
     for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
     f.last_ = src.last_;
     f.owner_ = this;
+    f.media_ = carried(src, length);
     f.from_.assign(stages_.size(), Sequence::kLive);
     if (state_layers_) {
         f.kept_ = src.kept_;
@@ -55,8 +55,6 @@ inline void Model::reset(Sequence& s) {
 // The caller computes the rest again, and inside a mark it reaches `length` itself by running the state again from the mark's over the kept rows' saved inputs (Architecture::recur); a retract that throws keeps the mark.
 inline size_t Model::retract(Sequence& s, size_t length) {
     settle(s, "a retract");
-    if (!s.media_.empty() && length < s.media_.back().run.first + s.media_.back().run.rows && length < s.length())
-        throw std::logic_error("inference: a retract below an image's last row comes with their cache identity (docs/VISION.md, section 8)");
     if (s.mark_.held() && s.mark_.ran && length > s.mark_.pos && length < s.length()) {
         rerun(s, length - s.mark_.pos);
         drop_mark(s);
@@ -99,7 +97,6 @@ inline bool Model::keep(Sequence& s) {
     settle(s, "a keep");
     if (s.mark_.held()) throw std::logic_error("inference: a keep of a marked sequence");
     if (!state_layers_) return false;
-    refuse_media(s, s.length(), "a checkpoint");
     if (s.kept_.held() && s.kept_.pos() == s.length()) return true;
     if (!s.state_.held()) return false;
     s.kept_.release();
@@ -399,7 +396,6 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
     release_host(out);
     if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
     if (length > s.length()) throw std::logic_error("inference: a copy to host memory past the history");
-    refuse_media(s, length, "a copy to host memory");
     if (state_layers_ && (!s.kept_.held() || s.kept_.pos() != length))
         throw std::logic_error("inference: a copy to host memory of a model whose layers keep a recurrent state takes its checkpoint");
     if (!blocks && !state_layers_) throw std::logic_error("inference: a state alone copied to host memory on a model whose layers keep none");
@@ -429,6 +425,7 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
         release_host(h);
         throw;
     }
+    for (const Sequence::Media& m : carried(s, length)) h.media.push_back(m.run);
     out = std::move(h);
 }
 
@@ -438,7 +435,6 @@ inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, Ho
     settle(s, "a copy to host memory");
     release_host(out);
     if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
-    refuse_media(s, length, "a copy to host memory");
     if (first >= length || length > s.length()) throw std::logic_error("inference: a copy to host memory of blocks outside the history");
     for (const Device* d : storages_) {
         if (!dynamic_cast<const backend::BlockKVStorage*>(d->storage.get())) throw std::runtime_error("inference: a KV storage that cannot be copied to host memory");
@@ -460,6 +456,7 @@ inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, Ho
         release_host(h);
         throw;
     }
+    for (const Sequence::Media& m : carried(s, length)) h.media.push_back(m.run);
     out = std::move(h);
 }
 
@@ -528,6 +525,7 @@ inline Sequence Model::restore_host(HostHistory& h) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
     if (h.slabs.size() != devices_.size() || !h.blocks || h.first || (state_layers_ && !h.state)) throw std::logic_error("inference: a host history of another layout");
     Sequence s = make_sequence();
+    for (const MediaRun& run : h.media) s.media_.push_back(Sequence::Media{run, std::vector<backend::BufferPtr>(devices_.size())});
     size_t slot = 0;
     if (state_layers_) {
         slot = slots_.acquire_kept();
@@ -635,7 +633,6 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     if (src.owner_ != this || state.owner != this) throw std::runtime_error("inference: sequence or host state of another model");
     if (src.flights_) throw std::logic_error("inference: a fork of a sequence in flight");
     if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
-    refuse_media(src, length, "a fork");
     if (!state_layers_ || state.blocks || state.length != length || state.slabs.size() != devices_.size())
         throw std::logic_error("inference: a fork with a state takes a state alone at its length, on a model whose layers keep one");
     if (length > src.length()) throw std::logic_error("KV cache: a fork takes whole blocks of the history");
@@ -646,6 +643,7 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     for (const KVSequence& kv : src.kv_) f.kv_.push_back(kv.fork(length));
     f.last_ = src.last_;
     f.owner_ = this;
+    f.media_ = carried(src, length);
     const size_t slot = slots_.acquire_kept();
     f.kept_ = Checkpoint(slots_, slot, length);
     f.from_.assign(stages_.size(), slot);
@@ -1014,7 +1012,8 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
                     views[g][p].nq = 1;
                     views[g][p].extent = 1;
                 }
-                pos[p] = (uint32_t)(length[p] + m);
+                // A drafted token is text, at its index less what the history's images saved.
+                positions(*asks[order[p]].seq, length[p] + m, 1, false, &pos[p]);
             }
             const backend::RowRun run{rows, 1};
             // One device runs a step whole; a group runs it in three calls a member with a sum after each of the first two (DraftStep).
@@ -1070,20 +1069,29 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
     }
 }
 
-// An image's rows in the history (docs/VISION.md, section 4): from `run.first`, at or past the history and every image before, `run.rows` rows filling its merged grid row by row, read as passes reach them.
-// The rows stay with the sequence while it holds the image, so a history recomputed over them reads them again; a reset, or a rewind to its first row or below, drops the image.
+// An image given to a sequence (docs/src/model-history.md): one it carries from a fork or a host copy, given again as the same image with its rows, or one after every image it holds.
+// Rows are needed where the history has not read the image whole, and are held until the pass reading the last of them commits.
 inline void Model::add_media(Sequence& s, MediaRun run) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
     if (s.flights_) throw std::logic_error("inference: an image added to a sequence in flight");
     if (plan_.image_streams.empty()) throw std::runtime_error("inference: the model's architecture takes no image rows");
-    if (plan_.drafter) throw std::runtime_error("inference: images beside an embedded drafter come with their cache identity (docs/VISION.md, section 8)");
     if (!run.rows || size_t(run.grid_h) * run.grid_w != run.rows) throw std::runtime_error("inference: an image's rows do not fill its grid");
-    if (!run.encoded || run.encoded->size() != backend::size_mul(run.rows, plan_.residual))
-        throw std::runtime_error("inference: an image's rows are not " + std::to_string(run.rows) + " rows of the embedding's " + std::to_string(plan_.residual) + " floats");
-    if (run.first < s.length() || (!s.media_.empty() && run.first < s.media_.back().run.first + s.media_.back().run.rows))
-        throw std::logic_error("inference: an image before the history or overlapping an image already given");
+    const size_t end = run.first + run.rows;
+    if (run.encoded && run.encoded->size() != backend::size_mul(run.rows, embedding_width()))
+        throw std::runtime_error("inference: an image's rows are not " + std::to_string(run.rows) + " rows of the embedding's " + std::to_string(embedding_width()) + " floats");
+    if (!run.encoded && end > s.length()) throw std::runtime_error("inference: an image the history has not read given without its rows");
     if (run.first > plan_.context_length || run.rows > plan_.context_length - run.first)
         throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
+    for (Sequence::Media& m : s.media_)
+        if (m.run.first == run.first) {
+            if (m.run.rows != run.rows || m.run.grid_h != run.grid_h || m.run.grid_w != run.grid_w || m.run.digest != run.digest)
+                throw std::logic_error("inference: an image given again is not the image the history holds there");
+            if (end > s.length()) m.run.encoded = std::move(run.encoded);
+            return;
+        }
+    if (!s.media_.empty() && run.first < s.media_.back().run.first + s.media_.back().run.rows)
+        throw std::logic_error("inference: an image before or over an image the history holds");
+    if (end <= s.length()) run.encoded.reset();
     s.media_.push_back(Sequence::Media{std::move(run), std::vector<backend::BufferPtr>(devices_.size())});
 }
 
@@ -1111,17 +1119,26 @@ inline void Model::positions(const Sequence& s, size_t first, size_t n, bool str
     }
 }
 
-// Whether rows [first, first + n) of the history meet an image's.
-inline bool Model::meets_media(const Sequence& s, size_t first, size_t n) const {
+// The images below `length` a fork or a host copy carries: their places, grids and digests, not their rows.
+inline std::vector<Sequence::Media> Model::carried(const Sequence& s, size_t length) const {
+    std::vector<Sequence::Media> out;
     for (const Sequence::Media& m : s.media_)
-        if (m.run.first < first + n && first < m.run.first + m.run.rows) return true;
-    return false;
+        if (m.run.first < length) {
+            MediaRun run = m.run;
+            run.encoded.reset();
+            out.push_back(Sequence::Media{std::move(run), std::vector<backend::BufferPtr>(devices_.size())});
+        }
+    return out;
 }
 
-// Refuses `what` of the history's first `length` rows where they hold an image: forks, checkpoints and host copies carry images only with their cache identity (docs/VISION.md, section 8, step 5).
-inline void Model::refuse_media(const Sequence& s, size_t length, const char* what) const {
-    if (!s.media_.empty() && s.media_.front().run.first < length)
-        throw std::logic_error(std::string("inference: ") + what + " of a history with images comes with their cache identity (docs/VISION.md, section 8)");
+// The rows of the images the history has read whole dropped, each device's copy freed once the submission that last read it there has retired (retiring_).
+inline void Model::release_media(Sequence& s) {
+    for (Sequence::Media& m : s.media_) {
+        if (m.run.first + m.run.rows > s.length()) break;
+        m.run.encoded.reset();
+        for (size_t d = 0; d < m.on.size(); ++d)
+            if (m.on[d]) retiring_.push_back(Retiring{d, s.last_[d], std::move(m.on[d])});
+    }
 }
 
 // The images whose first row is at or past `length`, which the history no longer reaches, dropped.

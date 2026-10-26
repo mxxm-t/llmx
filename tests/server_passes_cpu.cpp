@@ -1240,7 +1240,7 @@ struct Known : infer::spec::Proposer {
     std::chrono::milliseconds work{0};
     bool wrong = false;
     size_t calls = 0;
-    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override {
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override {
         out.clear();
         if (h.size() < prompt.size() || !std::equal(prompt.begin(), prompt.end(), h.begin())) return;
         for (size_t at = h.size() - prompt.size(); at < reply.size() && out.size() < k; ++at) out.push_back(reply[at]);

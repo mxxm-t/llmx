@@ -210,14 +210,14 @@ void main() {
     barrier();
 #endif
     for (uint k0 = kbeg; k0 < kend; k0 += STAGE_K) {
-        // MXFP4 reads both tiles before storing them, so independent loads can be issued together.
+        // Both tiles are read before either is stored, each load from a clamped index rather than in a branch, so the loads are issued together instead of each waiting for the last.
         uint row = row_base + wrow, wr = expert * p.nout + row;
-#ifdef LLMX_MXFP4
         float xv[STAGE_K / XPR];
         for (uint i = 0u; i < STAGE_K / XPR; ++i) {
             uint k = k0 + xseg * (STAGE_K / XPR) + i;
             xv[i] = matrix_input(x[xin && k < p.nin ? xc * p.nin + k : 0u]);
         }
+#ifdef LLMX_MXFP4
         uint o = ((row < p.nout ? wr : 0u) * nblocks + k0 / MXFP4_BLOCK) * MXFP4_BYTES;
         uint e = QBYTE(o);
         float wv[WVALS];
@@ -227,9 +227,14 @@ void main() {
         for (uint i = 0u; i < WVALS; ++i)
             ws[wseg * WVALS + i][wrow] = row < p.nout ? wv[i] : 0.0;
 #elif defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+        uint wh[WVALS];
         for (uint i = 0u; i < WVALS; ++i) {
             uint k = k0 + wseg * WVALS + i;
-            ws[wseg * WVALS + i][wrow] = row < p.nout && k < p.nin ? WEIGHT_FLOAT(uint(w16[wr * p.nin + k])) : 0.0;
+            wh[i] = uint(w16[row < p.nout && k < p.nin ? wr * p.nin + k : 0u]);
+        }
+        for (uint i = 0u; i < WVALS; ++i) {
+            uint k = k0 + wseg * WVALS + i;
+            ws[wseg * WVALS + i][wrow] = row < p.nout && k < p.nin ? WEIGHT_FLOAT(wh[i]) : 0.0;
         }
 #else
         if (row < p.nout) {
@@ -413,10 +418,12 @@ void main() {
                     }
                 }
             } else {
+                float wv[WVALS];
                 for (uint i = 0u; i < WVALS; ++i) {
                     uint k = k0 + wseg * WVALS + i;
-                    ws[wseg * WVALS + i][wrow] = k < p.nin ? wf[wr * p.wstride + k] : 0.0;
+                    wv[i] = wf[k < p.nin ? wr * p.wstride + k : 0u];
                 }
+                for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = k0 + wseg * WVALS + i < p.nin ? wv[i] : 0.0;
             }
         } else {
             for (uint i = 0u; i < WVALS; ++i) ws[wseg * WVALS + i][wrow] = 0.0;
@@ -428,12 +435,10 @@ void main() {
 #endif
         for (uint i = 0u; i < STAGE_K / XPR; ++i) {
             uint k = k0 + xseg * (STAGE_K / XPR) + i;
-#ifdef LLMX_MXFP4
             float v = (xin && k < p.nin) ? xv[i] : 0.0;
             xs[xseg * (STAGE_K / XPR) + i][xcol] = v;
+#ifdef LLMX_MXFP4
             if (needs_wide_product(v, xlo, xhi)) xr = 1u;
-#else
-            xs[xseg * (STAGE_K / XPR) + i][xcol] = (xin && k < p.nin) ? matrix_input(x[xc * p.nin + k]) : 0.0;
 #endif
         }
 #ifdef LLMX_MXFP4

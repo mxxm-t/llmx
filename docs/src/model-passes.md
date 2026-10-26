@@ -27,7 +27,7 @@ prompt's lookup. A failed read publishes no prepared view; the normal pass
 rollback drains work before histories or storage are reused. Recurrent replay
 reads saved inputs and performs no table lookup.
 
-- A pass whose rows meet an image's (`meets_media`) gives every row three positions, as the plan's `image_streams` turn them, and every other pass one; `begin` takes them from `positions` ([history](model-history.md)), and after the embedding `write_media` copies each image's rows the pass reads over their pad rows of the residual on every embedding device.
+- A pass reading an image's rows needs them given (refused by name otherwise) and gives every row three positions, as the plan's `image_streams` turn them, and every other pass one; `begin` takes them from `positions` ([history](model-history.md)), and after the embedding `write_media` copies each image's rows the pass reads over their pad rows of the residual on every embedding device; the last stage's commit drops the rows of the images the history has read whole (`release_media`), and an embedded drafter's rows take the three positions too.
 - `forward(ctx, entries, n)`: one pass over every entry. Each sequence's
   tokens go through the graph at their own positions and attend through
   their own history via one view per entry and per storage; the rows that

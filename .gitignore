@@ -10,6 +10,8 @@
 # The tiny vision encoder fixtures are committed, since their HF references need torch to rebuild (docs/ASSETS.md).
 !tests/data/vision/tiny-mmproj.gguf
 !tests/data/vision/tiny-mmproj-image.gguf
+!tests/data/vision/tiny-mmproj-qwen4exp.gguf
+!tests/data/vision/tiny-qwen4exp-image.gguf
 __pycache__/
 *.pyc
 

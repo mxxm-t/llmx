@@ -1,12 +1,15 @@
 #version 450
 // One workgroup pools a complete group of raw auxiliary keys, then normalizes and rotates it at its first token's position, into the group's pooled row of the same blocks.
+// With `streams` positions a group (a pass holding an image's rows), a pair turns by the group's position its stream map names, else at the first token's index.
 layout(local_size_x = 256) in;
-layout(push_constant) uniform P { uint view; uint first; uint dim; uint half_dim; uint compression; uint bt; uint block_floats; uint rows_floats; float eps; } p;
+layout(push_constant) uniform P { uint view; uint first; uint dim; uint half_dim; uint compression; uint bt; uint block_floats; uint rows_floats; float eps; uint streams; uint base; } p;
 layout(set = 0, binding = 0) buffer X { float aux[]; };
 layout(set = 0, binding = 1) readonly buffer W { float w[]; };
 layout(set = 0, binding = 2) readonly buffer C { float cs[]; };
 layout(set = 0, binding = 3) readonly buffer S { float sn[]; };
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+layout(set = 0, binding = 5) readonly buffer G { uint gpos[]; };
+layout(set = 0, binding = 6) readonly buffer O { uint of_pair[]; };
 #include "views.glsl"
 shared float values[256];
 shared float red[256];
@@ -36,7 +39,8 @@ void main() {
             uint i = lid % p.half_dim;
             float a = values[i] * scale * w[i];
             float b = values[i + p.half_dim] * scale * w[i + p.half_dim];
-            uint r = start * p.half_dim + i;
+            uint at = p.streams == 0u ? start : gpos[(g - p.base) * p.streams + (p.streams > 1u ? of_pair[i] : 0u)];
+            uint r = at * p.half_dim + i;
             result = lid < p.half_dim ? a * cs[r] - b * sn[r] : a * sn[r] + b * cs[r];
         }
         aux[pooled_row(p.view, g, p.compression, p.bt, p.block_floats, p.rows_floats, p.dim) + lid] = result;

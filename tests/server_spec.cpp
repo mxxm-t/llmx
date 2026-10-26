@@ -124,7 +124,7 @@ void timed_phases(const Make& plain, const Make& drafting, const MakeProposer& p
 // A proposer that stands behind lookup as a model drafter does and drafts the token after each history's last, which a reply seldom holds next.
 struct Astray final : infer::spec::Proposer {
     uint32_t vocab = 0;
-    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out) override { out.assign(k, (h.back() + 1) % vocab); }
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override { out.assign(k, (h.back() + 1) % vocab); }
     bool after_lookup() const override { return true; }
 };
 
@@ -294,7 +294,7 @@ struct FlashDrafts final : infer::spec::Proposer {
     infer::spec::Embedded embedded;
     bool batched = false;
     explicit FlashDrafts(infer::Model& model) : embedded(model) {}
-    void draft(infer::Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out) override {
+    void draft(infer::Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override {
         embedded.draft(seq, history, k, out);
     }
     void draft_all(Ask* asks, size_t n) override {

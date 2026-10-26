@@ -923,6 +923,31 @@ const uint32_t kSpvMatmulTileIq4[] = {
 const uint32_t kSpvMatmulTileIq4Xs[] = {
 #include "vulkan/matmul_tile_iq4_xs.inc"
 };
+// The vision encoder's ops (docs/VISION.md, section 3).
+const uint32_t kSpvAddBias[] = {
+#include "vulkan/add_bias.inc"
+};
+const uint32_t kSpvGelu[] = {
+#include "vulkan/gelu.inc"
+};
+const uint32_t kSpvLayerNormRows[] = {
+#include "vulkan/layer_norm_rows.inc"
+};
+const uint32_t kSpvMixRows[] = {
+#include "vulkan/mix_rows.inc"
+};
+const uint32_t kSpvNormRopePartialStreams[] = {
+#include "vulkan/norm_rope_partial_streams.inc"
+};
+const uint32_t kSpvAttentionFull[] = {
+#include "vulkan/attention_full.inc"
+};
+const uint32_t kSpvAttentionFullTileD64[] = {
+#include "vulkan/attention_full_tile_d64.inc"
+};
+const uint32_t kSpvAttentionFullTileD72[] = {
+#include "vulkan/attention_full_tile_d72.inc"
+};
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
@@ -949,7 +974,7 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_SPARSE_ATTENTION_VEC_D256_V16, "sparse_attention_vec_d256_v16", kSpvSparseAttentionVecD256V16, sizeof(kSpvSparseAttentionVecD256V16), 8, nullptr) \
     X(K_SPARSE_ATTENTION_VEC_D256_KV16, "sparse_attention_vec_d256_kv16", kSpvSparseAttentionVecD256Kv16, sizeof(kSpvSparseAttentionVecD256Kv16), 8, nullptr) \
     X(K_ATTENTION_MERGE, "attention_merge", kSpvAttentionMerge, sizeof(kSpvAttentionMerge), 4, nullptr) \
-    X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 5, nullptr) \
+    X(K_KV_INDEX_POOL, "kv_index_pool", kSpvKvIndexPool, sizeof(kSpvKvIndexPool), 7, nullptr) \
     X(K_KV_INDEX_SCORES_TILE, "kv_index_scores_tile", kSpvKvIndexScoresTile, sizeof(kSpvKvIndexScoresTile), 4, nullptr) \
     X(K_KV_INDEX_SELECT, "kv_index_select", kSpvKvIndexSelect, sizeof(kSpvKvIndexSelect), 3, nullptr) \
     X(K_KV_INDEX_SELECT_WIDE, "kv_index_select_wide", kSpvKvIndexSelectWide, sizeof(kSpvKvIndexSelectWide), 4, nullptr) \
@@ -1186,7 +1211,15 @@ const uint32_t kSpvMatmulTileIq4Xs[] = {
     X(K_MATMUL_TILE_IQ4_TALL, "matmul_tile_iq4_tall", kSpvMatmulTileIq4, sizeof(kSpvMatmulTileIq4), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_ROW_IQ4_XS_DOT, "matmul_row_iq4_xs_dot", kSpvMatmulRowIq4XsDot, sizeof(kSpvMatmulRowIq4XsDot), 12, kMatmulRowCounts, nullptr, 0, kPreserve32, 0) \
     X(K_MATMUL_TILE_IQ4_XS, "matmul_tile_iq4_xs", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
-    X(K_MATMUL_TILE_IQ4_XS_TALL, "matmul_tile_iq4_xs_tall", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0)
+    X(K_MATMUL_TILE_IQ4_XS_TALL, "matmul_tile_iq4_xs_tall", kSpvMatmulTileIq4Xs, sizeof(kSpvMatmulTileIq4Xs), 5, kMatmulTileQCounts, nullptr, 0, kPreserve32, 0) \
+    X(K_ADD_BIAS, "add_bias", kSpvAddBias, sizeof(kSpvAddBias), 2, nullptr) \
+    X(K_GELU, "gelu", kSpvGelu, sizeof(kSpvGelu), 2, nullptr) \
+    X(K_LAYER_NORM_ROWS, "layer_norm_rows", kSpvLayerNormRows, sizeof(kSpvLayerNormRows), 4, nullptr) \
+    X(K_MIX_ROWS, "mix_rows", kSpvMixRows, sizeof(kSpvMixRows), 4, nullptr) \
+    X(K_NORM_ROPE_PARTIAL_STREAMS, "norm_rope_partial_streams", kSpvNormRopePartialStreams, sizeof(kSpvNormRopePartialStreams), 7, nullptr) \
+    X(K_ATTENTION_FULL, "attention_full", kSpvAttentionFull, sizeof(kSpvAttentionFull), 7, nullptr) \
+    X(K_ATTENTION_FULL_TILE_D64, "attention_full_tile_d64", kSpvAttentionFullTileD64, sizeof(kSpvAttentionFullTileD64), 6, nullptr) \
+    X(K_ATTENTION_FULL_TILE_D72, "attention_full_tile_d72", kSpvAttentionFullTileD72, sizeof(kSpvAttentionFullTileD72), 6, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };
@@ -1449,7 +1482,13 @@ const size_t kNarrowCols = 16;
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
-const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
+const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u * RPG`, the query rows of one tile
+const size_t kFullTileRows = 64;          // and of one tile of its full builds, whose `RPG` is 2
+
+// The multiply-adds one dispatch of non-causal attention takes at most, about 60 ms on an MI50, well inside the GPU's job timeout.
+// The per-row build is about 16 times slower a product, so it takes 16 times fewer.
+const size_t kFullTileProducts = size_t(1) << 37;
+const size_t kFullRowProducts = size_t(1) << 33;
 
 // A kernel's bindings; `counts` gives each one's array length, one for a plain buffer. A dispatch lists its buffers binding by binding, array elements consecutively.
 struct KernelSource {

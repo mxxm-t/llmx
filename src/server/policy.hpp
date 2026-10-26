@@ -2,6 +2,7 @@
 // The scheduler's policy core (docs/SERVER.md, the round): pool blocks, reservation growth, who gives up blocks, which stages a round records, decode entries per pass and logits rows, as free functions over plain data.
 // The scheduler calls them with its requests and passes, and the server-passes CTest with a simulated executor's.
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -46,10 +47,11 @@ inline std::vector<size_t> less(std::vector<size_t> from, const std::vector<size
     return from;
 }
 
-// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent, whose class chooses a device's kernels (Model::row_class).
+// A stretch of a history computed one way: the rows before `end`, from the stretch before it on, took this extent (Model::row_class), and are the rows of the image of `image`'s digest, zero for text (docs/src/server.md).
 // A prompt takes its whole length, a generated token extent 1, and a forked prefix keeps the stretches its donor recorded.
 struct RowClass {
     size_t end, extent;
+    std::array<uint8_t, 32> image{};
 };
 
 // The stretch holding position `at`.

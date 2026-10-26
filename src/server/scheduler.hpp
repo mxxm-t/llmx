@@ -47,6 +47,9 @@ struct SampleParams : infer::Sampling {
 };
 
 // One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
+// An image's encode as the scheduler runs it, a piece a call: null until the last piece has run, then the image's rows (docs/VISION.md, section 10).
+using ImageSteps = std::function<std::shared_ptr<const std::vector<float>>()>;
+
 class Request {
 public:
     using Clock = std::chrono::steady_clock;
@@ -215,6 +218,11 @@ private:
     std::string error_pending_;    // with finish_pending_ "error", what failed
     std::vector<size_t> need_;     // blocks reserved for it, per cache pool
     std::vector<RowClass> classes_;   // how its history was computed, stretch by stretch; empty until the first admission
+    // Its prompt's images in prompt order with their digests, any rows given held until a sequence takes them (docs/VISION.md, section 5).
+    // `encode_` begins image i's encode on the scheduler's thread (ImageSteps); the sequence holds the images before `media_next_`, and its slices stop at the next one's first row until it has its rows.
+    std::vector<infer::MediaRun> media_;
+    std::function<ImageSteps(size_t)> encode_;
+    size_t media_next_ = 0;
     uint32_t last_id_ = 0;
     // Drafting (docs/SPECULATIVE.md, section 3): its record, the draft its own history gave ahead of the proposer, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
     infer::spec::Record record_;
@@ -400,16 +408,30 @@ public:
                " a request without max_tokens is given, of the " + std::to_string(limit) + " a request may hold";
     }
 
+    // A prompt's images (docs/VISION.md, section 5): its runs in prompt order with their digests and, where the caller has them, their rows, and what gives an image's rows where a sequence reads them, which the scheduler's thread calls.
+    struct Images {
+        std::vector<infer::MediaRun> runs;
+        std::function<ImageSteps(size_t)> encode;
+    };
+
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0,
-                                    Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}) {
+                                    Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}, Images images = {}) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
+        if (!images.runs.empty() && (!model_.takes_images() || !images.encode)) throw std::runtime_error("server: images for a model that takes none, or without their encoder");
+        for (size_t i = 0; i < images.runs.size(); ++i) {
+            const infer::MediaRun& m = images.runs[i];
+            if (!m.rows || m.first + m.rows > prompt.size() || (i && m.first < images.runs[i - 1].first + images.runs[i - 1].rows))
+                throw std::runtime_error("server: an image outside its prompt or out of order");
+        }
         if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
         if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
         if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
         r->cut_ = std::move(cut);
+        r->media_ = std::move(images.runs);
+        r->encode_ = std::move(images.encode);
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
@@ -637,6 +659,7 @@ public:
             }
             const Clock::time_point round_start = timed_ ? Clock::now() : Clock::time_point{};
             acted_ = false;
+            encoded_ = false;
             collect(active);
             cache_.copies_retired();
             // Stages on the host compute as they are recorded, so they wait until every device stage of the round is on its way.
@@ -724,8 +747,8 @@ public:
                     for (size_t k = free_slot(); interleave_ && !ride && k < slots_.size() && !first_stage_held(false) && form(k, active, host, Rows::generated); k = free_slot()) {}
                     for (size_t k = free_slot(); k < slots_.size() && !first_stage_held(false) && form(k, active, host, ride ? Rows::all : Rows::prompt); k = free_slot()) {}
                     if (admit) serve_generated(active, host);
-                    const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_; });
-                    if (!flying() && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(active, **left, requests(active)));
+                    const auto left = std::find_if(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return !r->job_ && Cache::image_stop(*r) > r->seq_.length(); });
+                    if (!flying() && !encoded_ && left != active.end()) throw std::logic_error("server: a round with active requests formed an empty pass: " + left_out(active, **left, requests(active)));
                 } catch (const std::exception& e) {
                     fail_all(active, e.what());
                     host.clear();
@@ -1044,10 +1067,10 @@ private:
         size_t budget = rows == Rows::generated ? 0 : ubatch_, keeps = 0;
         // What r's cache lacks, one stretch's slice of at most `most` rows within the budget.
         const auto slice = [&](const std::shared_ptr<Request>& r, size_t most) {
-            const size_t at = r->seq_.length(), end = history_tokens(*r);
-            if (at >= end) return;
+            const size_t at = r->seq_.length(), end = history_tokens(*r), stop = Cache::image_stop(*r);
+            if (at >= end || at >= stop) return;
             const RowClass& c = class_at(r->classes_, at);
-            size_t n = std::min({c.end, end, at + most}) - at;
+            size_t n = std::min({c.end, end, stop, at + most}) - at;
             // A job's slice ends on a whole block where it can, so what it has read can be forked there.
             const size_t bt = model_.kv_block_tokens();
             if (r->job_ && (at + n) / bt * bt > at) n = (at + n) / bt * bt - at;
@@ -1120,6 +1143,21 @@ private:
                 if (s.closes) break;
                 continue;
             }
+            // A prompt at an image without rows spends its turn on one piece of that image's encode, one a round, every piece while nothing else could use the stages, and the pass takes no more prompt rows (docs/VISION.md, section 10).
+            if (Cache::image_stop(*r) <= r->seq_.length()) {
+                if (encoded_) continue;
+                const auto more = [&] {
+                    if (!alone || flying() || !entries_.empty() || r->cancel_.load()) return false;
+                    std::lock_guard<std::mutex> lk(m_);
+                    return arrivals_ == seen_ && !stopping_;
+                };
+                if (!continued && cache_.encode_piece(*r, more)) {
+                    acted_ = encoded_ = true;
+                    budget = 0;
+                    break;
+                }
+                continue;
+            }
             const size_t before = entries_.size();
             slice(r, std::min(budget, most));
             if (!f.prompt_of && entries_.size() > before) {
@@ -1146,6 +1184,16 @@ private:
                 // A job whose slice in flight has committed the first stage continues in a pass of its own, as a prompt does (continues).
                 const bool continued = r->seq_.in_flight();
                 if (continued && !(entries_.empty() && continues(*r, replies))) continue;
+                if (Cache::image_stop(*r) <= r->seq_.length()) {
+                    if (encoded_ || continued || !cache_.encode_piece(*r, [] { return false; })) continue;
+                    acted_ = encoded_ = true;
+                    budget = 0;
+                    if (replies) {
+                        reply_gaps_ = 0;
+                        background_last_ = Background::job;
+                    }
+                    break;
+                }
                 const size_t before = entries_.size();
                 slice(r, replies ? std::min(budget, piece_cut(*r)) : budget);
                 if (entries_.size() == before) continue;
@@ -1483,7 +1531,8 @@ private:
                 std::vector<uint32_t>& history = asks_[askers_.size()].history;
                 history.assign(r->prompt_.begin(), r->prompt_.end());
                 history.insert(history.end(), r->gen_.begin(), r->gen_.end());
-                k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_);
+                asks_[askers_.size()].images = model_.image_rows(r->seq_);
+                k = infer::spec::lookup_first(record, draft_max_, left, positions, columns, history, r->own_draft_, asks_[askers_.size()].images);
             }
             if (!k) k = infer::spec::draft_length(draft_max_, left, positions, columns, record.proposer);
             if (!k) continue;
@@ -1521,10 +1570,14 @@ private:
             infer::spec::Proposer::Ask& a = asks_[chains];
             a.seq = &r.seq_;
             if (first) {
-                if (chains != i) std::swap(a.history, asks_[i].history);
+                if (chains != i) {
+                    std::swap(a.history, asks_[i].history);
+                    std::swap(a.images, asks_[i].images);
+                }
             } else {
                 a.history.assign(r.prompt_.begin(), r.prompt_.end());
                 a.history.insert(a.history.end(), r.gen_.begin(), r.gen_.end());
+                a.images = model_.image_rows(r.seq_);
             }
             a.k = takes_[i];
             asked_[i] = chains++;
@@ -2372,6 +2425,7 @@ private:
                 const std::string& err = "") {
         auto r = active[i];
         r->finished_ = true;
+        cache_.drop_encode(*r);
         if (r->job_) {
             // A failed job leaves the donor it forked and frees what it held.
             active.erase(active.begin() + (std::ptrdiff_t)i);
@@ -2550,6 +2604,7 @@ private:
     size_t normal_ = 0;                // the slots before the slots of passes apart
     LogitRows apart_rows_;             // the logits rows of the passes apart, after the others'
     bool acted_ = false;               // the scheduler thread's, whether this round advanced, collected, retired or formed anything
+    bool encoded_ = false;             // and whether it ran a piece of an image's encode, which a round forming no pass may have done
     uint64_t jobs_posted_ = 0;           // the scheduler thread's, the hand-overs to recorders so far
     uint64_t arrivals_ = 0, seen_ = 0;   // under the lock, the requests and follows submitted, and how many the round had seen as it began
     std::vector<std::unique_ptr<StagePace>> pace_;   // per stage, its pacing state; before the recorders, which refer to it

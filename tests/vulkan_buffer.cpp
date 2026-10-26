@@ -1688,6 +1688,48 @@ int created_float_control_checks() {
     return failures;
 }
 
+// A non-causal attention call's pieces (attention_pieces): they cover its workgroups once and in order, none over the budget unless it is one workgroup, a cut view's pieces within one workgroup of each other.
+// Among them Flash-Next's tower at 2048 by 2048, 16384 patches of 16 heads 72 wide, in five pieces of the tiled build, and its 1024 by 1024 and the backend test's 8192 patches in one and two.
+int attention_piece_checks() {
+    using Runs = std::vector<std::pair<size_t, size_t>>;
+    const size_t tile72 = 2 * backend::kFullTileRows * 72;
+    struct Case { const char* name; Runs runs; size_t budget, pieces; };
+    const Case cases[] = {
+        {"Flash-Next at 2048 by 2048", {{256 * 16, tile72 * 16384}}, backend::kFullTileProducts, 5},
+        {"Flash-Next at 1024 by 1024", {{64 * 16, tile72 * 4096}}, backend::kFullTileProducts, 1},
+        {"8192 patches of 16 heads 72 wide", {{128 * 16, tile72 * 8192}}, backend::kFullTileProducts, 2},
+        {"4096 rows of 4 heads 128 wide, per row", {{4096 * 4, 2 * 128 * 4096}}, backend::kFullRowProducts, 2},
+        {"a view beside the open piece", {{10, 10}, {7, 10}, {40, 10}}, 100, 6},
+        {"a workgroup over the budget", {{3, 500}, {2, 10}}, 100, 4},
+        {"nothing", {}, 100, 0},
+        {"an empty view", {{0, 10}, {5, 10}}, 100, 1},
+    };
+    int failures = 0;
+    for (const Case& c : cases) {
+        const std::vector<size_t> cuts = backend::attention_pieces(c.runs, c.budget);
+        size_t total = 0;
+        for (const auto& r : c.runs) total += r.first;
+        bool ok = !cuts.empty() && cuts.front() == 0 && cuts.back() == total && cuts.size() == c.pieces + 1;
+        for (size_t i = 0; ok && i + 1 < cuts.size(); ++i) {
+            size_t products = 0, at = 0;
+            for (const auto& r : c.runs) {
+                const size_t lo = std::max(at, cuts[i]), hi = std::min(at + r.first, cuts[i + 1]);
+                if (lo < hi) products += (hi - lo) * r.second;
+                at += r.first;
+            }
+            ok = cuts[i] < cuts[i + 1] && (products <= c.budget || cuts[i + 1] - cuts[i] == 1);
+        }
+        if (c.runs.size() == 1)
+            for (size_t i = 0; ok && i + 2 < cuts.size(); ++i) {
+                const size_t a = cuts[i + 1] - cuts[i], b = cuts[i + 2] - cuts[i + 1];
+                ok = std::max(a, b) - std::min(a, b) <= 1;
+            }
+        std::cout << "attention pieces, " << c.name << ": " << (cuts.empty() ? 0 : cuts.size() - 1) << (ok ? " PASS\n" : " FAIL\n");
+        failures += !ok;
+    }
+    return failures;
+}
+
 int main(int argc, char** argv) {
     try {
         if ((argc == 2 || argc == 3) && std::string(argv[1]) == "--float-controls") return float_control_checks(argc == 3 ? argv[2] : nullptr) ? 1 : 0;
@@ -1733,6 +1775,7 @@ int main(int argc, char** argv) {
         failures += share_checks();
         ++cases;
         failures += table_view_checks();
+        failures += attention_piece_checks();
         cases += 6;
         std::cout << "vulkan-buffer: " << cases << " cases, " << failures << " failures (fake API; no device)\n";
         return failures ? 1 : 0;

@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <functional>
 #include <cstdint>
@@ -88,10 +89,12 @@ struct ModelOptions {
     std::function<std::optional<size_t>()> host_memory;
 };
 
-// An image's rows in a history (docs/VISION.md, section 4): its first row and its rows, the encoder's merged grid they fill row by row, and the encoder's rows, which a pass writes over their pad rows after the embedding.
+// An image's rows in a history (docs/VISION.md, sections 4 and 5): its first row and its rows, the encoder's merged grid they fill row by row, its digest, and the encoder's rows, which a pass writes over their pad rows after the embedding.
+// The rows are held until the pass reading the last of them commits; the digest, zero where no tier compares it, is what a fork, a host copy and the owner's giving it again are held to.
 struct MediaRun {
     size_t first = 0, rows = 0;
     uint32_t grid_h = 0, grid_w = 0;
+    std::array<uint8_t, 32> digest{};
     std::shared_ptr<const std::vector<float>> encoded;
 };
 
@@ -149,6 +152,7 @@ struct HostHistory {
     bool blocks = true;   // false for a state alone, at `length`, whose blocks a history on the devices holds (Model::fork with a state)
     size_t first = 0;     // the token its blocks begin at: past 0 for the blocks of a range alone (Model::save_host_blocks)
     bool state = true;    // false for blocks alone, with no state after them
+    std::vector<MediaRun> media;   // the images below `length`, without their rows, which a restore carries
     std::vector<std::vector<backend::BufferPtr>> slabs;
     std::vector<backend::Ticket> tickets;
 };
@@ -202,6 +206,7 @@ struct Pass {
     bool long_runs = false;                            // some entry takes its streamed layers on the device
     std::vector<uint32_t> ids, pos, pick;
     bool image_rows = false;                           // some row is an image's, so each row holds the plan's three position streams (ModelPlan::image_streams)
+    std::vector<std::pair<size_t, std::vector<uint32_t>>> group_pos;   // where a history holds an image, per group size of a pooled layer, the positions of the groups each entry completes
     std::vector<uint32_t> previous_tokens;             // the token-history layer's preceding IDs, a fixed-width row per entry
     std::vector<std::vector<backend::KVView>> views;   // per storage, per entry
     std::vector<std::vector<backend::StateView>> states;   // per device, per entry, on a device whose layers keep a state
@@ -858,12 +863,21 @@ public:
     size_t mark_slots() const { return state_layers_ ? options_.mark_slots : SIZE_MAX; }
     size_t checkpoints_free() const { return state_layers_ ? slots_.kept_available() : 0; }
 
-    // Defined in model/history.hpp: an image's rows in a sequence's history, from `run.first` at or past its history and every image before, read when passes reach them.
+    // Defined in model/history.hpp: an image given to a sequence, one it carries given again or one after every image it holds, its rows read when passes reach them.
     void add_media(Sequence& s, MediaRun run);
-    // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams) and no embedded drafter reads its rows, since drafting beside images comes with their cache identity (docs/VISION.md, section 8).
-    bool takes_images() const { return !plan_.image_streams.empty() && !plan_.drafter; }
+    // The same for the CLI's own sequence.
+    void add_media(MediaRun run) { add_media(seq_, std::move(run)); }
+    // Whether the model takes image rows: its architecture places them (ModelPlan::image_streams).
+    bool takes_images() const { return !plan_.image_streams.empty(); }
+    // The rows of a sequence's images, [first, end) in order, which a drafter does not draft from; the CLI's own sequence without one.
+    std::vector<std::pair<size_t, size_t>> image_rows(const Sequence& s) const {
+        std::vector<std::pair<size_t, size_t>> rows;
+        for (const Sequence::Media& m : s.media_) rows.push_back({m.run.first, m.run.first + m.run.rows});
+        return rows;
+    }
+    std::vector<std::pair<size_t, size_t>> image_rows() const { return image_rows(seq_); }
     // The width of an embedding row, which an encoder's rows must have.
-    size_t embedding_width() const { return plan_.residual; }
+    size_t embedding_width() const { return plan_.residual / plan_.embed_copies; }
     // The backend the embedding runs on, where an image is encoded.
     backend::Backend& embedding_backend() const { return *devices_[(size_t)place_.embed_device]->b; }
 
@@ -1291,9 +1305,16 @@ private:
     Step part(ExecContext& ctx, size_t dev, const Weight* w, uint8_t kind, size_t base, size_t rows, backend::RowRuns runs, bool apart = false) const;
     Step mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l) const;
     void positions(const Sequence& s, size_t first, size_t n, bool streams, uint32_t* out) const;
-    bool meets_media(const Sequence& s, size_t first, size_t n) const;
-    void refuse_media(const Sequence& s, size_t length, const char* what) const;
+    std::vector<Sequence::Media> carried(const Sequence& s, size_t length) const;
     void drop_media(Sequence& s, size_t length) noexcept;
+    void release_media(Sequence& s);
+    // Images' device rows dropped once read, each with the device and the submission that last read it, freed once that submission has retired.
+    struct Retiring {
+        size_t device;
+        backend::Ticket ticket;
+        backend::BufferPtr rows;
+    };
+    std::vector<Retiring> retiring_;
     void write_media(ExecContext& ctx, const Pass& p, size_t dev);
 
     // Whether `pos` is whole blocks in every KV storage, as a fork and a checkpoint need.

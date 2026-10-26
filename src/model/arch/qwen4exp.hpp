@@ -644,6 +644,9 @@ public:
         p.state = {size_t(c.k_heads), size_t(c.v_heads), size_t(c.k_dim), size_t(c.v_dim)};
         p.tables = {size_t(c.context_length) * size_t(c.rope_dim / 2),
                     size_t(c.context_length) * size_t(c.rope_dim / 2), size_t(R)};
+        // Images take Qwen 3.5's interleaved positions, a pooled group turning at its first row's (Step::group_pos), and an embedding row fills every residual stream.
+        p.image_streams = blocks::interleaved_streams(c.rope_sections, size_t(c.rope_dim / 2));
+        p.embed_copies = size_t(c.hc_count);
         return p;
     }
 
@@ -1037,7 +1040,7 @@ private:
         if (s.kind == mtp_qsa_kind) {
             const size_t I = size_t(cfg_.indexer_head_dim), IH = size_t(cfg_.indexer_n_heads);
             const backend::Backend::IndexArgs args{IH, I, size_t(cfg_.rope_dim), size_t(cfg_.nextn_compress_ratio), size_t(cfg_.indexer_budget), cfg_.rms_eps};
-            s.b.pool_kv(s.kv_layer, s.views, s.n_views, args, w[index_k_norm].slice(), cos, sin);
+            s.b.pool_kv(s.kv_layer, s.views, s.n_views, args, w[index_k_norm].slice(), cos, sin, s.group_pos);
         }
     }
 
@@ -1052,19 +1055,19 @@ private:
             s.b.matmul_group({blocks::projection(w[index_q], s.slot(index_query)),
                               blocks::projection(w[index_k], s.slot(index_key))}, s.slot(mixed), E, s.rows, s.runs, s.dtype);
         s.b.norm_rope_partial(s.slot(query), s.slot(raw), s.rows, 2 * H * D, 2 * D, H, D, R,
-                              w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+                              w[attn_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
         s.b.norm_rope_partial(s.slot(conv), s.slot(conv), s.rows, HK * D, D, HK, D, R,
-                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+                              w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
         if (s.kind == dense_kind) {
             s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate));
             s.b.attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(recurrent), int(H), int(HK), int(D));
         } else {
             s.b.norm_rope_partial(s.slot(index_query), s.slot(index_query), s.rows, IH * I, I, IH, I, R,
-                                  w[index_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+                                  w[index_q_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
             s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate), s.slot(index_key));
             const size_t compression = s.kind == mtp_qsa_kind ? size_t(cfg_.nextn_compress_ratio) : size_t(cfg_.indexer_compress_ratio);
             const backend::Backend::IndexArgs args{IH, I, R, compression, size_t(cfg_.indexer_budget), cfg_.rms_eps};
-            s.b.select_kv(s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(selected), args, w[index_k_norm].slice(), cos, sin);
+            s.b.select_kv(s.slot(index_query), s.kv_layer, s.views, s.n_views, s.slot(selected), args, w[index_k_norm].slice(), cos, sin, s.group_pos);
             const size_t stride = size_t(cfg_.indexer_budget) + compression - 1;
             s.b.sparse_attention(s.slot(query), s.kv_layer, s.views, s.n_views, s.slot(selected), stride, s.slot(recurrent), int(H), int(HK), int(D));
         }

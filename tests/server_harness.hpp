@@ -229,14 +229,26 @@ inline std::vector<uint32_t> prompt_of(uint32_t first, size_t n, uint32_t vocab)
 
 using Reply = std::vector<server::Request::Token>;
 
-// One request: its prompt, a cap or none (0) for an uncapped one, a stop string, and a temperature above 0 with a seed for a sampled one.
+// One request: its prompt, a cap or none (0) for an uncapped one, a stop string, a temperature above 0 with a seed for a sampled one, and its prompt's images.
 struct Req {
     std::vector<uint32_t> prompt;
     int cap = 0;
     std::string stop = {};
     float temp = 0.0f;
     uint64_t seed = 0;
+    std::vector<infer::MediaRun> images = {};
 };
+
+// A request's images as the scheduler takes them, each image's rows given again from the request's own copy.
+inline server::Scheduler::Images images_of(const Req& r) {
+    server::Scheduler::Images images;
+    images.runs = r.images;
+    if (!r.images.empty()) {
+        auto runs = std::make_shared<std::vector<infer::MediaRun>>(r.images);
+        images.encode = [runs](size_t i) { return server::ImageSteps([rows = (*runs)[i].encoded] { return rows; }); };
+    }
+    return images;
+}
 
 inline server::SampleParams params_of(const Req& r) {
     server::SampleParams p;
@@ -319,7 +331,7 @@ inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, 
             std::vector<std::shared_ptr<server::Request>> handles;
             {
                 std::lock_guard<std::mutex> lock(submitting);
-                for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r)));
+                for (const Req& r : wave) handles.push_back(sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, images_of(r)));
             }
             for (auto& h : handles) replies.push_back(drain(*h));
             const auto current = sched.stats();

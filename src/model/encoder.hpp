@@ -71,7 +71,9 @@ public:
     // The tables come sized as the plan says.
     virtual void fill_tables(std::vector<std::vector<float>>& tables) const = 0;
     virtual EncodeInputs inputs(uint32_t grid_h, uint32_t grid_w) const = 0;
-    virtual void encode(const EncodeStep& s) const = 0;
+    // An image of `patches` patches encodes in pieces, run in order, each of a bounded amount of work, so a server runs other work between them (docs/VISION.md, section 10).
+    virtual size_t pieces(size_t patches) const = 0;
+    virtual void encode(const EncodeStep& s, size_t piece) const = 0;
 };
 
 // The runner: an encoder's weights adopted on one backend, its tables, and the scratch of one encode, its arena and its one layer of F32 K and V, grown to the largest image it has encoded and never shrunk.
@@ -108,22 +110,42 @@ public:
     const VisionArchitecture& architecture() const { return *arch_; }
     const EncoderPlan& plan() const { return plan_; }
 
-    // One image's rows, tokens(grid) rows of out_width floats; one image a call, so its rows are its own whatever else is encoded.
+    // One image's rows, tokens(grid) rows of out_width floats: its pieces in order; one image at a time, so its rows are its own whatever else is encoded.
     std::vector<float> encode(const image::Prepared& image) {
+        const size_t count = begin(image);
+        for (size_t i = 0; i < count; ++i) piece(i);
+        return rows();
+    }
+    // An image's encode begun: its patches written and its inputs computed; it returns the pieces, which piece() runs in order before rows() reads the result.
+    // A new begin() abandons an encode not finished, whose scratch it reuses.
+    size_t begin(const image::Prepared& image) {
         const size_t n = size_t(image.grid_h) * image.grid_w;
         const size_t patch_floats = plan_.slots.at(plan_.input_slot);
         if (!n || image.patches.size() != backend::size_mul(n, patch_floats)) throw std::runtime_error("inference: an image's patches do not fill its grid");
-        const size_t tokens = arch_->tokens(image.grid_h, image.grid_w);
+        pieces_ = next_ = 0;
         reserve(n);
         b_.write(*arena_, offsets_[plan_.input_slot], image.patches.data(), image.patches.size() * sizeof(float));
-        const EncodeInputs inputs = arch_->inputs(image.grid_h, image.grid_w);
-        std::vector<int32_t> blocks(backend::blocks_for(n, b_.kv_layout().block_tokens));
-        for (size_t i = 0; i < blocks.size(); ++i) blocks[i] = int32_t(i);
-        backend::KVView view{kv_.get(), blocks.data(), blocks.size(), 0, n, n, false};
-        arch_->encode(EncodeStep{b_, arena_.get(), offsets_.data(), w_.data(), n, image.grid_h, image.grid_w, &inputs, &view, table_buffers_.data(), dtype_});
-        std::vector<float> rows(backend::size_mul(tokens, plan_.out_width));
-        b_.read(*arena_, offsets_[plan_.output_slot], rows.data(), rows.size() * sizeof(float));
-        return rows;
+        inputs_ = arch_->inputs(image.grid_h, image.grid_w);
+        blocks_.resize(backend::blocks_for(n, b_.kv_layout().block_tokens));
+        for (size_t i = 0; i < blocks_.size(); ++i) blocks_[i] = int32_t(i);
+        view_ = backend::KVView{kv_.get(), blocks_.data(), blocks_.size(), 0, n, n, false};
+        patches_ = n;
+        grid_h_ = image.grid_h;
+        grid_w_ = image.grid_w;
+        pieces_ = arch_->pieces(n);
+        return pieces_;
+    }
+    void piece(size_t i) {
+        if (i != next_ || i >= pieces_) throw std::logic_error("inference: an encoder piece out of order");
+        arch_->encode(EncodeStep{b_, arena_.get(), offsets_.data(), w_.data(), patches_, grid_h_, grid_w_, &inputs_, &view_, table_buffers_.data(), dtype_}, i);
+        ++next_;
+    }
+    std::vector<float> rows() {
+        if (!pieces_ || next_ != pieces_) throw std::logic_error("inference: an encoder's rows read before its last piece");
+        std::vector<float> out(backend::size_mul(arch_->tokens(grid_h_, grid_w_), plan_.out_width));
+        b_.read(*arena_, offsets_[plan_.output_slot], out.data(), out.size() * sizeof(float));
+        pieces_ = next_ = 0;
+        return out;
     }
 
 private:
@@ -152,6 +174,12 @@ private:
     std::unique_ptr<backend::KVStorage> kv_;
     std::vector<size_t> offsets_;
     size_t capacity_ = 0;
+    // The encode begun: its image's size, inputs and view, its pieces and the next one to run.
+    EncodeInputs inputs_;
+    std::vector<int32_t> blocks_;
+    backend::KVView view_{};
+    size_t patches_ = 0, pieces_ = 0, next_ = 0;
+    uint32_t grid_h_ = 0, grid_w_ = 0;
 };
 
 }  // namespace infer

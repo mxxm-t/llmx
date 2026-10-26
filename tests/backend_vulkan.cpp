@@ -1987,6 +1987,24 @@ size_t check_kernels(backend::Backend& vk) {
         std::cout << "backend-vulkan: " << t.name << " prefill " << nout << "x" << nin << " over " << nbatch << " rows "
                   << us << " us, " << 2.0 * nin * nout * nbatch / us / 1e6 << " TFLOPS\n";
     }
+    // The float tile over BF16 weights at a vision encoder's shapes, Qwen3.8-Flash-Next's tower over a 1024 by 1024 image's 4096 patches, reported.
+    for (const auto& [nin, nout] : {std::pair<size_t, size_t>{1152, 3456}, {1152, 4304}, {4304, 1152}}) {
+        const size_t nbatch = 4096;
+        std::vector<uint16_t> wq(nin * nout);
+        for (size_t i = 0; i < wq.size(); ++i) wq[i] = uint16_t(0x3c00u + (i * 7 + 3) % 512u);
+        const auto x = uniform(nin * nbatch, 24);
+        const auto w = vk.adopt(wq.data(), wq.size() * sizeof(uint16_t));
+        const auto xb = vk.adopt(x.data(), x.size() * sizeof(float));
+        const auto y = vk.alloc(nout * nbatch * sizeof(float), backend::Memory::device);
+        vk.matmul(quant::GGML_TYPE_BF16, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, nbatch);
+        vk.sync();
+        const int iters = 10;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (int i = 0; i < iters; ++i) vk.matmul(quant::GGML_TYPE_BF16, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, nbatch);
+        vk.sync();
+        const double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count() / iters;
+        std::cout << "backend-vulkan: BF16 prefill " << nout << "x" << nin << " over " << nbatch << " rows " << us << " us, " << 2.0 * nin * nout * nbatch / us / 1e6 << " TFLOPS\n";
+    }
     // Decode attention and the small kernels at the Qwen3-0.6B shape over a 250-token history, one query, reported.
     {
         const int n_head = 16, n_head_kv = 8, head_dim = 128;
@@ -3723,6 +3741,174 @@ size_t check_qwen35(backend::Backend& vk) {
 }
 }
 
+// The vision encoder's ops against the CPU (docs/VISION.md, section 3) at the towers' widths: the bias and the row mix exact, the norm, gelu and rope within their bounds.
+// Attention over a non-causal view is held to the CPU within 1e-4.
+namespace vision {
+// `dst` written with `init` on both sides, so an op that adds to it starts from the same rows.
+Pair::Out seeded(Pair& p, const std::vector<float>& init) {
+    Pair::Out o = p.out(init.size());
+    p.cpu.write(*o.c, 0, init.data(), init.size() * sizeof(float));
+    p.vk.write(*o.v, 0, init.data(), init.size() * sizeof(float));
+    return o;
+}
+
+size_t check_ops(backend::Backend& vk) {
+    Pair p(vk);
+    size_t values = 0;
+    for (size_t width : {size_t(48), size_t(72), size_t(1152), size_t(4304)}) {
+        const size_t rows = 37;
+        const auto x = uniform(rows * width, 400 + uint32_t(width), -3.0f, 5.0f), bias = uniform(width, 401 + uint32_t(width));
+        Pair::In bi = p.in(bias);
+        Pair::Out d = seeded(p, x);
+        p.cpu.add_bias(d.cs(), bi.cs(), rows, width);
+        p.vk.add_bias(d.vs(), bi.vs(), rows, width);
+        auto r = p.results(d);
+        values += exact(r.first, r.second, "add_bias differs from the CPU");
+        // The learned positions' four taps of a 48 by 48 table, read in order.
+        const size_t side = 48, taps = 4;
+        const auto table = uniform(side * side * width, 402 + uint32_t(width)), w = uniform(rows * taps, 403, 0.0f, 1.0f);
+        std::vector<uint32_t> idx(rows * taps);
+        for (size_t i = 0; i < idx.size(); ++i) idx[i] = uint32_t((i * 2654435761u) % (side * side));
+        Pair::In ti = p.in(table);
+        Pair::Out m = seeded(p, x);
+        p.cpu.mix_rows(m.cs(), ti.cs(), width, side * side, idx.data(), w.data(), rows, taps);
+        p.vk.mix_rows(m.vs(), ti.vs(), width, side * side, idx.data(), w.data(), rows, taps);
+        r = p.results(m);
+        // Vulkan does not require fma fused, and on an MI50 under RADV the taps' last bits differ from the CPU's fused chain, so they are held to a bound.
+        values += close(r.first, r.second, 1e-6, "mix_rows differs from the CPU beyond 1e-6");
+        // LayerNorm over rows of a nonzero mean, packed and with a stride, out of place and in place.
+        for (size_t stride : {width, width + 8}) {
+            const auto src = uniform(rows * stride, 404 + uint32_t(stride), 1.0f, 7.0f), lw = uniform(width, 405, 0.5f, 1.5f), lb = uniform(width, 406);
+            Pair::In si = p.in(src), wi = p.in(lw), bb = p.in(lb);
+            Pair::Out n = seeded(p, src);
+            p.cpu.layer_norm_rows(n.cs(), si.cs(), wi.cs(), bb.cs(), rows, width, stride, 1e-6f);
+            p.vk.layer_norm_rows(n.vs(), si.vs(), wi.vs(), bb.vs(), rows, width, stride, 1e-6f);
+            r = p.results(n);
+            values += close(r.first, r.second, 1e-5, "layer_norm_rows differs from the CPU beyond 1e-5");
+            Pair::Out ip = seeded(p, src);
+            p.vk.layer_norm_rows(ip.vs(), {ip.v.get(), 0}, wi.vs(), bb.vs(), rows, width, stride, 1e-6f);
+            std::vector<float> in_place(src.size());
+            p.vk.read(*ip.v, 0, in_place.data(), in_place.size() * sizeof(float));
+            require(q35::same_bits(in_place, r.second), "layer_norm_rows in place differs on the device");
+            // A row alone gives the bits it gives beside the others.
+            Pair::Out one = p.out(width);
+            p.vk.layer_norm_rows(one.vs(), {si.v.get(), 5 * stride}, wi.vs(), bb.vs(), 1, width, width, 1e-6f);
+            std::vector<float> alone(width);
+            p.vk.read(*one.v, 0, alone.data(), width * sizeof(float));
+            require(std::memcmp(alone.data(), r.second.data() + 5 * stride, width * sizeof(float)) == 0, "layer_norm_rows of a row alone differs from the row beside others");
+        }
+    }
+    // GELU in both forms over values from 1e-30 to 1e5 of both signs and a uniform spread where it bends.
+    // The bound is absolute where values are small, not the kernel's precision: the erf form's 1.5e-7 is about 1e-3 relative below -3, where gelu is under 4e-4.
+    std::vector<float> g = uniform(65536, 407, -12.0f, 12.0f);
+    for (int e = -30; e <= 5; ++e)
+        for (float s : {1.0f, -1.0f, 3.7f, -3.7f}) g.push_back(s * std::pow(10.0f, float(e)));
+    Pair::In gi = p.in(g);
+    for (backend::GeluForm form : {backend::GeluForm::tanh, backend::GeluForm::erf}) {
+        Pair::Out d = p.out(g.size());
+        p.cpu.gelu(d.cs(), gi.cs(), g.size(), form);
+        p.vk.gelu(d.vs(), gi.vs(), g.size(), form);
+        auto r = p.results(d);
+        values += close(r.first, r.second, 1e-6, form == backend::GeluForm::erf ? "gelu (erf) differs from the CPU beyond 1e-6" : "gelu (tanh) differs from the CPU beyond 1e-6");
+    }
+    // The rope over two streams, a head's first quarter of pairs by the patch's row and the rest by its column, with and without a norm, and one stream without a norm.
+    for (size_t hd : {size_t(64), size_t(72), size_t(128)}) {
+        const size_t rows = 37, heads = 4, half = hd / 2, table = 64, width = heads * hd;
+        std::vector<float> cs(table * half), sn(table * half);
+        for (size_t t = 0; t < table; ++t)
+            for (size_t i = 0; i < half; ++i) {
+                const double f = std::pow(10000.0, -2.0 * double(i) / double(half));
+                cs[t * half + i] = float(std::cos(double(t) * f));
+                sn[t * half + i] = float(std::sin(double(t) * f));
+            }
+        std::vector<uint8_t> of(half);
+        for (size_t j = 0; j < half; ++j) of[j] = j < hd / 4 ? 0 : 1;
+        std::vector<uint32_t> pos(rows * 2);
+        for (size_t i = 0; i < pos.size(); ++i) pos[i] = uint32_t((i * 7 + 3) % table);
+        const auto src = uniform(rows * width, 408 + uint32_t(hd)), nw = uniform(hd, 409, 0.5f, 1.5f);
+        Pair::In si = p.in(src), ci = p.in(cs), sni = p.in(sn), wi = p.in(nw);
+        for (int mode = 0; mode < 3; ++mode) {
+            const backend::RopeStreams streams = mode == 2 ? backend::RopeStreams{} : backend::RopeStreams{2, of.data()};
+            const bool norm = mode == 1;
+            Pair::Out d = p.out(src.size());
+            p.cpu.norm_rope_partial(d.cs(), si.cs(), rows, width, hd, heads, hd, hd, norm ? wi.cs() : backend::CSlice{}, 1e-6f, ci.cs(), sni.cs(), pos.data(), streams);
+            p.vk.norm_rope_partial(d.vs(), si.vs(), rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), streams);
+            auto r = p.results(d);
+            values += close(r.first, r.second, 1e-5, "the rope over streams differs from the CPU beyond 1e-5");
+            Pair::Out ip = seeded(p, src);
+            p.vk.norm_rope_partial(ip.vs(), {ip.v.get(), 0}, rows, width, hd, heads, hd, hd, norm ? wi.vs() : backend::CSlice{}, 1e-6f, ci.vs(), sni.vs(), pos.data(), streams);
+            std::vector<float> in_place(src.size());
+            p.vk.read(*ip.v, 0, in_place.data(), in_place.size() * sizeof(float));
+            require(q35::same_bits(in_place, r.second), "the rope over streams in place differs on the device");
+        }
+    }
+    // Attention over one non-causal view of an image's patches, every row seeing every key: the tiled kernel's builds at the towers' head widths, and the per-row kernel's at 128.
+    for (int hd : {64, 72, 128})
+        for (size_t n : {size_t(37), size_t(300), size_t(4096)}) {
+            const int heads = 4;
+            const size_t w = size_t(heads) * size_t(hd);
+            const auto q = uniform(n * w, 410 + uint32_t(n), -2.0f, 2.0f), k = uniform(n * w, 411 + uint32_t(n), -2.0f, 2.0f), v = uniform(n * w, 412 + uint32_t(n));
+            auto run = [&](backend::Backend& b) {
+                auto st = b.kv_alloc(1, size_t(heads), size_t(hd), n);
+                std::vector<int32_t> blocks(backend::blocks_for(n, b.kv_layout().block_tokens));
+                for (size_t i = 0; i < blocks.size(); ++i) blocks[i] = int32_t(i);
+                const backend::KVView view{st.get(), blocks.data(), blocks.size(), 0, n, n, false};
+                const auto Qb = b.adopt(q.data(), q.size() * sizeof(float)), Kb = b.adopt(k.data(), k.size() * sizeof(float)), Vb = b.adopt(v.data(), v.size() * sizeof(float));
+                b.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                const auto ob = b.alloc(n * w * sizeof(float), backend::Memory::device);
+                b.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, heads, heads, hd);
+                std::vector<float> out(n * w);
+                b.read(*ob, 0, out.data(), out.size() * sizeof(float));
+                return out;
+            };
+            values += close(run(p.cpu), run(p.vk), 1e-4, "non-causal attention differs from the CPU beyond 1e-4");
+        }
+    // 8192 patches of 16 heads 72 wide, which the tiled build cuts into two dispatches (vulkan-buffer checks the pieces): rows at both ends of each give the bits of the same rows in an uncut call of 32 rows over the same keys.
+    // The 4096 rows of heads 128 wide above are cut in two by the per-row build and held to the CPU.
+    {
+        const int heads = 16, hd = 72;
+        const size_t n = 8192, w = size_t(heads) * size_t(hd), picked[4] = {0, 4088, 4096, 8184};
+        const auto q = uniform(n * w, 413, -2.0f, 2.0f), k = uniform(n * w, 414, -2.0f, 2.0f), v = uniform(n * w, 415);
+        auto st = vk.kv_alloc(1, size_t(heads), size_t(hd), n);
+        std::vector<int32_t> blocks(backend::blocks_for(n, vk.kv_layout().block_tokens));
+        for (size_t i = 0; i < blocks.size(); ++i) blocks[i] = int32_t(i);
+        const backend::KVView view{st.get(), blocks.data(), blocks.size(), 0, n, n, false};
+        const auto Qb = vk.adopt(q.data(), q.size() * sizeof(float)), Kb = vk.adopt(k.data(), k.size() * sizeof(float)), Vb = vk.adopt(v.data(), v.size() * sizeof(float));
+        vk.kv_write(0, &view, 1, {Kb.get(), 0}, {Vb.get(), 0});
+        const auto ob = vk.alloc(n * w * sizeof(float), backend::Memory::device);
+        vk.attention({Qb.get(), 0}, 0, &view, 1, {ob.get(), 0}, heads, heads, hd);
+        std::vector<float> whole(n * w);
+        vk.read(*ob, 0, whole.data(), whole.size() * sizeof(float));
+        // Eight rows from each place, as the 32 rows of a view whose history is the other 8160 keys.
+        std::vector<float> q32(32 * w);
+        for (size_t j = 0; j < 32; ++j) std::memcpy(q32.data() + j * w, q.data() + (picked[j / 8] + j % 8) * w, w * sizeof(float));
+        const backend::KVView tail{st.get(), blocks.data(), blocks.size(), n - 32, 32, 32, false};
+        const auto Q32 = vk.adopt(q32.data(), q32.size() * sizeof(float));
+        const auto o32 = vk.alloc(32 * w * sizeof(float), backend::Memory::device);
+        vk.attention({Q32.get(), 0}, 0, &tail, 1, {o32.get(), 0}, heads, heads, hd);
+        std::vector<float> rows32(32 * w);
+        vk.read(*o32, 0, rows32.data(), rows32.size() * sizeof(float));
+        for (size_t j = 0; j < 32; ++j)
+            require(std::memcmp(rows32.data() + j * w, whole.data() + (picked[j / 8] + j % 8) * w, w * sizeof(float)) == 0,
+                    "a row of non-causal attention cut into dispatches differs from the row in an uncut call");
+        values += 32 * w;
+    }
+    // Views of one call are causal or not alike.
+    {
+        auto st = vk.kv_alloc(1, 2, 64, 256);
+        const int32_t blocks[4] = {0, 1, 2, 3};
+        const backend::KVView views[2] = {{st.get(), blocks, 1, 0, 8, 8, false}, {st.get(), blocks + 1, 1, 0, 8, 8, true}};
+        const auto qb = vk.alloc(16 * 128 * sizeof(float), backend::Memory::device), ob = vk.alloc(16 * 128 * sizeof(float), backend::Memory::device);
+        bool refused = false;
+        try { vk.attention({qb.get(), 0}, 0, views, 2, {ob.get(), 0}, 2, 2, 64); }
+        catch (const std::runtime_error& e) { refused = std::string(e.what()).find("causal and non-causal views") != std::string::npos; }
+        require(refused, "an attention call of causal and non-causal views was not refused by name");
+    }
+    std::cout << "backend-vulkan: vision encoder ops: bias exact, row mix, norm, gelu and rope over streams within their bounds, non-causal attention over 37 to 4096 keys, tiled at heads 64 and 72, and 8192 keys cut into dispatches\n";
+    return values;
+}
+}  // namespace vision
+
 // Matrix precision checks use unquantized double products and the selected activation policy's bound (AGENTS.md, Tests).
 // Block outliers expose the quantization step, and F32/BF16 cases also hold decode-column identity.
 size_t check_activation_precision(backend::Backend& vk, backend::Dtype dtype) {
@@ -4873,7 +5059,7 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << check_int8_twin_width() << " int8 outputs unchanged when the input row width changes\n";
         std::cout << "backend-vulkan: " << check_write_sets() << " kernel bindings written or read as their shaders declare them\n";
         std::cout << "backend-vulkan: " << check_twin_table() << " products from kept twins equal to products from fresh copies\n";
-        const size_t values = check_kernels(*b) + check_qwen35(*b);
+        const size_t values = check_kernels(*b) + check_qwen35(*b) + vision::check_ops(*b);
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";

@@ -263,6 +263,27 @@ void plan_and_encode() {
     auto o1 = open(tiny(), one);
     const std::vector<float> single = o1->encoder->encode(img);
     require(std::memcmp(rows.data(), single.data(), rows.size() * sizeof(float)) == 0, "an image on one thread");
+    // Its pieces: the patch embedding, each block's projections, its attention in one run of rows at this size and the rest, then the merger.
+    // Run one at a time with another image's encode begun and abandoned before them, and with the backend's other work between them, they give the same bits; out of order and read early they are refused.
+    const size_t count = a.pieces(24);
+    require(count == 2 + L * 3, "an image's pieces: " + std::to_string(count));
+    image::Prepared other = img;
+    other.grid_h = 2;
+    other.grid_w = 2;
+    other.patches.resize(4 * 3 * P * P, 0.25f);
+    require(o->encoder->begin(other) == a.pieces(4), "another image's pieces");
+    o->encoder->piece(0);
+    require(o->encoder->begin(img) == count, "an image's encode begun again");
+    refused([&] { o->encoder->piece(1); }, "out of order", "a piece out of order");
+    o->encoder->piece(0);
+    refused([&] { o->encoder->rows(); }, "before its last piece", "rows read before the last piece");
+    auto beside = open(tiny(), cpu);
+    for (size_t i = 1; i < count; ++i) {
+        (void)beside->encoder->encode(other);
+        o->encoder->piece(i);
+    }
+    const std::vector<float> pieced = o->encoder->rows();
+    require(std::memcmp(rows.data(), pieced.data(), rows.size() * sizeof(float)) == 0, "an image encoded a piece at a time beside other work");
     img.patches.pop_back();
     refused([&] { o->encoder->encode(img); }, "do not fill its grid", "patches short of the grid");
 }

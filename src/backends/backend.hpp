@@ -216,6 +216,13 @@ struct RopeStreams {
     const uint8_t* of = nullptr;
 };
 
+// The positions the groups a call pools are rotated at: for each view in order, each group its rows complete, `streams.count` positions a group (RopeStreams).
+// With none a group turns at its first token's index, as a history without images has it.
+struct GroupPositions {
+    const uint32_t* pos = nullptr;
+    RopeStreams streams{};
+};
+
 // GELU as x times the normal CDF of x, or its tanh approximation (Op::gelu).
 enum class GeluForm { tanh, erf };
 
@@ -356,6 +363,7 @@ public:
     virtual void wait(size_t back) noexcept { (void)back; }
 };
 
+// A device's operations and memory; a backend takes one caller at a time, so its calls never come from two threads at once.
 class Backend {
 public:
     virtual ~Backend() = default;
@@ -568,12 +576,12 @@ public:
     // Q is already normalized and rotated; the groups each view's rows complete are pooled first (pool_kv), and every complete group's pooled key is read from the auxiliary blocks.
     // Output is U32 token IDs in chronological order, padded with UINT32_MAX to budget + compression - 1 per row; equal scores prefer the earlier group.
     virtual void select_kv(CSlice, size_t, const KVView*, size_t, Slice,
-                           const IndexArgs&, CSlice, CSlice, CSlice) {
+                           const IndexArgs&, CSlice, CSlice, CSlice, const GroupPositions& = {}) {
         throw std::runtime_error("backend: select_kv is not implemented");
     }
     // The complete groups the views' rows complete, their raw auxiliary keys averaged, normalized and rotated at the group's first position, into their pooled rows of the auxiliary blocks (BlockKVStorage::auxiliary_pool).
     // select_kv pools its own rows' groups; a caller that writes a pooled layer's auxiliary rows without selecting them pools them here, so every complete group of a history has its row.
-    virtual void pool_kv(size_t, const KVView*, size_t, const IndexArgs&, CSlice, CSlice, CSlice) {
+    virtual void pool_kv(size_t, const KVView*, size_t, const IndexArgs&, CSlice, CSlice, CSlice, const GroupPositions& = {}) {
         throw std::runtime_error("backend: pool_kv is not implemented");
     }
 

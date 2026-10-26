@@ -498,12 +498,8 @@ public:
         return out;
     }
 
-    // State and gating ops are supported; grouped expert projections must share one storage type.
-    // The vision encoder's ops come with its device step (docs/VISION.md, section 8).
-    bool implements(Op op) const override {
-        return op != Op::mixed_experts && op != Op::layer_norm && op != Op::gelu && op != Op::add_bias && op != Op::mix_rows &&
-               op != Op::rope_streams && op != Op::attention_full;
-    }
+    // State, gating and the vision encoder's ops are supported; grouped expert projections must share one storage type.
+    bool implements(Op op) const override { return op != Op::mixed_experts; }
 
     // Host worker counts mean nothing to a device.
     void set_threads(int) override {}
@@ -690,6 +686,11 @@ public:
         return queued(s, s.queue(*dev_));
     }
 
+    // The dispatches recorded so far submitted, so a long dispatch recorded next shares its submission with none, whose time the GPU's job timeout bounds.
+    void isolate() {
+        if (open_ && chunk_) flush();
+    }
+
     // Callers hold hold_.mu.
     void hold_release() {
         if (!hold_.pending) return;
@@ -874,6 +875,48 @@ public:
         dispatch(K_SIGMOID_MUL, {bind(dst), bind(x), bind(gate), quant ? twin_binding(slot) : bind(dst)},
                  &pc, sizeof(pc), groups(tile ? n / 4 : n, 256), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
         if (quant) keep_twin(slot, bind(dst), n, major);
+    }
+
+    // The vision encoder's ops (docs/VISION.md, section 3); the elementwise ones stride over their elements from at most a full x dimension of workgroups.
+    uint32_t striding_groups(size_t n) const { return u32(std::min<size_t>((n + 255) / 256, dev_->props.limits.maxComputeWorkGroupCount[0])); }
+
+    void layer_norm_rows(Slice dst, CSlice src, CSlice w, CSlice b, size_t rows, size_t n, size_t stride, float eps) override {
+        if (!n || stride < n || !std::isfinite(eps) || eps < 0.0f) throw std::runtime_error("vulkan: invalid layer norm dimensions");
+        if (!rows) return;
+        const size_t last = size_add(size_mul(rows - 1, stride), n);
+        if (floats_from(dst) < last || floats_from(src) < last || floats_from(w) < n || floats_from(b) < n)
+            throw std::runtime_error("vulkan: layer norm operand outside its allocation");
+        struct { uint32_t n, stride; float eps; } pc{u32(n), u32(stride), eps};
+        dispatch(K_LAYER_NORM_ROWS, {bind(dst), bind(src), bind(w), bind(b)}, &pc, sizeof(pc), groups(rows, 1));
+    }
+
+    void gelu(Slice dst, CSlice src, size_t n, GeluForm form) override {
+        if (!n) return;
+        if (floats_from(dst) < n || floats_from(src) < n) throw std::runtime_error("vulkan: gelu operand outside its allocation");
+        const uint32_t pc[2] = {u32(n), form == GeluForm::erf ? 1u : 0u};
+        dispatch(K_GELU, {bind(dst), bind(src)}, pc, sizeof(pc), striding_groups(n));
+    }
+
+    void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) override {
+        if (!width) throw std::runtime_error("vulkan: invalid bias width");
+        const size_t n = size_mul(rows, width);
+        if (!n) return;
+        if (floats_from(dst) < n || floats_from(bias) < width) throw std::runtime_error("vulkan: bias operand outside its allocation");
+        const uint32_t pc[2] = {u32(n), u32(width)};
+        dispatch(K_ADD_BIAS, {bind(dst), bind(bias)}, pc, sizeof(pc), striding_groups(n));
+    }
+
+    void mix_rows(Slice dst, CSlice table, size_t width, size_t table_rows, const uint32_t* idx, const float* weight, size_t rows, size_t taps) override {
+        if (!width || !taps) throw std::runtime_error("vulkan: invalid row mix dimensions");
+        const size_t n = size_mul(rows, width), picks = size_mul(rows, taps);
+        if (!n) return;
+        if (!idx || !weight) throw std::runtime_error("vulkan: a row mix without its taps");
+        for (size_t i = 0; i < picks; ++i)
+            if (idx[i] >= table_rows) throw std::runtime_error("vulkan: a row mix names a row past its table");
+        if (floats_from(dst) < n || floats_from(table) < size_mul(table_rows, width)) throw std::runtime_error("vulkan: row mix operand outside its allocation");
+        const uint32_t pc[3] = {u32(n), u32(width), u32(taps)};
+        dispatch(K_MIX_ROWS, {bind(dst), bind(table), args(idx, picks * sizeof(uint32_t)), args(weight, picks * sizeof(float))}, pc, sizeof(pc),
+                 striding_groups(n));
     }
 
     // One workgroup per (row, head); like rms_norm_rows it writes the copy the matmul reading dst next takes (shaders/gated_rms_norm.comp).
@@ -1175,18 +1218,37 @@ public:
                            CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams = {}) override {
         if (!heads || !head_dim || !rope_dim || rope_dim % 2 || rope_dim > head_dim)
             throw std::runtime_error("vulkan: invalid partial rope dimensions");
-        if (streams.count != 1 || !w.buffer) throw std::runtime_error(std::string("vulkan: ") + op_name(Op::rope_streams) + " is not implemented");
+        const size_t half = rope_dim / 2;
+        // The plain path is one stream with a norm; several streams, or no norm, take the streams build (shaders/norm_rope_partial.comp).
+        const bool gathered = streams.count != 1 || !w.buffer;
+        if (!streams.count || (streams.count > 1 && !streams.of)) throw std::runtime_error("vulkan: invalid rope streams");
         if (rows && !pos) throw std::runtime_error("vulkan: rope without positions");
+        std::vector<uint32_t> of;
+        if (gathered) {
+            of.resize(half, 0);
+            for (size_t j = 0; streams.count > 1 && j < half; ++j) {
+                if (streams.of[j] >= streams.count) throw std::runtime_error("vulkan: a rope frequency names a stream past its row's streams");
+                of[j] = streams.of[j];
+            }
+        }
         if (!rows) return;
-        const size_t width = size_mul(heads, head_dim), half = rope_dim / 2;
+        const size_t width = size_mul(heads, head_dim);
         const size_t last = size_add(size_add(size_mul(rows - 1, src_stride), size_mul(heads - 1, src_head_stride)), head_dim);
-        if (floats_from(dst) < size_mul(rows, width) || floats_from(src) < last || floats_from(w) < head_dim)
+        if (floats_from(dst) < size_mul(rows, width) || floats_from(src) < last || (w.buffer && floats_from(w) < head_dim))
             throw std::runtime_error("vulkan: partial rope operand outside its allocation");
         if (dst.buffer == src.buffer && dst.offset == src.offset && (src_stride != width || src_head_stride != head_dim))
             throw std::runtime_error("vulkan: partial rope in place over heads that are not contiguous");
-        const size_t table = std::min(floats_from(cos), floats_from(sin)) / half;
-        for (size_t r = 0; r < rows; ++r)
+        const size_t table = std::min(floats_from(cos), floats_from(sin)) / half, npos = size_mul(rows, streams.count);
+        for (size_t r = 0; r < npos; ++r)
             if (pos[r] >= table) throw std::runtime_error("vulkan: position outside the RoPE table");
+        if (gathered) {
+            struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; uint32_t count, norm; }
+                pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps, u32(streams.count), w.buffer ? 1u : 0u};
+            dispatch(K_NORM_ROPE_PARTIAL_STREAMS,
+                     {bind(dst), bind(src), w.buffer ? bind(w) : bind(src), bind(cos), bind(sin), args(pos, npos * sizeof(uint32_t)), args(of.data(), half * sizeof(uint32_t))},
+                     &pc, sizeof(pc), u32(size_mul(rows, heads)));
+            return;
+        }
         struct { uint32_t src_stride, src_head_stride, heads, head_dim, half; float eps; }
             pc{u32(src_stride), u32(src_head_stride), u32(heads), u32(head_dim), u32(half), eps};
         dispatch(K_NORM_ROPE_PARTIAL,
@@ -1350,8 +1412,9 @@ public:
         uint32_t bt, block_floats, rows_floats;
     };
     void select_kv(CSlice query, size_t layer, const KVView* views, size_t n_views, Slice ids,
-                   const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) override;
-    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) override;
+                   const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin, const GroupPositions& positions = {}) override;
+    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin,
+                 const GroupPositions& positions = {}) override;
 
     // A view with the batch row its rows start at.
     struct Placed {
@@ -1360,8 +1423,9 @@ public:
     };
     static std::vector<Placed> place_views(const KVView* views, size_t n_views);
     // The complete groups a view's rows complete, pooled into their rows of the auxiliary plane (shaders/kv_index_pool.comp); the earlier groups were pooled by the call whose rows completed them.
+    // With group positions, the view's start at `at` of them: each group turns by the positions its streams name, else at its first token's index.
     void pool_view(VkDescriptorBufferInfo aux, PlaneShape plane, VkDescriptorBufferInfo key_norm, VkDescriptorBufferInfo cos, VkDescriptorBufferInfo sin,
-                   const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index);
+                   const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index, const GroupPositions& positions = {}, size_t at = 0);
     // The scores of `rows` rows from `row` on against every complete group they see, a row of `groups` apart, kScoreTile groups a workgroup (shaders/kv_index_scores_tile.comp).
     void score_rows(VkDescriptorBufferInfo query, VkDescriptorBufferInfo pooled, PlaneShape plane, VkDescriptorBufferInfo scores, const std::vector<uint32_t>& table,
                     uint32_t view, size_t row, size_t rows, size_t groups, uint32_t heads, uint32_t dim, uint32_t compression, float scale);

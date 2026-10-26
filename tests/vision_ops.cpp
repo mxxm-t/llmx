@@ -395,6 +395,13 @@ void attention_full() {
                 cpu.attention(CSlice(qb.get(), n0 * width), 0, &views[1], 1, Slice{out1.get(), 0}, heads, heads, int(dim));
                 const std::vector<float> alone = download(cpu, *out1, n1 * width);
                 require(std::memcmp(alone.data(), got.data() + n0 * width, n1 * width * sizeof(float)) == 0, at + ": an image alone differs from it beside another");
+                // A run of the first image's rows, 40 to 99, as a view of all its keys whose rows are the run's, as an encoder's piece takes them: the whole call's bits.
+                const size_t from = 40, m = 60;
+                const backend::KVView run{kv.get(), b0.data(), b0.size(), n0 - m, m, m, false};
+                BufferPtr out3 = upload(cpu, std::vector<float>(m * width, 0.0f));
+                cpu.attention(CSlice(qb.get(), from * width), 0, &run, 1, Slice{out3.get(), 0}, heads, heads, int(dim));
+                const std::vector<float> rows = download(cpu, *out3, m * width);
+                require(std::memcmp(rows.data(), got.data() + from * width, m * width * sizeof(float)) == 0, at + ": a run of rows differs from them in the whole call");
                 // The same view causal: its first row attends only itself, so it is its value row.
                 views[0].causal = true;
                 BufferPtr out2 = upload(cpu, std::vector<float>(n0 * width, 0.0f));

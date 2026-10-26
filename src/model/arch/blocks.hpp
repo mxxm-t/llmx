@@ -15,6 +15,17 @@
 
 namespace infer::blocks {
 
+// An image row's (start, row, column) interleaved over `half` rotated pairs as HF's Qwen 3.5 interleaves its MRoPE sections (ModelPlan::image_streams).
+// Pair j takes the row where j mod 3 is 1 inside three times the second section, the column where it is 2 inside three times the third, and the start elsewhere.
+inline std::vector<uint8_t> interleaved_streams(const std::vector<int>& sections, size_t half) {
+    std::vector<uint8_t> of(half, 0);
+    for (size_t j = 0; j < half; ++j) {
+        if (j % 3 == 1 && j < 3 * (size_t)sections[1]) of[j] = 1;
+        if (j % 3 == 2 && j < 3 * (size_t)sections[2]) of[j] = 2;
+    }
+    return of;
+}
+
 // A grouped expert call needs mixed-type support only when both declared projections exist and their storage tags differ; the requirement is the part's the gate role runs in.
 inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t gate, uint16_t up) {
     const TensorView *g = nullptr, *u = nullptr;

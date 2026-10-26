@@ -284,14 +284,19 @@ struct Prepared {
     std::vector<float> patches;
 };
 
-// The image sized by smart_resize, resized, normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), and cut into patches block by block of merge by merge.
-inline Prepared prepare(const Raster& img, const Params& p) {
+// The image sized by smart_resize and resized, the pixels a server's digest of the image reads (docs/VISION.md, section 5).
+inline Raster resize_for(const Raster& img, const Params& p) {
     if (!p.patch || !p.merge) throw std::runtime_error("image: an empty patch or merge");
     const auto [h, w] = smart_resize(img.height, img.width, p.patch * p.merge, p.min_pixels, p.max_pixels);
-    const Raster r = resize_bicubic(img, w, h);
+    return resize_bicubic(img, w, h);
+}
+
+// A resized image normalized in F32 as the processor's fused rescale and normalize, (x - 255 mean) / (255 std), and cut into patches block by block of merge by merge.
+inline Prepared patches(const Raster& r, const Params& p) {
+    if (!p.patch || !p.merge || r.height % (p.patch * p.merge) || r.width % (p.patch * p.merge)) throw std::runtime_error("image: a size of no whole merged patches");
     Prepared out;
-    out.grid_h = h / p.patch;
-    out.grid_w = w / p.patch;
+    out.grid_h = uint32_t(r.height / p.patch);
+    out.grid_w = uint32_t(r.width / p.patch);
     const size_t P = p.patch, M = p.merge, row = 3 * P * P;
     out.patches.resize(size_t(out.grid_h) * out.grid_w * row);
     // The processor fuses its 1/255 rescale into the mean and std in float, so 0.5 becomes 127.5.
@@ -314,5 +319,8 @@ inline Prepared prepare(const Raster& img, const Params& p) {
                 }
     return out;
 }
+
+// The image sized, resized and cut into its normalized patches, as the processor prepares it.
+inline Prepared prepare(const Raster& img, const Params& p) { return patches(resize_for(img, p), p); }
 
 }  // namespace image

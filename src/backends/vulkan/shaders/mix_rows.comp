@@ -1,0 +1,16 @@
+#version 450
+// dst row r += the sum over k of weight[r * taps + k] times table row idx[r * taps + k], the taps multiply-added in the CPU's order before the one add; Vulkan does not require the fma fused, so the last bits may differ.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n; uint width; uint taps; } p;
+layout(set = 0, binding = 0) buffer D { float dst[]; };
+layout(set = 0, binding = 1) readonly buffer T { float table[]; };
+layout(set = 0, binding = 2) readonly buffer I { uint idx[]; };
+layout(set = 0, binding = 3) readonly buffer G { float weight[]; };
+void main() {
+    for (uint e = gl_GlobalInvocationID.x; e < p.n; e += gl_NumWorkGroups.x * 256u) {
+        uint r = e / p.width, i = e - r * p.width;
+        precise float acc = 0.0;
+        for (uint k = 0u; k < p.taps; ++k) acc = fma(weight[r * p.taps + k], table[idx[r * p.taps + k] * p.width + i], acc);
+        dst[e] += acc;
+    }
+}

@@ -1,4 +1,5 @@
 // The disk tier's index alone (server::DiskIndex, docs/DISK-TIER.md, Entries written as what changed): histories as paths of segments and states, with no model, no store and no file.
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -90,6 +91,16 @@ int main() {
         require(std::equal(da.begin(), da.begin() + 4, dclass.begin()) && da[4] != dclass[4], "rows of another class from block 3 on did not part the digests there");
         const std::vector<ClassRun> split{ClassRun{2 * kBlock, {1, 0}}, ClassRun{a.size(), {1, 0}}};
         require(digests(a, split) == da, "one class recorded as two stretches gave other digests");
+        // A text history's digests are the bytes main gave before images (8e84e4c4f), and an image's rows inside block 2 part the digests there, by the image's digest.
+        require(dclass[4] == "7cfa248f8e0130b016792a2fe878d7deea6f8d1f571f74b3f0bf18c23c27d38f", "a text history's digests are not the bytes main gave");
+        const auto imaged = [&](uint8_t seed) {
+            std::array<uint8_t, 32> image{};
+            image.fill(seed);
+            return digests(a, {ClassRun{2 * kBlock + 5, {1, 0}}, ClassRun{2 * kBlock + 20, {1, 0}, image}, ClassRun{a.size(), {1, 0}}});
+        };
+        const auto di = imaged(3);
+        require(std::equal(da.begin(), da.begin() + 3, di.begin()) && da[3] != di[3] && da[40] != di[40], "an image's rows in block 2 did not part the digests there");
+        require(imaged(3) == di && imaged(4)[3] != di[3], "the same image gave other digests, or another image the same");
 
         // A history is written as segments cut at every 1024 tokens and a state, and found again whole; a longer one of the same conversation writes only what it adds.
         DiskIndex index;

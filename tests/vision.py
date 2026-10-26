@@ -21,8 +21,14 @@ def tool_path():
     return os.path.join(os.path.dirname(common.exe_path()), "llmx-encode-image" + (".exe" if os.name == "nt" else ""))
 
 
+def device_flag():
+    """The configured device where it is one, which the encoder runs on; a device list or none runs it on the CPU."""
+    configured = os.environ.get("LLMX_DEVICE")
+    return ["--device", configured] if configured and "," not in configured else []
+
+
 def encode(tool, mmproj, image, out, threads, max_pixels):
-    cmd = [tool, mmproj, image, out, "--dtype", "f32", "--threads", str(threads)]
+    cmd = [tool, mmproj, image, out, "--dtype", "f32", "--threads", str(threads)] + device_flag()
     if max_pixels:
         cmd += ["--image-max-pixels", str(max_pixels)]
     p = subprocess.run(cmd, capture_output=True, text=True)

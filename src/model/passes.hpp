@@ -240,11 +240,20 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     for (size_t e = 0; keeps && e < n_entries; ++e) {
         if (entries[e].keep && !whole_blocks(history(*entries[e].seq) + entries[e].n))
             throw std::logic_error("inference: a checkpoint at a position of whole blocks in every storage");
-        if (entries[e].keep) refuse_media(*entries[e].seq, history(*entries[e].seq) + entries[e].n, "a checkpoint");
     }
     // A pass holding an image's rows gives every row the plan's three position streams; any other keeps one.
     bool image_rows = false;
-    for (size_t e = 0; e < n_entries; ++e) image_rows = image_rows || meets_media(*entries[e].seq, history(*entries[e].seq), entries[e].n);
+    for (size_t e = 0; e < n_entries; ++e) {
+        const Sequence& q = *entries[e].seq;
+        const size_t len = history(q);
+        for (const Sequence::Media& m : q.media_)
+            if (m.run.first < len + entries[e].n && len < m.run.first + m.run.rows) {
+                if (!m.run.encoded) throw std::logic_error("inference: a pass reads the rows of an image that were not given again");
+                image_rows = true;
+            }
+    }
+    // Images' device rows whose last reading submission has retired are freed.
+    retiring_.erase(std::remove_if(retiring_.begin(), retiring_.end(), [&](const Retiring& r) { return devices_[r.device]->b->done(r.ticket); }), retiring_.end());
     if (!ctx.slots) ensure(ctx, rows, want, handoffs(1));
     p.entries.assign(entries, entries + n_entries);
     p.start.resize(n_entries);
@@ -256,6 +265,15 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
     p.ids.resize(rows);
     p.previous_tokens.resize(backend::size_mul(n_entries, token_width_));
     p.image_rows = image_rows;
+    // A group's first row may be an image's below a pass of text, so the groups turn at their positions wherever a history holds an image.
+    p.group_pos.clear();
+    bool images = false;
+    for (size_t e = 0; e < n_entries; ++e) images = images || !entries[e].seq->media_.empty();
+    if (images) {
+        for (const LayerPlan& l : plan_.layers)
+            if (l.kv_pool && std::none_of(p.group_pos.begin(), p.group_pos.end(), [&](const auto& g) { return g.first == l.kv_pool; }))
+                p.group_pos.push_back({l.kv_pool, {}});
+    }
     p.pos.resize(image_rows ? backend::size_mul(rows, 3) : rows);
     p.pick.resize(want);
     p.runs.resize(n_entries);
@@ -275,6 +293,12 @@ inline void Model::begin(ExecContext& ctx, Pass& p, const BatchEntry* entries, s
         p.start[e] = len;
         for (size_t b = 0; b < en.n; ++b) p.ids[r + b] = en.ids[b];
         positions(*en.seq, len, en.n, image_rows, p.pos.data() + r * (image_rows ? 3 : 1));
+        // A pooled layer's groups these rows complete turn at their first rows' positions, which may lie in the history below the pass.
+        for (auto& [c, gp] : p.group_pos)
+            for (size_t g = len / c; g < (len + en.n) / c; ++g) {
+                gp.resize(gp.size() + 3);
+                positions(*en.seq, g * c, 1, true, gp.data() + gp.size() - 3);
+            }
         const size_t extent = en.extent ? en.extent : en.n;
         p.runs[e] = backend::RowRun{r + en.n, extent};
         // The head reads one row per entry as a generated token's, or every row of a scored text as its prompt's.
@@ -687,6 +711,8 @@ inline void Model::stage_commit(Pass& p, size_t s) {
         // Once every stage holds it, the checkpoint is the sequence's, and the one it replaces goes: a later write of that slot is enqueued after every read of it on each device's stream.
         if (s + 1 == stages_.size() && p.kept[e].held()) q.kept_ = std::move(p.kept[e]);
     }
+    if (s + 1 == stages_.size())
+        for (size_t e = 0; e < p.entries.size(); ++e) release_media(*p.entries[e].seq);
 }
 
 // An embedded drafter's context rows of the pass, on the head's device after the last stage (Architecture::draft_rows): each entry's first row reads the row its sequence carries, or a zero row for an empty history.
@@ -709,6 +735,7 @@ inline void Model::draft_context(ExecContext& ctx, Pass& p, size_t s) {
         step.n_views = n;
         step.kv_layer = drafter_kv_;
         step.pos = p.pos.data();
+        if (p.image_rows) step.streams = backend::RopeStreams{3, plan_.image_streams.data()};
         arch_->draft_rows(step);
         const backend::Slice hn = slot(ctx, o, plan_.draft_h, p.apart);
         for (size_t e = 0; e < n; ++e) {
@@ -966,6 +993,8 @@ inline Step Model::mixer_part(ExecContext& ctx, const Pass& p, size_t dev, int l
     }
     s.pos = p.pos.data();
     if (p.image_rows) s.streams = backend::RopeStreams{3, plan_.image_streams.data()};
+    for (const auto& [c, gp] : p.group_pos)
+        if (c == layer.kv_pool) s.group_pos = backend::GroupPositions{gp.data(), {3, plan_.image_streams.data()}};
     if (layer.lookup && home_[(size_t)l][layer.lookup->role].row_source) {
         const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
         s.lookup = &sc.lookups[size_t(l)].view;
@@ -991,8 +1020,13 @@ inline void Model::write_media(ExecContext& ctx, const Pass& p, size_t dev) {
             const size_t from = std::max(len, m.run.first), to = std::min(len + n, m.run.first + m.run.rows);
             if (from >= to) continue;
             if (!m.on[dev]) {
-                m.on[dev] = b.alloc(m.run.encoded->size() * sizeof(float));
-                b.write(*m.on[dev], 0, m.run.encoded->data(), m.run.encoded->size() * sizeof(float));
+                // As residual rows: each encoder row copied into every residual stream, as the embedding fills them.
+                const size_t E = embedding_width(), C = plan_.embed_copies;
+                std::vector<float> rows(backend::size_mul(m.run.rows, W));
+                for (size_t r = 0; r < m.run.rows; ++r)
+                    for (size_t c = 0; c < C; ++c) std::copy_n(m.run.encoded->data() + r * E, E, rows.data() + r * W + c * E);
+                m.on[dev] = b.alloc(rows.size() * sizeof(float));
+                b.write(*m.on[dev], 0, rows.data(), rows.size() * sizeof(float));
             }
             b.copy(*sc.arena, x + (r + from - len) * W * sizeof(float), *m.on[dev], (from - m.run.first) * W * sizeof(float), (to - from) * W * sizeof(float));
         }

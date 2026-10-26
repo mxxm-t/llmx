@@ -14,6 +14,10 @@ layout(push_constant) uniform P {
 #ifdef LLMX_SPARSE
     uint selected_stride;
 #endif
+// The non-causal build: every row attends its view's whole hist + nq, as a vision encoder's rows see their image (docs/VISION.md, section 3).
+#ifdef LLMX_FULL
+    uint wg0;
+#endif
 } p;
 // Query heads a workgroup takes at most; `hg` divides the heads that share a KV head and is at most this.
 // The build for one head (the default) keeps the registers a short history's many workgroups want; LLMX_G4 is the long-history build.
@@ -56,8 +60,14 @@ void main() {
     uint rb = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
     if (rb >= p.rows * p.n_head) return;
 #else
-    uint split = gl_WorkGroupID.x % p.nsplit;
-    uint rb = gl_WorkGroupID.x / p.nsplit;
+#ifdef LLMX_FULL
+    // A long non-causal view is cut into dispatches of bounded work, each starting at workgroup wg0 of the whole call.
+    uint wid = gl_WorkGroupID.x + p.wg0;
+#else
+    uint wid = gl_WorkGroupID.x;
+#endif
+    uint split = wid % p.nsplit;
+    uint rb = wid / p.nsplit;
 #endif
     uint blocks = p.n_head / p.hg;
     uint g = rb / blocks;
@@ -78,7 +88,11 @@ void main() {
     uint visible = view_hist(v) + b + 1u;
     uint start = 0u, end = p.selected_stride;
 #else
+#ifdef LLMX_FULL
+    uint len = view_hist(v) + view_nq(v), chunk = p.chunk;
+#else
     uint len = view_hist(v) + b + 1u, chunk = p.chunk;
+#endif
     while ((len + chunk - 1u) / chunk > p.max_parts) chunk *= 2u;
     uint start = min(split * chunk, len);
     uint end = min(len, start + chunk);

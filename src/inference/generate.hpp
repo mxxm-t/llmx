@@ -55,10 +55,10 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
                 history.insert(history.end(), gen.begin(), gen.end());
             }
             // The history's own convincing continuation is the draft where it has one, and the proposer is not run that round.
-            if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, drafting->draft_max, history, drafts);
+            if (first) k = spec::lookup_first(record, drafting->draft_max, left, room, drafting->draft_max, history, drafts, drafting->images);
             if (!k) {
                 k = spec::draft_length(drafting->draft_max, left, room, drafting->draft_max, record.proposer);
-                if (k) drafting->proposer->draft(nullptr, history, k, drafts);
+                if (k) drafting->proposer->draft(nullptr, history, k, drafts, drafting->images);
             }
             // A draft past the vocabulary, and those after it, are not fed: the verify needs nothing a decode does not.
             const auto past = std::find_if(drafts.begin(), drafts.end(), [&](uint32_t id) { return id >= n_vocab; });

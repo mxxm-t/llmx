@@ -1109,7 +1109,7 @@ def check_tool_messages(model):
                     prompt = got["prompt_tokens"] if path == "/v1/chat" else got["usage"]["prompt_tokens"]
                     assert prompt == len(calls["expected"].encode()), (path, got)
                 call = {"id": "c", "type": "function", "function": {"name": "f", "arguments": "{}"}}
-                for message, text in (({"role": "assistant", "content": None}, "message content must be a string or an array of text parts"),
+                for message, text in (({"role": "assistant", "content": None}, "message content must be a string or an array of content parts"),
                                       ({"role": "user", "content": "x", "tool_calls": [call]}, "only an assistant message may carry tool_calls"),
                                       ({"role": "assistant", "content": None, "tool_calls": {}}, "tool_calls must be an array of"),
                                       ({"role": "assistant", "content": None, "tool_calls": [dict(call, type="other")]}, "tool_calls must be an array of"),

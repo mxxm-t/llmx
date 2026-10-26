@@ -1313,6 +1313,123 @@ void head_op_admission(const infer::ModelWeights& weights, const std::string& na
     }
 }
 
+
+// Every rope call and every pooled group's positions, a row of one stream written out thrice.
+struct ImageProbe : backend::CpuBackend {
+    std::vector<std::vector<uint32_t>> ropes;
+    std::vector<std::pair<size_t, std::vector<uint32_t>>> groups;   // per pooling call, its group size and its groups' positions, three a group
+    static std::vector<uint32_t> three(const uint32_t* pos, size_t n, backend::RopeStreams streams) {
+        std::vector<uint32_t> out;
+        for (size_t r = 0; r < n; ++r)
+            for (size_t k = 0; k < 3; ++k) out.push_back(pos[r * streams.count + (streams.count == 3 ? k : 0)]);
+        return out;
+    }
+    void norm_rope_partial(backend::Slice dst, backend::CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
+                           size_t rope_dim, backend::CSlice w, float eps, backend::CSlice cos, backend::CSlice sin, const uint32_t* pos,
+                           backend::RopeStreams streams = {}) override {
+        ropes.push_back(three(pos, rows, streams));
+        CpuBackend::norm_rope_partial(dst, src, rows, src_stride, src_head_stride, heads, head_dim, rope_dim, w, eps, cos, sin, pos, streams);
+    }
+    void record(const backend::KVView* views, size_t n_views, size_t c, const backend::GroupPositions& at) {
+        size_t count = 0;
+        for (size_t v = 0; v < n_views; ++v) count += (views[v].length + views[v].nq) / c - views[v].length / c;
+        std::vector<uint32_t> out;
+        if (at.pos) out = three(at.pos, count, at.streams);
+        else
+            for (size_t v = 0; v < n_views; ++v)
+                for (size_t g = views[v].length / c; g < (views[v].length + views[v].nq) / c; ++g) out.insert(out.end(), 3, uint32_t(g * c));
+        groups.push_back({c, out});
+    }
+    void select_kv(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice ids, const IndexArgs& args, backend::CSlice norm,
+                   backend::CSlice cos, backend::CSlice sin, const backend::GroupPositions& at = {}) override {
+        record(views, n_views, args.compression, at);
+        CpuBackend::select_kv(q, layer, views, n_views, ids, args, norm, cos, sin, at);
+    }
+};
+
+// A prompt of text and images and HF's get_rope_index written out: a text run counting on, an image's row at (start, start + row, start + column), and the start then past the larger side of its grid.
+struct ImageSegment {
+    size_t n = 0;
+    uint32_t h = 0, w = 0;
+};
+
+std::vector<uint32_t> hf_image_positions(const std::vector<ImageSegment>& segments, size_t extra) {
+    std::vector<uint32_t> out;
+    uint32_t st = 0;
+    for (const ImageSegment& s : segments) {
+        if (s.n) {
+            for (size_t k = 0; k < s.n; ++k) out.insert(out.end(), 3, uint32_t(st + k));
+            st += uint32_t(s.n);
+        } else {
+            for (uint32_t r = 0; r < s.h; ++r)
+                for (uint32_t c = 0; c < s.w; ++c) out.insert(out.end(), {st, st + r, st + c});
+            st += std::max(s.h, s.w);
+        }
+    }
+    for (size_t k = 0; k < extra; ++k) out.insert(out.end(), 3, uint32_t(st + k));
+    return out;
+}
+
+// Images on Flash-Next (docs/VISION.md, section 8): every rope and pooled group's position get_rope_index's, a group turning at its first row's position wherever that row lies.
+// The logits are the same bits however the prompt is sliced.
+void image_checks(const infer::ModelWeights& weights) {
+    const std::vector<ImageSegment> segments = {{3, 0, 0}, {0, 2, 3}, {2, 0, 0}, {0, 2, 4}, {3, 0, 0}};
+    const std::vector<uint32_t> steps = {9, 14, 27};
+    std::vector<float> first;
+    for (int ubatch : {64, 1, 3, 7}) {
+        auto probe = std::make_shared<ImageProbe>();
+        infer::ModelOptions options;
+        options.dtype = backend::Dtype::f32;
+        options.kv_k = options.kv_v = backend::KVType::f32;
+        infer::Model model(weights, probe, options);
+        model.set_ubatch(ubatch);
+        std::vector<uint32_t> prompt;
+        std::vector<infer::MediaRun> runs;
+        for (const ImageSegment& s : segments) {
+            if (s.n) {
+                for (size_t k = 0; k < s.n; ++k) prompt.push_back(uint32_t((prompt.size() * 7 + 3) % model.n_vocab()));
+                continue;
+            }
+            infer::MediaRun run;
+            run.first = prompt.size();
+            run.rows = size_t(s.h) * s.w;
+            run.grid_h = s.h;
+            run.grid_w = s.w;
+            std::vector<float> rows(run.rows * model.embedding_width());
+            for (size_t i = 0; i < rows.size(); ++i) rows[i] = float(int((i * 13 + runs.size() * 5) % 23) - 11) / 32.0f;
+            run.encoded = std::make_shared<const std::vector<float>>(std::move(rows));
+            prompt.insert(prompt.end(), run.rows, 0u);
+            runs.push_back(std::move(run));
+        }
+        std::vector<float> out = model.prefill(prompt, 0, runs);
+        for (uint32_t t : steps) {
+            const std::vector<float> next = model.step(int(t));
+            out.insert(out.end(), next.begin(), next.end());
+        }
+        const std::vector<uint32_t> expected = hf_image_positions(segments, steps.size());
+        // Every rope call reads its rows' positions, so the calls of one pass agree and the passes' rows in order are the prompt's and the steps'.
+        for (const auto& call : probe->ropes) {
+            bool found = false;
+            for (size_t at = 0; !found && at + call.size() <= expected.size(); at += 3)
+                found = std::equal(call.begin(), call.end(), expected.begin() + std::ptrdiff_t(at));
+            if (!found) throw std::runtime_error("qwen4exp images: a rope call's positions are not HF's get_rope_index at ubatch " + std::to_string(ubatch));
+        }
+        // Every pooled group turns at its first row's position.
+        if (probe->groups.empty()) throw std::runtime_error("qwen4exp images: no pooled layer selected");
+        for (const auto& [c, got] : probe->groups)
+            for (size_t i = 0; i < got.size(); i += 3) {
+                bool found = false;
+                for (size_t g = 0; !found && (g + 1) * c * 3 <= expected.size(); ++g)
+                    found = std::equal(got.begin() + std::ptrdiff_t(i), got.begin() + std::ptrdiff_t(i + 3), expected.begin() + std::ptrdiff_t(g * c * 3));
+                if (!found) throw std::runtime_error("qwen4exp images: a pooled group's position is no group's first row at ubatch " + std::to_string(ubatch));
+            }
+        if (first.empty()) first = out;
+        else if (out.size() != first.size() || std::memcmp(out.data(), first.data(), out.size() * sizeof(float)))
+            throw std::runtime_error("qwen4exp images: the logits at ubatch " + std::to_string(ubatch) + " differ from one pass");
+    }
+    std::cout << "qwen4exp images: rope and pooled-group positions HF's get_rope_index, the same bits over slices of 64, 1, 3 and 7\n";
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -1378,6 +1495,7 @@ int main(int argc, char** argv) {
         }
         external_row_source_refusal(weights, file);
         head_op_admission(weights, "qwen4exp");
+        if (device == "cpu") image_checks(weights);
         infer::ModelOptions options;
         options.dtype = backend::Dtype::f32;
         options.kv_k = options.kv_v = backend::KVType::f32;

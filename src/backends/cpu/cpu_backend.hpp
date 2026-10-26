@@ -1077,8 +1077,9 @@ public:
     }
 
     // Select whole compressed groups by the positive indexer score, then keep the visible partial tail in causal order.
-    // The complete groups `view`'s rows complete, pooled into their rows of the layer's auxiliary blocks (BlockKVStorage::auxiliary_pool); the earlier groups were pooled by the call whose rows completed them.
-    void pool_view(CpuKVStorage& storage, size_t layer, const KVView& view, const IndexArgs& args, const float* gamma, const float* cosine, const float* sine) {
+    // The complete groups `view`'s rows complete, pooled into their rows of the auxiliary blocks (BlockKVStorage::auxiliary_pool), each turning at the positions `pos` gives where given (GroupPositions).
+    void pool_view(CpuKVStorage& storage, size_t layer, const KVView& view, const IndexArgs& args, const float* gamma, const float* cosine, const float* sine,
+                   const uint32_t* pos = nullptr, RopeStreams streams = {}) {
         const size_t aux_width = storage.auxiliary_width(layer), block_bytes = storage.auxiliary_block_bytes(layer);
         const size_t rows_bytes = storage.auxiliary_rows_bytes(layer), bt = storage.block_tokens(), half = args.rope_dim / 2;
         uint8_t* plane = (uint8_t*)at(Slice{storage.auxiliary_buffer(layer).get(), 0});
@@ -1099,17 +1100,29 @@ public:
             const float inv_norm = 1.0f / std::sqrt(squares / (float)args.dim + args.eps);
             for (size_t d = 0; d < args.dim; ++d) pooled[d] = (pooled[d] * inv_norm) * gamma[d];
 
-            const float* c = cosine + first_token * half;
-            const float* s = sine + first_token * half;
+            const uint32_t* gp = pos ? pos + (group - view.length / args.compression) * streams.count : nullptr;
             for (size_t i = 0; i < half; ++i) {
+                const size_t row = gp ? gp[streams.count > 1 ? streams.of[i] : 0] : first_token;
+                const float c = cosine[row * half + i], s = sine[row * half + i];
                 const float a = pooled[i], b = pooled[i + half];
-                pooled[i] = a * c[i] - b * s[i];
-                pooled[i + half] = b * c[i] + a * s[i];
+                pooled[i] = a * c - b * s;
+                pooled[i + half] = b * c + a * s;
             }
         }
     }
 
-    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s) override {
+    // Each view's offset into a call's group positions: the groups its rows complete, of the views before it.
+    static std::vector<size_t> group_offsets(const KVView* views, size_t n_views, size_t compression, const GroupPositions& at) {
+        std::vector<size_t> offsets(n_views, 0);
+        if (!at.pos) return offsets;
+        if (!at.streams.count || (at.streams.count > 1 && !at.streams.of)) throw std::runtime_error("backend: invalid group position streams");
+        for (size_t vi = 1; vi < n_views; ++vi)
+            offsets[vi] = offsets[vi - 1] + ((views[vi - 1].length + views[vi - 1].nq) / compression - views[vi - 1].length / compression) * at.streams.count;
+        return offsets;
+    }
+
+    void pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s,
+                 const GroupPositions& positions = {}) override {
         if (!n_views) return;
         if (!views) throw std::runtime_error("backend: index pooling without views");
         if (!args.dim || !args.rope_dim || args.rope_dim > args.dim || (args.rope_dim & 1) || !args.compression || !std::isfinite(args.eps) || args.eps <= 0.0f)
@@ -1125,11 +1138,14 @@ public:
         validate_float_slice(key_norm_s, args.dim);
         validate_float_slice(cos_s, size_mul(max_position, args.rope_dim / 2));
         validate_float_slice(sin_s, size_mul(max_position, args.rope_dim / 2));
-        for (size_t vi = 0; vi < n_views; ++vi) pool_view(storage_of(views[vi]), layer, views[vi], args, at(key_norm_s), at(cos_s), at(sin_s));
+        const std::vector<size_t> offsets = group_offsets(views, n_views, args.compression, positions);
+        for (size_t vi = 0; vi < n_views; ++vi)
+            pool_view(storage_of(views[vi]), layer, views[vi], args, at(key_norm_s), at(cos_s), at(sin_s),
+                      positions.pos ? positions.pos + offsets[vi] : nullptr, positions.streams);
     }
 
     void select_kv(CSlice Q_s, size_t layer, const KVView* views, size_t n_views, Slice ids_s,
-                   const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s) override {
+                   const IndexArgs& args, CSlice key_norm_s, CSlice cos_s, CSlice sin_s, const GroupPositions& positions = {}) override {
         if (!n_views) return;
         if (!views) throw std::runtime_error("backend: index selection without views");
         if (!args.heads || !args.dim || !args.rope_dim || args.rope_dim > args.dim || (args.rope_dim & 1) ||
@@ -1218,6 +1234,7 @@ public:
             std::memcpy(output + i, &invalid, sizeof(invalid));
         }
 
+        const std::vector<size_t> offsets = group_offsets(views, n_views, args.compression, positions);
         for (ViewPlan& plan : plans) {
             const KVView& view = *plan.view;
             const size_t aux_width = plan.storage->auxiliary_width(layer);
@@ -1230,7 +1247,8 @@ public:
                 const size_t offset = (size_t)view.blocks[token / bt] * block_bytes + rows_bytes + (token % bt) / args.compression * aux_width * sizeof(float);
                 return (float*)((uint8_t*)plan.auxiliary + offset);
             };
-            pool_view(*plan.storage, layer, view, args, gamma, cosine, sine);
+            pool_view(*plan.storage, layer, view, args, gamma, cosine, sine, positions.pos ? positions.pos + offsets[size_t(&plan - plans.data())] : nullptr,
+                      positions.streams);
 
             for (size_t query_row = 0; query_row < view.nq; ++query_row) {
                 const size_t visible = view.length + query_row + 1;

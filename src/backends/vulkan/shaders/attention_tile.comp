@@ -6,6 +6,9 @@
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
     uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major;
+#ifdef LLMX_FULL
+    uint wg0;
+#endif
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -37,18 +40,40 @@ layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 layout(set = 0, binding = 5) writeonly buffer XQ { uint xq[]; };
 #include "views.glsl"
 #include "xquant.glsl"
-#ifdef LLMX_D256
+#if defined(LLMX_D256)
 const uint DIM = 256u, TK = 8u;
+#elif defined(LLMX_D64)
+const uint DIM = 64u, TK = 16u;
+#elif defined(LLMX_D72)
+const uint DIM = 72u, TK = 16u;
 #else
 const uint DIM = 128u, TK = 16u;
 #endif
-const uint TQ = 32u, LANES = 8u, OWN = TK / LANES, RUNS = DIM / 32u;
+// The head's width in the rows and the cache.
+const uint WIDTH = DIM;
+// LLMX_FULL is the non-causal build, every row attending its view's whole hist + nq, at a vision encoder's heads 64 or 72 wide (docs/VISION.md, section 10).
+// The full builds give each group of eight lanes two rows, rows r and r + 32 of the tile, so every staged key and value read from shared memory serves both; each row's arithmetic is the one-row build's.
+#ifdef LLMX_FULL
+const uint RPG = 2u;
+#else
+const uint RPG = 1u;
+#endif
+const uint TQ = 32u * RPG, LANES = 8u, OWN = TK / LANES, RUNS = DIM / 32u;
+// Heads 72 wide take two runs of 32 as vec4s and their last eight dimensions one a lane, lane l holding dimension 64 + l.
+#ifdef LLMX_D72
+#define TAIL
+#endif
 shared vec4 ks[TK * DIM / 4u];
 shared vec4 vs[TK * DIM / 4u];
 shared float ps[TQ * TK];
 
 void main() {
+#ifdef LLMX_FULL
+    // A long non-causal view is cut into dispatches of bounded work, each starting at workgroup wg0 of the whole call.
+    uint wg = gl_WorkGroupID.x + p.wg0;
+#else
     uint wg = gl_WorkGroupID.x;
+#endif
     uint n = view_count();
     uint v = 0u, first = 0u;
     for (uint i = 0u; i < n; ++i) {
@@ -62,30 +87,46 @@ void main() {
     uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v);
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
-    uint r = lid >> 3u, lane = lid & 7u;             // query row of the tile, lane within it
-    uint b = tile * TQ + r;                          // row of the view
-    bool live = b < nq;
-    uint qstride = p.n_head * DIM;
-    uint qbase = (row0 + min(b, nq - 1u)) * qstride + h * DIM;
-    vec4 qv[RUNS], acc[RUNS];
-    for (uint k = 0u; k < RUNS; ++k) {
-        uint d = 32u * k + 4u * lane;
-        qv[k] = vec4(q[qbase + d], q[qbase + d + 1u], q[qbase + d + 2u], q[qbase + d + 3u]) * p.scale;
-        acc[k] = vec4(0.0);
+    uint r = lid >> 3u, lane = lid & 7u;             // the lane group's first row in the tile, lane within it
+    uint qstride = p.n_head * WIDTH;
+    uint b[RPG], qbase[RPG];
+    bool live[RPG];
+    vec4 qv[RPG][RUNS], acc[RPG][RUNS];
+    float m[RPG], l[RPG];
+#ifdef TAIL
+    float qt[RPG], at[RPG];
+#endif
+    for (uint s = 0u; s < RPG; ++s) {
+        b[s] = tile * TQ + r + 32u * s;              // row of the view
+        live[s] = b[s] < nq;
+        qbase[s] = (row0 + min(b[s], nq - 1u)) * qstride + h * WIDTH;
+        for (uint k = 0u; k < RUNS; ++k) {
+            uint d = 32u * k + 4u * lane;
+            qv[s][k] = d < WIDTH ? vec4(q[qbase[s] + d], q[qbase[s] + d + 1u], q[qbase[s] + d + 2u], q[qbase[s] + d + 3u]) * p.scale : vec4(0.0);
+            acc[s][k] = vec4(0.0);
+        }
+        m[s] = -1.0 / 0.0;
+        l[s] = 0.0;
+#ifdef TAIL
+        qt[s] = q[qbase[s] + 64u + lane] * p.scale;
+        at[s] = 0.0;
+#endif
     }
-    float m = -1.0 / 0.0, l = 0.0;
     // The last token any row of this tile attends, exclusive.
+#ifdef LLMX_FULL
+    uint tile_end = hist + nq;
+#else
     uint tile_end = min(hist + tile * TQ + TQ, hist + nq);
-    uint my_end = hist + b + 1u;
-    uint bf = p.n_head_kv * p.bt * DIM;
+#endif
+    uint bf = p.n_head_kv * p.bt * WIDTH;
     for (uint t0 = 0u; t0 < tile_end; t0 += TK) {
         // Stage the tile eight values a load, zero past the tile's last token so a masked score meets a finite value.
         for (uint i = lid; i < TK * DIM / 8u; i += 256u) {
             uint j = i / (DIM / 8u), d = (i - j * (DIM / 8u)) * 8u;
             uint t = t0 + j;
             vec4 k0 = vec4(0.0), k1 = vec4(0.0), v0 = vec4(0.0), v1 = vec4(0.0);
-            if (t < tile_end) {
-                uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
+            if (t < tile_end && d < WIDTH) {
+                uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * WIDTH + d;
                 k_load8(base, k0, k1);
                 v_load8(base, v0, v1);
             }
@@ -95,58 +136,90 @@ void main() {
         }
         barrier();
         // Phase one: partial dots eight tokens at a time, then the butterfly, which leaves token 8g + l's score in lane l.
-        float sc[OWN];
-        float mt = -1.0 / 0.0;
+        float sc[RPG][OWN];
+        float mt[RPG];
+        for (uint s = 0u; s < RPG; ++s) mt[s] = -1.0 / 0.0;
         for (uint g = 0u; g < OWN; ++g) {
-            float part[8];
+            float part[RPG][8];
             for (uint j = 0u; j < 8u; ++j) {
-                float s = 0.0;
-                for (uint k = 0u; k < RUNS; ++k) s += dot(qv[k], ks[(8u * g + j) * (DIM / 4u) + 8u * k + lane]);
-                part[j] = s;
-            }
-            for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
-                bool upper = (lane & half_) != 0u;
-                for (uint j = 0u; j < half_; ++j) {
-                    float lo = part[j], hi = part[j + half_];
-                    part[j] = (upper ? hi : lo) + subgroupShuffleXor(upper ? lo : hi, half_);
+                for (uint s = 0u; s < RPG; ++s) part[s][j] = 0.0;
+                for (uint k = 0u; k < RUNS; ++k) {
+                    vec4 kv = ks[(8u * g + j) * (DIM / 4u) + 8u * k + lane];
+                    for (uint s = 0u; s < RPG; ++s) part[s][j] += dot(qv[s][k], kv);
                 }
+#ifdef TAIL
+                float kt = ks[(8u * g + j) * (DIM / 4u) + 16u + lane / 4u][lane & 3u];
+                for (uint s = 0u; s < RPG; ++s) part[s][j] += qt[s] * kt;
+#endif
             }
-            sc[g] = t0 + 8u * g + lane < my_end ? part[0] : -1.0 / 0.0;
-            mt = max(mt, sc[g]);
+            for (uint s = 0u; s < RPG; ++s) {
+                for (uint half_ = 4u; half_ >= 1u; half_ /= 2u) {
+                    bool upper = (lane & half_) != 0u;
+                    for (uint j = 0u; j < half_; ++j) {
+                        float lo = part[s][j], hi = part[s][j + half_];
+                        part[s][j] = (upper ? hi : lo) + subgroupShuffleXor(upper ? lo : hi, half_);
+                    }
+                }
+#ifdef LLMX_FULL
+                uint my_end = hist + nq;
+#else
+                uint my_end = hist + b[s] + 1u;
+#endif
+                sc[s][g] = t0 + 8u * g + lane < my_end ? part[s][0] : -1.0 / 0.0;
+                mt[s] = max(mt[s], sc[s][g]);
+            }
         }
-        mt = max(mt, subgroupShuffleXor(mt, 1u));
-        mt = max(mt, subgroupShuffleXor(mt, 2u));
-        mt = max(mt, subgroupShuffleXor(mt, 4u));
-        float mn = max(m, mt);
-        // A row with nothing unmasked yet keeps m at -inf; its weights are zero rather than the NaN of inf - inf.
-        float corr = mn == -1.0 / 0.0 ? 1.0 : exp(m - mn);
-        float sum = 0.0;
-        for (uint g = 0u; g < OWN; ++g) {
-            float w = sc[g] == -1.0 / 0.0 ? 0.0 : exp(sc[g] - mn);
-            ps[r * TK + 8u * g + lane] = w;
-            sum += w;
+        for (uint s = 0u; s < RPG; ++s) {
+            mt[s] = max(mt[s], subgroupShuffleXor(mt[s], 1u));
+            mt[s] = max(mt[s], subgroupShuffleXor(mt[s], 2u));
+            mt[s] = max(mt[s], subgroupShuffleXor(mt[s], 4u));
+            float mn = max(m[s], mt[s]);
+            // A row with nothing unmasked yet keeps m at -inf; its weights are zero rather than the NaN of inf - inf.
+            float corr = mn == -1.0 / 0.0 ? 1.0 : exp(m[s] - mn);
+            float sum = 0.0;
+            for (uint g = 0u; g < OWN; ++g) {
+                float w = sc[s][g] == -1.0 / 0.0 ? 0.0 : exp(sc[s][g] - mn);
+                ps[(r + 32u * s) * TK + 8u * g + lane] = w;
+                sum += w;
+            }
+            sum += subgroupShuffleXor(sum, 1u);
+            sum += subgroupShuffleXor(sum, 2u);
+            sum += subgroupShuffleXor(sum, 4u);
+            l[s] = l[s] * corr + sum;
+            m[s] = mn;
+            for (uint k = 0u; k < RUNS; ++k) acc[s][k] *= corr;
+#ifdef TAIL
+            at[s] *= corr;
+#endif
         }
-        sum += subgroupShuffleXor(sum, 1u);
-        sum += subgroupShuffleXor(sum, 2u);
-        sum += subgroupShuffleXor(sum, 4u);
-        l = l * corr + sum;
-        m = mn;
-        for (uint k = 0u; k < RUNS; ++k) acc[k] *= corr;
         // A row's eight lanes are one subgroup, so their probabilities are visible to each other past this point.
         subgroupMemoryBarrierShared();
         subgroupBarrier();
         // Phase two: the weighted sum of the tile's values.
         for (uint j = 0u; j < TK; ++j) {
-            float w = ps[r * TK + j];
-            for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[j * (DIM / 4u) + 8u * k + lane];
+            float w[RPG];
+            for (uint s = 0u; s < RPG; ++s) w[s] = ps[(r + 32u * s) * TK + j];
+            for (uint k = 0u; k < RUNS; ++k) {
+                vec4 vv = vs[j * (DIM / 4u) + 8u * k + lane];
+                for (uint s = 0u; s < RPG; ++s) acc[s][k] += w[s] * vv;
+            }
+#ifdef TAIL
+            float vt = vs[j * (DIM / 4u) + 16u + lane / 4u][lane & 3u];
+            for (uint s = 0u; s < RPG; ++s) at[s] += w[s] * vt;
+#endif
         }
         barrier();
     }
-    for (uint k = 0u; k < RUNS; ++k) {
-        uint d = 32u * k + 4u * lane;
-        vec4 a = acc[k] / l;
-        if (live) { o[qbase + d] = a.x; o[qbase + d + 1u] = a.y; o[qbase + d + 2u] = a.z; o[qbase + d + 3u] = a.w; }
-        // Dimensions 32k .. 32k + 31 of head h are block RUNS h + k of the row, held by its eight lanes in order.
-        if (p.quant != 0u) xquant_word(live ? a : vec4(0.0), live, lane, (row0 + b) * (qstride / 32u) + RUNS * h + k, p.rows * qstride, p.major);
-    }
+#ifdef TAIL
+    for (uint s = 0u; s < RPG; ++s)
+        if (live[s]) o[qbase[s] + 64u + lane] = at[s] / l[s];
+#endif
+    for (uint s = 0u; s < RPG; ++s)
+        for (uint k = 0u; k < RUNS; ++k) {
+            uint d = 32u * k + 4u * lane;
+            vec4 a = acc[s][k] / l[s];
+            if (live[s] && d < WIDTH) { o[qbase[s] + d] = a.x; o[qbase[s] + d + 1u] = a.y; o[qbase[s] + d + 2u] = a.z; o[qbase[s] + d + 3u] = a.w; }
+            // Dimensions 32k .. 32k + 31 of head h are block RUNS h + k of the row, held by its eight lanes in order.
+            if (p.quant != 0u) xquant_word(live[s] ? a : vec4(0.0), live[s], lane, (row0 + b[s]) * (qstride / 32u) + RUNS * h + k, p.rows * qstride, p.major);
+        }
 }

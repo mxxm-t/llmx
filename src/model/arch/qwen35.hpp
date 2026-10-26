@@ -92,15 +92,7 @@ inline Config read_config(const gguf::GGUFModel& m, const std::string& p, bool m
         int64_t sum = 0;
         for (int s : sections) sum += s;
         if (2 * sum != c.rope_dim) throw std::runtime_error("inference: " + p + "rope.dimension_sections does not cover the rotary width");
-        // An image row's (start, row, column) interleaved over the pairs as HF's Qwen 3.5 interleaves them (docs/src/model-arch-qwen35.md).
-        // Pair j takes the row where j mod 3 is 1 inside three times its section, the column where it is 2 inside three times its own, and the start elsewhere.
-        if (sections.size() >= 3) {
-            c.image_streams.assign((size_t)c.rope_dim / 2, 0);
-            for (size_t j = 0; j < c.image_streams.size(); ++j) {
-                if (j % 3 == 1 && j < 3 * (size_t)sections[1]) c.image_streams[j] = 1;
-                if (j % 3 == 2 && j < 3 * (size_t)sections[2]) c.image_streams[j] = 2;
-            }
-        }
+        if (sections.size() >= 3) c.image_streams = blocks::interleaved_streams(sections, (size_t)c.rope_dim / 2);
     }
     c.context_length = integer(m, p + "context_length");
     c.rope_theta = float(real(m, p + "rope.freq_base", c.rope_theta));
@@ -318,7 +310,7 @@ public:
         b.rms_norm_rows(h, u, w[attn_norm].slice(), s.rows, E, E, cfg_.rms_eps, s.runs);
         b.matmul_group({blocks::projection(w[attn_k], k), blocks::projection(w[attn_v], v)}, h, E, s.rows, s.runs, s.dtype);
         const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
-        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, (size_t)cfg_.rope_dim, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
+        b.norm_rope_partial(k, k, s.rows, Hkv * D, D, Hkv, D, (size_t)cfg_.rope_dim, w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos, s.streams);
         b.kv_write(s.kv_layer, s.views, s.n_views, k, v);
     }
 

@@ -546,15 +546,12 @@ def _case_reference(model, spec, torch, trace):
     }
 
 
-def generate(output_dir):
-    """Write the pinned HF model, its deterministic weights, and its logits."""
+def pinned_environment():
+    """torch, transformers, numpy, safetensors and the pinned sources' hashes, refused unless they are the pinned ones and no accelerated module is installed."""
     import numpy
     import torch
     import transformers
     import safetensors
-    from safetensors.torch import load_file, save_file
-    from transformers.models.qwen4_exp.configuration_qwen4_exp import Qwen4ExpTextConfig
-    from transformers.models.qwen4_exp.modeling_qwen4_exp import Qwen4ExpForCausalLM
 
     modeling = importlib.import_module("transformers.models.qwen4_exp.modeling_qwen4_exp")
     configuration = importlib.import_module("transformers.models.qwen4_exp.configuration_qwen4_exp")
@@ -572,7 +569,16 @@ def generate(output_dir):
         torch.__version__, transformers.__version__, numpy.__version__,
         safetensors.__version__, source_hashes, optional_modules,
     )
+    return torch, transformers, numpy, safetensors, source_hashes
 
+
+def generate(output_dir):
+    """Write the pinned HF model, its deterministic weights, and its logits."""
+    from safetensors.torch import load_file, save_file
+    from transformers.models.qwen4_exp.configuration_qwen4_exp import Qwen4ExpTextConfig
+    from transformers.models.qwen4_exp.modeling_qwen4_exp import Qwen4ExpForCausalLM
+
+    torch, transformers, numpy, safetensors, source_hashes = pinned_environment()
     torch.set_num_threads(1)
     torch.manual_seed(SEED)
     config = Qwen4ExpTextConfig(**TINY_CONFIG)

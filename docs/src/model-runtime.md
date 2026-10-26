@@ -75,7 +75,7 @@ delegated to a `backend::Backend`.
   [place](model-place.md)). Both sides default to
   `KVType::f16`, the runtime's one default: the CLI, the server, the
   synthetic bench and the split check all start from it.
-- `MediaRun`: an image's rows in a history ([VISION](../VISION.md), section 4), its first row, its rows, the encoder's merged grid they fill row by row and the encoder's rows; a `Sequence` keeps its images in history order (`Sequence::Media`).
+- `MediaRun`: an image's rows in a history ([VISION](../VISION.md), sections 4 and 5), its first row, its rows, the encoder's merged grid they fill row by row, its digest (zero where no tier compares it, as in the CLI) and the encoder's rows, held until read; a `Sequence` keeps its images in history order (`Sequence::Media`), and a `HostHistory` the images below its length without rows.
 - `Sequence`: one request's history over a model's cache, made by
   `Model::make_sequence`: a block table per KV storage, the committed length
   of each stage, which is its KV sequence's where its layers keep KV and a

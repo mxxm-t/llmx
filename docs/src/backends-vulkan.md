@@ -64,7 +64,7 @@ The lifetime and packed-quantization tests include the implementation and use te
 - `weight_kernels(type)` is the private descriptor of each implemented storage type: host-ID and device-ID embedding modules, row layout and modules, ordinary and BF16 float tiles, integer tiles, row profile preferences, and its dense and routed crossover families. An absent type has no descriptor. `supports_type(type)` reads this owner, with MXFP4 additionally requiring optional double arithmetic and float preservation;
   the model's pre-adoption check and the backend's matrix checks use this
   same query, so they cannot disagree about a weight type.
-  `implements` supports the qwen35 layer ops but refuses `Op::mixed_experts` and, until image input's device step (`docs/VISION.md`, section 8), the vision encoder's six ops; `norm_rope_partial` with several streams or without a weight and `attention` through a non-causal view are refused by name. A grouped gate/up pair with differing storage types is therefore refused at model load; an otherwise eligible streamed layer stays on its capable host. Its separate down projection may use another type.
+  `implements` supports the qwen35 layer ops and the vision encoder's six (`docs/VISION.md`, section 3) but refuses `Op::mixed_experts`; an `attention` call whose views are not all causal or all non-causal, and a non-causal one over a cache that is not f32, are refused by name. A grouped gate/up pair with differing storage types is therefore refused at model load; an otherwise eligible streamed layer stays on its capable host. Its separate down projection may use another type.
 
 - `LLMX_VULKAN_KERNELS` is the single ordered list of kernel IDs, diagnostic names and source bindings, including optional preservation modules. It generates `KernelId`, `kKernelNames` and `kKernels`; cache variants depend on the adjacent IDs it preserves. The source dead-code check reads this list and holds its reachability with planted missing-module, orphan-ID and missing-name faults.
   `backend-vulkan` checks dense and routed dispatches through the existing timestamp diagnostics, with expected kernel names independent of the descriptor, at each crossover's two sides under F16, F32 and BF16. It also pins unsupported-type refusal text; the existing numerical and row-class checks remain separate. A device without timestamps reports that dispatch-name coverage is unavailable.
@@ -282,6 +282,10 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
 - `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares a tree through shared memory, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
+  Several position streams a row, or no norm, take its `norm_rope_partial_streams` build, the streams table (`RopeStreams::of`) and the positions going up through the argument arena; one stream with a norm keeps the plain build.
+- The vision encoder's ops (docs/VISION.md, section 3): `add_bias` (`shaders/add_bias.comp`), `gelu` in both forms (`shaders/gelu.comp`) and `mix_rows` (`shaders/mix_rows.comp`, its taps' ids and weights through the argument arena) stride over their elements from at most a full x dimension of workgroups, and `layer_norm_rows` (`shaders/layer_norm_rows.comp`) takes one workgroup a row.
+  `attention` through non-causal views, every row reading its view's whole history, takes the tiled kernel's `attention_full_tile_d64` and `attention_full_tile_d72` builds at heads 64 and 72 wide, a vision encoder's (72 as two runs of 32 and one dimension a lane, and two rows to each group of eight lanes), and `attention.comp`'s `attention_full` build at any other width the per-row kernel takes.
+  Both full builds start at a workgroup offset (`wg0`), so the host cuts a call into near-equal pieces of at most `kFullTileProducts` or `kFullRowProducts` multiply-adds (`attention_pieces`), each submitted alone (`isolate`), and an image's attention stays well inside the GPU's job timeout: one 16384-patch dispatch outran it on an MI50.
 - The qwen35 layers' ops (docs/QWEN35.md), each checked against the CPU and for its own bit-for-bit rules by `backend-vulkan`:
   - `sigmoid_mul` (`shaders/sigmoid_mul.comp`) and `gated_rms_norm` (`shaders/gated_rms_norm.comp`, one workgroup per (row, head)) write the copy of their output that the matmul reading it next takes, by its row runs, as `silu_mul` and `rms_norm_rows` do: the 16-bit twin, four values a lane where `tile_reads` says one tile call reads the batch.
     So the output gate replaces the copy attention wrote of the ungated output, whose twin its write over that output drops.
@@ -616,6 +620,22 @@ From the comment at line 2:
 From the comment at line 2:
 
 - A layer's attention inputs in one dispatch for every view of a batch: one workgroup per (batch row, head) over the q, then k, then v heads. q is normed and rotated in place, k normed and rotated into its KV block at position hist + b, v copied into its block; the arithmetic per head is norm_rope_partial's at the full width exactly.
+
+### `src/backends/vulkan/shaders/add_bias.comp`
+
+- dst row r += bias over rows of `width` floats, the dispatch's invocations striding over the elements.
+
+### `src/backends/vulkan/shaders/gelu.comp`
+
+- dst[i] = gelu(src[i]) in F32, the erf form through Abramowitz and Stegun 7.1.26 (within 1.5e-7 of erf, since GLSL has none) and the tanh form with its argument clamped where tanh is 1; dst may be src.
+
+### `src/backends/vulkan/shaders/layer_norm_rows.comp`
+
+- One workgroup a row: the mean, then the biased variance about it, each a fixed-order tree sum through shared memory, then (x - mean) / sqrt(var + eps) * w + b; dst may be src.
+
+### `src/backends/vulkan/shaders/mix_rows.comp`
+
+- dst row r += the sum over k of weight[r * taps + k] times table row idx[r * taps + k], the taps multiply-added in the CPU's order before the one add; Vulkan does not require the fma fused, and on an MI50 under RADV the last bits differ from the CPU's fused chain.
 
 ### `src/backends/vulkan/shaders/rms_norm_rows.comp`
 

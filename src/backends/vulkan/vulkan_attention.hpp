@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include "backends/vulkan/vulkan_buffer.hpp"
 #include "backends/vulkan/vulkan_device.hpp"
@@ -12,6 +13,28 @@
 
 namespace backend {
 namespace {
+
+// A non-causal attention call's workgroups cut into dispatches of at most `budget` multiply-adds, as boundaries from 0 to the call's workgroup count.
+// `runs` gives, view by view, its workgroups and each one's multiply-adds; a view whose workgroups do not fit beside the open piece is cut into near-equal pieces, and a workgroup over the budget is a piece alone.
+inline std::vector<size_t> attention_pieces(const std::vector<std::pair<size_t, size_t>>& runs, size_t budget) {
+    std::vector<size_t> cuts{0};
+    size_t at = 0, open = 0;
+    for (const auto& [count, each] : runs) {
+        if (!count) continue;
+        if (size_add(open, size_mul(count, each)) <= budget) {
+            at += count;
+            open += count * each;
+            continue;
+        }
+        if (open) cuts.push_back(at);
+        const size_t per = std::max<size_t>(1, budget / std::max<size_t>(1, each)), pieces = (count + per - 1) / per;
+        for (size_t i = 1; i < pieces; ++i) cuts.push_back(at + count * i / pieces);
+        open = (count - count * (pieces - 1) / pieces) * each;
+        at += count;
+    }
+    if (at > cuts.back()) cuts.push_back(at);
+    return cuts;
+}
 
 // One dispatch for q and k norm-rope and the KV write, every view of the batch going through the view table.
 inline void VulkanBackend::norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w,
@@ -103,21 +126,47 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         throw std::runtime_error("vulkan: invalid attention dimensions");
     std::vector<Placed> placed = place_views(views, n_views);
     if (placed.empty()) return;
+    // A call's views are causal or not alike; non-causal ones, a vision encoder's, take the per-row kernel's full build over f32 caches.
+    const bool full = !placed.front().view->causal;
     for (const Placed& pv : placed) {
         if (!pv.view->nq) throw std::runtime_error("vulkan: invalid attention dimensions");
-        if (!pv.view->causal) throw std::runtime_error(std::string("vulkan: ") + op_name(Op::attention_full) + " is not implemented");
+        if (pv.view->causal == full) throw std::runtime_error("vulkan: causal and non-causal views in one attention call");
     }
     const size_t qstride = (size_t)n_head * head_dim;
     const float scale = 1.0f / std::sqrt((float)head_dim);
     const size_t rows = placed.back().row0 + placed.back().view->nq;
     if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
         throw std::runtime_error("vulkan: attention rows outside their allocation");
+    // Non-causal views of heads 64 or 72 wide, a vision encoder's, take the tiled kernel's full build: a tile of 64 query rows shares each staged tile of keys (shaders/attention_tile.comp).
+    if (full && (head_dim == 64 || head_dim == 72)) {
+        ViewTable t = view_table(layer, placed, false);
+        VulkanKVStorage& s = *t.storage;
+        check_storage(s, n_head_kv, head_dim);
+        if (s.k_type() != KVType::f32 || s.v_type() != KVType::f32) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
+        // A workgroup's multiply-adds: its 64 rows' dots and weighted sums over every key.
+        std::vector<std::pair<size_t, size_t>> runs;
+        for (const Placed& pv : placed)
+            runs.push_back({(pv.view->nq + kFullTileRows - 1) / kFullTileRows * (size_t)n_head,
+                            size_mul(2 * kFullTileRows * (size_t)head_dim, size_add(pv.view->length, pv.view->nq))});
+        const std::vector<size_t> cuts = attention_pieces(runs, kFullTileProducts);
+        for (size_t i = 0; i + 1 < cuts.size(); ++i) {
+            if (cuts.size() > 2) isolate();
+            struct { uint32_t n_head, n_head_kv, bt; float scale; uint32_t quant, rows, major, wg0; }
+                tc{(uint32_t)n_head, (uint32_t)n_head_kv, u32(kVkBlockTokens), scale, 0u, u32(rows), 0u, u32(cuts[i])};
+            dispatch(head_dim == 64 ? K_ATTENTION_FULL_TILE_D64 : K_ATTENTION_FULL_TILE_D72,
+                     {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), bind(out)},
+                     &tc, sizeof(tc), groups(cuts[i + 1] - cuts[i], 1), 1, 0, {0, rows * qstride, 0, 0, 0, 0});
+        }
+        if (cuts.size() > 2) isolate();
+        return;
+    }
     // Views of 128- or 256-wide heads whose prompt reaches the profile's attention_tile_rows take the tiled kernel, the rest the per-row kernel: at most two dispatches per layer.
     // The choice is by the view's extent rather than its row count, so a prompt's rows take the same kernel however they were batched.
     std::vector<Placed> wide, narrow;
     for (const Placed& pv : placed) {
         const size_t extent = pv.view->extent ? pv.view->extent : pv.view->nq;
-        (extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
+        (!full && extent >= dev_->profile.attention_tile_rows && (head_dim == 128 || head_dim == 256) ? wide : narrow).push_back(pv);
     }
     if (!wide.empty()) {
         ViewTable t = view_table(layer, wide, false);
@@ -164,21 +213,37 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
         // Each head's arithmetic is unchanged (shaders/attention.comp).
         const size_t group = (size_t)(n_head / n_head_kv);
         const bool long_history = longest >= chunk * split_max;
-        const uint32_t hg = !long_history ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
-        struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg; }
+        // A non-causal view, a vision encoder's, takes one head a workgroup: its attention_full build has no grouped form.
+        const uint32_t hg = full || !long_history ? 1u : group % 4 == 0 ? 4u : group % 3 == 0 ? 3u : group % 2 == 0 ? 2u : 1u;
+        // The full build's `wg0`, past the other builds' constants, which they do not read.
+        struct { uint32_t rows, n_head, n_head_kv, dim, bt; float scale; uint32_t nsplit, chunk, quant, max_parts, hg, wg0; }
             pc{u32(t.rows), (uint32_t)n_head, (uint32_t)n_head_kv, (uint32_t)head_dim, u32(kVkBlockTokens),
-               scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg};
+               scale, u32(nsplit), u32(chunk), quant ? 1u : 0u, u32(split_max), hg, 0u};
         const VkDescriptorBufferInfo scratch = scratch_
             ? VkDescriptorBufferInfo{scratch_->handle(), 0, VK_WHOLE_SIZE} : bind(out);
         // Heads 128 wide take the kernel whose 16 lanes read a token's row in one load each, several tokens a subgroup, and heads 256 wide its build of 32 lanes a token (shaders/attention_vec.comp).
-        const KernelId kernel = head_dim == 128 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
+        if (full && (s.k_type() != KVType::f32 || s.v_type() != KVType::f32)) throw std::runtime_error("vulkan: non-causal attention over a cache that is not f32");
+        const KernelId kernel = full ? K_ATTENTION_FULL
+                              : head_dim == 128 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_G4, K_ATTENTION_VEC_K16_G4, s) : kv_variant(K_ATTENTION_VEC, K_ATTENTION_VEC_K16, s))
                               : head_dim == 256 ? (hg > 1 ? kv_variant(K_ATTENTION_VEC_D256_G4, K_ATTENTION_VEC_D256_K16_G4, s)
                                                           : kv_variant(K_ATTENTION_VEC_D256, K_ATTENTION_VEC_D256_K16, s))
                               : (hg > 1 ? kv_variant(K_ATTENTION_G4, K_ATTENTION_K16_G4, s) : kv_variant(K_ATTENTION, K_ATTENTION_K16, s));
-        dispatch(kernel,
-                 {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
-                  args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},
-                 &pc, sizeof(pc), groups(pairs / hg * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
+        // A non-causal call is cut into dispatches of bounded work by its (row, head) pairs, each pair's splits in one dispatch.
+        std::vector<size_t> cuts{0, pairs / hg};
+        if (full) {
+            std::vector<std::pair<size_t, size_t>> runs;
+            for (const Placed& pv : narrow) runs.push_back({pv.view->nq * (size_t)n_head, size_mul(2 * (size_t)head_dim, size_add(pv.view->length, pv.view->nq))});
+            cuts = attention_pieces(runs, kFullRowProducts);
+        }
+        for (size_t i = 0; i + 1 < cuts.size(); ++i) {
+            if (cuts.size() > 2) isolate();
+            pc.wg0 = u32(cuts[i] * nsplit);
+            dispatch(kernel,
+                     {bind(Q), bind(out), bind(CSlice{s.k_buffer(layer).get(), 0}), bind(CSlice{s.v_buffer(layer).get(), 0}),
+                      args(t.words.data(), t.words.size() * sizeof(uint32_t)), scratch, xq},
+                     &pc, sizeof(pc), groups((cuts[i + 1] - cuts[i]) * nsplit, 1), 1, quant ? twin_variant() : 0, {0, n, 0, 0, 0, scratch_ ? 0 : n, n});
+        }
+        if (cuts.size() > 2) isolate();
         if (nsplit > 1) {
             const uint32_t mc[5] = {u32(t.rows), (uint32_t)n_head, (uint32_t)head_dim, u32(nsplit), quant ? 1u : 0u};
             dispatch(K_ATTENTION_MERGE, {bind(out), scratch, args(t.words.data(), t.words.size() * sizeof(uint32_t)), xq}, mc, sizeof(mc), groups(pairs, 1), 1, quant ? twin_variant() : 0, {n, 0, 0, n});
@@ -229,7 +294,7 @@ inline void VulkanBackend::sparse_attention(CSlice query, size_t layer, const KV
 }
 
 inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* views, size_t n_views, Slice ids,
-                                     const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) {
+                                     const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin, const GroupPositions& positions) {
     if (!n_views) return;
     if (!index.heads || !index.dim || index.dim > 256 || !index.rope_dim || index.rope_dim % 2 ||
         index.rope_dim > index.dim || !index.compression || !index.budget || index.budget % index.compression ||
@@ -280,10 +345,13 @@ inline void VulkanBackend::select_kv(CSlice query, size_t layer, const KVView* v
     if (score_bytes && (!scratch_ || scratch_->size() < score_bytes)) grow(scratch_, score_bytes);
     const auto scores = scratch_ ? bind(CSlice{scratch_.get(), 0}) : ob;
     const PlaneShape plane{u32(kVkBlockTokens), u32(storage.auxiliary_block_bytes(layer) / sizeof(float)), u32(storage.auxiliary_rows_bytes(layer) / sizeof(float))};
+    size_t at = 0;
     for (size_t vi = 0; vi < n_views; ++vi) {
-        if (!views[vi].nq) continue;
         const size_t count = (views[vi].length + views[vi].nq) / index.compression;
-        pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index);
+        const size_t at_view = at;
+        at += (count - views[vi].length / index.compression) * positions.streams.count;
+        if (!views[vi].nq) continue;
+        pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index, positions, at_view);
         for (size_t row = 0; row < views[vi].nq; row += 16) {
             const size_t rows = std::min<size_t>(16, views[vi].nq - row);
             score_rows(qb, ab, plane, scores, table.words, u32(vi), row, rows, count, heads, dim, compression, 1.0f / std::sqrt(float(index.dim)));
@@ -303,7 +371,8 @@ inline std::vector<VulkanBackend::Placed> VulkanBackend::place_views(const KVVie
     return placed;
 }
 
-inline void VulkanBackend::pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin) {
+inline void VulkanBackend::pool_kv(size_t layer, const KVView* views, size_t n_views, const IndexArgs& index, CSlice key_norm, CSlice cos, CSlice sin,
+                                   const GroupPositions& positions) {
     if (!n_views) return;
     if (!index.dim || index.dim > 256 || !index.rope_dim || index.rope_dim % 2 || index.rope_dim > index.dim || !index.compression || !std::isfinite(index.eps) ||
         index.eps <= 0)
@@ -325,19 +394,31 @@ inline void VulkanBackend::pool_kv(size_t layer, const KVView* views, size_t n_v
     }
     const PlaneShape plane{u32(kVkBlockTokens), u32(storage.auxiliary_block_bytes(layer) / sizeof(float)), u32(storage.auxiliary_rows_bytes(layer) / sizeof(float))};
     const auto ab = bind(CSlice{auxiliary.get(), 0}), wb = bind(key_norm), cb = bind(cos), sb = bind(sin);
-    for (size_t vi = 0; vi < n_views; ++vi) pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index);
+    for (size_t vi = 0, at = 0; vi < n_views; ++vi) {
+        pool_view(ab, plane, wb, cb, sb, table.words, u32(vi), views[vi], index, positions, at);
+        at += ((views[vi].length + views[vi].nq) / index.compression - views[vi].length / index.compression) * positions.streams.count;
+    }
 }
 
 inline void VulkanBackend::pool_view(VkDescriptorBufferInfo aux, PlaneShape plane, VkDescriptorBufferInfo key_norm, VkDescriptorBufferInfo cos, VkDescriptorBufferInfo sin,
-                                     const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index) {
+                                     const std::vector<uint32_t>& table, uint32_t view, const KVView& v, const IndexArgs& index, const GroupPositions& positions, size_t at) {
     const size_t done = v.length / index.compression, count = (v.length + v.nq) / index.compression;
     if (count <= done) return;
-    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0];
-    struct { uint32_t view, first, dim, half, compression, bt, block_floats, rows_floats; float eps; }
-        pc{view, 0, u32(index.dim), u32(index.rope_dim / 2), u32(index.compression), plane.bt, plane.block_floats, plane.rows_floats, index.eps};
+    const size_t limit = dev_->props.limits.maxComputeWorkGroupCount[0], half = index.rope_dim / 2;
+    const uint32_t streams = positions.pos ? u32(positions.streams.count) : 0u;
+    if (positions.pos && (!streams || (streams > 1 && !positions.streams.of))) throw std::runtime_error("vulkan: invalid group position streams");
+    const uint32_t none = 0;
+    std::vector<uint32_t> of(half, 0);
+    for (size_t i = 0; streams > 1 && i < half; ++i) of[i] = positions.streams.of[i];
+    struct { uint32_t view, first, dim, half, compression, bt, block_floats, rows_floats; float eps; uint32_t streams, base; }
+        pc{view, 0, u32(index.dim), u32(half), u32(index.compression), plane.bt, plane.block_floats, plane.rows_floats, index.eps, streams, u32(done)};
     for (size_t first = done; first < count; first += limit) {
         pc.first = u32(first);
-        dispatch(K_KV_INDEX_POOL, {aux, key_norm, cos, sin, args(table.data(), table.size() * sizeof(uint32_t))}, &pc, sizeof(pc), u32(std::min(count - first, limit)));
+        dispatch(K_KV_INDEX_POOL,
+                 {aux, key_norm, cos, sin, args(table.data(), table.size() * sizeof(uint32_t)),
+                  streams ? args(positions.pos + at, (count - done) * streams * sizeof(uint32_t)) : args(&none, sizeof(none)),
+                  args(of.data(), of.size() * sizeof(uint32_t))},
+                 &pc, sizeof(pc), u32(std::min(count - first, limit)));
     }
     if (unordered_) barrier(open());
 }

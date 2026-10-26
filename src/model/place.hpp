@@ -60,7 +60,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         const TensorView& t = weights.tensors[i];
         const bool split = role && width > 1 && role->shard.axis != Axis::none;
         const std::vector<uint64_t> shape = split ? shard::shape(*role, t, width, member) : t.shape;
-        Matrix w{t.type, shape.empty() ? 0 : (size_t)shape[0], 1, split ? shard::bytes(shard::runs(*role, t, width, member)) : t.bytes, product};
+        Matrix w{t.type, shape.empty() ? 0 : (size_t)shape[0], 1, split ? shard::held_bytes(*role, t, width, member) : t.bytes, product};
         for (size_t d = 1; d < shape.size(); ++d) w.rows *= (size_t)shape[d];
         return w;
     };

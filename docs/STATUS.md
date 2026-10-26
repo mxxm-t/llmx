@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## The fit counts a shard's bytes without listing its runs (2026-10-26, SDEV, branch feat/fit-shard-bytes on 5e90171a8, step 1 of the server startup plan the owner decided, lands by fast-forward as one commit)
+
+- **Goal:** the fit (`fitted_kv`) took 338.7 s of Qwen3.8-Flash-Next's 527.6 s start on production's cell, each `footprint` at tensor width 2 taking 14.9 s because `shard::runs` listed about 63M runs a member for `shard::bytes` to count them (Server startup profiled end to end, below).
+- **Done:** `shard::held_bytes` counts a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` takes a shard's bytes from it; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
+- **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL, production's serve flags over 2x2 on GPUs 4-7 and CPUs 4-7,12-15 at default clocks, 2026-10-27 05:49-06:37 UTC, arms built alike at main 458f45fda, in the order m s1 s2 s3 s3 s2 s1 m, production serving beside them): from the process's start to serving 528.8 and 522.9 s on main, 194.0 and 186.9 s here; the fit and construct 349.0 and 348.6 s against 17.9 and 18.3 s; every arm placed 599360 KV tokens, 16 checkpoints taking 40512 and the same split.
+- **Checked:** F2DEV approved (22:02) and confirmed after the rebase onto main ac940c059 (02:56); CTest 90 of 90, docs and dead-code pass, and the hosted run passes at b5b699f4e; Qwen3-0.6B Q8_0 and Qwen3.5-0.8B Q4_K_M give main's 64 greedy tokens and logits on the CPU.
+- **Gates:** the model tier: byte identity on the Radeon VII too (Qwen3-0.6B BF16 on the device and Qwen3-30B-A3B Q4_K_M with 12 layers' experts on the CPU, 64 greedy tokens and logits, main ac940c059's), and the suite on the Radeon VII at b5b699f4e, every component passing; the timing round is the slot above. Reviewed by F2DEV; lands by fast-forward on main 5e90171a8.
+- **Gotchas:** `shard::runs` and `shard::bytes` stay for construct and the stream until step 3 moves them onto the same description, and the test of the two counts goes with them.
+
 ## A function call's value is written by the JSON types its schema admits (2026-10-27, TDEV, branch fix/tool-arg-types on main 5e90171a8, the owner's production report through the coordinator, lands by fast-forward as two commits)
 
 - **Why:** on production (Qwen3.8-Flash-Next UD-Q4_K_XL, main e9efe108b) Open WebUI 0.12.0's built-in `create_tasks` failed with "dictionary update sequence element #0 has length 1; 2 is required" and `update_memory` with "1 validation error for UpdateMemoriesForm ... Input should be a valid list ... input_type=str": both take a list (`tasks: list[TaskItem]`, `operations: list[dict]`), and each got the list as a JSON string, since Open WebUI hands the call's arguments to the tool unchanged.

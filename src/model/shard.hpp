@@ -140,6 +140,20 @@ inline std::vector<Run> runs(const Role& role, const TensorView& t, size_t width
     return out;
 }
 
+// The size of member `member`'s packed copy of `role`'s tensor `t`, as bytes(runs(...)) counts it, without listing the runs.
+inline size_t held_bytes(const Role& role, const TensorView& t, size_t width, size_t member) {
+    if (role.shard.axis == Axis::none || width == 1) return t.bytes;
+    const size_t nin = t.shape.empty() ? 0 : size_t(t.shape[0]);
+    const size_t row = quant::row_bytes(t.type, nin);
+    size_t n = 0;
+    if (role.shard.axis == Axis::rows) {
+        for (const Part& p : parts(role, width, member)) n = backend::size_add(n, backend::size_mul(size_t(p.cover.count), row));
+        return n;
+    }
+    for (const Span& s : spans(role, width, member)) n = backend::size_add(n, quant::row_bytes(t.type, size_t(s.count)));
+    return backend::size_mul(row ? t.bytes / row : 0, n);
+}
+
 // The bytes the runs pack.
 inline size_t bytes(const std::vector<Run>& runs) {
     size_t n = 0;

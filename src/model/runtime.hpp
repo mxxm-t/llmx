@@ -1192,13 +1192,13 @@ private:
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
             if (width_ > 1 && role.shard.axis != Axis::none) {
-                const std::vector<shard::Run> runs = shard::runs(role, t, width_, member);
+                const shard::Held held = shard::held(role, t, width_, member);
                 backend::BufferPtr buffer;
                 if (adopt) {
-                    buffer = adopt(i, b, runs);
+                    buffer = adopt(i, b, &held);
                 } else {
-                    packed_.emplace_back(shard::bytes(runs));
-                    shard::pack(runs, t.data, packed_.back().data());
+                    packed_.emplace_back(held.bytes);
+                    shard::pack(held, t.data, packed_.back().data());
                     buffer = b.adopt(packed_.back().data(), packed_.back().size());
                 }
                 const size_t n = (size_t)shard::share(role, width_, member);
@@ -1206,7 +1206,7 @@ private:
                 return Weight{t.type, buffer, rows ? (size_t)role.in : n, rows ? n : (size_t)role.out};
             }
             backend::BufferPtr& buffer = taken[i * n_devices + device + member];
-            if (!buffer) buffer = adopt ? adopt(i, b, {}) : b.adopt(t.data, t.bytes);
+            if (!buffer) buffer = adopt ? adopt(i, b, nullptr) : b.adopt(t.data, t.bytes);
             return Weight{t.type, buffer, (size_t)role.in, (size_t)role.out};
         };
         pass_.assign(plan_.role_ids, Weight{});

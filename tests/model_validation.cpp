@@ -317,11 +317,11 @@ void reader_checks() {
         for (const auto& b : backends) ids.push_back(b.get());
         infer::WeightPlan plan;
         const infer::AdoptWeight record = infer::planning_adopt(weights, backends.size(), plan, true);
-        const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b, const std::vector<infer::shard::Run>& runs) {
+        const infer::AdoptWeight adopt = [&](size_t i, backend::Backend& b, const infer::shard::Held* held) {
             ++r.takes[i];
             const size_t id = size_t(std::find(ids.begin(), ids.end(), &b) - ids.begin());
             r.order += (r.order.empty() ? "" : " ") + weights.tensors[i].name + "@" + std::to_string(id);
-            return record(i, b, runs);
+            return record(i, b, held);
         };
         { infer::Model model(weights, std::move(backends), std::move(placement), {}, adopt); }
         for (size_t i = 0; i < plan.host_reads.size(); ++i)
@@ -1028,7 +1028,7 @@ void hook_checks() {
         ++checks;
     }
     // A member's shard is storage only the hook holds until it returns: a write that fails after one before it was queued must drain the backend before that storage goes.
-    // Written from the mapping, a second file run fails; streamed, a second zero run.
+    // Written from the mapping, the file's first write after a zero row fails; streamed, the second zero row.
     std::vector<uint8_t> bytes(64);
     infer::ModelWeights shard;
     shard.tensors.push_back({"a shard", {16}, quant::GGML_TYPE_F32, bytes.data(), bytes.size()});
@@ -1037,10 +1037,14 @@ void hook_checks() {
         device.fail_write = 2;
         infer::WeightPlan plan;
         const infer::AdoptWeight hook = infer::planning_adopt(shard, 1, plan, defer);
-        const std::vector<infer::shard::Run> runs = defer ? std::vector<infer::shard::Run>{{0, 16, 0, false}, {64, 16, 16, true}, {64, 16, 32, true}}
-                                                          : std::vector<infer::shard::Run>{{0, 16, 0, false}, {32, 16, 16, false}};
+        // Rows of 16 bytes on the row axis: streamed, a row owned between two zero rows; from the mapping, a zero row between two owned rows.
+        infer::shard::Held held;
+        held.axis = infer::Axis::rows;
+        held.row = 16;
+        held.parts = defer ? std::vector<infer::shard::Part>{{{1, 1}, {0, 3}}} : std::vector<infer::shard::Part>{{{0, 1}, {0, 2}}, {{2, 1}, {2, 1}}};
+        held.bytes = 48;
         std::string caught;
-        try { hook(0, device, runs); }
+        try { hook(0, device, &held); }
         catch (const std::runtime_error& e) { caught = e.what(); }
         require(caught == "injected write failure" && plan.uploads.empty(), "a shard whose write failed lost its error, or was recorded");
         require(device.state->premature == 0 && device.state->pending == 0,

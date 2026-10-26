@@ -1034,10 +1034,10 @@ void row_source_checks(const infer::ModelWeights& base, gguf::GGUFModel& gguf, c
         size_t table_tensor = 0;
         infer::ModelWeights source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
         const infer::AdoptWeight adopt = [&](size_t tensor, backend::Backend& b,
-                                              const std::vector<infer::shard::Run>& runs) {
+                                              const infer::shard::Held* held) {
             if (tensor == table_tensor)
                 throw std::runtime_error(name + ": external PLE table was adopted as a whole tensor");
-            if (!runs.empty()) throw std::runtime_error(name + ": unexpected grouped tensor in row-source test");
+            if (held) throw std::runtime_error(name + ": unexpected grouped tensor in row-source test");
             const auto& view = source.tensors[tensor];
             if (!view.data) throw std::runtime_error(name + ": unrelated test tensor has no mapped bytes");
             return b.adopt(view.data, view.bytes);

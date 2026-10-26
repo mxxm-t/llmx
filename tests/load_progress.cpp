@@ -520,11 +520,13 @@ void stream_checks(const std::string& path) {
                     infer::TensorView t = weights.tensors[*r->tensor];
                     t.data = source.tensor_data(*r->tensor);
                     for (size_t m = 0; m < 2; ++m) {
-                        std::vector<infer::shard::Run> runs = infer::shard::runs(*r, t, 2, m);
-                        split += runs.size() > 1;
-                        wanted.emplace_back(infer::shard::bytes(runs));
-                        infer::shard::pack(runs, t.data, wanted.back().data());
-                        shards.push_back({*r->tensor, member.get(), member->alloc_weight(wanted.back().size()), std::move(runs)});
+                        const infer::shard::Held held = infer::shard::held(*r, t, 2, m);
+                        size_t runs = 0;
+                        infer::shard::file_runs(held, 0, t.bytes, [&](const infer::shard::Run&) { ++runs; });
+                        split += runs > 1;
+                        wanted.emplace_back(held.bytes);
+                        infer::shard::pack(held, t.data, wanted.back().data());
+                        shards.push_back({*r->tensor, member.get(), member->alloc_weight(wanted.back().size()), held});
                     }
                 }
                 require(split >= 4, "the fixture's members do not take shards of several runs");

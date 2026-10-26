@@ -76,13 +76,35 @@ struct LoadedModel {
 };
 
 // A weight a copying backend took: the storage the model's construction allocated for it (Backend::alloc_weight), filled from the file once the model is built.
-// A tensor group's member takes only its shard: the tensor's bytes in `runs`, each at its offset in the storage (model/shard.hpp); with no runs it takes the whole tensor.
+// A tensor group's member takes only its shard, the copy `shard` describes (model/shard.hpp); without one it takes the whole tensor.
 struct Upload {
     size_t tensor = 0;
     backend::Backend* backend = nullptr;
     backend::BufferPtr buffer;
-    std::vector<shard::Run> runs;
+    std::optional<shard::Held> shard;
 };
+
+// Puts the bytes [lo, lo + n) of a tensor at `data` that `held` names in a member's storage: runs under a page packed and written once while they follow one another there, longer ones by `send`.
+template <class Write, class Send>
+inline void put_runs(const shard::Held& held, size_t lo, size_t n, const uint8_t* data, std::vector<uint8_t>& packed, Write write, Send send) {
+    static constexpr size_t kPackedRun = 4096;
+    size_t packed_to = 0;
+    auto flush = [&] {
+        if (!packed.empty()) write(packed_to, packed.data(), packed.size());
+        packed.clear();
+    };
+    shard::file_runs(held, lo, lo + n, [&](const shard::Run& r) {
+        if (r.bytes >= kPackedRun) {
+            flush();
+            send(r.from, r.to, r.bytes);
+            return;
+        }
+        if (!packed.empty() && r.to != packed_to + packed.size()) flush();
+        if (packed.empty()) packed_to = r.to;
+        packed.insert(packed.end(), data + (r.from - lo), data + (r.from - lo) + r.bytes);
+    });
+    flush();
+}
 
 // What the loader's hook records while the model is built: per tensor whether a backend that reads in place took it, and every weight a copying backend took.
 struct WeightPlan {
@@ -96,30 +118,27 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
     plan.host_reads.assign(weights.tensors.size(), 0);
     plan.uploads.clear();
     plan.uploads.reserve(defer ? 2 * weights.tensors.size() * backends : 0);
-    return [&weights, &plan, defer](size_t i, backend::Backend& b, const std::vector<shard::Run>& runs) {
+    return [&weights, &plan, defer](size_t i, backend::Backend& b, const shard::Held* held) {
         const TensorView& t = weights.tensors[i];
-        if (!runs.empty()) {
-            backend::BufferPtr buffer = b.alloc_weight(shard::bytes(runs));
+        if (held) {
+            backend::BufferPtr buffer = b.alloc_weight(held->bytes);
             // A shard's zero runs are written here, in either load, so no storage is trusted to hold zeros; the file's runs are streamed or written from the mapping.
             // Until it returns, the storage is this call's alone: a write that fails leaves the writes before it queued on it, so the backend drains before the storage goes.
-            std::vector<shard::Run> file;
-            std::vector<uint8_t> zeros;
+            std::vector<uint8_t> zeros, packed;
             try {
-                for (const shard::Run& r : runs) {
-                    if (!r.zero) {
-                        file.push_back(r);
-                        continue;
-                    }
+                shard::zero_runs(*held, [&](const shard::Run& r) {
                     zeros.resize(std::max(zeros.size(), r.bytes));
                     b.write(*buffer, r.to, zeros.data(), r.bytes);
+                });
+                if (!defer) {
+                    const auto write = [&](size_t to, const uint8_t* from, size_t n) { b.write(*buffer, to, from, n); };
+                    put_runs(*held, 0, t.bytes, t.data, packed, write, [&](size_t from, size_t to, size_t n) { b.write(*buffer, to, t.data + from, n); });
                 }
-                if (!defer)
-                    for (const shard::Run& r : file) b.write(*buffer, r.to, t.data + r.from, r.bytes);
             } catch (...) {
                 b.sync();
                 throw;
             }
-            if (defer) plan.uploads.push_back({i, &b, buffer, std::move(file)});
+            if (defer) plan.uploads.push_back({i, &b, buffer, *held});
             return buffer;
         }
         if (b.reads_in_place()) {
@@ -128,7 +147,7 @@ inline AdoptWeight planning_adopt(const ModelWeights& weights, size_t backends, 
         }
         if (!defer) return b.adopt(t.data, t.bytes);
         backend::BufferPtr buffer = b.alloc_weight(t.bytes);
-        plan.uploads.push_back({i, &b, buffer, {}});
+        plan.uploads.push_back({i, &b, buffer, std::nullopt});
         return buffer;
     };
 }
@@ -269,7 +288,6 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shar
             const size_t n = full.bytes, slot = full.slot;
             const Piece& p = pieces[k];
             const uint8_t* data = p.into ? p.into : ring.pages(slot).data();
-            static constexpr size_t kPackedRun = 4096;
             const auto t0 = std::chrono::steady_clock::now();
             size_t bytes = 0;
             for (const Piece::Part& part : p.parts) {
@@ -288,27 +306,12 @@ inline void stream(const std::vector<Piece>& pieces, const std::vector<std::shar
                             u->backend->write(*u->buffer, to, data + at, count);
                         }
                     };
-                    if (u->runs.empty()) {
+                    if (!u->shard) {
                         send(part.tensor_offset, part.tensor_offset, part.bytes);
                         continue;
                     }
-                    // A member's runs are in the tensor's order, so the ones the part reaches follow the first that ends past its start.
-                    const size_t lo = part.tensor_offset, hi = lo + part.bytes;
-                    auto r = std::upper_bound(u->runs.begin(), u->runs.end(), lo, [](size_t at, const shard::Run& x) { return at < x.from + x.bytes; });
-                    // Runs shorter than a page, a column shard's of an expert stack, are packed here and written once for as long as they follow one another in the storage, which a shard's zero rows interrupt: a device copy a run costs far more than its bytes.
-                    while (r != u->runs.end() && r->from < hi && r->bytes < kPackedRun) {
-                        const size_t to = r->to + (std::max(lo, r->from) - r->from);
-                        packed.clear();
-                        for (; r != u->runs.end() && r->from < hi && r->bytes < kPackedRun && r->to + (std::max(lo, r->from) - r->from) == to + packed.size(); ++r) {
-                            const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
-                            packed.insert(packed.end(), data + part.piece_offset + (from - lo), data + part.piece_offset + (end - lo));
-                        }
-                        u->backend->write(*u->buffer, to, packed.data(), packed.size());
-                    }
-                    for (; r != u->runs.end() && r->from < hi; ++r) {
-                        const size_t from = std::max(lo, r->from), end = std::min(hi, r->from + r->bytes);
-                        send(from, r->to + (from - r->from), end - from);
-                    }
+                    const auto write = [&](size_t to, const uint8_t* from, size_t n) { u->backend->write(*u->buffer, to, from, n); };
+                    put_runs(*u->shard, part.tensor_offset, part.bytes, data + part.piece_offset, packed, write, send);
                 }
                 bytes += part.bytes;
             }

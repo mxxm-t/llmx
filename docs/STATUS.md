@@ -1,11 +1,18 @@
 # llmx - Development Status
 
+## Construct and the stream take a shard's description, not its runs (2026-10-26, SDEV, branch feat/shard-held on feat/fit-shard-bytes b5b699f4e, step 3 of the server startup plan the owner decided, lands by fast-forward as one commit after step 1)
+
+- **Goal:** construct took 12.0 s of Qwen3.8-Flash-Next's start on production's cell, listing about 63M runs a member of 32 bytes each, about 4 GB of host memory held through the load (estimated), for the rows of expert stacks' column shards that the stream packs anyway; a mapped load wrote each of those runs to its device one by one.
+- **Done:** `shard::Held` describes a member's copy (its size, the row axis's parts, the column axis's spans of a row), `file_runs` and `zero_runs` give its runs a range at a time, and `pack` makes it; the fit, construct (`AdoptWeight` takes the description), `planning_adopt` and the stream take it, `put_runs` sends a part's runs, packing those under a page, for the stream and a mapped load alike, and `shard::runs`, `shard::bytes` and step 1's `held_bytes` are gone.
+- **Left:** CTest and the suite, the model tier's gate (identity against main on the CPU and a device, the suite on a device, one timing round) and the start's construct time and host memory on production's cell; F2DEV's review.
+- **Gotchas:** depends on step 1 (feat/fit-shard-bytes), which lands first.
+
 ## The fit counts a shard's bytes without listing its runs (2026-10-26, SDEV, branch feat/fit-shard-bytes on main ac940c059, step 1 of the server startup plan the owner decided, lands by fast-forward as one commit)
 
 - **Goal:** the fit (`fitted_kv`) took 338.7 s of Qwen3.8-Flash-Next's 527.6 s start on production's cell, each `footprint` at tensor width 2 taking 14.9 s because `shard::runs` listed about 63M runs a member for `shard::bytes` to count them (Server startup profiled end to end, below).
-- **Done:** `shard::held_bytes` counts a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` takes a shard's bytes from it; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
+- **Done:** `shard::held_bytes` counted a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` took a shard's bytes from it, which step 3's description (`shard::Held`) now gives; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
 - **Left:** CTest, the model tier's gate (the placement and the fit identical to main on the CPU and a device, the suite on a device, one timing round) and the start on production's cell; F2DEV's review.
-- **Gotchas:** `shard::runs` and `shard::bytes` stay for construct and the stream until step 3 moves them onto the same description, and the test of the two counts goes with them.
+- **Gotchas:** step 3 moved construct and the stream onto the same description, and the run list, its byte count and the test of the two counts went with it.
 
 ## A lookup table keeps its hot rows in host memory under the one host budget (2026-10-26, branch feat/lookup-row-store on main 8632074e8, step 1 of docs/CACHE-PLAN.md section 9, the owner's decisions of 2026-10-26, lands by fast-forward as two commits)
 

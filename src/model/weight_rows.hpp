@@ -19,8 +19,8 @@
 
 namespace infer {
 
-// Bounded immutable access to rows stored in their original GGUF format, read from the table's file.
-// A table's rows are read on kReadThreads at once, its readers the table's, and a read can be started ahead of its use (start) and taken when needed (finish).
+// Bounded immutable access to rows stored in their original GGUF format, read from the table's file on its own readers, started ahead of their use (start) and taken when needed (finish).
+// Its hot rows can be held in host memory (hold), where a row is copied from and never read from the file (docs/src/model-weight_rows.md).
 class WeightRows {
 public:
     // A cold row of a compressed file system costs a record's read and decompression, so a table's rows are read in parallel (docs/STATUS.md, Lookup rows read ahead).
@@ -83,8 +83,40 @@ public:
     size_t rows() const { return rows_; }
     size_t row_bytes() const { return row_bytes_; }
     size_t bytes() const { return bytes_; }
-    // The host bytes of the table's I/O windows, which the fit counts once for the table: a granule for each reader of a direct source, none for a buffered one, whose reads land in the rows.
-    size_t staging_bytes() const { return reader_->direct() ? backend::size_mul(kReadThreads, reader_->granule()) : 0; }
+
+    // The host bytes a store of `slots` rows of `row_bytes` takes in all: its arena, its index at load 3/4 rounded up to a power of two, and a row id and a reference byte a slot, each in whole pages.
+    static size_t store_bytes_for(size_t slots, size_t row_bytes) {
+        if (!slots) return 0;
+        const size_t page = core::page_size();
+        const auto pages = [page](size_t b) { return backend::size_mul((b + page - 1) / page, page); };
+        return backend::size_add(backend::size_add(pages(backend::size_mul(slots, row_bytes)), pages(backend::size_mul(Store::index_size(slots), sizeof(uint64_t)))),
+                                 backend::size_add(pages(backend::size_mul(slots, sizeof(uint32_t))), pages(slots)));
+    }
+    // The most slots of `row_bytes` whose store takes at most `bytes` (store_bytes_for).
+    static size_t store_slots_within(size_t bytes, size_t row_bytes) {
+        size_t lo = 0, hi = bytes / (row_bytes + 1) + 1;
+        while (lo + 1 < hi) {
+            const size_t mid = lo + (hi - lo) / 2;
+            (store_bytes_for(mid, row_bytes) <= bytes ? lo : hi) = mid;
+        }
+        return lo;
+    }
+
+    // Holds this table's hot rows in at most `bytes` of host memory from now on, none for 0; called before the table's first read.
+    void hold(size_t bytes) const {
+        std::lock_guard<std::mutex> lk(readers_->m);
+        const size_t slots = std::min(rows_, store_slots_within(bytes, row_bytes_));
+        readers_->store = slots ? std::make_unique<Store>(slots, row_bytes_) : nullptr;
+    }
+    // The host bytes of the table's store (store_bytes_for).
+    size_t store_bytes() const {
+        std::lock_guard<std::mutex> lk(readers_->m);
+        return readers_->store ? store_bytes_for(readers_->store->slots(), row_bytes_) : 0;
+    }
+    // The table's own host bytes, which the fit counts once for the table: its store, and its I/O windows, a granule for each reader of a direct source and none for a buffered one, whose reads land in the rows.
+    size_t host_bytes() const {
+        return backend::size_add(store_bytes(), reader_->direct() ? backend::size_mul(kReadThreads, reader_->granule()) : 0);
+    }
 
     // Reads `ids` into `scratch` on the table's threads, returning at once; finish takes the rows.
     // A read the caller abandoned is waited for and dropped first, since a scratch holds one at a time; the ids are not kept, a request the table refuses throws here and a failed file read at finish.
@@ -119,18 +151,30 @@ public:
             scratch.remap_[scratch.order_[i]] = scratch.unique_count_ - 1;
         }
 
-        // Contiguous ids are one span and each span one read, the spans dealt to the table's readers, the thread std::async starts among them; the table reads for one scratch at a time.
-        std::vector<Span> spans;
-        for (size_t i = 0, out = 0; i < scratch.unique_count_;) {
-            size_t end = i + 1;
-            while (end < scratch.unique_count_ && scratch.unique_[end] == scratch.unique_[end - 1] + 1u) ++end;
-            spans.push_back({offset_ + backend::size_mul(scratch.unique_[i], row_bytes_), scratch.raw_.data() + backend::size_mul(out, row_bytes_),
-                             backend::size_mul(end - i, row_bytes_)});
-            out += end - i;
-            i = end;
-        }
-        scratch.pending_ = std::async(std::launch::async, [readers = readers_, spans = std::move(spans), reader = reader_] {
+        // The table reads for one scratch at a time, under its readers' mutex for the whole task: the store's lookups, the misses' file reads, then their publish, so no lookup meets a publish.
+        // Contiguous missing ids are one span and each span one read, the spans dealt to the table's readers, the thread std::async starts among them.
+        scratch.pending_ = std::async(std::launch::async, [readers = readers_, reader = reader_, offset = offset_, row_bytes = row_bytes_,
+                                                           unique = scratch.unique_.data(), n = scratch.unique_count_, raw = scratch.raw_.data()] {
             std::lock_guard<std::mutex> lk(readers->m);
+            Store* store = readers->store.get();
+            std::vector<char> held(n, 0);
+            if (store)
+                for (size_t i = 0; i < n; ++i) {
+                    const size_t slot = store->find(unique[i]);
+                    if (slot == Store::npos) continue;
+                    std::memcpy(raw + i * row_bytes, store->row(slot), row_bytes);
+                    store->touch(slot);
+                    held[i] = 1;
+                }
+            std::vector<Span> spans;
+            for (size_t i = 0; i < n;) {
+                if (held[i]) { ++i; continue; }
+                size_t end = i + 1;
+                while (end < n && !held[end] && unique[end] == unique[end - 1] + 1u) ++end;
+                spans.push_back({offset + backend::size_mul(unique[i], row_bytes), raw + backend::size_mul(i, row_bytes), backend::size_mul(end - i, row_bytes)});
+                i = end;
+            }
+            if (spans.empty()) return;
             if (!readers->threads) readers->threads = std::make_unique<core::JobThreads>(kReadThreads - 1);
             const size_t lanes = std::min(spans.size(), kReadThreads);
             readers->threads->run(lanes, [&](size_t lane) {
@@ -140,6 +184,10 @@ public:
                         throw std::runtime_error("weight rows: short file read");
                 }
             });
+            // Only rows whose whole read succeeded reach the store.
+            if (store)
+                for (size_t i = 0; i < n; ++i)
+                    if (!held[i]) store->put(unique[i], raw + i * row_bytes);
         });
         scratch.started_ = true;
     }
@@ -167,11 +215,110 @@ private:
         size_t bytes;
     };
 
-    // A file table's readers: kReadThreads - 1 threads, started at the table's first read, beside the thread that starts it, and for a direct source an aligned window of a granule each.
+    // A table's hot rows: packed a slot each in an arena committed as slots fill, found through an open-addressing index of {row id, slot} at load 3/4 with linear probing and backward-shift deletion,
+    // and given up by CLOCK, one reference byte a slot, which matched LRU's hit rate on the tables' row traces (docs/CACHE-PLAN.md, section 9).
+    class Store {
+    public:
+        static constexpr size_t npos = SIZE_MAX;
+
+        Store(size_t slots, size_t row_bytes)
+            : slots_(slots), row_bytes_(row_bytes), arena_(core::HostPages::reserved(backend::size_mul(slots, row_bytes))),
+              ids_(core::HostPages::reserved(backend::size_mul(slots, sizeof(uint32_t)))), refs_(core::HostPages::reserved(slots)),
+              index_(index_size(slots), kEmpty), shift_(64 - log2(index_.size())) {}
+
+        // Index entries for `slots`: a power of two past 4/3 of them, so a probe stays short.
+        static size_t index_size(size_t slots) {
+            const size_t want = backend::size_add(slots, slots / 3 + 1);
+            size_t n = 1;
+            while (n < want) n <<= 1;
+            return n;
+        }
+        size_t slots() const { return slots_; }
+
+        // The slot holding `row`, or npos.
+        size_t find(uint32_t row) const {
+            for (size_t i = home(row);; i = (i + 1) & (index_.size() - 1)) {
+                const uint64_t e = index_[i];
+                if (e == kEmpty) return npos;
+                if (uint32_t(e) == row) return size_t(e >> 32);
+            }
+        }
+        const uint8_t* row(size_t slot) const { return arena_.data() + slot * row_bytes_; }
+        void touch(size_t slot) { refs_.data()[slot] = 1; }
+
+        // Keeps `bytes` as `row`; once every slot is used, the first slot CLOCK finds unreferenced is given up for it.
+        // A row comes in referenced, so a publish gives up older rows before its own.
+        void put(uint32_t row, const uint8_t* bytes) {
+            size_t slot;
+            if (used_ < slots_) {
+                slot = used_++;
+                if (used_ > committed_) {
+                    // Pages are given a chunk of slots at a time, so the store takes memory as it fills.
+                    const size_t upto = std::min(slots_, std::max(used_, committed_ + kCommitSlots));
+                    arena_.commit(committed_ * row_bytes_, (upto - committed_) * row_bytes_);
+                    ids_.commit(committed_ * sizeof(uint32_t), (upto - committed_) * sizeof(uint32_t));
+                    refs_.commit(committed_, upto - committed_);
+                    committed_ = upto;
+                }
+            } else {
+                uint8_t* refs = refs_.data();
+                while (refs[hand_]) {
+                    refs[hand_] = 0;
+                    hand_ = (hand_ + 1) % slots_;
+                }
+                slot = hand_;
+                hand_ = (hand_ + 1) % slots_;
+                erase(slot_row(slot));
+            }
+            std::memcpy(arena_.data() + slot * row_bytes_, bytes, row_bytes_);
+            reinterpret_cast<uint32_t*>(ids_.data())[slot] = row;
+            refs_.data()[slot] = 1;
+            size_t i = home(row);
+            while (index_[i] != kEmpty) i = (i + 1) & (index_.size() - 1);
+            index_[i] = (uint64_t(slot) << 32) | row;
+        }
+
+    private:
+        static constexpr uint64_t kEmpty = ~uint64_t(0);
+        static constexpr size_t kCommitSlots = size_t(1) << 14;
+        static unsigned log2(size_t n) {
+            unsigned b = 0;
+            while ((size_t(1) << b) < n) ++b;
+            return b;
+        }
+        size_t home(uint32_t row) const { return shift_ >= 64 ? 0 : size_t((uint64_t(row) * 0x9E3779B97F4A7C15ull) >> shift_); }
+        uint32_t slot_row(size_t slot) const { return reinterpret_cast<const uint32_t*>(ids_.data())[slot]; }
+
+        // Takes `row` out of the index, moving each later entry of its run back into the gap where its home allows.
+        void erase(uint32_t row) {
+            const size_t mask = index_.size() - 1;
+            size_t gap = home(row);
+            while (uint32_t(index_[gap]) != row) gap = (gap + 1) & mask;
+            for (size_t j = (gap + 1) & mask;; j = (j + 1) & mask) {
+                const uint64_t e = index_[j];
+                if (e == kEmpty) break;
+                const size_t h = home(uint32_t(e));
+                // The entry may fill the gap where the gap lies cyclically between its home and its place.
+                if (((j - h) & mask) >= ((j - gap) & mask)) {
+                    index_[gap] = e;
+                    gap = j;
+                }
+            }
+            index_[gap] = kEmpty;
+        }
+
+        size_t slots_, row_bytes_, used_ = 0, committed_ = 0, hand_ = 0;
+        core::HostPages arena_, ids_, refs_;
+        std::vector<uint64_t> index_;
+        unsigned shift_;
+    };
+
+    // A file table's readers: kReadThreads - 1 threads, started at the table's first read, beside the thread that starts it, for a direct source an aligned window of a granule each, and its store of hot rows.
     struct Readers {
         std::mutex m;
         std::unique_ptr<core::JobThreads> threads;
         std::vector<core::HostPages> windows;
+        std::unique_ptr<Store> store;
     };
 
     // A span read through an aligned window, a chunk the window holds at a time.

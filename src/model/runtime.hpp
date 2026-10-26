@@ -724,6 +724,19 @@ public:
 
     int n_tokens() const { return (int)seq_.length(); }
     int context_length() const { return (int)plan_.context_length; }
+    // The host bytes the lookup tables hold of their hot rows (WeightRows::store_bytes), each table once.
+    size_t lookup_store_bytes() const {
+        std::vector<const WeightRows*> seen;
+        size_t bytes = 0;
+        for (size_t l = 0; l < plan_.layers.size(); ++l) {
+            if (!plan_.layers[l].lookup) continue;
+            const WeightRows* source = home_[l][plan_.layers[l].lookup->role].row_source.get();
+            if (!source || std::find(seen.begin(), seen.end(), source) != seen.end()) continue;
+            seen.push_back(source);
+            bytes = backend::size_add(bytes, source->store_bytes());
+        }
+        return bytes;
+    }
 
     // Defined in model/history.hpp, the owner of a sequence's history (docs/SPECULATIVE.md, section 1).
     Sequence fork(const Sequence& src, size_t length);

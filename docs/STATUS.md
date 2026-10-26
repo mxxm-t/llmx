@@ -1,5 +1,37 @@
 # llmx - Development Status
 
+## A lookup table keeps its hot rows in host memory under the one host budget (2026-10-26, branch feat/lookup-row-store on main 8632074e8, step 1 of docs/CACHE-PLAN.md section 9, the owner's decisions of 2026-10-26, lands by fast-forward as two commits)
+
+- **Goal:** Qwen3.8-Flash-Next's per-layer table (26.8 GiB, read from its file under `--lookup-storage file`) keeps the rows it has read in host memory, so a row read before is copied from memory and never read from the file again; CACHE-PLAN section 9 measured the rows' cost at 0.14 s of a fresh 2048-token prompt on production's cell and projects about 0.1 s from a 2 GiB store.
+- **Done:**
+  - `WeightRows` holds a store of hot rows (`hold`): an arena of host pages committed as slots fill, an open-addressing index of {row id, slot} at load 3/4 with backward-shift deletion, and CLOCK, one reference byte a slot. A read looks in the store first, inside the table's read task and under its mutex, reads only the missing rows, and puts them in the store once every read has succeeded, referenced so a read gives up older rows before its own. `store_bytes_for` is the store's real allocation, which the fit counts once with the read windows (`host_bytes`, in place of `staging_bytes`).
+  - One host budget, `--host-cache-bytes`, split by one function (`infer::host_shares` in `model/place.hpp`): the rows first, at most half of it and at most the rows of 1.5M tokens (`kRowStoreTokens`, about 2.4 GiB for Flash) and of the table, the server's evicted prefixes the rest; without the flag the budget is half the free host memory, and 0 keeps neither. Placement gives each table read from its file its share by its bytes a token, a table that reaches its cap leaving the rest to the others (`hold_rows`), a table on the devices none, and a host whose budget has no room for the rows none. The server's default, the disk tier's check, the turns' line and the start line take the prefixes' share (`Model::lookup_store_bytes`); the start line gives both.
+  - Help and docs: USAGE, SERVER, DISK-TIER, QWEN38-FLASH, AGENTS and the source pages.
+- **Tests:** the first commit, failing to build on main, which has no store: `weight-rows` (the store's real bytes and the slots a size holds; a held table's rows; on POSIX, with the file rewritten between reads, a held row read from memory, the store kept to its slots with a read's own rows kept and older ones given up by CLOCK, every row read from the file once it holds none, nothing published by a failed read), `placement` (the shares, a table held whole, at half the budget, none for 0, none on the devices and none on a host without room, the store counted once by the fit, and two tables sharing the rows by their bytes a token within their caps, a capped table's rest going to the other) and `server-passes` (the prefixes' default within their share).
+- **Measured, warm** (Qwen3.8-Flash-Next UD-Q4_K_XL at production's served flags without a disk tier, the pool then at 95% and below the tier's floor, GPUs 4-7 and CPUs 4-7,12-15 at default clocks, 2026-10-26 16:37-18:15 UTC; main f61c8ca75 at `--host-cache-bytes` 4 GiB against 64c8f0a4a's code at `6843408384`, both servers' start lines giving 4096 MiB to the prefixes, the branch's also 2430 MiB to the rows; blocks fixed in advance, servers m b b m m b b m, each on text no other server read: 16 fresh 2048-token prompts to warm, 12 measured, 3 replies of 256 greedy tokens streamed, and twice a 4096-token conversation pushed to the host tier by 17 others and its follow-up; s8/rsg):
+
+  | Server median | main | branch | change | A-A spread |
+  |---|---|---|---|---|
+  | fresh 2048-token prompt | 2.364, 2.355, 2.326, 2.364 s | 2.333, 2.334, 2.330, 2.320 s | -0.98% (0.023 s) | 0.038 s |
+  | follow-up from the host tier (4032 reused) | 0.383, 0.393, 0.378, 0.387 s | 0.379, 0.379, 0.377, 0.375 s | -1.9% | 0.015 s |
+  | reply, server-logged tok/s | 39.1, 58.5, 39.4, 44.4 | 46.3, 52.7, 52.7, 61.0 | +17% | 19.4 tok/s |
+  | reply inter-token p99 | 110, 50, 79, 84 ms | 46, 84, 83, 112 ms | level | 60 ms |
+
+  - Every branch server's fresh median is below three of the four main ones and both blocks agree in sign, but the main arm's own spread is more than half the gain, so by the rule fixed in advance the gain is unresolved. The conversion had ended before the gate, so the ZFS cache served the table's rows faster than in the profile of 13:41-14:08 (0.14 s), which the 4% projection rested on.
+  - Replies follow each text's draft acceptance (accepted drafts arrive together, so some medians of the inter-token gap are 0.1 ms), so the reply rows hold no arm effect either way.
+  - Flash-Next greedy ids after 3930 tokens of real text equal main's on 2x2 (s8/rsid). No amdgpu ring timeout during the gate. The pool did 104 read and 120 write operations a second on average.
+- **Measured, cold** (the owner's choice of a second gate, 2026-10-26 20:37-22:18 UTC, the same binaries, workload, order and rule): the table's shard read from a copy on a dataset that caches no data (`primarycache=metadata`, 16K records), the other shards the usual ones, so main reads every row from the disk and the branch every row its store misses, the never-cached bound.
+
+  | Server median | main | branch | change | A-A spread |
+  |---|---|---|---|---|
+  | fresh 2048-token prompt | 2.531, 2.567, 2.537, 2.561 s | 2.379, 2.423, 2.376, 2.378 s | -6.27% (0.160 s) | 0.036 s |
+  | follow-up from the host tier (4032 reused) | 0.436, 0.445, 0.437, 0.435 s | 0.387, 0.382, 0.380, 0.382 s | -12.75% (0.056 s) | 0.010 s |
+  | reply, tok/s | 41.5, 55.9, 38.5, 47.7 | 31.0, 46.3, 53.0, 61.1 | +4.2% | 17.4 tok/s |
+
+  - Both prompt-side gains are resolved: main's spread is under half of each. Replies follow each server's text through drafting and stay unresolved; their tok/s equals the server's own line, while an inter-token median of 0 where accepted drafts arrive together is no reply speed. No amdgpu ring timeout during the gate.
+- **Verdict:** lands on the cold gate's resolved gain (the coordinator's decision of 2026-10-26), the warm gate a tie with no measured loss; by fast-forward as two commits.
+- **Gotchas:** a store's slots are committed only as they fill, so a fresh server's resident memory grows with the rows it reads; the fit charges the whole share from the start. Windows refuses to rewrite a file its reader holds open, so `weight-rows` proves the store's reads from memory on POSIX only. The change edits numerics sources, so the numerics fingerprint moves and a production restart onto it adopts kept files only through `--disk-cache-adopt proved`, which production gives.
+
 ## Server startup profiled end to end (2026-10-26, SDEV, owner-approved, branch docs/startup-profile, docs only, the plan decided by the owner, lands by fast-forward as one commit)
 
 - **Goal:** a per-phase timeline of `serve` startup on production's flags (Qwen3.8-Flash-Next UD-Q4_K_XL, four shards of 111.3 GB, 103.7 GiB, of which 26.8 GiB is the lookup table read from its file), then a plan with numbers that removes duplicate or slow work. F2DEV and XDEV review the plan; the owner decides before anything is built.

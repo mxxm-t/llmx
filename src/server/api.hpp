@@ -33,7 +33,11 @@ namespace server {
 inline size_t default_host_cache(const infer::Model& model, size_t max_seqs, size_t limit) {
     if (!model.caches_on_devices()) return 0;
     const size_t bt = model.kv_block_tokens();
-    return host_cache_default(model.host_bytes(limit / bt * bt), max_seqs, core::host_memory_available());
+    // The donors' share of half the host memory free once the model is loaded: what the lookup tables' hot rows leave of it (infer::host_shares), none where they take it all.
+    const std::optional<size_t> free = core::host_memory_available();
+    const size_t half = free ? *free / 2 : 0, rows = model.lookup_store_bytes();
+    const std::optional<size_t> cap = free ? std::optional<size_t>(half > rows ? half - rows : 0) : std::nullopt;
+    return host_cache_default(model.host_bytes(limit / bt * bt), max_seqs, cap);
 }
 
 // The start line for uncapped requests that fill the pool and will not take turns here, or not all of them, though turns were possible or asked for; empty where they will, and on the CPU with no host memory given.

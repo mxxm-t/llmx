@@ -582,7 +582,8 @@ std::string load_timing(const infer::LoadTimes& t) {
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
-                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0) {
+                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0,
+                                               std::optional<size_t> host_budget = std::nullopt) {
     // Only experts on the CPU are streamed, and the flags alone say whether there are any, so a stream without them is refused before the file is read.
     if (exec.moe_stream_from && !exec.cpu_moe) throw UsageError("--moe-stream-from streams the experts on the CPU; give --n-cpu-moe or --cpu-moe");
     const auto specs = backend::device_specs(exec.device);
@@ -600,6 +601,7 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.cpu_moe = exec.cpu_moe;
     request.stream_from = (size_t)exec.moe_stream_from;
     request.lookup_storage = exec.lookup_storage;
+    request.host_budget = host_budget;
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
     request.apart_rows = apart_rows;
@@ -1355,7 +1357,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
     const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() ? drafts.draft_max : 0);
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart);
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart, cfg.host_cache_bytes);
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
@@ -1373,7 +1375,9 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     const size_t limit = server::Scheduler::request_limit(model, c.ctx_size);
     // Read once the model and its caches are in memory, so the default takes what they leave.
     const bool host_given = c.host_cache_bytes.has_value();
-    if (!host_given) c.host_cache_bytes = server::default_host_cache(model, c.max_seqs, limit);
+    // The donors take what the lookup tables' hot rows leave of the one host budget (infer::host_shares).
+    const size_t rows = model.lookup_store_bytes();
+    c.host_cache_bytes = host_given ? infer::host_shares(c.host_cache_bytes, std::nullopt, rows).donors : server::default_host_cache(model, c.max_seqs, limit);
     if (c.disk.bytes) {
         c.disk.model_path = model_path;
         if (c.disk.dir.empty()) c.disk.dir = (hub::default_cache("--disk-cache-dir") / "kv").u8string();
@@ -1400,6 +1404,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
               << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
               << (vision ? ", reading images of up to " + std::to_string(vision->params.max_pixels) + " pixels" : std::string())
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
+              << (rows ? " and " + std::to_string(rows >> 20) + " MiB for the lookup tables' hot rows" : std::string())
               << ", queue of " << c.max_queue << ")\n";
     if (!loaded->kv_kept_context.empty()) std::cerr << "server: the KV pool is the model's context, without --kv-tokens: " << loaded->kv_kept_context << "\n";
     if (limit < (c.ctx_size ? c.ctx_size : (size_t)model.context_length()))
@@ -1615,9 +1620,10 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt).\n"
             << "A SIZE is a number of bytes, or a number followed by b, k, m, g or t (also kb, kib and so on),\n"
             << "powers of 1024 in any case: 4g, 4GiB and 4096mb are 4294967296 bytes. A fraction needs a suffix, as in 1.5g.\n"
-            << "  --host-cache-bytes SIZE  Host memory for prefixes the devices evict. A value of 0 keeps none\n"
-            << "                          (default: room for --max-seqs full histories, within half the free\n"
-            << "                          host memory. None when every cache is on the CPU)\n"
+            << "  --host-cache-bytes SIZE  Host memory for a lookup table's hot rows and the prefixes the devices\n"
+            << "                          evict, the rows taking first, at most half. A value of 0 keeps neither\n"
+            << "                          (default: half the free host memory, the prefixes taking room for\n"
+            << "                          --max-seqs full histories, none when every cache is on the CPU)\n"
             << "  --disk-cache-bytes SIZE  Disk for what the host cache drops. Needs a host cache (default: 0, none)\n"
             << "  --disk-cache-dir PATH   Where the disk cache lives (default: <home>/" << hub::cache_in_home << "/kv)\n"
             << "  --disk-cache-floor SIZE  Free space the disk keeps after every write\n"

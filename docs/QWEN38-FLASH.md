@@ -193,7 +193,7 @@ HF top-k tie behavior is unspecified, so the tests claim no HF tie-membership pa
 | Memory fit and placement | `src/model/place.hpp`, `layer_split.hpp` and `shard.hpp` over the module's declarations |
 | CLI and server | Parse supported settings and invoke the existing model path; no hash, tensor-layout, loading or table-residency logic |
 
-`WeightRows` is not a second loader or a general cache: it reads the rows a pass names from a retained mapping or through the file's reader.
+`WeightRows` is not a second loader or a general cache: it reads the rows a pass names through the file's reader, and keeps the table's hot rows in host memory within the share placement gives it (docs/CACHE-PLAN.md, section 9).
 
 ## 3. Lookup table storage
 
@@ -223,7 +223,7 @@ The resident timing and repeated-prompt controls are retained in [the 2026-10-20
 Weights stay immutable under the model file's lifetime; there is no writeback and no second on-disk copy.
 A file changed or truncated is refused where the readers can detect it; a mapping does not make external truncation safe.
 The server's host and disk tiers hold conversation histories, not table rows: model code does not depend on them, and table rows never enter donor ranking or persisted cache files.
-Lookup storage neither prefetches nor retains rows across passes (section 5).
+A table read from its file keeps its hot rows across passes in a store of host memory, its share of the one host budget (`--host-cache-bytes`), at most the rows of 1.5M tokens, about 2.4 GiB for this table; a row found there is copied from memory and never read from the file (docs/CACHE-PLAN.md, section 9). Lookup storage reads no further ahead than a stage (section 5).
 
 ## 4. Expert placement and sequence state
 
@@ -264,7 +264,7 @@ HF's `output_gate_type` must be explicitly set to `sigmoid` in reference configu
 
 Section 7 holds the open items of the gates; these are the coverage items the built paths still lack.
 
-- Lookup storage on the released table: cold and warm reads, low and high reuse, prompt and decode batches and concurrent requests, with useful and physical bytes, wait time and end-to-end throughput; row retention across passes, known-token prefetch and a hot-row device cache follow only where such a profile shows they pay.
+- Lookup storage on the released table: cold and warm reads, low and high reuse, prompt and decode batches and concurrent requests, with useful and physical bytes, wait time and end-to-end throughput; rows read ahead to the device and the table whole in memory or split by rows over devices follow only where a profile shows they pay (docs/CACHE-PLAN.md, section 9, steps 2 to 4).
 - Failure and concurrency on the released file: device failure recovery, interruption during disk writes and concurrent persistence.
 - Released-file serving: multi-user performance and tensor-group serving beyond the recorded cells.
 - Checkpoint cost on this model: bytes copied and allocated, and latency, of keep, mark, fork, first continuation and retract at short and long prefixes and several accepted draft lengths, device timings separating submission from completion.

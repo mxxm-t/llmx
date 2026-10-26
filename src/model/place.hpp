@@ -77,7 +77,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
             if (lookup_role && lookup_role->tensor) {
                 const TensorView& source = weights.tensors[*lookup_role->tensor];
                 if (source.row_source)
-                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->staging_bytes()};
+                    fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->host_bytes()};
             }
         }
         for (const Role& role : layer.roles)
@@ -268,6 +268,23 @@ struct LookupCandidate {
     std::shared_ptr<const WeightRows> file;
 };
 
+// The tokens whose distinct rows a table's hot-row store holds at most: where LRU met the unbounded hit rate on the measured row trace (docs/CACHE-PLAN.md, section 9).
+inline constexpr size_t kRowStoreTokens = 1500000;
+
+// One host budget split between the lookup tables' hot rows and a server's evicted prefixes (docs/CACHE-PLAN.md, section 9).
+struct HostShares {
+    size_t rows = 0, donors = 0;
+};
+
+// The rows take first, at most half the budget and at most `rows_cap`, and the donors the rest; `given` is --host-cache-bytes, without which the budget is half the host memory `available`, none where that is unknown.
+inline HostShares host_shares(std::optional<size_t> given, std::optional<size_t> available, size_t rows_cap) {
+    const size_t budget = given ? *given : available ? *available / 2 : 0;
+    HostShares s;
+    s.rows = std::min(rows_cap, budget / 2);
+    s.donors = budget - s.rows;
+    return s;
+}
+
 // How a caller wants a model placed over the backends it made (docs/MULTI-DEVICE.md).
 struct PlacementRequest {
     std::optional<backend::Dtype> dtype; // empty selects auto
@@ -297,6 +314,8 @@ struct PlacementRequest {
     // Devices each layer is split across (docs/TENSOR-SPLIT.md): consecutive backends form groups of this many, and the groups are the stages of the layer split; 1 is the layer split alone.
     size_t width = 1;
     LookupStorage lookup_storage = LookupStorage::automatic;
+    // The host budget the lookup tables' hot rows share with a server's evicted prefixes (host_shares): a server's --host-cache-bytes, none to take it from the host memory available.
+    std::optional<size_t> host_budget;
 };
 
 // The run's activation policy and each device's implementation, resolved once before model construction.
@@ -640,6 +659,42 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     return options;
 }
 
+// Gives each table read from its file its share of the rows' budget (host_shares) by its bytes a token, at most the rows of kRowStoreTokens tokens and every row the table has.
+inline void hold_rows(const ModelPlan& plan, const std::vector<LookupCandidate>& candidates, std::optional<size_t> given) {
+    std::vector<size_t> per_token(candidates.size(), 0), cap(candidates.size(), 0);
+    size_t caps = 0;
+    long double weight = 0;
+    for (size_t i = 0; i < candidates.size(); ++i) {
+        for (const LayerPlan& layer : plan.layers)
+            if (layer.lookup)
+                for (const Role& role : layer.roles)
+                    if (role.id == layer.lookup->role && role.tensor == candidates[i].tensor) per_token[i] += layer.lookup->rows;
+        const WeightRows& t = *candidates[i].file;
+        cap[i] = WeightRows::store_bytes_for(std::min(t.rows(), backend::size_mul(per_token[i], kRowStoreTokens)), t.row_bytes());
+        caps = backend::size_add(caps, cap[i]);
+        weight += (long double)per_token[i] * (long double)t.row_bytes();
+    }
+    // A table whose part reaches its cap takes the cap, and what it leaves goes to the others by their bytes a token.
+    size_t left = host_shares(given, core::host_memory_available(), caps).rows;
+    std::vector<size_t> give(candidates.size(), 0);
+    std::vector<char> capped(candidates.size(), 0);
+    for (bool again = true; again && weight > 0;) {
+        again = false;
+        for (size_t i = 0; i < candidates.size(); ++i) {
+            if (capped[i]) continue;
+            give[i] = size_t((long double)left * (long double)per_token[i] * (long double)candidates[i].file->row_bytes() / weight);
+            if (give[i] < cap[i]) continue;
+            give[i] = cap[i];
+            capped[i] = 1;
+            left -= cap[i];
+            weight -= (long double)per_token[i] * (long double)candidates[i].file->row_bytes();
+            again = true;
+            break;
+        }
+    }
+    for (size_t i = 0; i < candidates.size(); ++i) candidates[i].file->hold(give[i]);
+}
+
 // The placement over one backend, over one with the first `cpu_moe` routed layers' experts on the CPU beside it, or split by layers over several, before model buffers exist.
 // The CPU is device 0 of an experts placement, so the thread count the model reports is the host's; the mixers, the dense blocks, the embedding and the head stay on the device.
 inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<backend::BackendPtr> backends, const PlacementRequest& request,
@@ -681,6 +736,8 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             throw std::runtime_error("placement: lookup source does not match tensor: " + tensor.name);
         bounded->tensors[candidate.tensor].row_source = candidate.file;
     }
+    // A table the request puts on the devices reads nothing from its file, so only the others hold rows.
+    if (request.lookup_storage != LookupStorage::device) hold_rows(plan, candidates, request.host_budget);
     const std::string no_pieces = unpaced(backends, request);
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards.
     shard::check_plan(plan, weights.tensors, request.width);
@@ -776,15 +833,30 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
                 return false;
             }
         };
+        // A host whose budget has no room for the tables' hot rows reads every row from the file, holding none; where the fit fails without them too, they were not why, and the tables keep them.
+        const auto without_rows = [&] {
+            std::vector<size_t> held(candidates.size());
+            bool any = false;
+            for (size_t i = 0; i < candidates.size(); ++i) {
+                held[i] = candidates[i].file->store_bytes();
+                any = any || held[i];
+                candidates[i].file->hold(0);
+            }
+            if (!any) return false;
+            if (fits()) return true;
+            for (size_t i = 0; i < candidates.size(); ++i) candidates[i].file->hold(held[i]);
+            return false;
+        };
         // Host staging can be the limiting budget even where the resident table costs more device memory.
         const auto initial_fit = [&] {
             if (fits()) return true;
-            if (request.lookup_storage != LookupStorage::automatic) return false;
-            const auto previous = placed.lookups;
-            placed.lookups.assign(candidates.size(), LookupStorage::device);
-            if (fits()) return true;
-            placed.lookups = previous;
-            return false;
+            if (request.lookup_storage == LookupStorage::automatic) {
+                const auto previous = placed.lookups;
+                placed.lookups.assign(candidates.size(), LookupStorage::device);
+                if (fits()) return true;
+                placed.lookups = previous;
+            }
+            return without_rows();
         };
         if (!request.fit_kv) {
             std::vector<std::string> fit_names = request.names;
@@ -805,10 +877,13 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
             }
         } else {
             placed.lookups.assign(candidates.size(), request.lookup_storage);
-            if (!fits())
+            if (!fits() && !without_rows())
                 throw std::runtime_error("placement: lookup storage " + std::string(lookup_storage_name(request.lookup_storage)) +
                                          " does not fit beside the KV budget of " + std::to_string(kv_tokens(plan, options)) + " tokens (" + why + ")");
         }
+        // A table on the devices reads nothing from its file, so it holds no rows in host memory.
+        for (size_t i = 0; i < candidates.size(); ++i)
+            if (placed.lookups[i] == LookupStorage::device) candidates[i].file->hold(0);
     }
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)

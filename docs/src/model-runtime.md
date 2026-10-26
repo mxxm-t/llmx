@@ -203,7 +203,7 @@ delegated to a `backend::Backend`.
   - `row_class(extent)` is the one owner of which rows compute the same bits: each used device's `Backend::row_class` and whether the rows take a streamed layer on the device.
   - `set_threads(n)` applies to every backend and `threads_available()` reports the largest count among them, the host's wherever it sits in a placement.
     The thread getter reports the resolved backend count, allowing the CLI to restore automatic decode settings after prefill.
-  - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's; `decode_columns()` is the fewest decode columns of its devices' backends (`Backend::decode_columns`).
+  - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's; `lookup_store_bytes()` is the host bytes the lookup tables hold of their hot rows, each table once (`WeightRows::store_bytes`); `decode_columns()` is the fewest decode columns of its devices' backends (`Backend::decode_columns`).
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.
   - `step(ids, n) -> rows`: one entry of `n` tokens of extent 1 with every

@@ -177,11 +177,10 @@ inline Taken make_room(const std::vector<size_t>& free, const std::vector<size_t
     return t;
 }
 
-// The host tier's default size (Scheduler, --host-cache-bytes): `seqs` histories of `history` bytes, within half of `free`, the host memory free once the model is loaded; none where that is unknown.
-inline size_t host_cache_default(size_t history, size_t seqs, std::optional<size_t> free) {
-    if (!free) return 0;
-    const size_t cap = *free / 2;
-    return history && seqs > cap / history ? cap : std::min(cap, history * seqs);
+// The host tier's default size (Scheduler, --host-cache-bytes): `seqs` histories of `history` bytes, within `cap`, the donors' share of the host budget (infer::host_shares); none where that is unknown.
+inline size_t host_cache_default(size_t history, size_t seqs, std::optional<size_t> cap) {
+    if (!cap) return 0;
+    return history && seqs > *cap / history ? *cap : std::min(*cap, history * seqs);
 }
 
 // The most tokens a history may have for a request to yield the pool's edge (Scheduler::yields keeps a history whole only where `bytes_of(its length)` is within the host tier's `cap`): whole blocks of `bt` up to `limit`, 0 where not one fits.

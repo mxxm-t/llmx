@@ -101,7 +101,7 @@ The host tier stays the window of the newest entries and the disk tier keeps wha
 ## Crash safety and cleanup
 
 - **Directory.** The tier lives in `--disk-cache-dir` (default `<home>/.cache/llmx/kv`, beside the hub cache), in a directory of its own for each server: `server-<pid>-<random>`, created mode 0700, holding a `lock` file the server keeps locked for its whole life (`flock` with `LOCK_EX`, `LockFileEx` on Windows), released by the kernel however the process ends.
-- **Writing.** An entry is written to `entry-<id>.tmp`, flushed (`fdatasync`, `FlushFileBuffers`), then renamed to `entry-<id>.kv` and the directory flushed; a reader, the index or the sweep only ever sees complete files.
+- **Writing.** An entry is written to `entry-<id>.tmp`, flushed (`core::sync_handle`, `docs/src/core-file_sync.md`), then renamed to `entry-<id>.kv` and the directory flushed; a reader, the index or the sweep only ever sees complete files.
 - **Startup sweep.** Every server, before it writes, tries the lock of every instance directory under the root: a directory whose lock it gets belonged to a server that is gone. Unkept directories and kept directories past their age limit are removed with their contents; a kept directory still within its age limit is retained if it cannot be adopted, including one with a different identity. A directory whose lock is held is another live server's and is never touched. Its own directory starts empty.
   The sweep runs again every ten minutes, so a crashed server's leftovers on a disk shared with servers that keep running do not wait for the next start.
 - **Clean exit.** The server removes its own directory before it exits, so nothing it wrote remains.

@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## One owner for making a file durable (2026-10-26, branch fix/file-sync-owner on main 7300e94ac, lands by fast-forward as two commits)
+
+- **Goal:** the disk store flushed with plain `fsync`, so on macOS a cache entry, a claim's identity write and a claimed file could sit in the drive's cache after the store reported them durable, while `FileWriter::sync` used `F_FULLFSYNC`. One owner in `core/file_sync.hpp` gives both the strongest call per platform.
+- **Done:** the failing test came first: `disk-store` requires a write and a claim to flush through the owner (`core::sync_calls`), which the store's own `fsync` did not. `FileWriter::sync` and `DiskStore` now call `core::sync_handle`, `core::sync_file` and `core::sync_directory`; the store's two private variants and the writer's platform branches are gone. The macOS branch cannot run on the Linux and Windows runners, so the test holds the routing and the branch is read in review.
+- **Left:** a macOS run of `disk-store` and the hosted run.
+- **Gotchas:** the file is named out of the numerics fingerprint with an allow line for `file_writer.hpp`. The fingerprint still moves with this change, because editing `src/format/file_writer.hpp` and `cmake/numerics-sources.txt` changes bytes of files it covers; no file was added to it and no flush changes a byte of an entry. On Linux a claimed file and the identity file are now flushed with `fdatasync` where the store used `fsync`; the file's size is still flushed when it matters, and a directory still gets `fsync`.
+
 ## Vulkan module float controls (in progress, 2026-10-26)
 
 - **Goal:** give each shader module one declared set of float controls and verify the words passed to module creation. Current branch `fix/vulkan-float-controls-train-20261026` is based on agreed decode stack `5eb59c0d3`, which is queued and not yet public main; NVFP4 depends on this fix. The agreed sequence is float controls, args-flush, then narrow tile, with one hosted run at the tip.

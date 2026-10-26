@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <string>
+#include "core/file_sync.hpp"
 #include "core/host_memory.hpp"
 #include "format/file_reader.hpp"
 
@@ -83,12 +84,9 @@ public:
     // Everything written reaches the disk before this returns.
     void sync() {
 #if defined(_WIN32)
-        if (!FlushFileBuffers(file_)) throw std::runtime_error("cannot flush file: " + path_);
-#elif defined(__APPLE__)
-        // fsync leaves the bytes in the drive's cache on macOS; F_FULLFSYNC flushes it, and fsync stands in where the file system refuses it.
-        if (fcntl(fd_, F_FULLFSYNC) != 0 && fsync(fd_) != 0) throw std::runtime_error("cannot flush file: " + path_ + " (" + std::strerror(errno) + ")");
+        if (!core::sync_handle(file_)) throw std::runtime_error("cannot flush file: " + path_);
 #else
-        if (fdatasync(fd_) != 0) throw std::runtime_error("cannot flush file: " + path_ + " (" + std::strerror(errno) + ")");
+        if (!core::sync_handle(fd_)) throw std::runtime_error("cannot flush file: " + path_ + " (" + std::strerror(errno) + ")");
 #endif
     }
 

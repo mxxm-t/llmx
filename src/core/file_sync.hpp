@@ -32,16 +32,18 @@ inline std::atomic<uint64_t>& sync_calls() {
     return calls;
 }
 
-// An open file's bytes on the disk, not only with the operating system.
-// macOS keeps fsync's bytes in the drive's cache, so F_FULLFSYNC is asked first and fsync stands in where the file system refuses it.
-inline bool sync_handle(FileHandle h) {
+// An open file's bytes on the disk; macOS asks F_FULLFSYNC, since its fsync leaves them in the drive's cache.
+// A directory asks for `whole`, its entries being metadata that fdatasync need not flush.
+inline bool sync_handle(FileHandle h, bool whole = false) {
     sync_calls().fetch_add(1, std::memory_order_relaxed);
 #if defined(_WIN32)
+    (void)whole;
     return FlushFileBuffers(h) != 0;
 #elif defined(__APPLE__)
+    (void)whole;
     return fcntl(h, F_FULLFSYNC) == 0 || fsync(h) == 0;
 #else
-    return fdatasync(h) == 0;
+    return (whole ? fsync(h) : fdatasync(h)) == 0;
 #endif
 }
 
@@ -67,7 +69,7 @@ inline void sync_directory(const std::filesystem::path& dir) {
 #if !defined(_WIN32)
     const int fd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) return;
-    sync_handle(fd);
+    sync_handle(fd, true);
     ::close(fd);
 #else
     (void)dir;

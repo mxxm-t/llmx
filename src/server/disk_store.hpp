@@ -20,6 +20,7 @@
 #include <vector>
 #include "backends/backend.hpp"
 #include "core/crc32c.hpp"
+#include "core/file_sync.hpp"
 #include "core/host_memory.hpp"
 #include "core/sha.hpp"
 #include "format/file_reader.hpp"
@@ -602,7 +603,7 @@ private:
             out.flush();
             ok = out.good();
         }
-        ok = ok && sync_file(file);
+        ok = ok && core::sync_file(file);
         std::error_code ec;
         if (!ok) std::filesystem::remove(file, ec);
         return ok;
@@ -786,7 +787,7 @@ private:
             error = e.what();
             return false;
         }
-        sync_directory();
+        core::sync_directory(dir_);
         const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count();
         if (took > 0 && !options_.pace.count()) rate_.store(rate_.load() > 0 ? 0.5 * rate_.load() + 0.5 * (double)total / took : (double)total / took);
         std::lock_guard<std::mutex> lk(m_);
@@ -917,7 +918,7 @@ private:
             f.seekp(20);
             if (!f.write((const char*)id.data(), 32) || !f.flush()) return Owner::failed;
             f.close();
-            return sync_file(file) ? which : Owner::failed;
+            return core::sync_file(file) ? which : Owner::failed;
         }
         return Owner::none;
     }
@@ -938,41 +939,13 @@ private:
             f.seekp(0);
             if (!f.write((const char*)head.data(), (std::streamsize)head.size()) || !f.flush()) return false;
         }
-        if ((options_.fault && options_.fault("claim-sync")) || !sync_file(file)) return false;
+        if ((options_.fault && options_.fault("claim-sync")) || !core::sync_file(file)) return false;
         std::error_code ec;
         std::filesystem::remove(path(key, ".from"), ec);
-        sync_directory();
+        core::sync_directory(dir_);
         std::lock_guard<std::mutex> lk(m_);
         foreign_.erase(key);
         return true;
-    }
-
-    // A file's bytes on the disk, not only with the operating system.
-    static bool sync_file(const std::filesystem::path& file) {
-#if defined(_WIN32)
-        const HANDLE h = CreateFileW(file.c_str(), GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h == INVALID_HANDLE_VALUE) return false;
-        const bool ok = FlushFileBuffers(h) != 0;
-        CloseHandle(h);
-        return ok;
-#else
-        const int fd = ::open(file.c_str(), O_WRONLY | O_CLOEXEC);
-        if (fd < 0) return false;
-        const bool ok = fsync(fd) == 0;
-        ::close(fd);
-        return ok;
-#endif
-    }
-
-    // A rename reaches the disk with its directory.
-    void sync_directory() const {
-#if !defined(_WIN32)
-        const int fd = ::open(dir_.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-        if (fd >= 0) {
-            fsync(fd);
-            ::close(fd);
-        }
-#endif
     }
 
     Options options_;

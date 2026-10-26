@@ -223,13 +223,13 @@ server::Scheduler::Images stepped(const Req& r, size_t steps, const std::shared_
         auto life = std::make_shared<Life>();
         life->seen = seen;
         auto left = std::make_shared<size_t>(steps);
-        return server::ImageSteps([rows, seen, life, left]() -> std::shared_ptr<const std::vector<float>> {
+        return server::ImageSteps{[rows, seen, life, left]() -> std::shared_ptr<const std::vector<float>> {
             ++seen->steps;
             const size_t now = seen->passes.load();
             if (now != seen->last.exchange(now) || seen->steps == 1) ++seen->spread;
             std::this_thread::sleep_for(seen->pause);
             return --*left ? nullptr : rows;
-        });
+        }, steps};
     };
     return images;
 }
@@ -274,6 +274,47 @@ void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
         auto after = std::make_shared<Encodes>();
         same(alone[2], drain(*submit(next, stepped(next, 4, after))), "an image after a cancelled encode");
         require(after->steps == 4 && after->alive == 0, "the image after a cancelled encode: " + std::to_string(after->steps.load()) + " pieces");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
+// A request alone at its image runs its pieces in one round, which a health poll ends, so the live items show it in phase "encode": its image's rows and its pieces done rising to their total.
+void encode_live(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
+    const Make make = on(weights, [] { return cpus(1); }, 3, 0);
+    const Req img = with_image(3, 20, 4, 4, 10, 11, 8);
+    auto fresh = make(1024, 0);
+    const Reply alone = serve(*fresh, tok, 3, {{img}})[0];
+    auto model = make(1024, 0);
+    server::Scheduler sched(*model, tok, 3, 64);
+    auto seen = std::make_shared<Encodes>();
+    seen->pause = std::chrono::milliseconds(5);
+    std::thread runner([&] { sched.run(); });
+    try {
+        const auto h = sched.submit(img.prompt, params_of(img), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, stepped(img, 400, seen));
+        size_t first = 0, last = 0;
+        uint64_t first_ms = 0, last_ms = 0;
+        within_a_minute([&] {
+            const server::Scheduler::Stats s = sched.stats();
+            for (size_t i = 0; i < s.live.count; ++i) {
+                const auto& v = s.live.items[i];
+                if (std::string(v.phase) != "encode") continue;
+                require(v.image_index == 1 && v.image_count == 1 && v.image_rows == 16 &&
+                            (v.pieces_total ? v.pieces_total == 400 && v.pieces_done <= 400 : !v.pieces_done && !v.image_elapsed_ms),
+                        "an encoding request's live item: image " + std::to_string(v.image_index) + " of " + std::to_string(v.image_count) + ", " + std::to_string(v.image_rows) +
+                            " rows, " + std::to_string(v.pieces_done) + " of " + std::to_string(v.pieces_total) + " pieces in " + std::to_string(v.image_elapsed_ms) + " ms");
+                if (!first) first = v.pieces_done, first_ms = v.image_elapsed_ms;
+                last = v.pieces_done;
+                last_ms = v.image_elapsed_ms;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            return first && last > first && last_ms > first_ms;
+        }, "a lone request's encode in the live items, its pieces and its time rising");
+        same(alone, drain(*h), "a request whose encode the live items showed");
     } catch (...) {
         sched.stop();
         runner.join();
@@ -338,6 +379,7 @@ int main() {
         const bpe::Tokenizer tok(weights);
         pieces(weights, tok);
         job_gives_way(weights, tok);
+        encode_live(weights, tok);
         follow_ups(weights, tok);
         paused(weights, tok);
         host_tier(weights, tok);

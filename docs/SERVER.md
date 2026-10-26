@@ -484,6 +484,30 @@ Refused with 400, each naming its field and why: `tool_choice` `"required"` or n
 
 None: forks across row classes, the last, closed with `Model::row_class` ([SPECULATIVE](SPECULATIVE.md), step 1), so a first admission forks only rows computed as it computes them.
 
+## Short prompts beside a long one (planned, 2026-10-26)
+
+The owner's direction of 2026-10-26: prompts keep their arrival order, but a prompt with little left to read takes rows beside a long one in the same round, rather than waiting for all of it (vLLM's partial prefill: at most so many long prompts at once, and a threshold below which a prompt is short). No least-left-first ordering and no new flag.
+Read at main f61c8ca75.
+
+**What happens today.**
+- A round fills a pass's prompt budget in arrival order (`Scheduler::form`, `scheduler.hpp:1111 at f61c8ca75`): the oldest prompt's slice takes `min(budget, most)`, a ubatch outside an overlap and the piece search's cut beside generated rows (`piece_cut`), which leaves nothing for a later prompt.
+- Under the interleaved rule in an overlap a pass holds one prompt's slice and skips every later prompt once one is set (`one_slice`, `scheduler.hpp:1106 at f61c8ca75` and `scheduler.hpp:1113 at f61c8ca75`).
+- On a pipelined split the long prompt continues in passes of its own in the free slots (`continues`, `scheduler.hpp:2151 at f61c8ca75`), so a later prompt waits until the long one is read whole.
+- Production, 2026-10-26: Open WebUI's title, tag and follow-up tasks send 110k-200k-token histories nothing reuses (0 reused, 131-244 s to the first token); a chat turn admitted behind one shows no progress until the task's prompt is read (owner, dashboard).
+
+**The rule.**
+- A later prompt is short where its remaining rows fit a share of the round's prompt budget: a quarter, to be fixed by the scenario's measurement among an eighth, a quarter and a half (`kShortShare`, a code constant). At ubatch 512 outside an overlap a quarter is 128 rows, which holds the 66-row chat turn; beside replies the budget is the piece cut, so a short prompt is one a stage reads within a quarter of its piece target.
+- Outside an overlap, short prompts are read whole first in a round's pass, as many as the share holds; the oldest long prompt takes the rest of the budget, and other long prompts wait as now. Arrival order holds among the ready requests that are eligible: the short prompts taken are a prefix of the ready short ones in arrival order, so a ready short prompt is never passed over for a smaller later one when the share is tight, and a share too small for the next one, or no ready short prompt, leaves the round to the long prompt as today.
+- Under the interleaved rule in an overlap a pass still carries one prompt (`one_slice`), and each stage keeps one piece search, reset whenever a pass names another prompt (`scheduler.hpp:1693 at f61c8ca75` and `scheduler.hpp:2017 at f61c8ca75`). So a short prompt takes a pass alone, its rows within the share of its piece cut, untimed (`f.timed` false), and leaves each stage's search to the long prompt as it was.
+- The intended pacing: the short rows come out of the budget the piece search sized, and the passes of generated rows still go between the prompt passes, so reply gaps stay bounded as today. That arithmetic is not the proof, since other row classes, the extra short passes and their dispatch can change a row's time; the gate measures each stage's pass time and the reply's inter-token latency.
+- Where the long prompt would continue in a pass of its own, a waiting short prompt takes the free slot first, in a pass of its own, at most one such pass ahead of a continuation a round, so a stream of short arrivals cannot keep the long prompt from its slots; the long prompt continues in the next free slot. `continues` keeps one slot free beside generated rows, so a short prompt never takes the reply's slot.
+- Batch invariance: each entry's rows are computed in the row classes its own request carries (`class_at`, `BatchEntry::extent`), so moving the long prompt's slice boundaries, or reading a short prompt beside it, changes neither's bits. The tests below hold that by comparison with each request run alone.
+
+**Tests and the gate.**
+- `server-passes`: in the random schedules a short prompt admitted behind a long one gets its first slice within one lap of becoming ready, the oldest ready long prompt forms a slice within a lap, admission and long prompts keep their order, and the existing invariants hold; by hand, the share's edge (a prompt of the share's rows is short, one more row is not), a share below one row or one step and a cancelled or not-ready short prompt each leaving the round to the long prompt, a short prompt not passed over for a smaller later one, the one short pass a round ahead of a continuation, and the long prompt's next cut after a short pass equal to the cut it would have had without it.
+- `server-passes-cpu`: a 2000-token prompt with a 60-token prompt arriving after it, on one CPU and over two and three stages, at P = S and 2S: the short request's first token comes before the long prompt is read, and every id, log-probability and logits row equals its run alone.
+- Production-shaped, on 2x2 at production's flags, Qwen3.8-Flash-Next UD-Q4_K_XL: a 66-row chat turn admitted behind a 150k-token prompt nothing reuses, with one reply generating, and a second cell of four short turns arriving behind it; each turn's time to first token on main against the branch, reported with the long prompt's loss, (main expected near the long prompt's whole read, about two minutes), the long prompt's time within a stated loss, and the reply's inter-token latency level. The share is chosen there.
+
 ## Gates
 
 - **Correctness.** A greedy request through the server gives the same

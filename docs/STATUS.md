@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The fit counts a shard's bytes without listing its runs (2026-10-26, SDEV, branch feat/fit-shard-bytes on main ac940c059, step 1 of the server startup plan the owner decided, lands by fast-forward as one commit)
+
+- **Goal:** the fit (`fitted_kv`) took 338.7 s of Qwen3.8-Flash-Next's 527.6 s start on production's cell, each `footprint` at tensor width 2 taking 14.9 s because `shard::runs` listed about 63M runs a member for `shard::bytes` to count them (Server startup profiled end to end, below).
+- **Done:** `shard::held_bytes` counts a member's bytes from the rows it covers on the row axis and each row's spans on the column axis, and `footprint` takes a shard's bytes from it; `shard`'s test holds it equal to the runs' count for every role, storage type and width it packs, the covered experts and the shared expert included.
+- **Left:** CTest, the model tier's gate (the placement and the fit identical to main on the CPU and a device, the suite on a device, one timing round) and the start on production's cell; F2DEV's review.
+- **Gotchas:** `shard::runs` and `shard::bytes` stay for construct and the stream until step 3 moves them onto the same description, and the test of the two counts goes with them.
+
 ## A lookup table keeps its hot rows in host memory under the one host budget (2026-10-26, branch feat/lookup-row-store on main 8632074e8, step 1 of docs/CACHE-PLAN.md section 9, the owner's decisions of 2026-10-26, lands by fast-forward as two commits)
 
 - **Goal:** Qwen3.8-Flash-Next's per-layer table (26.8 GiB, read from its file under `--lookup-storage file`) keeps the rows it has read in host memory, so a row read before is copied from memory and never read from the file again; CACHE-PLAN section 9 measured the rows' cost at 0.14 s of a fresh 2048-token prompt on production's cell and projects about 0.1 s from a 2 GiB store.

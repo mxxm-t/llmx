@@ -44,6 +44,11 @@ Each step on its own branch, measured on production's cell against main as above
 
 With steps 1 and 2 a start measured 101.8 s to listening against 527.6, and with 4a no digest at an update; with step 3 about 91 s (estimated), with step 6 about 45 s (estimated).
 
+## A refusal the reference generator's test provokes prints nothing (2026-10-26, branch fix/refusal-stderr on main f61c8ca75, tests only, the coordinator's order of 2026-10-26, lands by fast-forward as one commit)
+
+- **Why:** `reference-generator` checked `iq3-s --threads 2` refused without taking stderr, so every suite run printed "run_tests.py: error: iq3-s uses fixed synthetic raw blocks and one thread; only --output-dir applies" into its log, where it reads as a failure.
+- **Done:** the check takes stderr as its neighbours do and also holds the exit status to 2. `tests/reference_generator.py` passes its 85 tests on the CPU with the line gone; the hosted run is the rest of its gate.
+
 ## A lookup table read from its file reads on its own readers in every load mode (2026-10-26, branch fix/lookup-rows-reader on main 7300e94ac, the owner's decision of 2026-10-26, lands by fast-forward as two commits)
 
 - **Why:** under `--load-mode auto` and `mapped` the loader gave a table read from its file a second source, a view over the payload's mapping, which `WeightRows::start` copied a row at a time on the stage's thread; only `direct` reached the table's readers that read ahead on 16 threads.

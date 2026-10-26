@@ -178,8 +178,9 @@ class ReferenceGenerator(unittest.TestCase):
             self.assertEqual(type_id, 21)
             self.assertEqual(shape[0] % 256, 0)
             self.assertEqual(len(payload), math.prod(shape) // 256 * 110)
-        with self.assertRaises(SystemExit):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
             generator.parse_args(["iq3-s", "--threads", "2"])
+        self.assertEqual(error.exception.code, 2)
 
     def test_iq4_xs_fixture_block_layout(self):
         import iq4_xs

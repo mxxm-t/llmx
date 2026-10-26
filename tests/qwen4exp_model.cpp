@@ -994,6 +994,11 @@ void loader_checks(const std::string& path, const std::string& device, const std
             if (mode == infer::LoadMode::direct)
                 for (const auto& segment : loaded->file.segments)
                     if (segment.file) throw std::runtime_error("loader: direct mode mapped a file");
+            // A table read from its file reads through the table's readers in every mode, so it holds no share of the payload's mapping.
+            if (external)
+                for (const auto& segment : loaded->file.segments)
+                    if (segment.file && segment.file.use_count() != 1)
+                        throw std::runtime_error(std::string("loader: ") + infer::load_mode_name(mode) + " reads its lookup table through the mapping");
             const std::string label = std::string("loader ") + infer::load_mode_name(mode) + "/" + infer::lookup_storage_name(storage);
             compare(score(*loaded->model, prompt), expected, label);
             compare(score(*loaded->model, prompt), expected, label + " repeat");

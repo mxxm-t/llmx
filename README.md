@@ -39,7 +39,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `IQ4_NL`, `IQ4_XS` | Supported | Supported | No |
 | `TQ1_0`, `TQ2_0` | Supported | Supported | No |
 
-Vulkan `MXFP4` inference requires float-preservation and double-arithmetic support from the device. Each model tensor must be supported by its assigned backend; devices do not fall back to the CPU automatically.
+The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format is rejected; llmx does not move it to the CPU automatically.
 
 GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. `Q8_1` and `Q8_K` are auxiliary formats. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
 

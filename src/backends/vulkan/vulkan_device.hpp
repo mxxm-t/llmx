@@ -25,6 +25,19 @@
 namespace backend {
 namespace {
 
+enum : uint32_t {
+    kDenorm32 = 1u, kSpecial32 = 2u, kSpecial64 = 4u,
+    kPreserve32 = kDenorm32 | kSpecial32,
+    kMxfp4Controls = kPreserve32 | kSpecial64
+};
+
+// Map only properties used by declared kernel controls.
+inline uint32_t float_control_support(const VkPhysicalDeviceFloatControlsProperties& p) {
+    return (p.shaderDenormPreserveFloat32 ? kDenorm32 : 0u) |
+           (p.shaderSignedZeroInfNanPreserveFloat32 ? kSpecial32 : 0u) |
+           (p.shaderSignedZeroInfNanPreserveFloat64 ? kSpecial64 : 0u);
+}
+
 // Every entry point the backend uses, fetched through the loader at run time so nothing links against vulkan-1.
 #define LLMX_VK_GLOBAL_FUNCTIONS(X) \
     X(vkCreateInstance) \
@@ -200,9 +213,10 @@ struct Device {
     VkPhysicalDeviceMemoryProperties memory{};
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
-    bool mxfp4 = false; // exact weight range and wide partials require optional float preservation and double
+    bool mxfp4 = false; // MXFP4 range repair and partials require F64 and the declared float controls
     bool preserve_float32 = false; // optional matrix modules retain subnormal values
     bool workgroup_counter = false; // the fused routed step's routing by the last workgroup (missing_counter_need)
+    uint32_t float_controls = 0; // properties available to the kernel table
     std::string identity;          // the device and the driver that compiles its kernels (Backend::identity)
     bool push_descriptor = false;
     bool memory_budget = false;   // the device reports what is free of each heap (VK_EXT_memory_budget)

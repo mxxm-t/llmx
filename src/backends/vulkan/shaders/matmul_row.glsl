@@ -51,8 +51,6 @@ const bool AFFINE_Q5 = false;
 #endif
 #ifdef LLMX_MXFP4
 #extension GL_ARB_gpu_shader_fp64 : require
-#extension GL_EXT_spirv_intrinsics : require
-spirv_execution_mode(capabilities = [4466], 4461, 64);
 #endif
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;

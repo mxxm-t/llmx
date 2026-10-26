@@ -3,8 +3,6 @@
 // Up to three projections: projection q's parts start at parts * (the outputs before q), part z at z * n_q after that; each projection has whole workgroups from start_q on, so a workgroup's output buffer is uniform.
 #ifdef LLMX_MXFP4
 #extension GL_ARB_gpu_shader_fp64 : require
-#extension GL_EXT_spirv_intrinsics : require
-spirv_execution_mode(capabilities = [4466], 4461, 64);
 #endif
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;

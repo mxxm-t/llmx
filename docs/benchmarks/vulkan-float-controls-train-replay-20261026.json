@@ -1,0 +1,104 @@
+{
+  "scope": "Shared float controls integrated onto the decode stack; focused Windows qualification only",
+  "base": "5eb59c0d30c0896ac8b86d1d60158153d94c95ef",
+  "before": {
+    "steps": [
+      {
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\build",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-0.log",
+        "started": 1792978524.8307195,
+        "ended": 1792978532.5675495,
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx-vulkan-lifetime-test"
+        ],
+        "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-1.log",
+        "started": 1792978532.5685503,
+        "ended": 1792978624.755931,
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\build\\Release\\llmx-vulkan-lifetime-test.exe",
+          "--float-controls"
+        ],
+        "log": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-2.log",
+        "started": 1792978624.755931,
+        "ended": 1792978624.7919312,
+        "exit_code": 1
+      }
+    ],
+    "expected_failure": "vulkan: kernel float controls disagree with their declaration"
+  },
+  "resolution": "Keep both Device members and declare kPreserve32 on all 14 new preserved module rows.",
+  "after": {
+    "prepared_selections": 522,
+    "missing_property_refusals": 420,
+    "property_masks": 8,
+    "intercepted_and_driver_created_modules": 261,
+    "failures": 0,
+    "native_log": "Start testing: Oct 26 03:38 FLE Standard Time\n----------------------------------------------------------\n66/90 Testing: vulkan-float-controls\n66/90 Test: vulkan-float-controls\nCommand: \"C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-float-controls-train-20261026/build-float-controls/replay/build/Release/llmx-vulkan-lifetime-test.exe\" \"--float-controls\"\nDirectory: C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-float-controls-train-20261026/build-float-controls/replay/build\n\"vulkan-float-controls\" start time: Oct 26 03:38 FLE Standard Time\nOutput:\n----------------------------------------------------------\nfloat controls: 522 prepared modules, 420 missing-property refusals, 0 failures\n<end of output>\nTest time =   0.04 sec\n----------------------------------------------------------\nTest Passed.\n\"vulkan-float-controls\" end time: Oct 26 03:38 FLE Standard Time\n\"vulkan-float-controls\" time elapsed: 00:00:00\n----------------------------------------------------------\n\n67/90 Testing: vulkan-float-controls-device\n67/90 Test: vulkan-float-controls-device\nCommand: \"C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-float-controls-train-20261026/build-float-controls/replay/build/Release/llmx-vulkan-lifetime-test.exe\" \"--float-controls-device\"\nDirectory: C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-float-controls-train-20261026/build-float-controls/replay/build\n\"vulkan-float-controls-device\" start time: Oct 26 03:38 FLE Standard Time\nOutput:\n----------------------------------------------------------\nfloat controls: 261 intercepted modules and driver creation checks, 0 failures\n<end of output>\nTest time =   0.23 sec\n----------------------------------------------------------\nTest Passed.\n\"vulkan-float-controls-device\" end time: Oct 26 03:38 FLE Standard Time\n\"vulkan-float-controls-device\" time elapsed: 00:00:00\n----------------------------------------------------------\n\nEnd testing: Oct 26 03:38 FLE Standard Time\n",
+    "product_version": "llmx 0.1.0+geb1596865842.dirty numerics a5e56495b8fc7893",
+    "binary_hashes": {
+      "llmx.exe": "ff4c491df2271bd00f9f671cfdab68e5d25a1995d127a82c72e86b1dfaf8376d",
+      "llmx-vulkan-lifetime-test.exe": "2bf3baa6f27a9c8b7691205080279fa64ff4be5c7ce1acd688b95bd9bdfa107e"
+    },
+    "source_hashes": {
+      "src/backends/vulkan/vulkan_device.hpp": "631de82b053f721acb8c67e2d59c01a393e4795d7b39d71de8ed6296221ec311",
+      "src/backends/vulkan/vulkan_kernels.hpp": "88994b5349b5435c326fac6c1d30a234f037811bde5e370e0805ea228e93dfe7",
+      "src/backends/vulkan/vulkan_dispatch.hpp": "e5646103cb8f46b0389bb792728deb3a5f7cf80c7b34c1af4748c764b198b055",
+      "src/backends/vulkan/vulkan_backend.cpp": "42be1a1fc45c6ad578f58cab9e6187c71e0c2e73b07a409cd40406ebda649c06",
+      "tests/vulkan_buffer.cpp": "87be09315844ed6bfcece34b2af7860c15b15a5a9f21457631cd3eb76e0d2def"
+    }
+  },
+  "logs": {
+    "before-0.log": {
+      "sha256": "09f145c715b92540b40aa7158de8f8acf05526a8bac915aa5b330201a88eb0aa",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-0.log"
+    },
+    "before-1.log": {
+      "sha256": "089989ad43959bc38b211c02b6ac48886b0fb193d4d224b0f7627179d4b5fbd1",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-1.log"
+    },
+    "before-2.log": {
+      "sha256": "9aca0aba297f33511aafc22b5c4aa71e5e713cc2a73d037f38e8685edeff1862",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\before-2.log"
+    },
+    "after-build.log": {
+      "sha256": "240bee4e4f3211efe1ad2276b9e0689e1f844f77d080e369f5f68f1547557fb0",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\after-build.log"
+    },
+    "after-test.log": {
+      "sha256": "a751ab79e2f09d05bc80ba71304cd40d8427020f8b0b6e3f837395c937b690b9",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\after-test.log"
+    },
+    "product-build.log": {
+      "sha256": "9e3e109ec8c6172d6a6bc205f5bd44883acc6bccb41be2b9193e9720c6bce508",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\product-build.log"
+    },
+    "docs.log": {
+      "sha256": "1d582be195ed498fd5ada77653ba52c22c5bbef251c78e7f94cde2fac2f41fef",
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\replay\\docs.log"
+    }
+  },
+  "limits": "Driver module creation does not establish pipeline acceptance, execution correctness, HF accuracy or performance. Final-base paired model checks, device suite, timing and hosted train CI are pending."
+}

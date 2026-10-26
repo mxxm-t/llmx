@@ -39,8 +39,6 @@ int dot_word(uvec2 w, uvec2 x, int acc) { return dot_pairs(w, x, acc); }
 #endif
 #ifdef LLMX_Q8MX
 #extension GL_ARB_gpu_shader_fp64 : require
-#extension GL_EXT_spirv_intrinsics : require
-spirv_execution_mode(capabilities = [4466], 4461, 64);
 #endif
 #include "float_controls.glsl"
 layout(local_size_x = 256) in;

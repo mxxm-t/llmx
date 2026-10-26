@@ -221,7 +221,7 @@ The split tool accepts an optional dtype (`auto`, `f16`, `bf16`, `f32` or `int8`
 These targets exist only with `LLMX_HAS_BACKEND_VULKAN=ON`:
 
 - `llmx-vulkan`, the backend library the binary, tests and tools link, and `llmx-vulkan-shaders`, the step that compiles the shaders.
-- `llmx-backend-vulkan-test`, the CTest `backend-vulkan`, and `llmx-vulkan-lifetime-test`, the CTests `vulkan-buffer`, `vulkan-float-controls` and `vulkan-lifetime`.
+- `llmx-backend-vulkan-test`, the CTest `backend-vulkan`, and `llmx-vulkan-lifetime-test`, the CTests `vulkan-buffer`, `vulkan-float-controls`, `vulkan-float-controls-device` and `vulkan-lifetime`.
 - `llmx-vulkan-quantization-test`, the CTest `vulkan-quantization`, which checks packed activations and Q8 reconstruction at floating-point range boundaries.
 - The tools `llmx-multi-device-bench`, `llmx-moe-kernel-bench` and `llmx-vk-handoff`, which are not tests.
 
@@ -271,6 +271,6 @@ python3 tests/run_tests.py --exe build/llmx --no-perf-floor
 - `--only baseline` runs just the named components, comma separated for several.
 - Real-model checks skip when their models are absent; `tools/fetch_test_models.py` downloads the pinned models they use, and `--require-baseline` makes a missing one fail the suite.
 - `raw-blocks` checks the spec decoders' numpy form only where numpy is installed and otherwise skips those checks; `--require-tools`, which CI passes, makes that a failure.
-- In a Vulkan build without a usable device, CTest reports `backend-vulkan`, `vulkan-lifetime` and `vulkan-quantization` as skipped.
+- In a Vulkan build without a usable device, CTest reports `backend-vulkan`, `vulkan-lifetime`, `vulkan-float-controls-device` and `vulkan-quantization` as skipped. `vulkan-float-controls` runs without a device. With a usable device, `vulkan-float-controls-device` submits the intercepted shader words to real `vkCreateShaderModule` and destroys each module; it does not create pipelines or execute shaders.
 
 The `mxfp4` CTest covers CPU MXFP4; the Python component checks the selected device. A Vulkan build also provides `mxfp4-vulkan`, a focused native test of its F32/BF16 and F16 row/tile paths; it reports a skip when no compatible device is available. CMake also builds `llmx-cpu-f32-check`, the independent HF test control; the suite requires it with `--require-tools`. A selected device without MXFP4 kernels is an explicit skip unless `--require-device-types MXFP4` makes support mandatory.

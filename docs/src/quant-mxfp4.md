@@ -21,7 +21,7 @@ It also checks every scale against a mathematical power of two and the decode sc
 The registry offers this decoder to raw conversion, embedding and CPU prefill.
 GGUF metadata reads use the layout in `quant/types.hpp` without a decoder.
 Under F16 execution, CPU MXFP4 decode uses the packed dots below; dense and routed prompts retain F32 inputs. BF16 rounds matrix inputs before float products, while F32 uses the original inputs.
-The Vulkan backend supports MXFP4 only when the device supplies F64 arithmetic, F32 denormal and signed-zero/infinity/NaN preservation, and F64 signed-zero/infinity/NaN preservation. It checks those capabilities before adopting weights. Dense and routed products keep the format's exact decoding and the selected activation policy; their dispatch and range repair live in [backends-vulkan](backends-vulkan.md).
+The Vulkan backend supports MXFP4 only when the device supplies F64 arithmetic, F32 denormal and signed-zero/infinity/NaN preservation, and F64 signed-zero/infinity/NaN preservation. It checks those capabilities before adopting weights. F64 special-value preservation is needed even with finite input: BF16 rounding can overflow to infinity, which reaches the wide recomputation, including products with zero weights. Dense and routed products keep the format's exact decoding and the selected activation policy; their dispatch and range repair live in [backends-vulkan](backends-vulkan.md).
 The CPU implementation in `backends/cpu/q8_dots.hpp` uses an AVX2
 nibble lookup and 16-bit activations. Scales whose product is outside the normal
 f32 range, potentially infinite weights, or a nonfinite fast sum use decoded

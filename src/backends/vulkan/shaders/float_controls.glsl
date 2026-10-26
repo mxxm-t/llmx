@@ -1,3 +1,4 @@
+// The kernel table adds any other required widths before module creation.
 // Only modules selected on devices reporting both 32-bit preservation properties use these modes.
 #ifdef LLMX_PRESERVE_F32
 #extension GL_EXT_spirv_intrinsics : require

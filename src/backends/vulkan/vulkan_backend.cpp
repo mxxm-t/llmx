@@ -108,7 +108,8 @@ public:
         }
         fn.vkGetPhysicalDeviceProperties2(d.physical, &p2);
         if (has_pci) d.pci_root = pci_root_of(pci.pciDomain, pci.pciBus, pci.pciDevice, pci.pciFunction);
-        d.preserve_float32 = floats.shaderDenormPreserveFloat32 && floats.shaderSignedZeroInfNanPreserveFloat32;
+        d.float_controls = float_control_support(floats);
+        d.preserve_float32 = (d.float_controls & kPreserve32) == kPreserve32;
         d.caps.subgroup_size = sg.subgroupSize;
         const bool has_units = has_core_props && core.shaderEngineCount && core.shaderArraysPerEngineCount &&
                                core.computeUnitsPerShaderArray;
@@ -176,7 +177,7 @@ public:
         e2.pNext = &e11;
         e2.features.shaderStorageBufferArrayDynamicIndexing = VK_TRUE;
         e2.features.shaderInt16 = VK_TRUE;
-        d.mxfp4 = f2.features.shaderFloat64 && d.preserve_float32 && floats.shaderSignedZeroInfNanPreserveFloat64;
+        d.mxfp4 = f2.features.shaderFloat64 && (d.float_controls & kMxfp4Controls) == kMxfp4Controls;
         e2.features.shaderFloat64 = d.mxfp4 ? VK_TRUE : VK_FALSE;
 
         uint32_t ext_count = 0;

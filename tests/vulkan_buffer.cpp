@@ -2,6 +2,7 @@
 #include "backends/vulkan/vulkan_backend.cpp"
 #include <atomic>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <thread>
 #include <stdexcept>
@@ -50,7 +51,7 @@ struct VulkanLifetimeTest {
             throw std::runtime_error("dictionary descriptor differs from its owner");
         return owner;
     }
-    static VkPipeline kernel(VulkanBackend& b) { return b.kernel(K_ADD).pipeline; }
+    static VkPipeline kernel(VulkanBackend& b, KernelId id = K_ADD) { return b.kernel(id).pipeline; }
     static bool query_empty(VulkanBackend& b) { return b.queries_.empty(); }
     static void clear_query(VulkanBackend& b) { b.queries_.clear(); }
     static void prepare_drop(VulkanBackend& b) {
@@ -146,6 +147,8 @@ struct KernelCalls {
     backend::Fn original;
     std::shared_ptr<backend::Device> device;
     int failure, creates = 0, modules = 0, sets = 0, layouts = 0, pipelines = 0;
+    bool capture_module = false;
+    std::vector<uint32_t> module_words;
     uintptr_t next = 1024;
     explicit KernelCalls(backend::VulkanBackend& b, int fail)
         : device(backend::VulkanLifetimeTest::device(b)), failure(fail) {
@@ -171,7 +174,9 @@ struct KernelCalls {
         if (stage == 1 && q.failure == 5) allocation_countdown = 1;
         return VK_SUCCESS;
     }
-    static VKAPI_ATTR VkResult VKAPI_CALL shader(VkDevice, const VkShaderModuleCreateInfo*, const VkAllocationCallbacks*, VkShaderModule* out) {
+    static VKAPI_ATTR VkResult VKAPI_CALL shader(VkDevice, const VkShaderModuleCreateInfo* info, const VkAllocationCallbacks*, VkShaderModule* out) {
+        if (kernel_calls->capture_module)
+            kernel_calls->module_words.assign(info->pCode, info->pCode + info->codeSize / sizeof(uint32_t));
         return create(out, 1, kernel_calls->modules);
     }
     static VKAPI_ATTR VkResult VKAPI_CALL set(VkDevice, const VkDescriptorSetLayoutCreateInfo*, const VkAllocationCallbacks*, VkDescriptorSetLayout* out) {
@@ -1449,40 +1454,126 @@ int table_view_checks() {
     return failures;
 }
 
-int float_control_checks() {
+bool check_float_modes(const char* name, const uint32_t* words, size_t count, uint32_t wanted) {
+    unsigned denorm32 = 0, special32 = 0, special64 = 0, other = 0;
+    bool denorm_cap = false, special_cap = false;
+    if (count < 5 || words[0] != 0x07230203u) throw std::runtime_error("float controls: invalid SPIR-V header");
+    for (size_t at = 5; at < count;) {
+        const uint32_t length = words[at] >> 16, opcode = words[at] & 0xffffu;
+        if (!length || length > count - at) throw std::runtime_error("float controls: invalid SPIR-V instruction");
+        if (opcode == 17u && length == 2u) {
+            denorm_cap |= words[at + 1] == 4464u;
+            special_cap |= words[at + 1] == 4466u;
+        }
+        if (opcode == 16u && length >= 3u && words[at + 2] >= 4459u && words[at + 2] <= 4463u) {
+            const uint32_t mode = words[at + 2], width = length == 4 ? words[at + 3] : 0;
+            if (mode == 4459u && width == 32u) ++denorm32;
+            else if (mode == 4461u && width == 32u) ++special32;
+            else if (mode == 4461u && width == 64u) ++special64;
+            else ++other;
+        }
+        at += length;
+    }
+    const bool ok = denorm32 == unsigned(bool(wanted & backend::kDenorm32)) &&
+        special32 == unsigned(bool(wanted & backend::kSpecial32)) &&
+        special64 == unsigned(bool(wanted & backend::kSpecial64)) && !other &&
+        (!denorm32 || denorm_cap) && (!(special32 || special64) || special_cap);
+    if (!ok) std::cout << name << " wanted=" << wanted << " DenormPreserve32=" << denorm32
+                      << " SignedZeroInfNanPreserve32=" << special32 << " SignedZeroInfNanPreserve64=" << special64
+                      << " other=" << other << " FAIL\n";
+    return ok;
+}
+
+int float_control_checks(const char* output_dir = nullptr) {
     const backend::KernelId ids[] = {backend::K_MATMUL_ROW_MXFP4, backend::K_MATMUL_ROW_MXFP4_DOT,
         backend::K_MATMUL_ROW_MXFP4_FLOAT_X, backend::K_MATMUL_TILE_MXFP4,
         backend::K_MATMUL_TILE_MXFP4_BF16, backend::K_MATMUL_REDUCE_MXFP4, backend::K_MATMUL_TILE_Q8MX};
     int failures = 0;
     for (const auto id : ids) {
-        const auto& source = backend::kKernels[id];
-        const uint32_t* words = source.words;
-        const size_t count = source.bytes / sizeof(uint32_t);
-        unsigned denorm32 = 0, special32 = 0, special64 = 0;
-        if (count < 5 || words[0] != 0x07230203u) throw std::runtime_error("float controls: invalid SPIR-V header");
-        for (size_t at = 5; at < count;) {
-            const uint32_t length = words[at] >> 16, opcode = words[at] & 0xffffu;
-            if (!length || length > count - at) throw std::runtime_error("float controls: invalid SPIR-V instruction");
-            if (opcode == 16u && length == 4u) {
-                const uint32_t mode = words[at + 2], width = words[at + 3];
-                denorm32 += mode == 4459u && width == 32u;
-                special32 += mode == 4461u && width == 32u;
-                special64 += mode == 4461u && width == 64u;
-            }
-            at += length;
-        }
-        const bool ok = denorm32 == 1 && special32 == 1 && special64 == 1;
-        std::cout << backend::kKernelNames[id] << " DenormPreserve32=" << denorm32
-                  << " SignedZeroInfNanPreserve32=" << special32 << " SignedZeroInfNanPreserve64=" << special64
-                  << (ok ? " PASS\n" : " FAIL\n");
-        if (!ok) ++failures;
+        std::vector<uint32_t> storage;
+        const auto info = backend::kernel_module(id, false, backend::kMxfp4Controls, storage);
+        if (!check_float_modes(backend::kKernelNames[id], info.pCode, info.codeSize / sizeof(uint32_t),
+                              backend::kDenorm32 | backend::kSpecial32 | backend::kSpecial64)) ++failures;
     }
+    size_t checked = 0, refusals = 0;
+    for (int id = 0; id < backend::K_COUNT; ++id) {
+        const auto& source = backend::kKernels[id];
+        for (const bool preserve : {false, true}) {
+            const uint32_t wanted = preserve && source.preserved_words ? source.preserved_controls : source.controls;
+            std::vector<uint32_t> storage;
+            const auto info = backend::kernel_module(static_cast<backend::KernelId>(id), preserve, backend::kMxfp4Controls, storage);
+            if (!check_float_modes(backend::kKernelNames[id], info.pCode, info.codeSize / sizeof(uint32_t), wanted)) ++failures;
+            if (!(wanted & backend::kSpecial64) && !storage.empty()) ++failures;
+            if (output_dir && !storage.empty()) {
+                const auto file = std::filesystem::path(output_dir) / (std::string(backend::kKernelNames[id]) + (preserve ? "-preserved.spv" : ".spv"));
+                std::filesystem::create_directories(file.parent_path());
+                std::ofstream out(file, std::ios::binary);
+                out.write(reinterpret_cast<const char*>(info.pCode), std::streamsize(info.codeSize));
+                out.close();
+                if (!out) throw std::runtime_error("float controls: cannot write prepared module");
+            }
+            ++checked;
+            for (const uint32_t missing : {backend::kDenorm32, backend::kSpecial32, backend::kSpecial64}) {
+                if (!(wanted & missing)) continue;
+                bool refused = false;
+                try { (void)backend::kernel_module(static_cast<backend::KernelId>(id), preserve, backend::kMxfp4Controls & ~missing, storage); }
+                catch (const std::runtime_error& e) { refused = std::string(e.what()) == std::string("vulkan: device lacks float controls for ") + backend::kKernelNames[id]; }
+                if (!refused) ++failures;
+                ++refusals;
+            }
+        }
+    }
+    for (unsigned mask = 0; mask < 8; ++mask) {
+        VkPhysicalDeviceFloatControlsProperties p{};
+        p.shaderDenormPreserveFloat32 = mask & 1 ? VK_TRUE : VK_FALSE;
+        p.shaderSignedZeroInfNanPreserveFloat32 = mask & 2 ? VK_TRUE : VK_FALSE;
+        p.shaderSignedZeroInfNanPreserveFloat64 = mask & 4 ? VK_TRUE : VK_FALSE;
+        if (backend::float_control_support(p) != mask) ++failures;
+    }
+    std::cout << "float controls: " << checked << " prepared modules, " << refusals
+              << " missing-property refusals, " << failures << " failures\n";
+    return failures;
+}
+
+int created_float_control_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    KernelCalls calls_for_modules(b, 0);
+    calls_for_modules.capture_module = true;
+    const auto& device = *calls_for_modules.device;
+    int failures = 0;
+    size_t checked = 0;
+    for (int id = 0; id < backend::K_COUNT; ++id) {
+        const auto& source = backend::kKernels[id];
+        const uint32_t wanted = device.preserve_float32 && source.preserved_words ? source.preserved_controls : source.controls;
+        if (wanted & ~device.float_controls) continue;
+        calls_for_modules.module_words.clear();
+        backend::VulkanLifetimeTest::kernel(b, static_cast<backend::KernelId>(id));
+        const auto& words = calls_for_modules.module_words;
+        if (!check_float_modes(backend::kKernelNames[id], words.data(), words.size(), wanted)) ++failures;
+        VkShaderModuleCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        info.codeSize = words.size() * sizeof(uint32_t);
+        info.pCode = words.data();
+        VkShaderModule module = VK_NULL_HANDLE;
+        const auto result = calls_for_modules.original.vkCreateShaderModule(device.device, &info, nullptr, &module);
+        if (result != VK_SUCCESS) {
+            std::cout << backend::kKernelNames[id] << " driver module creation failed: " << result << '\n';
+            ++failures;
+        }
+        if (module) calls_for_modules.original.vkDestroyShaderModule(device.device, module, nullptr);
+        ++checked;
+    }
+    base.reset();
+    if (!calls_for_modules.empty()) ++failures;
+    std::cout << "float controls: " << checked << " intercepted modules and driver creation checks, " << failures << " failures\n";
     return failures;
 }
 
 int main(int argc, char** argv) {
     try {
-        if (argc == 2 && std::string(argv[1]) == "--float-controls") return float_control_checks() ? 1 : 0;
+        if ((argc == 2 || argc == 3) && std::string(argv[1]) == "--float-controls") return float_control_checks(argc == 3 ? argv[2] : nullptr) ? 1 : 0;
+        if (argc == 2 && std::string(argv[1]) == "--float-controls-device") return created_float_control_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +

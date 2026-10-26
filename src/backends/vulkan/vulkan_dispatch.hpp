@@ -38,10 +38,9 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         Device& d = *dev_;
         const KernelSource& src = kKernels[id];
         const bool preserve = d.preserve_float32 && src.preserved_words;
-        VkShaderModuleCreateInfo mi{};
-        mi.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        mi.codeSize = preserve ? src.preserved_bytes : src.bytes;
-        mi.pCode = preserve ? src.preserved_words : src.words;
+        std::vector<uint32_t> words;
+        // Keep any patched SPIR-V alive until Vulkan consumes the create info.
+        const auto mi = kernel_module(id, preserve, d.float_controls, words);
         VkShaderModule module = VK_NULL_HANDLE;
         check(d.fn.vkCreateShaderModule(d.device, &mi, nullptr, &module), "vkCreateShaderModule");
         k.module = module;

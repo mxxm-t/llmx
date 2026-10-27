@@ -1,0 +1,365 @@
+{
+  "scope": "Current runtime CPU dispatch evidence only; no numerical comparison or timing qualification.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "binary_sha256": "745183076ba58044dedfd915a634cbe475da0aabcdfb7ac5ab98a7f58dc42164",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "source_files_verified": 165,
+  "passed": true,
+  "completed_matrix_calls": 6140,
+  "phase_counts": [
+    {
+      "phase": "forced-step",
+      "path": "block-int16",
+      "calls": 30
+    },
+    {
+      "phase": "forced-step",
+      "path": "f32",
+      "calls": 157
+    },
+    {
+      "phase": "prefill",
+      "path": "f32",
+      "calls": 5953
+    }
+  ],
+  "matrix_coverage": [
+    {
+      "cell": [
+        "forced-step",
+        8,
+        1024,
+        16,
+        1,
+        "f32"
+      ],
+      "calls": 26
+    },
+    {
+      "cell": [
+        "forced-step",
+        8,
+        1024,
+        248320,
+        1,
+        "f32"
+      ],
+      "calls": 1
+    },
+    {
+      "cell": [
+        "forced-step",
+        12,
+        1024,
+        3584,
+        1,
+        "block-int16"
+      ],
+      "calls": 2
+    },
+    {
+      "cell": [
+        "forced-step",
+        12,
+        1024,
+        6144,
+        1,
+        "block-int16"
+      ],
+      "calls": 7
+    },
+    {
+      "cell": [
+        "forced-step",
+        13,
+        1024,
+        2048,
+        1,
+        "block-int16"
+      ],
+      "calls": 16
+    },
+    {
+      "cell": [
+        "forced-step",
+        13,
+        2048,
+        1024,
+        1,
+        "block-int16"
+      ],
+      "calls": 5
+    },
+    {
+      "cell": [
+        "forced-step",
+        30,
+        1024,
+        16,
+        1,
+        "f32"
+      ],
+      "calls": 10
+    },
+    {
+      "cell": [
+        "forced-step",
+        30,
+        1024,
+        512,
+        1,
+        "f32"
+      ],
+      "calls": 12
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        1024,
+        2048,
+        1,
+        "f32"
+      ],
+      "calls": 2
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        1024,
+        3584,
+        1,
+        "f32"
+      ],
+      "calls": 46
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        1024,
+        4096,
+        1,
+        "f32"
+      ],
+      "calls": 6
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        1024,
+        6144,
+        1,
+        "f32"
+      ],
+      "calls": 11
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        2048,
+        1024,
+        1,
+        "f32"
+      ],
+      "calls": 19
+    },
+    {
+      "cell": [
+        "forced-step",
+        40,
+        3584,
+        1024,
+        1,
+        "f32"
+      ],
+      "calls": 24
+    },
+    {
+      "cell": [
+        "prefill",
+        8,
+        1024,
+        16,
+        512,
+        "f32"
+      ],
+      "calls": 832
+    },
+    {
+      "cell": [
+        "prefill",
+        8,
+        1024,
+        248320,
+        1,
+        "f32"
+      ],
+      "calls": 1
+    },
+    {
+      "cell": [
+        "prefill",
+        12,
+        1024,
+        3584,
+        512,
+        "f32"
+      ],
+      "calls": 64
+    },
+    {
+      "cell": [
+        "prefill",
+        12,
+        1024,
+        6144,
+        512,
+        "f32"
+      ],
+      "calls": 224
+    },
+    {
+      "cell": [
+        "prefill",
+        13,
+        1024,
+        2048,
+        512,
+        "f32"
+      ],
+      "calls": 512
+    },
+    {
+      "cell": [
+        "prefill",
+        13,
+        2048,
+        1024,
+        512,
+        "f32"
+      ],
+      "calls": 160
+    },
+    {
+      "cell": [
+        "prefill",
+        30,
+        1024,
+        16,
+        512,
+        "f32"
+      ],
+      "calls": 320
+    },
+    {
+      "cell": [
+        "prefill",
+        30,
+        1024,
+        512,
+        512,
+        "f32"
+      ],
+      "calls": 384
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        1024,
+        2048,
+        512,
+        "f32"
+      ],
+      "calls": 64
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        1024,
+        3584,
+        512,
+        "f32"
+      ],
+      "calls": 1472
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        1024,
+        4096,
+        512,
+        "f32"
+      ],
+      "calls": 192
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        1024,
+        6144,
+        512,
+        "f32"
+      ],
+      "calls": 352
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        2048,
+        1024,
+        512,
+        "f32"
+      ],
+      "calls": 608
+    },
+    {
+      "cell": [
+        "prefill",
+        40,
+        3584,
+        1024,
+        512,
+        "f32"
+      ],
+      "calls": 768
+    }
+  ],
+  "scope_detail": "Raw 16384 tokens in 32 chunks of512, one final Q8 head, one forced token. Auto resolves F16, F16 KV, four CPU threads. Wrapper records native completed matrix paths without splitting fused execution, preserving accumulated path bits.",
+  "retained_cpu_hf_self_control": {
+    "max_abs_logit_delta": 0.0015163421630859375,
+    "max_abs_limit": 2e-05,
+    "top1_exact": 80,
+    "logit_sha256": [
+      "e48c4b021c6575b8aec267c76b1ccbe8135f63d9ca40c3a9cb76176623f9f7e3",
+      "c600f199838420fe6489396a7dfbc5ef47f696ac44eb5e3e6ea4906eb6c331d2"
+    ],
+    "passed": false
+  },
+  "proposed_cpu_self_control_limit": 0.003032684326171875,
+  "cpu_limit_status": "Confirmed by F2DEV at12:37, from the CPU own control measurement, before candidate depth comparison. No repeated four-arm isolation required.",
+  "artifacts": {
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\capture.cpp": "14e57140d56ac5ad80d96e3ce0bc8b5527946a6a7ad0ca927f26868c0eb4dcb9",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\build-receipt.json": "91e2b7ff914aa0a8f4e03e1754aefe1581527c001389ea6e8bd376ebb9c6bc5c",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\run.py": "e5afed585047a134e2663f8d55e2cc62f3700e94019a6ff80a79b076a3c1ac32",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\run-v1\\execution.json": "d4c3ba1bbeea44899913d4dff21ce4aa72d91479b896e82ec91f8343dde8db4f",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\run-v1\\stdout.jsonl": "cda9820d3a4be9e13eb5206861ae0cf0ac18a97bf3568561c654ed9d898d4ff0",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\source-pins.json": "e86806ad9544e02279ded8f0fc558809fc71cad3fbb2ee1a3ca9f144c880f4ef",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40189406206\\cpu\\execution.json": "1f38b921a429e7d9b40ab2d4e5d8296e93aa9deccf84a8046f6f6fd18eb87ca5",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40189406206\\cpu\\reference\\report.json": "e0ae8ded1673fe8a74e88c104efc745cdacbfafce9159697ada0bded0947814f"
+  },
+  "review": {
+    "id": "01e83a3a2d20",
+    "who": "F2DEV",
+    "text": "**[F2DEV 2026-10-25 12:37 DECISION re:NVFP4's CPU reference control, XDEV's REVIEW of 12:36 @XDEV @LDEV @coordinator] Confirmed: the CPU's own control limit is 0.003032684326171875, twice its measured 0.0015163421630859375 on the 64/16 against 17/1 control, scoped to this file, map and control, prospective to any CPU depth comparison and recorded as the Radeon's was; its own value and not the Radeon's, as the rule has it. No repeat of the four-arm isolation under ties to even is required to freeze it: the rule doubles the policy's own measured chunking difference, which this is, and the Radeon diagnosis explained the mechanism once; XDEV may run the CPU arms as diagnosis if it wishes, and they grant nothing. The CPU witness is what the ruling of 10:54 asked for: 6140 completed matrix calls at the predeclared paths, the prompt and the head F32, block-int16 only on the forced continuation's Q4_K and Q5_K rows, so the CPU's table is a fact and not a prediction. The MI50 takes the same two steps, its witness and its own control, before its depth comparison.**",
+    "received": "2026-10-25T14:37:30"
+  }
+}

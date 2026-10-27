@@ -1,0 +1,1292 @@
+{
+  "scope": "Staging-only development screen measured on private experiment a5b190d13. Integrated into the private candidate after the screen, not final qualification or public landing.",
+  "baseline_revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+  "candidate_revision": "a5b190d13",
+  "runtime_delta": "Round NVFP4 matrix inputs to F16 at load as before, then widen once into F32 shared storage. FMA and weight-scale ordering unchanged.",
+  "build": {
+    "started": 1793001362.9350271,
+    "passed": true,
+    "steps": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "/work/candidate/source",
+          "-B",
+          "/work/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "started": 1793001362.935029,
+        "ended": 1793001363.5015702,
+        "returncode": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--target",
+          "llmx",
+          "llmx-nvfp4-test",
+          "--parallel",
+          "1"
+        ],
+        "started": 1793001363.5015762,
+        "ended": 1793001485.2950406,
+        "returncode": 0
+      }
+    ],
+    "binaries": {
+      "llmx": {
+        "sha256": "dfedaab9063112481b8df5d4674abbc69d5810a47500be33e5ff63fd919605df",
+        "bytes": 12779456
+      },
+      "llmx-nvfp4-test": {
+        "sha256": "135cf7ff600c33ae7f963f2f48feb7c10bba8558415d3fa9751b71b6a6d40240",
+        "bytes": 9763320
+      }
+    },
+    "version": "llmx 0.1.0+unknown numerics bd60115c1d1a2457",
+    "ended": 1793001485.327754
+  },
+  "focused_mi50": {
+    "container": "26246c21c5d2f4c75366fad703d102f3448804888f99e86a203ef92fad769419",
+    "command": [
+      "docker",
+      "create",
+      "--name",
+      "llmx-xdev-nv-staging-focused-a5b190d13",
+      "--init",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "3",
+      "--cpus",
+      "1",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/cache",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13/candidate/build:/build:ro",
+      "--entrypoint",
+      "timeout",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "120",
+      "/build/llmx-nvfp4-test",
+      "--vulkan"
+    ],
+    "started": 1793001979.4880698,
+    "binary_sha256": "135cf7ff600c33ae7f963f2f48feb7c10bba8558415d3fa9751b71b6a6d40240",
+    "passed": true,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-26T08:06:19.528577693Z",
+      "FinishedAt": "2026-10-26T08:06:21.487985239Z"
+    },
+    "attach_exit": 0,
+    "log_sha256": "6b57d5326ceae0e874df5987a9a392062c09d76a8423e142215ba1d15c42111d",
+    "ended": 1793001981.768333,
+    "removed": true
+  },
+  "focused_radeon": {
+    "scope": "Isolated F16 activation staging experiment; no performance or merge claim.",
+    "base_commit": "5d6f880ce",
+    "version": "llmx 0.1.0+g5d6f880ceac9.dirty numerics bd60115c1d1a2457",
+    "binary_sha256": "16bcf40f5bb24d06d771b84c92feef217d949367d7d197d79df07789551b1fa7",
+    "test_binary_sha256": "d5e1d0f64c9bc879a86b4d3b082e46f21115460c8b02d91a73102618e13f6f9c",
+    "shader_sha256": "e68a3eb5c9938252fa5243601d822b274775543b0e678a6452f674806eda9d6c",
+    "build_log_sha256": "7231f5e88c8fc3d319678dada66160f6e9c87e8ec50c066d3b3e0197bad30ac7",
+    "ctest_log_sha256": "63bd797b6ea54eacf236a60a8e209ba4713ae710a09413ad9bdf3a9a4d788a36",
+    "ctest": "nvfp4-vulkan 1/1 pass,5.73s",
+    "module_delta": {
+      "modules": 303,
+      "changed": [
+        "matmul_tile_nvfp4_f16.inc"
+      ],
+      "unchanged": 302
+    },
+    "compile_probe": {
+      "control": {
+        "shader_sha256": "716f5d796e75f7732d4b7bc7be357da423a16c6673cf0a6b3e553187d5acf316",
+        "spirv_sha256": "1a877128818aed715e35526f36cfdf38b56061c0756143e1a5375fdd750463a4",
+        "spirv_bytes": 13740,
+        "fconvert_lines": [
+          "%655 = OpFConvert %half %1296",
+          "%657 = OpFConvert %half %1301",
+          "%1166 = OpFConvert %v2float %1165",
+          "%1173 = OpFConvert %v2float %1172",
+          "%1180 = OpFConvert %v2float %1179",
+          "%1187 = OpFConvert %v2float %1186"
+        ],
+        "compile_command": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+          "-fshader-stage=compute",
+          "--target-env=vulkan1.2",
+          "-O",
+          "-DLLMX_NVFP4",
+          "-DLLMX_INPUT_F16",
+          "-DLLMX_PRESERVE_F32",
+          "-IC:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\src\\backends\\vulkan\\shaders",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\src\\backends\\vulkan\\shaders\\matmul_tile.comp",
+          "-o",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-f16-staging-20261026\\build-staging-probe\\control.spv"
+        ]
+      },
+      "candidate": {
+        "shader_sha256": "e68a3eb5c9938252fa5243601d822b274775543b0e678a6452f674806eda9d6c",
+        "spirv_sha256": "f50e15729d6597ba45f0a52780db5b08067ee0c1fa3f9bfba679ff8d020cf306",
+        "spirv_bytes": 13660,
+        "fconvert_lines": [
+          "%652 = OpFConvert %half %1290",
+          "%654 = OpFConvert %half %1295",
+          "%680 = OpFConvert %v2float %679"
+        ],
+        "compile_command": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+          "-fshader-stage=compute",
+          "--target-env=vulkan1.2",
+          "-O",
+          "-DLLMX_NVFP4",
+          "-DLLMX_INPUT_F16",
+          "-DLLMX_PRESERVE_F32",
+          "-IC:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-f16-staging-20261026\\src\\backends\\vulkan\\shaders",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-f16-staging-20261026\\src\\backends\\vulkan\\shaders\\matmul_tile.comp",
+          "-o",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-f16-staging-20261026\\build-staging-probe\\candidate.spv"
+        ]
+      }
+    },
+    "spirv_validation": {
+      "control": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      "candidate": {
+        "returncode": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    },
+    "next": "Matched MI50 shader statistics/performance; no full numerical gate until speed merits qualification."
+  },
+  "matrix": [
+    {
+      "prompt": 128,
+      "phase": "prefill_tok_s",
+      "samples": {
+        "control": [
+          2201.57,
+          2207.62
+        ],
+        "candidate": [
+          2263.69,
+          2266.96
+        ]
+      },
+      "means": {
+        "control": 2204.5950000000003,
+        "candidate": 2265.325
+      },
+      "delta_percent": 2.7547009768233766
+    },
+    {
+      "prompt": 128,
+      "phase": "decode_tok_s",
+      "samples": {
+        "control": [
+          123.21,
+          122.96
+        ],
+        "candidate": [
+          122.71,
+          123.43
+        ]
+      },
+      "means": {
+        "control": 123.085,
+        "candidate": 123.07
+      },
+      "delta_percent": -0.012186700247796
+    },
+    {
+      "prompt": 4096,
+      "phase": "prefill_tok_s",
+      "samples": {
+        "control": [
+          3462.67,
+          3460.2
+        ],
+        "candidate": [
+          3564.35,
+          3564.0
+        ]
+      },
+      "means": {
+        "control": 3461.435,
+        "candidate": 3564.175
+      },
+      "delta_percent": 2.9681331586466353
+    },
+    {
+      "prompt": 4096,
+      "phase": "decode_tok_s",
+      "samples": {
+        "control": [
+          122.58,
+          123.39
+        ],
+        "candidate": [
+          123.17,
+          123.39
+        ]
+      },
+      "means": {
+        "control": 122.985,
+        "candidate": 123.28
+      },
+      "delta_percent": 0.23986665040451882
+    }
+  ],
+  "calls": [
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001730.957364,
+      "exit_code": 0,
+      "index": 0,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "warmup",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 122.98,
+        "prefill_tok_s": 2213.72
+      },
+      "started_unix": 1793001725.07919,
+      "status": "complete",
+      "stderr": "host-021-timing-00-control.stderr",
+      "stderr_sha256": "46b2ef51160983c7ed03800350e5917480d87336fb29f768f3e1da486a79e469",
+      "stdout": "host-021-timing-00-control.stdout",
+      "stdout_sha256": "3552cd81697678f7206604990660236a9f12a32008cdb6bbc95bff99ef6ce03d",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 4,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 4,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001736.2384446,
+      "exit_code": 0,
+      "index": 1,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "warmup",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 123.38,
+        "prefill_tok_s": 2259.4
+      },
+      "started_unix": 1793001730.961457,
+      "status": "complete",
+      "stderr": "host-022-timing-01-candidate.stderr",
+      "stderr_sha256": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+      "stdout": "host-022-timing-01-candidate.stdout",
+      "stdout_sha256": "0f69a5211d5fde94f54b04d6f84fe813686d8f2cca1ce8079e95d0cdd4363ac2",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 4,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 4,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001741.419215,
+      "exit_code": 0,
+      "index": 2,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 123.21,
+        "prefill_tok_s": 2201.57
+      },
+      "started_unix": 1793001736.2431927,
+      "status": "complete",
+      "stderr": "host-023-timing-02-control.stderr",
+      "stderr_sha256": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+      "stdout": "host-023-timing-02-control.stdout",
+      "stdout_sha256": "712619af5236594b56f9b11f18c4dfbf49d7a82253351841f8b71a77741cea45",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 4,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 4,
+        "missed_process_intervals": 0
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001746.6529298,
+      "exit_code": 0,
+      "index": 3,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 122.71,
+        "prefill_tok_s": 2263.69
+      },
+      "started_unix": 1793001741.4238381,
+      "status": "complete",
+      "stderr": "host-024-timing-03-candidate.stderr",
+      "stderr_sha256": "b5a91e97ea8dc3066aab646ff3c8252939cdc186ccb5ddd2d1c6480d8d0995d0",
+      "stdout": "host-024-timing-03-candidate.stdout",
+      "stdout_sha256": "dec9e70211379091a5f959a4379799553ca9e79175c64adf2115fe243805d9db",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 3,
+          "disk": 3,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 3,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001751.8408637,
+      "exit_code": 0,
+      "index": 4,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 123.43,
+        "prefill_tok_s": 2266.96
+      },
+      "started_unix": 1793001746.6594465,
+      "status": "complete",
+      "stderr": "host-025-timing-04-candidate.stderr",
+      "stderr_sha256": "7d263e3d3f8c4703e672cdb4d8a42cc4506f99f46ea1b0c37f6233302b1a4e90",
+      "stdout": "host-025-timing-04-candidate.stdout",
+      "stdout_sha256": "593a56c2d2f4fa59dd971170919653376f0cf8ea245b327027bba7393bad31fd",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 4,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 4,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001757.0751312,
+      "exit_code": 0,
+      "index": 5,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 122.96,
+        "prefill_tok_s": 2207.62
+      },
+      "started_unix": 1793001751.8456829,
+      "status": "complete",
+      "stderr": "host-026-timing-05-control.stderr",
+      "stderr_sha256": "1b7459fd2299b5341acdb0582aec18e2d8bf993a29292e16bf63ac6ad84d6668",
+      "stdout": "host-026-timing-05-control.stdout",
+      "stdout_sha256": "52909d9a65cecb1117fd3020993d7e8a3933f74a96165926fbbe83bc02f79b96",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 3,
+          "disk": 3,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 3,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001764.560956,
+      "exit_code": 0,
+      "index": 6,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "warmup",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 123.36,
+        "prefill_tok_s": 3462.23
+      },
+      "started_unix": 1793001757.079498,
+      "status": "complete",
+      "stderr": "host-027-timing-06-control.stderr",
+      "stderr_sha256": "5b656d387f32f79a4a58c7b37406e88893e5daad3ca745258960b44be9d5922b",
+      "stdout": "host-027-timing-06-control.stdout",
+      "stdout_sha256": "27652640a9777786318e1581f90673a0afbc0fdfe906996d57e8db55b61607da",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 5,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 5,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001771.996116,
+      "exit_code": 0,
+      "index": 7,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "warmup",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 123.3,
+        "prefill_tok_s": 3566.15
+      },
+      "started_unix": 1793001764.5655856,
+      "status": "complete",
+      "stderr": "host-028-timing-07-candidate.stderr",
+      "stderr_sha256": "b9ce9bb0222a14166b644184c7609cf2fc7d254c63dfa07b02389323ed842db2",
+      "stdout": "host-028-timing-07-candidate.stdout",
+      "stdout_sha256": "8605750a2a743d5a9ed15e215d88f5abaf763566de05a128cd8d4f7236a07e7c",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 5,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 5,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001779.4304197,
+      "exit_code": 0,
+      "index": 8,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 122.58,
+        "prefill_tok_s": 3462.67
+      },
+      "started_unix": 1793001772.000735,
+      "status": "complete",
+      "stderr": "host-029-timing-08-control.stderr",
+      "stderr_sha256": "7d742192299736bf3aa1888a6610a956f88304aaafac55558367ae85c5761ab4",
+      "stdout": "host-029-timing-08-control.stdout",
+      "stdout_sha256": "d54194b1b198d92763330f1360faac741cd6523a07cd3f0a716fbfa08c2df374",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 5,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 5,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001786.8150973,
+      "exit_code": 0,
+      "index": 9,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 123.17,
+        "prefill_tok_s": 3564.35
+      },
+      "started_unix": 1793001779.435094,
+      "status": "complete",
+      "stderr": "host-030-timing-09-candidate.stderr",
+      "stderr_sha256": "0361b2b63c4543830ffacc69360b28b02ac9860941356eb8c1a770c5f838d88c",
+      "stdout": "host-030-timing-09-candidate.stdout",
+      "stdout_sha256": "1a6491797c8339298e7e408d1ba09c9a597fbc9cd0f26ee72cd83762f968b28d",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 4,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 4,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "ended_unix": 1793001794.2011373,
+      "exit_code": 0,
+      "index": 10,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 123.39,
+        "prefill_tok_s": 3564.0
+      },
+      "started_unix": 1793001786.8198857,
+      "status": "complete",
+      "stderr": "host-031-timing-10-candidate.stderr",
+      "stderr_sha256": "b1bf7fe9e91daeb5347ab0ef55bc65b8d7e9a8a6baf52d5269107a34f5f06f29",
+      "stdout": "host-031-timing-10-candidate.stdout",
+      "stdout_sha256": "ff720ef0fde86234701e6a29d47a57a0a987d2abd52f1bc79ba48348e7bb29a2",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 5,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 5,
+        "missed_process_intervals": 0
+      }
+    },
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "ended_unix": 1793001801.6873393,
+      "exit_code": 0,
+      "index": 11,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "phase": "measured",
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 123.39,
+        "prefill_tok_s": 3460.2
+      },
+      "started_unix": 1793001794.2059371,
+      "status": "complete",
+      "stderr": "host-032-timing-11-control.stderr",
+      "stderr_sha256": "03cdd499b747abdc3ead42675063972815cae1d91ad3ab7068977a4c293115c8",
+      "stdout": "host-032-timing-11-control.stdout",
+      "stdout_sha256": "f19cd97eb77e83def441c5f5a6220d2e50448a9401cbd06a5e381a741d787a70",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 5,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 5,
+        "missed_process_intervals": 1
+      }
+    }
+  ],
+  "witnesses": [
+    {
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "arm": "control",
+      "decode": 1,
+      "ended_unix": 1793001803.4650226,
+      "exit_code": 0,
+      "index": 12,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "path_witness": {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 2,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small"
+        ]
+      },
+      "phase": "path_witness",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 110.1,
+        "prefill_tok_s": 2122.76
+      },
+      "started_unix": 1793001801.69223,
+      "status": "complete",
+      "stderr": "host-033-witness-12-control.stderr",
+      "stderr_sha256": "eb9b9d36f2dbc52f4116b17a536ea2f31c21a46e989c114513007623f524e0fa",
+      "stdout": "host-033-witness-12-control.stdout",
+      "stdout_sha256": "dcb0008fbd816fa5752c0af1c525b6b2d7140e64988949dcaae9fe8c71bb3b5d",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 2,
+          "disk": 2,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 2,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "arm": "candidate",
+      "decode": 1,
+      "ended_unix": 1793001805.142328,
+      "exit_code": 0,
+      "index": 13,
+      "monitor_alive_after": true,
+      "monitor_alive_before": true,
+      "path_witness": {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 2,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small"
+        ]
+      },
+      "phase": "path_witness",
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 110.53,
+        "prefill_tok_s": 2202.17
+      },
+      "started_unix": 1793001803.4702084,
+      "status": "complete",
+      "stderr": "host-034-witness-13-candidate.stderr",
+      "stderr_sha256": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+      "stdout": "host-034-witness-13-candidate.stdout",
+      "stdout_sha256": "6fc559a9f2ea3e88772532d92532efc0249d09ccddabc1359d14da687365b51d",
+      "activity": {
+        "intervals": 1,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 1,
+          "disk": 1,
+          "gap": 0
+        },
+        "coverage_complete": true,
+        "unknown_process_intervals": 1,
+        "missed_process_intervals": 1
+      }
+    }
+  ],
+  "profile_lines": {
+    "control": [
+      "profile:   matmul_tile_nvfp4_f16_small 24.4685 ms (41.8749%)",
+      "profile:   matmul_tile_nvfp4_f16 20.4904 ms (35.0669%)",
+      "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=1309035712546969808 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7904 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=908375304 Instructions=1469 Copies=276 Branches=121 Latency=185600 Inverse Throughput=77604 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=51 VALU=679 SALU=353 VMEM=78 SMEM=62 VOPD=0",
+      "profile: kernel matmul_tile_nvfp4_f16_small: Driver pipeline hash=13499438929332660499 SGPRs=32 VGPRs=48 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7584 LDS size=8704 Scratch size=0 Subgroups per SIMD=5 Combined inputs=0 Combined outputs=0 Hash=1828029819 Instructions=1284 Copies=165 Branches=69 Latency=150912 Inverse Throughput=75356 VMEM Clause=42 SMEM Clause=38 Pre-Sched SGPRs=27 Pre-Sched VGPRs=36 VALU=730 SALU=225 VMEM=44 SMEM=38 VOPD=0"
+    ],
+    "candidate": [
+      "profile:   matmul_tile_nvfp4_f16_small 23.2621 ms (40.7742%)",
+      "profile:   matmul_tile_nvfp4_f16 20.3002 ms (35.5825%)",
+      "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=6419145438659096590 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7640 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=876927195 Instructions=1427 Copies=269 Branches=120 Latency=175232 Inverse Throughput=69028 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=648 SALU=351 VMEM=78 SMEM=62 VOPD=0",
+      "profile: kernel matmul_tile_nvfp4_f16_small: Driver pipeline hash=8202521682222522241 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6760 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=133058573 Instructions=1146 Copies=178 Branches=69 Latency=133248 Inverse Throughput=61660 VMEM Clause=42 SMEM Clause=38 Pre-Sched SGPRs=27 Pre-Sched VGPRs=40 VALU=623 SALU=225 VMEM=44 SMEM=38 VOPD=0"
+    ]
+  },
+  "activity": {
+    "thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "sample_gap_seconds": 3,
+      "unrelated_cpu_cores": 1
+    },
+    "samples": 44,
+    "intervals": 43,
+    "flags": {
+      "other_gpu": 0,
+      "unrelated_cpu": 43,
+      "disk": 43,
+      "gap": 0
+    },
+    "missed_process_intervals": 14,
+    "unknown_process_intervals": 43,
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero. Disk counters are aggregate and cannot attribute traffic to this run."
+  },
+  "execution": {
+    "passed": true,
+    "complete": true,
+    "cleanup_ok": true,
+    "pins_unchanged": true,
+    "container_id": "8c8ee75931b41194f6eac4e0b58a6b16b7592e173d874b5cbb3445772155c748",
+    "started_utc": "2026-10-26T08:01:57.590375+00:00",
+    "ended_utc": "2026-10-26T08:03:30.751789+00:00",
+    "device": {
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "physical": 8,
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "image_id": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "verified_arms": {
+      "candidate": {
+        "binaries": {
+          "llmx": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13/candidate/build/llmx",
+            "sha256": "dfedaab9063112481b8df5d4674abbc69d5810a47500be33e5ff63fd919605df"
+          },
+          "llmx-nvfp4-test": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13/candidate/build/llmx-nvfp4-test",
+            "sha256": "135cf7ff600c33ae7f963f2f48feb7c10bba8558415d3fa9751b71b6a6d40240"
+          }
+        },
+        "source_manifest_sha256": "9ef01196d925e35cf7db6aeb487e0c83284cf8ab299ef819e9ca789f33e46f14",
+        "version": "llmx 0.1.0+unknown numerics bd60115c1d1a2457"
+      },
+      "control": {
+        "binaries": {
+          "llmx": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx",
+            "sha256": "f363fd8e588edf7f09bc9adf5d8962d1f80f7371cc800047ac43b984bfb0f732"
+          },
+          "llmx-nvfp4-test": {
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx-nvfp4-test",
+            "sha256": "d00d61b2fdd789af66d5d2450be3af48cde008bae347e4f8cbac05227f5b8104"
+          }
+        },
+        "source_manifest_sha256": "26e7dacf1d72809a32baae7204d5bb1b3fb0ba66c6a50d07063128af18f5c76d",
+        "version": "llmx 0.1.0+unknown numerics 07241fd541e398c5"
+      }
+    },
+    "plan_sha256": "3837d51510a6855e7fcd460f1e3ac737cc40677dc402fd598086282ec0428af3",
+    "runner_sha256": "d5cd3d0aa12883d648b438d5ea31bd3c7771ee2c23a7092561cf98433c46f78c"
+  },
+  "raw_artifacts": {
+    "rig_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13",
+    "execution_sha256": "1a64b400ce2178664bd26dbecc61f4b520a21233727fbc916b7b21802ed1642e",
+    "hashes_reverified": 77,
+    "hashes": {
+      "activity.jsonl": "d8c413122772639f76fe385871eca378ba24a76feafb3e69dab820cdd69d73d6",
+      "host-000-fuser.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-000-fuser.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-001-docker-ps.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-001-docker-ps.stdout": "18ca9d51e37cb68700b50e5500f94cc7838f9a36bc49bdbff74111cf1ce57c95",
+      "host-002-peer-0-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-002-peer-0-inspect.stdout": "a95fe5748bd37ff4010834f248beb85731516bc135d56779f3563190f54f992d",
+      "host-003-peer-1-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-003-peer-1-inspect.stdout": "5e15f61e34f8bf94ffdac5d7edc851323e80f7cfe8f0dc614bb4ceaf501cf54d",
+      "host-004-peer-2-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-004-peer-2-inspect.stdout": "702821032e7bf9a1335869fe31749c906be5edca0b47bb3d8bf8a01be8b7c852",
+      "host-005-peer-3-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-005-peer-3-inspect.stdout": "48e51b44e15bb8aa921ba5d35797594491d908889b4ed3bab3eea0d49c24aadf",
+      "host-006-peer-4-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-006-peer-4-inspect.stdout": "513f87ba506342079c7c75c6f312adfda50142e3dcf05b83881a554c0eec02ed",
+      "host-007-peer-5-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-007-peer-5-inspect.stdout": "91845b300d2ba334bd42f6cd5cece91c4d20c8fd0d2166980bb1a505c884e666",
+      "host-008-peer-5-top.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-008-peer-5-top.stdout": "0e15501ebab6e924021ba4f85732d3a9f7cecd32dd35b9d7d6d2ed2cedd5ca37",
+      "host-009-peer-6-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-009-peer-6-inspect.stdout": "080c322713514619328c50460b14d666c662e3bd8122f76b80ab71a491e81963",
+      "host-010-peer-6-top.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-010-peer-6-top.stdout": "103c3bd4484b220efbb0b6a8347b773d51093351fd0818caa2ce616e3c130776",
+      "host-011-image-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-011-image-inspect.stdout": "30a82d6f0689a3aba153254fcc4cdc5435aa07602752a850cb6223e1aeba702e",
+      "host-012-container-name-precheck.stderr": "49ef31636b5a84e75d64a06f71184c0b28ada123b2a5beabd536e4feaa7bfcdc",
+      "host-012-container-name-precheck.stdout": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "host-013-docker-create.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-013-docker-create.stdout": "4c92fdb5804a6ab3e72e1df754c917f002b90d5f3f5ebcbbdd1cda1c48387933",
+      "host-014-inspect-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-014-inspect-owned.stdout": "9276b00bf3cbe1ab1432e4e88270fd75c2aaf9375d364de7941d5345b0435fe6",
+      "host-015-docker-start.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-015-docker-start.stdout": "4c92fdb5804a6ab3e72e1df754c917f002b90d5f3f5ebcbbdd1cda1c48387933",
+      "host-016-control-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-016-control-version.stdout": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+      "host-017-candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-017-candidate-version.stdout": "36c1be96a40e2af503d4017e293ae1ef4291270dd12b84fd79e65b5cdfdaf5fb",
+      "host-018-vulkaninfo.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+      "host-018-vulkaninfo.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+      "host-019-control-model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-019-control-model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "host-020-candidate-model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-020-candidate-model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "host-021-timing-00-control.stderr": "46b2ef51160983c7ed03800350e5917480d87336fb29f768f3e1da486a79e469",
+      "host-021-timing-00-control.stdout": "3552cd81697678f7206604990660236a9f12a32008cdb6bbc95bff99ef6ce03d",
+      "host-022-timing-01-candidate.stderr": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+      "host-022-timing-01-candidate.stdout": "0f69a5211d5fde94f54b04d6f84fe813686d8f2cca1ce8079e95d0cdd4363ac2",
+      "host-023-timing-02-control.stderr": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+      "host-023-timing-02-control.stdout": "712619af5236594b56f9b11f18c4dfbf49d7a82253351841f8b71a77741cea45",
+      "host-024-timing-03-candidate.stderr": "b5a91e97ea8dc3066aab646ff3c8252939cdc186ccb5ddd2d1c6480d8d0995d0",
+      "host-024-timing-03-candidate.stdout": "dec9e70211379091a5f959a4379799553ca9e79175c64adf2115fe243805d9db",
+      "host-025-timing-04-candidate.stderr": "7d263e3d3f8c4703e672cdb4d8a42cc4506f99f46ea1b0c37f6233302b1a4e90",
+      "host-025-timing-04-candidate.stdout": "593a56c2d2f4fa59dd971170919653376f0cf8ea245b327027bba7393bad31fd",
+      "host-026-timing-05-control.stderr": "1b7459fd2299b5341acdb0582aec18e2d8bf993a29292e16bf63ac6ad84d6668",
+      "host-026-timing-05-control.stdout": "52909d9a65cecb1117fd3020993d7e8a3933f74a96165926fbbe83bc02f79b96",
+      "host-027-timing-06-control.stderr": "5b656d387f32f79a4a58c7b37406e88893e5daad3ca745258960b44be9d5922b",
+      "host-027-timing-06-control.stdout": "27652640a9777786318e1581f90673a0afbc0fdfe906996d57e8db55b61607da",
+      "host-028-timing-07-candidate.stderr": "b9ce9bb0222a14166b644184c7609cf2fc7d254c63dfa07b02389323ed842db2",
+      "host-028-timing-07-candidate.stdout": "8605750a2a743d5a9ed15e215d88f5abaf763566de05a128cd8d4f7236a07e7c",
+      "host-029-timing-08-control.stderr": "7d742192299736bf3aa1888a6610a956f88304aaafac55558367ae85c5761ab4",
+      "host-029-timing-08-control.stdout": "d54194b1b198d92763330f1360faac741cd6523a07cd3f0a716fbfa08c2df374",
+      "host-030-timing-09-candidate.stderr": "0361b2b63c4543830ffacc69360b28b02ac9860941356eb8c1a770c5f838d88c",
+      "host-030-timing-09-candidate.stdout": "1a6491797c8339298e7e408d1ba09c9a597fbc9cd0f26ee72cd83762f968b28d",
+      "host-031-timing-10-candidate.stderr": "b1bf7fe9e91daeb5347ab0ef55bc65b8d7e9a8a6baf52d5269107a34f5f06f29",
+      "host-031-timing-10-candidate.stdout": "ff720ef0fde86234701e6a29d47a57a0a987d2abd52f1bc79ba48348e7bb29a2",
+      "host-032-timing-11-control.stderr": "03cdd499b747abdc3ead42675063972815cae1d91ad3ab7068977a4c293115c8",
+      "host-032-timing-11-control.stdout": "f19cd97eb77e83def441c5f5a6220d2e50448a9401cbd06a5e381a741d787a70",
+      "host-033-witness-12-control.stderr": "eb9b9d36f2dbc52f4116b17a536ea2f31c21a46e989c114513007623f524e0fa",
+      "host-033-witness-12-control.stdout": "dcb0008fbd816fa5752c0af1c525b6b2d7140e64988949dcaae9fe8c71bb3b5d",
+      "host-034-witness-13-candidate.stderr": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+      "host-034-witness-13-candidate.stdout": "6fc559a9f2ea3e88772532d92532efc0249d09ccddabc1359d14da687365b51d",
+      "host-035-inspect-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-035-inspect-owned.stdout": "eabd203188ccaf48be2f511dcf21d01f4f3dcd9c4c2d96da96b6ae385aa8a340",
+      "host-036-docker-remove-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-036-docker-remove-owned.stdout": "4c92fdb5804a6ab3e72e1df754c917f002b90d5f3f5ebcbbdd1cda1c48387933",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+    }
+  },
+  "interpretation": "Retain as a promising candidate: approximately 3 percent measured prefill improvement, unchanged decode. Two samples per cell and background activity do not prove a final gain. Greater LDS and VGPR use reduced theoretical occupancy but fewer conversion instructions lowered measured tile time. No spills. No limits changed. Full HF, depth, split and final mx/landing checks remain pending.",
+  "private_integration": {
+    "revision": "0a6c9ed060f9a6b6c6f9ab8925aa2e85c17becf9",
+    "measured_revision": "a5b190d13",
+    "intervening_files": [
+      "docs/PRECISION.md",
+      "docs/STATUS.md",
+      "docs/benchmarks/nvfp4-f16-staging-mi50-screen-20261026.json",
+      "docs/benchmarks/nvfp4-main730-mx-mi50-screen-20261026.json",
+      "docs/benchmarks/nvfp4-mx-arithmetic-trace-20261026.json",
+      "docs/benchmarks/nvfp4-native-f16-control-decision-20261026.json"
+    ],
+    "runtime_build_test_fixture_delta": [],
+    "interpretation": "All tracked non-documentation files match the measured experiment. Carry its focused evidence with the original executable identities; the previously built main730 executable is not this candidate."
+  }
+}

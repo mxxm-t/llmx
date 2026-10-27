@@ -28,6 +28,7 @@ struct TensorView {
     const uint8_t* data = nullptr;
     size_t bytes = 0;
     std::shared_ptr<const WeightRows> row_source = {};
+    std::optional<size_t> scale = std::nullopt;
 };
 
 // What a model is built from, whatever file it came from: the architecture that reads it and one view per tensor in the file's order, each under a unique name; two models built from one set share the architecture and nothing else.
@@ -37,6 +38,24 @@ struct ModelWeights {
     std::vector<TensorView> tensors;
     backend::Dtype declared_dtype = backend::Dtype::f32;
 };
+
+// A companion holds one F32 scale for the weight or one per expert, with the whole vector retained on every tensor shard.
+inline size_t weight_scale_count(const ModelWeights& weights, size_t tensor) {
+    const TensorView& weight = weights.tensors.at(tensor);
+    if (!weight.scale) return 0;
+    const auto refuse = [&]() { return std::runtime_error("inference: incompatible weight scale " + weight.name); };
+    if (weight.type != quant::GGML_TYPE_NVFP4 || *weight.scale >= weights.tensors.size()) throw refuse();
+    const TensorView& scale = weights.tensors[*weight.scale];
+    if (scale.type != quant::GGML_TYPE_F32 || scale.shape.empty() || scale.shape.size() > 4 || scale.row_source || scale.scale) throw refuse();
+    size_t count = 1;
+    for (uint64_t n : scale.shape) {
+        if (!n || n > SIZE_MAX / count) throw refuse();
+        count *= size_t(n);
+    }
+    const uint64_t experts = weight.shape.size() == 3 ? weight.shape[2] : 1;
+    if ((count != 1 && count != experts) || count > SIZE_MAX / sizeof(float) || scale.bytes != count * sizeof(float)) throw refuse();
+    return count;
+}
 
 // The tensors a model is built from, by name, which plan_model builds once over the views for the architecture's plan and for setting each role's tensor.
 // It refuses a repeated name, and owns the one text for an absent one; it lives no longer than the views it refers to.
@@ -82,6 +101,9 @@ struct Weight {
     // Normalization weights are F32 by validation, so this is the whole row.
     backend::CSlice slice() const { return {data.get(), 0}; }
     std::shared_ptr<const WeightRows> row_source = {};
+    backend::BufferPtr scales = {};
+    size_t scale_count = 0;
+    backend::WeightView operand() const { return {type, slice(), {scales.get(), 0}, scale_count}; }
 };
 
 } // namespace infer

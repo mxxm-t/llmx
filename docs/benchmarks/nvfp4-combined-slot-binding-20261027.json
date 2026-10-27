@@ -1,0 +1,79 @@
+{
+  "binding": {
+    "coordinator_entry": "206c5fc24f64",
+    "old_plan_hashes": {
+      "routed-flash-identity-v3": "993753a0dcd648f3a40d490f18de0f48eda544394598698dccc014893581c02f",
+      "routed-35b-timing-row-dispatch-v1": "55f661d6548a90ee2bb73fe92751af72b729ffd89cd72e29993356c5e254908e",
+      "mxfp4-mi50-control-v1": "baba298dbe85a2cf22b7d0ea3c01525fb92155ed51c5571aa25031921eabb76b",
+      "combined-mi50-timing-v1": "cc03a1c4db5a2a27a93a0f90e441da87975c070bb5e549cd122576ddd37ef414"
+    },
+    "new_plan_hashes": {
+      "routed-flash-identity-v3": "e4c0283bebc7adc04c9460523304dbff3d494b4f783d0231e00de3b828829ef0",
+      "routed-35b-timing-row-dispatch-v1": "69962994907c0f302f34d3f7ea7c198b636cee26e02c1ba219ed0502ac3b8294",
+      "mxfp4-mi50-control-v1": "6fcb2558ece03c80004c22daffc99391081146543d7abdc2868b13cc60ca4b36",
+      "combined-mi50-timing-v1": "17420f531bb4fde54eac1ff324c81509d538da9c3c96c965e567d2aa3250af63"
+    },
+    "capture_private_done": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-flash-identity-v3/capture-DONE",
+    "shared_done_owner": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/combined-mi50-timing-v1/run.py",
+    "shared_done": "/zpool1/llmx-ldev-scratch/slots/xdev-flash-v2-DONE",
+    "workload_and_numerical_inputs_unchanged": true,
+    "checks": [
+      "queue syntax",
+      "cold descriptions",
+      "combined child pin and marker validation"
+    ],
+    "flash_queue_sha256": "0896dbcc6f27bd4e65a4e52fe8ef44bb46a8a0da4248cb4ac74db171fe8a44d6",
+    "timing_queue_sha256": "caea6196a77b512387e165ac94560b20db382f3a02c503a785744c9816704420"
+  },
+  "launch": {
+    "coordinator_entry": "206c5fc24f64",
+    "started_unix": 1793077205.8010454,
+    "launches": [
+      {
+        "pid": 567446,
+        "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/combined-mi50-timing-v1/queue.py",
+        "state": {
+          "status": "waiting",
+          "pid": 567446,
+          "started_unix": 1793077203.8642423,
+          "pins": {
+            "plan.json": "17420f531bb4fde54eac1ff324c81509d538da9c3c96c965e567d2aa3250af63",
+            "run.py": "589bad9553fcd13419c421d00078d99c4c9449f30b7b28f75c2ff5af727745b4"
+          },
+          "queue_sha256": "caea6196a77b512387e165ac94560b20db382f3a02c503a785744c9816704420",
+          "controller_launched": false
+        },
+        "script_sha256": "caea6196a77b512387e165ac94560b20db382f3a02c503a785744c9816704420"
+      },
+      {
+        "pid": 567496,
+        "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-flash-identity-v3/queue-flash-v3.py",
+        "state": {
+          "status": "waiting",
+          "pid": 567496,
+          "started_unix": 1793077204.848638,
+          "pins": {
+            "plan.json": "e4c0283bebc7adc04c9460523304dbff3d494b4f783d0231e00de3b828829ef0",
+            "run-rig.py": "d33941de4586c3c0a3e6998cf98bf4cd6817f880abf0553538115e2219d792cf",
+            "run-routed-35b-identity.py": "cd7e1287ac0efd80e285fce090a8a07fdfcdd61bb79f3000d8c0b0f59e76a51a"
+          },
+          "queue_sha256": "0896dbcc6f27bd4e65a4e52fe8ef44bb46a8a0da4248cb4ac74db171fe8a44d6",
+          "controller_launched": false,
+          "extra_predecessor": "/zpool1/llmx-ldev-scratch/slots/ddev-flag-DONE"
+        },
+        "script_sha256": "0896dbcc6f27bd4e65a4e52fe8ef44bb46a8a0da4248cb4ac74db171fe8a44d6"
+      }
+    ],
+    "shared_done_owner": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/combined-mi50-timing-v1/run.py",
+    "old_waiter_preserved": true,
+    "no_model_payload_read_during_binding": true
+  },
+  "qualification_complete": false,
+  "remaining": [
+    "hosted CI",
+    "Flash 2x2 raw identity",
+    "35B matched timing",
+    "MI50 MXFP4 default/F32 timing"
+  ],
+  "scope": "Queue ordering and marker ownership only. No runtime or numerical policy change."
+}

@@ -234,8 +234,8 @@ public:
         const size_t per_block = 2 + attention_runs(n);
         if (piece == 0) {
             // The patch embedding: both temporal kernels on the one frame, the bias, then the learned positions' taps.
-            b.matmul(w[patch0].type, w[patch0].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
-            b.matmul_add(w[patch1].type, w[patch1].slice(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
+            b.matmul(w[patch0].operand(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
+            b.matmul_add(w[patch1].operand(), s.slot(s_pixels), s.slot(s_x), in, D, n, runs, s.dtype);
             b.add_bias(s.slot(s_x), w[patch_bias].slice(), n, D);
             b.mix_rows(s.slot(s_x), w[pos_table].slice(), D, c_.side * c_.side, s.inputs->taps.data(), s.inputs->weights.data(), n, 4);
             return;
@@ -244,10 +244,10 @@ public:
             // The merger: the norm over each patch, then four consecutive patches read as one token's row.
             const Weight* mw = w + merger_base();
             b.layer_norm_rows(s.slot(s_h), s.slot(s_x), mw[post_w].slice(), mw[post_b].slice(), n, D, D, c_.eps);
-            b.matmul(mw[mm0_w].type, mw[mm0_w].slice(), s.slot(s_h), s.slot(s_merge), M2 * D, M2 * D, T, merged, s.dtype);
+            b.matmul(mw[mm0_w].operand(), s.slot(s_h), s.slot(s_merge), M2 * D, M2 * D, T, merged, s.dtype);
             b.add_bias(s.slot(s_merge), mw[mm0_b].slice(), T, M2 * D);
             b.gelu(s.slot(s_merge), s.slot(s_merge), T * M2 * D, backend::GeluForm::erf);
-            b.matmul(mw[mm2_w].type, mw[mm2_w].slice(), s.slot(s_merge), s.slot(s_out), M2 * D, c_.out, T, merged, s.dtype);
+            b.matmul(mw[mm2_w].operand(), s.slot(s_merge), s.slot(s_out), M2 * D, c_.out, T, merged, s.dtype);
             b.add_bias(s.slot(s_out), mw[mm2_b].slice(), T, c_.out);
             return;
         }
@@ -260,8 +260,8 @@ public:
             for (size_t j = 0; j < hd / 2; ++j) of[j] = j < hd / 4 ? 0 : 1;
             const backend::CSlice cos{s.tables[0].get(), 0}, sin{s.tables[1].get(), 0};
             b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln1_w].slice(), lw[ln1_b].slice(), n, D, D, c_.eps);
-            b.matmul_group({{lw[qkv_w].type, row_block(lw[qkv_w], 0), q, D}, {lw[qkv_w].type, row_block(lw[qkv_w], D), k, D},
-                            {lw[qkv_w].type, row_block(lw[qkv_w], 2 * D), v, D}},
+            b.matmul_group({{{lw[qkv_w].type, row_block(lw[qkv_w], 0)}, q, D}, {{lw[qkv_w].type, row_block(lw[qkv_w], D)}, k, D},
+                            {{lw[qkv_w].type, row_block(lw[qkv_w], 2 * D)}, v, D}},
                            s.slot(s_h), D, n, runs, s.dtype);
             const backend::CSlice bias = lw[qkv_b].slice();
             b.add_bias(q, bias, n, D);
@@ -280,14 +280,14 @@ public:
             return;
         }
         // The projection and its bias before the residual add, in HF's order.
-        b.matmul(lw[out_w].type, lw[out_w].slice(), s.slot(s_attn), s.slot(s_h), D, D, n, runs, s.dtype);
+        b.matmul(lw[out_w].operand(), s.slot(s_attn), s.slot(s_h), D, D, n, runs, s.dtype);
         b.add_bias(s.slot(s_h), lw[out_b].slice(), n, D);
         b.add(s.slot(s_x), s.slot(s_h), n * D);
         b.layer_norm_rows(s.slot(s_h), s.slot(s_x), lw[ln2_w].slice(), lw[ln2_b].slice(), n, D, D, c_.eps);
-        b.matmul(lw[up_w].type, lw[up_w].slice(), s.slot(s_h), s.slot(s_mlp), D, F, n, runs, s.dtype);
+        b.matmul(lw[up_w].operand(), s.slot(s_h), s.slot(s_mlp), D, F, n, runs, s.dtype);
         b.add_bias(s.slot(s_mlp), lw[up_b].slice(), n, F);
         b.gelu(s.slot(s_mlp), s.slot(s_mlp), n * F, backend::GeluForm::tanh);
-        b.matmul(lw[down_w].type, lw[down_w].slice(), s.slot(s_mlp), s.slot(s_h), F, D, n, runs, s.dtype);
+        b.matmul(lw[down_w].operand(), s.slot(s_mlp), s.slot(s_h), F, D, n, runs, s.dtype);
         b.add_bias(s.slot(s_h), lw[down_b].slice(), n, D);
         b.add(s.slot(s_x), s.slot(s_h), n * D);
     }

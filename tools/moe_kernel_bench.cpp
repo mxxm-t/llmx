@@ -94,19 +94,19 @@ int main(int argc, char** argv) {
     for (size_t T : {size_t(64), size_t(512)})
         for (size_t w : {E, E + 32})
             cases.push_back({"f32 tile 4096x" + std::to_string(w) + " T=" + std::to_string(T), 4096.0 * E * 4, [&, T, w] {
-                b.matmul(quant::GGML_TYPE_F32, {fw.get(), 0}, {h.get(), 0}, {fy.get(), 0}, w, 4096, T);
+                b.matmul({quant::GGML_TYPE_F32, {fw.get(), 0}}, {h.get(), 0}, {fy.get(), 0}, w, 4096, T);
             }});
     for (size_t T : {size_t(1), size_t(32), size_t(128), size_t(512)}) {
         const std::string t = " T=" + std::to_string(T);
         cases.push_back({"rms_norm" + t, 0.0, [&, T] { b.rms_norm_rows({h.get(), 0}, {hx.get(), 0}, {nw.get(), 0}, T, E, E, 1e-6f); }});
         cases.push_back({"router f32" + t, (double)E * NE * 4, [&, T] {
-            b.matmul(quant::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T);
+            b.matmul({quant::GGML_TYPE_F32, {rw.get(), 0}}, {h.get(), 0}, {scores.get(), 0}, E, NE, T);
         }});
         if (T > 1) {
             // The same rows through the row kernel: one run of generated tokens, which takes it at any width.
             cases.push_back({"router f32 rows" + t, (double)E * NE * 4, [&, T] {
                 const backend::RowRun run{T, 1};
-                b.matmul(quant::GGML_TYPE_F32, {rw.get(), 0}, {h.get(), 0}, {scores.get(), 0}, E, NE, T, {&run, 1});
+                b.matmul({quant::GGML_TYPE_F32, {rw.get(), 0}}, {h.get(), 0}, {scores.get(), 0}, E, NE, T, {&run, 1});
             }});
         }
         cases.push_back({"route" + t, 0.0, [&, T] {
@@ -117,13 +117,13 @@ int main(int argc, char** argv) {
     }
     const double gu_bytes = 2.0 * row_bytes(gt, E) * F * K, dn_bytes = (double)row_bytes(dt, F) * E * K;
     cases.push_back({"dense " + std::to_string(2 * F * K) + "x" + std::to_string(E), gu_bytes, [&] {
-        b.matmul(gt, {ds.get(), 0}, {x.get(), 0}, {g.get(), 0}, E, 2 * F * K, 1);
+        b.matmul({gt, {ds.get(), 0}}, {x.get(), 0}, {g.get(), 0}, E, 2 * F * K, 1);
     }});
     cases.push_back({"dense " + std::to_string(F * K / 2) + "x" + std::to_string(4 * E), gu_bytes, [&] {
-        b.matmul(gt, {dl.get(), 0}, {xf.get(), 0}, {g.get(), 0}, 4 * E, F * K / 2, 1);
+        b.matmul({gt, {dl.get(), 0}}, {xf.get(), 0}, {g.get(), 0}, 4 * E, F * K / 2, 1);
     }});
     cases.push_back({"dense down " + std::to_string(E) + "x" + std::to_string(F * K), dn_bytes, [&] {
-        b.matmul_add(dt, {dd.get(), 0}, {xf.get(), 0}, {y.get(), 0}, F * K, E, 1);
+        b.matmul_add({dt, {dd.get(), 0}}, {xf.get(), 0}, {y.get(), 0}, F * K, E, 1);
     }});
     // A dense model's shapes, where the row kernels are known to read near the card's rate.
     const auto big = weights(row_bytes(gt, 4 * E) * 3 * 4 * E, 8);
@@ -131,24 +131,24 @@ int main(int argc, char** argv) {
     const auto by = b.alloc(3 * 4 * E * sizeof(float));
     for (auto [nin, nout] : {std::pair<size_t, size_t>{4 * E, 4 * E}, {4 * E, 12 * E}, {12 * E, 4 * E}, {E, 3 * F}}) {
         cases.push_back({"dense " + std::to_string(nout) + "x" + std::to_string(nin), (double)row_bytes(gt, nin) * nout,
-                         [&, nin, nout] { b.matmul(gt, {bw.get(), 0}, {xf.get(), 0}, {by.get(), 0}, nin, nout, 1); }});
+                         [&, nin, nout] { b.matmul({gt, {bw.get(), 0}}, {xf.get(), 0}, {by.get(), 0}, nin, nout, 1); }});
     }
     // More columns over the same rows: what a column's activation reads cost beside the weights.
     for (size_t n : {size_t(2), size_t(4), size_t(8)})
         cases.push_back({"dense " + std::to_string(2 * F * K) + "x" + std::to_string(E) + " n=" + std::to_string(n), gu_bytes, [&, n] {
-            b.matmul(gt, {ds.get(), 0}, {xf.get(), 0}, {g.get(), 0}, E, 2 * F * K, n);
+            b.matmul({gt, {ds.get(), 0}}, {xf.get(), 0}, {g.get(), 0}, E, 2 * F * K, n);
         }});
     for (size_t T : {size_t(64), size_t(128)})
         cases.push_back({"dense prompt T=" + std::to_string(T), gu_bytes * T, [&, T] {
-            b.matmul(gt, {ds.get(), 0}, {x.get(), 0}, {dense_prompt_out.get(), 0}, E, 2 * F * K, T);
+            b.matmul({gt, {ds.get(), 0}}, {x.get(), 0}, {dense_prompt_out.get(), 0}, E, 2 * F * K, T);
         }});
     for (size_t T : {size_t(1), size_t(4), size_t(8), size_t(32), size_t(64), size_t(128)}) {
         cases.push_back({"routed gate+up T=" + std::to_string(T), gu_bytes * T, [&, T] {
-            b.matmul_experts({{gt, {gate.get(), 0}, {g.get(), 0}, F}, {gt, {up.get(), 0}, {up_out.get(), 0}, F}},
+            b.matmul_experts({{{gt, {gate.get(), 0}}, {g.get(), 0}, F}, {{gt, {up.get(), 0}}, {up_out.get(), 0}, F}},
                              {x.get(), 0}, E, T, routing);
         }});
         cases.push_back({"routed down T=" + std::to_string(T), dn_bytes * T, [&, T] {
-            b.matmul_experts_add(dt, {down.get(), 0}, {xf.get(), 0}, {y.get(), 0}, F, E, T, routing);
+            b.matmul_experts_add({dt, {down.get(), 0}}, {xf.get(), 0}, {y.get(), 0}, F, E, T, routing);
         }});
     }
 

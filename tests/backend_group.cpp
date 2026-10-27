@@ -168,20 +168,20 @@ static size_t check_q8_inputs(backend::CpuBackend& cpu) {
             };
             reset(0);
             for (size_t c = 0; c < columns; ++c)
-                cpu.matmul(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), c * nin}, {yb.get(), 1 + c * rows}, nin, rows, 1);
+                cpu.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), c * nin}, {yb.get(), 1 + c * rows}, nin, rows, 1);
             check(y, 0);
             for (const backend::RowRuns runs : {backend::RowRuns{decode, 1}, {prompt, 1}, {mixed, 2}}) {
                 reset(0);
-                cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 1}, rows},
-                                  {quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {zb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, runs);
+                cpu.matmul_group({{{quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {yb.get(), 1}, rows},
+                                  {{quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {zb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, runs);
                 check(y, 0); check(z, 0);
                 reset(0);
-                cpu.matmul_experts({{quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {yb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, routing, runs);
+                cpu.matmul_experts({{{quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {yb.get(), 1}, rows}}, {xb.get(), 0}, nin, columns, routing, runs);
                 check(y, 0);
                 reset(1);
-                cpu.matmul_add(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, columns, runs);
+                cpu.matmul_add({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, columns, runs);
                 check(y, 1);
-                cpu.matmul_experts_add(quant::GGML_TYPE_Q8_0, {wb.get(), 0}, {xb.get(), 0}, {zb.get(), 1}, nin, rows, columns, routing, runs);
+                cpu.matmul_experts_add({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {zb.get(), 1}, nin, rows, columns, routing, runs);
                 check(z, 1);
             }
         }
@@ -209,7 +209,7 @@ static size_t check_q8_scales(backend::CpuBackend& cpu) {
             // A one-hot input makes every finite f16 scale times int8 exact in f32, independently of the SIMD reduction order.
             const float expected = f16_to_f32(uint16_t(h)) * float(q);
             actual = 0.0f;
-            cpu.matmul(quant::GGML_TYPE_Q8_0, {row_buf.get(), 0}, {x_buf.get(), 0},
+            cpu.matmul({quant::GGML_TYPE_Q8_0, {row_buf.get(), 0}}, {x_buf.get(), 0},
                        {out_buf.get(), 0}, quant::Q8_0_BLOCK, 1, 1, {}, backend::Dtype::f32);
             require(std::isfinite(actual) && actual == expected, "Q8 scale or signed weight differs");
             ++count;
@@ -269,7 +269,7 @@ struct Matrix {
         return handle;
     }
     backend::Projection projection(backend::CpuBackend& cpu) {
-        return {type, {buffer(cpu).get(), 0}, {out_buffer(cpu).get(), 1}, rows};
+        return {{type, {buffer(cpu).get(), 0}}, {out_buffer(cpu).get(), 1}, rows};
     }
     backend::BufferPtr out_buffer(backend::CpuBackend& cpu) {
         if (!out_handle) out_handle = cpu.adopt(grouped.data(), grouped.size() * sizeof(float));
@@ -295,7 +295,7 @@ static size_t check(backend::CpuBackend& cpu, std::array<uint32_t, 3> types,
     const auto original = x;
     const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
     for (auto& m : matrices)
-        cpu.matmul(m.type, {m.buffer(cpu).get(), 0}, {x_buf.get(), 0},
+        cpu.matmul({m.type, {m.buffer(cpu).get(), 0}}, {x_buf.get(), 0},
                    {m.sep_buffer(cpu).get(), 1}, width, m.rows, batch, {}, backend::Dtype::f32);
     cpu.matmul_group({matrices[0].projection(cpu), matrices[1].projection(cpu),
                       matrices[2].projection(cpu)}, {x_buf.get(), 0}, width, batch, {}, backend::Dtype::f32);
@@ -345,7 +345,7 @@ static size_t check_magnitudes(backend::CpuBackend& cpu) {
             for (size_t i = 0; i < width; ++i)
                 x[i] = mag >= 1e30f ? mag
                      : mag * float(int((i * 19 + 7) % 101) - 50) / 50.0f;
-            cpu.matmul(m.type, {m.buffer(cpu).get(), 0}, {x_buf.get(), 0},
+            cpu.matmul({m.type, {m.buffer(cpu).get(), 0}}, {x_buf.get(), 0},
                    {m.sep_buffer(cpu).get(), 1}, width, m.rows, 1, {}, backend::Dtype::f32);
             for (size_t o = 0; o < m.rows; ++o) {
                 double expected = 0, magnitude = 0;
@@ -546,8 +546,8 @@ size_t check_route_edges(backend::CpuBackend& cpu) {
         const auto ib = cpu.adopt(ids_w.data(), ids_w.size() * sizeof(float)), wb = cpu.adopt(w.data(), w.size() * sizeof(float));
         cpu.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ib.get(), 0}, {wb.get(), 0});
         const backend::Backend::Routing routing{{ib.get(), 0}, {wb.get(), 0}, k, n_expert};
-        cpu.matmul_experts({{quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
-        cpu.matmul_experts_add(quant::GGML_TYPE_Q8_0, {eb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
+        cpu.matmul_experts({{{quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {gb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
+        cpu.matmul_experts_add({quant::GGML_TYPE_Q8_0, {eb.get(), 0}}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
         std::vector<float> gout(entries * nout), yout(rows * nout);
         cpu.read(*gb, 0, gout.data(), gout.size() * sizeof(float));
         cpu.read(*yb, 0, yout.data(), yout.size() * sizeof(float));
@@ -612,8 +612,8 @@ int main() {
         bool rejected = false;
         try {
             const auto sink_buf = cpu.adopt(sink.data(), sink.size() * sizeof(float));
-            cpu.matmul_group({{9999, {storage.get(), 0}, {sink_buf.get(), 0}, 65},
-                              {9999, {storage.get(), 0}, {sink_buf.get(), 0}, 67}},
+            cpu.matmul_group({{{9999, {storage.get(), 0}}, {sink_buf.get(), 0}, 65},
+                              {{9999, {storage.get(), 0}}, {sink_buf.get(), 0}, 67}},
                              {}, 256, 1, {}, backend::Dtype::f32);
         } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "invalid quant type was not rejected on caller");
@@ -621,8 +621,8 @@ int main() {
         rejected = false;
         try {
             const auto sink2 = cpu.adopt(sink.data(), sink.size() * sizeof(float));
-            cpu.matmul_group({{quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 65},
-                              {quant::GGML_TYPE_Q8_0, {}, {sink2.get(), 0}, 67}},
+            cpu.matmul_group({{{quant::GGML_TYPE_Q8_0, {}}, {sink2.get(), 0}, 65},
+                              {{quant::GGML_TYPE_Q8_0, {}}, {sink2.get(), 0}, 67}},
                              {}, 256, 1, {}, backend::Dtype::f32);
         } catch (const std::runtime_error&) { rejected = true; }
         require(rejected, "projection without storage was accepted");

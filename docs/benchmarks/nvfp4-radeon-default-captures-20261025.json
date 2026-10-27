@@ -1,0 +1,93 @@
+{
+  "scope": "Radeon current-runtime default raw/chat capture and full-F32 HF quality companion. Operation-matched depth comparison remains pending.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "binary_sha256": "61380590bef4aec3e645bd57ca837823eb6f3f996ae9c45a94ea4582b0f119c6",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "input_manifest_sha256": "69d8bc5e7d665042826546248d9488a8248b6557dd7346a782f874afa3c0580d",
+  "capture_complete": true,
+  "qualification_pass": false,
+  "calls": [
+    {
+      "variant": "raw",
+      "status": "captured",
+      "positions": 512,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "stdout_sha256": "7f2ebd56ab737b2d4573e92df389549c9e33446e7b2c64f83453c18cda5de466",
+      "stderr_sha256": "4fe9e077285a92e8050ac9a9acb4207230336b7c5090714683e81e7ff16c695b"
+    },
+    {
+      "variant": "chat",
+      "status": "captured",
+      "positions": 512,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "stdout_sha256": "fe310b9345d924f05ebd65288256feabe9c9503eebfe411f66ac191731112158",
+      "stderr_sha256": "04736e7c26738adbc36ad1169aa91928069d49c4803022185ea4301e36de3c87"
+    }
+  ],
+  "full_f32_quality": [
+    {
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.069205751463435,
+      "hf_mean_nll": 2.0691840648651123,
+      "nll_delta_diagnostic_only": 2.1686598322911976e-05
+    },
+    {
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.1874371273168305,
+      "hf_mean_nll": 2.1873371601104736,
+      "nll_delta_diagnostic_only": 9.996720635685463e-05
+    }
+  ],
+  "reference_job": {
+    "run": 40192797722,
+    "head": "dedb69619529c1ac5a2c84071ec366d635f2eb93",
+    "observed_status": "in_progress; bounded reference step running"
+  },
+  "cpu_reference_job": {
+    "run": 40194172437,
+    "head": "0c7d0c42f9767102fb67bd17d9c2a0bd0262b592",
+    "observed_status": "queued"
+  },
+  "artifacts": {
+    "build-nvfp4-depth-reference\\default-policy\\candidate-main3\\capture.cpp": "dbf01511196b1be2f9c0f31a55c85401b4c9ca72f535fc2445a2161e5abfa129",
+    "build-nvfp4-depth-reference\\default-policy\\candidate-main3\\run.py": "64c064cc13510fe1cc340a40cd2431044d75e689bff4b3ef110ef11d49146a11",
+    "build-nvfp4-depth-reference\\default-policy\\candidate-main3\\build-receipt.json": "dc8438b84fe463ccb4aea20e3e1071d75694ace668055c403eddbf7bb90f23d6",
+    "build-nvfp4-depth-reference\\default-policy\\candidate-main3\\captures-default-v1\\execution.json": "645416993b76392b0ccc5ed64cf792a71d899ab9ed81dd7d5ff727ffabef7247",
+    "build-nvfp4-depth-reference\\default-policy\\radeon-f32-quality-comparison.json": "acc191270cd7b0115c18d2b56923ef5ae8465f9d97a502ff10084a312629877f",
+    "build-nvfp4-depth-reference\\compare-default-f32-quality.py": "19da3e39aad2fe1b56e4f63510a12b20b4fb7dec74dcfc4c3641512f34ad3d52",
+    "build-nvfp4-depth-reference\\default-policy\\cpu-control-decision.json": "fc69b7363480e646c98a67e22c3bf600e66e8110811abac07a03c0431ef034e9"
+  },
+  "cpu_capture_admission": {
+    "started_inference": false,
+    "available_bytes": 3214381056,
+    "required_bytes": 3221225472,
+    "receipt": "build-nvfp4-depth-reference\\default-policy\\candidate-cpu-main3\\captures-default-v1\\execution.json",
+    "sha256": "344d13ed53d8cd31e37d4b06b3a9cc7874a653b158ebb3229b6d4ca89b5102f2"
+  }
+}

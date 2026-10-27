@@ -1,0 +1,900 @@
+{
+  "schema": "nvfp4-common-split-wide-hf-20261026-v1",
+  "scope": "Short wide dense shared-float numerical evidence only. This is not released NVFP4, 16K depth, row-class invariance, per-shape K-part dispatch evidence, matched performance, or a final landing gate. The scratch common split policy remains unadopted.",
+  "feature_source": {
+    "base_runtime": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+    "integration_source": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+    "candidate_source_files": {
+      "src/backends/device_profile.hpp": {
+        "baseline_normalized_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+        "candidate_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888"
+      },
+      "src/backends/vulkan/vulkan_matmul.hpp": {
+        "baseline_normalized_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3",
+        "candidate_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4"
+      }
+    },
+    "candidate_source_manifest_sha256": "b61da6b5af1945c16328585ed64e80cb90fc073b33ed41eae16577a7d9a3f309",
+    "source_patch_sha256": "b4f10174757ac0806ffc496e196c75bd2e771af5ceab7404d1618ed436ea8646",
+    "build_receipt_sha256": "3dd86d19b7a391d09ab2eae0ab764363336e471f1132c9e58c4f24a1d89e33bb",
+    "candidate_library_sha256": "8554ce8f2fd8bd9d5adc431f5e41c13a7165c86766a884a5ead2d26660fd1f05",
+    "candidate_llmx_sha256": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+    "baseline_binary_sha256_from_common_split_screen": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+    "candidate_binary_sha256_from_common_split_screen": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+    "wide_check_mounts": {
+      "baseline": "input-overlap-main7ac-v1 candidate/build mounted read-only at /baseline",
+      "candidate": "common-float-split-v1 candidate/build mounted read-only at /candidate"
+    },
+    "note": "The wide-HF runner made no --version calls. It asserted binary hashes during run-common-wide-hf.py preflight; terminal verification independently rehashed both mounted llmx binaries. Hashes are recorded above."
+  },
+  "reference": {
+    "scope": "Short wide dense F32/F16/BF16-storage fixture, identical exact decoded weights. Independent HF F32 oracle; existing activation-path budgets only.",
+    "weights_sha256": "8b95391c2af6f389ea36bed9f3d4e73f44fd718ac288dc6ec6f6f5f5460bec4f",
+    "models": {
+      "f32": {
+        "file": "f32.gguf",
+        "sha256": "270f371e4baac583ec812f0c76ade090560681502b882f05345b42c64feffeb5",
+        "retained_sha256": "270f371e4baac583ec812f0c76ade090560681502b882f05345b42c64feffeb5",
+        "matches": true
+      },
+      "f16": {
+        "file": "f16.gguf",
+        "sha256": "12f426f54b581cedcc1ab0330c8cf56057770369a17f64cf2192e8fdee60663c",
+        "retained_sha256": "12f426f54b581cedcc1ab0330c8cf56057770369a17f64cf2192e8fdee60663c",
+        "matches": true
+      },
+      "bf16": {
+        "file": "bf16.gguf",
+        "sha256": "df89d5cde73f588b4577b63b613aa0bc9118a15bf56d3f6044ac6acb3c616d21",
+        "retained_sha256": "df89d5cde73f588b4577b63b613aa0bc9118a15bf56d3f6044ac6acb3c616d21",
+        "matches": true
+      }
+    },
+    "config": {
+      "block_count": 2,
+      "embedding_length": 512,
+      "feed_forward_length": 2048,
+      "attention.head_count": 8,
+      "attention.head_count_kv": 4,
+      "attention.key_length": 64,
+      "context_length": 256
+    },
+    "prompt_token_lengths": [
+      127,
+      128,
+      129
+    ],
+    "nll_text_tokens": 129,
+    "nll_contexts": [
+      64,
+      128
+    ],
+    "torch_version": "2.5.1+cpu",
+    "transformers_version": "5.17.0",
+    "attention": "eager",
+    "oracle_dtype": "float32",
+    "owner_hashes": {
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/half_weights.py": "8a70c62c916d45232e1456d224968df2a90ae072cdbf7ff3237c3b570ce9eec5",
+      "tools/gen_baseline.py": "7028e675e8d7abb8472f9e7f4905b0ecda5bc85839e05b695609b16fd067d21d",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/data/dtype_budget.json": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c"
+    },
+    "candidate_executed_by_reference_producer": false,
+    "reference_json_sha256": "55c8185e2483362c117d036fe111cfe0d0197b92d04199cd663ba4473215facd",
+    "input_fixture_plan_sha256": "6530d202e1f9cd05fb66cf81db2e4c3a5532d1fa769b54b5d646c0a4e021c797",
+    "generated_fixture_plan_sha256": "61ede00ec4001f971b7e5e5d18cb39caea02dae3af8a3f3b2d29fd572fd47f47",
+    "generator_sha256": "01a0e82fc400c9d106ead746ceb54206ef4d22443f74f84b743a812a7bbc8444"
+  },
+  "execution": {
+    "passed": true,
+    "calls": 90,
+    "passed_calls": 90,
+    "errors": [],
+    "dimensions": "2 arms x 3 requested activation dtypes x 3 exact weight-storage variants x (3 prompt-logit cases + 2 NLL windows) = 90 calls.",
+    "commands_use": "vulkan:0, one thread, ubatch128, F32 KV; prompt lengths 127/128/129 and NLL contexts64/128.",
+    "container": "3456de7bebc24411de8560ab70f4f7fb39dd6e55710a936dd129ff71fd8238cb",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "network": "none",
+    "gpu_sample": {
+      "gpu_busy_percent": "0",
+      "mem_info_vram_used": "10932224",
+      "power_dpm_force_performance_level": "auto"
+    },
+    "container_removed": true,
+    "actual_matrix_path_summary": [
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005318330763186552,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.007392740726291258
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "bf16",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005318330763186552,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.007392740726291258
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f16",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005318330763186552,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.007392740726291258
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 5.451793670618876e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.4548206329381125e-05
+      },
+      {
+        "arm": "baseline",
+        "requested_dtype": "f32",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 3.8707631855317004e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.61292368144683e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005397290763182738,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.0073848447262916395
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "bf16",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005397290763182738,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.0073848447262916395
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f16",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "bf16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.020641060770034803,
+        "frozen_bound": 0.05409973859786987,
+        "minimum_headroom": 0.03345867782783507
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "bf16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 0.0005397290763182738,
+        "frozen_bound": 0.007924573802609913,
+        "minimum_headroom": 0.0073848447262916395
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "f16",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "f16",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "f32",
+        "check": "logits",
+        "calls": 3,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 4.32688903806433e-06,
+        "frozen_bound": 2e-05,
+        "minimum_headroom": 1.5673110961935672e-05
+      },
+      {
+        "arm": "candidate",
+        "requested_dtype": "f32",
+        "weight_storage": "f32",
+        "check": "nll",
+        "calls": 2,
+        "actual_matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "max_observed_error": 1.5107631856636772e-07,
+        "frozen_bound": 1e-05,
+        "minimum_headroom": 9.848923681433633e-06
+      }
+    ],
+    "artifact_verification": {
+      "call_stdout_stderr": "180/180 call capture artifacts match result.json SHA-256 entries.",
+      "checker_result_artifacts": "All 180 per-call stdout/stderr artifacts match result.json entries. The checker container.stdout entry was hashed before its final JSON summary was printed, so its recorded empty-file SHA differs from the now-populated host capture; check.py ordering confirms this.",
+      "reference_generation_artifacts": {
+        "generate.py": {
+          "sha256": "01a0e82fc400c9d106ead746ceb54206ef4d22443f74f84b743a812a7bbc8444",
+          "matches": true
+        },
+        "stderr.log": {
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "matches": true
+        },
+        "stdout.log": {
+          "sha256": "b1327e4075d32d8a88f678a442b365918bf65abe26bc773a0b3f8ff443ee3461",
+          "matches": true
+        },
+        "fixture/plan.json": {
+          "sha256": "61ede00ec4001f971b7e5e5d18cb39caea02dae3af8a3f3b2d29fd572fd47f47",
+          "matches": true
+        },
+        "fixture/bf16.gguf": {
+          "sha256": "df89d5cde73f588b4577b63b613aa0bc9118a15bf56d3f6044ac6acb3c616d21",
+          "matches": true
+        },
+        "fixture/reference.json": {
+          "sha256": "55c8185e2483362c117d036fe111cfe0d0197b92d04199cd663ba4473215facd",
+          "matches": true
+        },
+        "fixture/f16.gguf": {
+          "sha256": "12f426f54b581cedcc1ab0330c8cf56057770369a17f64cf2192e8fdee60663c",
+          "matches": true
+        },
+        "fixture/f32.gguf": {
+          "sha256": "270f371e4baac583ec812f0c76ade090560681502b882f05345b42c64feffeb5",
+          "matches": true
+        }
+      },
+      "note": "Terminal verification reports 8/8 reference-generation artifacts and 180/180 per-call captures matching. The checker stdout discrepancy is explained by capture occurring after check.py computed its output-directory artifact manifest. All three GGUF files and reference JSON match pinned hashes.",
+      "checker_artifact_summary": {
+        "manifest_entries": 183,
+        "per_call_capture_entries_verified": 180,
+        "other_host_capture_entry": "container.stdout",
+        "container_stdout_manifest_mismatch_explained": true
+      }
+    },
+    "result_sha256": "551e9e2c473ede5e93ccec480978206934baafa9fd154ed1f09f1b58397f8101",
+    "execution_sha256": "937ac48af187b950e87f4cfb44c3a5cb0ac601c88848856a4924c9f23b9c0755",
+    "reference_execution_sha256": "e9ffd05a8cc4edbcb0a0680d16a0a804ef8a409efc1150c75e5d0dde4d2bbe10",
+    "terminal_verification": {
+      "path": "build-integration/common-float-split-v1/wide-hf-terminal-verification.json",
+      "sha256": "e74bb57576ff4d35243869c890596eb127cd909d7b98c0c53a1dcbb4c6d7a5c4",
+      "reference_artifacts_match": "8/8",
+      "call_capture_artifacts_match": "180/180",
+      "binary_hashes": {
+        "baseline": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+        "candidate": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784"
+      },
+      "note": "Original manifests preserved. Checker hashed its redirected stdout before its final print; the terminal summary and all 180 call captures are verified separately. Reference producer all eight terminal hashes match."
+    }
+  },
+  "result": {
+    "overall_max_logit_error": 0.020641060770034803,
+    "overall_max_nll_error": 0.0005397290763182738,
+    "all_existing_bounds_passed": true,
+    "summary": "See execution.actual_matrix_path_summary for per-arm, requested-dtype, storage, metric maximum error and minimum headroom. Requested dtype does not guarantee the dispatched arithmetic path; the recorded matrix_paths are the path witness."
+  },
+  "limitations": [
+    "Short synthetic dense model only: hidden width512, feed-forward width2048, two blocks, context256.",
+    "The actual matrix-path witness follows the stored weight type in this fixture. Some requested f16 runs therefore execute f32 or bf16 matrix paths.",
+    "This does not validate released NVFP4 model arithmetic, 16K prompt depth, row-class batching invariance, or actual per-shape K-part selection.",
+    "No performance conclusion or final gate follows from these CPU-only HF reference and Vulkan short-check results.",
+    "The initial local HF import attempt timed out at torch.cuda.is_available called through torchao; the successful producer used the recorded CPU-only Torch 2.5.1+cpu and Transformers 5.17.0 environment. The failed import diagnostic is retained separately."
+  ]
+}

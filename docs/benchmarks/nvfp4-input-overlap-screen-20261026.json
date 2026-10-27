@@ -1,0 +1,1120 @@
+{
+  "scope": "Privately integrated native-F16 NVFP4 early-input scheduling. Focused correctness and llmx-only model screen, not final qualification.",
+  "source": {
+    "scope": "Diagnostic native-F16 NVFP4 input reads before weight decoding, conversion at shared staging. Same F16 rounding and ordered F32 FMA. Motivated by input wait20.15% sampled cost in current trace, not a promised speedup.",
+    "base_shader_sha256": "617585b2154a391586464a96f9c43b5de585e45f9a5f0c8ca72d6e2ac4cbf465",
+    "clean_equivalent_base_shader_sha256": "45435eb89786e7cc9adc0a4fd4bd2fe37cbd456fc8e9eaa79c0652cb29f50ec6",
+    "candidate_shader_sha256": "1d9249f14f6e309c8da4411e8f3ffe814e1232dafb42cce2a9b7602393165b64"
+  },
+  "build": {
+    "scope": "Early input reads in native-F16 NVFP4 tile, current MI50 source. Build only.",
+    "passed": true,
+    "started_unix": 1793024418.6308517,
+    "steps": [
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx-vulkan"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-I/work/candidate/build/generated",
+          "-I/work/candidate/source/src",
+          "/work/probe.cpp",
+          "/work/candidate/build/libllmx-vulkan.a",
+          "-ldl",
+          "-pthread",
+          "-o",
+          "/work/probe"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "changed_generated_files": [
+      "matmul_tile_nvfp4_f16.inc"
+    ],
+    "shader_sha256": "1d9249f14f6e309c8da4411e8f3ffe814e1232dafb42cce2a9b7602393165b64",
+    "probe_source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+    "library_sha256": "133985e754f102b332fd4967ae2be5441e7626365166530a0e4b2907d40fe27b",
+    "binary_sha256": "985d96f1083d96e5f5e23ab9d8de1433859769301407f55ac3a5f43768b976bf",
+    "binary_bytes": 9297264,
+    "ended_unix": 1793024444.1583142
+  },
+  "sections": {
+    "operator": {
+      "execution_sha256": "35fca1563964006090066bbaa80061a5cc8a5b46ac4182fdded1c8ddfcfcd8b4",
+      "artifacts_verified": 37,
+      "calls": [
+        {
+          "label": "1024-2048-128-baseline-1",
+          "command": [
+            "/baseline/probe",
+            "1024",
+            "2048",
+            "128",
+            "20",
+            "/out/calls/1024-2048-128-baseline-1/probe"
+          ],
+          "started_unix": 1793024725.409088,
+          "exit_code": 0,
+          "ended_unix": 1793024726.410673,
+          "stdout_sha256": "e3288a1f061c57bff48d00d3f9023305e9173ba1dd5feb8ec1ba1c6058edae10",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.45904,
+            0.46352,
+            0.4568,
+            0.45808,
+            0.4624,
+            0.45648,
+            0.46192,
+            0.4664,
+            0.47072,
+            0.4512,
+            0.45792,
+            0.46448,
+            0.45456,
+            0.45792,
+            0.45152,
+            0.46448,
+            0.46144,
+            0.46288,
+            0.45824,
+            0.46656
+          ],
+          "mean_kernel_ms": 0.460328
+        },
+        {
+          "label": "1024-2048-128-input_overlap-1",
+          "command": [
+            "/half/probe",
+            "1024",
+            "2048",
+            "128",
+            "20",
+            "/out/calls/1024-2048-128-input_overlap-1/probe"
+          ],
+          "started_unix": 1793024726.412575,
+          "exit_code": 0,
+          "ended_unix": 1793024727.4135442,
+          "stdout_sha256": "1dc679d14a9d9c5e9607b42577d856d7d67dedbc1add6dfab3343b908e95f156",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "2ca7cca5b9b6a0e70357a7c2d264dfc29d57a04279b56e6995cd230645cb6657",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "d7356cc7a96a7d1c8a40cc59f9636fa999b5b9d78d30390174c6257651733ac9"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.4504,
+            0.45696,
+            0.45232,
+            0.44624,
+            0.45312,
+            0.4448,
+            0.4496,
+            0.45536,
+            0.45952,
+            0.45104,
+            0.45232,
+            0.46384,
+            0.45568,
+            0.4576,
+            0.44736,
+            0.45776,
+            0.45248,
+            0.45648,
+            0.44912,
+            0.45024
+          ],
+          "mean_kernel_ms": 0.453112
+        },
+        {
+          "label": "1024-2048-128-input_overlap-2",
+          "command": [
+            "/half/probe",
+            "1024",
+            "2048",
+            "128",
+            "20",
+            "/out/calls/1024-2048-128-input_overlap-2/probe"
+          ],
+          "started_unix": 1793024727.4149888,
+          "exit_code": 0,
+          "ended_unix": 1793024728.4161086,
+          "stdout_sha256": "8ff529c84dd9c9f941d8e14ed989cedc6e3cd79fa9b90646d15bc16ba3f29fc3",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "2ca7cca5b9b6a0e70357a7c2d264dfc29d57a04279b56e6995cd230645cb6657",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "d7356cc7a96a7d1c8a40cc59f9636fa999b5b9d78d30390174c6257651733ac9"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.45232,
+            0.45696,
+            0.45824,
+            0.45728,
+            0.45888,
+            0.45376,
+            0.44704,
+            0.4608,
+            0.45632,
+            0.45024,
+            0.45568,
+            0.4624,
+            0.45328,
+            0.45712,
+            0.45888,
+            0.4608,
+            0.45264,
+            0.5168,
+            0.4528,
+            0.45312
+          ],
+          "mean_kernel_ms": 0.458768
+        },
+        {
+          "label": "1024-2048-128-baseline-2",
+          "command": [
+            "/baseline/probe",
+            "1024",
+            "2048",
+            "128",
+            "20",
+            "/out/calls/1024-2048-128-baseline-2/probe"
+          ],
+          "started_unix": 1793024728.4175396,
+          "exit_code": 0,
+          "ended_unix": 1793024729.418578,
+          "stdout_sha256": "c5b81cd692d323bdadb10939402560284b972574ce7501fc5ba489f674fa5e23",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.46,
+            0.45776,
+            0.45856,
+            0.46432,
+            0.46736,
+            0.45792,
+            0.46304,
+            0.46688,
+            0.468,
+            0.45808,
+            0.45968,
+            0.46736,
+            0.4528,
+            0.45424,
+            0.47456,
+            0.46208,
+            0.45632,
+            0.46096,
+            0.45872,
+            0.45792
+          ],
+          "mean_kernel_ms": 0.461328
+        },
+        {
+          "label": "2048-1024-128-baseline-1",
+          "command": [
+            "/baseline/probe",
+            "2048",
+            "1024",
+            "128",
+            "20",
+            "/out/calls/2048-1024-128-baseline-1/probe"
+          ],
+          "started_unix": 1793024729.4199617,
+          "exit_code": 0,
+          "ended_unix": 1793024730.4207609,
+          "stdout_sha256": "c0df1fcad3bd933d0acf62725b7d22f76c2e410f7bcecf8b6f1a9236c44af6c3",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.58208,
+            0.58928,
+            0.5912,
+            0.59424,
+            0.58384,
+            0.5856,
+            0.59024,
+            0.59072,
+            0.58592,
+            0.58288,
+            0.59456,
+            0.59728,
+            0.59408,
+            0.5928,
+            0.592,
+            0.58864,
+            0.5928,
+            0.59232,
+            0.5872,
+            0.58528
+          ],
+          "mean_kernel_ms": 0.589648
+        },
+        {
+          "label": "2048-1024-128-input_overlap-1",
+          "command": [
+            "/half/probe",
+            "2048",
+            "1024",
+            "128",
+            "20",
+            "/out/calls/2048-1024-128-input_overlap-1/probe"
+          ],
+          "started_unix": 1793024730.4221883,
+          "exit_code": 0,
+          "ended_unix": 1793024731.4231224,
+          "stdout_sha256": "82544f3311faaee06d1ac4932d3a39030ff689b6d2b4e14274e483c6dac4b636",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "2ca7cca5b9b6a0e70357a7c2d264dfc29d57a04279b56e6995cd230645cb6657",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "d7356cc7a96a7d1c8a40cc59f9636fa999b5b9d78d30390174c6257651733ac9"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.56992,
+            0.57344,
+            0.57008,
+            0.57552,
+            0.56912,
+            0.56576,
+            0.57776,
+            0.57312,
+            0.57216,
+            0.5736,
+            0.57728,
+            0.57216,
+            0.56816,
+            0.57168,
+            0.56576,
+            0.56784,
+            0.56592,
+            0.56384,
+            0.56704,
+            0.57216
+          ],
+          "mean_kernel_ms": 0.570616
+        },
+        {
+          "label": "2048-1024-128-input_overlap-2",
+          "command": [
+            "/half/probe",
+            "2048",
+            "1024",
+            "128",
+            "20",
+            "/out/calls/2048-1024-128-input_overlap-2/probe"
+          ],
+          "started_unix": 1793024731.4245768,
+          "exit_code": 0,
+          "ended_unix": 1793024732.4255404,
+          "stdout_sha256": "bd0d3eba910c1f2261942ccb04d62bf1d7992e6bccf073a165bbe5e5839dc675",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "2ca7cca5b9b6a0e70357a7c2d264dfc29d57a04279b56e6995cd230645cb6657",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "d7356cc7a96a7d1c8a40cc59f9636fa999b5b9d78d30390174c6257651733ac9"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.57296,
+            0.57168,
+            0.56688,
+            0.5792,
+            0.5648,
+            0.56656,
+            0.568,
+            0.56688,
+            0.56432,
+            0.56912,
+            0.5752,
+            0.56592,
+            0.56832,
+            0.57024,
+            0.56736,
+            0.57232,
+            0.56272,
+            0.56976,
+            0.56528,
+            0.56832
+          ],
+          "mean_kernel_ms": 0.568792
+        },
+        {
+          "label": "2048-1024-128-baseline-2",
+          "command": [
+            "/baseline/probe",
+            "2048",
+            "1024",
+            "128",
+            "20",
+            "/out/calls/2048-1024-128-baseline-2/probe"
+          ],
+          "started_unix": 1793024732.4269822,
+          "exit_code": 0,
+          "ended_unix": 1793024733.4278703,
+          "stdout_sha256": "1762e1fe9dacefdc8526411f42bcdc94c9f78606a0f6ca21a1f40b08dc771f23",
+          "stderr_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "warmups": 2,
+          "measured_samples": 20,
+          "kernel_names": [
+            "matmul_tile_nvfp4_f16"
+          ],
+          "stats_sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+          "isa_artifacts": {
+            "probe.matmul_tile_nvfp4_f16.isa.txt": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4"
+          },
+          "activity": {
+            "intervals": 2,
+            "flags": {
+              "other_gpu": 2,
+              "unrelated_cpu": 2,
+              "disk": 0,
+              "gap": 0
+            },
+            "unknown_process_intervals": 2,
+            "coverage_complete": true
+          },
+          "kernel_ms": [
+            0.58672,
+            0.59648,
+            0.59408,
+            0.5936,
+            0.58784,
+            0.59872,
+            0.5912,
+            0.59264,
+            0.59424,
+            0.58976,
+            0.59008,
+            0.5936,
+            0.58928,
+            0.59152,
+            0.59088,
+            0.58864,
+            0.58432,
+            0.58528,
+            0.58944,
+            0.58464
+          ],
+          "mean_kernel_ms": 0.5906480000000001
+        }
+      ],
+      "activity_sha256": "0a0045b9a3520b34947570e2625afa45451ef219ca967c7218e7e5dafe489970",
+      "monitor_samples": 13,
+      "monitor_limits": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "container_removed": true,
+      "binary_pins": {
+        "baseline": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-load-main7ac-v1/probe",
+          "sha256": "d5b5c28ba7b5c2986b0e4f8c2af810b470b880df9a5b69cbd2a042f6c4e6a0ce"
+        },
+        "candidate": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/probe",
+          "sha256": "985d96f1083d96e5f5e23ab9d8de1433859769301407f55ac3a5f43768b976bf",
+          "build_result_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/build-result.json",
+          "build_result_sha256": "f7f386eb72f30fb52ef8ea67c0b1b4d20a571f14f8e733052c7d85cce453818d",
+          "source_sha256": "1d9249f14f6e309c8da4411e8f3ffe814e1232dafb42cce2a9b7602393165b64",
+          "library_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/candidate/build/libllmx-vulkan.a",
+          "library_sha256": "133985e754f102b332fd4967ae2be5441e7626365166530a0e4b2907d40fe27b"
+        }
+      },
+      "versions": null
+    },
+    "model": {
+      "execution_sha256": "2054775b6705187bac49a698cb1c44b71f5701fab8df7d3a1a3c9af3f194dbef",
+      "artifacts_verified": 27,
+      "calls": [
+        {
+          "label": "p128-0-baseline",
+          "command": [
+            "/baseline/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025007.671496,
+          "exit_code": 0,
+          "ended_unix": 1793025011.3414652,
+          "activity": {
+            "intervals": 5,
+            "flags": {
+              "other_gpu": 5,
+              "unrelated_cpu": 5,
+              "disk": 1,
+              "gap": 0
+            },
+            "unknown_process_intervals": 4,
+            "coverage_complete": true
+          },
+          "prompt": 128,
+          "arm": "baseline",
+          "rates": {
+            "pp": 2824.41,
+            "tg": 247.05
+          }
+        },
+        {
+          "label": "p128-1-candidate",
+          "command": [
+            "/work/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025011.3419073,
+          "exit_code": 0,
+          "ended_unix": 1793025015.0648859,
+          "activity": {
+            "intervals": 5,
+            "flags": {
+              "other_gpu": 5,
+              "unrelated_cpu": 5,
+              "disk": 4,
+              "gap": 0
+            },
+            "unknown_process_intervals": 4,
+            "coverage_complete": true
+          },
+          "prompt": 128,
+          "arm": "candidate",
+          "rates": {
+            "pp": 2892.54,
+            "tg": 240.02
+          }
+        },
+        {
+          "label": "p128-2-candidate",
+          "command": [
+            "/work/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025015.065301,
+          "exit_code": 0,
+          "ended_unix": 1793025018.7880502,
+          "activity": {
+            "intervals": 4,
+            "flags": {
+              "other_gpu": 4,
+              "unrelated_cpu": 4,
+              "disk": 3,
+              "gap": 0
+            },
+            "unknown_process_intervals": 4,
+            "coverage_complete": true
+          },
+          "prompt": 128,
+          "arm": "candidate",
+          "rates": {
+            "pp": 2888.28,
+            "tg": 250.79
+          }
+        },
+        {
+          "label": "p128-3-baseline",
+          "command": [
+            "/baseline/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025018.78869,
+          "exit_code": 0,
+          "ended_unix": 1793025022.4083369,
+          "activity": {
+            "intervals": 5,
+            "flags": {
+              "other_gpu": 5,
+              "unrelated_cpu": 5,
+              "disk": 2,
+              "gap": 0
+            },
+            "unknown_process_intervals": 5,
+            "coverage_complete": true
+          },
+          "prompt": 128,
+          "arm": "baseline",
+          "rates": {
+            "pp": 2802.67,
+            "tg": 246.74
+          }
+        },
+        {
+          "label": "p4096-0-baseline",
+          "command": [
+            "/baseline/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025022.408733,
+          "exit_code": 0,
+          "ended_unix": 1793025027.985056,
+          "activity": {
+            "intervals": 7,
+            "flags": {
+              "other_gpu": 7,
+              "unrelated_cpu": 7,
+              "disk": 7,
+              "gap": 0
+            },
+            "unknown_process_intervals": 7,
+            "coverage_complete": true
+          },
+          "prompt": 4096,
+          "arm": "baseline",
+          "rates": {
+            "pp": 4154.09,
+            "tg": 242.6
+          }
+        },
+        {
+          "label": "p4096-1-candidate",
+          "command": [
+            "/work/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025027.9856713,
+          "exit_code": 0,
+          "ended_unix": 1793025033.6633353,
+          "activity": {
+            "intervals": 6,
+            "flags": {
+              "other_gpu": 6,
+              "unrelated_cpu": 6,
+              "disk": 6,
+              "gap": 0
+            },
+            "unknown_process_intervals": 6,
+            "coverage_complete": true
+          },
+          "prompt": 4096,
+          "arm": "candidate",
+          "rates": {
+            "pp": 4163.12,
+            "tg": 244.57
+          }
+        },
+        {
+          "label": "p4096-2-candidate",
+          "command": [
+            "/work/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025033.6641922,
+          "exit_code": 0,
+          "ended_unix": 1793025039.9540677,
+          "activity": {
+            "intervals": 8,
+            "flags": {
+              "other_gpu": 8,
+              "unrelated_cpu": 8,
+              "disk": 8,
+              "gap": 0
+            },
+            "unknown_process_intervals": 6,
+            "coverage_complete": true
+          },
+          "prompt": 4096,
+          "arm": "candidate",
+          "rates": {
+            "pp": 4158.63,
+            "tg": 228.52
+          }
+        },
+        {
+          "label": "p4096-3-baseline",
+          "command": [
+            "/baseline/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "direct"
+          ],
+          "started_unix": 1793025039.9548924,
+          "exit_code": 0,
+          "ended_unix": 1793025046.142878,
+          "activity": {
+            "intervals": 6,
+            "flags": {
+              "other_gpu": 6,
+              "unrelated_cpu": 6,
+              "disk": 6,
+              "gap": 0
+            },
+            "unknown_process_intervals": 4,
+            "coverage_complete": false
+          },
+          "prompt": 4096,
+          "arm": "baseline",
+          "rates": {
+            "pp": 4149.23,
+            "tg": 226.86
+          }
+        }
+      ],
+      "activity_sha256": "dace709614fb60d47f5c05de37254c3c6a5b72eb9b4d091be5f29158402f6fcf",
+      "monitor_samples": 42,
+      "monitor_limits": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "container_removed": true,
+      "binary_pins": {
+        "baseline": "260601ac8509c2a9611855e001be5c8dbe49163729ffd279ed832f10be7a3102",
+        "candidate": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+        "native_test": "1e3fada4d680bb4ed2cc22a1395d69458814209544b5f8f2b6776bf60e92622d"
+      },
+      "versions": {
+        "baseline": "llmx 0.1.0+unknown numerics 4257408ec9da23d5",
+        "candidate": "llmx 0.1.0+unknown numerics 153417f7b2f6f5d2"
+      },
+      "matrix": [
+        {
+          "prompt": 128,
+          "phase": "pp",
+          "baseline": 2813.54,
+          "candidate": 2890.41,
+          "change_percent": 2.7321452689494263
+        },
+        {
+          "prompt": 128,
+          "phase": "tg",
+          "baseline": 246.895,
+          "candidate": 245.405,
+          "change_percent": -0.6034954130298309
+        },
+        {
+          "prompt": 4096,
+          "phase": "pp",
+          "baseline": 4151.66,
+          "candidate": 4160.875,
+          "change_percent": 0.22195940900748834
+        },
+        {
+          "prompt": 4096,
+          "phase": "tg",
+          "baseline": 234.73000000000002,
+          "candidate": 236.54500000000002,
+          "change_percent": 0.7732288160865686
+        }
+      ]
+    }
+  },
+  "limits": [
+    "All planned calls retained. Background activity does not establish causality.",
+    "One-second activity sampling can miss short operator calls.",
+    "The model screen compares llmx arms only, no new mx result. TG resets history before timing.",
+    "Native and affected HF checks pass; no full-depth or final landing pass is claimed."
+  ],
+  "focused_hf": {
+    "execution": {
+      "scope": "Focused NVFP4 HF component for early-input-read experiment, unchanged numerical limits. Not full-depth or landing qualification.",
+      "started_unix": 1793025562.3684728,
+      "gpu": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      },
+      "peers": [
+        {
+          "name": "/llmx-gate-img-leg4",
+          "cpuset": "4-9,12-15"
+        },
+        {
+          "name": "/llmx-serve",
+          "cpuset": ""
+        },
+        {
+          "name": "/llmx-health-dashboard",
+          "cpuset": ""
+        },
+        {
+          "name": "/llmx-xdev-flash-20261015",
+          "cpuset": "0-1"
+        },
+        {
+          "name": "/open-webui",
+          "cpuset": ""
+        },
+        {
+          "name": "/cdev-abc-run2",
+          "cpuset": ""
+        },
+        {
+          "name": "/portainer",
+          "cpuset": ""
+        }
+      ],
+      "calls": [
+        {
+          "label": "hf-component",
+          "command": [
+            "python3",
+            "-u",
+            "/work/candidate/source/tests/run_tests.py",
+            "--exe",
+            "/work/candidate/build/llmx",
+            "--only",
+            "nvfp4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f16"
+          ],
+          "started_unix": 1793025562.577225,
+          "exit_code": 0,
+          "ended_unix": 1793025730.023777
+        }
+      ],
+      "passed": true,
+      "source_shader_sha256": "1d9249f14f6e309c8da4411e8f3ffe814e1232dafb42cce2a9b7602393165b64",
+      "container": "fedc69022fffef41a4dfe6431f61ca62074a42f7d1ce27db38d036d9ac73f23b",
+      "container_command": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-xdev-nv-input-overlap-hf-v1",
+        "--network",
+        "none",
+        "--read-only",
+        "--cpuset-cpus",
+        "10,11",
+        "--cpus",
+        "2",
+        "--memory",
+        "8g",
+        "--memory-swap",
+        "8g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--tmpfs",
+        "/tmp:rw,size=512m",
+        "--device",
+        "/dev/dri/renderD130",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1:/work",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/candidate/source:/work/candidate/source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-load-main7ac-v1/candidate/build:/baseline:ro",
+        "-v",
+        "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf:/model.gguf:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "sleep",
+        "900"
+      ],
+      "binary_sha256": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+      "container_removed": true,
+      "ended_unix": 1793025730.2513554,
+      "artifacts": {
+        "hf-component.stdout": "5c875889e2b1647f956705a1bf5d9c77c11ef8e35a3193ab29ec6b96f6283a20",
+        "hf-component.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "logit_cases": 516,
+    "nll_cases": 48,
+    "max_native_f16_logit_error": 0.00104234,
+    "max_native_f16_nll_error": 2.243e-05,
+    "logit_limit": 0.005869746208190918,
+    "nll_limit": 0.0006043278951057829,
+    "limits_changed": false
+  }
+}

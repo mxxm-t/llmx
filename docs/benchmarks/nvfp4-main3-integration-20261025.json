@@ -1,0 +1,179 @@
+{
+  "scope": "Private NVFP4 integration of published main 8e84e4c4f; no final merge claim.",
+  "imported_main": "8e84e4c4f38262e7792a3b9d4825a7cef25dc254",
+  "feature_parent": "70235731b4fddb0746422b6b5bc87992cd6e0b69",
+  "build": {
+    "passed": true,
+    "scope": "Focused current-main integration build, no GPU execution or performance claim.",
+    "main_revision": "8e84e4c4f38262e7792a3b9d4825a7cef25dc254",
+    "prior_feature": "70235731b4fddb0746422b6b5bc87992cd6e0b69",
+    "available_memory_bytes": 2367422464,
+    "calls": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main2-vulkan",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "pid": 56648,
+        "started": 1792927419.9238372,
+        "minimum_available_bytes": 1662042112,
+        "exit_code": 0,
+        "seconds": 9.431441068649292
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main2-vulkan",
+          "--config",
+          "Release",
+          "--target",
+          "llmx",
+          "llmx-nvfp4-test",
+          "llmx-backend-vulkan-test",
+          "llmx-backend-errors-test",
+          "llmx-model-validation-test",
+          "llmx-load-progress-test",
+          "llmx-model-weight-scales-test",
+          "llmx-backend-group-test",
+          "llmx-vulkan-lifetime-test",
+          "llmx-weight-scales-test",
+          "llmx-vulkan-quantization-test",
+          "--parallel",
+          "1"
+        ],
+        "pid": 89172,
+        "started": 1792927429.4208643,
+        "minimum_available_bytes": 1067761664,
+        "exit_code": 0,
+        "seconds": 116.40672969818115
+      }
+    ],
+    "targets": [
+      "llmx",
+      "llmx-nvfp4-test",
+      "llmx-backend-vulkan-test",
+      "llmx-backend-errors-test",
+      "llmx-model-validation-test",
+      "llmx-load-progress-test",
+      "llmx-model-weight-scales-test",
+      "llmx-backend-group-test",
+      "llmx-vulkan-lifetime-test",
+      "llmx-weight-scales-test",
+      "llmx-vulkan-quantization-test"
+    ],
+    "resource_policy": "Earlier two-worker admission refused at 2809634816 bytes free. Use one worker and /MP1, at least 2GiB initially, stop owned process tree if free memory falls below 512MiB; 900s per-command deadline.",
+    "binary_sha256": {
+      "llmx-backend-errors-test.exe": "d1a31b1971d9b4dc659b9bff56f11580f1e0d1f253e0f7f7c0fce18f77971f3a",
+      "llmx-backend-group-test.exe": "cff49532227f0df23e40a4d44e660045f86f1fa798bb9f34456b3a5a80b1e3bd",
+      "llmx-backend-vulkan-test.exe": "919d2daf6411c090193a5d3fa3f2e0ba6e9df6d8ac72c7abf09d473753b451dc",
+      "llmx-load-progress-test.exe": "645eba28ffdd12eec6a16de32e966dba910b98a106c3a874137e97a3c17eee62",
+      "llmx-model-validation-test.exe": "cb48b3bee822d14c514766baf2cfcdf9769ebb59226ce6a0cee5cb7acf1c4ded",
+      "llmx-model-weight-scales-test.exe": "8a58c2163e6150e2e839144c24db0cb48892e6e1f735f358da5532165331e357",
+      "llmx-nvfp4-test.exe": "1b4219d6fc1957308311cbdf9a4f338ac6247139dc5c16ceecc9b347502b9dd7",
+      "llmx-vulkan-lifetime-test.exe": "8a6c6c5e7d93fe978896658e07139966a55fc71aa0193518f00d0d57785c9b55",
+      "llmx-vulkan-quantization-test.exe": "301220cf42a5730d39794d405236ffb1af15be9adc3cfd386212050de37821e4",
+      "llmx-weight-scales-test.exe": "f87bceb5aae8f0121dfe1611f1a57e75f13083b6242a1300fc76fbe2be5daa50",
+      "llmx.exe": "05c5d56fea810ff78c7c8f7451eef330544707ac85b33e5b0971ba799d278d17"
+    },
+    "version": "llmx 0.1.0+g70235731b4fd.dirty numerics 8976c4c93f96766b",
+    "log_sha256": {
+      "build-0.log": "e245e98e6a46d2c65423b08879b48ad75e3f0f3bea889cfebc275c0a273af8fc",
+      "build-1.log": "587355246f9f939403c805baf50f8511d4f586f8b81629aaf72e0358f5ff165e"
+    }
+  },
+  "native_checks": {
+    "backend-vulkan": {
+      "passed": true,
+      "seconds": 209.31
+    },
+    "vulkan-buffer": {
+      "passed": true,
+      "seconds": 0.06
+    },
+    "vulkan-lifetime": {
+      "passed": true,
+      "seconds": 4.49
+    },
+    "vulkan-quantization": {
+      "passed": true,
+      "seconds": 41.15
+    },
+    "nvfp4-vulkan": {
+      "passed": true,
+      "seconds": 3.83
+    },
+    "nvfp4": {
+      "passed": true,
+      "seconds": 0.05
+    }
+  },
+  "native_evidence": "Observed CTest session 6969 exited zero with all five Vulkan tests passing; later CPU NVFP4 CTest also exited zero. CTestCostData retained. The requested output log was not produced; LastTest was overwritten by the CPU-only call and therefore preserves that call only. Do not claim retained full Vulkan stdout for this checkpoint.",
+  "carried_cpu_binary_identity": {
+    "llmx-model-validation-test.exe": "cb48b3bee822d14c514766baf2cfcdf9769ebb59226ce6a0cee5cb7acf1c4ded",
+    "llmx-load-progress-test.exe": "645eba28ffdd12eec6a16de32e966dba910b98a106c3a874137e97a3c17eee62",
+    "llmx-backend-group-test.exe": "cff49532227f0df23e40a4d44e660045f86f1fa798bb9f34456b3a5a80b1e3bd",
+    "llmx-backend-errors-test.exe": "d1a31b1971d9b4dc659b9bff56f11580f1e0d1f253e0f7f7c0fce18f77971f3a",
+    "llmx-weight-scales-test.exe": "f87bceb5aae8f0121dfe1611f1a57e75f13083b6242a1300fc76fbe2be5daa50",
+    "llmx-model-weight-scales-test.exe": "8a58c2163e6150e2e839144c24db0cb48892e6e1f735f358da5532165331e357"
+  },
+  "carry_scope": "The six unchanged CPU test executables retain the preceding integration passes byte for byte. This does not carry model-output identity or performance to the new Vulkan library.",
+  "artifacts": {
+    "build-0.log": {
+      "bytes": 253,
+      "sha256": "e245e98e6a46d2c65423b08879b48ad75e3f0f3bea889cfebc275c0a273af8fc"
+    },
+    "build-1.log": {
+      "bytes": 14909,
+      "sha256": "587355246f9f939403c805baf50f8511d4f586f8b81629aaf72e0358f5ff165e"
+    },
+    "build.json": {
+      "bytes": 3738,
+      "sha256": "ec8860e6a517bf10088608409837b53b75bb6cca88eeea70865976032eb52108"
+    },
+    "ctest.log": {
+      "bytes": 694,
+      "sha256": "bbddcdc3ed310ed505ca56f81800d54d584701cd83cd475877777e0347d9b17b"
+    },
+    "CTestCostData.txt": {
+      "bytes": 323,
+      "sha256": "d86a74c087cb1b42aa33b0b0c8173bad2266f34dd84c3bacf57054d2383db97e"
+    },
+    "LastTest.log": {
+      "bytes": 907,
+      "sha256": "e5f4ee63557a2bcf97f1c135fafeb6c49265e605ece0f6a1fbd5ac1ce7038773"
+    }
+  },
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "9095621592de17d62300ba1881e6b35b7c08a3bbdca4cf7be301b3316fa2854d",
+    "src/backends/vulkan/shaders/group_rms_norm.comp": "fae2588ece0bd98ffdca2ab4bca3bce07082c14ad561e7e78697e94a87fae509",
+    "src/backends/vulkan/shaders/moe_route.comp": "5d986dffa37cbdcfd8891c9fb259ed3e05e01d247ea6544942187dab18447a2c",
+    "tests/backend_vulkan.cpp": "48a835c42acc1e90c0a3fc2b054f448b123a6a1e1ed95a80c9171de35024a63b",
+    "tests/vulkan_quantization.cpp": "65b874dc31142c246b28db3c8097417d8c74c55da693d7cbc0ad5aecf91dd3e5",
+    "CMakeLists.txt": "f907a98b919b86b6c8ace18dc95d11341232b532d52ff14cba4eef6f4ef8661f"
+  },
+  "reference_controls": {
+    "run": 40189406206,
+    "head": "208a1d223d8aea09467b9aacd1674e31f963b8a3",
+    "branch": "gate/nvfp4-policy-controls-20261025",
+    "observed_status": "queued",
+    "scope": "HF-only 64-prompt/16-continuation full/chunked and batched/singleton controls, separately for Radeon, MI50 and CPU policies. No depth or runtime comparison.",
+    "limits": "Sequential one-core CPU-only containers, each 8GiB/no swap, 900s deadline, 512MiB host floor. Frozen mathematical producer and controls unchanged."
+  },
+  "remaining": [
+    "fresh device dispatch witnesses",
+    "HF-only controls and default depth comparisons",
+    "existing-format CPU/device identity and timing",
+    "GPU split HF",
+    "matched MI50 mx Vulkan performance",
+    "corrected runtime CI"
+  ]
+}

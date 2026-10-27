@@ -1653,8 +1653,8 @@ int table_view_checks() {
 }
 
 bool check_float_modes(const char* name, const uint32_t* words, size_t count, uint32_t wanted) {
-    unsigned denorm32 = 0, special32 = 0, special64 = 0, other = 0;
-    bool denorm_cap = false, special_cap = false;
+    unsigned denorm32 = 0, special32 = 0, special64 = 0, denorm16 = 0, special16 = 0, rte16 = 0, rte32 = 0, other = 0;
+    bool denorm_cap = false, special_cap = false, rte_cap = false;
     if (count < 5 || words[0] != 0x07230203u) throw std::runtime_error("float controls: invalid SPIR-V header");
     for (size_t at = 5; at < count;) {
         const uint32_t length = words[at] >> 16, opcode = words[at] & 0xffffu;
@@ -1662,12 +1662,17 @@ bool check_float_modes(const char* name, const uint32_t* words, size_t count, ui
         if (opcode == 17u && length == 2u) {
             denorm_cap |= words[at + 1] == 4464u;
             special_cap |= words[at + 1] == 4466u;
+            rte_cap |= words[at + 1] == 4467u;
         }
         if (opcode == 16u && length >= 3u && words[at + 2] >= 4459u && words[at + 2] <= 4463u) {
             const uint32_t mode = words[at + 2], width = length == 4 ? words[at + 3] : 0;
             if (mode == 4459u && width == 32u) ++denorm32;
             else if (mode == 4461u && width == 32u) ++special32;
             else if (mode == 4461u && width == 64u) ++special64;
+            else if (mode == 4459u && width == 16u) ++denorm16;
+            else if (mode == 4461u && width == 16u) ++special16;
+            else if (mode == 4462u && width == 16u) ++rte16;
+            else if (mode == 4462u && width == 32u) ++rte32;
             else ++other;
         }
         at += length;
@@ -1675,14 +1680,21 @@ bool check_float_modes(const char* name, const uint32_t* words, size_t count, ui
     const bool ok = denorm32 == unsigned(bool(wanted & backend::kDenorm32)) &&
         special32 == unsigned(bool(wanted & backend::kSpecial32)) &&
         special64 == unsigned(bool(wanted & backend::kSpecial64)) && !other &&
-        (!denorm32 || denorm_cap) && (!(special32 || special64) || special_cap);
+        denorm16 == unsigned(bool(wanted & backend::kDenorm16)) &&
+        special16 == unsigned(bool(wanted & backend::kSpecial16)) &&
+        rte16 == unsigned(bool(wanted & backend::kRte16)) && rte32 == unsigned(bool(wanted & backend::kRte32)) &&
+        (!(denorm32 || denorm16) || denorm_cap) && (!(special32 || special64 || special16) || special_cap) &&
+        (!(rte16 || rte32) || rte_cap);
     if (!ok) std::cout << name << " wanted=" << wanted << " DenormPreserve32=" << denorm32
                       << " SignedZeroInfNanPreserve32=" << special32 << " SignedZeroInfNanPreserve64=" << special64
+                      << " DenormPreserve16=" << denorm16 << " SignedZeroInfNanPreserve16=" << special16
+                      << " RoundingModeRTE16=" << rte16 << " RoundingModeRTE32=" << rte32
                       << " other=" << other << " FAIL\n";
     return ok;
 }
 
 int float_control_checks(const char* output_dir = nullptr) {
+    constexpr uint32_t supported = backend::kMxfp4Controls | backend::kF16InputControls;
     const backend::KernelId ids[] = {backend::K_MATMUL_ROW_MXFP4, backend::K_MATMUL_ROW_MXFP4_DOT,
         backend::K_MATMUL_ROW_MXFP4_FLOAT_X, backend::K_MATMUL_TILE_MXFP4,
         backend::K_MATMUL_TILE_MXFP4_BF16, backend::K_MATMUL_REDUCE_MXFP4, backend::K_MATMUL_TILE_Q8MX};
@@ -1693,15 +1705,34 @@ int float_control_checks(const char* output_dir = nullptr) {
         if (!check_float_modes(backend::kKernelNames[id], info.pCode, info.codeSize / sizeof(uint32_t),
                               backend::kDenorm32 | backend::kSpecial32 | backend::kSpecial64)) ++failures;
     }
+    for (const auto id : {backend::K_MATMUL_TILE_NVFP4_F16, backend::K_MATMUL_TILE_NVFP4_F16_TALL}) {
+        std::vector<uint32_t> storage;
+        // No 64-bit property is supplied: the native-half tile uses only F16/F32.
+        const auto info = backend::kernel_module(id, false, backend::kF16InputControls, storage);
+        if (!check_float_modes(backend::kKernelNames[id], info.pCode, info.codeSize / sizeof(uint32_t),
+                              backend::kDenorm32 | backend::kSpecial32 | backend::kDenorm16 | backend::kSpecial16 |
+                              backend::kRte16 | backend::kRte32)) ++failures;
+        bool half = false, single = false, wide = false;
+        for (size_t at = 5; at < info.codeSize / sizeof(uint32_t); at += info.pCode[at] >> 16) {
+            const uint32_t opcode = info.pCode[at] & 0xffffu, length = info.pCode[at] >> 16;
+            if (opcode == 22u && length == 3u) {
+                half |= info.pCode[at + 2] == 16u;
+                single |= info.pCode[at + 2] == 32u;
+                wide |= info.pCode[at + 2] == 64u;
+            }
+            if (opcode == 17u && length == 2u && info.pCode[at + 1] == 10u) wide = true;
+        }
+        if (!half || !single || wide) ++failures;
+    }
     size_t checked = 0, refusals = 0;
     for (int id = 0; id < backend::K_COUNT; ++id) {
         const auto& source = backend::kKernels[id];
         for (const bool preserve : {false, true}) {
             const uint32_t wanted = preserve && source.preserved_words ? source.preserved_controls : source.controls;
             std::vector<uint32_t> storage;
-            const auto info = backend::kernel_module(static_cast<backend::KernelId>(id), preserve, backend::kMxfp4Controls, storage);
+            const auto info = backend::kernel_module(static_cast<backend::KernelId>(id), preserve, supported, storage);
             if (!check_float_modes(backend::kKernelNames[id], info.pCode, info.codeSize / sizeof(uint32_t), wanted)) ++failures;
-            if (!(wanted & backend::kSpecial64) && !storage.empty()) ++failures;
+            if (!(wanted & (backend::kSpecial64 | backend::kDenorm16)) && !storage.empty()) ++failures;
             if (output_dir && !storage.empty()) {
                 const auto file = std::filesystem::path(output_dir) / (std::string(backend::kKernelNames[id]) + (preserve ? "-preserved.spv" : ".spv"));
                 std::filesystem::create_directories(file.parent_path());
@@ -1711,21 +1742,26 @@ int float_control_checks(const char* output_dir = nullptr) {
                 if (!out) throw std::runtime_error("float controls: cannot write prepared module");
             }
             ++checked;
-            for (const uint32_t missing : {backend::kDenorm32, backend::kSpecial32, backend::kSpecial64}) {
+            for (const uint32_t missing : {backend::kDenorm32, backend::kSpecial32, backend::kSpecial64,
+                                          backend::kDenorm16, backend::kSpecial16, backend::kRte16, backend::kRte32}) {
                 if (!(wanted & missing)) continue;
                 bool refused = false;
-                try { (void)backend::kernel_module(static_cast<backend::KernelId>(id), preserve, backend::kMxfp4Controls & ~missing, storage); }
+                try { (void)backend::kernel_module(static_cast<backend::KernelId>(id), preserve, supported & ~missing, storage); }
                 catch (const std::runtime_error& e) { refused = std::string(e.what()) == std::string("vulkan: device lacks float controls for ") + backend::kKernelNames[id]; }
                 if (!refused) ++failures;
                 ++refusals;
             }
         }
     }
-    for (unsigned mask = 0; mask < 8; ++mask) {
+    for (unsigned mask = 0; mask <= supported; ++mask) {
         VkPhysicalDeviceFloatControlsProperties p{};
         p.shaderDenormPreserveFloat32 = mask & 1 ? VK_TRUE : VK_FALSE;
         p.shaderSignedZeroInfNanPreserveFloat32 = mask & 2 ? VK_TRUE : VK_FALSE;
         p.shaderSignedZeroInfNanPreserveFloat64 = mask & 4 ? VK_TRUE : VK_FALSE;
+        p.shaderDenormPreserveFloat16 = mask & 8 ? VK_TRUE : VK_FALSE;
+        p.shaderSignedZeroInfNanPreserveFloat16 = mask & 16 ? VK_TRUE : VK_FALSE;
+        p.shaderRoundingModeRTEFloat16 = mask & 32 ? VK_TRUE : VK_FALSE;
+        p.shaderRoundingModeRTEFloat32 = mask & 64 ? VK_TRUE : VK_FALSE;
         if (backend::float_control_support(p) != mask) ++failures;
     }
     std::cout << "float controls: " << checked << " prepared modules, " << refusals

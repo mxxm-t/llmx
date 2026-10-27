@@ -97,11 +97,21 @@ inline const char* dtype_name(Dtype dtype) {
     return "unknown";
 }
 
-struct Projection {
+// A matrix or embedding operand, with optional F32 scalar/per-expert weight scales.
+struct WeightView {
     uint32_t type;
     CSlice data;
+    CSlice scales = {};
+    size_t scale_count = 0;
+};
+
+struct Projection {
+    WeightView weight;
     Slice out;
     size_t rows;
+    Projection() = default;
+    // Keep the weight operand grouped: the old flat layout would fill its scale fields.
+    Projection(WeightView w, Slice y, size_t n) : weight(w), out(y), rows(n) {}
 };
 
 // The rows of a matmul grouped by the prompt they belong to, so a device picks a row's kernel by `extent` rather than by the call's width and a prompt computes the same however its rows are batched (docs/VULKAN.md, batch invariance).
@@ -119,8 +129,7 @@ struct RowRuns {
 // Its gate and up project one row a token into `out`, its row gate, an F32 vector, gives one value a row and has no data on an ungated expert.
 struct MoeShared {
     Projection gate, up;
-    uint32_t down_type;
-    CSlice down;
+    WeightView down;
     Slice act;
     Projection row_gate;
 };
@@ -132,8 +141,7 @@ struct MoeStep {
     bool normalize;
     Slice ids, weights;
     Projection gate, up;
-    uint32_t down_type;
-    CSlice down;
+    WeightView down;
     Slice act;
     const MoeShared* shared;
     const Buffer* zero;
@@ -506,29 +514,29 @@ public:
 
     // Y[b*nout + o] = dot(row_o, X + b*nin) for all b in [0,nbatch) and o in [0,nout); X and Y are row-major with nbatch rows.
     // `type` is the quant type the registry is keyed by (the GGUF id), so every block format gets the batched path.
-    virtual void matmul(uint32_t type, CSlice data, CSlice X,
+    virtual void matmul(WeightView weight, CSlice X,
                         Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // The output head: its results are the logits a caller reads directly, so a backend may keep more precise activations for it than for the projections inside the layers.
-    virtual void matmul_logits(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch,
+    virtual void matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch,
                                RowRuns runs = {}, Dtype dtype = Dtype::f16) {
-        matmul(type, data, X, Y, nin, nout, nbatch, runs, dtype);
+        matmul(weight, X, Y, nin, nout, nbatch, runs, dtype);
     }
 
     // Y += W X, the projection whose output joins the residual stream: the model asks for the sum and each backend produces it its own way.
     // The CPU computes the product into scratch and adds; a device folds the add into the matmul's store, one dispatch fewer per projection.
-    virtual void matmul_add(uint32_t type, CSlice data, CSlice X,
+    virtual void matmul_add(WeightView weight, CSlice X,
                             Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // Gather `count` rows of an embedding table into `dst`, row-major, `nin` floats each.
     // This is an op rather than a model-side read because the table is a Buffer: a device backend holds it in its own memory and the model cannot address it.
-    virtual void embed(Slice dst, uint32_t type, CSlice table,
+    virtual void embed(Slice dst, WeightView weight,
                        size_t nin, size_t nrows, const uint32_t* ids,
                        size_t count) = 0;
 
     // embed with the ids read on the device, `count` 32-bit integers in float-sized slots at `ids`, as a draft chain feeds a drafted token back (docs/SPECULATIVE.md, section 7): an id of `nrows` or more writes a zero row.
-    virtual void embed_ids(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids, size_t count) {
-        (void)dst; (void)type; (void)table; (void)nin; (void)nrows; (void)ids; (void)count;
+    virtual void embed_ids(Slice dst, WeightView weight, size_t nin, size_t nrows, CSlice ids, size_t count) {
+        (void)dst; (void)weight; (void)nin; (void)nrows; (void)ids; (void)count;
         throw std::runtime_error(std::string("backend: ") + op_name(Op::embed_ids) + " is not implemented");
     }
 
@@ -544,8 +552,8 @@ public:
     virtual void matmul_group(std::initializer_list<Projection> projections,
                               CSlice X, size_t nin, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         for (const auto& p : projections) {
-            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
-            matmul(p.type, p.data, X, p.out, nin, p.rows, nbatch, runs, dtype);
+            if (!p.weight.data.buffer) throw std::runtime_error("backend: projection without storage");
+            matmul(p.weight, X, p.out, nin, p.rows, nbatch, runs, dtype);
         }
     }
 
@@ -684,7 +692,7 @@ public:
 
     // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j, an entry of kNoExpert adding nothing.
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
-    virtual void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout,
+    virtual void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                                     size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
 
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
@@ -692,7 +700,7 @@ public:
     virtual void moe_step(const MoeStep& m, CSlice h, Slice y, size_t nin, size_t rows, RowRuns runs = {}, Dtype dtype = Dtype::f16) {
         if (m.zero) repeat_row(y, *m.zero, rows, nin);
         const size_t n_expert = m.router.rows, ff = m.gate.rows;
-        matmul(m.router.type, m.router.data, h, m.router.out, nin, n_expert, rows, runs, Dtype::f32);
+        matmul(m.router.weight, h, m.router.out, nin, n_expert, rows, runs, Dtype::f32);
         route_experts(m.router.out, rows, n_expert, m.k, m.normalize, m.ids, m.weights);
         const Routing routing{m.ids, m.weights, m.k, n_expert};
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
@@ -701,15 +709,15 @@ public:
         entry_runs.clear();
         for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * m.k, runs.runs[i].extent});
         silu_mul(m.act, m.gate.out, m.up.out, rows * m.k * ff, {entry_runs.data(), entry_runs.size()});
-        matmul_experts_add(m.down_type, m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
+        matmul_experts_add(m.down, m.act, y, ff, nin, rows, routing, runs, dtype);
         if (!m.shared) return;
         const MoeShared& s = *m.shared;
-        const bool gated = s.row_gate.data.buffer != nullptr;
-        if (gated) matmul(s.row_gate.type, s.row_gate.data, h, s.row_gate.out, nin, 1, rows, runs, dtype);
+        const bool gated = s.row_gate.weight.data.buffer != nullptr;
+        if (gated) matmul(s.row_gate.weight, h, s.row_gate.out, nin, 1, rows, runs, dtype);
         matmul_group({s.gate, s.up}, h, nin, rows, runs, dtype);
         silu_mul(s.act, s.gate.out, s.up.out, rows * s.gate.rows, runs);
         if (gated) sigmoid_mul(s.act, s.act, s.row_gate.out, rows, s.gate.rows, 1, 1, 0, runs);
-        matmul_add(s.down_type, s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
+        matmul_add(s.down, s.act, y, s.gate.rows, nin, rows, runs, dtype);
     }
 
     // Copy the first `width` floats of `row` into each of `rows` rows of dst, then double the copied rows, so clearing needs no host buffer or per-token upload.

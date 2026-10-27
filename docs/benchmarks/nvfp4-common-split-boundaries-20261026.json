@@ -1,0 +1,771 @@
+{
+  "schema": "nvfp4-common-split-boundaries-20261026-v1",
+  "scope": "Supplemental scratch candidate checks only. The common float split policy is not adopted. These short HF and exact-dyadic boundary checks do not establish released NVFP4 depth, every wide native-F16 model path, a per-shape dispatch counter, performance acceptance, or final qualification.",
+  "candidate": {
+    "base_runtime": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+    "integration_source": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+    "source_manifest_sha256": "b61da6b5af1945c16328585ed64e80cb90fc073b33ed41eae16577a7d9a3f309",
+    "source_patch_sha256": "b4f10174757ac0806ffc496e196c75bd2e771af5ceab7404d1618ed436ea8646",
+    "llmx_sha256": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+    "library_sha256": "8554ce8f2fd8bd9d5adc431f5e41c13a7165c86766a884a5ead2d26660fd1f05",
+    "version": "Not queried by these checker runs."
+  },
+  "nvfp4_short_hf": {
+    "passed": true,
+    "command": [
+      "docker",
+      "create",
+      "--name",
+      "llmx-xdev-common-split-nv-hf-v1",
+      "--init",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "0,1",
+      "--cpus",
+      "2",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "--device",
+      "/dev/dri/renderD130",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/candidate/build:/build:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/candidate/source:/source:ro",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "timeout",
+      "600",
+      "python3",
+      "-B",
+      "/source/tests/run_tests.py",
+      "--exe",
+      "/build/llmx",
+      "--only",
+      "nvfp4",
+      "--device",
+      "vulkan:0",
+      "--dtype",
+      "f16",
+      "--cache-type",
+      "f32",
+      "--require-device-types",
+      "NVFP4"
+    ],
+    "binary_sha256": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+    "device": "MI50 physical 8 / renderD130 (from the pinned container command)",
+    "container_removed": true,
+    "stdout_sha256": "28aa09dbc9ba260f2c647bd6bb20a0e5340026672d74fea2b8c5bf37a0354329",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "log_hashes_verified": true,
+    "coverage": {
+      "ordinary": {
+        "full_logits": 150,
+        "nll": 12
+      },
+      "scaled_equivalent": {
+        "full_logits": 150,
+        "nll": 12
+      },
+      "prompt_ordinary_and_scaled": {
+        "full_logits": 216,
+        "nll": 24
+      },
+      "total_full_logits": 516,
+      "total_nll": 48
+    },
+    "max_errors": {
+      "ordinary_or_scaled_short": {
+        "logit": 1.37e-06,
+        "bound": 2e-05,
+        "nll": 1.5e-07,
+        "bound_nll": 1e-05
+      },
+      "ordinary_or_scaled_prompt": {
+        "logit": 0.00104234,
+        "bound": 0.005869746208190918,
+        "nll": 2.243e-05,
+        "bound_nll": 0.0006043278951057829
+      }
+    },
+    "family_lines": [
+      "NVFP4 dense-untied HF: max logit error 0.00000132, bounds [2e-05]; max NLL error 0.00000003, bounds [1e-05]",
+      "NVFP4 dense-tied HF: max logit error 0.00000106, bounds [2e-05]; max NLL error 0.00000015, bounds [1e-05]",
+      "NVFP4 dense-untied HF: max logit error 0.00000132, bounds [2e-05]; max NLL error 0.00000003, bounds [1e-05]",
+      "NVFP4 dense-tied HF: max logit error 0.00000106, bounds [2e-05]; max NLL error 0.00000015, bounds [1e-05]",
+      "NVFP4 prompt dense-untied HF: max logit error 0.00080329, bounds [0.005869746208190918]; max NLL error 0.00002243, bounds [0.0006043278951057829]",
+      "NVFP4 prompt dense-untied-scaled HF: max logit error 0.00080329, bounds [0.005869746208190918]; max NLL error 0.00002243, bounds [0.0006043278951057829]",
+      "NVFP4 prompt dense-tied HF: max logit error 0.00083533, bounds [0.005869746208190918]; max NLL error 0.00001668, bounds [0.0006043278951057829]",
+      "NVFP4 prompt dense-tied-scaled HF: max logit error 0.00083533, bounds [0.005869746208190918]; max NLL error 0.00001668, bounds [0.0006043278951057829]",
+      "NVFP4 prompt moe HF: max logit error 0.00104234, bounds [0.005869746208190918]; max NLL error 0.00001395, bounds [0.0006043278951057829]",
+      "NVFP4 prompt moe-scaled HF: max logit error 0.00104234, bounds [0.005869746208190918]; max NLL error 0.00001395, bounds [0.0006043278951057829]"
+    ],
+    "requested_dtype": "f16",
+    "cache": "f32",
+    "path_caveat": "This suite log records the requested dtype but has no per-call matrix-path witness. Do not infer that all its HF cases used the native-F16 NVFP4 tile."
+  },
+  "boundary_checker": {
+    "passed": true,
+    "container_removed": true,
+    "checks": {
+      "device_core_properties_exit": 0,
+      "baseline_exit": 0,
+      "candidate_exit": 0
+    },
+    "core_properties": {
+      "shaderEngineCount": 4,
+      "shaderArraysPerEngineCount": 1,
+      "computeUnitsPerShaderArray": 15,
+      "runtime_compute_units": 60
+    },
+    "device_core_properties_stdout_sha256": "2700ecdc4641acb3772f10c56f77d35e5cb2fba01f53311bc380db8bb8b5df48",
+    "row_class_identity": {
+      "cases_per_arm": 30,
+      "same_class_pairs_per_arm": 2310,
+      "both_arms_pass": true
+    },
+    "p128_exact_dyadic_oracle": {
+      "cases_per_arm": 30,
+      "both_arms_pass": true,
+      "output_guards": "all ok",
+      "case_paths": [
+        {
+          "k": 2048,
+          "weight_storage": "f32w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "f32w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "f32w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "f16w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "f16w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "f16w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wf16_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wf16_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "bf16w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_nvfp4"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_nvfp4",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f16",
+            "kernels": [
+              "matmul_tile_nvfp4_f16"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f16",
+            "kernels": [
+              "matmul_tile_nvfp4_f16",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 2048,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_tile_nvfp4_bf16",
+              "matmul_reduce"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_tile_nvfp4_bf16",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f32w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f32w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f32w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f16w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f16w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "f16w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wf16_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wf16_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "bf16w",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "f32",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_nvfp4"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_nvfp4",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "f16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "f16",
+            "kernels": [
+              "matmul_tile_nvfp4_f16"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f16",
+            "kernels": [
+              "matmul_tile_nvfp4_f16",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 3584,
+          "weight_storage": "nvfp4",
+          "requested_dtype": "bf16",
+          "outputs": 131072,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_tile_nvfp4_bf16",
+              "matmul_reduce"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_tile_nvfp4_bf16",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "f32w",
+          "requested_dtype": "f32",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "f32w",
+          "requested_dtype": "f16",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_small",
+              "matmul_reduce"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "f32w",
+          "requested_dtype": "bf16",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_bf16_small"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f32",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "bf16w",
+          "requested_dtype": "f16",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_tile_wbf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "f32",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_small"
+            ]
+          }
+        },
+        {
+          "k": 1024,
+          "weight_storage": "bf16w",
+          "requested_dtype": "bf16",
+          "outputs": 65536,
+          "baseline": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          },
+          "candidate": {
+            "actual_path": "bf16",
+            "kernels": [
+              "matmul_reduce",
+              "matmul_tile_wbf16_bf16_small"
+            ]
+          }
+        }
+      ]
+    },
+    "compiled_binary_sha256": {
+      "boundaries-baseline": "c2954be3534cde7b96ea9bc4a897dbeb96b3b7735c2ed4a44226bf7545a9fc23",
+      "boundaries-candidate": "0b150238b9387496ce7d1d3b0a75d8417a91f3367c4dc901f4c4a6fd4670bb94",
+      "depth-capture": "24a9b591a9e8eb3bd68a1a94e903f1536861be2e81b47c96bd507eecf6d1cbcd",
+      "device-core-properties": "8df46f81fa0daef03734e27daed22ca963850b89394bd3e4072707ea203cdab4"
+    },
+    "build_result_sha256": "7fa66da104901e1691ccec5b1419a889768668a6885eb830f63c347c66eb4e98",
+    "build_step_count": 4,
+    "all_build_steps_exit_zero": true,
+    "embedded_log_hashes_verified": true,
+    "embedded_log_hashes": {
+      "boundaries-candidate.stderr": {
+        "expected_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "embedded_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches": true
+      },
+      "device-core-properties.stdout": {
+        "expected_sha256": "2700ecdc4641acb3772f10c56f77d35e5cb2fba01f53311bc380db8bb8b5df48",
+        "embedded_sha256": "2700ecdc4641acb3772f10c56f77d35e5cb2fba01f53311bc380db8bb8b5df48",
+        "matches": true
+      },
+      "boundaries-baseline.stdout": {
+        "expected_sha256": "edc021952fb162fac7b63abb110f7777af6dca505bb119de461cf7f4359e209d",
+        "embedded_sha256": "edc021952fb162fac7b63abb110f7777af6dca505bb119de461cf7f4359e209d",
+        "matches": true
+      },
+      "boundaries-candidate.stdout": {
+        "expected_sha256": "55946bd575c62be68249490a8aa09397028a0d5aee1c35b5cc441e5486a78702",
+        "embedded_sha256": "55946bd575c62be68249490a8aa09397028a0d5aee1c35b5cc441e5486a78702",
+        "matches": true
+      },
+      "boundaries-baseline.stderr": {
+        "expected_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "embedded_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches": true
+      },
+      "device-core-properties.stderr": {
+        "expected_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "embedded_sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches": true
+      }
+    },
+    "note": "The kernels lines in the raw logs include timestamps. This receipt preserves the names/path witnesses and omits timing values; it makes no performance claim. The depth-capture helper was compiled for reuse but was not executed in this boundary check."
+  },
+  "artifacts": {
+    "nv_hf_check_json_sha256": "24aee62cdce0ab73d6e0b29c428f57b1c6f7095b47f98f5847d437570332800b",
+    "boundary_check_json_sha256": "bfefe55c3195b0abe1892bcac2f230506e001eddf2abd37ab184ae7f97ed1f40",
+    "checker_build_result_json_sha256": "2d4f6b4dba9629d872ae1f7c85419e665d6d58c6645eba68ecfaf0e7b962fe00",
+    "checker_build_launch_json_sha256": "b9847d8bbf5a024bba7514770b77b97d3528d40b8ceea5da988a78f7b41cd8a8",
+    "boundary_input_sources": {
+      "capture.cpp": "058c46cee10bfc97a22584ffcce482e2dc9a4ce208c44211f01e2090ddb0aedf",
+      "device-core-properties.cpp": "5ea87e18e733ba6bd09421840d7366937d9a746842c4c06c86a5f0fd3d2913bb",
+      "float-split-boundaries.cpp": "6fb912badb67985d2ddcf6930285dc7e2fed0684c2b4051603e783c0910d44ad"
+    }
+  },
+  "limitations": [
+    "These are checks of the unadopted common-split candidate on the MI50. They do not qualify a released NVFP4 model at depth.",
+    "The tiny HF fixtures do not cover all wide native-F16 model behavior, and do not replace the separate wide-HF evidence.",
+    "The exact-dyadic P128 cases and row-class comparisons do not provide a runtime counter for selected K-parts by released-model shape.",
+    "No timing conclusion is recorded. Existing matched performance and final integration gates remain separate."
+  ]
+}

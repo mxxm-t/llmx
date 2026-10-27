@@ -1,0 +1,1048 @@
+{
+  "scope": "Tiny Qwen3 MoE Q8 original/near-tie fixtures with context-only extension to128. No wide-router-path or multi-device coverage claim.",
+  "arms": {
+    "candidate": {
+      "llmx_sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+      "model_logits_sha256": "5cfeff644652ecb2decfe1164f52b0153c17619694085d41d21feaa81425ba9e",
+      "revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "source_files": 3070,
+      "source_manifest_sha256": "d548ca7a4a69af6fae8918577af3dd1ab80dffa29fbd3f1e9b9b6e7ff4ee1431",
+      "version": "llmx 0.1.0+unknown numerics a3570786a0d68218"
+    },
+    "main": {
+      "llmx_sha256": "22520d43a5237d7eaa7e72aa459fbd762dfaedf7b3a56ba0582e4029d7ba5f28",
+      "model_logits_sha256": "76c23d070a4e126c3783a7bb789bbf10eecea069a184734cb1084474ae148a9d",
+      "revision": "e46e72e9047ab87488e008494509a4a9129ea5f2",
+      "source_files": 2942,
+      "source_manifest_sha256": "b09aac8b8cae67496bf38b2dcb5de3593143dc66a02e3006cef61eb95d96fe0a",
+      "version": "llmx 0.1.0+unknown numerics 6f8d73e0490b8d22"
+    }
+  },
+  "fixture_plan": {
+    "arms": {
+      "candidate": {
+        "llmx_sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+        "model_logits_sha256": "5cfeff644652ecb2decfe1164f52b0153c17619694085d41d21feaa81425ba9e",
+        "revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+        "source_files": 3070,
+        "source_manifest_sha256": "d548ca7a4a69af6fae8918577af3dd1ab80dffa29fbd3f1e9b9b6e7ff4ee1431",
+        "version": "llmx 0.1.0+unknown numerics a3570786a0d68218"
+      },
+      "main": {
+        "llmx_sha256": "22520d43a5237d7eaa7e72aa459fbd762dfaedf7b3a56ba0582e4029d7ba5f28",
+        "model_logits_sha256": "76c23d070a4e126c3783a7bb789bbf10eecea069a184734cb1084474ae148a9d",
+        "revision": "e46e72e9047ab87488e008494509a4a9129ea5f2",
+        "source_files": 2942,
+        "source_manifest_sha256": "b09aac8b8cae67496bf38b2dcb5de3593143dc66a02e3006cef61eb95d96fe0a",
+        "version": "llmx 0.1.0+unknown numerics 6f8d73e0490b8d22"
+      }
+    },
+    "build_receipts": {
+      "build_result_local": "build-integration/linux-image-integration-v1/verified-results/build-result.json",
+      "build_result_sha256": "1d6246a2feada990b116a0f12a3ff1b6349dbecf9f869f0f473a45c134bd1d95",
+      "bundled_build_result": "receipts/build-result.json",
+      "bundled_launch_result": "receipts/launch-result.json",
+      "launch_result_local": "build-integration/linux-image-integration-v1/verified-results/launch-result.json",
+      "launch_result_sha256": "9eda8bf867e2c44256726f0dabd2c5b944f03e098a2c7678517ec6ff4188af60",
+      "remote_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/linux-image-integration-v1"
+    },
+    "capture": {
+      "cache_k": "f32",
+      "cache_v": "f32",
+      "calls_per_device": 36,
+      "cpu_threads": 6,
+      "device_choices": [
+        "cpu",
+        "vulkan:0"
+      ],
+      "fixture_prompt_and_forced_rows": "tokenized prompt length + 16 forced IDs",
+      "forced_ids_source": "tests/data/baseline_moe_q8.json; same variant case and prompt",
+      "forced_steps": 16,
+      "greedy_tokens": 64,
+      "helper": "llmx-model-logits",
+      "last_rows": 17,
+      "not_covered": [
+        "HF correctness is not rerun by this identity worker",
+        "wide-K/split and router-dispatch-count qualification"
+      ],
+      "pair_calls_per_device": 6,
+      "prompt": null,
+      "prompt_source": "tests/moe.py::Q8_PROMPTS[-1]",
+      "prompt_token_count": 13,
+      "prompt_token_counts": [
+        1,
+        7,
+        13
+      ],
+      "prompts": [
+        "a",
+        "abcdefg",
+        "abcdefghijklm"
+      ],
+      "raw_bitwise_comparison": true,
+      "raw_files": [
+        "batched",
+        "decode",
+        "greedy"
+      ],
+      "raw_full_vocab": true,
+      "raw_model_logits_calls": 12,
+      "stdout_precision": "CLI prints each logit with printf %.6f; compare all 257 value strings and token ordering at this formatter precision, not raw F32 bits.",
+      "subprocess_calls_per_device": 26,
+      "threads": 4,
+      "top": 257,
+      "ubatch": 512
+    },
+    "cases": [
+      {
+        "cases": [
+          {
+            "forced_ids": [
+              63,
+              63,
+              193,
+              29,
+              193,
+              215,
+              215,
+              215,
+              215,
+              193,
+              215,
+              180,
+              147,
+              147,
+              215,
+              193
+            ],
+            "prompt": "a"
+          },
+          {
+            "forced_ids": [
+              29,
+              122,
+              215,
+              63,
+              10,
+              41,
+              41,
+              154,
+              233,
+              10,
+              122,
+              122,
+              122,
+              122,
+              122,
+              178
+            ],
+            "prompt": "abcdefg"
+          },
+          {
+            "forced_ids": [
+              185,
+              63,
+              32,
+              63,
+              32,
+              135,
+              63,
+              63,
+              178,
+              135,
+              63,
+              63,
+              63,
+              146,
+              124,
+              178
+            ],
+            "prompt": "abcdefghijklm"
+          }
+        ],
+        "file_sha256": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe1874fc751",
+        "name": "gated",
+        "router_scale": 16.0
+      },
+      {
+        "cases": [
+          {
+            "forced_ids": [
+              193,
+              193,
+              193,
+              193,
+              193,
+              193,
+              193,
+              193,
+              193,
+              193,
+              190,
+              42,
+              42,
+              42,
+              42,
+              42
+            ],
+            "prompt": "a"
+          },
+          {
+            "forced_ids": [
+              38,
+              192,
+              32,
+              10,
+              10,
+              91,
+              102,
+              113,
+              178,
+              91,
+              91,
+              91,
+              91,
+              91,
+              91,
+              42
+            ],
+            "prompt": "abcdefg"
+          },
+          {
+            "forced_ids": [
+              122,
+              122,
+              111,
+              198,
+              111,
+              198,
+              111,
+              124,
+              42,
+              192,
+              42,
+              192,
+              42,
+              2,
+              66,
+              111
+            ],
+            "prompt": "abcdefghijklm"
+          }
+        ],
+        "file_sha256": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285",
+        "name": "near-tie",
+        "router_scale": 0.0625
+      }
+    ],
+    "context_extension": {
+      "all_noncontext_bytes_identical": true,
+      "capture_context": 128,
+      "changed_metadata_only": true,
+      "manifest": "fixtures/context128-v2/manifest.json",
+      "manifest_sha256": "2917934808d8807a4a890d39d9a7975594f6256966007d3e7aef3b11acb5fde0",
+      "original_context": 64,
+      "purpose": "allow the raw helper 64-token greedy continuation after the longest frozen prompt plus its 16 forced ids; not a new HF fixture/budget",
+      "source_manifest_sha256": "2917934808d8807a4a890d39d9a7975594f6256966007d3e7aef3b11acb5fde0",
+      "variants": [
+        {
+          "all_other_file_bytes_identical": true,
+          "changed_offsets": [
+            366
+          ],
+          "context_metadata_key_offset": 339,
+          "context_value_offset": 366,
+          "derived_bytes": 715392,
+          "derived_file": "tiny-moe-q8-gated-ctx128.gguf",
+          "derived_sha256": "8c6ed50fa77329ba22120df831e1723ba6505403c64822d377f2439c72a1c668",
+          "original_bytes": 715392,
+          "original_file": "tiny-moe-q8-gated.gguf",
+          "original_sha256": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe1874fc751",
+          "router_scale": 16.0,
+          "tensor_payloads_byte_identical": true,
+          "variant": "gated"
+        },
+        {
+          "all_other_file_bytes_identical": true,
+          "changed_offsets": [
+            366
+          ],
+          "context_metadata_key_offset": 339,
+          "context_value_offset": 366,
+          "derived_bytes": 715392,
+          "derived_file": "tiny-moe-q8-near-tie-ctx128.gguf",
+          "derived_sha256": "243c08ffd28495977106dcf2c366a902df000e872f6a6153244c30ee26efafba",
+          "original_bytes": 715392,
+          "original_file": "tiny-moe-q8-near-tie.gguf",
+          "original_sha256": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285",
+          "router_scale": 0.0625,
+          "tensor_payloads_byte_identical": true,
+          "variant": "near-tie"
+        }
+      ]
+    },
+    "fixture": {
+      "baseline_file": "tests/data/baseline_moe_q8.json",
+      "baseline_sha256": "9b3d1ede47d832c8bfe3da7fc41fb8d4d30cdf50a9f962041650088fb802ed3c",
+      "cases_sha256": "f8e5471dfb8f9ba925de390a5a3a06a6dc517240f05339b8638f5b1893549892",
+      "directory": "fixtures",
+      "manifest_sha256": "1c62251354aa9d6867c58b36c6a743fc9cc2ce09c7ed1c0b081ff4e377bbb6ec",
+      "variants": [
+        {
+          "bytes": 715392,
+          "file": "tiny-moe-q8-gated.gguf",
+          "router_scale": 16.0,
+          "sha256": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe1874fc751",
+          "variant": "gated"
+        },
+        {
+          "bytes": 715392,
+          "file": "tiny-moe-q8-near-tie.gguf",
+          "router_scale": 0.0625,
+          "sha256": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285",
+          "variant": "near-tie"
+        }
+      ]
+    },
+    "limits": {
+      "overall_timeout_seconds": 3600,
+      "per_child_timeout_seconds": 600,
+      "retries": 0,
+      "terminate_owned_process_group_first": true
+    },
+    "modes": [
+      {
+        "args": [],
+        "name": "batched"
+      },
+      {
+        "args": [
+          "--ubatch",
+          "3"
+        ],
+        "name": "batched by 3"
+      },
+      {
+        "args": [
+          "--per-token"
+        ],
+        "name": "decode"
+      }
+    ],
+    "schema": "tiny-moE-q8-main-candidate-identity-v1",
+    "scope": "Tiny routed Qwen3 MoE A/B identity for both frozen Q8 variants, all three existing prompts and their frozen 16 forced IDs, then 64 raw greedy rows. Context-only fixture copies preserve all other file bytes. Not wide-K/split or router-dispatch qualification.",
+    "status": "prepared only; inference not run"
+  },
+  "controller": {
+    "status": "passed",
+    "started_unix": 1793053568.1004424,
+    "calls": [],
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "container_id": "74c73daddb25db70ba1122ae13118ff5a9f08ba1ba6412425cb0483a54031e0b",
+    "container_create_argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-tiny-moe-identity-v1",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "8,9",
+      "--cpus",
+      "2",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "--device",
+      "/dev/dri/renderD130",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/linux-image-integration-v1:/work:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/tiny-moe-identity-v1:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/tiny-moe-identity-v1/output:/out:rw",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "argv": [
+      "docker",
+      "exec",
+      "74c73daddb25db70ba1122ae13118ff5a9f08ba1ba6412425cb0483a54031e0b",
+      "sh",
+      "/bundle/run-tiny-moe-identity-pair.sh"
+    ],
+    "exit_code": 0,
+    "terminal_processes": "PID                 COMMAND\n3404190             docker-init\n3404213             sleep\n",
+    "container_removed": true,
+    "ended_unix": 1793053581.699727
+  },
+  "archive_sha256": "642e89f48c3b00fa751b383aefb160c4db36354cadf440e2678fecb12813a770",
+  "raw_array_pairs_verified": [
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 0,
+      "phase": "batched",
+      "bytes": 17476,
+      "sha256": "b810eeca66fd3c93b0ed6c96edaf424252b8d2addb69a10329a5b1ff45606b72"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 0,
+      "phase": "decode",
+      "bytes": 17476,
+      "sha256": "8b32bdcef114f96131a1b6e60bbf6636e55738287707b94539fcbd4a21c42dfb"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 0,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "c9d92bbeb12989630d70f17e086ccdbd9aab4513d60c68841230794aa9322ecf"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 1,
+      "phase": "batched",
+      "bytes": 23644,
+      "sha256": "cc5e4567f38b2f627c985408c3582c13b7899ddff40f1ec722521b3d793190b6"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 1,
+      "phase": "decode",
+      "bytes": 23644,
+      "sha256": "ea08e26ac7331273d31402328f5db50389e78162a644719412ad0d173d656dba"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 1,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "1b34229c13f0109867372e844ef6e39b95f3c558240ed0aaf733c840e1aa2b5a"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 2,
+      "phase": "batched",
+      "bytes": 29812,
+      "sha256": "288520c95c3b6aaf0ce6b2be5dd3dfe273aa3c4af2f8668ff3fe8dbbd2d6ab3a"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 2,
+      "phase": "decode",
+      "bytes": 29812,
+      "sha256": "d60be270c52d074ffab3b721d5345436df4cead9af50d5d34bb5f238ea90f07c"
+    },
+    {
+      "device": "cpu",
+      "variant": "gated",
+      "case": 2,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "c402e53e070f5e5c93f6e906dcdedbd8348fd2ae421e990ed3fa33d05227fcb1"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "batched",
+      "bytes": 17476,
+      "sha256": "536295983463d08c083644e0b4e5db42370d4768a7587cfb7ce14ffddd7fdc4e"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "decode",
+      "bytes": 17476,
+      "sha256": "08f323adcbbdfb43fb0fb91cfb05fc582091042d56f9a56b4475398d148c26b1"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "24a3a006a4742dd3c052ffaccc78b070d9bbfc616acf7e0d26caba3e74512dad"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "batched",
+      "bytes": 23644,
+      "sha256": "992f794257cbdf4090c28699dee3ed0351d7b62970f8b78a57e6046e5905ef18"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "decode",
+      "bytes": 23644,
+      "sha256": "1bd1d13a51446c4d877435efbbad66d820509cd139d1a5a5a46b0f9eaeefda58"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "10e6a9a3dd81f5c68763701f145b0931f0be7b5662c7789c681a55a75ec6a74f"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "batched",
+      "bytes": 29812,
+      "sha256": "4f4b1fa53fc6af50c4152fe559ffcecc0d9fc9cf54cd8eec5d7615fdcd415c36"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "decode",
+      "bytes": 29812,
+      "sha256": "e5c1144e5119393855f3583fb8e099b1b488cf5f1c3c2dd15d81a81f3edd64f5"
+    },
+    {
+      "device": "cpu",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "e206c50caab082150cf55db7d1c8e2d57fa340707bb62a27d297c18428321469"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 0,
+      "phase": "batched",
+      "bytes": 17476,
+      "sha256": "77d5119e3c41d5d55f2e63930405aeb8b7c8c7ec713fdc82a36f8b2fc53f6b46"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 0,
+      "phase": "decode",
+      "bytes": 17476,
+      "sha256": "77d5119e3c41d5d55f2e63930405aeb8b7c8c7ec713fdc82a36f8b2fc53f6b46"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 0,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "d3f4898ca70fc33bf4819545ee43128c06dfeb3ec57740acc90ab5a353a36892"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 1,
+      "phase": "batched",
+      "bytes": 23644,
+      "sha256": "59d8cd577dc13f4a5a1ce93650b5a42796ec044aeaefb60b424d6cdcc6e7b9d7"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 1,
+      "phase": "decode",
+      "bytes": 23644,
+      "sha256": "59d8cd577dc13f4a5a1ce93650b5a42796ec044aeaefb60b424d6cdcc6e7b9d7"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 1,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "ceeede7031dc297ccc5751dad6e1c78e4d0c63313ec69f5d0daade1fbb21b6fc"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 2,
+      "phase": "batched",
+      "bytes": 29812,
+      "sha256": "4ba8d7a3e7d0cd1a560ae6b53cd7a0841266ea9f18b954d2c16f962d9b0d16ad"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 2,
+      "phase": "decode",
+      "bytes": 29812,
+      "sha256": "4ba8d7a3e7d0cd1a560ae6b53cd7a0841266ea9f18b954d2c16f962d9b0d16ad"
+    },
+    {
+      "device": "vulkan",
+      "variant": "gated",
+      "case": 2,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "9ea8823c6ac1c7024e48168989d210ab74b1747d3a4c32176f33f46110c30d1c"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "batched",
+      "bytes": 17476,
+      "sha256": "db6b930e05c4c66d3a931a7cb9ab94a2bbe01f22e8ca0c040bcd87a7fd9fd35c"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "decode",
+      "bytes": 17476,
+      "sha256": "db6b930e05c4c66d3a931a7cb9ab94a2bbe01f22e8ca0c040bcd87a7fd9fd35c"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 0,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "fac2f52b5005d9a827861b217670f7f56a32df4fd7a1e5f5ff621d6f95102a4f"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "batched",
+      "bytes": 23644,
+      "sha256": "ed253b307c074204b5bb5b86c12a4629df30337fd429d8f44673e3fbbea4190d"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "decode",
+      "bytes": 23644,
+      "sha256": "ed253b307c074204b5bb5b86c12a4629df30337fd429d8f44673e3fbbea4190d"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 1,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "913c457adf0751a1aab9c8c20719361157dbcbdb7e67d6f697dd25d9bafbfc49"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "batched",
+      "bytes": 29812,
+      "sha256": "2a18faa50449786415a4e03d6cb20e7c2065492cf7d817873f9c56d4fa3086fe"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "decode",
+      "bytes": 29812,
+      "sha256": "2a18faa50449786415a4e03d6cb20e7c2065492cf7d817873f9c56d4fa3086fe"
+    },
+    {
+      "device": "vulkan",
+      "variant": "near-tie",
+      "case": 2,
+      "phase": "greedy",
+      "bytes": 65792,
+      "sha256": "84fd03835612cc3c8cc5f1bfd13fdd1cccdebb2333b99f954ee386fa3681e197"
+    }
+  ],
+  "all_equal": true,
+  "phase_metadata_audit": {
+    "devices": {
+      "cpu": {
+        "capture_json_sha256s": {
+          "gated/prompt-00/candidate/capture.stdout": "d4b886cca548a968d28d0676625e5162598d872fb251ce32daf66f0c26535c70",
+          "gated/prompt-00/main/capture.stdout": "d4b886cca548a968d28d0676625e5162598d872fb251ce32daf66f0c26535c70",
+          "gated/prompt-01/candidate/capture.stdout": "de0cc206129a46d6e1f615ddd2902f672cbb3f5238cd78e7f1cfa9351fe66322",
+          "gated/prompt-01/main/capture.stdout": "de0cc206129a46d6e1f615ddd2902f672cbb3f5238cd78e7f1cfa9351fe66322",
+          "gated/prompt-02/candidate/capture.stdout": "2aba349d00506a7aa97e47dd73f7253b38cb89fed8171465337035762d01f24a",
+          "gated/prompt-02/main/capture.stdout": "2aba349d00506a7aa97e47dd73f7253b38cb89fed8171465337035762d01f24a",
+          "near-tie/prompt-00/candidate/capture.stdout": "e50fb7cea9f9acdb550d2ec580416c3f4bbeb5d353a0478325e9bb2e868d61e0",
+          "near-tie/prompt-00/main/capture.stdout": "e50fb7cea9f9acdb550d2ec580416c3f4bbeb5d353a0478325e9bb2e868d61e0",
+          "near-tie/prompt-01/candidate/capture.stdout": "a64a0e82290593d29b0bacc135fba2f2f63998c89461e8d6a4977a950259a88a",
+          "near-tie/prompt-01/main/capture.stdout": "a64a0e82290593d29b0bacc135fba2f2f63998c89461e8d6a4977a950259a88a",
+          "near-tie/prompt-02/candidate/capture.stdout": "859ce99f4a5a779ec3e42f0e88924111833c1847b83004f900f6a0b0147bc753",
+          "near-tie/prompt-02/main/capture.stdout": "859ce99f4a5a779ec3e42f0e88924111833c1847b83004f900f6a0b0147bc753"
+        },
+        "capture_stdout_count": 12,
+        "execution_sha256": "0aff514a5f3216974df49c7a69d11083fe55360064c97c7a0b32cb3c441adb07",
+        "execution_status": "passed",
+        "main_candidate_capture_metadata_pairs": [
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-00",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-01",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-02",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-00",
+            "variant": "near-tie"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-01",
+            "variant": "near-tie"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32"
+                ]
+              ],
+              "decode": [
+                [
+                  "f32"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-02",
+            "variant": "near-tie"
+          }
+        ],
+        "raw_phase_equal_all": true,
+        "raw_phase_pair_comparisons_recorded": 6
+      },
+      "vulkan": {
+        "capture_json_sha256s": {
+          "gated/prompt-00/candidate/capture.stdout": "98cb16b6a26e327feae72ed9b0cea74771c4914852618177c83b29121e320937",
+          "gated/prompt-00/main/capture.stdout": "98cb16b6a26e327feae72ed9b0cea74771c4914852618177c83b29121e320937",
+          "gated/prompt-01/candidate/capture.stdout": "bc50e74d958785f12276a846333977f3bbd6b3e336de90ba1921fdecfb882ba9",
+          "gated/prompt-01/main/capture.stdout": "bc50e74d958785f12276a846333977f3bbd6b3e336de90ba1921fdecfb882ba9",
+          "gated/prompt-02/candidate/capture.stdout": "a70a4cc10d394f4984db2c76d015b81f48e6f7ff785449da8ab244b77c6a5ac4",
+          "gated/prompt-02/main/capture.stdout": "a70a4cc10d394f4984db2c76d015b81f48e6f7ff785449da8ab244b77c6a5ac4",
+          "near-tie/prompt-00/candidate/capture.stdout": "80e0bc45b1431034ff14076e7b4629fe4f5b788f74a42e73901672327cc5d808",
+          "near-tie/prompt-00/main/capture.stdout": "80e0bc45b1431034ff14076e7b4629fe4f5b788f74a42e73901672327cc5d808",
+          "near-tie/prompt-01/candidate/capture.stdout": "6638a124be31dd21596cc27177d76b47d3240305872dd6596ba4a2f919befb69",
+          "near-tie/prompt-01/main/capture.stdout": "6638a124be31dd21596cc27177d76b47d3240305872dd6596ba4a2f919befb69",
+          "near-tie/prompt-02/candidate/capture.stdout": "09254da797d99b0f8e245c87b35d7dcdab039c9b3619c7172a1da066efb3b23f",
+          "near-tie/prompt-02/main/capture.stdout": "09254da797d99b0f8e245c87b35d7dcdab039c9b3619c7172a1da066efb3b23f"
+        },
+        "capture_stdout_count": 12,
+        "execution_sha256": "e8a731101184f77ee555285c2b154779a95d33dd31619957a76b238dad0fb434",
+        "execution_status": "passed",
+        "main_candidate_capture_metadata_pairs": [
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-00",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-01",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-02",
+            "variant": "gated"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-00",
+            "variant": "near-tie"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-01",
+            "variant": "near-tie"
+          },
+          {
+            "candidate_dtype": "f16",
+            "dtype_equal": true,
+            "main_dtype": "f16",
+            "matrix_paths": {
+              "batched": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "decode": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "greedy": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            },
+            "matrix_paths_equal": true,
+            "prompt": "prompt-02",
+            "variant": "near-tie"
+          }
+        ],
+        "raw_phase_equal_all": true,
+        "raw_phase_pair_comparisons_recorded": 6
+      }
+    },
+    "raw_identity_claim": "The original worker execution receipts record byte equality for batched, decode and greedy raw full-vocabulary files. This audit checks the saved stdout JSON metadata and matrix-path equality for every main/candidate capture pair.",
+    "schema": "tiny-routed-matrix-path-audit-v1",
+    "scope": "Read-only audit of completed verified-results. No calls were rerun.",
+    "total_captures": 24,
+    "total_raw_phase_pair_comparisons": 36
+  }
+}

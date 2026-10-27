@@ -1,0 +1,323 @@
+{
+  "passed": true,
+  "runtime_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+  "scope": "Scratch explicit-BF16 CPU split captures only. Reuses existing ordinary/scaled model bytes, frozen independent NV split goldens and unchanged calibrated family budgets. No production API or tracked source changes, model regeneration, new goldens, GPU or performance claim.",
+  "captures": 12,
+  "hf_full_vocabulary_cases": 120,
+  "hf_nll_checks": 24,
+  "max_hf_logit_error": 0.021976709365844727,
+  "max_hf_nll_error": 0.0007753736111695275,
+  "bounds": {
+    "logit_budget": 0.0439532995223999,
+    "nll_budget": 0.004616805201523633
+  },
+  "actual_phase_paths": {
+    "dense-untied-ordinary-tp2": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-untied-ordinary-tp4": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-untied-scaled-tp2": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-untied-scaled-tp4": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-tied-ordinary-tp2": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-tied-ordinary-tp4": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-tied-scaled-tp2": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "dense-tied-scaled-tp4": {
+      "batched": [
+        "bf16"
+      ],
+      "decode": [
+        "bf16"
+      ],
+      "greedy": [
+        "bf16"
+      ]
+    },
+    "moe-ordinary-tp2": {
+      "batched": [
+        "bf16",
+        "f32"
+      ],
+      "decode": [
+        "bf16",
+        "f32"
+      ],
+      "greedy": [
+        "bf16",
+        "f32"
+      ]
+    },
+    "moe-ordinary-tp4": {
+      "batched": [
+        "bf16",
+        "f32"
+      ],
+      "decode": [
+        "bf16",
+        "f32"
+      ],
+      "greedy": [
+        "bf16",
+        "f32"
+      ]
+    },
+    "moe-scaled-tp2": {
+      "batched": [
+        "bf16",
+        "f32"
+      ],
+      "decode": [
+        "bf16",
+        "f32"
+      ],
+      "greedy": [
+        "bf16",
+        "f32"
+      ]
+    },
+    "moe-scaled-tp4": {
+      "batched": [
+        "bf16",
+        "f32"
+      ],
+      "decode": [
+        "bf16",
+        "f32"
+      ],
+      "greedy": [
+        "bf16",
+        "f32"
+      ]
+    }
+  },
+  "pair_checks": 12,
+  "max_pair_logit_gap": 0.00774228572845459,
+  "ordinary_scaled_phase_identity": [
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    }
+  ],
+  "helper_sha256": "7083df2a77e20e1a8c5e5f2c9bad89a6a31ea2ba3b37d644681244f59900a4d9",
+  "source_adaptation": "Exact archived model_logits.cpp plus one PlacementRequest dtype=bf16 assignment; helper.patch retained. No runtime/API change.",
+  "seconds": 12.800235748291016,
+  "root_verification": {
+    "passed": true,
+    "completion_sha256": "4b96da73fdd36b4e3a16a208096f9840efac517cd862aa5f69b925a71539d146",
+    "execution_sha256": "9b3d1b1b2a669d307a98e666ed348430cca79640a8137211eee11ca2906c7ccf",
+    "artifacts_verified": 72,
+    "guards_verified": 20,
+    "captures": 12,
+    "hf_logit_cases": 120,
+    "hf_nll_cases": 24,
+    "max_logit_error": 0.021976709365844727,
+    "max_nll_error": 0.0007753736111695275,
+    "equivalent_encoding_byte_pairs": 18,
+    "scope": "CPU BF16 split with retained F32 router operations. No actual GPU split qualification."
+  },
+  "receipt_sha256": {
+    "build-nvfp4-cpu-bf16-tp-reference/completion.json": "4b96da73fdd36b4e3a16a208096f9840efac517cd862aa5f69b925a71539d146",
+    "build-nvfp4-cpu-bf16-tp-reference/execution.json": "9b3d1b1b2a669d307a98e666ed348430cca79640a8137211eee11ca2906c7ccf",
+    "build-nvfp4-cpu-bf16-tp-reference/root-verification.json": "470b3782c7e5e763bb6657dc8f8a7bcaac3b83e16ea2bf19bd2850ba4c7e5515",
+    "build-nvfp4-cpu-bf16-tp-reference/helper.patch": "1ec3ff24d7deb2bbef2d07e87cf2f57f6abe57470f83e646cbc0a58ddf066ac6"
+  },
+  "helper_patch": "--- archive/tools/model_logits.cpp\n+++ scratch/model_logits.cpp\n@@ -37,6 +37,7 @@\n         const std::string cache(argv[5]), prefix(argv[3]);\n         if (cache != \"f16\" && cache != \"f32\") throw std::runtime_error(\"CACHE must be f16 or f32\");\n         infer::PlacementRequest request;\n+        request.dtype = backend::Dtype::bf16;\n         request.width = argc > 9 ? (size_t)integer(argv[9], 1, \"TENSOR_WIDTH\") : 1;\n         if (request.width > 1)\n             for (const auto& d : core::comma_list(argv[4])) request.names.push_back(backend::canonical_device(d));\n",
+  "limitations": [
+    "CPU BF16 split only, with F32 MoE routers. No GPU split or performance claim.",
+    "Existing goldens and frozen budgets unchanged. Eighteen phase byte identities are equivalent-encoding parity, not independent greedy HF acceptance."
+  ],
+  "prospective_reference_controls": {
+    "status": "passing implementation controls; method awaits agreement; no default depth comparison",
+    "linear_modules_shapes_checked": 187,
+    "scope": "Known rounding/ties/positive zero, logical F16 KV writes and unchanged F32 convolution/recurrent state. No released weights or depth logits.",
+    "receipt_sha256": {
+      "build-nvfp4-depth-reference/default-policy/control-result-v2.json": "a9e0864ed65e87dc425005c5d5657f5a7b4bc9ef426b3ff36624d45cf09ca711",
+      "build-nvfp4-depth-reference/default-policy/hybrid-cache-result.json": "6b2dcf65e65236e078273e1086be9746d06f74077cd703a4ebff5858e449a441"
+    },
+    "producer_preparation": {
+      "status": "prepared, syntax checked and source reviewed; no producer execution",
+      "sources_sha256": {
+        "reference_policy.py": "2e32fdef6e2be9d42aa07ac0f745ec1c33203267c31897cd8a531f92abafa2dc",
+        "selected_controls.py": "4dc8c119026bf65f37126606d126b289861b7333583f204a57c1a024691e387b",
+        "selected_policy_producer.py": "236197717e6dee2ec417c2622a15d13e27b394ddc2aaae595f649aa3b24d7c00",
+        "cpu_guard.py": "5596de25b7466b42708c76fca056b217b2f69f12aa2ae68d758bf8ff49828ee4",
+        "prepare_producer.py": "ddda0f6924ed0336db72571deac2994829d66917a452102cee24e2974c9eeee9"
+      },
+      "projection_map_sha256": "7d967d2634cd487d619cb5f747d0ac2f13669bf4928da09e011b2c9545deee1d",
+      "hybrid_control_carried": "Only integer reconstruction changed from the hybrid-control policy pin: int32 conversion makes reconstructed zero positive. The cache implementation is byte unchanged.",
+      "control_plan": "Independent logical F16 caches, 64 prefill + 16 forced tokens, full-phase batches versus 17-row prefill and singleton decode, exact module/call/row and cache-write coverage. Existing 2e-5 self-control bound and all 80 exact choices required before depth.",
+      "method_status": "Pending agreement. No released default reference or comparison, no changed limit."
+    }
+  }
+}

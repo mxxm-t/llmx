@@ -1,0 +1,104 @@
+{
+  "scope": "Profiling harness failure before any GPU probe execution; no numerical or performance result",
+  "attempt": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v1-results/run-20261025T213255Z-3018470",
+  "execution_sha256": "fecf29c6760cd0691432fa77e4e50c76adaf9aa9bf7cf4871482f01400271453",
+  "error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v1/run-operator-profile.py\", line 296, in main\n    out_text, err_text, log = exec_call(tag, command,\n                              ~~~~~~~~~^^^^^^^^^^^^^^\n        timeout=plan[\"bounds\"][\"per_sqtt_call_timeout_seconds\"] if phase == \"sqtt\"\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n        else plan[\"bounds\"][\"per_probe_call_timeout_seconds\"], env=env)\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v1/run-operator-profile.py\", line 244, in exec_call\n    return host_call(tag, argv + [cid] + command, timeout=timeout, check=check)\n  File \"/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v1/run-operator-profile.py\", line 186, in host_call\n    raise RuntimeError(\"%s failed/timed out; see %s and %s\" % (tag, sp.name, ep.name))\nRuntimeError: 00-c1-plain-before failed/timed out; see 017-00-c1-plain-before.stdout and 017-00-c1-plain-before.stderr\n",
+  "failed_call": {
+    "index": 17,
+    "tag": "00-c1-plain-before",
+    "argv": [
+      "docker",
+      "exec",
+      "4bc52d2af7218be5a3abe88fdb4e6cd12c0f14b881efbbbf94fc527ce2ef312a",
+      "/tmp/nvfp4-operator-profile-build/nvfp4-tile-probe",
+      "--case",
+      "1024x896",
+      "--columns",
+      "1",
+      "--output",
+      "/results/run-20261025T213255Z/case-1024x896/columns-1/plain-before",
+      "--iterations",
+      "30"
+    ],
+    "started_utc": "2026-10-25T21:33:03.698250+00:00",
+    "exit_code": 126,
+    "ended_utc": "2026-10-25T21:33:03.787230+00:00",
+    "stdout_path": "017-00-c1-plain-before.stdout",
+    "stderr_path": "017-00-c1-plain-before.stderr",
+    "stdout_sha256": "012be1c1a963529c84d29ee2d34781faf847816aab61606ea3773a8e0c82cdac",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "failure_stdout": "OCI runtime exec failed: exec failed: unable to start container process: exec: \"/tmp/nvfp4-operator-profile-build/nvfp4-tile-probe\": permission denied\n",
+  "container_removed": true,
+  "probe_sha256": "1a1c6f3f1b040c92f3bb7ab8c08bd77674e4f77a8a5bfda8009d50d7abac1cd5",
+  "runtime_pins": {
+    "candidate_binary": "bb7036e6637c3c20e3b383257d77c58881aa11df957a7b51f6f7ae5d0831bc0b",
+    "candidate_vulkan_library": "e9e185cffd726acc9d22a23dc03d0f5cf44dd18d34f0c2fd006218c3339435e8",
+    "generated_config": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+    "cmake_cache": "2aa30f8b89cbbbe6a6a69f61e772a121226d90e6fdec4f85fc57ae0a97c853c9"
+  },
+  "v2_preparation": {
+    "parent_runner_sha256": "a2a15726912976b27f8e8ef61c1411720e26bcae0079837b973dcf0a2e88b24c",
+    "runner_sha256": "50e74ad9b3834050db86db5ba78510e1d3304622f313f7eb05c5099f456432f8",
+    "plan_sha256": "71165cb967f523b9ffedaf43815a794f1af7e1ccdebe638202ddd5bf2113aa7a",
+    "changes": [
+      "versioned bundle/container/results names",
+      "explicit exec on private tmpfs for compiled probe",
+      "inspect /proc/mounts before build and refuse noexec"
+    ],
+    "frozen_runtime_and_probe_unchanged": true
+  },
+  "v2_launch": "Not started: current launch guard rejected CPU3 overlap with gate6-run; coordinator slot requested.",
+  "analysis_preparation": {
+    "scope": "Prepared only; no capture exists from failed attempt and no analyzer was launched",
+    "directory": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-analysis-v2",
+    "checks": [
+      "capture resides in resolved v2 results directory",
+      "completed passing execution receipt and confirmed container removal",
+      "capture hash matches artifacts and exactly one completed SQTT call",
+      "exact capture container absent",
+      "frozen helper pins; isolated no-device, no-network container"
+    ],
+    "files": {
+      "launch-rgp-analysis.py": "02ed53395197699106a79cb5570c18c2a3442eb4e4055fccce3110ad8fe99142",
+      "plan.json": "fc0a17ebf87447ee76761650e681efa181cae60d067ef7d27e396509e0d925f3",
+      "rgp-text-session.py": "7ac6d44ef6a3d04103d149bc9f6063434b6d57caeee9e3d01039121285b73c5b",
+      "summarize_instructions.py": "3a1b2706b5a658d99eb3f0d6b18441c1e090c23b7f3d8c4f14d5f004991ea895"
+    }
+  },
+  "reference_audit": {
+    "scope": "Read-only source review, no new numeric measurements or limits",
+    "calibration_owner": "tools/calibrate_dtype.py",
+    "calibration_method": "Exact decoded F32 weights, linear inputs rounded through torch.float16 and back to torch.float32, F32 computation, router excluded",
+    "f16_logit_budget": 0.005869746208190918,
+    "f16_nll_budget": 0.0006043278951057829,
+    "accepted_f16_runs": 30,
+    "limits_scope": "Unscaled tiny dense tied/untied/MoE and split fixtures; not released scaled-model qualification",
+    "existing_path": "Vulkan NVFP4 tile uses F32 inputs under F16 and reports f32; no native F16-input dispatch implemented",
+    "required_if_implemented": [
+      "Keep explicit F32 unchanged",
+      "Report MatrixPath::f16 only when dispatched",
+      "Independent literal-half input operator reference and range checks",
+      "New actual-path mapping and released HF self-control before depth comparison",
+      "Matched performance screen before broad qualification"
+    ]
+  },
+  "checkpoint_checks": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-main5-vulkan/Release/llmx.exe --only docs,dead-code",
+    "docs": {
+      "passed": true,
+      "findings": 0,
+      "planted": 21,
+      "seconds": 12.1
+    },
+    "dead_code": {
+      "passed": true,
+      "listed_findings": 21,
+      "planted": 19,
+      "seconds": 14.3
+    },
+    "binary_sha256": "3ffe12aaa1053f13f908c57955c4f4404fd7d0af2654e7d29da4a9cc294bf7ce",
+    "binary_version": "llmx 0.1.0+g8a1176d85531.dirty numerics 5665f25af46f6158",
+    "scope": "Documentation and prepared diagnostic scripts only; runtime source/tests/build unchanged from b3612bf7a. No device run or inference qualification claimed."
+  }
+}

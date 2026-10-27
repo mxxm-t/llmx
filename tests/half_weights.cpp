@@ -125,14 +125,14 @@ void all_finite(backend::CpuBackend& cpu, uint32_t type) {
     q->dequantize(nullptr, nullptr, 0);
     const auto wb = cpu.adopt(packed.data() + 1, 2 * n), fb = cpu.adopt(expected.data(), n * sizeof(float));
     Output got(cpu, n), want(cpu, n);
-    cpu.embed(got.slice(), type, {wb.get(), 0}, 1, n, ids.data(), n);
-    cpu.embed(want.slice(), quant::GGML_TYPE_F32, {fb.get(), 0}, 1, n, ids.data(), n);
+    cpu.embed(got.slice(), {type, {wb.get(), 0}}, 1, n, ids.data(), n);
+    cpu.embed(want.slice(), {quant::GGML_TYPE_F32, {fb.get(), 0}}, 1, n, ids.data(), n);
     same(got, want, "all finite embeddings");
     const float x[] = {1.0f, -1.0f, 0.0009765625f};
     const auto xb = cpu.adopt(x, sizeof(x));
     Output product(cpu, n * 3), reference(cpu, n * 3);
-    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, product.slice(), 1, n, 3, {}, backend::Dtype::f32);
-    cpu.matmul(quant::GGML_TYPE_F32, {fb.get(), 0}, {xb.get(), 0}, reference.slice(), 1, n, 3, {}, backend::Dtype::f32);
+    cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, product.slice(), 1, n, 3, {}, backend::Dtype::f32);
+    cpu.matmul({quant::GGML_TYPE_F32, {fb.get(), 0}}, {xb.get(), 0}, reference.slice(), 1, n, 3, {}, backend::Dtype::f32);
     same(product, reference, "all finite products");
     require(packed == original, "a decoder or product changed half-weight bytes");
 }
@@ -148,21 +148,21 @@ void dense(backend::CpuBackend& cpu, uint32_t type, size_t width, size_t rows, s
     const std::string at = "dense type " + std::to_string(type) + " width " + std::to_string(width) + " batch " + std::to_string(batch);
     for (const backend::RowRuns runs : {backend::RowRuns{}, backend::RowRuns{decode, 1}, backend::RowRuns{prompt, 1},
                                        backend::RowRuns{mixed, batch > 1 ? size_t(2) : size_t(1)}}) {
-        cpu.matmul(type, {w.half.get(), 0}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
-        cpu.matmul(quant::GGML_TYPE_F32, {w.f32.get(), 0}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul({type, {w.half.get(), 0}}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul({quant::GGML_TYPE_F32, {w.f32.get(), 0}}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
         same(got, want, at + " matmul");
-        cpu.matmul_logits(type, {w.half.get(), 0}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
-        cpu.matmul_logits(quant::GGML_TYPE_F32, {w.f32.get(), 0}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul_logits({type, {w.half.get(), 0}}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul_logits({quant::GGML_TYPE_F32, {w.f32.get(), 0}}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
         same(got, want, at + " head");
         got.reset(); want.reset();
-        cpu.matmul_add(type, {w.half.get(), 0}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
-        cpu.matmul_add(quant::GGML_TYPE_F32, {w.f32.get(), 0}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul_add({type, {w.half.get(), 0}}, {xb.get(), 1}, got.slice(), width, rows, batch, runs, dtype);
+        cpu.matmul_add({quant::GGML_TYPE_F32, {w.f32.get(), 0}}, {xb.get(), 1}, want.slice(), width, rows, batch, runs, dtype);
         same(got, want, at + " residual");
     }
     const uint32_t ids[] = {uint32_t(rows - 1), 0, uint32_t(rows / 2), uint32_t(rows - 1)};
     Output embedded(cpu, width * 4), expanded(cpu, width * 4);
-    cpu.embed(embedded.slice(), type, {w.half.get(), 0}, width, rows, ids, 4);
-    cpu.embed(expanded.slice(), quant::GGML_TYPE_F32, {w.f32.get(), 0}, width, rows, ids, 4);
+    cpu.embed(embedded.slice(), {type, {w.half.get(), 0}}, width, rows, ids, 4);
+    cpu.embed(expanded.slice(), {quant::GGML_TYPE_F32, {w.f32.get(), 0}}, width, rows, ids, 4);
     same(embedded, expanded, at + " embedding");
     require(x == original_x && w.packed.front() == 0xa5 && w.packed.back() == 0xa5, at + ": input or weight guard changed");
 }
@@ -191,21 +191,21 @@ void grouped(backend::CpuBackend& cpu, size_t width, size_t batch, backend::Dtyp
     const std::string at = "mixed width " + std::to_string(width) + " batch " + std::to_string(batch);
     for (const backend::RowRuns runs : {backend::RowRuns{decode, 1}, backend::RowRuns{prompt, 1},
                                        backend::RowRuns{mixed, batch > 1 ? size_t(2) : size_t(1)}}) {
-        cpu.matmul_group({{kF16, {a.half.get(), 0}, ad.slice(), a_rows}, {kBF16, {b.half.get(), 0}, bd.slice(), b_rows},
-                          {quant::GGML_TYPE_F32, {a.f32.get(), 0}, cd.slice(), a_rows}}, {xb.get(), 1}, width, batch, runs, dtype);
-        cpu.matmul_group({{quant::GGML_TYPE_F32, {a.f32.get(), 0}, ar.slice(), a_rows}, {quant::GGML_TYPE_F32, {b.f32.get(), 0}, br.slice(), b_rows},
-                          {quant::GGML_TYPE_F32, {a.f32.get(), 0}, cr.slice(), a_rows}}, {xb.get(), 1}, width, batch, runs, dtype);
+        cpu.matmul_group({{{kF16, {a.half.get(), 0}}, ad.slice(), a_rows}, {{kBF16, {b.half.get(), 0}}, bd.slice(), b_rows},
+                          {{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, cd.slice(), a_rows}}, {xb.get(), 1}, width, batch, runs, dtype);
+        cpu.matmul_group({{{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, ar.slice(), a_rows}, {{quant::GGML_TYPE_F32, {b.f32.get(), 0}}, br.slice(), b_rows},
+                          {{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, cr.slice(), a_rows}}, {xb.get(), 1}, width, batch, runs, dtype);
         same(ad, ar, at + " grouped F16"); same(bd, br, at + " grouped BF16"); same(cd, cr, at + " grouped F32");
-        cpu.matmul_experts({{kF16, {a.half.get(), 0}, ag.slice(), a_rows}, {kBF16, {b.half.get(), 0}, bg.slice(), b_rows},
-                            {quant::GGML_TYPE_F32, {a.f32.get(), 0}, cg.slice(), a_rows}}, {xb.get(), 1}, width, batch, routing, runs, dtype);
-        cpu.matmul_experts({{quant::GGML_TYPE_F32, {a.f32.get(), 0}, aw.slice(), a_rows}, {quant::GGML_TYPE_F32, {b.f32.get(), 0}, bw.slice(), b_rows},
-                            {quant::GGML_TYPE_F32, {a.f32.get(), 0}, cw.slice(), a_rows}}, {xb.get(), 1}, width, batch, routing, runs, dtype);
+        cpu.matmul_experts({{{kF16, {a.half.get(), 0}}, ag.slice(), a_rows}, {{kBF16, {b.half.get(), 0}}, bg.slice(), b_rows},
+                            {{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, cg.slice(), a_rows}}, {xb.get(), 1}, width, batch, routing, runs, dtype);
+        cpu.matmul_experts({{{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, aw.slice(), a_rows}, {{quant::GGML_TYPE_F32, {b.f32.get(), 0}}, bw.slice(), b_rows},
+                            {{quant::GGML_TYPE_F32, {a.f32.get(), 0}}, cw.slice(), a_rows}}, {xb.get(), 1}, width, batch, routing, runs, dtype);
         same(ag, aw, at + " routed F16"); same(bg, bw, at + " routed BF16"); same(cg, cw, at + " routed F32");
         ad.reset(); ar.reset(); bd.reset(); br.reset();
-        cpu.matmul_experts_add(kF16, {a.half.get(), 0}, {xb.get(), 1}, ad.slice(), width, a_rows, batch, routing, runs, dtype);
-        cpu.matmul_experts_add(quant::GGML_TYPE_F32, {a.f32.get(), 0}, {xb.get(), 1}, ar.slice(), width, a_rows, batch, routing, runs, dtype);
-        cpu.matmul_experts_add(kBF16, {b.half.get(), 0}, {xb.get(), 1}, bd.slice(), width, b_rows, batch, routing, runs, dtype);
-        cpu.matmul_experts_add(quant::GGML_TYPE_F32, {b.f32.get(), 0}, {xb.get(), 1}, br.slice(), width, b_rows, batch, routing, runs, dtype);
+        cpu.matmul_experts_add({kF16, {a.half.get(), 0}}, {xb.get(), 1}, ad.slice(), width, a_rows, batch, routing, runs, dtype);
+        cpu.matmul_experts_add({quant::GGML_TYPE_F32, {a.f32.get(), 0}}, {xb.get(), 1}, ar.slice(), width, a_rows, batch, routing, runs, dtype);
+        cpu.matmul_experts_add({kBF16, {b.half.get(), 0}}, {xb.get(), 1}, bd.slice(), width, b_rows, batch, routing, runs, dtype);
+        cpu.matmul_experts_add({quant::GGML_TYPE_F32, {b.f32.get(), 0}}, {xb.get(), 1}, br.slice(), width, b_rows, batch, routing, runs, dtype);
         same(ad, ar, at + " routed residual F16"); same(bd, br, at + " routed residual BF16");
     }
     require(x == original_x, at + ": activation input changed");

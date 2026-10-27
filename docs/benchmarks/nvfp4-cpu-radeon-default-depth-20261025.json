@@ -1,0 +1,208 @@
+{
+  "scope": "CPU and Radeon VII current-runtime auto/F16, F16 KV, fixed raw/chat 16K histories and 512 forced positions per history. No MI50, split, speed, integration or merge acceptance inferred.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "candidate_binary_sha256": "61380590bef4aec3e645bd57ca837823eb6f3f996ae9c45a94ea4582b0f119c6",
+  "passed": true,
+  "rows": [
+    {
+      "device": "radeon",
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.069205751463435,
+      "hf_mean_nll": 2.0692038536071777,
+      "nll_delta_diagnostic_only": 1.8978562574822888e-06
+    },
+    {
+      "device": "radeon",
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.1874371273168305,
+      "hf_mean_nll": 2.1874353885650635,
+      "nll_delta_diagnostic_only": 1.738751767010882e-06
+    },
+    {
+      "device": "cpu",
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.069207739445891,
+      "hf_mean_nll": 2.0692079067230225,
+      "nll_delta_diagnostic_only": -1.6727713125774812e-07
+    },
+    {
+      "device": "cpu",
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.1874332721442467,
+      "hf_mean_nll": 2.1874213218688965,
+      "nll_delta_diagnostic_only": 1.1950275350169903e-05
+    }
+  ],
+  "references": {
+    "radeon": {
+      "passed": true,
+      "scope": "Independent selected-policy HF reference verification only. No runtime acceptance inferred.",
+      "run": 40192797722,
+      "head": "dedb69619529c1ac5a2c84071ec366d635f2eb93",
+      "device_policy": "radeon",
+      "artifact_digest": "sha256:77d1346fa1974f7634894e036c0a1ddb2baba9b498cf7b17a99d01687b7c1324",
+      "execution_sha256": "42fb0fc94212497eff1252a9bcd022cf0ec29e80175c7abab8d876311a43a125",
+      "control": {
+        "max_abs_limit": 0.00316619873046875,
+        "max_abs_logit_delta": 0.0011353492736816406,
+        "top1_exact": 80,
+        "logit_sha256": [
+          "cbcadbe7fb95f951ca1d90067be0a0345038ee282ca66652d61ee48c98e2ffb7",
+          "86d7142be2b9fe9705db5edbefc20b1d54a2f33008aeeb979e7d06a0b559a53c"
+        ]
+      },
+      "original_control_hashes_reproduced": false,
+      "cross_run_hash_note": "The diagnostic reproduced the original failed arms. New hosted runs must meet the frozen self-control bound and 80 exact choices; cross-run bit identity was an extra collector assertion, not the approved self-control contract. A hash difference is retained without attribution.",
+      "cells": [
+        {
+          "variant": "raw",
+          "shape": [
+            512,
+            248320
+          ],
+          "logits_sha256": "03619aa1beb3f7c3a09ea708625620c1f22d9ba17f38d0f5ddde130ff3bba9d6"
+        },
+        {
+          "variant": "chat",
+          "shape": [
+            512,
+            248320
+          ],
+          "logits_sha256": "679ebebd1d77563386707a3800865e513746502eb2870e243d1becccd8164405"
+        }
+      ]
+    },
+    "cpu": {
+      "passed": true,
+      "scope": "Independent selected-policy HF reference verification only. No runtime acceptance inferred.",
+      "run": 40194172437,
+      "head": "0c7d0c42f9767102fb67bd17d9c2a0bd0262b592",
+      "device_policy": "cpu",
+      "artifact_digest": "sha256:3ffd55de870e4d9f3563035dd097fd009a38a865e8fb17732bcf253c7fa55041",
+      "execution_sha256": "f55f4cf435d8bd3f1275d9eea4a726aa1b85865780e09b0e059deec07945b58d",
+      "control": {
+        "max_abs_limit": 0.003032684326171875,
+        "max_abs_logit_delta": 0.0015163421630859375,
+        "top1_exact": 80,
+        "logit_sha256": [
+          "e48c4b021c6575b8aec267c76b1ccbe8135f63d9ca40c3a9cb76176623f9f7e3",
+          "c600f199838420fe6489396a7dfbc5ef47f696ac44eb5e3e6ea4906eb6c331d2"
+        ]
+      },
+      "cells": [
+        {
+          "variant": "raw",
+          "shape": [
+            512,
+            248320
+          ],
+          "logits_sha256": "f7356536c058fc9070fe959a4bf159981b5b53638813a420ae168e152db62222"
+        },
+        {
+          "variant": "chat",
+          "shape": [
+            512,
+            248320
+          ],
+          "logits_sha256": "2e682d23a421bdbe7b2bec88c40847f83d2dc1b08565cf793947f904e46da149"
+        }
+      ]
+    }
+  },
+  "limits": "All 512 positions exact or top-two with HF gap <=0.1. No baseline exception or candidate budget change. Long-depth NLL is diagnostic only.",
+  "radeon_collection_check": {
+    "initial_result": "An extra collector assertion required new hosted control hashes to equal the original failed run and failed. No runtime comparison had run.",
+    "disposition": "The frozen self-control contract requires maximum delta <=0.00316619873046875 and 80 exact choices. It requires original failed arms to reproduce in the rounding diagnosis, which they did; it does not impose cross-run bit identity on later hosted jobs.",
+    "original_delta": 0.001583099365234375,
+    "new_delta": 0.0011353492736816406,
+    "original_hashes": [
+      "376b184f7250a0e557b2b09f04deb0f5e1c9fb9c66e6ac31435cec78d5b66576",
+      "a2d2f6dad878fd5e1d84baa4dc96a81fa55c8fac511ee55ec41db7d0fc11c20f"
+    ],
+    "new_hashes": [
+      "cbcadbe7fb95f951ca1d90067be0a0345038ee282ca66652d61ee48c98e2ffb7",
+      "86d7142be2b9fe9705db5edbefc20b1d54a2f33008aeeb979e7d06a0b559a53c"
+    ],
+    "verified_equal": "Control token IDs and all phase/module/cache witnesses; reconstruction source, map, decoded-weight source pins and package versions. Control code changed only to accept the frozen limit argument.",
+    "cause": "Cross-run numerical difference not attributed. No exact equivalence between hosted machines is claimed."
+  },
+  "linux_builds": {
+    "passed": true,
+    "scope": "Build only, no Linux numerical or speed acceptance.",
+    "arms": [
+      {
+        "arm": "candidate",
+        "revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+        "binaries": {
+          "llmx": "17a62d9cb9f3f91036c6a9a0737efbe1726344ac72c6212d86b94403eb5b02fe",
+          "llmx-nvfp4-test": "c3c56b6ff01a78d2bb89993b74f651568440e01406e742c47292c3afda3745ec",
+          "llmx-model-logits": "bfdaecaacef705b8df15839c481f12de9eac1698bfa1eae64ff2f1b4b64fad0b",
+          "llmx-split-check": "49e41b342cbf04e2956f4b567ef8e5e6f186a4c24fdefe9b048fb692deb6d99d"
+        },
+        "seconds": 260.43827080726624
+      },
+      {
+        "arm": "main",
+        "revision": "8e84e4c4f38262e7792a3b9d4825a7cef25dc254",
+        "binaries": {
+          "llmx": "4a0decf0df6c24c89b3b7f40f8cb8d03fd29dc3a53bcd79a603254533e8b1ff1"
+        },
+        "seconds": 160.4285900592804
+      }
+    ]
+  },
+  "artifacts": {
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40192797722\\verification.json": "6eeeb932c8818c791291d8476e9df3e42115d20a54b817ff46094ef096de1d2a",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40192797722\\radeon\\execution.json": "42fb0fc94212497eff1252a9bcd022cf0ec29e80175c7abab8d876311a43a125",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40192797722\\radeon\\reference\\report.json": "7bfdb012a267ee3bf1227892bc5288c0825d211b2231a69aa269238a678124a7",
+    "build-nvfp4-depth-reference\\default-policy\\radeon-default-depth-comparison.json": "463ba9bbfb8a41dd09b26b16a50f13ee5ca74181860eb00c9243dc8a99780d3c",
+    "build-nvfp4-research\\cpu-depth-ci\\artifacts-40194172437\\verification.json": "720d6ccbf86399a4feda474305703793f7712fe1f62ebd3c22554b0deda9300c",
+    "build-nvfp4-research\\cpu-depth-ci\\artifacts-40194172437\\cpu\\execution.json": "f55f4cf435d8bd3f1275d9eea4a726aa1b85865780e09b0e059deec07945b58d",
+    "build-nvfp4-research\\cpu-depth-ci\\artifacts-40194172437\\cpu\\reference\\report.json": "40ddaa2e6d5e610a1cb7d314c4093e1355fbc259ad3eafb6f33311f77279939f",
+    "build-nvfp4-depth-reference\\default-policy\\cpu-default-depth-comparison.json": "815e35a0266456747237182d3d7c859c037502c27dd11f3b19926908236b41f0",
+    "build-nvfp4-research\\verify-policy-depth.py": "d5246e98d2ec3a7b754ffb23f40221468e1b8c1e50a79c9e9a6c0043a1e5dc4c",
+    "build-nvfp4-depth-reference\\compare-policy-depth.py": "24ef602ce3e93dd520ba6517b0252b86b5a5b3f3d279a3db4a10c94627ac85ee",
+    "build-nvfp4-rig-main3\\build-pair-execution.json": "a2abdf98acf5591fe1d52ab8742aedfad02481ac8409d19b87e770823fe88a3c",
+    "build-nvfp4-research\\depth-branch-cleanup\\receipt.json": "1cd88f4647946fb04f7f14f8b8b1035ef4c6445093a8207947ef1ea6ccbe0a96"
+  },
+  "github_cleanup": {
+    "deleted": [
+      "refs/heads/gate/nvfp4-policy-controls-20261025",
+      "refs/heads/gate/nvfp4-cpu-depth-20261025"
+    ],
+    "before": {
+      "refs/heads/gate/nvfp4-cpu-depth-20261025": "0c7d0c42f9767102fb67bd17d9c2a0bd0262b592",
+      "refs/heads/gate/nvfp4-policy-controls-20261025": "dedb69619529c1ac5a2c84071ec366d635f2eb93"
+    },
+    "after": {},
+    "local_bundle": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\depth-branch-cleanup\\reference-workflows.bundle",
+    "bundle_sha256": "7e362f33ad88bae82081739f072aeedf1b4e9a518772c675aa479bd9ff8fff9c",
+    "scope": "Only the two completed reference workflow branches. Main and all other remote branches untouched."
+  },
+  "peer_review": {
+    "id": "6da7ac45a83c",
+    "who": "F2DEV",
+    "text": "**[F2DEV 2026-10-25 13:31 ANSWER re:NVFP4's default-depth checkpoint and the control's cross-run hashes, XDEV's RESULT of 13:31 @XDEV @LDEV @coordinator] No further identity condition was intended: a new control run meets the frozen numerical limit and the 80 exact choices, which the Radeon's does at 0.0011353492736816406 against 0.00316619873046875, and byte reproduction of the failed arms was required of the rounding diagnosis alone, which it met; two hosted runners differing in hash with every input, witness and pin identical is expected of their arithmetic and is right to keep as a diagnostic with no cause attributed. The checkpoint reads as the method was meant to read: the CPU and Radeon default captures at auto/F16 with F16 KV each 512 exact, no ties and no misses, on the raw and the chat histories against their operation-matched references, with the full-F32 companions 512 exact too and the NLL differences at the 1e-5 scale as diagnostics; the MI50's witness, its control and its depth comparison remain, then the GPU split, the matched performance round, the existing-format regression and the runtime's CI, and a pass at depth merges nothing by itself.**",
+    "received": "2026-10-25T15:31:59"
+  }
+}

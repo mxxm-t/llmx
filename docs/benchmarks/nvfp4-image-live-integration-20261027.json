@@ -1,0 +1,118 @@
+{
+  "schema": "nvfp4-image-live-integration-v1",
+  "passed": true,
+  "started_utc": "2026-10-27T02:48:14.769080+00:00",
+  "feature_head": "8a4d6a0ea1c14b9c9510c194281d0ed315f9d2de",
+  "main": "ac940c059c396b80e95014025bc8077d26d2f91e",
+  "scope": "Fresh CPU runtime and image-cache build, focused image-cache test, documentation checks. No GPU or performance claim.",
+  "commands": [
+    {
+      "name": "configure",
+      "argv": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-live-integration-v1\\build",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      "exit_code": 0,
+      "seconds": 5.561999999918044,
+      "log_sha256": "2c20d88c1491b04064507e55e15b888a04583281a9ce593b0a03a0f944a22dca"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-live-integration-v1\\build",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx",
+        "llmx-image-cache-test"
+      ],
+      "exit_code": 0,
+      "seconds": 39.21900000004098,
+      "log_sha256": "99b9b568cb447dcb330d867faebc725fc8e2a34a8d31b1311a3d6316e17791c8"
+    },
+    {
+      "name": "image-cache",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-live-integration-v1\\build",
+        "-C",
+        "Release",
+        "--output-on-failure",
+        "-R",
+        "^image-cache$"
+      ],
+      "exit_code": 0,
+      "seconds": 54.54699999978766,
+      "log_sha256": "98c01f3348efda9531426ac28cc35526707e405a26245368623f3f0a3c640392"
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-live-integration-v1\\build\\Release\\llmx.exe",
+        "--only",
+        "docs,dead-code"
+      ],
+      "exit_code": 0,
+      "seconds": 32.110000000335276,
+      "log_sha256": "ac7782ede0c6456660bc7aebba9ff576484e1f24c7a6b01da052e34d32871e04"
+    }
+  ],
+  "binaries": {
+    "llmx-image-cache-test.exe": {
+      "sha256": "730d1beccb3ba41ef2ca38910a0067986fc810e84370340d13f3061992a92599",
+      "bytes": 1830912
+    },
+    "llmx.exe": {
+      "sha256": "00e579cc2876edc308069621ce6e9a4e08bf8d3fc04b3cdb1a0bc518941876a7",
+      "bytes": 2805760
+    }
+  },
+  "version": "llmx 0.1.0+g8a4d6a0ea1c1.dirty numerics c815ff1b0099663f",
+  "ended_utc": "2026-10-27T02:50:26.280722+00:00",
+  "integrated_files": [
+    "docs/SERVER.md",
+    "docs/STATUS.md",
+    "docs/src/server.md",
+    "src/server/api.hpp",
+    "src/server/cache.hpp",
+    "src/server/scheduler.hpp",
+    "tests/image_cache.cpp",
+    "tests/server_harness.hpp"
+  ],
+  "checked_source_sha256": {
+    "src/server/api.hpp": "283b6301281b35e8b442334b9e2ef7d81e046b02c79d4945f9ec576f1a4e8388",
+    "src/server/cache.hpp": "f7821e9adc3fba9d7919e75b92a9f65221bb55661570b081021db12d6521f5a7",
+    "src/server/scheduler.hpp": "40321ab66e74d57a5fd6ab5a922919d36ab8f98592bf94d95d2b5ced3151ef3f",
+    "tests/image_cache.cpp": "eadf62655334103303ed18d90b7d451d7a0a441a82656014d6d007ebde18f7c5",
+    "tests/server_harness.hpp": "f609bb338612786b0c54388b3f4108e7fbd83a55231bf45287b275542305026c"
+  },
+  "upstream_hosted_gate": {
+    "id": 40431875660,
+    "head_sha": "ac940c059c396b80e95014025bc8077d26d2f91e",
+    "head_branch": "gate/image-encode-live",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40431875660"
+  },
+  "carry_forward": "Only server bookkeeping, image-cache tests and their docs differ from the preceding private checkpoint. Quant, backend, model, inference, fixtures and GPU build inputs are unchanged; frozen GPU comparisons retain their own identities.",
+  "documentation_after_checks": "This receipt and the STATUS integration/landed notes were added after the recorded source checks; no source, tests, workflow or build configuration changed afterward."
+}

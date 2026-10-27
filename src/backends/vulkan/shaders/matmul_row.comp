@@ -8,7 +8,7 @@ void main() {
 #if defined(LLMX_MXFP4) && defined(LLMX_DOT)
     {
         uint i = gl_LocalInvocationIndex;
-        mxfp4_pairs[i] = (uint(mxfp4_value(i & 15u)) & 0xFFFFu) | (uint(mxfp4_value(i >> 4u)) << 16u);
+        mxfp4_pairs[i] = (uint(fp4_value(i & 15u)) & 0xFFFFu) | (uint(fp4_value(i >> 4u)) << 16u);
         barrier();
     }
 #endif
@@ -22,7 +22,7 @@ void main() {
     // The F32 family alone, a diagnostic build that backend-vulkan --isa holds the fused route step's rows to.
     const uint type = TYPE_F32;
 #else
-    uint type = pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2);
+    uint type = WEIGHT_TYPE == 0xffffffffu ? (pi == 0u ? p.type0 : (pi == 1u ? p.type1 : p.type2)) : WEIGHT_TYPE;
 #endif
 #endif
     uint wide = pi == 0u ? p.wide0 : (pi == 1u ? p.wide1 : p.wide2);

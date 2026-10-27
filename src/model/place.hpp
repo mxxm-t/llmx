@@ -61,6 +61,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         const bool split = role && width > 1 && role->shard.axis != Axis::none;
         const std::vector<uint64_t> shape = split ? shard::shape(*role, t, width, member) : t.shape;
         Matrix w{t.type, shape.empty() ? 0 : (size_t)shape[0], 1, split ? shard::held(*role, t, width, member).bytes : t.bytes, product};
+        w.bytes = backend::size_add(w.bytes, backend::size_mul(weight_scale_count(weights, i), sizeof(float)));
         for (size_t d = 1; d < shape.size(); ++d) w.rows *= (size_t)shape[d];
         return w;
     };
@@ -76,8 +77,11 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
                 if (role.id == layer.lookup->role) { lookup_role = &role; break; }
             if (lookup_role && lookup_role->tensor) {
                 const TensorView& source = weights.tensors[*lookup_role->tensor];
-                if (source.row_source)
+                if (source.row_source) {
                     fp.lookups[l] = LookupMemory{layer.lookup->rows, source.row_source->row_bytes(), source.row_source->host_bytes()};
+                    const size_t scales = weight_scale_count(weights, *lookup_role->tensor);
+                    if (scales) fp.layers[l].push_back({quant::GGML_TYPE_F32, scales, 1, scales * sizeof(float), false});
+                }
             }
         }
         for (const Role& role : layer.roles)
@@ -783,6 +787,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
                     if (role.part == Part::ffn && role.tensor && std::find(counted.begin(), counted.end(), *role.tensor) == counted.end()) {
                         counted.push_back(*role.tensor);
                         host_experts = backend::size_add(host_experts, weights.tensors[*role.tensor].bytes);
+                        host_experts = backend::size_add(host_experts, backend::size_mul(weight_scale_count(weights, *role.tensor), sizeof(float)));
                     }
         host_experts = backend::size_mul(backend::blocks_for(host_experts, core::page_size()), core::page_size());
     }

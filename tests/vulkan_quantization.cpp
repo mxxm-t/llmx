@@ -127,8 +127,8 @@ void check_ordinary_identity(backend::VulkanBackend& preserved, backend::VulkanB
             const auto yp = preserved.alloc(actual.size() * sizeof(float), backend::Memory::device);
             const auto yo = ordinary.alloc(expected.size() * sizeof(float), backend::Memory::device);
             const backend::RowRun decode{columns, 1};
-            preserved.matmul(quant::GGML_TYPE_Q8_0, {wp.get(), 0}, {xp.get(), 0}, {yp.get(), 0}, width, rows, columns, {&decode, 1});
-            ordinary.matmul(quant::GGML_TYPE_Q8_0, {wo.get(), 0}, {xo.get(), 0}, {yo.get(), 0}, width, rows, columns, {&decode, 1});
+            preserved.matmul({quant::GGML_TYPE_Q8_0, {wp.get(), 0}}, {xp.get(), 0}, {yp.get(), 0}, width, rows, columns, {&decode, 1});
+            ordinary.matmul({quant::GGML_TYPE_Q8_0, {wo.get(), 0}}, {xo.get(), 0}, {yo.get(), 0}, width, rows, columns, {&decode, 1});
             preserved.read(*yp, 0, actual.data(), actual.size() * sizeof(float));
             ordinary.read(*yo, 0, expected.data(), expected.size() * sizeof(float));
             for (size_t i = 0; i < actual.size(); ++i) {
@@ -162,8 +162,8 @@ void check_float_identity(backend::VulkanBackend& preserved, backend::VulkanBack
             const auto yp = preserved.alloc(actual.size() * sizeof(float), backend::Memory::device);
             const auto yo = ordinary.alloc(expected.size() * sizeof(float), backend::Memory::device);
             const backend::RowRun decode{columns, 1};
-            preserved.matmul(quant::GGML_TYPE_F32, {wp.get(), 0}, {xp.get(), 0}, {yp.get(), 0}, width, rows, columns, {&decode, 1});
-            ordinary.matmul(quant::GGML_TYPE_F32, {wo.get(), 0}, {xo.get(), 0}, {yo.get(), 0}, width, rows, columns, {&decode, 1});
+            preserved.matmul({quant::GGML_TYPE_F32, {wp.get(), 0}}, {xp.get(), 0}, {yp.get(), 0}, width, rows, columns, {&decode, 1});
+            ordinary.matmul({quant::GGML_TYPE_F32, {wo.get(), 0}}, {xo.get(), 0}, {yo.get(), 0}, width, rows, columns, {&decode, 1});
             preserved.read(*yp, 0, actual.data(), actual.size() * sizeof(float));
             ordinary.read(*yo, 0, expected.data(), expected.size() * sizeof(float));
             for (size_t i = 0; i < actual.size(); ++i) {
@@ -207,7 +207,7 @@ void check_combine_identity(backend::VulkanBackend& preserved, backend::VulkanBa
                 b.route_experts({sb.get(), 0}, rows, n_expert, k, true, {ids.get(), 0}, {wts.get(), 0});
                 const backend::Backend::Routing routing{{ids.get(), 0}, {wts.get(), 0}, k, n_expert};
                 const backend::RowRun decode{rows, 1};
-                b.matmul_experts_add(quant::GGML_TYPE_F32, {db.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, {&decode, 1}, backend::Dtype::f16);
+                b.matmul_experts_add({quant::GGML_TYPE_F32, {db.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, {&decode, 1}, backend::Dtype::f16);
                 b.read(*yb, 0, out[i], rows * nout * sizeof(float));
             }
             for (size_t i = 0; i < actual.size(); ++i) {
@@ -243,7 +243,7 @@ size_t check_combine_subnormals(backend::VulkanBackend& b) {
         const auto ib = be.adopt(ids.data(), ids.size() * sizeof(float)), gb = be.adopt(weights.data(), weights.size() * sizeof(float));
         const auto yb = be.adopt(zero.data(), zero.size() * sizeof(float));
         const backend::Backend::Routing routing{{ib.get(), 0}, {gb.get(), 0}, k, n_expert};
-        be.matmul_experts_add(quant::GGML_TYPE_F32, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, 1, routing, {}, backend::Dtype::f32);
+        be.matmul_experts_add({quant::GGML_TYPE_F32, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nout, 1, routing, {}, backend::Dtype::f32);
         std::vector<float> y(nout);
         be.read(*yb, 0, y.data(), y.size() * sizeof(float));
         return y;
@@ -321,7 +321,7 @@ size_t check_activation_range(backend::Backend& b, size_t width, bool preserves_
             skipped += width;
             continue;
         }
-        b.matmul(quant::GGML_TYPE_Q8_0, {w.get(), 0}, {produced ? produced.get() : x.get(), 0}, {y.get(), 0}, width, width, 1);
+        b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {produced ? produced.get() : x.get(), 0}, {y.get(), 0}, width, width, 1);
         b.read(*y, 0, output.data(), output.size() * sizeof(float));
         // A tiny block needs a representable scale rounded up so its peak fits the integer range; the 16-bit twin fits this reconstruction bound.
         float representable = float(double(peak) / 32767);
@@ -434,13 +434,13 @@ void check_offset_range(backend::Backend& b, bool prompt = false, backend::Dtype
                     testq::take_matrix_paths(b);
                     if (prompt || dtype == backend::Dtype::f32) backend::vulkan_kernel_times(b);
                     switch (op) {
-                    case 0: b.matmul(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
-                    case 1: b.matmul_logits(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
-                    case 2: b.matmul_group({{type, {w.get(), 0}, {y.get(), 1}, rows}, {type, {w.get(), 0}, {y.get(), count + 1}, rows}},
+                    case 0: b.matmul({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 1: b.matmul_logits({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 2: b.matmul_group({{{type, {w.get(), 0}}, {y.get(), 1}, rows}, {{type, {w.get(), 0}}, {y.get(), count + 1}, rows}},
                                            {x.get(), 0}, width, cols, {&runs, 1}, dtype); break;
-                    case 3: b.matmul_add(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
-                    case 4: b.matmul_experts({{type, {w.get(), 0}, {y.get(), 1}, rows}}, {x.get(), 0}, width, cols, routing, {&runs, 1}, dtype); break;
-                    case 5: b.matmul_experts_add(type, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, routing, {&runs, 1}, dtype); break;
+                    case 3: b.matmul_add({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, {&runs, 1}, dtype); break;
+                    case 4: b.matmul_experts({{{type, {w.get(), 0}}, {y.get(), 1}, rows}}, {x.get(), 0}, width, cols, routing, {&runs, 1}, dtype); break;
+                    case 5: b.matmul_experts_add({type, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, cols, routing, {&runs, 1}, dtype); break;
                     }
                     b.read(*y, 0, output.data(), output.size() * sizeof(float));
                     const auto paths = testq::take_matrix_paths(b);

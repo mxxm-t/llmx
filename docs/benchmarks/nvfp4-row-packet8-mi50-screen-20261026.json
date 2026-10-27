@@ -1,0 +1,389 @@
+{
+  "schema": "nvfp4-row-packet8-mi50-screen-v1",
+  "date": "2026-10-26",
+  "scope": "Adjacent-value NVFP4 row development screen against the frozen native-F16 staging baseline. Lane ownership changes summation order. This is not final performance qualification or a matched MX comparison.",
+  "source": {
+    "candidate_base_commit": "c843bca58c3d4b7bf9f0276fd805e427719ace38",
+    "candidate_source_manifest_sha256": "13d0722b4ecfceb155fd5f7416a2e947dc135f5ca763fd9d872e855562002f4f",
+    "control_revision": "a5b190d13",
+    "control_source_manifest_sha256": "9ef01196d925e35cf7db6aeb487e0c83284cf8ab299ef819e9ca789f33e46f14",
+    "changed_source_files": {
+      "CMakeLists.txt": {
+        "control_sha256": "3c3d38df66fb68b25c58c7ea6bb934cade0db11340b20cf4190025c630bc4264",
+        "candidate_sha256": "4afa5da910b4d68c4bb98c34344c5e9ca399b5a11691afba6a7d3e9e5be9c6a5"
+      },
+      "src/backends/vulkan/shaders/matmul_row_one.glsl": {
+        "control_sha256": "abaf4e7664e5b2d33c892f0c28f592e859d6864b327707372826c8ef7d28e851",
+        "candidate_sha256": "2d8f418fba32ecbba041352a31e1db6ad60a590083a1d4e5a8cff8190fdd09dd"
+      },
+      "src/backends/vulkan/vulkan_kernels.hpp": {
+        "control_sha256": "3f1a3ee7e4f81dace50f72d76f6ffda999f0630e005c51e427bdfebc21be35e3",
+        "candidate_sha256": "d18f202256e859623a49baee172c75362185338c3b76fe47c201ffccefb1e4f7"
+      }
+    },
+    "generated_shader_identity": {
+      "unchanged": 303,
+      "changed": [],
+      "added": {
+        "matmul_row_nvfp4.inc": "0951473654a47cf25fb3b60bea28416b57f61ded558f0eb625eadf30fa27097b",
+        "matmul_row_nvfp4_preserve.inc": "c99918df23ce24a38810f704c8ff9816983ff7e71818701b1470871c58951574"
+      }
+    },
+    "generated_shader_identity_sha256": "18897e6a86da252e72ce3a75403cfaa88b50a1cc02a9c075480a6b505e603cd9"
+  },
+  "build": {
+    "passed": true,
+    "scope": "CPU-only NVFP4 row-packet8 build; no tests or inference",
+    "version": "llmx 0.1.0+unknown numerics d6cdcd3299b0607f",
+    "binaries": {
+      "llmx": {
+        "sha256": "db5d5a70dc726d7dd6a06dc65f0ee904f4b09b0eca853e4859c2f765bb889f84",
+        "bytes": 12800088
+      },
+      "llmx-nvfp4-test": {
+        "sha256": "6a6e7ec6aab874500c35f6253b470022404f4176e5c690d2f981f8c86ceb19ac",
+        "bytes": 9783952
+      }
+    },
+    "source_file_count": 3018,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "limits": {
+      "core_dumps": 0,
+      "cpu": "2",
+      "gpu_devices": false,
+      "memory_bytes": 8589934592,
+      "network": "none",
+      "swap_bytes": 0,
+      "workers": 1
+    },
+    "build_launch_sha256": "b9258eae3317cd6a9dbf22d29196d85dc09dbf9f665dceb3b74dce6d508d573e",
+    "build_result_sha256": "016846dbca49900245fbd21a01ddb34796bb4d454f15d74b902fba1c63fcefc0",
+    "rig_build_result_sha256": "3223e22d172d1e0ad99cf11f54f52d46840a3281e3aeb723df528830a7c329eb",
+    "container_removed": true
+  },
+  "focused_native": {
+    "passed": true,
+    "command": [
+      "docker",
+      "create",
+      "--name",
+      "llmx-xdev-nv-row-packet8-focused-20261026",
+      "--init",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "3",
+      "--cpus",
+      "1",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/cache",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/row-packet8-20261026/candidate/build:/build:ro",
+      "--entrypoint",
+      "timeout",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "120",
+      "/build/llmx-nvfp4-test",
+      "--vulkan"
+    ],
+    "binary_sha256": "6a6e7ec6aab874500c35f6253b470022404f4176e5c690d2f981f8c86ceb19ac",
+    "log_sha256": "6b57d5326ceae0e874df5987a9a392062c09d76a8423e142215ba1d15c42111d",
+    "container_removed": true,
+    "scope": "NVFP4 Vulkan operator test only."
+  },
+  "short_hf": {
+    "passed": true,
+    "scope": "Existing short ordinary/scaled NVFP4 HF fixtures only, strict F32, 300 logits and 24 NLL checks. No prompt/depth/split or full-suite run.",
+    "fixture_sets": [
+      "ordinary",
+      "scaled"
+    ],
+    "checks": {
+      "full_logit_cases": 300,
+      "nll_checks": 24
+    },
+    "max_logit_error": 1.37e-06,
+    "logit_bound": 2e-05,
+    "max_nll_error": 1.5e-07,
+    "nll_bound": 1e-05,
+    "candidate_binary_sha256": "db5d5a70dc726d7dd6a06dc65f0ee904f4b09b0eca853e4859c2f765bb889f84",
+    "log_sha256": "8f6811f4294b53dd815b40aa5af4f5a5401f4c608345c78de776b629e2bada54",
+    "container_id": "0fe3f66a6adeaed51ae5967682ebe081f8e4aa6c0d71692c43278af42878ecd2",
+    "container_removed": true,
+    "limitations": [
+      "Short ordinary/scaled fixtures only. Does not qualify long prompt, depth, split, full suite, or performance."
+    ]
+  },
+  "model": {
+    "bytes": 578052704,
+    "path": "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+  },
+  "device": {
+    "node": "/dev/dri/renderD130",
+    "pci": "0000:c9:00.0",
+    "physical": 8,
+    "uuid": "00000000-c900-0000-0000-000000000000"
+  },
+  "image_id": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "workload": {
+    "dtype": "f16",
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "device": "vulkan:0",
+    "threads": 4,
+    "ubatch": 512,
+    "prompts": [
+      128,
+      4096
+    ],
+    "decode_tokens": 256,
+    "measured_repetitions_per_cell": 2,
+    "warmup_calls": 4,
+    "measured_samples": [
+      {
+        "prompt": 128,
+        "phase": "prefill_tok_s",
+        "samples": {
+          "control": [
+            2274.95,
+            2259.26
+          ],
+          "candidate": [
+            2259.58,
+            2266.87
+          ]
+        },
+        "means": {
+          "control": 2267.105,
+          "candidate": 2263.225
+        },
+        "delta_percent": -0.17114337447978745
+      },
+      {
+        "prompt": 128,
+        "phase": "decode_tok_s",
+        "samples": {
+          "control": [
+            121.64,
+            120.6
+          ],
+          "candidate": [
+            243.06,
+            245.51
+          ]
+        },
+        "means": {
+          "control": 121.12,
+          "candidate": 244.285
+        },
+        "delta_percent": 101.68840819022455
+      },
+      {
+        "prompt": 4096,
+        "phase": "prefill_tok_s",
+        "samples": {
+          "control": [
+            3565.48,
+            3563.88
+          ],
+          "candidate": [
+            3561.34,
+            3562.02
+          ]
+        },
+        "means": {
+          "control": 3564.6800000000003,
+          "candidate": 3561.6800000000003
+        },
+        "delta_percent": -0.08415902689722365
+      },
+      {
+        "prompt": 4096,
+        "phase": "decode_tok_s",
+        "samples": {
+          "control": [
+            119.06,
+            120.01
+          ],
+          "candidate": [
+            248.92,
+            244.45
+          ]
+        },
+        "means": {
+          "control": 119.535,
+          "candidate": 246.685
+        },
+        "delta_percent": 106.37051909482578
+      }
+    ]
+  },
+  "profile": {
+    "control": [
+      "profile:   matmul_row_nvfp4_1col 6.1312 ms (73.1144%)",
+      "profile: kernel matmul_row_nvfp4_1col: Driver pipeline hash=11319755912831294978 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1280 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=4069787055 Instructions=251 Copies=31 Branches=12 Latency=29348 Inverse Throughput=10456 VMEM Clause=6 SMEM Clause=6 Pre-Sched SGPRs=21 Pre-Sched VGPRs=11 VALU=118 SALU=93 VMEM=7 SMEM=7 VOPD=0"
+    ],
+    "candidate": [
+      "profile:   matmul_row_nvfp4_1col 1.99328 ms (47.0575%)",
+      "profile: kernel matmul_row_nvfp4_1col: Driver pipeline hash=2445631986510510593 SGPRs=32 VGPRs=28 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1732 LDS size=0 Scratch size=0 Subgroups per SIMD=9 Combined inputs=0 Combined outputs=0 Hash=972129948 Instructions=340 Copies=30 Branches=12 Latency=37028 Inverse Throughput=16768 VMEM Clause=6 SMEM Clause=6 Pre-Sched SGPRs=22 Pre-Sched VGPRs=19 VALU=207 SALU=92 VMEM=8 SMEM=7 VOPD=0"
+    ],
+    "summary": {
+      "kernel": "matmul_row_nvfp4_1col",
+      "gpu_time_ms": {
+        "control": 6.1312,
+        "candidate": 1.99328
+      },
+      "vgpr": {
+        "control": 24,
+        "candidate": 28
+      },
+      "sgpr": {
+        "control": 32,
+        "candidate": 32
+      },
+      "spills": {
+        "control": 0,
+        "candidate": 0
+      },
+      "instructions": {
+        "control": 251,
+        "candidate": 340
+      }
+    },
+    "path_witnesses": [
+      {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 2,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small"
+        ]
+      },
+      {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 2,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small"
+        ]
+      }
+    ]
+  },
+  "activity": {
+    "samples": 39,
+    "intervals": 38,
+    "flagged_intervals": {
+      "unrelated_cpu": 38,
+      "disk": 38,
+      "other_gpu": 38,
+      "gap": 0
+    },
+    "missed_process_observations": 22,
+    "thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "sample_gap_seconds": 3,
+      "unrelated_cpu_cores": 1
+    },
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor_activity_sha256": "f7d6a87926cfe8db7e89a12040cd6ed23155d1d791e5a440f2dca21ba91e342a",
+    "monitor_ok": true,
+    "post_call_sample": true
+  },
+  "raw_evidence": {
+    "screen_audit": "build-row-packet8-rig/screen-audit.json",
+    "screen_audit_sha256": "8fd10baa2708150222d40bd5a390ed9ed517e7c92c6fc18d59cf7ec782c73cf8",
+    "screen_execution": "build-row-packet8-rig/screen-results-v1/execution.json",
+    "screen_execution_sha256": "6584651d42c55f3dfa147a7723a670a97a5559d3022a95e9df8142f8e6cddd56",
+    "verified_screen_artifacts": 77,
+    "artifact_hashes_in_execution_manifest": true,
+    "short_hf_log": "build-row-packet8-rig/short-hf.log",
+    "short_hf_log_sha256": "8f6811f4294b53dd815b40aa5af4f5a5401f4c608345c78de776b629e2bada54"
+  },
+  "limitations": [
+    "The candidate changes row lane ownership and summation order; output identity is not claimed.",
+    "All 38 monitoring intervals flagged unrelated CPU, disk and other-GPU activity; the screen is descriptive only.",
+    "The screen has two measured samples per cell and is not a matched MX comparison or a performance gate.",
+    "Long-prompt/depth, split, existing-format regression and final-head gates remain outstanding."
+  ],
+  "coordination_overlap": {
+    "message_id": "36590da51e87",
+    "message_utc": "2026-10-26 09:05",
+    "read_utc": "2026-10-26 09:11",
+    "finding": "LDEV reports lookup/decode/chunk timing on GPUs4-7 and asks GPU8 to stop until xdev-g8b-GO. Other-GPU activity is already flagged in every retained screen interval. No samples discarded. This is development evidence, not an uncontended or final gate comparison.",
+    "screen_utc": [
+      "2026-10-26 09:03:57.353",
+      "2026-10-26 09:05:21.111"
+    ],
+    "short_hf_utc": [
+      "2026-10-26 09:07:54.306",
+      "2026-10-26 09:08:33.058"
+    ],
+    "all_owned_gpu_jobs_terminal": true
+  },
+  "checkpoint_checks": {
+    "runtime_source_matches_built_overlay": true,
+    "hf_log_rehashed_and_six_fixture_summaries_checked": true,
+    "docs": {
+      "unexpected_findings": 0,
+      "planted_faults": 21,
+      "seconds": 15.3
+    },
+    "dead_code": {
+      "unexpected_findings": 0,
+      "known_findings": 7,
+      "planted_faults": 19,
+      "seconds": 18.0
+    },
+    "markdown_review": {
+      "pages": 149,
+      "reviewed": [
+        "AGENTS.md",
+        "docs/BUILD.md",
+        "docs/PRECISION.md",
+        "docs/STATUS.md",
+        "docs/VULKAN.md",
+        "docs/src/backends-vulkan.md"
+      ],
+      "unchanged_carried": 143,
+      "artifact": "build-row-packet8-rig/markdown-review.json",
+      "sha256": "0479c32175dd09c408af5f96d57d83e8b81c929b8b44c5416edc5771b46f8313"
+    },
+    "scope": "Private development checkpoint, not final landing gates."
+  }
+}

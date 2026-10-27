@@ -106,8 +106,8 @@ void embeddings(backend::Backend& b) {
         b.write(*w, 0, raw.data(), raw.size());
         for (bool resident : {false, true}) {
             b.write(*out, 0, initial.data(), initial.size() * 4);
-            if (resident) b.embed_ids({out.get(), 1}, type, {w.get(), 0}, width, rows, {ids.get(), 0}, 6);
-            else b.embed({out.get(), 1}, type, {w.get(), 0}, width, rows, host_ids, 4);
+            if (resident) b.embed_ids({out.get(), 1}, {type, {w.get(), 0}}, width, rows, {ids.get(), 0}, 6);
+            else b.embed({out.get(), 1}, {type, {w.get(), 0}}, width, rows, host_ids, 4);
             const auto got = read(b, *out, initial.size());
             const size_t count = resident ? 6 : 4;
             require(got.front() == guard && std::all_of(got.begin() + 1 + count * width, got.end(), [](float x) { return x == guard; }),
@@ -152,12 +152,12 @@ void products(backend::Backend& b, size_t nin, size_t cols, size_t extent = 0) {
     for (unsigned op = 0; op < 6; ++op) {
         b.write(*a, 0, initial.data(), initial.size() * 4); b.write(*other, 0, initial.data(), initial.size() * 4);
         testq::take_matrix_paths(b);
-        if (op == 0) b.matmul(type, {w.get(), 0}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 1) b.matmul_logits(type, {w.get(), 0}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 2) b.matmul_add(type, {w.get(), 0}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 3) b.matmul_group({{type, {w.get(), 0}, {a.get(), 1}, rows}, {type, {w.get(), 0}, {other.get(), 1}, rows}}, {in.get(), 1}, nin, cols, runs, dtype);
-        if (op == 4) b.matmul_experts({{type, {w.get(), 0}, {a.get(), 1}, rows}}, {in.get(), 1}, nin, cols, routing, runs, dtype);
-        if (op == 5) b.matmul_experts_add(type, {w.get(), 0}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, routing, runs, dtype);
+        if (op == 0) b.matmul({type, {w.get(), 0}}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 1) b.matmul_logits({type, {w.get(), 0}}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 2) b.matmul_add({type, {w.get(), 0}}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 3) b.matmul_group({{{type, {w.get(), 0}}, {a.get(), 1}, rows}, {{type, {w.get(), 0}}, {other.get(), 1}, rows}}, {in.get(), 1}, nin, cols, runs, dtype);
+        if (op == 4) b.matmul_experts({{{type, {w.get(), 0}}, {a.get(), 1}, rows}}, {in.get(), 1}, nin, cols, routing, runs, dtype);
+        if (op == 5) b.matmul_experts_add({type, {w.get(), 0}}, {in.get(), 1}, {a.get(), 1}, nin, rows, cols, routing, runs, dtype);
         const auto got = read(b, *a, initial.size()), second = read(b, *other, initial.size());
         const bool integer = testq::k23_integer(b, dtype);
         witness(b, dtype, integer);
@@ -229,7 +229,7 @@ void ranges(backend::Backend& b) {
             b.write(*in, 0, x.data(), sizeof x);
             for (const auto* run : {&decode, &prompt}) {
                 b.write(*out, 0, initial.data(), sizeof initial); testq::take_matrix_paths(b);
-                b.matmul(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, block_size, 1, 1, {run, 1}, dtype);
+                b.matmul({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, block_size, 1, 1, {run, 1}, dtype);
                 const bool integer = testq::k23_integer(b, dtype);
                 const auto got = read(b, *out, 3); witness(b, dtype, integer);
                 const double input_error = integer ? std::fabs(double(x[lane])) / 32767.0 + std::numeric_limits<float>::denorm_min()

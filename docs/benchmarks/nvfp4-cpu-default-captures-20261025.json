@@ -1,0 +1,86 @@
+{
+  "scope": "CPU current-runtime default raw/chat captures and full-F32 HF quality companion. Operation-matched depth comparison remains pending.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "binary_sha256": "61380590bef4aec3e645bd57ca837823eb6f3f996ae9c45a94ea4582b0f119c6",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "input_manifest_sha256": "69d8bc5e7d665042826546248d9488a8248b6557dd7346a782f874afa3c0580d",
+  "capture_complete": true,
+  "qualification_pass": false,
+  "calls": [
+    {
+      "variant": "raw",
+      "positions": 512,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "stdout_sha256": "35a89605c1fc4083752c9dc60ccfce48bfc3446d2ae6c6c62ed90e7fd7bc108b",
+      "stderr_sha256": "967432ae2def0c0c73c856c12a8ddeb8fffb3907ab3b684350cd28cf92cdb09a"
+    },
+    {
+      "variant": "chat",
+      "positions": 512,
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "stdout_sha256": "1de57bd64f708620f84f253cbe48bc4676d1c5b747a40b84786f42e88a2d5e48",
+      "stderr_sha256": "2399b265ee88bcb346bccef12986ce3cc3a7e34299c3f39e03ca33db55df07be"
+    }
+  ],
+  "full_f32_quality": [
+    {
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.069207739445891,
+      "hf_mean_nll": 2.0691840648651123,
+      "nll_delta_diagnostic_only": 2.3674580778898502e-05
+    },
+    {
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.1874332721442467,
+      "hf_mean_nll": 2.1873371601104736,
+      "nll_delta_diagnostic_only": 9.611203377302147e-05
+    }
+  ],
+  "reference_jobs": {
+    "radeon": {
+      "run": 40192797722,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    "cpu": {
+      "run": 40194172437,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  },
+  "reference_collection": "Downloads in progress. Successful producer jobs do not establish runtime acceptance.",
+  "artifacts": {
+    "build-nvfp4-depth-reference\\default-policy\\candidate-cpu-main3\\run-v2.py": "5ae6ceff73c5416aa5c2c7f09a9585b8f96393da9fad13b050f0f263c748c56f",
+    "build-nvfp4-depth-reference\\default-policy\\candidate-cpu-main3\\captures-default-v2\\execution.json": "57f0825ed84fe0f1ddf914dd430bfb7982078a77a957f1be719501a90245ed6f",
+    "build-nvfp4-depth-reference\\default-policy\\cpu-f32-quality-comparison.json": "5c1fb7381a2ae5a4e14141d9b14c13eab5b4f4602f4fe48c3541b2617929e469",
+    "build-nvfp4-depth-reference\\compare-cpu-default-f32-quality.py": "10c2be6c8e49d872fc999020bc3a2d05c4d1d2c4a5e03bbd046ae39f77d4053c",
+    "build-nvfp4-depth-reference\\default-policy\\cpu-control-decision.json": "fc69b7363480e646c98a67e22c3bf600e66e8110811abac07a03c0431ef034e9",
+    "build-nvfp4-depth-reference\\default-policy\\witness-cpu-main3\\run-v1\\execution.json": "d4c3ba1bbeea44899913d4dff21ce4aa72d91479b896e82ec91f8343dde8db4f"
+  }
+}

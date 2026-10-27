@@ -1,0 +1,151 @@
+{
+  "title": "NVFP4 explicit-F32 16K depth companion",
+  "date": "2026-10-26",
+  "scope": "Explicit F32 matrices and F32 KV on one Radeon VII, compared with frozen full-F32 HF output arrays. Not default/native-F16, MI50, split, or performance qualification.",
+  "runtime_revision": "3a6a7b19d",
+  "build": {
+    "passed": true,
+    "receipt_sha256": "1482c8322bde8bba35db0f81ef62bcfdf23622d45f5ec76dd42cac8c2777d36a",
+    "preparation_sha256": "7cccc940020a163152f10153b097fffd126bde9e4e5e951cfde5ca199bc306ee",
+    "executable_sha256": "0c8addf192f61785e5af374e82f5edd12de389b9264317fab8a656e84786f4d8",
+    "probe_sha256": "0c8addf192f61785e5af374e82f5edd12de389b9264317fab8a656e84786f4d8",
+    "probe_path": "build-integration/depth-f32/build/Release/nvfp4-depth-capture.exe",
+    "source_capture_sha256": "29f0519cd668601ccc2c29c328d953fcc00c11277c7d70ddcc5154e34cedaef1",
+    "capture_source_unchanged_from_original": true,
+    "configure_log_sha256": "efe0a0b23293738641e8e9179e06eade594ef8007aadcea2eee54e8840e38746",
+    "build_log_sha256": "70535f7ababf5f08efa89cd4ad76669182702e0531b76ca41cc11d405bb032ac"
+  },
+  "model": {
+    "path": "build-quant-resume-20261020/nvfp4-local-model/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "bytes": 578052704,
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+  },
+  "input": {
+    "frozen_prompt_target_manifest_sha256": "69d8bc5e7d665042826546248d9488a8248b6557dd7346a782f874afa3c0580d",
+    "raw_fixture_sha256": "816ae49eb6ca4dc7b42e4ea5ef56dcff1b229e802602d236d739c787ac0c461c",
+    "chat_fixture_sha256": "ea3387f76ebb91fc1603e07c9f521773389dae1d3345ead5acb3e757a8b79440",
+    "each_history_tokens": 16384,
+    "scored_positions": 512
+  },
+  "hf_reference": {
+    "kind": "frozen full-F32 HF reference arrays; not selected native-F16 reference",
+    "verification_path": "nvfp4-20261025/build-nvfp4-depth-reference/hosted-collected/verification.json",
+    "verification_sha256": "ccd9e9a7c318a7b32e3f9d9d8515fac41b08938a14b10742ff15905a0880b9d2",
+    "hosted_run": 40153030717,
+    "source_head": "cf3051c18f15330de8782b1955741f3cacf76419",
+    "reference_execution_sha256": "01e7e4a69e65e4bb1a16ba792e7edb62a875109074ad65004c737fcd7192f947",
+    "reference_report_sha256": "04c7a8d17cb0cfbb0e83ea89388134d21192e1d95649d1ffde94619e9deba7ed",
+    "common_hf_comparator_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "comparator_sha256": "c985d394a47c8f1015aa08f53422ebc8638ce3408ae7ec93323d4e7576d12d20",
+    "top_two_tie_margin": 0.1
+  },
+  "capture": {
+    "execution_path": "build-integration/depth-f32/captures-f32-v1/execution.json",
+    "execution_sha256": "adf7d97afe10414a467529a5046d2aaaac4a2bcade5ba9bc50899ffae33765b0",
+    "comparison_path": "build-integration/depth-f32/f32-depth-comparison.json",
+    "comparison_sha256": "72d98ff97a2a3f5e092faf798962c1a99e15dabced57e5daffa1e813217ba7e1",
+    "passed": true,
+    "device": "single Radeon VII, Vulkan 0",
+    "requested_matrix_dtype": "f32",
+    "requested_kv_dtype": "f32",
+    "monitor": {
+      "exit_code": 0,
+      "sample_rows": 25,
+      "interval_seconds": 2,
+      "activity_jsonl_sha256": "ea0eff7860411aef5262fec8ab7a9eb078b56dad9054386878b0e55529a5b169",
+      "raw_process_memory_files_sha256": {
+        "raw": "71d0e26fc1e8097f5ef395b1a55d740b628a249ffcd275955a24d8f6eeb0f21e",
+        "chat": "8f9d383f407d06779b666345b74b441ff58186292085cf7b5fd74def6c1871e0"
+      },
+      "coverage_limit": "Sampling may miss short-lived processes; inaccessible process data can have unknown CPU deltas."
+    },
+    "variants": [
+      {
+        "name": "raw",
+        "fixture_sha256": "816ae49eb6ca4dc7b42e4ea5ef56dcff1b229e802602d236d739c787ac0c461c",
+        "capture": {
+          "exit_code": 0,
+          "positions": 512,
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "d1c57888414b0d9bee3d761a78e95502d1515a892b7a3606bac4aa60de843a0b",
+          "stderr_sha256": "312b70ce4f4721d4fb63a5b419a34d0b36ad77bafd77d1683e4fd1d78cfc7c3c",
+          "stdout_file_sha256": "d1c57888414b0d9bee3d761a78e95502d1515a892b7a3606bac4aa60de843a0b",
+          "stderr_file_sha256": "312b70ce4f4721d4fb63a5b419a34d0b36ad77bafd77d1683e4fd1d78cfc7c3c"
+        },
+        "comparison": {
+          "exact": 512,
+          "accepted_ties": 0,
+          "misses": 0,
+          "candidate_mean_nll": 2.0691763021932514,
+          "reference_mean_nll": 2.0691840648651123,
+          "nll_delta_diagnostic_only": -7.762671860866988e-06,
+          "reference_detail_sha256": "9125afd00cf53d34e0ed3edb598163fa52b2f5f1313019e0150ee52b3f8405dd",
+          "reference_logits_sha256": "38eb00b265bff52f3661fcdcb25c1c32fa5bd1415ec6798339d788737303b7dc"
+        }
+      },
+      {
+        "name": "chat",
+        "fixture_sha256": "ea3387f76ebb91fc1603e07c9f521773389dae1d3345ead5acb3e757a8b79440",
+        "capture": {
+          "exit_code": 0,
+          "positions": 512,
+          "matrix_paths": {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          },
+          "stdout_sha256": "c38e90cfa6ddef95c2c1211674361204a6693bdb75b0eba0e28b6bbaa649b053",
+          "stderr_sha256": "c86c77685722fa023c151e7147091f08bbeb8bad2dde05c816f90bace2323781",
+          "stdout_file_sha256": "c38e90cfa6ddef95c2c1211674361204a6693bdb75b0eba0e28b6bbaa649b053",
+          "stderr_file_sha256": "c86c77685722fa023c151e7147091f08bbeb8bad2dde05c816f90bace2323781"
+        },
+        "comparison": {
+          "exact": 512,
+          "accepted_ties": 0,
+          "misses": 0,
+          "candidate_mean_nll": 2.1873393755332695,
+          "reference_mean_nll": 2.1873371601104736,
+          "nll_delta_diagnostic_only": 2.2154227958814943e-06,
+          "reference_detail_sha256": "1ab0eced4e82189bf3ebabaa33e9dd0afa7cd9d6584a41429185c86fdbbfd805",
+          "reference_logits_sha256": "398f9d88e099f4f9eefba4b29b689efafacf847f17fec338f2fb4f5a92e33d61"
+        }
+      }
+    ]
+  },
+  "result": {
+    "raw": {
+      "exact": 512,
+      "accepted_ties": 0,
+      "misses": 0
+    },
+    "chat": {
+      "exact": 512,
+      "accepted_ties": 0,
+      "misses": 0
+    },
+    "total": {
+      "exact": 1024,
+      "accepted_ties": 0,
+      "misses": 0
+    },
+    "nll": "reported as diagnostic only"
+  },
+  "native_f16_readiness": {
+    "current_map_sha256": "67ea70a4aa91c2934b3d8e1327c50fcc5f8309184c1192c2dcd0cb8eaf313513",
+    "current_map_16k_hf_references_available": false,
+    "old_map_references_reusable_for_native_f16": false,
+    "next_required": "Verify an actual MI50 matrix/KV path witness against the current map, then generate matching current-map 16K HF references before a native-F16 depth comparison.",
+    "frozen_limits_changed": false
+  },
+  "performance_claim": false
+}

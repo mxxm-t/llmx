@@ -1,0 +1,435 @@
+{
+  "scope": "Windows Radeon focused development screen, not a final merge or mx gate.",
+  "passed": true,
+  "activity_flags": {
+    "unrelated_cpu": "sum of known unrelated process deltas over 100 percent of one logical CPU",
+    "system_cpu": "over 75 percent",
+    "disk": "physical total over 100 MiB/s, includes benchmark loading",
+    "gpu": "unrelated engine instance over 5 percent; engine values not additive",
+    "missing": "unknown counters/deltas reported as gaps, not zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "before": "2934c91212edf09ac08a6145c1392ed66968e390c0d73956ee423b458cc68eab",
+    "after": "eb5dd8a487afca6699b334448fb9da69cf59f86584f60f69106cdf45af72f57f"
+  },
+  "versions": {
+    "before": "llmx 0.1.0+g72e163024da2.dirty numerics 39a601fc41766b2a",
+    "after": "llmx 0.1.0+gbba8e3c15ef6.dirty numerics fadbc08e5534efd3"
+  },
+  "source_sha256": {
+    "src\\backends\\vulkan\\shaders\\matmul_tile.comp": "9106ee9d992e54e10648fe955d18adb0b664bad56081bcfd04f8273f4a84d03d",
+    "src\\backends\\vulkan\\vulkan_backend.cpp": "2986664f27b66a8adf3107985c7a8c15a33ef34b2d74682444257a96f5795549"
+  },
+  "calls": [
+    {
+      "arm": "before",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885418.4684122,
+      "log": "00-before.log",
+      "pid": 50228,
+      "exit_code": 0,
+      "end": 1792885424.521694,
+      "rates": {
+        "pp512": 2845.02,
+        "tg128": 105.89
+      },
+      "sha256": "a4b5dba309ac8b15d0f19660327fec3a97af4c3737802abac769df558b513cde",
+      "activity": {
+        "samples": 6,
+        "flags": {
+          "unrelated_cpu": 6,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 6,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885424.528223,
+      "log": "01-after.log",
+      "pid": 58100,
+      "exit_code": 0,
+      "end": 1792885429.1760333,
+      "rates": {
+        "pp512": 2907.28,
+        "tg128": 105.48
+      },
+      "sha256": "f38b6f28155b05866bb4674b78c0dd42577f8218ac2f7d43baff7b6d4c973c47",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 5,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885429.182046,
+      "log": "02-before.log",
+      "pid": 56408,
+      "exit_code": 0,
+      "end": 1792885432.9560719,
+      "rates": {
+        "pp512": 2847.71,
+        "tg128": 105.63
+      },
+      "sha256": "635c5a615436e113cdb6ced0d48f30b27503f4bbfbe2d07421125e6d82bf1092",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885432.96258,
+      "log": "03-after.log",
+      "pid": 60552,
+      "exit_code": 0,
+      "end": 1792885436.700003,
+      "rates": {
+        "pp512": 2897.02,
+        "tg128": 105.26
+      },
+      "sha256": "a6a93ef2acc29d0c2131a385d4017831b7e7737ddb52613e7b9c8d18be3deba2",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885436.7075207,
+      "log": "04-after.log",
+      "pid": 87052,
+      "exit_code": 0,
+      "end": 1792885440.5635426,
+      "rates": {
+        "pp512": 2914.06,
+        "tg128": 105.4
+      },
+      "sha256": "3675bf8a34931e832d05d7c18804ccec8a8bdf13bd333d84d260b0af8fbd5778",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792885440.571542,
+      "log": "05-before.log",
+      "pid": 11020,
+      "exit_code": 0,
+      "end": 1792885444.4912896,
+      "rates": {
+        "pp512": 2856.07,
+        "tg128": 105.53
+      },
+      "sha256": "d8c3b6c26abf9ec474dcc2e57f092b30de8c65102f21c5bb1f71cea97cf8775d",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    }
+  ],
+  "monitor": {
+    "pid": 28080,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-screen\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-screen\\monitor.stop",
+      "--seconds",
+      "1800",
+      "--interval",
+      "1"
+    ],
+    "source_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "profile_exit": 0,
+  "monitor_exit": 0,
+  "finished": 1792885451.5729861,
+  "means": {
+    "before": {
+      "pp512": 2851.8900000000003,
+      "tg128": 105.58
+    },
+    "after": {
+      "pp512": 2905.54,
+      "tg128": 105.33000000000001
+    }
+  },
+  "change_percent": {
+    "pp512": 1.8812086020147945,
+    "tg128": -0.23678727031632985
+  },
+  "monitor_metadata": {
+    "kind": "metadata",
+    "pid": 28080,
+    "logical_cpus": 16,
+    "interval_seconds": 1.0,
+    "initial_counter_collection_bracket": [
+      2381162.1869782,
+      2381162.1881679
+    ],
+    "counters": {
+      "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+      "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+      "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+      "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+    },
+    "unavailable": {},
+    "process_cpu_units": "100 percent equals one logical CPU",
+    "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "pid_classification": {
+    "benchmark": [
+      11020,
+      50228,
+      56408,
+      58100,
+      60552,
+      87052
+    ],
+    "monitor": 28080
+  },
+  "activity_scope": "Windows PDH same fixed-row thresholds. Individual unrelated GPU engine flag, never sum engines; known unrelated CPU excludes all benchmark PIDs and monitor. Gaps are unknown, not zero; whole-call loading included.",
+  "profile": {
+    "instrumented_only": true,
+    "tile_ms": 118.014,
+    "vgpr": 80,
+    "lds_bytes": 12800,
+    "scratch_bytes": 0,
+    "tile_lines": [
+      "profile:   matmul_tile_nvfp4_tall 118.014 ms (66.9815%)",
+      "profile: kernel matmul_tile_nvfp4_tall: numUsedVgprs=80 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=12800 scratchMemUsageInBytes=0"
+    ]
+  },
+  "native_result": "\u02d9\u017eN\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000:\u0000 \u0000A\u0000M\u0000D\u0000 \u0000R\u0000a\u0000d\u0000e\u0000o\u0000n\u0000 \u0000V\u0000I\u0000I\u0000;\u0000 \u0000r\u0000o\u0000w\u0000/\u0000t\u0000i\u0000l\u0000e\u0000 \u0000t\u0000i\u0000m\u0000e\u0000s\u0000t\u0000a\u0000m\u0000p\u0000 \u0000w\u0000i\u0000t\u0000n\u0000e\u0000s\u0000s\u0000e\u0000s\u0000 \u0000p\u0000r\u0000e\u0000s\u0000e\u0000n\u0000t\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u00001\u0000:\u0000 \u00002\u00006\u00002\u00001\u00004\u00004\u0000 \u0000e\u0000x\u0000h\u0000a\u0000u\u0000s\u0000t\u0000i\u0000v\u0000e\u0000 \u0000e\u0000m\u0000b\u0000e\u0000d\u0000d\u0000i\u0000n\u0000g\u0000 \u0000v\u0000a\u0000l\u0000u\u0000e\u0000s\u0000,\u0000 \u0000s\u0000i\u0000g\u0000n\u0000e\u0000d\u0000 \u0000z\u0000e\u0000r\u0000o\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000h\u0000i\u0000g\u0000h\u0000-\u0000b\u0000i\u0000t\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000s\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u0000-\u00000\u0000.\u00001\u00002\u00005\u0000:\u0000 \u00002\u00006\u00002\u00001\u00004\u00004\u0000 \u0000e\u0000x\u0000h\u0000a\u0000u\u0000s\u0000t\u0000i\u0000v\u0000e\u0000 \u0000e\u0000m\u0000b\u0000e\u0000d\u0000d\u0000i\u0000n\u0000g\u0000 \u0000v\u0000a\u0000l\u0000u\u0000e\u0000s\u0000,\u0000 \u0000s\u0000i\u0000g\u0000n\u0000e\u0000d\u0000 \u0000z\u0000e\u0000r\u0000o\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000h\u0000i\u0000g\u0000h\u0000-\u0000b\u0000i\u0000t\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000s\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u00000\u0000:\u0000 \u00002\u00006\u00002\u00001\u00004\u00004\u0000 \u0000e\u0000x\u0000h\u0000a\u0000u\u0000s\u0000t\u0000i\u0000v\u0000e\u0000 \u0000e\u0000m\u0000b\u0000e\u0000d\u0000d\u0000i\u0000n\u0000g\u0000 \u0000v\u0000a\u0000l\u0000u\u0000e\u0000s\u0000,\u0000 \u0000s\u0000i\u0000g\u0000n\u0000e\u0000d\u0000 \u0000z\u0000e\u0000r\u0000o\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000h\u0000i\u0000g\u0000h\u0000-\u0000b\u0000i\u0000t\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000s\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u0000-\u00000\u0000:\u0000 \u00002\u00006\u00002\u00001\u00004\u00004\u0000 \u0000e\u0000x\u0000h\u0000a\u0000u\u0000s\u0000t\u0000i\u0000v\u0000e\u0000 \u0000e\u0000m\u0000b\u0000e\u0000d\u0000d\u0000i\u0000n\u0000g\u0000 \u0000v\u0000a\u0000l\u0000u\u0000e\u0000s\u0000,\u0000 \u0000s\u0000i\u0000g\u0000n\u0000e\u0000d\u0000 \u0000z\u0000e\u0000r\u0000o\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000h\u0000i\u0000g\u0000h\u0000-\u0000b\u0000i\u0000t\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000s\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000u\u0000n\u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000f\u00003\u00002\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000f\u00003\u00002\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000u\u0000n\u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000f\u00001\u00006\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000f\u00001\u00006\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000u\u0000n\u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000b\u0000f\u00001\u00006\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000d\u0000 \u0000b\u0000f\u00001\u00006\u0000:\u0000 \u0000s\u0000i\u0000x\u0000 \u0000m\u0000a\u0000t\u0000r\u0000i\u0000x\u0000 \u0000e\u0000n\u0000t\u0000r\u0000y\u0000 \u0000p\u0000o\u0000i\u0000n\u0000t\u0000s\u0000,\u0000 \u0000m\u0000i\u0000x\u0000e\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000,\u0000 \u0000r\u0000o\u0000u\u0000t\u0000e\u0000d\u0000 \u0000c\u0000h\u0000o\u0000i\u0000c\u0000e\u0000s\u0000 \u0000a\u0000n\u0000d\u0000 \u0000w\u0000e\u0000i\u0000g\u0000h\u0000t\u0000e\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000N\u0000V\u0000F\u0000P\u00004\u0000 \u0000V\u0000u\u0000l\u0000k\u0000a\u0000n\u0000:\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u0000b\u0000e\u0000f\u0000o\u0000r\u0000e\u0000 \u0000o\u0000v\u0000e\u0000r\u0000f\u0000l\u0000o\u0000w\u0000i\u0000n\u0000g\u0000 \u0000p\u0000r\u0000o\u0000d\u0000u\u0000c\u0000t\u0000 \u0000a\u0000n\u0000d\u0000 \u0000r\u0000e\u0000s\u0000i\u0000d\u0000u\u0000a\u0000l\u0000,\u0000 \u0000i\u0000n\u0000v\u0000a\u0000l\u0000i\u0000d\u0000 \u0000g\u0000r\u0000o\u0000u\u0000p\u0000e\u0000d\u0000 \u0000s\u0000c\u0000a\u0000l\u0000e\u0000 \u0000b\u0000e\u0000f\u0000o\u0000r\u0000e\u0000 \u0000w\u0000r\u0000i\u0000t\u0000e\u0000s\u0000 \u0000[\u0000o\u0000k\u0000]\u0000\n\u0000\n\u0000",
+  "artifact_hashes": {
+    "build-nvfp4-stage16-screen/00-before.log": "a4b5dba309ac8b15d0f19660327fec3a97af4c3737802abac769df558b513cde",
+    "build-nvfp4-stage16-screen/01-after.log": "f38b6f28155b05866bb4674b78c0dd42577f8218ac2f7d43baff7b6d4c973c47",
+    "build-nvfp4-stage16-screen/02-before.log": "635c5a615436e113cdb6ced0d48f30b27503f4bbfbe2d07421125e6d82bf1092",
+    "build-nvfp4-stage16-screen/03-after.log": "a6a93ef2acc29d0c2131a385d4017831b7e7737ddb52613e7b9c8d18be3deba2",
+    "build-nvfp4-stage16-screen/04-after.log": "3675bf8a34931e832d05d7c18804ccec8a8bdf13bd333d84d260b0af8fbd5778",
+    "build-nvfp4-stage16-screen/05-before.log": "d8c3b6c26abf9ec474dcc2e57f092b30de8c65102f21c5bb1f71cea97cf8775d",
+    "build-nvfp4-stage16-screen/activity.jsonl": "2b67f9e8a44670f98b33894ada1bc433845f82ea5c5485112fd730af54d8f8e4",
+    "build-nvfp4-stage16-screen/execution.json": "9e0efb866e86e3206a43807085f7e4b6d25a5369498d0120087cb09a9dac4815",
+    "build-nvfp4-stage16-screen/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-stage16-screen/monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f",
+    "build-nvfp4-stage16-screen/profile.log": "59c603a31cf7a315b1a941c05e3da9f52bed0f72b35295e9ea192dd34e065220",
+    "build-nvfp4-vulkan/nvfp4-stage16-native.log": "7db9dee870f405dcfef7d88b40dc22f24bc5337e2c17c67a9edf25c507d2dbf9",
+    "build-nvfp4-vulkan/nvfp4-stage16-build.log": "1bad0f94c4a18f0ad8c5fa75984e026d38a01d750b503b07ad55f98c1e0fa886"
+  },
+  "limits": [
+    "Scratch development evidence only; no final pass/reject, merge or HF qualification.",
+    "All six calls retained: two warmups,four measured; two measurements per arm.",
+    "Dirty build identities retained; not clean-build qualification or matched mx evidence.",
+    "Windows machine results cannot be compared absolutely with MI50 screens."
+  ]
+}

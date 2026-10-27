@@ -104,13 +104,13 @@ struct FailingCpu : backend::CpuBackend {
     std::mutex submitters_mutex;
     std::set<std::thread::id> submitters;
     bool is_cpu() const override { return !plays_device; }
-    void matmul(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
+    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (nout == 16) {
             ++outputs;
             if (fail_output) { fail_output = false; throw std::runtime_error("injected"); }
         }
-        backend::CpuBackend::matmul(type, data, x, y, nin, nout, nbatch, runs, dtype);
+        backend::CpuBackend::matmul(weight, x, y, nin, nout, nbatch, runs, dtype);
     }
     void attention(backend::CSlice q, size_t layer, const backend::KVView* views, size_t n_views, backend::Slice out,
                    int n_head, int n_head_kv, int head_dim) override {

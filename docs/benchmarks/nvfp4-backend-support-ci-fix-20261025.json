@@ -1,0 +1,425 @@
+{
+  "scope": "One missing expected supported type in backend-errors, not a runtime or numerical change.",
+  "ci_run": 40155844084,
+  "ci_head": "fe580d21a727d2383907bef8d9e809433fdf2f2e",
+  "ci_conclusion": "failure",
+  "jobs": [
+    {
+      "id": 121056960793,
+      "name": "CPU (Linux TSan)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121056960890,
+      "name": "CPU (macos-15-intel)",
+      "conclusion": "failure"
+    },
+    {
+      "id": 121056960910,
+      "name": "CPU (windows-2022)",
+      "conclusion": "failure"
+    },
+    {
+      "id": 121056960927,
+      "name": "CPU (Linux UBSan)",
+      "conclusion": "failure"
+    },
+    {
+      "id": 121056960928,
+      "name": "HF reference (CPU)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121056960976,
+      "name": "CPU (ubuntu-24.04)",
+      "conclusion": "failure"
+    },
+    {
+      "id": 121056961058,
+      "name": "Vulkan backend (build, Linux)",
+      "conclusion": "failure"
+    }
+  ],
+  "failures": [
+    {
+      "job": "CPU (macos-15-intel)",
+      "id": 121056960890,
+      "failed_steps": [
+        {
+          "name": "Backend tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 9,
+          "started_at": "2026-10-25T03:02:25Z",
+          "completed_at": "2026-10-25T03:22:57Z"
+        }
+      ],
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 13,
+          "start_column": null,
+          "end_line": 13,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failure: backend-errors",
+          "message": "----------------------------------------------------------\nstorage metadata changed execution support\nstartup allocation failures: constructor=1 resize=1 start=9\nlazy pool start: 5 workers started for pools of 5 and 2\nCPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed\n",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 12,
+          "start_column": null,
+          "end_line": 12,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failed (1)",
+          "message": "backend-errors",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 11,
+          "start_column": null,
+          "end_line": 11,
+          "end_column": null,
+          "annotation_level": "notice",
+          "title": "CTest times",
+          "message": "server-resume 155.1 s, server-resume-cache 131.7 s, server-resume-device 0.0 s, cache-scenario 128.4 s, cache-scenario-production 23.5 s, arch-qwen35-fit 59.2 s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 167,
+          "start_column": null,
+          "end_line": 167,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "Process completed with exit code 8.",
+          "raw_details": ""
+        }
+      ]
+    },
+    {
+      "job": "CPU (windows-2022)",
+      "id": 121056960910,
+      "failed_steps": [
+        {
+          "name": "Backend tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 9,
+          "started_at": "2026-10-25T03:11:02Z",
+          "completed_at": "2026-10-25T03:30:17Z"
+        }
+      ],
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 13,
+          "start_column": null,
+          "end_line": 13,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failure: backend-errors",
+          "message": "----------------------------------------------------------\nstorage metadata changed execution support\nstartup allocation failures: constructor=1 resize=1 start=3\nlazy pool start: 5 workers started for pools of 5 and 2\nCPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed\n",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 12,
+          "start_column": null,
+          "end_line": 12,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failed (1)",
+          "message": "backend-errors",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 11,
+          "start_column": null,
+          "end_line": 11,
+          "end_column": null,
+          "annotation_level": "notice",
+          "title": "CTest times",
+          "message": "server-resume 152.3 s, server-resume-cache 150.2 s, server-resume-device 0.0 s, cache-scenario 103.6 s, cache-scenario-production 25.8 s, arch-qwen35-fit 49.6 s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 170,
+          "start_column": null,
+          "end_line": 170,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "Process completed with exit code 1.",
+          "raw_details": ""
+        }
+      ]
+    },
+    {
+      "job": "CPU (Linux UBSan)",
+      "id": 121056960927,
+      "failed_steps": [
+        {
+          "name": "Backend tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 7,
+          "started_at": "2026-10-25T03:08:34Z",
+          "completed_at": "2026-10-25T03:25:41Z"
+        }
+      ],
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 14,
+          "start_column": null,
+          "end_line": 14,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failure: backend-errors",
+          "message": "----------------------------------------------------------\nstorage metadata changed execution support\nstartup allocation failures: constructor=19 resize=1 start=3\nlazy pool start: 5 workers started for pools of 5 and 2\nCPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed\n",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 13,
+          "start_column": null,
+          "end_line": 13,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failed (1)",
+          "message": "backend-errors",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 12,
+          "start_column": null,
+          "end_line": 12,
+          "end_column": null,
+          "annotation_level": "notice",
+          "title": "CTest times",
+          "message": "server-resume 147.0 s, server-resume-cache 132.2 s, server-resume-device 0.0 s, cache-scenario 99.8 s, cache-scenario-production 22.4 s, arch-qwen35-fit 48.3 s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 169,
+          "start_column": null,
+          "end_line": 169,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "Process completed with exit code 8.",
+          "raw_details": ""
+        }
+      ]
+    },
+    {
+      "job": "CPU (ubuntu-24.04)",
+      "id": 121056960976,
+      "failed_steps": [
+        {
+          "name": "Backend tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 9,
+          "started_at": "2026-10-25T03:13:18Z",
+          "completed_at": "2026-10-25T03:27:30Z"
+        }
+      ],
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 14,
+          "start_column": null,
+          "end_line": 14,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failure: backend-errors",
+          "message": "----------------------------------------------------------\nstorage metadata changed execution support\nstartup allocation failures: constructor=19 resize=1 start=3\nlazy pool start: 5 workers started for pools of 5 and 2\nCPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed\n",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 13,
+          "start_column": null,
+          "end_line": 13,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failed (1)",
+          "message": "backend-errors",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 12,
+          "start_column": null,
+          "end_line": 12,
+          "end_column": null,
+          "annotation_level": "notice",
+          "title": "CTest times",
+          "message": "server-resume 124.7 s, server-resume-cache 119.6 s, server-resume-device 0.0 s, cache-scenario 88.6 s, cache-scenario-production 14.3 s, arch-qwen35-fit 48.4 s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 169,
+          "start_column": null,
+          "end_line": 169,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "Process completed with exit code 8.",
+          "raw_details": ""
+        }
+      ]
+    },
+    {
+      "job": "Vulkan backend (build, Linux)",
+      "id": 121056961058,
+      "failed_steps": [
+        {
+          "name": "Backend tests",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 7,
+          "started_at": "2026-10-25T03:16:15Z",
+          "completed_at": "2026-10-25T03:30:51Z"
+        }
+      ],
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 14,
+          "start_column": null,
+          "end_line": 14,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failure: backend-errors",
+          "message": "----------------------------------------------------------\nstorage metadata changed execution support\nstartup allocation failures: constructor=19 resize=1 start=3\nlazy pool start: 5 workers started for pools of 5 and 2\nCPU interface: 15 empty transfers, 13 rejected ranges/sources, 3 thread-hint checks passed\n",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 13,
+          "start_column": null,
+          "end_line": 13,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "CTest failed (1)",
+          "message": "backend-errors",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 12,
+          "start_column": null,
+          "end_line": 12,
+          "end_column": null,
+          "annotation_level": "notice",
+          "title": "CTest times",
+          "message": "server-resume 126.9 s, server-resume-cache 119.8 s, server-resume-device 0.0 s, cache-scenario 88.7 s, cache-scenario-production 14.7 s, arch-qwen35-fit 48.4 s",
+          "raw_details": ""
+        },
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/mxxm-t/llmx/blob/fe580d21a727d2383907bef8d9e809433fdf2f2e/.github",
+          "start_line": 212,
+          "start_column": null,
+          "end_line": 212,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "Process completed with exit code 8.",
+          "raw_details": ""
+        }
+      ]
+    }
+  ],
+  "cause": "The independent supported-id list ended at MXFP4 id39; implemented NVFP4 id40 was absent.",
+  "correction": "Add only id40 to the independent expected list. Metadata-only Q1_0/Q2_0 remain unsupported.",
+  "focused_verification": {
+    "scope": "Test expectation adds implemented NVFP4 type40 only. Runtime and numerical limits unchanged.",
+    "calls": [
+      {
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx-backend-errors-test.exe"
+        ],
+        "exit_code": 1,
+        "seconds": 0.11926984786987305
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-backend-error-fix",
+          "--config",
+          "Release",
+          "--target",
+          "llmx-backend-errors-test",
+          "--parallel",
+          "2"
+        ],
+        "exit_code": 0,
+        "seconds": 5.797996997833252
+      },
+      {
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-backend-error-fix",
+          "-C",
+          "Release",
+          "-R",
+          "^backend-errors$",
+          "--output-on-failure"
+        ],
+        "exit_code": 0,
+        "seconds": 1.599212884902954
+      }
+    ],
+    "passed": true,
+    "artifact_sha256": {
+      "0.stderr": "050c751a24e36919381b7845b0cfcaa9c2d6ef424362c0e972dda7693cb40d78",
+      "0.stdout": "7ba7863d41613846967ee3ab905d3b43d63e873b4e2d58381877bcef4d663a5b",
+      "1.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "1.stdout": "a74b83c5630731bb9422c4117852a8d01643a304c1c44d6246b3ba4fc67f0ab1",
+      "2.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "2.stdout": "0307ce7a54fa064d80d497a007ec5c8af9b3912b1613098493a478e9d331a021"
+    },
+    "test_source_sha256": "36b8579f493fc5108837499e6ad849adf71f8f07c8a2823de4d564f95b9bbe55",
+    "before_binary_sha256": "6f94a8a42b54990572eaeb3c375c620c731f3b2a3921757ee04797bad913b179",
+    "after_binary_sha256": "cc5ebe2e4adef13dc317e191b8059de7b4b22b5b377a262790d6c113231911e8"
+  },
+  "receipt_sha256": {
+    "build-nvfp4-research\\integration-ci-40155844084\\20261025T105004Z.json": "c0cc7750df1e1cbb2d74bc6537df95efe016ebda3d977dcb86e88ce2154b1d96",
+    "build-nvfp4-backend-error-fix\\evidence\\execution.json": "8b63b16aaebaf01eebcccd3ce8972fe60878c4b77c9b9a97190fb055cf890a10"
+  },
+  "limits": "The original run failed. No full hosted pass is claimed; downstream skipped jobs/checks are not passes. A corrected integrated head must pass applicable CI before landing."
+}

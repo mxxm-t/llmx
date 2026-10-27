@@ -8,6 +8,9 @@ const uint TYPE_MXFP4 = 39u;
 const uint MXFP4_FIRST_OVERFLOW_EXPONENT = 253u;
 const uint MXFP4_BLOCK = 32u;
 const uint MXFP4_BYTES = 17u;
+const uint TYPE_NVFP4 = 40u;
+const uint NVFP4_BLOCK = 64u;
+const uint NVFP4_BYTES = 36u;
 
 const uint TYPE_TQ1_0 = 34u;
 const uint TYPE_TQ2_0 = 35u;
@@ -84,6 +87,9 @@ float half_at(uint lo, uint hi) {
 
 // Bytes and values per block of a type.
 uint block_bytes(uint type) {
+#if !defined(LLMX_FLOAT_X) || defined(LLMX_NVFP4)
+    if (type == TYPE_NVFP4) return NVFP4_BYTES;
+#endif
     if (type == TYPE_TQ1_0) return TQ1_0_BYTES;
     if (type == TYPE_TQ2_0) return TQ2_0_BYTES;
     return type == TYPE_IQ1_S ? IQ1_S_BYTES : type == TYPE_IQ1_M ? IQ1_M_BYTES : type == TYPE_MXFP4 ? MXFP4_BYTES : type == TYPE_Q8_0 ? Q8_0_BYTES : type == TYPE_Q4_0 ? Q4_0_BYTES
@@ -93,6 +99,9 @@ uint block_bytes(uint type) {
 }
 bool is_kquant(uint type) { return type == TYPE_Q2_K || type == TYPE_Q3_K || type == TYPE_Q4_K || type == TYPE_Q5_K || type == TYPE_Q6_K; }
 uint block_values(uint type) {
+#if !defined(LLMX_FLOAT_X) || defined(LLMX_NVFP4)
+    if (type == TYPE_NVFP4) return NVFP4_BLOCK;
+#endif
     if (type == TYPE_TQ1_0 || type == TYPE_TQ2_0) return 256u;
     return type == TYPE_IQ1_S ? IQ1_S_BLOCK : type == TYPE_IQ1_M ? IQ1_M_BLOCK : type == TYPE_IQ2_XXS ? IQ2_XXS_BLOCK : type == TYPE_IQ2_XS ? IQ2_XS_BLOCK : type == TYPE_IQ3_XXS ? IQ3_XXS_BLOCK : type == TYPE_IQ2_S ? IQ2_S_BLOCK : type == TYPE_IQ3_S ? IQ3_S_BLOCK : type == TYPE_IQ4_XS ? IQ4_XS_BLOCK : is_kquant(type) ? Q6_K_BLOCK : 32u;
 }

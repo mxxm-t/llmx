@@ -1,0 +1,159 @@
+{
+  "schema": "nvfp4-flash-isolated-control-capture-receipt-v1",
+  "date": "2026-10-27",
+  "status": "completed_exact",
+  "scope": {
+    "claim": "The diagnostic capture with the isolated two-header policy reversal matched all saved-main output bytes for the three captured phases.",
+    "qualification": false,
+    "qualification_limit": "This confirms the isolated two-header-revert diagnostic only; it is not final startup-integrated qualification and does not by itself establish a cause or production fix.",
+    "source_commit": "237a4f29898710fb91159622c49201e591156202",
+    "control_header_git_blob_sha256": {
+      "src/backends/device_profile.hpp": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+      "src/backends/vulkan/vulkan_matmul.hpp": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3"
+    },
+    "build_receipt": "nvfp4-flash-isolated-control-build-20261027.json",
+    "build_receipt_sha256": "4e46bc5c3c3af20a262678d2d7b7103e1bbfcf9ab850a48a3e87e0130bd4e9d4",
+    "original_failed_capture_receipt": "nvfp4-flash-identity-mi50-20261027.json",
+    "original_failed_capture_receipt_sha256": "6a413d1588da594b607f6b7dcc2fbb0ec4012bb8b770d1ed5fdccd10b7e5bcef",
+    "original_failed_capture_execution_sha256": "62dc92d880da356ed9379e62b3252b0155d250115b62aedd427d937fbd565997",
+    "terminal_source": "build-integration/control-capture-v2-terminal.json",
+    "terminal_source_sha256": "1925f85684cab8cfa84d68cbdf9b785146a287112f8825fc325aa6d07bdc445b"
+  },
+  "control": {
+    "version": "llmx 0.1.0+unknown numerics 339e10857218f3d2",
+    "llmx_sha256": "58840832e00efea5970fce6c1b9b2581c89fe8136ee9e58cce80b14a0fd7b678",
+    "model_logits_sha256": "6ee1510782b1a3e97ed4c05d2499768b696dd0594204042ba5e503d4c49a7b66",
+    "build_result_sha256": "abb188996d25705cd9c46a7f8699929cd6d17cd905d77886f056abca7c482483",
+    "launch_result_sha256": "95c79be8e0c2483057023a229e7b6d785c8c63057abc37c8ffebe5248ba65ab0"
+  },
+  "capture": {
+    "device": "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+    "physical_gpus": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "cpuset": "8,9",
+    "cache": "f32",
+    "ubatch": 128,
+    "cpu_experts": 0,
+    "shares": "1,1",
+    "tensor_width": 2,
+    "threads": 6,
+    "storage_types": [
+      0,
+      7,
+      8,
+      12,
+      13,
+      20,
+      30
+    ],
+    "effective_dtype": "f16",
+    "prompt_ids_count": 128,
+    "prompt_ids_sha256": "3797c1c9d9b96870031489d387fbe9e9eb22590dc6e9b592c5e6bbbf0755506e",
+    "model_files": [
+      {
+        "path": "Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "bytes": 10946624,
+        "sha256": "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082",
+        "matches_pin": true
+      },
+      {
+        "path": "Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf",
+        "bytes": 49859583136,
+        "sha256": "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9",
+        "matches_pin": true
+      },
+      {
+        "path": "Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf",
+        "bytes": 49376141504,
+        "sha256": "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3",
+        "matches_pin": true
+      },
+      {
+        "path": "Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf",
+        "bytes": 12087983520,
+        "sha256": "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a",
+        "matches_pin": true
+      }
+    ],
+    "model_total_bytes": 111334654784,
+    "model_unchanged": true,
+    "metadata_equal": true,
+    "metadata_sha256_canonical_json": "61860963433fab8a9099fc4faf5b83b8bd4aceee93509508d0071c1417c1c163",
+    "metadata_fields_equal": {
+      "architecture": true,
+      "dtype": true,
+      "greedy": true,
+      "matrix_paths": true,
+      "storage_types": true,
+      "tokens": true,
+      "vocab": true
+    }
+  },
+  "phases": {
+    "batched": {
+      "rows": 128,
+      "bytes": 127139840,
+      "main_sha256": "0929b7bb89c86c532cd9f89ba453dd5e7d18fd30f39a5755dab8a6ff870f3458",
+      "candidate_sha256": "0929b7bb89c86c532cd9f89ba453dd5e7d18fd30f39a5755dab8a6ff870f3458",
+      "exact_byte_equal": true,
+      "max_abs_difference": 0.0,
+      "top1_mismatches": 0,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 0
+    },
+    "decode": {
+      "rows": 128,
+      "bytes": 127139840,
+      "main_sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b",
+      "candidate_sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b",
+      "exact_byte_equal": true,
+      "max_abs_difference": 0.0,
+      "top1_mismatches": 0,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 0
+    },
+    "greedy": {
+      "rows": 64,
+      "bytes": 63569920,
+      "main_sha256": "abb25df2a5abd65bf332ee6b998274b4bf24c8e2b29ef435f7ea8f02474ff466",
+      "candidate_sha256": "abb25df2a5abd65bf332ee6b998274b4bf24c8e2b29ef435f7ea8f02474ff466",
+      "exact_byte_equal": true,
+      "max_abs_difference": 0.0,
+      "top1_mismatches": 0,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 0
+    }
+  },
+  "overall": {
+    "exact_output_identity": true,
+    "all_phase_hashes_identical": true,
+    "rows": {
+      "batched": 128,
+      "decode": 128,
+      "greedy": 64
+    },
+    "max_abs_difference": 0.0,
+    "top1_mismatches": 0,
+    "nonfinite_pairs": 0,
+    "numeric_value_mismatches": 0
+  },
+  "cleanup": {
+    "controller_status": "completed",
+    "capture_status": "completed_exact",
+    "worker_exit_code": 0,
+    "monitor_exit": 0,
+    "container_removed": true,
+    "owned_container_ids": [],
+    "host_processes": "",
+    "done_status": "completed",
+    "controller_sha256": "83330ccf117dc78ce0222388dfde822816f1ef057523d72efbf02deb55727ba7",
+    "execution_sha256": "ad20c4608ece4d06025070d567705a0807c6744a5b6bb1073598ec43f20ec729",
+    "plan_sha256": "3101bf231bc8a1678414ce3920b0647899b411dbf2530f7080dd1511d4f83110",
+    "done_sha256": "9e35d4cb289cc592e44ba4bb415719337be6aab40dbc37384d4b72350ab8dc7f",
+    "capture_result_sha256": "ad20c4608ece4d06025070d567705a0807c6744a5b6bb1073598ec43f20ec729"
+  }
+}

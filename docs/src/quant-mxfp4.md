@@ -4,7 +4,7 @@ The read-only MXFP4 block decoder in namespace `quant`.
 Each 17-byte block holds an E8M0 exponent and 16 bytes of E2M1 nibbles for 32 values.
 Low nibbles precede high nibbles, as in Q4_0.
 
-`MXFP4_VALUES` holds the doubled E2M1 values as signed integers.
+`FP4_VALUES` in `quant/fp4.hpp` owns the doubled E2M1 values as signed integers, shared with NVFP4.
 `MXFP4_FIRST_OVERFLOW_EXPONENT` names the first exponent at which a code can decode beyond finite f32: 253, where the largest doubled code gives `12 * 2^125 = 3 * 2^127`.
 `mxfp4_scale` reads their scale, 2^(e - 128), from a 256-entry table of f32 bits computed at compile time.
 Exponents 0 and 1 retain their subnormal scales; no half conversion occurs.

@@ -1,0 +1,441 @@
+{
+  "scope": "Coverage inventory for the same 12 changed shared pipelines on MI50 RADV and Radeon VII AMD proprietary. Not a gate verdict.",
+  "source": {
+    "registry": "src\\backends\\vulkan\\vulkan_kernels.hpp",
+    "sha256": "6586a1b1523497c684690b31bbc3d950c1c2bf7e8bf9c23503deed40f550df49",
+    "dispatch": [
+      "src/backends/vulkan/vulkan_matmul.hpp: row_plan, matmul_group_impl, routed_call",
+      "src/backends/device_profile.hpp: tuned_devices, tile_rows_for"
+    ]
+  },
+  "assembly": {
+    "mi50": {
+      "shared": 295,
+      "identical": 283,
+      "different": 12
+    },
+    "radeon_vii": {
+      "shared": 192,
+      "identical": 180,
+      "different": 12,
+      "main_exit_code": "unknown, final native marker and all 192 dumps retained",
+      "candidate_exit_code": 0
+    }
+  },
+  "prior_main_identity": [
+    {
+      "receipt": "docs/benchmarks/nvfp4-image-main-linux-checks-20261026.json",
+      "coverage": "Qwen3-0.6B Q8 and Qwen3.5-0.8B Q8, CPU and MI50, batched/decode/greedy raw arrays identical. MI50 reports block-int16; this does not establish explicit-F32 quantized row identity."
+    },
+    {
+      "receipt": "docs/benchmarks/nvfp4-image-main-tiny-moe-20261026.json",
+      "coverage": "Tiny Q8 routed fixtures, 36 raw array pairs identical. Not a witness for every generic shader variant."
+    },
+    {
+      "receipt": "docs/benchmarks/nvfp4-image-main-35b-routed-20261026.json",
+      "coverage": "35B Q8 per-token arrays identical; batched and greedy logits differ. All measured top-1 and greedy IDs agree. Do not report full byte identity."
+    }
+  ],
+  "timing_source": "build-integration\\image-main-timing-v1\\collection-01\\analysis.json",
+  "timing_source_sha256": "a178f514386c16529b1fb437b6a1aa4a15f66157b4e16bb899891d7ba72bd969",
+  "rows": [
+    {
+      "pipeline": "embed",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "TQ1_0",
+        "TQ2_0",
+        "IQ1_S",
+        "IQ1_M",
+        "IQ2_S",
+        "IQ3_XXS",
+        "IQ2_XXS",
+        "IQ2_XS",
+        "IQ3_S",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": true,
+      "mi50_route": "Same registry entry for all listed types. embed uses host token IDs; embed_ids uses device token IDs.",
+      "radeon_vii_route": "Same registry entry for all listed types. embed uses host token IDs; embed_ids uses device token IDs.",
+      "timing_witnesses_before_declaration_correction": [
+        {
+          "cell": "qwen3-06b-q8-p128-profile-main",
+          "lines": [
+            "profile:   embed 0.01696 ms (0.0613699%)",
+            "profile:   embed 1.99056 ms (0.261097%)"
+          ]
+        },
+        {
+          "cell": "qwen3-06b-q8-p128-profile-candidate",
+          "lines": [
+            "profile:   embed 0.0168 ms (0.0618757%)",
+            "profile:   embed 1.99392 ms (0.2604%)"
+          ]
+        },
+        {
+          "cell": "qwen3-06b-q8-p4096-profile-main",
+          "lines": [
+            "profile:   embed 0.12288 ms (0.0140814%)",
+            "profile:   embed 1.97296 ms (0.260215%)"
+          ]
+        },
+        {
+          "cell": "qwen3-06b-q8-p4096-profile-candidate",
+          "lines": [
+            "profile:   embed 0.12096 ms (0.0138594%)",
+            "profile:   embed 1.97504 ms (0.260323%)"
+          ]
+        },
+        {
+          "cell": "qwen35-08b-q8-p128-profile-main",
+          "lines": [
+            "profile:   embed 0.01872 ms (0.0578621%)",
+            "profile:   embed 2.15008 ms (0.263191%)"
+          ]
+        },
+        {
+          "cell": "qwen35-08b-q8-p128-profile-candidate",
+          "lines": [
+            "profile:   embed 0.01888 ms (0.0592164%)",
+            "profile:   embed 2.13184 ms (0.260329%)"
+          ]
+        },
+        {
+          "cell": "qwen35-08b-q8-p4096-profile-main",
+          "lines": [
+            "profile:   embed 0.12464 ms (0.0188232%)",
+            "profile:   embed 2.22608 ms (0.273651%)"
+          ]
+        },
+        {
+          "cell": "qwen35-08b-q8-p4096-profile-candidate",
+          "lines": [
+            "profile:   embed 0.12512 ms (0.0189623%)",
+            "profile:   embed 2.20256 ms (0.270297%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-main",
+          "lines": [
+            "profile:   embed 0.01184 ms (0.436913%)",
+            "profile:   embed 2.10848 ms (2.82849%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-candidate",
+          "lines": [
+            "profile:   embed 0.008 ms (0.506688%)",
+            "profile:   embed 1.79584 ms (2.87975%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-bf16-profile-main",
+          "lines": [
+            "profile:   embed 0.01328 ms (0.683972%)",
+            "profile:   embed 1.82848 ms (1.02238%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-bf16-profile-candidate",
+          "lines": [
+            "profile:   embed 0.01264 ms (0.653919%)",
+            "profile:   embed 1.85936 ms (1.1089%)"
+          ]
+        }
+      ],
+      "coverage_status": "Prior model timing witness exists; this is not a claim for every listed weight type or the corrected binary."
+    },
+    {
+      "pipeline": "embed_ids",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "TQ1_0",
+        "TQ2_0",
+        "IQ1_S",
+        "IQ1_M",
+        "IQ2_S",
+        "IQ3_XXS",
+        "IQ2_XXS",
+        "IQ2_XS",
+        "IQ3_S",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": true,
+      "mi50_route": "Same registry entry for all listed types. embed uses host token IDs; embed_ids uses device token IDs.",
+      "radeon_vii_route": "Same registry entry for all listed types. embed uses host token IDs; embed_ids uses device token IDs.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_row_float_x",
+      "existing_weight_types": [
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "radeon_vii_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_row_float_x_1col",
+      "existing_weight_types": [
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "radeon_vii_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_row_float_x_grouped",
+      "existing_weight_types": [
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "radeon_vii_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_row_mxfp4_float_x",
+      "existing_weight_types": [
+        "MXFP4"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "radeon_vii_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_row_mxfp4_float_x_1col",
+      "existing_weight_types": [
+        "MXFP4"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "radeon_vii_route": "Explicit F32 uses this float-input row family. BF16 uses tiles. Default F16 uses the profile-selected dot/row family instead, except a type whose row itself is this float family.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_tile",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "BF16 always uses its BF16 tile. Explicit F32 uses the float tile. F16/int8 quantized products prefer integer tiles when available; F32 weights retain float tiles.",
+      "radeon_vii_route": "BF16 uses its BF16 tile. Explicit F32 and default F16/int8 use float tiles because this profile does not prefer integer tiles.",
+      "timing_witnesses_before_declaration_correction": [
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-main",
+          "lines": [
+            "profile:   matmul_tile 0.57216 ms (21.1135%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-candidate",
+          "lines": [
+            "profile:   matmul_tile 0.48656 ms (30.8168%)"
+          ]
+        }
+      ],
+      "coverage_status": "Prior model timing witness exists; this is not a claim for every listed weight type or the corrected binary."
+    },
+    {
+      "pipeline": "matmul_tile_small",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "BF16 always uses its BF16 tile. Explicit F32 uses the float tile. F16/int8 quantized products prefer integer tiles when available; F32 weights retain float tiles.",
+      "radeon_vii_route": "BF16 uses its BF16 tile. Explicit F32 and default F16/int8 use float tiles because this profile does not prefer integer tiles.",
+      "timing_witnesses_before_declaration_correction": [
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-main",
+          "lines": [
+            "profile:   matmul_tile_small 1.52752 ms (56.3677%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-f32-profile-candidate",
+          "lines": [
+            "profile:   matmul_tile_small 0.58496 ms (37.049%)"
+          ]
+        }
+      ],
+      "coverage_status": "Prior model timing witness exists; this is not a claim for every listed weight type or the corrected binary."
+    },
+    {
+      "pipeline": "matmul_tile_tall",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "BF16 always uses its BF16 tile. Explicit F32 uses the float tile. F16/int8 quantized products prefer integer tiles when available; F32 weights retain float tiles.",
+      "radeon_vii_route": "BF16 uses its BF16 tile. Explicit F32 and default F16/int8 use float tiles because this profile does not prefer integer tiles.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    },
+    {
+      "pipeline": "matmul_tile_bf16_small",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "BF16 always uses its BF16 tile. Explicit F32 uses the float tile. F16/int8 quantized products prefer integer tiles when available; F32 weights retain float tiles.",
+      "radeon_vii_route": "BF16 uses its BF16 tile. Explicit F32 and default F16/int8 use float tiles because this profile does not prefer integer tiles.",
+      "timing_witnesses_before_declaration_correction": [
+        {
+          "cell": "wide-f32-storage-p128-bf16-profile-main",
+          "lines": [
+            "profile:   matmul_tile_bf16_small 0.6616 ms (34.075%)",
+            "profile:   matmul_tile_bf16_small head 0.02032 ms (1.04656%)",
+            "profile:   matmul_tile_bf16_small 114.386 ms (63.958%)",
+            "profile:   matmul_tile_bf16_small head 4.6928 ms (2.62394%)"
+          ]
+        },
+        {
+          "cell": "wide-f32-storage-p128-bf16-profile-candidate",
+          "lines": [
+            "profile:   matmul_tile_bf16_small 0.66352 ms (34.3266%)",
+            "profile:   matmul_tile_bf16_small head 0.02048 ms (1.05951%)",
+            "profile:   matmul_tile_bf16_small 102.643 ms (61.2152%)",
+            "profile:   matmul_tile_bf16_small head 4.64832 ms (2.77221%)"
+          ]
+        }
+      ],
+      "coverage_status": "Prior model timing witness exists; this is not a claim for every listed weight type or the corrected binary."
+    },
+    {
+      "pipeline": "matmul_tile_bf16_tall",
+      "existing_weight_types": [
+        "F32",
+        "Q8_0",
+        "Q4_0",
+        "Q4_1",
+        "Q5_0",
+        "Q5_1",
+        "Q2_K",
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
+        "Q6_K",
+        "IQ4_NL",
+        "IQ4_XS"
+      ],
+      "new_nvfp4_branch": false,
+      "mi50_route": "BF16 always uses its BF16 tile. Explicit F32 uses the float tile. F16/int8 quantized products prefer integer tiles when available; F32 weights retain float tiles.",
+      "radeon_vii_route": "BF16 uses its BF16 tile. Explicit F32 and default F16/int8 use float tiles because this profile does not prefer integer tiles.",
+      "timing_witnesses_before_declaration_correction": [],
+      "coverage_status": "No matching timed dispatch in the existing 20 profile witnesses. Focused operator coverage needed."
+    }
+  ],
+  "next_check": "One bounded operator comparison through the existing Backend API, with actual dispatch witnesses and raw output comparison, for missing row, device-ID embedding and tile-height paths. Cover existing types in the shared registry rather than repeating model HF suites. Retain main/candidate timing samples and contention data. No reference bounds change.",
+  "limitations": [
+    "Generated pipeline presence is not proof of execution by a model.",
+    "Identical FMA listings alone do not prove output identity or performance.",
+    "Prior HF passes establish bounded correctness, not byte identity against main.",
+    "Radeon row FMA registers changed; no exact operand-equivalence claim is made."
+  ]
+}

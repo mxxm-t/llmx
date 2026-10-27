@@ -36,6 +36,7 @@ constexpr uint32_t GGML_TYPE_BF16 = 30;
 constexpr uint32_t GGML_TYPE_TQ1_0 = 34;
 constexpr uint32_t GGML_TYPE_TQ2_0 = 35;
 constexpr uint32_t GGML_TYPE_MXFP4 = 39;
+constexpr uint32_t GGML_TYPE_NVFP4 = 40;
 constexpr size_t   TQ1_0_BLOCK = 256;
 constexpr size_t   TQ1_0_TYPESIZE = 54;
 constexpr size_t   TQ2_0_BLOCK = 256;
@@ -82,6 +83,8 @@ constexpr size_t   IQ4_XS_TYPESIZE = 136; // f16 scale + eight 6-bit scales + 25
 
 constexpr size_t   MXFP4_BLOCK = 32;
 constexpr size_t   MXFP4_TYPESIZE = 17;   // E8M0 scale + 32 E2M1 nibbles
+constexpr size_t   NVFP4_BLOCK = 64;
+constexpr size_t   NVFP4_TYPESIZE = 36;   // four UE4M3 scales + four groups of 16 E2M1 nibbles
 
 struct StorageType {
     const char* name;
@@ -107,7 +110,7 @@ inline const StorageType* storage_type(uint32_t id) {
         {}, {}, {},
         {"TQ1_0", TQ1_0_BLOCK, TQ1_0_TYPESIZE}, {"TQ2_0", TQ2_0_BLOCK, TQ2_0_TYPESIZE},
         {}, {}, {},
-        {"MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE}, {"NVFP4", 64, 36},
+        {"MXFP4", MXFP4_BLOCK, MXFP4_TYPESIZE}, {"NVFP4", NVFP4_BLOCK, NVFP4_TYPESIZE},
         {"Q1_0", 128, 18}, {"Q2_0", 64, 18},
     };
     return id < sizeof(types) / sizeof(types[0]) && types[id].block_size ? &types[id] : nullptr;

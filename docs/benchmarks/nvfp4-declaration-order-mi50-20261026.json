@@ -1,0 +1,2974 @@
+{
+  "scope": "Restore preexisting non-NVFP4 row-address declaration order; MI50 native and effective-ISA comparison. Windows validation pending.",
+  "base_runtime": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+  "integrated_parent": "ae5b79518",
+  "corrected_shader_sha256": "bb114dbd2dfce573fda8ccfeb0d738f348fb2301b2a1a8d29f5f081941cbf07d",
+  "build_verification": {
+    "schema": "paired-linux-build-independent-verification-v1",
+    "checks": {
+      "launch_exit_0": true,
+      "launch_cleanup_verified": true,
+      "build_result_sha_matches_launcher": true,
+      "build_passed_without_tests": true,
+      "main_source_manifest_matches_pins": true,
+      "main_all_targets_present": true,
+      "candidate_source_manifest_matches_pins": true,
+      "candidate_all_targets_present": true,
+      "candidate_version": true,
+      "nvfp4_module_count": true,
+      "nvfp4_modules_verified_by_build": true,
+      "module_matmul_row_nvfp4.inc_same_bytes": true,
+      "module_matmul_row_nvfp4_preserve.inc_same_bytes": true,
+      "module_matmul_tile_nvfp4.inc_same_bytes": true,
+      "module_matmul_tile_nvfp4_bf16.inc_same_bytes": true,
+      "module_matmul_tile_nvfp4_bf16_preserve.inc_same_bytes": true,
+      "module_matmul_tile_nvfp4_f16.inc_same_bytes": true,
+      "module_matmul_tile_nvfp4_preserve.inc_same_bytes": true,
+      "log_main_configure_copied_hash_matches": true,
+      "log_main_build_copied_hash_matches": true,
+      "log_candidate_configure_copied_hash_matches": true,
+      "log_candidate_build_copied_hash_matches": true
+    },
+    "passed": true,
+    "binary_pins": {
+      "main": {
+        "llmx-backend-vulkan-test": {
+          "path": "main/build/llmx-backend-vulkan-test",
+          "bytes": 10714576,
+          "sha256": "cd122e53a481b659e11d5162d46aadcf1959e0210540281cdb853acef6027478"
+        }
+      },
+      "candidate": {
+        "llmx-backend-vulkan-test": {
+          "path": "candidate/build/llmx-backend-vulkan-test",
+          "bytes": 10873864,
+          "sha256": "67f6c589a4d2c5ae86a6689360d530210e02060cfda3eeb3aa21e1ac4340d936"
+        },
+        "llmx": {
+          "path": "candidate/build/llmx",
+          "bytes": 13156128,
+          "sha256": "5b46cd654f2ce16045e469238cf5af5e389d23f67e74b7c3efd9a58f5188bb49"
+        },
+        "llmx-model-logits": {
+          "path": "candidate/build/llmx-model-logits",
+          "bytes": 11252776,
+          "sha256": "a7537945636fcb864184aa8ef2142ff94045f2ac90ac0fd7829b9f505a6d85f4"
+        },
+        "llmx-nvfp4-test": {
+          "path": "candidate/build/llmx-nvfp4-test",
+          "bytes": 10064512,
+          "sha256": "c0ade870582495f9101e1af1cbdde81e04eae509abf138053bfa5c0151056201"
+        }
+      }
+    },
+    "nvfp4_module_hashes": {
+      "matmul_row_nvfp4.inc": "0951473654a47cf25fb3b60bea28416b57f61ded558f0eb625eadf30fa27097b",
+      "matmul_row_nvfp4_preserve.inc": "c99918df23ce24a38810f704c8ff9816983ff7e71818701b1470871c58951574",
+      "matmul_tile_nvfp4.inc": "5a57581e60c0718bb5ea338387e2902bf351ee34050c677c60e57005fc79b961",
+      "matmul_tile_nvfp4_bf16.inc": "0efd3eb195e027270e1930cd0eef2978ce94cbf876b2cc0077a8375a17c37fec",
+      "matmul_tile_nvfp4_bf16_preserve.inc": "587d04b50d952c1fdce4e7bd22c7555db983b1c420ef5db179f6f8073587ccce",
+      "matmul_tile_nvfp4_f16.inc": "db159847fbc8c5d8b4b9f525b8518c21fc40e229c8b113c7c7a86802370d455a",
+      "matmul_tile_nvfp4_preserve.inc": "388b32e46a74fb088f784aa9255bda72f05ef5852754543ec8bdda2e91252dcd"
+    }
+  },
+  "controller": {
+    "schema": "nvfp4-shader-order-linux-isa-run-v1",
+    "status": "complete",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "gpu": {
+      "node": "renderD130",
+      "pci": "0000:c9:00.0",
+      "free_before_create": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      }
+    },
+    "cpuset": "8,9",
+    "host_mem_available_bytes": 10618372096,
+    "peer_containers": [
+      {
+        "name": "llmx-ldev-spg3-s1-m",
+        "cpuset": "4-7,12-15",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-ldev-rsfull",
+        "cpuset": "2-3,10-11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-gate-sp-run",
+        "cpuset": "2,3,10,11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-vdev-hold",
+        "cpuset": "2,3,10,11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-gate-el-build",
+        "cpuset": "2,3,10,11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-sdev-b12",
+        "cpuset": "2,3,10,11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-gate-dds-run",
+        "cpuset": "2,3,10,11",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-health-dashboard",
+        "cpuset": null,
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-serve",
+        "cpuset": null,
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "llmx-xdev-flash-20261015",
+        "cpuset": "0-1",
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "open-webui",
+        "cpuset": null,
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "cdev-abc-run2",
+        "cpuset": null,
+        "overlap": [],
+        "processes": null
+      },
+      {
+        "name": "portainer",
+        "cpuset": null,
+        "overlap": [],
+        "processes": null
+      }
+    ],
+    "build_result_sha256": "02ccdf720c9ca76decdc331f43b13996d827c76959db12c142b23e52c76203a2",
+    "binary_sha256": {
+      "main": "cd122e53a481b659e11d5162d46aadcf1959e0210540281cdb853acef6027478",
+      "candidate": "67f6c589a4d2c5ae86a6689360d530210e02060cfda3eeb3aa21e1ac4340d936"
+    },
+    "nvfp4_module_sha256": {
+      "matmul_row_nvfp4.inc": "0951473654a47cf25fb3b60bea28416b57f61ded558f0eb625eadf30fa27097b",
+      "matmul_row_nvfp4_preserve.inc": "c99918df23ce24a38810f704c8ff9816983ff7e71818701b1470871c58951574",
+      "matmul_tile_nvfp4.inc": "5a57581e60c0718bb5ea338387e2902bf351ee34050c677c60e57005fc79b961",
+      "matmul_tile_nvfp4_bf16.inc": "0efd3eb195e027270e1930cd0eef2978ce94cbf876b2cc0077a8375a17c37fec",
+      "matmul_tile_nvfp4_bf16_preserve.inc": "587d04b50d952c1fdce4e7bd22c7555db983b1c420ef5db179f6f8073587ccce",
+      "matmul_tile_nvfp4_f16.inc": "db159847fbc8c5d8b4b9f525b8518c21fc40e229c8b113c7c7a86802370d455a",
+      "matmul_tile_nvfp4_preserve.inc": "388b32e46a74fb088f784aa9255bda72f05ef5852754543ec8bdda2e91252dcd"
+    },
+    "started_unix": 1793056390.008579,
+    "calls": [],
+    "container_id": "d8a06906683ae00b1a0005c9ea5867a956e6b42a19db0ddccd5886c06d0177c6",
+    "controller_pid": 3577078,
+    "container_create_argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-nvfp4-decl-isa-v2",
+      "--label",
+      "llmx.nvfp4.declaration.restore.isa.v2=owned",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "8,9",
+      "--cpus",
+      "2",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0:0",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "--device",
+      "/dev/dri/renderD130",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/main/build:/main:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/candidate/build:/candidate:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/main/source:/work/main/source:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/candidate/source:/work/candidate/source:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/isa-run-v2:/bundle:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/non-nv-declaration-restore-linux-v1/isa-run-v2/output:/out:rw",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "container_name": "llmx-nvfp4-decl-isa-v2",
+    "container_label": "llmx.nvfp4.declaration.restore.isa.v2=owned",
+    "worker_argv": [
+      "docker",
+      "exec",
+      "d8a06906683ae00b1a0005c9ea5867a956e6b42a19db0ddccd5886c06d0177c6",
+      "bash",
+      "/bundle/inside-run.sh"
+    ],
+    "docker_exec_pid": 3577394,
+    "worker_exit_code": 0,
+    "worker_started_unix": 1793056390.1976457,
+    "worker_ended_unix": 1793056516.1142516,
+    "run_summary": {
+      "schema": "nvfp4-shader-order-linux-isa-pair-v1",
+      "device": "GPU8 / renderD130",
+      "arms": {
+        "main": {
+          "start_utc": "2026-10-26T23:13:10Z",
+          "end_utc": "2026-10-26T23:14:12Z",
+          "exit_code": 0,
+          "binary_sha256_line": "cd122e53a481b659e11d5162d46aadcf1959e0210540281cdb853acef6027478  /main/llmx-backend-vulkan-test",
+          "isa_file_count": 295
+        },
+        "candidate": {
+          "start_utc": "2026-10-26T23:14:12Z",
+          "end_utc": "2026-10-26T23:15:15Z",
+          "exit_code": 0,
+          "binary_sha256_line": "67f6c589a4d2c5ae86a6689360d530210e02060cfda3eeb3aa21e1ac4340d936  /candidate/llmx-backend-vulkan-test",
+          "isa_file_count": 304
+        }
+      },
+      "passed": true
+    },
+    "terminal_processes": "PID                 COMMAND\n3577378             docker-init\n3577393             sleep\n",
+    "active_child_commands": [
+      "docker-init",
+      "sleep"
+    ],
+    "container_removed": true,
+    "ended_unix": 1793056516.4087958
+  },
+  "effective_assembly": {
+    "shared_pipeline_count": 295,
+    "assembly_equal": 283,
+    "instruction_words_equal": 283,
+    "different_instruction_names": [
+      "embed.txt",
+      "embed_ids.txt",
+      "matmul_row_float_x.txt",
+      "matmul_row_float_x_1col.txt",
+      "matmul_row_float_x_grouped.txt",
+      "matmul_row_mxfp4_float_x.txt",
+      "matmul_row_mxfp4_float_x_1col.txt",
+      "matmul_tile.txt",
+      "matmul_tile_bf16_small.txt",
+      "matmul_tile_bf16_tall.txt",
+      "matmul_tile_small.txt",
+      "matmul_tile_tall.txt"
+    ],
+    "rows": [
+      {
+        "name": "add.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 14,
+        "candidate_instruction_lines": 14,
+        "main_assembly_sha256": "4f0204e75aec4359e3e833cc31b0c5d2169d503a603185f6ba675dc2496bfe01",
+        "candidate_assembly_sha256": "4f0204e75aec4359e3e833cc31b0c5d2169d503a603185f6ba675dc2496bfe01"
+      },
+      {
+        "name": "add_bias.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 44,
+        "candidate_instruction_lines": 44,
+        "main_assembly_sha256": "8ae7b97ae2a9eb9b2b035c79c53a83c5ee667463ff4041fba48e078e878e8e60",
+        "candidate_assembly_sha256": "8ae7b97ae2a9eb9b2b035c79c53a83c5ee667463ff4041fba48e078e878e8e60"
+      },
+      {
+        "name": "argmax_rows.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 559,
+        "candidate_instruction_lines": 559,
+        "main_assembly_sha256": "e7e6e345afb92369f3e738b70f6943d25510354cc730837016bb524d7db22764",
+        "candidate_assembly_sha256": "e7e6e345afb92369f3e738b70f6943d25510354cc730837016bb524d7db22764"
+      },
+      {
+        "name": "attention.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1150,
+        "candidate_instruction_lines": 1150,
+        "main_assembly_sha256": "003da768c63e3576f360c017a1a5b735f09738d2fd5327f4832d10348058843f",
+        "candidate_assembly_sha256": "003da768c63e3576f360c017a1a5b735f09738d2fd5327f4832d10348058843f"
+      },
+      {
+        "name": "attention_full_tile_d64.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2967,
+        "candidate_instruction_lines": 2967,
+        "main_assembly_sha256": "9848370a166252759587e08f813228cbc2184af9083626584d3ebb9774cdf29b",
+        "candidate_assembly_sha256": "9848370a166252759587e08f813228cbc2184af9083626584d3ebb9774cdf29b"
+      },
+      {
+        "name": "attention_full_tile_d72.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2775,
+        "candidate_instruction_lines": 2775,
+        "main_assembly_sha256": "750518cd4a0e0521b90923772ffd8dfda85af7bbce815ea98686e71e0c07eab3",
+        "candidate_assembly_sha256": "750518cd4a0e0521b90923772ffd8dfda85af7bbce815ea98686e71e0c07eab3"
+      },
+      {
+        "name": "attention_full_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1792,
+        "candidate_instruction_lines": 1792,
+        "main_assembly_sha256": "f80bf5800a26e1779e5fe4e66d8977a6d9abb4222cbe249dc0aa253442ef83f4",
+        "candidate_assembly_sha256": "f80bf5800a26e1779e5fe4e66d8977a6d9abb4222cbe249dc0aa253442ef83f4"
+      },
+      {
+        "name": "attention_g4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3847,
+        "candidate_instruction_lines": 3847,
+        "main_assembly_sha256": "a869101922ae4e26960d5b1b075b36f520ac8198c179d23311598f990319876c",
+        "candidate_assembly_sha256": "a869101922ae4e26960d5b1b075b36f520ac8198c179d23311598f990319876c"
+      },
+      {
+        "name": "attention_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 6453,
+        "candidate_instruction_lines": 6453,
+        "main_assembly_sha256": "52595cbf6ba9ec1da4fa2338505d3c60af1408a0a30abddedfeed743ef43e043",
+        "candidate_assembly_sha256": "52595cbf6ba9ec1da4fa2338505d3c60af1408a0a30abddedfeed743ef43e043"
+      },
+      {
+        "name": "attention_k16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1168,
+        "candidate_instruction_lines": 1168,
+        "main_assembly_sha256": "b2002edfe65c431109662d0469b50156d9a41607ad8e3d75036283649b616280",
+        "candidate_assembly_sha256": "b2002edfe65c431109662d0469b50156d9a41607ad8e3d75036283649b616280"
+      },
+      {
+        "name": "attention_k16_g4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3863,
+        "candidate_instruction_lines": 3863,
+        "main_assembly_sha256": "629de9d6eeeafc3da38311ac1fce4bc891ee9d327a1f6897187b9f914c62a596",
+        "candidate_assembly_sha256": "629de9d6eeeafc3da38311ac1fce4bc891ee9d327a1f6897187b9f914c62a596"
+      },
+      {
+        "name": "attention_k16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 6469,
+        "candidate_instruction_lines": 6469,
+        "main_assembly_sha256": "39c6060ed5177b842d722a9f263354a7a8b21b0ac4755dcd73e57aa341e14015",
+        "candidate_assembly_sha256": "39c6060ed5177b842d722a9f263354a7a8b21b0ac4755dcd73e57aa341e14015"
+      },
+      {
+        "name": "attention_k16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1810,
+        "candidate_instruction_lines": 1810,
+        "main_assembly_sha256": "a1e917848772b597703720173029cce7470fedbcf36011dae99a47dd7ab10b13",
+        "candidate_assembly_sha256": "a1e917848772b597703720173029cce7470fedbcf36011dae99a47dd7ab10b13"
+      },
+      {
+        "name": "attention_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1168,
+        "candidate_instruction_lines": 1168,
+        "main_assembly_sha256": "cd789de1be98f9296fc17af9936fdf07afc0e2773200c38bd50058fff911d4e4",
+        "candidate_assembly_sha256": "cd789de1be98f9296fc17af9936fdf07afc0e2773200c38bd50058fff911d4e4"
+      },
+      {
+        "name": "attention_kv16_g4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3862,
+        "candidate_instruction_lines": 3862,
+        "main_assembly_sha256": "988d969d3eecc29b9bd24b377bc421a5e8bf4737c64c5eecbbaf98963ea21578",
+        "candidate_assembly_sha256": "988d969d3eecc29b9bd24b377bc421a5e8bf4737c64c5eecbbaf98963ea21578"
+      },
+      {
+        "name": "attention_kv16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 6468,
+        "candidate_instruction_lines": 6468,
+        "main_assembly_sha256": "5aff8c0a220e314d488a9702116bb6c02aca4b6a7e95502c8a085cb3e71e6d6c",
+        "candidate_assembly_sha256": "5aff8c0a220e314d488a9702116bb6c02aca4b6a7e95502c8a085cb3e71e6d6c"
+      },
+      {
+        "name": "attention_kv16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1803,
+        "candidate_instruction_lines": 1803,
+        "main_assembly_sha256": "bf384085235b93ab03f076d8e31e6cc1f62c37c17989a55824b21d77c1d23257",
+        "candidate_assembly_sha256": "bf384085235b93ab03f076d8e31e6cc1f62c37c17989a55824b21d77c1d23257"
+      },
+      {
+        "name": "attention_merge.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 956,
+        "candidate_instruction_lines": 956,
+        "main_assembly_sha256": "b6c380c876393cfb91ba9b9085da37caf0d884c8bb7b5ec3767bf912050f1779",
+        "candidate_assembly_sha256": "b6c380c876393cfb91ba9b9085da37caf0d884c8bb7b5ec3767bf912050f1779"
+      },
+      {
+        "name": "attention_merge_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1591,
+        "candidate_instruction_lines": 1591,
+        "main_assembly_sha256": "c48498b131d7fcf437b737c2c3306b479da48f8a764c4b16f16265bf2cf9d332",
+        "candidate_assembly_sha256": "c48498b131d7fcf437b737c2c3306b479da48f8a764c4b16f16265bf2cf9d332"
+      },
+      {
+        "name": "attention_tile.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2153,
+        "candidate_instruction_lines": 2153,
+        "main_assembly_sha256": "5ca82cf2a45357781435a2f15ed84e41c4255292f273d1884f3484109f026259",
+        "candidate_assembly_sha256": "5ca82cf2a45357781435a2f15ed84e41c4255292f273d1884f3484109f026259"
+      },
+      {
+        "name": "attention_tile_d256.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2236,
+        "candidate_instruction_lines": 2236,
+        "main_assembly_sha256": "a91cfe5982b1036ace95a7f8c441676fcb5cfcbbd3823011770ef3630ae5dba7",
+        "candidate_assembly_sha256": "a91cfe5982b1036ace95a7f8c441676fcb5cfcbbd3823011770ef3630ae5dba7"
+      },
+      {
+        "name": "attention_tile_d256_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2252,
+        "candidate_instruction_lines": 2252,
+        "main_assembly_sha256": "af3e20156f883a2a08d7a60ac235302c4947763f109c39ff7035e5415e093054",
+        "candidate_assembly_sha256": "af3e20156f883a2a08d7a60ac235302c4947763f109c39ff7035e5415e093054"
+      },
+      {
+        "name": "attention_tile_d256_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3104,
+        "candidate_instruction_lines": 3104,
+        "main_assembly_sha256": "e35a6d1d2459c2fd85d7305a0f61b6887e145314db3e509a35cabfe45aa4f150",
+        "candidate_assembly_sha256": "e35a6d1d2459c2fd85d7305a0f61b6887e145314db3e509a35cabfe45aa4f150"
+      },
+      {
+        "name": "attention_tile_k16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2163,
+        "candidate_instruction_lines": 2163,
+        "main_assembly_sha256": "81b3d51dd2e7f5587ca97dd686df639e75a29eead3ef740c5d7ac5eb625ae8f5",
+        "candidate_assembly_sha256": "81b3d51dd2e7f5587ca97dd686df639e75a29eead3ef740c5d7ac5eb625ae8f5"
+      },
+      {
+        "name": "attention_tile_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2169,
+        "candidate_instruction_lines": 2169,
+        "main_assembly_sha256": "2c59225729a6feb097e6686311a959c4e2676b358294727e44c07f0e876d9a38",
+        "candidate_assembly_sha256": "2c59225729a6feb097e6686311a959c4e2676b358294727e44c07f0e876d9a38"
+      },
+      {
+        "name": "attention_tile_kv16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3036,
+        "candidate_instruction_lines": 3036,
+        "main_assembly_sha256": "b85adfa7cf3a65b75ecfc4f944a8e4341a0a401cb742aa42196da79ada4e8591",
+        "candidate_assembly_sha256": "b85adfa7cf3a65b75ecfc4f944a8e4341a0a401cb742aa42196da79ada4e8591"
+      },
+      {
+        "name": "attention_tile_v16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2162,
+        "candidate_instruction_lines": 2162,
+        "main_assembly_sha256": "9aea0ae5653285179e8458d21f5dba3d3caf23d2732fad22c1a8184d1774b715",
+        "candidate_assembly_sha256": "9aea0ae5653285179e8458d21f5dba3d3caf23d2732fad22c1a8184d1774b715"
+      },
+      {
+        "name": "attention_tile_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3020,
+        "candidate_instruction_lines": 3020,
+        "main_assembly_sha256": "9ab7f8bd132f017b00df06c7a08efd5516cb881451af495cfc1f374512804043",
+        "candidate_assembly_sha256": "9ab7f8bd132f017b00df06c7a08efd5516cb881451af495cfc1f374512804043"
+      },
+      {
+        "name": "attention_v16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1164,
+        "candidate_instruction_lines": 1164,
+        "main_assembly_sha256": "6ad556cbb5ef07ef47150f3a338eecb8864ca3f342e02910ca97882febbe86d9",
+        "candidate_assembly_sha256": "6ad556cbb5ef07ef47150f3a338eecb8864ca3f342e02910ca97882febbe86d9"
+      },
+      {
+        "name": "attention_v16_g4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3858,
+        "candidate_instruction_lines": 3858,
+        "main_assembly_sha256": "8c3cf706d8e89b161293d90e4cf2d7073ed9cd62e3d9e5387732f9b7765eb460",
+        "candidate_assembly_sha256": "8c3cf706d8e89b161293d90e4cf2d7073ed9cd62e3d9e5387732f9b7765eb460"
+      },
+      {
+        "name": "attention_v16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 6464,
+        "candidate_instruction_lines": 6464,
+        "main_assembly_sha256": "82976bcc2f7fd59ed6d8e7bb006f0f6a3f92ad6b43de98d63f603f50d62f7d11",
+        "candidate_assembly_sha256": "82976bcc2f7fd59ed6d8e7bb006f0f6a3f92ad6b43de98d63f603f50d62f7d11"
+      },
+      {
+        "name": "attention_v16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1799,
+        "candidate_instruction_lines": 1799,
+        "main_assembly_sha256": "88cd45302be1cfe3acea48949e77a4add03fdbbee8f4156bc39bd7c9159ac9f4",
+        "candidate_assembly_sha256": "88cd45302be1cfe3acea48949e77a4add03fdbbee8f4156bc39bd7c9159ac9f4"
+      },
+      {
+        "name": "attention_vec.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1261,
+        "candidate_instruction_lines": 1261,
+        "main_assembly_sha256": "7b6be1108c534ea022e13fece36272e4157e1f8e178335c2e67f5c405130222c",
+        "candidate_assembly_sha256": "7b6be1108c534ea022e13fece36272e4157e1f8e178335c2e67f5c405130222c"
+      },
+      {
+        "name": "attention_vec_d256_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7127,
+        "candidate_instruction_lines": 7127,
+        "main_assembly_sha256": "61b4a4a8fb5724c6dea1db1a4d80802a470693d6b3282d75d9695b2fad9ef358",
+        "candidate_assembly_sha256": "61b4a4a8fb5724c6dea1db1a4d80802a470693d6b3282d75d9695b2fad9ef358"
+      },
+      {
+        "name": "attention_vec_d256_k16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7148,
+        "candidate_instruction_lines": 7148,
+        "main_assembly_sha256": "b343bd639df5e6e6a40feccb42e07c9725f3021e681509be9f6f05f4b87cddc6",
+        "candidate_assembly_sha256": "b343bd639df5e6e6a40feccb42e07c9725f3021e681509be9f6f05f4b87cddc6"
+      },
+      {
+        "name": "attention_vec_d256_k16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1779,
+        "candidate_instruction_lines": 1779,
+        "main_assembly_sha256": "661de1dea7b6646dcb73667783caf0ed583e755ca4f94078efb3c086e73f8e1b",
+        "candidate_assembly_sha256": "661de1dea7b6646dcb73667783caf0ed583e755ca4f94078efb3c086e73f8e1b"
+      },
+      {
+        "name": "attention_vec_d256_kv16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7140,
+        "candidate_instruction_lines": 7140,
+        "main_assembly_sha256": "ac3a847b68d90b0d6c393a45cea1c5918106a3e05ccfb18ac4a74aef26254ca1",
+        "candidate_assembly_sha256": "ac3a847b68d90b0d6c393a45cea1c5918106a3e05ccfb18ac4a74aef26254ca1"
+      },
+      {
+        "name": "attention_vec_d256_kv16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1784,
+        "candidate_instruction_lines": 1784,
+        "main_assembly_sha256": "cb2ce9be8da02780c8ed28c98707d5a28ac1991d0e81bd14f70915a3662ff223",
+        "candidate_assembly_sha256": "cb2ce9be8da02780c8ed28c98707d5a28ac1991d0e81bd14f70915a3662ff223"
+      },
+      {
+        "name": "attention_vec_d256_v16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7122,
+        "candidate_instruction_lines": 7122,
+        "main_assembly_sha256": "830cfb6e0355f462b4c5a45710b59abe2e13b87ef0f34e900aa5875eebad7624",
+        "candidate_assembly_sha256": "830cfb6e0355f462b4c5a45710b59abe2e13b87ef0f34e900aa5875eebad7624"
+      },
+      {
+        "name": "attention_vec_d256_v16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1780,
+        "candidate_instruction_lines": 1780,
+        "main_assembly_sha256": "a47dae2ed21ffd39569e56b86c5b2685ac373dce77ad587acba4a7a80b1d441b",
+        "candidate_assembly_sha256": "a47dae2ed21ffd39569e56b86c5b2685ac373dce77ad587acba4a7a80b1d441b"
+      },
+      {
+        "name": "attention_vec_d256_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1772,
+        "candidate_instruction_lines": 1772,
+        "main_assembly_sha256": "6e95146bc3ad8d34dffc879dd175c1d17c893e9d7d20e613d8d6f8d96edc1b61",
+        "candidate_assembly_sha256": "6e95146bc3ad8d34dffc879dd175c1d17c893e9d7d20e613d8d6f8d96edc1b61"
+      },
+      {
+        "name": "attention_vec_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7637,
+        "candidate_instruction_lines": 7637,
+        "main_assembly_sha256": "073960bc795eccdfbe32fcd3fa6808788a85eb88da6008fc707e4694e5da3151",
+        "candidate_assembly_sha256": "073960bc795eccdfbe32fcd3fa6808788a85eb88da6008fc707e4694e5da3151"
+      },
+      {
+        "name": "attention_vec_k16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7660,
+        "candidate_instruction_lines": 7660,
+        "main_assembly_sha256": "65ecf8b552c78452b8271fccbf2ff696cd1b728bd80d5db6e3547750f08b0ea1",
+        "candidate_assembly_sha256": "65ecf8b552c78452b8271fccbf2ff696cd1b728bd80d5db6e3547750f08b0ea1"
+      },
+      {
+        "name": "attention_vec_k16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1905,
+        "candidate_instruction_lines": 1905,
+        "main_assembly_sha256": "74d98a18a3df17ad7814c6f72721a56e2504b4da1774fb4820a074d7ea22871f",
+        "candidate_assembly_sha256": "74d98a18a3df17ad7814c6f72721a56e2504b4da1774fb4820a074d7ea22871f"
+      },
+      {
+        "name": "attention_vec_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1274,
+        "candidate_instruction_lines": 1274,
+        "main_assembly_sha256": "fc1fda9db16af3d03985d5b153b4997b4282c7340b62c4545cd76853a07b9042",
+        "candidate_assembly_sha256": "fc1fda9db16af3d03985d5b153b4997b4282c7340b62c4545cd76853a07b9042"
+      },
+      {
+        "name": "attention_vec_kv16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7664,
+        "candidate_instruction_lines": 7664,
+        "main_assembly_sha256": "2f6d76dc09e52c8a49f7aa36360523d1cc7379f3511e781cffeaef46b9018a53",
+        "candidate_assembly_sha256": "2f6d76dc09e52c8a49f7aa36360523d1cc7379f3511e781cffeaef46b9018a53"
+      },
+      {
+        "name": "attention_vec_kv16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1909,
+        "candidate_instruction_lines": 1909,
+        "main_assembly_sha256": "1d5358ae6bdc76a9961ca66f13bda4f7847cc727e59b046bb73a96c9a4b7b034",
+        "candidate_assembly_sha256": "1d5358ae6bdc76a9961ca66f13bda4f7847cc727e59b046bb73a96c9a4b7b034"
+      },
+      {
+        "name": "attention_vec_v16_g4_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 7647,
+        "candidate_instruction_lines": 7647,
+        "main_assembly_sha256": "a21f5bde669857a7b31cafe36d019ee4331f649e3811f983819023b1d04ae351",
+        "candidate_assembly_sha256": "a21f5bde669857a7b31cafe36d019ee4331f649e3811f983819023b1d04ae351"
+      },
+      {
+        "name": "attention_vec_v16_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1905,
+        "candidate_instruction_lines": 1905,
+        "main_assembly_sha256": "4644436eb353a929e55b302033f5757c97d5d47b08ce4ed03344812ca56a803a",
+        "candidate_assembly_sha256": "4644436eb353a929e55b302033f5757c97d5d47b08ce4ed03344812ca56a803a"
+      },
+      {
+        "name": "attention_vec_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1896,
+        "candidate_instruction_lines": 1896,
+        "main_assembly_sha256": "34a5f9b5a87690060b9012cfec773fa8db391e377dc49c3cbd0b522231fe57bc",
+        "candidate_assembly_sha256": "34a5f9b5a87690060b9012cfec773fa8db391e377dc49c3cbd0b522231fe57bc"
+      },
+      {
+        "name": "attention_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1793,
+        "candidate_instruction_lines": 1793,
+        "main_assembly_sha256": "5c2889add061c7136e45f4948ca6e59b153997766ec1a7b6f957ea5a7583fb04",
+        "candidate_assembly_sha256": "5c2889add061c7136e45f4948ca6e59b153997766ec1a7b6f957ea5a7583fb04"
+      },
+      {
+        "name": "causal_conv_silu.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 240,
+        "candidate_instruction_lines": 240,
+        "main_assembly_sha256": "2697a403cf6199e7a7da4dc349b7bd25e6e5db98254757ccebef97907c921754",
+        "candidate_assembly_sha256": "2697a403cf6199e7a7da4dc349b7bd25e6e5db98254757ccebef97907c921754"
+      },
+      {
+        "name": "copy_mxfp4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 121,
+        "candidate_instruction_lines": 121,
+        "main_assembly_sha256": "e50e58c2fb9b13462a30c698725234ec5246c6336bd300797c148fd68934b233",
+        "candidate_assembly_sha256": "e50e58c2fb9b13462a30c698725234ec5246c6336bd300797c148fd68934b233"
+      },
+      {
+        "name": "delta_rule.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1230,
+        "candidate_instruction_lines": 1230,
+        "main_assembly_sha256": "bfa3a25e41bb625fad3c71ff23d1f211fbdf98dce02866769324c41f69ef2468",
+        "candidate_assembly_sha256": "bfa3a25e41bb625fad3c71ff23d1f211fbdf98dce02866769324c41f69ef2468"
+      },
+      {
+        "name": "delta_rule_short.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1603,
+        "candidate_instruction_lines": 1603,
+        "main_assembly_sha256": "727092f105844e90331e1f7bce8201a4a586fdaff78c92ea9f863bdb035a318b",
+        "candidate_assembly_sha256": "727092f105844e90331e1f7bce8201a4a586fdaff78c92ea9f863bdb035a318b"
+      },
+      {
+        "name": "embed.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 1231,
+        "candidate_instruction_lines": 1268,
+        "main_assembly_sha256": "599743914a0bddb5bfcc37cc9398b1faa28876a1ff30da3f4918388e1e2f8891",
+        "candidate_assembly_sha256": "67d327c994e787d1314a06ead5b3b2ede8b5f37fc435adec0d296805e6530f79"
+      },
+      {
+        "name": "embed_ids.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 1248,
+        "candidate_instruction_lines": 1286,
+        "main_assembly_sha256": "5c57918750e4d3fa76c974c2c07768e1c26b417eebfc56f7aaa59316aa0cc641",
+        "candidate_assembly_sha256": "40b3504c7ea6ac93b9b5f61006bfd4c8efcb87b242469f97073a148a44db9e6b"
+      },
+      {
+        "name": "embed_ids_mxfp4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 88,
+        "candidate_instruction_lines": 88,
+        "main_assembly_sha256": "5d436774d39eff221475426781e483c322d0a70ecc5ac6472792f70899dd4edc",
+        "candidate_assembly_sha256": "5d436774d39eff221475426781e483c322d0a70ecc5ac6472792f70899dd4edc"
+      },
+      {
+        "name": "embed_ids_wbf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 52,
+        "candidate_instruction_lines": 52,
+        "main_assembly_sha256": "0a9a898ac83616f1b9ca4fdf32de8b759f76f9a8c11cc7033211da15dc39566f",
+        "candidate_assembly_sha256": "0a9a898ac83616f1b9ca4fdf32de8b759f76f9a8c11cc7033211da15dc39566f"
+      },
+      {
+        "name": "embed_ids_wf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 84,
+        "candidate_instruction_lines": 84,
+        "main_assembly_sha256": "4cc73373d377731a3cdeed500bde46493ccf2601bf26db68494a451074c24bfa",
+        "candidate_assembly_sha256": "4cc73373d377731a3cdeed500bde46493ccf2601bf26db68494a451074c24bfa"
+      },
+      {
+        "name": "embed_mxfp4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 70,
+        "candidate_instruction_lines": 70,
+        "main_assembly_sha256": "884d0b1da0dac4f8af9dde4041f978a231a85ecef7189177c94df9186329fc91",
+        "candidate_assembly_sha256": "884d0b1da0dac4f8af9dde4041f978a231a85ecef7189177c94df9186329fc91"
+      },
+      {
+        "name": "embed_wbf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 35,
+        "candidate_instruction_lines": 35,
+        "main_assembly_sha256": "a78e59189b9a06e23c4594e4522cbca7a97357279bbb2284080fa203c8fdd55e",
+        "candidate_assembly_sha256": "a78e59189b9a06e23c4594e4522cbca7a97357279bbb2284080fa203c8fdd55e"
+      },
+      {
+        "name": "embed_wf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 67,
+        "candidate_instruction_lines": 67,
+        "main_assembly_sha256": "6dd0d51dcb796f44fe7e5a307d4779c2895641360540f28af785d2c658d18fe1",
+        "candidate_assembly_sha256": "6dd0d51dcb796f44fe7e5a307d4779c2895641360540f28af785d2c658d18fe1"
+      },
+      {
+        "name": "gated_rms_norm.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1784,
+        "candidate_instruction_lines": 1784,
+        "main_assembly_sha256": "b2c5edd962601e71e590883870eb1800b11fbb8bc41ae621b812a461b6c8e210",
+        "candidate_assembly_sha256": "b2c5edd962601e71e590883870eb1800b11fbb8bc41ae621b812a461b6c8e210"
+      },
+      {
+        "name": "gated_rms_norm_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3257,
+        "candidate_instruction_lines": 3257,
+        "main_assembly_sha256": "1f7e387a561969b79056bf608dbfbaad6c5a4fbcfd60f1c21705a423c71e220f",
+        "candidate_assembly_sha256": "1f7e387a561969b79056bf608dbfbaad6c5a4fbcfd60f1c21705a423c71e220f"
+      },
+      {
+        "name": "gather_rows.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 42,
+        "candidate_instruction_lines": 42,
+        "main_assembly_sha256": "a3cf0651bc186bf7d03ab57837201963dc318b29f83e47a5b0ae645a7520f1bf",
+        "candidate_assembly_sha256": "a3cf0651bc186bf7d03ab57837201963dc318b29f83e47a5b0ae645a7520f1bf"
+      },
+      {
+        "name": "gelu.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 64,
+        "candidate_instruction_lines": 64,
+        "main_assembly_sha256": "311671bf95275dc328f29ad578dba528729015fbf64fc8b9e8d43ed73682a5cc",
+        "candidate_assembly_sha256": "311671bf95275dc328f29ad578dba528729015fbf64fc8b9e8d43ed73682a5cc"
+      },
+      {
+        "name": "kv_write.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 126,
+        "candidate_instruction_lines": 126,
+        "main_assembly_sha256": "f0166a3a7b4e8ae1987e3661ac738881b5b56dd09170373b38b74a3e10518a2f",
+        "candidate_assembly_sha256": "f0166a3a7b4e8ae1987e3661ac738881b5b56dd09170373b38b74a3e10518a2f"
+      },
+      {
+        "name": "kv_write_k16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 186,
+        "candidate_instruction_lines": 186,
+        "main_assembly_sha256": "a48ffbe033734b0b83f52e1984fa0965c987a1f0cd707f3c03fda9c9d3822efb",
+        "candidate_assembly_sha256": "a48ffbe033734b0b83f52e1984fa0965c987a1f0cd707f3c03fda9c9d3822efb"
+      },
+      {
+        "name": "kv_write_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 245,
+        "candidate_instruction_lines": 245,
+        "main_assembly_sha256": "04d6dd53882d68ff5ae611e97cd6a4ff33d013cd19716507c023c38b6b15a9e6",
+        "candidate_assembly_sha256": "04d6dd53882d68ff5ae611e97cd6a4ff33d013cd19716507c023c38b6b15a9e6"
+      },
+      {
+        "name": "kv_write_v16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 187,
+        "candidate_instruction_lines": 187,
+        "main_assembly_sha256": "f7b23f156ccc42537dfc10a421a5d71ad5ec959246acad090cd3124b3239dfad",
+        "candidate_assembly_sha256": "f7b23f156ccc42537dfc10a421a5d71ad5ec959246acad090cd3124b3239dfad"
+      },
+      {
+        "name": "layer_norm_rows.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 225,
+        "candidate_instruction_lines": 225,
+        "main_assembly_sha256": "5fef2669a2a058679af27c2aa61f8bca30cc51e362e6a9b0e6112ee860e8d004",
+        "candidate_assembly_sha256": "5fef2669a2a058679af27c2aa61f8bca30cc51e362e6a9b0e6112ee860e8d004"
+      },
+      {
+        "name": "matmul_reduce.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 56,
+        "candidate_instruction_lines": 56,
+        "main_assembly_sha256": "06e762c3a2f013ec5dcdd49b80d1f6fc3bfb4c564ffd55454799386901d0a939",
+        "candidate_assembly_sha256": "06e762c3a2f013ec5dcdd49b80d1f6fc3bfb4c564ffd55454799386901d0a939"
+      },
+      {
+        "name": "matmul_reduce_mxfp4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 59,
+        "candidate_instruction_lines": 59,
+        "main_assembly_sha256": "339fac2ad9c1cdfb9b53e23fe045818eff1a5ab3cff222f84f38e644a575d912",
+        "candidate_assembly_sha256": "339fac2ad9c1cdfb9b53e23fe045818eff1a5ab3cff222f84f38e644a575d912"
+      },
+      {
+        "name": "matmul_row_f32.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1019,
+        "candidate_instruction_lines": 1019,
+        "main_assembly_sha256": "67af21ee5149e7d150024cf6ba9cecdf8ea40b0a9a47b24b9c4993a4ccb7467e",
+        "candidate_assembly_sha256": "67af21ee5149e7d150024cf6ba9cecdf8ea40b0a9a47b24b9c4993a4ccb7467e"
+      },
+      {
+        "name": "matmul_row_f32_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 499,
+        "candidate_instruction_lines": 499,
+        "main_assembly_sha256": "4b8c9e71d2751dfef75a7fbb96f71b3d4e4ada06e74d3e80dcd6338986363790",
+        "candidate_assembly_sha256": "4b8c9e71d2751dfef75a7fbb96f71b3d4e4ada06e74d3e80dcd6338986363790"
+      },
+      {
+        "name": "matmul_row_f32_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1393,
+        "candidate_instruction_lines": 1393,
+        "main_assembly_sha256": "72d6042123cdf0810c79d353224e68835bc0b4c29abad7f0ee977371dcad33fe",
+        "candidate_assembly_sha256": "72d6042123cdf0810c79d353224e68835bc0b4c29abad7f0ee977371dcad33fe"
+      },
+      {
+        "name": "matmul_row_float_x.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 1206,
+        "candidate_instruction_lines": 1307,
+        "main_assembly_sha256": "f5da4168a057b2e771e02bcf2681c169c22f13d254cbf16e5d99c0e0216bc964",
+        "candidate_assembly_sha256": "92c6a6381beb2d55bc98e0f14e64bc1369b9d3dd7612f24aa74c70f497642705"
+      },
+      {
+        "name": "matmul_row_float_x_1col.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 1110,
+        "candidate_instruction_lines": 1210,
+        "main_assembly_sha256": "ff7db3aa1c9dc0a64f684836ce23f1f3bc3013c47e9529b80133e5cc3829c498",
+        "candidate_assembly_sha256": "58101777d053b24e244b9658e340f6bab2ac0d5c7996cfa4a9201cb655fa1d48"
+      },
+      {
+        "name": "matmul_row_float_x_grouped.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 1300,
+        "candidate_instruction_lines": 1397,
+        "main_assembly_sha256": "3ea666826a12b275cdb832c2aff2da526835f7dce65c18e8d843fff6a0f53683",
+        "candidate_assembly_sha256": "94085f7dfa149e615ea59b0a46e201c3af46de24167fd39369bff4e61f76c271"
+      },
+      {
+        "name": "matmul_row_k4_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1864,
+        "candidate_instruction_lines": 1864,
+        "main_assembly_sha256": "f7f7cecf27e55df0a35e805bbf20e1196d79afbc3b1b70bf88d2777b22c77835",
+        "candidate_assembly_sha256": "f7f7cecf27e55df0a35e805bbf20e1196d79afbc3b1b70bf88d2777b22c77835"
+      },
+      {
+        "name": "matmul_row_k4_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 338,
+        "candidate_instruction_lines": 338,
+        "main_assembly_sha256": "e84b2ec39c6e30d8c13c57dc09fbf7ec1faba8621146b75db6a48e3fb6f2a9ed",
+        "candidate_assembly_sha256": "e84b2ec39c6e30d8c13c57dc09fbf7ec1faba8621146b75db6a48e3fb6f2a9ed"
+      },
+      {
+        "name": "matmul_row_k4_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 588,
+        "candidate_instruction_lines": 588,
+        "main_assembly_sha256": "4d1a095cc6d4301b211b5c85d0da2100d05899164a45d40cc4680c9d5a1faf76",
+        "candidate_assembly_sha256": "4d1a095cc6d4301b211b5c85d0da2100d05899164a45d40cc4680c9d5a1faf76"
+      },
+      {
+        "name": "matmul_row_k4_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 754,
+        "candidate_instruction_lines": 754,
+        "main_assembly_sha256": "c2c0c534ad194f65ef1b5122a2f461773a9e992de7615b32eef0771ec825fccd",
+        "candidate_assembly_sha256": "c2c0c534ad194f65ef1b5122a2f461773a9e992de7615b32eef0771ec825fccd"
+      },
+      {
+        "name": "matmul_row_k4_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1124,
+        "candidate_instruction_lines": 1124,
+        "main_assembly_sha256": "a6b8fd78caed2767c8d61085229a021eeed971edf147ec88e05b12e016f09f81",
+        "candidate_assembly_sha256": "a6b8fd78caed2767c8d61085229a021eeed971edf147ec88e05b12e016f09f81"
+      },
+      {
+        "name": "matmul_row_k4_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 439,
+        "candidate_instruction_lines": 439,
+        "main_assembly_sha256": "0b7024a8f690890a769ff9b4f1f0795f947f013ef8a7a309c1b083fc5dc84906",
+        "candidate_assembly_sha256": "0b7024a8f690890a769ff9b4f1f0795f947f013ef8a7a309c1b083fc5dc84906"
+      },
+      {
+        "name": "matmul_row_k4_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1386,
+        "candidate_instruction_lines": 1386,
+        "main_assembly_sha256": "92788a7b3c1553069a457f966c5648c53d1245c8cf314cfddb361d918a999858",
+        "candidate_assembly_sha256": "92788a7b3c1553069a457f966c5648c53d1245c8cf314cfddb361d918a999858"
+      },
+      {
+        "name": "matmul_row_k4_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 305,
+        "candidate_instruction_lines": 305,
+        "main_assembly_sha256": "dfc72405d34f3c6bff548d8cbd0d675693ce391c5d1e893296d8c9c2a5573259",
+        "candidate_assembly_sha256": "dfc72405d34f3c6bff548d8cbd0d675693ce391c5d1e893296d8c9c2a5573259"
+      },
+      {
+        "name": "matmul_row_k4_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 494,
+        "candidate_instruction_lines": 494,
+        "main_assembly_sha256": "5745fb58c3b086f0a19d08e3dfd585dfed1c943b7ed8efc6263d808bd82f3c34",
+        "candidate_assembly_sha256": "5745fb58c3b086f0a19d08e3dfd585dfed1c943b7ed8efc6263d808bd82f3c34"
+      },
+      {
+        "name": "matmul_row_k4_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 613,
+        "candidate_instruction_lines": 613,
+        "main_assembly_sha256": "e28829dab6c491394017c1f7a61163dc8e451cd987e2357ad09937d9915fd508",
+        "candidate_assembly_sha256": "e28829dab6c491394017c1f7a61163dc8e451cd987e2357ad09937d9915fd508"
+      },
+      {
+        "name": "matmul_row_k4_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 859,
+        "candidate_instruction_lines": 859,
+        "main_assembly_sha256": "a75f3fa0f286de7f66ad12359d7811b72edbd2353414368af18ce755bcb88f3c",
+        "candidate_assembly_sha256": "a75f3fa0f286de7f66ad12359d7811b72edbd2353414368af18ce755bcb88f3c"
+      },
+      {
+        "name": "matmul_row_k4_i8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 675,
+        "candidate_instruction_lines": 675,
+        "main_assembly_sha256": "e2bdb79407a000fbca44d2ee74b941bfe491f14765edc2fcb75fe3d9bcdc394a",
+        "candidate_assembly_sha256": "e2bdb79407a000fbca44d2ee74b941bfe491f14765edc2fcb75fe3d9bcdc394a"
+      },
+      {
+        "name": "matmul_row_k5_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1996,
+        "candidate_instruction_lines": 1996,
+        "main_assembly_sha256": "1f2dd8e9e3f2a0f02d3a19044f6b3435bca3e2d73ed4aa08631e37da8d3431dc",
+        "candidate_assembly_sha256": "1f2dd8e9e3f2a0f02d3a19044f6b3435bca3e2d73ed4aa08631e37da8d3431dc"
+      },
+      {
+        "name": "matmul_row_k5_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 398,
+        "candidate_instruction_lines": 398,
+        "main_assembly_sha256": "f791f55f658afb732ffe4d1035e9a13e556a0c8173545f5071af5b378ab6cb7c",
+        "candidate_assembly_sha256": "f791f55f658afb732ffe4d1035e9a13e556a0c8173545f5071af5b378ab6cb7c"
+      },
+      {
+        "name": "matmul_row_k5_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 701,
+        "candidate_instruction_lines": 701,
+        "main_assembly_sha256": "5154d1966f0d3fb2ca4f31cc99818f6a85a09a6b2bbe6a3763970b990e48b979",
+        "candidate_assembly_sha256": "5154d1966f0d3fb2ca4f31cc99818f6a85a09a6b2bbe6a3763970b990e48b979"
+      },
+      {
+        "name": "matmul_row_k5_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 868,
+        "candidate_instruction_lines": 868,
+        "main_assembly_sha256": "ec805c8b140520aabf53d483bf8c8f84a490ef9a62fe14f672411b781de9c06a",
+        "candidate_assembly_sha256": "ec805c8b140520aabf53d483bf8c8f84a490ef9a62fe14f672411b781de9c06a"
+      },
+      {
+        "name": "matmul_row_k5_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1241,
+        "candidate_instruction_lines": 1241,
+        "main_assembly_sha256": "b8b101d2010bd9be8dc8bde56d3c6b460114fb47aee4200d3799c13184c1db5d",
+        "candidate_assembly_sha256": "b8b101d2010bd9be8dc8bde56d3c6b460114fb47aee4200d3799c13184c1db5d"
+      },
+      {
+        "name": "matmul_row_k5_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 497,
+        "candidate_instruction_lines": 497,
+        "main_assembly_sha256": "e383af5ae82cf88c31c4e4b158d6001b0cddd0c115389e2958bba8f84b6726f1",
+        "candidate_assembly_sha256": "e383af5ae82cf88c31c4e4b158d6001b0cddd0c115389e2958bba8f84b6726f1"
+      },
+      {
+        "name": "matmul_row_k5_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1451,
+        "candidate_instruction_lines": 1451,
+        "main_assembly_sha256": "fb4463e97054912daf7af34a2d49aee249a37d315682e166e910f8495bb29745",
+        "candidate_assembly_sha256": "fb4463e97054912daf7af34a2d49aee249a37d315682e166e910f8495bb29745"
+      },
+      {
+        "name": "matmul_row_k5_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 364,
+        "candidate_instruction_lines": 364,
+        "main_assembly_sha256": "8125590dc989e0d5b0b9e141eba60af3a58492dd4e24ba706da63b5689303bf4",
+        "candidate_assembly_sha256": "8125590dc989e0d5b0b9e141eba60af3a58492dd4e24ba706da63b5689303bf4"
+      },
+      {
+        "name": "matmul_row_k5_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 614,
+        "candidate_instruction_lines": 614,
+        "main_assembly_sha256": "1a0b00b3eced430118d30bc8576192dbaa9960d8c9fd64d09b2bc98f6771dc7c",
+        "candidate_assembly_sha256": "1a0b00b3eced430118d30bc8576192dbaa9960d8c9fd64d09b2bc98f6771dc7c"
+      },
+      {
+        "name": "matmul_row_k5_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 727,
+        "candidate_instruction_lines": 727,
+        "main_assembly_sha256": "c39aa94a48d61d27951f337968649d8148419433f06914fc05deb41169d4e877",
+        "candidate_assembly_sha256": "c39aa94a48d61d27951f337968649d8148419433f06914fc05deb41169d4e877"
+      },
+      {
+        "name": "matmul_row_k5_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 976,
+        "candidate_instruction_lines": 976,
+        "main_assembly_sha256": "38aeedf6913ede69dbe8b3f8cf71252f5c9065a3140ad8e6591c0bcda294fd74",
+        "candidate_assembly_sha256": "38aeedf6913ede69dbe8b3f8cf71252f5c9065a3140ad8e6591c0bcda294fd74"
+      },
+      {
+        "name": "matmul_row_k5_i8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 465,
+        "candidate_instruction_lines": 465,
+        "main_assembly_sha256": "1277a984800aa04555f8dd473ffae3925996135af685e0a1817f3d83b437d471",
+        "candidate_assembly_sha256": "1277a984800aa04555f8dd473ffae3925996135af685e0a1817f3d83b437d471"
+      },
+      {
+        "name": "matmul_row_k_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2219,
+        "candidate_instruction_lines": 2219,
+        "main_assembly_sha256": "5e328e036445ee157ec2e7bf3b9fc0b92da604e81a80ccf0474b3cf39ed275e3",
+        "candidate_assembly_sha256": "5e328e036445ee157ec2e7bf3b9fc0b92da604e81a80ccf0474b3cf39ed275e3"
+      },
+      {
+        "name": "matmul_row_k_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 472,
+        "candidate_instruction_lines": 472,
+        "main_assembly_sha256": "c1fcb3bd98aa037c1ee4ba1410004c93132339c2bb11925880caec629502d22c",
+        "candidate_assembly_sha256": "c1fcb3bd98aa037c1ee4ba1410004c93132339c2bb11925880caec629502d22c"
+      },
+      {
+        "name": "matmul_row_k_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 829,
+        "candidate_instruction_lines": 829,
+        "main_assembly_sha256": "32ca607c5f76a4fb436a195c6fa35ca8bced9407cb7fd4531a41930c95f8df3d",
+        "candidate_assembly_sha256": "32ca607c5f76a4fb436a195c6fa35ca8bced9407cb7fd4531a41930c95f8df3d"
+      },
+      {
+        "name": "matmul_row_k_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1003,
+        "candidate_instruction_lines": 1003,
+        "main_assembly_sha256": "8a6771f0647ac4dd802e3d4de21356387d56071463568db90f56fa99437d8255",
+        "candidate_assembly_sha256": "8a6771f0647ac4dd802e3d4de21356387d56071463568db90f56fa99437d8255"
+      },
+      {
+        "name": "matmul_row_k_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1422,
+        "candidate_instruction_lines": 1422,
+        "main_assembly_sha256": "9659fcaa7a2ef0cd658db7456aea6abf5d996c3e0afe6eb57ddca786efbf2a18",
+        "candidate_assembly_sha256": "9659fcaa7a2ef0cd658db7456aea6abf5d996c3e0afe6eb57ddca786efbf2a18"
+      },
+      {
+        "name": "matmul_row_k_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 560,
+        "candidate_instruction_lines": 560,
+        "main_assembly_sha256": "a9c0f29ce4ab82f410c939bbc264009f1be051efc680205ae4c133662bd7ae51",
+        "candidate_assembly_sha256": "a9c0f29ce4ab82f410c939bbc264009f1be051efc680205ae4c133662bd7ae51"
+      },
+      {
+        "name": "matmul_row_k_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1781,
+        "candidate_instruction_lines": 1781,
+        "main_assembly_sha256": "b537a4456bc177837e4227f55f3d7af79ac17e6f65a74581f5af044382b5d0f6",
+        "candidate_assembly_sha256": "b537a4456bc177837e4227f55f3d7af79ac17e6f65a74581f5af044382b5d0f6"
+      },
+      {
+        "name": "matmul_row_k_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 448,
+        "candidate_instruction_lines": 448,
+        "main_assembly_sha256": "0ee44f2bc0c22588455993c8732df089e0c7ddf525e798b7d51af35b192d86c3",
+        "candidate_assembly_sha256": "0ee44f2bc0c22588455993c8732df089e0c7ddf525e798b7d51af35b192d86c3"
+      },
+      {
+        "name": "matmul_row_k_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 756,
+        "candidate_instruction_lines": 756,
+        "main_assembly_sha256": "5bb13400f9c8e3df9ec608840cb6406bf7f9422bf26783dead40e543ddd0316f",
+        "candidate_assembly_sha256": "5bb13400f9c8e3df9ec608840cb6406bf7f9422bf26783dead40e543ddd0316f"
+      },
+      {
+        "name": "matmul_row_k_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 900,
+        "candidate_instruction_lines": 900,
+        "main_assembly_sha256": "a7a7e9a3d47613f4ac4149a65197640a14e87939308f130b6355c716f7f648b9",
+        "candidate_assembly_sha256": "a7a7e9a3d47613f4ac4149a65197640a14e87939308f130b6355c716f7f648b9"
+      },
+      {
+        "name": "matmul_row_k_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1208,
+        "candidate_instruction_lines": 1208,
+        "main_assembly_sha256": "0fd15b6910ad8ba60feff3c5b50c0297a08a785e7a0e6585729a1d41a24fe31f",
+        "candidate_assembly_sha256": "0fd15b6910ad8ba60feff3c5b50c0297a08a785e7a0e6585729a1d41a24fe31f"
+      },
+      {
+        "name": "matmul_row_k_i8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 535,
+        "candidate_instruction_lines": 535,
+        "main_assembly_sha256": "3e518c2f981a106fa7710daf927169148ae5e225c557dbef143a5e7024cce9a1",
+        "candidate_assembly_sha256": "3e518c2f981a106fa7710daf927169148ae5e225c557dbef143a5e7024cce9a1"
+      },
+      {
+        "name": "matmul_row_mxfp4_dot.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1923,
+        "candidate_instruction_lines": 1923,
+        "main_assembly_sha256": "ee00d0f22f3a14d1fed4bbbf3c2c9525210e860da4e65cfcb4277c628a1162e9",
+        "candidate_assembly_sha256": "ee00d0f22f3a14d1fed4bbbf3c2c9525210e860da4e65cfcb4277c628a1162e9"
+      },
+      {
+        "name": "matmul_row_mxfp4_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1498,
+        "candidate_instruction_lines": 1498,
+        "main_assembly_sha256": "6f769f99ee9f58c67747b743618ebc0cac0684db4c47662b403b71b678c7b25c",
+        "candidate_assembly_sha256": "6f769f99ee9f58c67747b743618ebc0cac0684db4c47662b403b71b678c7b25c"
+      },
+      {
+        "name": "matmul_row_mxfp4_float_x.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 2377,
+        "candidate_instruction_lines": 2479,
+        "main_assembly_sha256": "87d17bd2c01d87bffd394f72c6f0961c96e6e71a85f4809522afd05e38efc955",
+        "candidate_assembly_sha256": "8d5e6c1b228bf77e08ad866db4801b2aa1227a7b9a63b9e3e3d3d57d62e02209"
+      },
+      {
+        "name": "matmul_row_mxfp4_float_x_1col.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 2166,
+        "candidate_instruction_lines": 2266,
+        "main_assembly_sha256": "afba4f7b00b6e23b9c8d987b5c3807a3e7b57f1b5b9aba0d3b628b2bd118f832",
+        "candidate_assembly_sha256": "2d6869e49c62792eeeb826cece8b7c4cd2571230af3dfde4b6e7f9e85f6664a0"
+      },
+      {
+        "name": "matmul_row_q4_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4165,
+        "candidate_instruction_lines": 4165,
+        "main_assembly_sha256": "ddc7fc3ea0c7f6b3c1b81e7f06ca95feeef947c062a35afd5ef23692ff1116e6",
+        "candidate_assembly_sha256": "ddc7fc3ea0c7f6b3c1b81e7f06ca95feeef947c062a35afd5ef23692ff1116e6"
+      },
+      {
+        "name": "matmul_row_q4_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 532,
+        "candidate_instruction_lines": 532,
+        "main_assembly_sha256": "c7e6b2727a611600097f266eb017cc6a97094b26fadab34f9d45b812ac8041b8",
+        "candidate_assembly_sha256": "c7e6b2727a611600097f266eb017cc6a97094b26fadab34f9d45b812ac8041b8"
+      },
+      {
+        "name": "matmul_row_q4_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1025,
+        "candidate_instruction_lines": 1025,
+        "main_assembly_sha256": "a5eaad9f09617eb3608ba51bdcc2e7e600a6c03830d3986a97200bda99e8a0a7",
+        "candidate_assembly_sha256": "a5eaad9f09617eb3608ba51bdcc2e7e600a6c03830d3986a97200bda99e8a0a7"
+      },
+      {
+        "name": "matmul_row_q4_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1477,
+        "candidate_instruction_lines": 1477,
+        "main_assembly_sha256": "f71d39869073bb1dda7594ba7867a3e5dd6c811e691a97457281d7a3dfbaf6d5",
+        "candidate_assembly_sha256": "f71d39869073bb1dda7594ba7867a3e5dd6c811e691a97457281d7a3dfbaf6d5"
+      },
+      {
+        "name": "matmul_row_q4_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2396,
+        "candidate_instruction_lines": 2396,
+        "main_assembly_sha256": "20344fb1130919625ccc01376ebf4414df0b0b57b378214bbda483bfd747c82e",
+        "candidate_assembly_sha256": "20344fb1130919625ccc01376ebf4414df0b0b57b378214bbda483bfd747c82e"
+      },
+      {
+        "name": "matmul_row_q4_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1893,
+        "candidate_instruction_lines": 1893,
+        "main_assembly_sha256": "1c423e2a075c6938459cceabdd6c7ee7839ed785619dc1c6c510b8c343541bfa",
+        "candidate_assembly_sha256": "1c423e2a075c6938459cceabdd6c7ee7839ed785619dc1c6c510b8c343541bfa"
+      },
+      {
+        "name": "matmul_row_q4_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2767,
+        "candidate_instruction_lines": 2767,
+        "main_assembly_sha256": "120d9efdecf5240709d0001d3396ac31d7b99ab090b7d7f42f661ab5c621dc4c",
+        "candidate_assembly_sha256": "120d9efdecf5240709d0001d3396ac31d7b99ab090b7d7f42f661ab5c621dc4c"
+      },
+      {
+        "name": "matmul_row_q4_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 440,
+        "candidate_instruction_lines": 440,
+        "main_assembly_sha256": "3ebf0d3638fb468214bdcd0a681de4d151469d623a71ed3a0409616a654c7b20",
+        "candidate_assembly_sha256": "3ebf0d3638fb468214bdcd0a681de4d151469d623a71ed3a0409616a654c7b20"
+      },
+      {
+        "name": "matmul_row_q4_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 775,
+        "candidate_instruction_lines": 775,
+        "main_assembly_sha256": "92f0b7f263f240dc79680e55a33160149924a96602d4be1daa70db90ac9a4b95",
+        "candidate_assembly_sha256": "92f0b7f263f240dc79680e55a33160149924a96602d4be1daa70db90ac9a4b95"
+      },
+      {
+        "name": "matmul_row_q4_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1055,
+        "candidate_instruction_lines": 1055,
+        "main_assembly_sha256": "9996356556ab1c3ed4815a353b1d94cde5db0ec4992b74bff68dda1abe8ab942",
+        "candidate_assembly_sha256": "9996356556ab1c3ed4815a353b1d94cde5db0ec4992b74bff68dda1abe8ab942"
+      },
+      {
+        "name": "matmul_row_q4_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1628,
+        "candidate_instruction_lines": 1628,
+        "main_assembly_sha256": "3ff1b03cf612215997641d81902f9beef2b54c9b9a4f36c487165c858a167da6",
+        "candidate_assembly_sha256": "3ff1b03cf612215997641d81902f9beef2b54c9b9a4f36c487165c858a167da6"
+      },
+      {
+        "name": "matmul_row_q4_i8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1484,
+        "candidate_instruction_lines": 1484,
+        "main_assembly_sha256": "e1a89ac8035e7444866974e86784e591dfcbce811be83ad76cc41d3a632b698e",
+        "candidate_assembly_sha256": "e1a89ac8035e7444866974e86784e591dfcbce811be83ad76cc41d3a632b698e"
+      },
+      {
+        "name": "matmul_row_q50_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4262,
+        "candidate_instruction_lines": 4262,
+        "main_assembly_sha256": "fe477c8a4b2c5b55205c2497dfa51013ec04146e95ebb156a21cd85aa45d8de9",
+        "candidate_assembly_sha256": "fe477c8a4b2c5b55205c2497dfa51013ec04146e95ebb156a21cd85aa45d8de9"
+      },
+      {
+        "name": "matmul_row_q50_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 670,
+        "candidate_instruction_lines": 670,
+        "main_assembly_sha256": "06f613dc011e7e4dfeac6e320c139e5c4e77d4b5bd5b088ed141e3249873534b",
+        "candidate_assembly_sha256": "06f613dc011e7e4dfeac6e320c139e5c4e77d4b5bd5b088ed141e3249873534b"
+      },
+      {
+        "name": "matmul_row_q50_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1309,
+        "candidate_instruction_lines": 1309,
+        "main_assembly_sha256": "e7d9272b736719fc6769f4b666c888049d3e7081f935c6aa9ac6b27cfb1c8944",
+        "candidate_assembly_sha256": "e7d9272b736719fc6769f4b666c888049d3e7081f935c6aa9ac6b27cfb1c8944"
+      },
+      {
+        "name": "matmul_row_q50_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1733,
+        "candidate_instruction_lines": 1733,
+        "main_assembly_sha256": "c9b48f6f448c9f88a8936418fc8be12669bc63809af3801b308a6ecaf31229bb",
+        "candidate_assembly_sha256": "c9b48f6f448c9f88a8936418fc8be12669bc63809af3801b308a6ecaf31229bb"
+      },
+      {
+        "name": "matmul_row_q50_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2609,
+        "candidate_instruction_lines": 2609,
+        "main_assembly_sha256": "14b36eac208865f5db2f98bf34732c5f428961c0c3aa5b8887c753d407d4d127",
+        "candidate_assembly_sha256": "14b36eac208865f5db2f98bf34732c5f428961c0c3aa5b8887c753d407d4d127"
+      },
+      {
+        "name": "matmul_row_q50_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 975,
+        "candidate_instruction_lines": 975,
+        "main_assembly_sha256": "8b241eadd74887e4abbf328368ecd91f997a95004b9eb07a0560bf411f606ae9",
+        "candidate_assembly_sha256": "8b241eadd74887e4abbf328368ecd91f997a95004b9eb07a0560bf411f606ae9"
+      },
+      {
+        "name": "matmul_row_q50_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3113,
+        "candidate_instruction_lines": 3113,
+        "main_assembly_sha256": "3b6c94dc2364e491d2f4468c3f14b6af7cb5c5ad09e53dc1c51075e3991e1896",
+        "candidate_assembly_sha256": "3b6c94dc2364e491d2f4468c3f14b6af7cb5c5ad09e53dc1c51075e3991e1896"
+      },
+      {
+        "name": "matmul_row_q50_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 661,
+        "candidate_instruction_lines": 661,
+        "main_assembly_sha256": "6dff497ad204d0efe1e86bc49319fd3208bb6c12943530b9f2cd4c129d96b2dd",
+        "candidate_assembly_sha256": "6dff497ad204d0efe1e86bc49319fd3208bb6c12943530b9f2cd4c129d96b2dd"
+      },
+      {
+        "name": "matmul_row_q50_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1202,
+        "candidate_instruction_lines": 1202,
+        "main_assembly_sha256": "419fc62608604fd31191e88d40812471ae5672d3c8556636370ea3a4b431ec65",
+        "candidate_assembly_sha256": "419fc62608604fd31191e88d40812471ae5672d3c8556636370ea3a4b431ec65"
+      },
+      {
+        "name": "matmul_row_q50_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1489,
+        "candidate_instruction_lines": 1489,
+        "main_assembly_sha256": "69803237eb98bc3e5331266bb926aac19f30348669788b4bed124754464a0477",
+        "candidate_assembly_sha256": "69803237eb98bc3e5331266bb926aac19f30348669788b4bed124754464a0477"
+      },
+      {
+        "name": "matmul_row_q50_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2024,
+        "candidate_instruction_lines": 2024,
+        "main_assembly_sha256": "ef23248799b137232943a8fa064f387ff5a99cd4b1c832d86441e8a49ad03c3d",
+        "candidate_assembly_sha256": "ef23248799b137232943a8fa064f387ff5a99cd4b1c832d86441e8a49ad03c3d"
+      },
+      {
+        "name": "matmul_row_q5_dot_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4297,
+        "candidate_instruction_lines": 4297,
+        "main_assembly_sha256": "bcfafba654147b8f0123ca41c64f030eb5ef04af85fc7cf513a79855404cf3ec",
+        "candidate_assembly_sha256": "bcfafba654147b8f0123ca41c64f030eb5ef04af85fc7cf513a79855404cf3ec"
+      },
+      {
+        "name": "matmul_row_q5_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 597,
+        "candidate_instruction_lines": 597,
+        "main_assembly_sha256": "7787eeb751039f54d0b22bf2aa197f0d33c709ea8212e15b02c20c4e160a6947",
+        "candidate_assembly_sha256": "7787eeb751039f54d0b22bf2aa197f0d33c709ea8212e15b02c20c4e160a6947"
+      },
+      {
+        "name": "matmul_row_q5_dot_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1156,
+        "candidate_instruction_lines": 1156,
+        "main_assembly_sha256": "5fc3798d2b8110425be23d95450e8c14722e9da399b6136b3e9caf8a0d7c66bf",
+        "candidate_assembly_sha256": "5fc3798d2b8110425be23d95450e8c14722e9da399b6136b3e9caf8a0d7c66bf"
+      },
+      {
+        "name": "matmul_row_q5_dot_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1604,
+        "candidate_instruction_lines": 1604,
+        "main_assembly_sha256": "36d898795f41e97dbb57dbecd48b88e5a462d1c9875c3d7db4ada67b8716c973",
+        "candidate_assembly_sha256": "36d898795f41e97dbb57dbecd48b88e5a462d1c9875c3d7db4ada67b8716c973"
+      },
+      {
+        "name": "matmul_row_q5_dot_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2526,
+        "candidate_instruction_lines": 2526,
+        "main_assembly_sha256": "58a3d296a76657912cfe72b1db552a3b53f02f1d676357665f43f96f5e5b4397",
+        "candidate_assembly_sha256": "58a3d296a76657912cfe72b1db552a3b53f02f1d676357665f43f96f5e5b4397"
+      },
+      {
+        "name": "matmul_row_q5_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1613,
+        "candidate_instruction_lines": 1613,
+        "main_assembly_sha256": "a47622212f5af335bdb4acbec88b025d6219c23114eb6aa9e0100a5e4cc3b4a8",
+        "candidate_assembly_sha256": "a47622212f5af335bdb4acbec88b025d6219c23114eb6aa9e0100a5e4cc3b4a8"
+      },
+      {
+        "name": "matmul_row_q5_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2916,
+        "candidate_instruction_lines": 2916,
+        "main_assembly_sha256": "e7f2d837891a64aa54e8983cf163126e89a44a9cc2bed9811291daed579a3e34",
+        "candidate_assembly_sha256": "e7f2d837891a64aa54e8983cf163126e89a44a9cc2bed9811291daed579a3e34"
+      },
+      {
+        "name": "matmul_row_q5_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 512,
+        "candidate_instruction_lines": 512,
+        "main_assembly_sha256": "355258af222a26465e9b5e946e1efca8b325e3ebb0e116b6f9beaf8ab47117db",
+        "candidate_assembly_sha256": "355258af222a26465e9b5e946e1efca8b325e3ebb0e116b6f9beaf8ab47117db"
+      },
+      {
+        "name": "matmul_row_q5_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 927,
+        "candidate_instruction_lines": 927,
+        "main_assembly_sha256": "2f5b7a3f7d524b080bc6f695e7808476e9df7938eda8581666d12a895efb1642",
+        "candidate_assembly_sha256": "2f5b7a3f7d524b080bc6f695e7808476e9df7938eda8581666d12a895efb1642"
+      },
+      {
+        "name": "matmul_row_q5_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1206,
+        "candidate_instruction_lines": 1206,
+        "main_assembly_sha256": "6cf371b300e8774eea29e2a1a59225e3fd35db7f7a2c8c11ffa34588e37908f9",
+        "candidate_assembly_sha256": "6cf371b300e8774eea29e2a1a59225e3fd35db7f7a2c8c11ffa34588e37908f9"
+      },
+      {
+        "name": "matmul_row_q5_i8_8col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1787,
+        "candidate_instruction_lines": 1787,
+        "main_assembly_sha256": "789e338c1def79d140815ed8a985d8253c8d541fe539a5a35c6ac7655923f11c",
+        "candidate_assembly_sha256": "789e338c1def79d140815ed8a985d8253c8d541fe539a5a35c6ac7655923f11c"
+      },
+      {
+        "name": "matmul_row_tq1_0.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 359,
+        "candidate_instruction_lines": 359,
+        "main_assembly_sha256": "5e0a1d58f14f6b697df53ef6a2858cf383bc425b2625e482321f581d4206e8ce",
+        "candidate_assembly_sha256": "5e0a1d58f14f6b697df53ef6a2858cf383bc425b2625e482321f581d4206e8ce"
+      },
+      {
+        "name": "matmul_row_tq1_0_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 237,
+        "candidate_instruction_lines": 237,
+        "main_assembly_sha256": "ae684d6a694cbdc829a8a7635ee724d7e656f9c5468513b3ccc24279ec7e4e5e",
+        "candidate_assembly_sha256": "ae684d6a694cbdc829a8a7635ee724d7e656f9c5468513b3ccc24279ec7e4e5e"
+      },
+      {
+        "name": "matmul_row_tq1_0_dot.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1236,
+        "candidate_instruction_lines": 1236,
+        "main_assembly_sha256": "d770fde97f6240f7913f0b1b6640dbe897e5f653ad17c0359bbf93701fcab93f",
+        "candidate_assembly_sha256": "d770fde97f6240f7913f0b1b6640dbe897e5f653ad17c0359bbf93701fcab93f"
+      },
+      {
+        "name": "matmul_row_tq1_0_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 790,
+        "candidate_instruction_lines": 790,
+        "main_assembly_sha256": "6eb3d7806e67f66457aa238410d5ce90802e7e7ae3d0a95224c899946a1ef1e4",
+        "candidate_assembly_sha256": "6eb3d7806e67f66457aa238410d5ce90802e7e7ae3d0a95224c899946a1ef1e4"
+      },
+      {
+        "name": "matmul_row_tq1_0_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1358,
+        "candidate_instruction_lines": 1358,
+        "main_assembly_sha256": "01a93713c570c0dba7fa5b2a1d75601e822c7137697cef4cddfdc88c1476f2de",
+        "candidate_assembly_sha256": "01a93713c570c0dba7fa5b2a1d75601e822c7137697cef4cddfdc88c1476f2de"
+      },
+      {
+        "name": "matmul_row_tq2_0.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 334,
+        "candidate_instruction_lines": 334,
+        "main_assembly_sha256": "e8b7358a80c8076a1aa9bb400f71c2e62c132dcd591418261ad902bf3a3f290d",
+        "candidate_assembly_sha256": "e8b7358a80c8076a1aa9bb400f71c2e62c132dcd591418261ad902bf3a3f290d"
+      },
+      {
+        "name": "matmul_row_tq2_0_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 210,
+        "candidate_instruction_lines": 210,
+        "main_assembly_sha256": "d62019d26438e7c173439a76b7631093fe462341f260aee1fc99cf22cc668480",
+        "candidate_assembly_sha256": "d62019d26438e7c173439a76b7631093fe462341f260aee1fc99cf22cc668480"
+      },
+      {
+        "name": "matmul_row_tq2_0_dot.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1715,
+        "candidate_instruction_lines": 1715,
+        "main_assembly_sha256": "ce4155fd5f371bec2e6320ff10074049919a7301b437f51a42b8db7050b75a5d",
+        "candidate_assembly_sha256": "ce4155fd5f371bec2e6320ff10074049919a7301b437f51a42b8db7050b75a5d"
+      },
+      {
+        "name": "matmul_row_tq2_0_dot_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1304,
+        "candidate_instruction_lines": 1304,
+        "main_assembly_sha256": "cdc272301063fd533a92b782d786576a472716d8bd6b07926e9b49aa218addea",
+        "candidate_assembly_sha256": "cdc272301063fd533a92b782d786576a472716d8bd6b07926e9b49aa218addea"
+      },
+      {
+        "name": "matmul_row_tq2_0_dot_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1854,
+        "candidate_instruction_lines": 1854,
+        "main_assembly_sha256": "637322f62c29b0d546e1bb23028c3a3847d08b69509331f8f827d1a6cd2ccb56",
+        "candidate_assembly_sha256": "637322f62c29b0d546e1bb23028c3a3847d08b69509331f8f827d1a6cd2ccb56"
+      },
+      {
+        "name": "matmul_row_wbf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 761,
+        "candidate_instruction_lines": 761,
+        "main_assembly_sha256": "309a61c904b19ae1ea2888600d658ef46bf5eecc9f9a541691b509a40aba1717",
+        "candidate_assembly_sha256": "309a61c904b19ae1ea2888600d658ef46bf5eecc9f9a541691b509a40aba1717"
+      },
+      {
+        "name": "matmul_row_wbf16_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 279,
+        "candidate_instruction_lines": 279,
+        "main_assembly_sha256": "eba36bfe85380bbf327557c74bcbf1f9d60409fe11986c890eb02b6cdcba9f13",
+        "candidate_assembly_sha256": "eba36bfe85380bbf327557c74bcbf1f9d60409fe11986c890eb02b6cdcba9f13"
+      },
+      {
+        "name": "matmul_row_wbf16_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1070,
+        "candidate_instruction_lines": 1070,
+        "main_assembly_sha256": "2d9dca439edd084156ed4dbedba6558d1e1fc2f8d7abd6f4c07ab3ea91aeccb8",
+        "candidate_assembly_sha256": "2d9dca439edd084156ed4dbedba6558d1e1fc2f8d7abd6f4c07ab3ea91aeccb8"
+      },
+      {
+        "name": "matmul_row_wf16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1409,
+        "candidate_instruction_lines": 1409,
+        "main_assembly_sha256": "9946f4c4c511b8eb34568a6cb9532c3b7d13d693b66b003eb68ee47f9232b2c1",
+        "candidate_assembly_sha256": "9946f4c4c511b8eb34568a6cb9532c3b7d13d693b66b003eb68ee47f9232b2c1"
+      },
+      {
+        "name": "matmul_row_wf16_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 933,
+        "candidate_instruction_lines": 933,
+        "main_assembly_sha256": "233bf868633d0f1fe35f5e2e10221db7507813a53e931b0fa58786d98844c655",
+        "candidate_assembly_sha256": "233bf868633d0f1fe35f5e2e10221db7507813a53e931b0fa58786d98844c655"
+      },
+      {
+        "name": "matmul_row_wf16_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1716,
+        "candidate_instruction_lines": 1716,
+        "main_assembly_sha256": "30230842979f9d58ff9277df0ae167a220adf921eee5b0f0fafe619053073f4f",
+        "candidate_assembly_sha256": "30230842979f9d58ff9277df0ae167a220adf921eee5b0f0fafe619053073f4f"
+      },
+      {
+        "name": "matmul_tile.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 4431,
+        "candidate_instruction_lines": 4447,
+        "main_assembly_sha256": "806edd4ea3224e985eb3b74331edf8706aa7ff218c2b19c77c1151c39ac6bbac",
+        "candidate_assembly_sha256": "c939a51dd482699292989948a3b5c69b8fd4e4a8197d90fc741e6d7b2bb0e209"
+      },
+      {
+        "name": "matmul_tile_bf16_small.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 3065,
+        "candidate_instruction_lines": 3081,
+        "main_assembly_sha256": "d1431a59dbd25c3fd7e4fbd8042ae3ff12cf9256842ceb6cac4b22732b31d20b",
+        "candidate_assembly_sha256": "597d7c930648f2656e0f844f37b6f194187758586e4811946c9171263d3f62eb"
+      },
+      {
+        "name": "matmul_tile_bf16_tall.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 6803,
+        "candidate_instruction_lines": 6818,
+        "main_assembly_sha256": "56500870a62e03eca854be01c6aee3b8b01fa2d94d97b200a44a5dcbb9588e3f",
+        "candidate_assembly_sha256": "ec4f0cb775c3046608d56f7b5621129289ead0b3412ae2305c5160e7eb88780d"
+      },
+      {
+        "name": "matmul_tile_mxfp4_bf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1288,
+        "candidate_instruction_lines": 1288,
+        "main_assembly_sha256": "9186389d95e6364d109cd82e59b46c3a5e2d00ff9c7830d0c2a53aaa61c791cc",
+        "candidate_assembly_sha256": "9186389d95e6364d109cd82e59b46c3a5e2d00ff9c7830d0c2a53aaa61c791cc"
+      },
+      {
+        "name": "matmul_tile_mxfp4_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1219,
+        "candidate_instruction_lines": 1219,
+        "main_assembly_sha256": "baa8775d68f3ef0f6a44740e7c57d44585cdc312f60d74ea1e24acfe69fec3f7",
+        "candidate_assembly_sha256": "baa8775d68f3ef0f6a44740e7c57d44585cdc312f60d74ea1e24acfe69fec3f7"
+      },
+      {
+        "name": "matmul_tile_q.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2319,
+        "candidate_instruction_lines": 2319,
+        "main_assembly_sha256": "8d4d1fc9f59a963753eca7fb79b780c85024e27517e6ca6fe470bdad0f7c0361",
+        "candidate_assembly_sha256": "8d4d1fc9f59a963753eca7fb79b780c85024e27517e6ca6fe470bdad0f7c0361"
+      },
+      {
+        "name": "matmul_tile_q50_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1400,
+        "candidate_instruction_lines": 1400,
+        "main_assembly_sha256": "fdb66f47378c28c32669c416843f3a5df2edd76c049ccf55634047ce08b09f5d",
+        "candidate_assembly_sha256": "fdb66f47378c28c32669c416843f3a5df2edd76c049ccf55634047ce08b09f5d"
+      },
+      {
+        "name": "matmul_tile_q50_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1455,
+        "candidate_instruction_lines": 1455,
+        "main_assembly_sha256": "d9a3fc9386d8ed077e16c570ac3fe5317c7171df597a9609e73d42c06de3c56e",
+        "candidate_assembly_sha256": "d9a3fc9386d8ed077e16c570ac3fe5317c7171df597a9609e73d42c06de3c56e"
+      },
+      {
+        "name": "matmul_tile_q50i8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1197,
+        "candidate_instruction_lines": 1197,
+        "main_assembly_sha256": "2dc7654768648070f4908afd37f7cfc53c1930b9a50bfd98f445c3fb10f50589",
+        "candidate_assembly_sha256": "2dc7654768648070f4908afd37f7cfc53c1930b9a50bfd98f445c3fb10f50589"
+      },
+      {
+        "name": "matmul_tile_q50i8_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1261,
+        "candidate_instruction_lines": 1261,
+        "main_assembly_sha256": "90712a0665d558404783f9f97fb8abafed3988eeda14875b13ad8fd17f147261",
+        "candidate_assembly_sha256": "90712a0665d558404783f9f97fb8abafed3988eeda14875b13ad8fd17f147261"
+      },
+      {
+        "name": "matmul_tile_q5_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1344,
+        "candidate_instruction_lines": 1344,
+        "main_assembly_sha256": "efaa532d3ef47c4d40ea63cb69fe6398ec455b65ae9329b8a0831b5b19fe9f42",
+        "candidate_assembly_sha256": "efaa532d3ef47c4d40ea63cb69fe6398ec455b65ae9329b8a0831b5b19fe9f42"
+      },
+      {
+        "name": "matmul_tile_q5_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1385,
+        "candidate_instruction_lines": 1385,
+        "main_assembly_sha256": "1f1708fa4036417311ba423e64dd7c5be7afd69fcab198c1338fddd2d03c5c28",
+        "candidate_assembly_sha256": "1f1708fa4036417311ba423e64dd7c5be7afd69fcab198c1338fddd2d03c5c28"
+      },
+      {
+        "name": "matmul_tile_q5i8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1141,
+        "candidate_instruction_lines": 1141,
+        "main_assembly_sha256": "8f4def643412e14329f8e5eb859293514a10600cd226a51365f8212746130fef",
+        "candidate_assembly_sha256": "8f4def643412e14329f8e5eb859293514a10600cd226a51365f8212746130fef"
+      },
+      {
+        "name": "matmul_tile_q5i8_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1191,
+        "candidate_instruction_lines": 1191,
+        "main_assembly_sha256": "25f1dcba7c92446b39f961dd04f31ae3ddc4c942e77c3edc3cade099f04ab44c",
+        "candidate_assembly_sha256": "25f1dcba7c92446b39f961dd04f31ae3ddc4c942e77c3edc3cade099f04ab44c"
+      },
+      {
+        "name": "matmul_tile_q6.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2229,
+        "candidate_instruction_lines": 2229,
+        "main_assembly_sha256": "e6a8db38852e9797e71e412455bd7794c0673549fa71147fef02fac4b4d91819",
+        "candidate_assembly_sha256": "e6a8db38852e9797e71e412455bd7794c0673549fa71147fef02fac4b4d91819"
+      },
+      {
+        "name": "matmul_tile_q6_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 993,
+        "candidate_instruction_lines": 993,
+        "main_assembly_sha256": "3e211ca5b25b1d4b770d90404792cf220e06ff5c322069afca3952d20138835e",
+        "candidate_assembly_sha256": "3e211ca5b25b1d4b770d90404792cf220e06ff5c322069afca3952d20138835e"
+      },
+      {
+        "name": "matmul_tile_q6_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1358,
+        "candidate_instruction_lines": 1358,
+        "main_assembly_sha256": "23c908b4300bb6af6cc28dd89db46e337d5249930637fb618193b907c8a0af8c",
+        "candidate_assembly_sha256": "23c908b4300bb6af6cc28dd89db46e337d5249930637fb618193b907c8a0af8c"
+      },
+      {
+        "name": "matmul_tile_q6i8_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 839,
+        "candidate_instruction_lines": 839,
+        "main_assembly_sha256": "c9382ce3e51d728926e85f6db0170df6cbb6d0c3c6a60411bf3c8a64b32c074e",
+        "candidate_assembly_sha256": "c9382ce3e51d728926e85f6db0170df6cbb6d0c3c6a60411bf3c8a64b32c074e"
+      },
+      {
+        "name": "matmul_tile_q6i8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1132,
+        "candidate_instruction_lines": 1132,
+        "main_assembly_sha256": "b9b4bfaa2db4692593794e74636e9b90b2f39b0945c3a6f0914bc5d4d4e8beea",
+        "candidate_assembly_sha256": "b9b4bfaa2db4692593794e74636e9b90b2f39b0945c3a6f0914bc5d4d4e8beea"
+      },
+      {
+        "name": "matmul_tile_q8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1941,
+        "candidate_instruction_lines": 1941,
+        "main_assembly_sha256": "2a9dc3b85fb919a37b4c672c3cd78b82672e986cf9aa64e7b041a7159e086db2",
+        "candidate_assembly_sha256": "2a9dc3b85fb919a37b4c672c3cd78b82672e986cf9aa64e7b041a7159e086db2"
+      },
+      {
+        "name": "matmul_tile_q8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1198,
+        "candidate_instruction_lines": 1198,
+        "main_assembly_sha256": "ce9761939562cd53ed5238539fea0850d1ecfca35f0880f9b193cf888923b10e",
+        "candidate_assembly_sha256": "ce9761939562cd53ed5238539fea0850d1ecfca35f0880f9b193cf888923b10e"
+      },
+      {
+        "name": "matmul_tile_q8_tall.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3527,
+        "candidate_instruction_lines": 3527,
+        "main_assembly_sha256": "44cc5618b8dcb53f445ce69af61d2c1b34290a84bf8f2530366eb93ca54205b5",
+        "candidate_assembly_sha256": "44cc5618b8dcb53f445ce69af61d2c1b34290a84bf8f2530366eb93ca54205b5"
+      },
+      {
+        "name": "matmul_tile_q8_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1213,
+        "candidate_instruction_lines": 1213,
+        "main_assembly_sha256": "76392c842b723d0ee1b0c076785e9891ff63380459e5f44cd654ce689ee992b2",
+        "candidate_assembly_sha256": "76392c842b723d0ee1b0c076785e9891ff63380459e5f44cd654ce689ee992b2"
+      },
+      {
+        "name": "matmul_tile_q8i8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1292,
+        "candidate_instruction_lines": 1292,
+        "main_assembly_sha256": "b9466ed8c1cde753bf79aad38d9d5be34df2a11670394c611f0bae9fb02e7bcf",
+        "candidate_assembly_sha256": "b9466ed8c1cde753bf79aad38d9d5be34df2a11670394c611f0bae9fb02e7bcf"
+      },
+      {
+        "name": "matmul_tile_q8i8_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1353,
+        "candidate_instruction_lines": 1353,
+        "main_assembly_sha256": "7c52db6d1be474be405b340eaaa2aa0648db4b8e65651c47a2e8bf8be6e13dd3",
+        "candidate_assembly_sha256": "7c52db6d1be474be405b340eaaa2aa0648db4b8e65651c47a2e8bf8be6e13dd3"
+      },
+      {
+        "name": "matmul_tile_q8mx_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1268,
+        "candidate_instruction_lines": 1268,
+        "main_assembly_sha256": "b7c4f17c0f8f87fcd493543505c63803a92e0f862cf59bfcdc3535289e997275",
+        "candidate_assembly_sha256": "b7c4f17c0f8f87fcd493543505c63803a92e0f862cf59bfcdc3535289e997275"
+      },
+      {
+        "name": "matmul_tile_q_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1507,
+        "candidate_instruction_lines": 1507,
+        "main_assembly_sha256": "1a6681011e6cfa6e0f94e5d2a6e4141929b8953d90deaaba094053cc974b3477",
+        "candidate_assembly_sha256": "1a6681011e6cfa6e0f94e5d2a6e4141929b8953d90deaaba094053cc974b3477"
+      },
+      {
+        "name": "matmul_tile_q_tall.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4104,
+        "candidate_instruction_lines": 4104,
+        "main_assembly_sha256": "4cc8e3074c5c7d747067ab2a496383fca2eb9ffe4777a2d5c48bc8739eb99d1d",
+        "candidate_assembly_sha256": "4cc8e3074c5c7d747067ab2a496383fca2eb9ffe4777a2d5c48bc8739eb99d1d"
+      },
+      {
+        "name": "matmul_tile_q_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1673,
+        "candidate_instruction_lines": 1673,
+        "main_assembly_sha256": "7cd240980738013f14e02e2a4910f21051c57774f2eca2faa2516dd6942ff9ed",
+        "candidate_assembly_sha256": "7cd240980738013f14e02e2a4910f21051c57774f2eca2faa2516dd6942ff9ed"
+      },
+      {
+        "name": "matmul_tile_qi8_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1303,
+        "candidate_instruction_lines": 1303,
+        "main_assembly_sha256": "af904e8731a17ca17f9b330d2aab6a3a62769c250521db05a7c2e23f76516412",
+        "candidate_assembly_sha256": "af904e8731a17ca17f9b330d2aab6a3a62769c250521db05a7c2e23f76516412"
+      },
+      {
+        "name": "matmul_tile_qi8_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1434,
+        "candidate_instruction_lines": 1434,
+        "main_assembly_sha256": "3a6e2e80d47bebf174e176efa7cf808405e2f8ba69a8b61c5d98a50a942c1d78",
+        "candidate_assembly_sha256": "3a6e2e80d47bebf174e176efa7cf808405e2f8ba69a8b61c5d98a50a942c1d78"
+      },
+      {
+        "name": "matmul_tile_small.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 3005,
+        "candidate_instruction_lines": 3021,
+        "main_assembly_sha256": "deeaca1d82a248e1d8bc33e5e0abddb6ddd52229c215ecf5d8b35fef533827f5",
+        "candidate_assembly_sha256": "49bf81352010442d8d8909576995b8c680ea1f81f2f1e6a84cddf088a5d5f2a8"
+      },
+      {
+        "name": "matmul_tile_tall.txt",
+        "assembly_equal": false,
+        "instruction_words_equal": false,
+        "main_instruction_lines": 6740,
+        "candidate_instruction_lines": 6756,
+        "main_assembly_sha256": "1c95ed82020aef6bfa330f704b65d0c7d22b948a1107fd4b279dec4f07755c0c",
+        "candidate_assembly_sha256": "e6382c0c9f1b9e3fb9069a0fd46887f2f45f481f590dbebb38d5b3ace844d93c"
+      },
+      {
+        "name": "matmul_tile_tq1_0_bf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1284,
+        "candidate_instruction_lines": 1284,
+        "main_assembly_sha256": "01b5c5c6943dfae79ffceed1f5317ccd2fddf319e903b353996bf3776ebb7620",
+        "candidate_assembly_sha256": "01b5c5c6943dfae79ffceed1f5317ccd2fddf319e903b353996bf3776ebb7620"
+      },
+      {
+        "name": "matmul_tile_tq1_0_dot_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1553,
+        "candidate_instruction_lines": 1553,
+        "main_assembly_sha256": "d8e6b8bbdc3dfd8a2526e0a4206af30e3f7737eda389fcd3f4b6be6d4e01faa3",
+        "candidate_assembly_sha256": "d8e6b8bbdc3dfd8a2526e0a4206af30e3f7737eda389fcd3f4b6be6d4e01faa3"
+      },
+      {
+        "name": "matmul_tile_tq1_0_dot_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1930,
+        "candidate_instruction_lines": 1930,
+        "main_assembly_sha256": "809ccfa90b66beed02a616386aff01f10db88664aaba0c0f32ae4fb3ce5068a8",
+        "candidate_assembly_sha256": "809ccfa90b66beed02a616386aff01f10db88664aaba0c0f32ae4fb3ce5068a8"
+      },
+      {
+        "name": "matmul_tile_tq1_0_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1224,
+        "candidate_instruction_lines": 1224,
+        "main_assembly_sha256": "a4ed6edd34fc039c6a994e54dfd3b929e6bc458d28a11c4790beb42b839b8e08",
+        "candidate_assembly_sha256": "a4ed6edd34fc039c6a994e54dfd3b929e6bc458d28a11c4790beb42b839b8e08"
+      },
+      {
+        "name": "matmul_tile_tq2_0_bf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1164,
+        "candidate_instruction_lines": 1164,
+        "main_assembly_sha256": "685c45ff5ade732333c68de2d895e701f60f46bb9fda450246469dc75396c781",
+        "candidate_assembly_sha256": "685c45ff5ade732333c68de2d895e701f60f46bb9fda450246469dc75396c781"
+      },
+      {
+        "name": "matmul_tile_tq2_0_dot_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2085,
+        "candidate_instruction_lines": 2085,
+        "main_assembly_sha256": "3b0eb13a61ae342cd544521abcb6f4ca46c01ced4daa9f14cbff4e9c74fa6d20",
+        "candidate_assembly_sha256": "3b0eb13a61ae342cd544521abcb6f4ca46c01ced4daa9f14cbff4e9c74fa6d20"
+      },
+      {
+        "name": "matmul_tile_tq2_0_dot_tall_narrow.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2227,
+        "candidate_instruction_lines": 2227,
+        "main_assembly_sha256": "365f397b2c94b0ebdb3f5de8dc0557a761a7ac0e2c54e6ad85113dfc21081ff8",
+        "candidate_assembly_sha256": "365f397b2c94b0ebdb3f5de8dc0557a761a7ac0e2c54e6ad85113dfc21081ff8"
+      },
+      {
+        "name": "matmul_tile_tq2_0_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1104,
+        "candidate_instruction_lines": 1104,
+        "main_assembly_sha256": "918c89838a3cccc28ac33e4b02b09701392672c3031abb0fd66fa7fcf2fd5ad6",
+        "candidate_assembly_sha256": "918c89838a3cccc28ac33e4b02b09701392672c3031abb0fd66fa7fcf2fd5ad6"
+      },
+      {
+        "name": "matmul_tile_wbf16_bf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1104,
+        "candidate_instruction_lines": 1104,
+        "main_assembly_sha256": "6364463943ec9640417403af77c81141fef73abd21df7afb0339de372d550118",
+        "candidate_assembly_sha256": "6364463943ec9640417403af77c81141fef73abd21df7afb0339de372d550118"
+      },
+      {
+        "name": "matmul_tile_wbf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1030,
+        "candidate_instruction_lines": 1030,
+        "main_assembly_sha256": "a514ccf004ea1a2f2e6e66ec8c5c9eb33f521243bf41baacb7b07df32a0c85f0",
+        "candidate_assembly_sha256": "a514ccf004ea1a2f2e6e66ec8c5c9eb33f521243bf41baacb7b07df32a0c85f0"
+      },
+      {
+        "name": "matmul_tile_wbf16_tall.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 2394,
+        "candidate_instruction_lines": 2394,
+        "main_assembly_sha256": "89db7defc7c4462ed98771e4a2ca741c18c661a522fa83d516f0df8833dc6602",
+        "candidate_assembly_sha256": "89db7defc7c4462ed98771e4a2ca741c18c661a522fa83d516f0df8833dc6602"
+      },
+      {
+        "name": "matmul_tile_wf16_bf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1232,
+        "candidate_instruction_lines": 1232,
+        "main_assembly_sha256": "afede30651fb5e51f47245f21add014c288fd9775d0ef41e0f63c2c025260d43",
+        "candidate_assembly_sha256": "afede30651fb5e51f47245f21add014c288fd9775d0ef41e0f63c2c025260d43"
+      },
+      {
+        "name": "matmul_tile_wf16_small.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1177,
+        "candidate_instruction_lines": 1177,
+        "main_assembly_sha256": "358021c86849bd628aa913b5b41b837b9dc926e2730db11d5d648c3ebe78e628",
+        "candidate_assembly_sha256": "358021c86849bd628aa913b5b41b837b9dc926e2730db11d5d648c3ebe78e628"
+      },
+      {
+        "name": "matmul_vec_q8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1858,
+        "candidate_instruction_lines": 1858,
+        "main_assembly_sha256": "c7cfedd5de2e6f8f1b4bf7555e447fab70c52b11ca08dbc104b8b06eedc92bfd",
+        "candidate_assembly_sha256": "c7cfedd5de2e6f8f1b4bf7555e447fab70c52b11ca08dbc104b8b06eedc92bfd"
+      },
+      {
+        "name": "matmul_vec_q8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4234,
+        "candidate_instruction_lines": 4234,
+        "main_assembly_sha256": "3acca5fbbc562b33803545bb96101845eff6c000b9f80625735cc4d77db5c2b3",
+        "candidate_assembly_sha256": "3acca5fbbc562b33803545bb96101845eff6c000b9f80625735cc4d77db5c2b3"
+      },
+      {
+        "name": "matmul_vec_q8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 443,
+        "candidate_instruction_lines": 443,
+        "main_assembly_sha256": "f48a5ce42337d9a80066c2f5902c7c14eabbec7e7a749a3f2238cba0ca0f965f",
+        "candidate_assembly_sha256": "f48a5ce42337d9a80066c2f5902c7c14eabbec7e7a749a3f2238cba0ca0f965f"
+      },
+      {
+        "name": "matmul_vec_q8_1col_1row.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 508,
+        "candidate_instruction_lines": 508,
+        "main_assembly_sha256": "4202157bbbc838f0307209df1678e696eec9ca0c7450a4ae2dd2ace72e820efa",
+        "candidate_assembly_sha256": "4202157bbbc838f0307209df1678e696eec9ca0c7450a4ae2dd2ace72e820efa"
+      },
+      {
+        "name": "matmul_vec_q8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 491,
+        "candidate_instruction_lines": 491,
+        "main_assembly_sha256": "2e5d72a8969388bb942d6965b01bb476659749afabaf77f9e38dfe2211e15172",
+        "candidate_assembly_sha256": "2e5d72a8969388bb942d6965b01bb476659749afabaf77f9e38dfe2211e15172"
+      },
+      {
+        "name": "matmul_vec_q8_32col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 4282,
+        "candidate_instruction_lines": 4282,
+        "main_assembly_sha256": "feca99f20414c3d7ab0a565b7273e5a79610fd65fb303c8229b6d51ffbebb4a4",
+        "candidate_assembly_sha256": "feca99f20414c3d7ab0a565b7273e5a79610fd65fb303c8229b6d51ffbebb4a4"
+      },
+      {
+        "name": "matmul_vec_q8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1006,
+        "candidate_instruction_lines": 1006,
+        "main_assembly_sha256": "29e49b44e4a5f19e3408dee833db152241d5a996780c77d59313820383b686bf",
+        "candidate_assembly_sha256": "29e49b44e4a5f19e3408dee833db152241d5a996780c77d59313820383b686bf"
+      },
+      {
+        "name": "matmul_vec_q8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3481,
+        "candidate_instruction_lines": 3481,
+        "main_assembly_sha256": "591270ffd2158fff5efad8e768b1cf82a2dd098dfc3839f40f572b1a2c823bf4",
+        "candidate_assembly_sha256": "591270ffd2158fff5efad8e768b1cf82a2dd098dfc3839f40f572b1a2c823bf4"
+      },
+      {
+        "name": "matmul_vec_q8_i8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1419,
+        "candidate_instruction_lines": 1419,
+        "main_assembly_sha256": "0366b94c9502c93958a569e20692dc794510c9cac728b0cd1ddedf26b18edb60",
+        "candidate_assembly_sha256": "0366b94c9502c93958a569e20692dc794510c9cac728b0cd1ddedf26b18edb60"
+      },
+      {
+        "name": "matmul_vec_q8_i8_16col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3303,
+        "candidate_instruction_lines": 3303,
+        "main_assembly_sha256": "bc8ef25b5c6983d257ee5db3625aa6453e7a4a6ac2d8e16e6712dbf7086fe9df",
+        "candidate_assembly_sha256": "bc8ef25b5c6983d257ee5db3625aa6453e7a4a6ac2d8e16e6712dbf7086fe9df"
+      },
+      {
+        "name": "matmul_vec_q8_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 368,
+        "candidate_instruction_lines": 368,
+        "main_assembly_sha256": "97c6df68ea7570ead44bc6daa1ff460da6c7c29b340a0ed84403dd86230e6b9e",
+        "candidate_assembly_sha256": "97c6df68ea7570ead44bc6daa1ff460da6c7c29b340a0ed84403dd86230e6b9e"
+      },
+      {
+        "name": "matmul_vec_q8_i8_1col_1row.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 420,
+        "candidate_instruction_lines": 420,
+        "main_assembly_sha256": "2814288095d3975a26fc5cccd6d717a257d0869f5565ab369b650c6d042e3f40",
+        "candidate_assembly_sha256": "2814288095d3975a26fc5cccd6d717a257d0869f5565ab369b650c6d042e3f40"
+      },
+      {
+        "name": "matmul_vec_q8_i8_1col_2step.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 533,
+        "candidate_instruction_lines": 533,
+        "main_assembly_sha256": "4e1c2fdda43d0b57481216efb4dde3047097b5277bf50f31ba3f71769288c60b",
+        "candidate_assembly_sha256": "4e1c2fdda43d0b57481216efb4dde3047097b5277bf50f31ba3f71769288c60b"
+      },
+      {
+        "name": "matmul_vec_q8_i8_2col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 403,
+        "candidate_instruction_lines": 403,
+        "main_assembly_sha256": "f8fea9f9b4b788d8164b013f35713bd6035c186e2fa66ebac28ccdbf24839ed5",
+        "candidate_assembly_sha256": "f8fea9f9b4b788d8164b013f35713bd6035c186e2fa66ebac28ccdbf24839ed5"
+      },
+      {
+        "name": "matmul_vec_q8_i8_32col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3365,
+        "candidate_instruction_lines": 3365,
+        "main_assembly_sha256": "8ac86133d8c23d4c8d3e7b5036f51ba6c9cf844b81f4be5fb18269ea009a4754",
+        "candidate_assembly_sha256": "8ac86133d8c23d4c8d3e7b5036f51ba6c9cf844b81f4be5fb18269ea009a4754"
+      },
+      {
+        "name": "matmul_vec_q8_i8_4col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 772,
+        "candidate_instruction_lines": 772,
+        "main_assembly_sha256": "55bb9d6bbe3e632537f12f5b29f9f28d06580cbcc2e33d8d343b92d76ba552b1",
+        "candidate_assembly_sha256": "55bb9d6bbe3e632537f12f5b29f9f28d06580cbcc2e33d8d343b92d76ba552b1"
+      },
+      {
+        "name": "matmul_vec_q8_i8_grouped.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3047,
+        "candidate_instruction_lines": 3047,
+        "main_assembly_sha256": "43d559376ed418d84d30edc41e9cdc2b0e00550b54748e70e399747c06ddc81e",
+        "candidate_assembly_sha256": "43d559376ed418d84d30edc41e9cdc2b0e00550b54748e70e399747c06ddc81e"
+      },
+      {
+        "name": "mix_rows.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 64,
+        "candidate_instruction_lines": 64,
+        "main_assembly_sha256": "47dd50e2c7c94e07237f0cb30945c715c565cd45ef8ed49957e422893bcc87bf",
+        "candidate_assembly_sha256": "47dd50e2c7c94e07237f0cb30945c715c565cd45ef8ed49957e422893bcc87bf"
+      },
+      {
+        "name": "moe_combine.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 343,
+        "candidate_instruction_lines": 343,
+        "main_assembly_sha256": "bbb2a14c76894e116614d3b68f1517804258256dd71e5cfb7d63c1cc85edbb36",
+        "candidate_assembly_sha256": "bbb2a14c76894e116614d3b68f1517804258256dd71e5cfb7d63c1cc85edbb36"
+      },
+      {
+        "name": "moe_group.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 566,
+        "candidate_instruction_lines": 566,
+        "main_assembly_sha256": "8ea3fd2588c8c2bbe56bf0a121e1100a43eb912c5f3c6b699b0d16d6ae1110cb",
+        "candidate_assembly_sha256": "8ea3fd2588c8c2bbe56bf0a121e1100a43eb912c5f3c6b699b0d16d6ae1110cb"
+      },
+      {
+        "name": "moe_route_s1.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 149,
+        "candidate_instruction_lines": 149,
+        "main_assembly_sha256": "af6384a4ee91ae48c208fda78ed998f36f44e98f679d09e0df7bf88612cc53c6",
+        "candidate_assembly_sha256": "af6384a4ee91ae48c208fda78ed998f36f44e98f679d09e0df7bf88612cc53c6"
+      },
+      {
+        "name": "moe_step_act_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1334,
+        "candidate_instruction_lines": 1334,
+        "main_assembly_sha256": "06c8921b24af5e6d66b8bdc38a4778d1b162fe8bd4b05c75a086c18b8a740a7f",
+        "candidate_assembly_sha256": "06c8921b24af5e6d66b8bdc38a4778d1b162fe8bd4b05c75a086c18b8a740a7f"
+      },
+      {
+        "name": "moe_step_down_k_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 726,
+        "candidate_instruction_lines": 726,
+        "main_assembly_sha256": "63995e70e70ceb4e9ecfc309aa1cc873031b156c8517ff2c14891d5afddb811f",
+        "candidate_assembly_sha256": "63995e70e70ceb4e9ecfc309aa1cc873031b156c8517ff2c14891d5afddb811f"
+      },
+      {
+        "name": "moe_step_down_k_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 116,
+        "candidate_instruction_lines": 116,
+        "main_assembly_sha256": "842bf5bfe5a3dea724b102e90a74bfb9843134c87280cfebac2387e5a017cca5",
+        "candidate_assembly_sha256": "842bf5bfe5a3dea724b102e90a74bfb9843134c87280cfebac2387e5a017cca5"
+      },
+      {
+        "name": "moe_step_down_k_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 679,
+        "candidate_instruction_lines": 679,
+        "main_assembly_sha256": "5136db6dcb3be8dba5e7fe538ad130578cb1656835d6a8886202bc51b06b5f6f",
+        "candidate_assembly_sha256": "5136db6dcb3be8dba5e7fe538ad130578cb1656835d6a8886202bc51b06b5f6f"
+      },
+      {
+        "name": "moe_step_down_k_i8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 116,
+        "candidate_instruction_lines": 116,
+        "main_assembly_sha256": "842bf5bfe5a3dea724b102e90a74bfb9843134c87280cfebac2387e5a017cca5",
+        "candidate_assembly_sha256": "842bf5bfe5a3dea724b102e90a74bfb9843134c87280cfebac2387e5a017cca5"
+      },
+      {
+        "name": "moe_step_down_q5q8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 914,
+        "candidate_instruction_lines": 914,
+        "main_assembly_sha256": "b165c549e4b2b71d8f82f35484d5650432610892b94daf2aef24518c351ae529",
+        "candidate_assembly_sha256": "b165c549e4b2b71d8f82f35484d5650432610892b94daf2aef24518c351ae529"
+      },
+      {
+        "name": "moe_step_down_q5q8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 164,
+        "candidate_instruction_lines": 164,
+        "main_assembly_sha256": "4d2a16ea7bcb1491f7527c5e899761ba25dcaa67904631f237f3dd7da81ec918",
+        "candidate_assembly_sha256": "4d2a16ea7bcb1491f7527c5e899761ba25dcaa67904631f237f3dd7da81ec918"
+      },
+      {
+        "name": "moe_step_down_q5q8_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 757,
+        "candidate_instruction_lines": 757,
+        "main_assembly_sha256": "67570a682077fec9b393ccaca185b77a32077f6f95c0bbc74d9678de12f5cc9b",
+        "candidate_assembly_sha256": "67570a682077fec9b393ccaca185b77a32077f6f95c0bbc74d9678de12f5cc9b"
+      },
+      {
+        "name": "moe_step_down_q5q8_i8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 164,
+        "candidate_instruction_lines": 164,
+        "main_assembly_sha256": "4d2a16ea7bcb1491f7527c5e899761ba25dcaa67904631f237f3dd7da81ec918",
+        "candidate_assembly_sha256": "4d2a16ea7bcb1491f7527c5e899761ba25dcaa67904631f237f3dd7da81ec918"
+      },
+      {
+        "name": "moe_step_down_q8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 410,
+        "candidate_instruction_lines": 410,
+        "main_assembly_sha256": "de0593fbe78602b38320d0a6e173f665d500ec9a74be915dea542c2fcd7c7aeb",
+        "candidate_assembly_sha256": "de0593fbe78602b38320d0a6e173f665d500ec9a74be915dea542c2fcd7c7aeb"
+      },
+      {
+        "name": "moe_step_down_q8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 90,
+        "candidate_instruction_lines": 90,
+        "main_assembly_sha256": "542bdb3a6062fc014ff4d08b1bbdeb0429b65146befa835ee698fdd5ea2ffa29",
+        "candidate_assembly_sha256": "542bdb3a6062fc014ff4d08b1bbdeb0429b65146befa835ee698fdd5ea2ffa29"
+      },
+      {
+        "name": "moe_step_down_q8_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 335,
+        "candidate_instruction_lines": 335,
+        "main_assembly_sha256": "4bcf27096bdbe0338656d8ea96d7d4d15b5e0df55f202a3e4b14c4ab6841034b",
+        "candidate_assembly_sha256": "4bcf27096bdbe0338656d8ea96d7d4d15b5e0df55f202a3e4b14c4ab6841034b"
+      },
+      {
+        "name": "moe_step_down_q8_i8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 90,
+        "candidate_instruction_lines": 90,
+        "main_assembly_sha256": "542bdb3a6062fc014ff4d08b1bbdeb0429b65146befa835ee698fdd5ea2ffa29",
+        "candidate_assembly_sha256": "542bdb3a6062fc014ff4d08b1bbdeb0429b65146befa835ee698fdd5ea2ffa29"
+      },
+      {
+        "name": "moe_step_route.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1206,
+        "candidate_instruction_lines": 1206,
+        "main_assembly_sha256": "7bdd5088aa0a4f54cf7d9d56ff2c1d8121180f1059d43a2b641792b76de63956",
+        "candidate_assembly_sha256": "7bdd5088aa0a4f54cf7d9d56ff2c1d8121180f1059d43a2b641792b76de63956"
+      },
+      {
+        "name": "moe_step_route_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 756,
+        "candidate_instruction_lines": 756,
+        "main_assembly_sha256": "302133d2935349de1fa575f8f8c214f41ca7575c9e09333cdff4af16060b75b7",
+        "candidate_assembly_sha256": "302133d2935349de1fa575f8f8c214f41ca7575c9e09333cdff4af16060b75b7"
+      },
+      {
+        "name": "moe_step_route_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 566,
+        "candidate_instruction_lines": 566,
+        "main_assembly_sha256": "fe776ee4c6afd651a68eaa01053e01af1bf4261e32da76c5bb5af4377372e510",
+        "candidate_assembly_sha256": "fe776ee4c6afd651a68eaa01053e01af1bf4261e32da76c5bb5af4377372e510"
+      },
+      {
+        "name": "moe_step_route_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 566,
+        "candidate_instruction_lines": 566,
+        "main_assembly_sha256": "fe776ee4c6afd651a68eaa01053e01af1bf4261e32da76c5bb5af4377372e510",
+        "candidate_assembly_sha256": "fe776ee4c6afd651a68eaa01053e01af1bf4261e32da76c5bb5af4377372e510"
+      },
+      {
+        "name": "moe_step_route_s1.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 845,
+        "candidate_instruction_lines": 845,
+        "main_assembly_sha256": "4e12febae4ef0845acff78af77bb877260e67e34f9764400c590a19dca7bfead",
+        "candidate_assembly_sha256": "4e12febae4ef0845acff78af77bb877260e67e34f9764400c590a19dca7bfead"
+      },
+      {
+        "name": "moe_step_route_s1_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 395,
+        "candidate_instruction_lines": 395,
+        "main_assembly_sha256": "baab3f341031bd7370f4886968c4555114c626338754e361dbf8a1f2641fa11f",
+        "candidate_assembly_sha256": "baab3f341031bd7370f4886968c4555114c626338754e361dbf8a1f2641fa11f"
+      },
+      {
+        "name": "moe_step_route_s1_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 205,
+        "candidate_instruction_lines": 205,
+        "main_assembly_sha256": "ef1cf21eec2dd2942bca872fd1b0601a7f8cc26428402058848d5c2f873dce39",
+        "candidate_assembly_sha256": "ef1cf21eec2dd2942bca872fd1b0601a7f8cc26428402058848d5c2f873dce39"
+      },
+      {
+        "name": "moe_step_route_s1_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 205,
+        "candidate_instruction_lines": 205,
+        "main_assembly_sha256": "ef1cf21eec2dd2942bca872fd1b0601a7f8cc26428402058848d5c2f873dce39",
+        "candidate_assembly_sha256": "ef1cf21eec2dd2942bca872fd1b0601a7f8cc26428402058848d5c2f873dce39"
+      },
+      {
+        "name": "moe_step_route_s2.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 870,
+        "candidate_instruction_lines": 870,
+        "main_assembly_sha256": "cc1a2b0feb9c9ac5774f9136a1c62018747373518119a9050805807fea12fd07",
+        "candidate_assembly_sha256": "cc1a2b0feb9c9ac5774f9136a1c62018747373518119a9050805807fea12fd07"
+      },
+      {
+        "name": "moe_step_route_s2_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 420,
+        "candidate_instruction_lines": 420,
+        "main_assembly_sha256": "758e6305e89383a0b1a59b7a2e66a8f8aef2e74cab5027646202b69f83e65563",
+        "candidate_assembly_sha256": "758e6305e89383a0b1a59b7a2e66a8f8aef2e74cab5027646202b69f83e65563"
+      },
+      {
+        "name": "moe_step_route_s2_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 230,
+        "candidate_instruction_lines": 230,
+        "main_assembly_sha256": "eb3a811df4956883662be2b9a88cf62d7873b013e48affe2b3b1479f8fc976a6",
+        "candidate_assembly_sha256": "eb3a811df4956883662be2b9a88cf62d7873b013e48affe2b3b1479f8fc976a6"
+      },
+      {
+        "name": "moe_step_route_s2_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 230,
+        "candidate_instruction_lines": 230,
+        "main_assembly_sha256": "eb3a811df4956883662be2b9a88cf62d7873b013e48affe2b3b1479f8fc976a6",
+        "candidate_assembly_sha256": "eb3a811df4956883662be2b9a88cf62d7873b013e48affe2b3b1479f8fc976a6"
+      },
+      {
+        "name": "moe_step_route_s4.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 919,
+        "candidate_instruction_lines": 919,
+        "main_assembly_sha256": "f54080d37bf5151d1e7765e7991fb068d43966c45a4511ca7f09e9829a0a582e",
+        "candidate_assembly_sha256": "f54080d37bf5151d1e7765e7991fb068d43966c45a4511ca7f09e9829a0a582e"
+      },
+      {
+        "name": "moe_step_route_s4_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 469,
+        "candidate_instruction_lines": 469,
+        "main_assembly_sha256": "13432bfb5cb33cf6cb574027819e190c7cb0fe1261ab60603bfecf16d0c60439",
+        "candidate_assembly_sha256": "13432bfb5cb33cf6cb574027819e190c7cb0fe1261ab60603bfecf16d0c60439"
+      },
+      {
+        "name": "moe_step_route_s4_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 278,
+        "candidate_instruction_lines": 278,
+        "main_assembly_sha256": "d0fdbd2c9e7a18e0901750de648cbed7af0146705e2df9e7f0880e988fa6f942",
+        "candidate_assembly_sha256": "d0fdbd2c9e7a18e0901750de648cbed7af0146705e2df9e7f0880e988fa6f942"
+      },
+      {
+        "name": "moe_step_route_s4_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 278,
+        "candidate_instruction_lines": 278,
+        "main_assembly_sha256": "d0fdbd2c9e7a18e0901750de648cbed7af0146705e2df9e7f0880e988fa6f942",
+        "candidate_assembly_sha256": "d0fdbd2c9e7a18e0901750de648cbed7af0146705e2df9e7f0880e988fa6f942"
+      },
+      {
+        "name": "moe_step_route_s8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1014,
+        "candidate_instruction_lines": 1014,
+        "main_assembly_sha256": "eacc3579423b612f34605dff8e764021b25beecac257963c8c149a251fd093df",
+        "candidate_assembly_sha256": "eacc3579423b612f34605dff8e764021b25beecac257963c8c149a251fd093df"
+      },
+      {
+        "name": "moe_step_route_s8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 564,
+        "candidate_instruction_lines": 564,
+        "main_assembly_sha256": "95dbcfa1cd3b30bf3f090144c6a7aa69420fd5498981039c3e178ae32e6821c2",
+        "candidate_assembly_sha256": "95dbcfa1cd3b30bf3f090144c6a7aa69420fd5498981039c3e178ae32e6821c2"
+      },
+      {
+        "name": "moe_step_route_s8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 374,
+        "candidate_instruction_lines": 374,
+        "main_assembly_sha256": "5eb9394216063ea44d67b1ca92e3231ed30d0d7740d647bf46aacbbcc1dc3c30",
+        "candidate_assembly_sha256": "5eb9394216063ea44d67b1ca92e3231ed30d0d7740d647bf46aacbbcc1dc3c30"
+      },
+      {
+        "name": "moe_step_route_s8_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 374,
+        "candidate_instruction_lines": 374,
+        "main_assembly_sha256": "5eb9394216063ea44d67b1ca92e3231ed30d0d7740d647bf46aacbbcc1dc3c30",
+        "candidate_assembly_sha256": "5eb9394216063ea44d67b1ca92e3231ed30d0d7740d647bf46aacbbcc1dc3c30"
+      },
+      {
+        "name": "moe_step_up_k4_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 518,
+        "candidate_instruction_lines": 518,
+        "main_assembly_sha256": "4a2509bfc62695a5e213c89ad725f38806c4e6748acd40338a7283cc8cee78e0",
+        "candidate_assembly_sha256": "4a2509bfc62695a5e213c89ad725f38806c4e6748acd40338a7283cc8cee78e0"
+      },
+      {
+        "name": "moe_step_up_k4_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1,
+        "candidate_instruction_lines": 1,
+        "main_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636",
+        "candidate_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636"
+      },
+      {
+        "name": "moe_step_up_k4_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 453,
+        "candidate_instruction_lines": 453,
+        "main_assembly_sha256": "6e4bbf3c295ba32d4f9aeed11fb0b4dd860f924ec0c732f0ac557063c7a2954d",
+        "candidate_assembly_sha256": "6e4bbf3c295ba32d4f9aeed11fb0b4dd860f924ec0c732f0ac557063c7a2954d"
+      },
+      {
+        "name": "moe_step_up_k4_i8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1,
+        "candidate_instruction_lines": 1,
+        "main_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636",
+        "candidate_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636"
+      },
+      {
+        "name": "moe_step_up_k4q8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 637,
+        "candidate_instruction_lines": 637,
+        "main_assembly_sha256": "ce5bc344ed65759bca92fccaaee6205040b4b9fe06212778ff03fe8ba0307e2b",
+        "candidate_assembly_sha256": "ce5bc344ed65759bca92fccaaee6205040b4b9fe06212778ff03fe8ba0307e2b"
+      },
+      {
+        "name": "moe_step_up_k4q8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1,
+        "candidate_instruction_lines": 1,
+        "main_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636",
+        "candidate_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636"
+      },
+      {
+        "name": "moe_step_up_k4q8_i8_1col.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 532,
+        "candidate_instruction_lines": 532,
+        "main_assembly_sha256": "4c76ecb1c51d810b3c76f5a033e28fb51718213e5c27b76ce92fcccd4e3cc397",
+        "candidate_assembly_sha256": "4c76ecb1c51d810b3c76f5a033e28fb51718213e5c27b76ce92fcccd4e3cc397"
+      },
+      {
+        "name": "moe_step_up_k4q8_i8_1col_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1,
+        "candidate_instruction_lines": 1,
+        "main_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636",
+        "candidate_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636"
+      },
+      {
+        "name": "moe_step_up_k4q8_i8_1row.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 601,
+        "candidate_instruction_lines": 601,
+        "main_assembly_sha256": "7c171f92dfd7a6cc9b4a3b5788820046b1c5d25d9c5d3763cc33e3937fbde481",
+        "candidate_assembly_sha256": "7c171f92dfd7a6cc9b4a3b5788820046b1c5d25d9c5d3763cc33e3937fbde481"
+      },
+      {
+        "name": "moe_step_up_k4q8_i8_1row_noroles.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1,
+        "candidate_instruction_lines": 1,
+        "main_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636",
+        "candidate_assembly_sha256": "c9fa6482261fc37b3a7359ba6887537589d4ff73fab62afe7f177b0fd3250636"
+      },
+      {
+        "name": "norm_rope_kv.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 322,
+        "candidate_instruction_lines": 322,
+        "main_assembly_sha256": "a63b4e4487775d27ef307c51d4a610846f2387dcd2b985b199b2b360693d305c",
+        "candidate_assembly_sha256": "a63b4e4487775d27ef307c51d4a610846f2387dcd2b985b199b2b360693d305c"
+      },
+      {
+        "name": "norm_rope_kv_k16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 440,
+        "candidate_instruction_lines": 440,
+        "main_assembly_sha256": "8bf61981e48eb38c148378d3cc7a376d612854600dc14dfc28a45e0d6841a7c8",
+        "candidate_assembly_sha256": "8bf61981e48eb38c148378d3cc7a376d612854600dc14dfc28a45e0d6841a7c8"
+      },
+      {
+        "name": "norm_rope_kv_kv16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 499,
+        "candidate_instruction_lines": 499,
+        "main_assembly_sha256": "befcf06b07353db18b3dcded0451ea7c9f524c141e70675b3d14dfdcc21ca89b",
+        "candidate_assembly_sha256": "befcf06b07353db18b3dcded0451ea7c9f524c141e70675b3d14dfdcc21ca89b"
+      },
+      {
+        "name": "norm_rope_kv_v16.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 381,
+        "candidate_instruction_lines": 381,
+        "main_assembly_sha256": "bd505f8bdbbe6b1f0f76ff49d31411eec9ea7e8fd9cda07fd825e49f170ae71a",
+        "candidate_assembly_sha256": "bd505f8bdbbe6b1f0f76ff49d31411eec9ea7e8fd9cda07fd825e49f170ae71a"
+      },
+      {
+        "name": "norm_rope_partial.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 208,
+        "candidate_instruction_lines": 208,
+        "main_assembly_sha256": "713edb9c5f076be8607c687a56bb8949ab73545f2714cf8fd29c29b4abfc2f2b",
+        "candidate_assembly_sha256": "713edb9c5f076be8607c687a56bb8949ab73545f2714cf8fd29c29b4abfc2f2b"
+      },
+      {
+        "name": "norm_rope_partial_streams.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 241,
+        "candidate_instruction_lines": 241,
+        "main_assembly_sha256": "cc00993c64e068841846faf731ead288836d303eb67e1e1dd94d05f966073062",
+        "candidate_assembly_sha256": "cc00993c64e068841846faf731ead288836d303eb67e1e1dd94d05f966073062"
+      },
+      {
+        "name": "quantize_x.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 652,
+        "candidate_instruction_lines": 652,
+        "main_assembly_sha256": "3dc6027cc1773a9ddf5b8cd5066d87b5ec31e7ac804ee84b3e2d7a4a2648356c",
+        "candidate_assembly_sha256": "3dc6027cc1773a9ddf5b8cd5066d87b5ec31e7ac804ee84b3e2d7a4a2648356c"
+      },
+      {
+        "name": "quantize_x_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1287,
+        "candidate_instruction_lines": 1287,
+        "main_assembly_sha256": "9815ea1452ff050db38528d1e6c04fa7d9a1fedf27d6f1db21593eeb9bc54de9",
+        "candidate_assembly_sha256": "9815ea1452ff050db38528d1e6c04fa7d9a1fedf27d6f1db21593eeb9bc54de9"
+      },
+      {
+        "name": "quantize_xw.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 849,
+        "candidate_instruction_lines": 849,
+        "main_assembly_sha256": "3a638a722c26e49ce8ec128236835dac49cc28f3ceaef7d69c0f74e754103edb",
+        "candidate_assembly_sha256": "3a638a722c26e49ce8ec128236835dac49cc28f3ceaef7d69c0f74e754103edb"
+      },
+      {
+        "name": "quantize_xw_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1716,
+        "candidate_instruction_lines": 1716,
+        "main_assembly_sha256": "043592cd03e01c3e18cf483f52d6f4baf8368cc9fc8d71647a5e52693963be79",
+        "candidate_assembly_sha256": "043592cd03e01c3e18cf483f52d6f4baf8368cc9fc8d71647a5e52693963be79"
+      },
+      {
+        "name": "rms_norm_rows.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1865,
+        "candidate_instruction_lines": 1865,
+        "main_assembly_sha256": "33ee0018f8157f37df52ba1a4f8dfe3de883ff465c98cd02994409663b1d6dc3",
+        "candidate_assembly_sha256": "33ee0018f8157f37df52ba1a4f8dfe3de883ff465c98cd02994409663b1d6dc3"
+      },
+      {
+        "name": "rms_norm_rows_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3338,
+        "candidate_instruction_lines": 3338,
+        "main_assembly_sha256": "aad358feb2d70ce2e95ccbe56c64078c23430b34cd1b46e9b5f456b1671c4c9b",
+        "candidate_assembly_sha256": "aad358feb2d70ce2e95ccbe56c64078c23430b34cd1b46e9b5f456b1671c4c9b"
+      },
+      {
+        "name": "sigmoid_mul_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3241,
+        "candidate_instruction_lines": 3241,
+        "main_assembly_sha256": "a87e0606702dc40ab9db0701b478d3bf778e7ecf4fda41bf77257f7214c6f04b",
+        "candidate_assembly_sha256": "a87e0606702dc40ab9db0701b478d3bf778e7ecf4fda41bf77257f7214c6f04b"
+      },
+      {
+        "name": "silu_mul.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 1549,
+        "candidate_instruction_lines": 1549,
+        "main_assembly_sha256": "0da250ccd07da085d9598e0e6bed9a79f60e2c536bbbd0c0c6cacad2385ce9e4",
+        "candidate_assembly_sha256": "0da250ccd07da085d9598e0e6bed9a79f60e2c536bbbd0c0c6cacad2385ce9e4"
+      },
+      {
+        "name": "silu_mul_x8.txt",
+        "assembly_equal": true,
+        "instruction_words_equal": true,
+        "main_instruction_lines": 3051,
+        "candidate_instruction_lines": 3051,
+        "main_assembly_sha256": "ea864a4080b849048b746f6a1e9e0b4171ec4b8740933169a0c9ee0591cdf126",
+        "candidate_assembly_sha256": "ea864a4080b849048b746f6a1e9e0b4171ec4b8740933169a0c9ee0591cdf126"
+      }
+    ]
+  },
+  "interpretation": "283 of 295 common pipelines have identical final instruction words. Twelve generic embedding/row/tile pipelines differ and contain the new NVFP4 type-40 dispatch/decode. Their ordered FMA instruction sequences match, which is not by itself full numerical or performance qualification. Existing model/HF and timing evidence remains separately scoped. Nine additional candidate pipeline names are retained in the full inventory.",
+  "original_failures": "Two memory-guard refusals, first ISA attempt missing source mounts, and a v2 controller path refusal are retained in scratch artifacts. No GPU workloads were killed.",
+  "remaining": [
+    "Windows effective-ISA pair",
+    "Larger routed Q4 HF and timing",
+    "Flash 2x2 regression",
+    "Final integration and applicable hosted check"
+  ],
+  "artifacts": [
+    {
+      "path": "build-integration/non-nv-declaration-restore-linux-v1/isa-run-v2/verified-results/isa-comparison.json",
+      "sha256": "2e878aca6a5f9bbb359b0e0cee4d3de0453a551e7fcb67592f653a65e41aff97"
+    },
+    {
+      "path": "build-integration/non-nv-declaration-restore-linux-v1/isa-run-v2/verified-results/effective-assembly-comparison.json",
+      "sha256": "5836316899f4fdc3ffe6c1ef62b7a54c3211075e8e5a05e94f9e60d2977697b3"
+    },
+    {
+      "path": "build-integration/non-nv-declaration-restore-linux-v1/isa-run-v2/verified-results/effective-fma-comparison.json",
+      "sha256": "ce35583c3a6bda108f760452abb72045c2e18639d1ffaaa51df2ccd521e96830"
+    },
+    {
+      "path": "build-integration/non-nv-declaration-restore-linux-v1/verified-results/build-verification.json",
+      "sha256": "9b8004057ddc2ea6680c1bd263c730014989c877ac1b50aa9d0812cf17999ba9"
+    }
+  ]
+}

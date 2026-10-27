@@ -1,0 +1,2175 @@
+{
+  "scope": "Previously unreached released Qwen3-0.6B Q8_0 server tail on frozen main4 NVFP4 runtime; no current-integration or performance claim",
+  "elapsed_seconds": 185.86094450950623,
+  "execution": {
+    "scope": "Unchanged released-model server tail only; synthetic checks not repeated",
+    "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\server.py",
+    "source_sha256": "785e4fc3661b7bfdba94846ecba4fcdd6d5000b365a469a8ff1e289aedaad93f",
+    "first_line": 2507,
+    "last_line": 2550,
+    "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+    "exe_sha256": "ff502118da025836295ad7bac3f788ebc475e76f847f70c302e5dceb5d6285e4",
+    "calls": [
+      {
+        "pid": 55288,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "40960",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52311"
+        ],
+        "started": 1792958188.0975294
+      },
+      {
+        "pid": 29104,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958189.7731748
+      },
+      {
+        "pid": 66196,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958191.728294
+      },
+      {
+        "pid": 80160,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "def fib(n):",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958193.0051968
+      },
+      {
+        "pid": 82088,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The three laws of",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958194.193552
+      },
+      {
+        "pid": 86584,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "hello world"
+        ],
+        "started": 1792958195.7925987
+      },
+      {
+        "pid": 60548,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is Paris."
+        ],
+        "started": 1792958196.054462
+      },
+      {
+        "pid": 74972,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "  hello"
+        ],
+        "started": 1792958196.3029249
+      },
+      {
+        "pid": 47368,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "   spaced   out   "
+        ],
+        "started": 1792958196.5622947
+      },
+      {
+        "pid": 62892,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\ttabbed"
+        ],
+        "started": 1792958196.8256197
+      },
+      {
+        "pid": 34284,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "trailing   "
+        ],
+        "started": 1792958197.1045709
+      },
+      {
+        "pid": 34708,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "a\n\nb"
+        ],
+        "started": 1792958197.3667338
+      },
+      {
+        "pid": 41688,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "don't can't won't"
+        ],
+        "started": 1792958197.617739
+      },
+      {
+        "pid": 83664,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Hello, World! 123 456"
+        ],
+        "started": 1792958197.8754637
+      },
+      {
+        "pid": 23132,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "3.14159 and 1e-9"
+        ],
+        "started": 1792958198.1257243
+      },
+      {
+        "pid": 61048,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "cafe naive jalapeno"
+        ],
+        "started": 1792958198.3822913
+      },
+      {
+        "pid": 81440,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\u00e9\u00e8\u00ea \u65e5\u672c\u8a9e \u0440\u0443\u0441\u0441\u043a\u0438\u0439"
+        ],
+        "started": 1792958198.678368
+      },
+      {
+        "pid": 70424,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "963"
+        ],
+        "started": 1792958198.905443
+      },
+      {
+        "pid": 36696,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "4458"
+        ],
+        "started": 1792958199.1152594
+      },
+      {
+        "pid": 44748,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "5498"
+        ],
+        "started": 1792958199.347628
+      },
+      {
+        "pid": 12508,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "75402"
+        ],
+        "started": 1792958199.5749195
+      },
+      {
+        "pid": 59772,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "21894"
+        ],
+        "started": 1792958199.806173
+      },
+      {
+        "pid": 28732,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "102819"
+        ],
+        "started": 1792958200.0318406
+      },
+      {
+        "pid": 14508,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "18108"
+        ],
+        "started": 1792958200.3036695
+      },
+      {
+        "pid": 47788,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "43055"
+        ],
+        "started": 1792958200.5334167
+      },
+      {
+        "pid": 6264,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "126302"
+        ],
+        "started": 1792958200.7913275
+      },
+      {
+        "pid": 57096,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "963,4458,5498,75402,21894,102819,18108,43055,126302"
+        ],
+        "started": 1792958201.1250186
+      },
+      {
+        "pid": 52436,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "126302,43055,18108,102819,21894,75402,5498,4458,963"
+        ],
+        "started": 1792958201.3898637
+      },
+      {
+        "pid": 18220,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\ud83d\ude00 emoji \ud83d\ude80"
+        ],
+        "started": 1792958201.6652844
+      },
+      {
+        "pid": 62868,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "141334"
+        ],
+        "started": 1792958201.9001703
+      },
+      {
+        "pid": 39200,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "42365"
+        ],
+        "started": 1792958202.1012597
+      },
+      {
+        "pid": 67036,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "11162"
+        ],
+        "started": 1792958202.2797725
+      },
+      {
+        "pid": 32488,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "248"
+        ],
+        "started": 1792958202.465215
+      },
+      {
+        "pid": 77088,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "222"
+        ],
+        "started": 1792958202.7116709
+      },
+      {
+        "pid": 26088,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "141334,42365,11162,248,222"
+        ],
+        "started": 1792958202.9595282
+      },
+      {
+        "pid": 12808,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "222,248,11162,42365,141334"
+        ],
+        "started": 1792958203.1752822
+      },
+      {
+        "pid": 14884,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "def f(x):\n    if x > 0:\n        return x\n    return -x"
+        ],
+        "started": 1792958203.3746166
+      },
+      {
+        "pid": 29804,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>user\nhi<|im_end|>"
+        ],
+        "started": 1792958203.6075504
+      },
+      {
+        "pid": 37788,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "MixedCASE_snake_case-kebab.dot"
+        ],
+        "started": 1792958203.808942
+      },
+      {
+        "pid": 57052,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\u00ad"
+        ],
+        "started": 1792958204.057758
+      },
+      {
+        "pid": 71000,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "5760"
+        ],
+        "started": 1792958204.259853
+      },
+      {
+        "pid": 67480,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "5760"
+        ],
+        "started": 1792958204.4620671
+      },
+      {
+        "pid": 7712,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "5760"
+        ],
+        "started": 1792958204.652824
+      },
+      {
+        "pid": 82004,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "co\u00adoperate"
+        ],
+        "started": 1792958204.8649285
+      },
+      {
+        "pid": 55624,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "1015"
+        ],
+        "started": 1792958205.1041648
+      },
+      {
+        "pid": 31000,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "5760"
+        ],
+        "started": 1792958205.312586
+      },
+      {
+        "pid": 47512,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "85199"
+        ],
+        "started": 1792958205.5010803
+      },
+      {
+        "pid": 50200,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "1015,5760,85199"
+        ],
+        "started": 1792958205.6972091
+      },
+      {
+        "pid": 52480,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "85199,5760,1015"
+        ],
+        "started": 1792958205.8769462
+      },
+      {
+        "pid": 31236,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\u4e2d\u6587"
+        ],
+        "started": 1792958206.1078994
+      },
+      {
+        "pid": 89660,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "104811"
+        ],
+        "started": 1792958206.411772
+      },
+      {
+        "pid": 18524,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "104811"
+        ],
+        "started": 1792958206.6730452
+      },
+      {
+        "pid": 50080,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "104811"
+        ],
+        "started": 1792958206.9370356
+      },
+      {
+        "pid": 51844,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "\u036d"
+        ],
+        "started": 1792958207.1763039
+      },
+      {
+        "pid": 79124,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "137"
+        ],
+        "started": 1792958207.4499376
+      },
+      {
+        "pid": 59696,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "255"
+        ],
+        "started": 1792958207.7237713
+      },
+      {
+        "pid": 64196,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "137,255"
+        ],
+        "started": 1792958208.0025232
+      },
+      {
+        "pid": 23116,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "255,137"
+        ],
+        "started": 1792958208.2467241
+      },
+      {
+        "pid": 46244,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          ""
+        ],
+        "started": 1792958208.468959
+      },
+      {
+        "pid": 27476,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "151935"
+        ],
+        "started": 1792958208.7733028
+      },
+      {
+        "pid": 32480,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "detokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "151936"
+        ],
+        "started": 1792958209.0244708
+      },
+      {
+        "pid": 40532,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958209.4469905
+      },
+      {
+        "pid": 20728,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958209.6993613
+      },
+      {
+        "pid": 84920,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\nViolet.<|im_end|>\n<|im_start|>user\nWhat color?<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958209.984701
+      },
+      {
+        "pid": 21752,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\nViolet.<|im_end|>\n<|im_start|>user\nWhat color?<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958210.2548664
+      },
+      {
+        "pid": 36772,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\nViolet.<|im_end|>\n<|im_start|>user\nWhat color?<|im_end|>\n<|im_start|>assistant\nViolet again.<|im_end|>\n<|im_start|>user\nSay it again.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958210.5051906
+      },
+      {
+        "pid": 77052,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\nViolet.<|im_end|>\n<|im_start|>user\nWhat color?<|im_end|>\n<|im_start|>assistant\nViolet again.<|im_end|>\n<|im_start|>user\nSay it again.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958210.734428
+      },
+      {
+        "pid": 74724,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>system\nYou are helpful.<|im_end|>\n<|im_start|>user\nRemember violet.<|im_end|>\n<|im_start|>assistant\nViolet.<|im_end|>\n<|im_start|>user\nWhat color?<|im_end|>\n<|im_start|>assistant\nViolet again.<|im_end|>\n<|im_start|>user\nSay it again.<|im_end|>\n<|im_start|>assistant\n<think>\nReason.\n</think>\n\nAnswer.<|im_end|>\n<|im_start|>assistant\n"
+        ],
+        "started": 1792958211.0772445
+      },
+      {
+        "pid": 11288,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "The capital of France is",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958211.633331
+      },
+      {
+        "pid": 64364,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television The second",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958217.2142923
+      },
+      {
+        "pid": 55308,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "40960",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52653"
+        ],
+        "started": 1792958219.159306
+      },
+      {
+        "pid": 80008,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time",
+          "-n",
+          "16",
+          "--seed",
+          "7",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958221.2098036
+      },
+      {
+        "pid": 78908,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time",
+          "-n",
+          "16",
+          "--seed",
+          "7",
+          "--topk",
+          "40",
+          "--topp",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958222.12616
+      },
+      {
+        "pid": 22508,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time",
+          "-n",
+          "16",
+          "--seed",
+          "7",
+          "--topk",
+          "0",
+          "--topp",
+          "0.95",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958223.165279
+      },
+      {
+        "pid": 56828,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time",
+          "-n",
+          "16",
+          "--seed",
+          "7",
+          "--topk",
+          "0",
+          "--topp",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958224.1325004
+      },
+      {
+        "pid": 75584,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "1",
+          "--max-queue",
+          "1",
+          "--kv-tokens",
+          "512",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52667"
+        ],
+        "started": 1792958225.1977642
+      },
+      {
+        "pid": 66492,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the the"
+        ],
+        "started": 1792958226.22587
+      },
+      {
+        "pid": 85640,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "4096",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52682"
+        ],
+        "started": 1792958229.9348218
+      },
+      {
+        "pid": 26220,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--kv-tokens",
+          "2048",
+          "--max-seqs",
+          "2",
+          "--context-overflow",
+          "shift",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52707"
+        ],
+        "started": 1792958233.8534284
+      },
+      {
+        "pid": 29856,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "4",
+          "--kv-tokens",
+          "1024",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52738"
+        ],
+        "started": 1792958239.8245587
+      },
+      {
+        "pid": 86756,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1280",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52851"
+        ],
+        "started": 1792958274.4616697
+      },
+      {
+        "pid": 89788,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1280",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "52913"
+        ],
+        "started": 1792958292.06871
+      },
+      {
+        "pid": 76136,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "Once upon a time"
+        ],
+        "started": 1792958293.116274
+      },
+      {
+        "pid": 30856,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "tokenize",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series , Doctors , followed by a role in the 2007 theatre production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . In May 2008 , Boulter made a guest appearance on a two @-@ part episode arc of the television series Waking the Dead , followed by an appearance on the television series Survivors in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Career = = \n = = = 2000 \u2013 2005 = = = \n In 2000 Boulter"
+        ],
+        "started": 1792958293.4060032
+      },
+      {
+        "pid": 53952,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series , Doctors , followed by a role in the 2007 theatre production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . In May 2008 , Boulter made a guest appearance on a two @-@ part episode arc of the television series Waking the Dead , followed by an appearance on the television series Survivors in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Career = = \n = = = 2000 \u2013 2005 = = = \n In 2000 Boulter",
+          "-n",
+          "20",
+          "--temp",
+          "0",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958311.6199849
+      },
+      {
+        "pid": 76532,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1024",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53100"
+        ],
+        "started": 1792958328.8634143
+      },
+      {
+        "pid": 61936,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958330.0935013
+      },
+      {
+        "pid": 52768,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958331.3484445
+      },
+      {
+        "pid": 76780,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958332.662701
+      },
+      {
+        "pid": 40936,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958334.1473806
+      },
+      {
+        "pid": 41516,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958335.5998373
+      },
+      {
+        "pid": 79652,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series The X-Files as a guest . In 2007 he  = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The X-Files . In 2005 he appeared in the comedy series Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958337.1044314
+      },
+      {
+        "pid": 76352,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1024",
+          "--host-cache-bytes",
+          "1073741824",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53155"
+        ],
+        "started": 1792958338.8891888
+      },
+      {
+        "pid": 50432,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series , Doctors , followed by a role in the 2007 theatre production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . In May 2008 , Boulter made a guest appearance on a two @-@ part episode arc of the television series Waking the Dead , followed by an appearance on the television series Survivors in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Career = = \n = = = 2000 \u2013 2005 = = = \n In 2000 Boulter had a guest @-@ starring role on the television series The Bill ; he portrayed \" Scott Parry \" in the episode , \" In Safe Hands \" . Boulter starred as \" Scott \" in the play Herons written by Simon St. Stephens in 2001 . In 2004 he ephens , which was performed in 2001 at the Royal Court Theatre . A review of Boulter 's performance in The Independent on Sunday described him as \" horribly menacing \" in the role , and he received critical reviews in The Herald , and Evening Standard . He appeared in the television series Judge John Deed in 2002 as \" Addem Armitage \" in the episode \" Political Expediency \" , and had a role as a ",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958340.710108
+      },
+      {
+        "pid": 31632,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "tled \" Something I Ate \" . Boulter starred as \" William \" in the 2007 production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . In a review of the production for The Daily Telegraph , theatre critic Charles Spencer noted , \" Robert Boulter brings a touching vulnerability to the stage as William . \" \n Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . Boulter portrayed a character named \" Sean \" in Donkey Punch , who tags along with character \" Josh \" as the \" quiet brother ... who hits it off with Tammi \" . Boulter guest starred on a two @-@ part episode arc \" Wounds \" in May 2008 of the television series Waking the Dead as character \" Jimmy Dearden \" . He appeared on the television series Survivors as \" Neil \" in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . He portrayed an emergency physician applying for a medical fellowship . He commented on the inherent difficulties in portraying a physician on television : \" Playing a doctor is a strange experience . Pretending you know what you 're talking about when you don 't is very bizarre but there are advisers on set who are fantastic at taking you through procedures and giving you the confidence to stand there and look like you know what you 're doing . \" Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Filmography = = \n = = = Film = = = \n = = = Television = = = \n = = = Theatre = = = \n = Du Fu = \n Du Fu ( Wade \u2013 Giles : Tu Fu ; Chinese : \u675c\u752b ; 712 \u2013 770 ) was a prominent Chinese poet of the Tang dynasty . Along with Li Bai ( Li Po ) , he is frequently called the greatest of the Chinese poets . His greatest ambition was to serve his country as a successful civil servant , but he proved unable to make the necessary accommodations . His life , like the life of the Tang dynasty , was marked by hardship and suffering . Du Fu was  whole country , was devastated by the An Lushan Rebellion of 755 , and his last 15 years were a time of almost constant unrest . \n Although initially he was little @-@ known to other writers , his works came to be hugely influential in both Chinese and Japanese literary culture . Of his poetic writing , nearly fifteen hundred poems have been preserved over the ages . He has been called the \" Poet",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958342.2187479
+      },
+      {
+        "pid": 32552,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1024",
+          "--host-cache-bytes",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53171"
+        ],
+        "started": 1792958343.7870836
+      },
+      {
+        "pid": 81300,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television series , Doctors , followed by a role in the 2007 theatre production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . In May 2008 , Boulter made a guest appearance on a two @-@ part episode arc of the television series Waking the Dead , followed by an appearance on the television series Survivors in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Career = = \n = = = 2000 \u2013 2005 = = = \n In 2000 Boulter had a guest @-@ starring role on the television series The Bill ; he portrayed \" Scott Parry \" in the episode , \" In Safe Hands \" . Boulter starred as \" Scott \" in the play Herons written by Simon St. Stephens in 2001 . In 2004 he ephens , which was performed in 2001 at the Royal Court Theatre . A review of Boulter 's performance in The Independent on Sunday described him as \" horribly menacing \" in the role , and he received critical reviews in The Herald , and Evening Standard . He appeared in the television series Judge John Deed in 2002 as \" Addem Armitage \" in the episode \" Political Expediency \" , and had a role as a ",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958345.6987724
+      },
+      {
+        "pid": 39724,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "tled \" Something I Ate \" . Boulter starred as \" William \" in the 2007 production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . In a review of the production for The Daily Telegraph , theatre critic Charles Spencer noted , \" Robert Boulter brings a touching vulnerability to the stage as William . \" \n Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . Boulter portrayed a character named \" Sean \" in Donkey Punch , who tags along with character \" Josh \" as the \" quiet brother ... who hits it off with Tammi \" . Boulter guest starred on a two @-@ part episode arc \" Wounds \" in May 2008 of the television series Waking the Dead as character \" Jimmy Dearden \" . He appeared on the television series Survivors as \" Neil \" in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . He portrayed an emergency physician applying for a medical fellowship . He commented on the inherent difficulties in portraying a physician on television : \" Playing a doctor is a strange experience . Pretending you know what you 're talking about when you don 't is very bizarre but there are advisers on set who are fantastic at taking you through procedures and giving you the confidence to stand there and look like you know what you 're doing . \" Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Filmography = = \n = = = Film = = = \n = = = Television = = = \n = = = Theatre = = = \n = Du Fu = \n Du Fu ( Wade \u2013 Giles : Tu Fu ; Chinese : \u675c\u752b ; 712 \u2013 770 ) was a prominent Chinese poet of the Tang dynasty . Along with Li Bai ( Li Po ) , he is frequently called the greatest of the Chinese poets . His greatest ambition was to serve his country as a successful civil servant , but he proved unable to make the necessary accommodations . His life , like the life of the Tang dynasty , was marked by hardship and suffering . Du Fu was  whole country , was devastated by the An Lushan Rebellion of 755 , and his last 15 years were a time of almost constant unrest . \n Although initially he was little @-@ known to other writers , his works came to be hugely influential in both Chinese and Japanese literary culture . Of his poetic writing , nearly fifteen hundred poems have been preserved over the ages . He has been called the \" Poet",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958347.2624896
+      },
+      {
+        "pid": 32892,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "40960",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53187"
+        ],
+        "started": 1792958348.6604447
+      },
+      {
+        "pid": 55924,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "40960",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53215"
+        ],
+        "started": 1792958352.278392
+      },
+      {
+        "pid": 21736,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "1344",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53224"
+        ],
+        "started": 1792958354.7251093
+      },
+      {
+        "pid": 78600,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "tled \" Something I Ate \" . Boulter starred as \" William \" in the 2007 production of How to Curse directed by Josie Rourke . How to Curse was performed at Bush Theatre in the London Borough of Hammersmith and Fulham . In a review of the production for The Daily Telegraph , theatre critic Charles Spencer noted , \" Robert Boulter brings a touching vulnerability to the stage as William . \" \n Boulter starred in two films in 2008 , Daylight Robbery by filmmaker Paris Leonti , and Donkey Punch directed by Olly Blackburn . Boulter portrayed a character named \" Sean \" in Donkey Punch , who tags along with character \" Josh \" as the \" quiet brother ... who hits it off with Tammi \" . Boulter guest starred on a two @-@ part episode arc \" Wounds \" in May 2008 of the television series Waking the Dead as character \" Jimmy Dearden \" . He appeared on the television series Survivors as \" Neil \" in November 2008 . He had a recurring role in ten episodes of the television series Casualty in 2010 , as \" Kieron Fletcher \" . He portrayed an emergency physician applying for a medical fellowship . He commented on the inherent difficulties in portraying a physician on television : \" Playing a doctor is a strange experience . Pretending you know what you 're talking about when you don 't is very bizarre but there are advisers on set who are fantastic at taking you through procedures and giving you the confidence to stand there and look like you know what you 're doing . \" Boulter starred in the 2011 film Mercenaries directed by Paris Leonti . \n = = Filmography = = \n = = = Film = = = \n = = = Television = = = \n = = = Theatre = = = \n = Du Fu = \n Du Fu ( Wade \u2013 Giles : Tu Fu ; Chinese : \u675c\u752b ; 712 \u2013 770 ) was a prominent Chinese poet of the Tang dynasty . Along with Li Bai ( Li Po ) , he is frequently called the greatest of the Chinese poets . His greatest ambition was to serve his country as a successful civil servant , but he proved unable to make the necessary accommodations . His life , like the life of the Tang dynasty , was marked by hardship and suffering . Du Fu was  whole country , was devastated by the An Lushan Rebellion of 755 , and his last 15 years were a time of almost constant unrest . \n Although initially he was little @-@ known to other writers , his wo",
+          "-n",
+          "16",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958356.7376735
+      },
+      {
+        "pid": 34152,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "1",
+          "--kv-tokens",
+          "8192",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53235"
+        ],
+        "started": 1792958358.3002954
+      },
+      {
+        "pid": 73976,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>user\nSay hello in one short sentence. /no_think<|im_end|>\n<|im_start|>assistant\n",
+          "-n",
+          "48",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958360.684513
+      },
+      {
+        "pid": 89456,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>user\nSay hello in one short sentence. /no_think<|im_end|>\n<|im_start|>assistant\n",
+          "-n",
+          "48",
+          "--temp",
+          "0",
+          "--ignore-eos",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958361.6053889
+      },
+      {
+        "pid": 76048,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>user\nSay hello in one short sentence. /no_think<|im_end|>\n<|im_start|>assistant\n",
+          "-n",
+          "48",
+          "--temp",
+          "0.8",
+          "--seed",
+          "11",
+          "--ignore-eos",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958362.7455833
+      },
+      {
+        "pid": 51672,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "generate",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "<|im_start|>user\nSay hello in one short sentence. /no_think<|im_end|>\n<|im_start|>assistant\n",
+          "-n",
+          "48",
+          "--temp",
+          "0",
+          "--ignore-eos",
+          "--stop",
+          " \ud83d\ude0a\u2728.",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958363.8058426
+      },
+      {
+        "pid": 14692,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "chat",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--system",
+          "",
+          "-n",
+          "48",
+          "--temp",
+          "0",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958364.9392443
+      },
+      {
+        "pid": 55848,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "chat",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--system",
+          "",
+          "-n",
+          "48",
+          "--temp",
+          "0",
+          "--ignore-eos",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "started": 1792958365.8482146
+      },
+      {
+        "pid": 48716,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+          "serve",
+          "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+          "--max-seqs",
+          "8",
+          "--kv-tokens",
+          "40960",
+          "--device",
+          "vulkan:0",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "53288"
+        ],
+        "started": 1792958366.9775922
+      }
+    ],
+    "passed": true,
+    "monitor_samples": 704,
+    "monitor_errors": [],
+    "thread_survivors": [],
+    "cleanup_errors": [],
+    "admission": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\server-tail-admission-20261025.json",
+      "sha256": "c2c54a9f9b1ac03ad0c09926c8b1ec9aa95b93fdc6a0ff52089b35be51298b1e",
+      "id": "VDEV-FREE-1952-XDEV-native-RELEASE-1955-server-tail",
+      "created_utc": "2026-10-25T19:56:26.386379+00:00",
+      "age_seconds": 0.165786
+    },
+    "started": 1792958186.5531652,
+    "pid": 34464,
+    "model": "C:\\Users\\Marko\\.cache\\huggingface\\hub\\models--Qwen--Qwen3-0.6B-GGUF\\snapshots\\23749fefcc72300e3a2ad315e1317431b06b590a\\Qwen3-0.6B-Q8_0.gguf",
+    "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+    "source_pins": {
+      "tests\\arch_boundary.py": "1a835afe7f544ba35870ae608347a4161a82add7cd174bb32ab73bca2c5b6ee3",
+      "tests\\baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+      "tests\\baseline_8b.py": "9000af246c2327ed825053b8e1d5633ecafe99288ca859d9c1871dc0d626f9fd",
+      "tests\\baseline_layered.py": "c82ed4c0d4fb54ae06ef0a73b2689b968e67a210764aadaf30e9322f2323f0c5",
+      "tests\\baseline_mxfp4.py": "c84c529c67415a79a59b34092d415fe3988a5fb68ae6a1c5a8e64313e8381949",
+      "tests\\baseline_qwen35.py": "be3b3554938716d8c05c4d32cd366986a2ad84b714df422b49aee16c41773c80",
+      "tests\\block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+      "tests\\chat.py": "597d34e14143d1cd8020888c944f556245f6301c50b162609a9fa5789877aa51",
+      "tests\\cli.py": "e744d4ad048da5a47d29407812983ec41388114c982a72ec5e4e64af59dc648f",
+      "tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests\\dead_code.py": "5404353230d98bcd7a607cc3884f29842b0959f09fe23fba0ce0ed539688f374",
+      "tests\\decode_probe.py": "9a38d7f9b98a483730fdb84678a72f3033a0bf0809e78fdcac66dd2b21e7b6b4",
+      "tests\\device_reference.py": "945572f8879984cf3b65e7e609424a8de5be6ef08c15a53f111a152c872c9bdc",
+      "tests\\docs_check.py": "f3ebcdea44285c11f11ef81fb345829d90ae49c22de3848374c12027664240f8",
+      "tests\\drafters.py": "c8c3fefc64252f5ae917f18a6ce48e04ef1eaaaa795b79b1fcb30d837851b5d4",
+      "tests\\f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests\\fetch_models.py": "d5a4051d6af2dce4a17341f88a83964691508edafb782f23f775c7a80a5fe365",
+      "tests\\half_weights.py": "8a70c62c916d45232e1456d224968df2a90ae072cdbf7ff3237c3b570ce9eec5",
+      "tests\\int8.py": "d5e7faa2c710e5ab44693f736aa23faa103985bb512e3d8ffefced1e82156241",
+      "tests\\iq1.py": "0dd9f6ac05f2ee3bc6c6f0d3c850802c4e20b86d6621919af936b978d15c3a63",
+      "tests\\iq2_s.py": "33ec93b0924f361f383448ee1948c405675a6a7e152c60db4ca4948b7f8e0fc1",
+      "tests\\iq2_small.py": "43beda76dbdddeb85289d40606f8d5dd1f0607b9a4f15b61f4fd9a9ba4f2d6d8",
+      "tests\\iq3_s.py": "8bdda3397dbc5bcdee2d659ef8b470284b428335190b8b016b60282a7c679cdc",
+      "tests\\iq3_xxs.py": "dd2bcedae9101915bd803970527124d57d1d0b443123a4ae612780c69e3dc338",
+      "tests\\iq4_nl.py": "c457a43c26b9915748cf6100392dd55a1b2908f589ead409f5ac4ee5eae4585b",
+      "tests\\iq4_xs.py": "bf1eba289873aa1d4db648ead4785912b563ab91c18b44454385a0459fa45fd9",
+      "tests\\layered_moe_reference.py": "3d6b42d15b4bf3a92924ac02592ec61b0b29d91eba46d51e49c8964dc266a3ca",
+      "tests\\moe.py": "d71f3b48aa70e0479185575c87b31de2933784cad933f5cdbf43bd7c2df71dd2",
+      "tests\\mxfp4.py": "0fe256e589e8566c70c83df43d65ebfd3b0730a0e8968d593ed396a0a9b1383d",
+      "tests\\nvfp4.py": "0bf570465aeedda56de5236cbd93b2851031018dbde0cff511fe0f342a4bb1e1",
+      "tests\\perf.py": "bacddf118f5e405c035fba1a708081102f139835ed39b3d83307c64e01ea8544",
+      "tests\\perplexity.py": "90072ebf7a01e9259faff50e01ef91d59f9c92b85075f212c93d13a355993f05",
+      "tests\\q2_k.py": "4a78d36fcd34b7ef86d4eabd83a488c30b49e28cd807043a81a1c7405461f2d5",
+      "tests\\q3_k.py": "3ef1c122c816931e633c2aaf951993169bea917091f52c607c3079c5fddb1f2c",
+      "tests\\q5_0.py": "2c81ff88abc9a6a844341da54d758c0786cf5370c8dfe4f1cf0d6f4f63da5ac6",
+      "tests\\q5_1.py": "728d2f499ec3ee1d566b2ef9a99c964ba4b2565076f84fefbc8af86aed75015b",
+      "tests\\qwen35.py": "942765dc4914c574718d88b85fc70982bfb515439ea9aa49b9d8fa57b352ff3e",
+      "tests\\qwen4exp.py": "6c67929c439f94fa032f6b6abe5e97b79fb4abcdf9017d6273210937c903fd1f",
+      "tests\\qwen4exp_fixture.py": "8a9b4d42856aee0601b3eb8bb5d0a97134c71bda4d56a34f14e1a0db2f114310",
+      "tests\\raw_blocks.py": "aed90ed41a22d235f1fb1b53b2a2b0b9b95504a71493465ea2e68685d92cb805",
+      "tests\\reference_consumer.py": "c881c17c1140fa036ab55d1d0324fef8aef2e654ce4985e7db030778dbe8f8dc",
+      "tests\\reference_generator.py": "0692f2727c7c569b268ccb0072bbdd1dc71fd734b93c06fe95283acbcc8a981e",
+      "tests\\reference_qwen4exp.py": "d1aa58bcd41d61ad206645e0ca7e629c4ed7a8c6de4ace8bcba6d5e2ef5c9e83",
+      "tests\\reference_qwen4exp_file.py": "7481479d2da214642530e2faf89a069ca25874a8df269ce78cad156b32efbf47",
+      "tests\\roundtrip.py": "43409137459ce8a0f6b199393775ee0e064c6bfb617bbfbbfdbb9d509cf8d029",
+      "tests\\run_tests.py": "28cee79449742d01ab4e29cd387f805065a230c22e22f57922f0728886ad4056",
+      "tests\\server.py": "785e4fc3661b7bfdba94846ecba4fcdd6d5000b365a469a8ff1e289aedaad93f",
+      "tests\\server_load_tool.py": "b8310f01926082c8d6f2e35c2127433e2eee0019b219bb6a80a66684eafd4ea1",
+      "tests\\server_mix_tool.py": "d2ecb76ba114370f059acf4de646117fc81b62b48b4486376863008b483265f0",
+      "tests\\shards.py": "429772829a2b4371c40fb138c785cb93afff368963a0ddfc4dad387d39655c36",
+      "tests\\spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+      "tests\\split.py": "4e400c60056c42eb7d36ff3b5238c5624e05f39250a9f7b7c090dffb0687d154",
+      "tests\\tensor_split.py": "a306a7f9ea830f213bd6ad794fd0365e15119312a339b5085f2d03adb57c53fc",
+      "tests\\test_ci_annotations.py": "5516873a493a56739904ef0055859217bd7acea47858d362424331ea45405314",
+      "tests\\threads.py": "7b7952fb25775b256d2f458664c5b09ee17a2711e3c3eae0b06ec887030b63bb",
+      "tests\\tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+      "tests\\tq.py": "f97c5f94a0e8c3859c3e5a49185466b0030fc8a2953fe761994b49a6942fbb4c",
+      "tests\\version.py": "3b8d11b11c6a070ece37c8da8eb9d650bce2619f543e4479a43a0a0d5dc6405c",
+      "tests\\vision.py": "43ada041466bc1300149c77166ea1bc5335a3496b75c9376fb06c0b14944a3dd"
+    },
+    "children": [
+      {
+        "pid": 55288,
+        "exit": 1
+      },
+      {
+        "pid": 29104,
+        "exit": 0
+      },
+      {
+        "pid": 66196,
+        "exit": 0
+      },
+      {
+        "pid": 80160,
+        "exit": 0
+      },
+      {
+        "pid": 82088,
+        "exit": 0
+      },
+      {
+        "pid": 86584,
+        "exit": 0
+      },
+      {
+        "pid": 60548,
+        "exit": 0
+      },
+      {
+        "pid": 74972,
+        "exit": 0
+      },
+      {
+        "pid": 47368,
+        "exit": 0
+      },
+      {
+        "pid": 62892,
+        "exit": 0
+      },
+      {
+        "pid": 34284,
+        "exit": 0
+      },
+      {
+        "pid": 34708,
+        "exit": 0
+      },
+      {
+        "pid": 41688,
+        "exit": 0
+      },
+      {
+        "pid": 83664,
+        "exit": 0
+      },
+      {
+        "pid": 23132,
+        "exit": 0
+      },
+      {
+        "pid": 61048,
+        "exit": 0
+      },
+      {
+        "pid": 81440,
+        "exit": 0
+      },
+      {
+        "pid": 70424,
+        "exit": 0
+      },
+      {
+        "pid": 36696,
+        "exit": 0
+      },
+      {
+        "pid": 44748,
+        "exit": 0
+      },
+      {
+        "pid": 12508,
+        "exit": 0
+      },
+      {
+        "pid": 59772,
+        "exit": 0
+      },
+      {
+        "pid": 28732,
+        "exit": 0
+      },
+      {
+        "pid": 14508,
+        "exit": 0
+      },
+      {
+        "pid": 47788,
+        "exit": 0
+      },
+      {
+        "pid": 6264,
+        "exit": 0
+      },
+      {
+        "pid": 57096,
+        "exit": 0
+      },
+      {
+        "pid": 52436,
+        "exit": 0
+      },
+      {
+        "pid": 18220,
+        "exit": 0
+      },
+      {
+        "pid": 62868,
+        "exit": 0
+      },
+      {
+        "pid": 39200,
+        "exit": 0
+      },
+      {
+        "pid": 67036,
+        "exit": 0
+      },
+      {
+        "pid": 32488,
+        "exit": 0
+      },
+      {
+        "pid": 77088,
+        "exit": 0
+      },
+      {
+        "pid": 26088,
+        "exit": 0
+      },
+      {
+        "pid": 12808,
+        "exit": 0
+      },
+      {
+        "pid": 14884,
+        "exit": 0
+      },
+      {
+        "pid": 29804,
+        "exit": 0
+      },
+      {
+        "pid": 37788,
+        "exit": 0
+      },
+      {
+        "pid": 57052,
+        "exit": 0
+      },
+      {
+        "pid": 71000,
+        "exit": 0
+      },
+      {
+        "pid": 67480,
+        "exit": 0
+      },
+      {
+        "pid": 7712,
+        "exit": 0
+      },
+      {
+        "pid": 82004,
+        "exit": 0
+      },
+      {
+        "pid": 55624,
+        "exit": 0
+      },
+      {
+        "pid": 31000,
+        "exit": 0
+      },
+      {
+        "pid": 47512,
+        "exit": 0
+      },
+      {
+        "pid": 50200,
+        "exit": 0
+      },
+      {
+        "pid": 52480,
+        "exit": 0
+      },
+      {
+        "pid": 31236,
+        "exit": 0
+      },
+      {
+        "pid": 89660,
+        "exit": 0
+      },
+      {
+        "pid": 18524,
+        "exit": 0
+      },
+      {
+        "pid": 50080,
+        "exit": 0
+      },
+      {
+        "pid": 51844,
+        "exit": 0
+      },
+      {
+        "pid": 79124,
+        "exit": 0
+      },
+      {
+        "pid": 59696,
+        "exit": 0
+      },
+      {
+        "pid": 64196,
+        "exit": 0
+      },
+      {
+        "pid": 23116,
+        "exit": 0
+      },
+      {
+        "pid": 46244,
+        "exit": 0
+      },
+      {
+        "pid": 27476,
+        "exit": 0
+      },
+      {
+        "pid": 32480,
+        "exit": 1
+      },
+      {
+        "pid": 40532,
+        "exit": 0
+      },
+      {
+        "pid": 20728,
+        "exit": 0
+      },
+      {
+        "pid": 84920,
+        "exit": 0
+      },
+      {
+        "pid": 21752,
+        "exit": 0
+      },
+      {
+        "pid": 36772,
+        "exit": 0
+      },
+      {
+        "pid": 77052,
+        "exit": 0
+      },
+      {
+        "pid": 74724,
+        "exit": 0
+      },
+      {
+        "pid": 11288,
+        "exit": 0
+      },
+      {
+        "pid": 64364,
+        "exit": 0
+      },
+      {
+        "pid": 55308,
+        "exit": 1
+      },
+      {
+        "pid": 80008,
+        "exit": 0
+      },
+      {
+        "pid": 78908,
+        "exit": 0
+      },
+      {
+        "pid": 22508,
+        "exit": 0
+      },
+      {
+        "pid": 56828,
+        "exit": 0
+      },
+      {
+        "pid": 75584,
+        "exit": 1
+      },
+      {
+        "pid": 66492,
+        "exit": 0
+      },
+      {
+        "pid": 85640,
+        "exit": 1
+      },
+      {
+        "pid": 26220,
+        "exit": 1
+      },
+      {
+        "pid": 29856,
+        "exit": 1
+      },
+      {
+        "pid": 86756,
+        "exit": 1
+      },
+      {
+        "pid": 89788,
+        "exit": 1
+      },
+      {
+        "pid": 76136,
+        "exit": 0
+      },
+      {
+        "pid": 30856,
+        "exit": 0
+      },
+      {
+        "pid": 53952,
+        "exit": 0
+      },
+      {
+        "pid": 76532,
+        "exit": 1
+      },
+      {
+        "pid": 61936,
+        "exit": 0
+      },
+      {
+        "pid": 52768,
+        "exit": 0
+      },
+      {
+        "pid": 76780,
+        "exit": 0
+      },
+      {
+        "pid": 40936,
+        "exit": 0
+      },
+      {
+        "pid": 41516,
+        "exit": 0
+      },
+      {
+        "pid": 79652,
+        "exit": 0
+      },
+      {
+        "pid": 76352,
+        "exit": 1
+      },
+      {
+        "pid": 50432,
+        "exit": 0
+      },
+      {
+        "pid": 31632,
+        "exit": 0
+      },
+      {
+        "pid": 32552,
+        "exit": 1
+      },
+      {
+        "pid": 81300,
+        "exit": 0
+      },
+      {
+        "pid": 39724,
+        "exit": 0
+      },
+      {
+        "pid": 32892,
+        "exit": 1
+      },
+      {
+        "pid": 55924,
+        "exit": 1
+      },
+      {
+        "pid": 21736,
+        "exit": 1
+      },
+      {
+        "pid": 78600,
+        "exit": 0
+      },
+      {
+        "pid": 34152,
+        "exit": 1
+      },
+      {
+        "pid": 73976,
+        "exit": 0
+      },
+      {
+        "pid": 89456,
+        "exit": 0
+      },
+      {
+        "pid": 76048,
+        "exit": 0
+      },
+      {
+        "pid": 51672,
+        "exit": 0
+      },
+      {
+        "pid": 14692,
+        "exit": 0
+      },
+      {
+        "pid": 55848,
+        "exit": 0
+      },
+      {
+        "pid": 48716,
+        "exit": 1
+      }
+    ],
+    "ended": 1792958372.4141097,
+    "pins_unchanged": true,
+    "monitor_ok": true,
+    "cleanup_ok": true
+  },
+  "artifacts": {
+    "build-nvfp4-research\\released-server-tail-20261025-run1\\execution.json": "7fa4e96ffc3316f3f17fc2ce1525fe0c5e1d3b699dfa77ee56993c642c84c2a4",
+    "build-nvfp4-research\\released-server-tail-20261025-run1.log": "6ef553f76cf7ef8350103ca1159dfd1a07f025adf58054018d10be880f23b531",
+    "build-nvfp4-research\\released-server-tail-20261025-run1\\memory.jsonl": "2f705ec6a7bb3b6c7b1611a83922fe73ce8b91c4a06ef05731cc9ed14cb41379",
+    "build-nvfp4-research\\run-server-released-tail.py": "f3fb570764bd95dda5516815260c7daf8ed4ee5df5752126f894be40366b2ed5"
+  },
+  "stdout_encoding": "Windows cp1252",
+  "stdout": "server: Qwen3-0.6B-Q8_0.gguf, asked for the weather with a weather tool, calls it with {\"city\": \"Paris\"} whole and streamed, finish_reason tool_calls, and answers its result: 'The current weather in Paris is 21\u00b0C with clear skies.'  [ok]\nserver: Qwen3-0.6B-Q8_0.gguf, a chat past a 2048-token pool with --context-overflow shift cut by [0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10, 10] messages at turn ends, the turn after a cut reusing it, and a text prompt in the chat format cut at a turn end  [ok]\nserver: Qwen3-0.6B-Q8_0.gguf, two conversations alternating on a pool that holds one, each follow-up promoting its donor from host memory (960 tokens reused) with the CLI's greedy text, none without the host tier  [ok]\nserver: SKIP the disk tier's keep check - no SIGTERM on Windows\nserver: Qwen3-0.6B-Q8_0.gguf, a chat follow-up reusing 640 tokens of a 531-token first turn and its reply, read again while idle, with its reply on a fresh server  [ok]\nserver: Qwen3-0.6B-Q8_0.gguf, 48 prompts greedy-equal to the CLI alone and four at a time, a stream, a seeded repeat, seeded requests equal to the CLI on four sampler paths, refusals, the tokenize routes, a cancelled stream, a chat turn, the compatible routes, logprobs on every route, a reused prefix, the limits, uncapped requests paused and resumed with their values alone, a prompt paused while prefilling with its values alone, a 6-turn conversation past half the pool reusing its history on every follow-up, a follow-up consuming the turn it repeats while an unrelated donor stays, clients leaving a whole reply, a prefill and the queue, and one shutting its sending side  [ok]\nserver: ignore_eos on Qwen3-0.6B-Q8_0.gguf, a greedy reply that ends at its end token after 13 tokens running to 48 through generate, chat and the four routes, greedy and seeded, a stop text still ending it, beside requests without it  [ok]\n{\"passed\": true, \"receipt\": \"C:\\\\Users\\\\Marko\\\\Desktop\\\\Projects\\\\llmx\\\\worktrees\\\\nvfp4-20261025\\\\build-nvfp4-research\\\\released-server-tail-20261025-run1\\\\execution.json\"}\n",
+  "explicit_skip": "Windows disk-tier keep check needs SIGTERM",
+  "cleanup_independently_checked": "Fresh CIM after completion found no llmx processes",
+  "original_failure": "Retained in nvfp4-main4-radeon-suite-20261025.json; startup cause remains unproven"
+}

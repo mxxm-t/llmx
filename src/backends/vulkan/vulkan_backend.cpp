@@ -166,6 +166,7 @@ public:
         e12.timelineSemaphore = VK_TRUE;
         e12.shaderInt8 = VK_TRUE;
         e12.shaderFloat16 = f12.shaderFloat16;
+        d.f16_inputs = f12.shaderFloat16 && (d.float_controls & kF16InputControls) == kF16InputControls;
         e12.storageBuffer8BitAccess = VK_TRUE;
         d.workgroup_counter = missing_counter_need(sg.subgroupSize).empty();
         VkPhysicalDeviceVulkan11Features e11{};
@@ -397,9 +398,9 @@ public:
         if (dtype == Dtype::bf16) return "bf16 (matrix inputs), f32 (routers)";
         if (dtype == Dtype::int8) return "block-int8 (quantized rows and tiles but Q2_K/Q3_K/MXFP4/TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ4_NL/IQ4_XS/IQ3_S), block-int16 (Q2_K/Q3_K rows on integer-dot profiles and eligible tiles; MXFP4, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles and eligible tiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, other products, routers)";
         if (dtype == Dtype::f16)
-            return dev_->profile.prefer_integer_dot
+            return std::string(dev_->f16_inputs ? "f16 (NVFP4 tile inputs), " : "") + (dev_->profile.prefer_integer_dot
                 ? "block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
-                : "block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)";
+                : "block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)");
         return "f32";
     }
     const std::string& name() const { return dev_->caps.device; }
@@ -1322,33 +1323,41 @@ public:
                       const RopeArgs& rope, size_t rows, size_t layer,
                       const KVView* views, size_t n_views) override;
 
-    void embed(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows,
+    void embed(Slice dst, WeightView weight, size_t nin, size_t nrows,
                const uint32_t* ids, size_t count) override {
+        const uint32_t type = weight.type;
+        const CSlice table = weight.data;
         if (count && !ids) throw std::runtime_error("vulkan: embed without ids");
         if (!count || !nin) return;
         check_matrix(type, table, nin, nrows, "embedding");
+        check_weight_scales(weight);
         for (size_t i = 0; i < count; ++i)
             if (ids[i] >= nrows) throw std::runtime_error("vulkan: embedding row out of range");
-        gather_views(weight_kernels(type)->embed, dst, type, table, nin, nrows, args(ids, count * sizeof(uint32_t)), count, false);
+        gather_views(weight_kernels(type)->embed, dst, weight, nin, nrows, args(ids, count * sizeof(uint32_t)), count, false);
     }
 
     // Ids past the table write zero rows; both embedding calls use the format's decoder (shaders/embed.comp).
-    void embed_ids(Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids, size_t count) override {
+    void embed_ids(Slice dst, WeightView weight, size_t nin, size_t nrows, CSlice ids, size_t count) override {
+        const uint32_t type = weight.type;
+        const CSlice table = weight.data;
         if (!count || !nin) return;
         check_matrix(type, table, nin, nrows, "embedding");
+        check_weight_scales(weight);
         if (floats_from(ids) < count || floats_from(dst) < size_mul(count, nin))
             throw std::runtime_error("vulkan: embed_ids operand outside its allocation");
-        gather_views(weight_kernels(type)->embed_ids, dst, type, table, nin, nrows, bind(ids), count, true);
+        gather_views(weight_kernels(type)->embed_ids, dst, weight, nin, nrows, bind(ids), count, true);
     }
     // One dispatch a view of the table (table_views), each workgroup writing its row where that view holds it; with device ids the last view also writes the zero rows of ids past the table.
-    void gather_views(KernelId kernel, Slice dst, uint32_t type, CSlice table, size_t nin, size_t nrows, VkDescriptorBufferInfo ids, size_t count, bool device_ids) {
+    void gather_views(KernelId kernel, Slice dst, WeightView weight, size_t nin, size_t nrows, VkDescriptorBufferInfo ids, size_t count, bool device_ids) {
+        const uint32_t type = weight.type;
+        const CSlice table = weight.data;
         const VkBuffer buffer = as_vulkan(*table.buffer).handle();
         for (const TableView& v : table_views(bind(table).offset, nrows, quant::row_bytes(type, nin), dev_->props.limits.maxStorageBufferRange,
                                               dev_->props.limits.minStorageBufferOffsetAlignment)) {
             const VkDescriptorBufferInfo view{buffer, v.offset, v.range};
             const uint32_t pc[6] = {u32(nin), type, v.skew, v.first, v.end, u32(nrows)};
             // Dictionary formats use the spare F32 table view for immutable format data.
-            dispatch(kernel, {bind(dst), lookup_grid(type, view), view, ids}, pc, device_ids ? sizeof(pc) : sizeof(pc) - sizeof(uint32_t), u32(count));
+            dispatch(kernel, {bind(dst), weight_floats(weight, lookup_grid(type, view)), view, ids}, pc, device_ids ? sizeof(pc) : sizeof(pc) - sizeof(uint32_t), u32(count));
         }
     }
 
@@ -1374,11 +1383,11 @@ public:
         pc[2] = 2u;
         dispatch(K_ARGMAX_ROWS, {bind(ids), bind(logits), prior, parts}, pc, sizeof(pc), u32(rows));
     }
-    void matmul(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
+    void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                 size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
-    void matmul_logits(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {},
+    void matmul_logits(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs = {},
                        Dtype dtype = Dtype::f16) override;
-    void matmul_add(uint32_t type, CSlice w, CSlice X, Slice Y, size_t nin, size_t nout,
+    void matmul_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
                     size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
     void matmul_group(std::initializer_list<Projection> projections, CSlice X,
                       size_t nin, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override;
@@ -1415,7 +1424,7 @@ public:
     static Slice at_float(Slice s, size_t floats);
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nrows,
                         const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16) override;
-    void matmul_experts_add(uint32_t type, CSlice data, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
+    void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nrows,
                             const Routing& routing, RowRuns runs, Dtype dtype = Dtype::f16) override;
     void routed_call(const std::vector<const Projection*>& live, CSlice X, size_t nin, size_t xcols, size_t nrows, size_t k,
                      CSlice ids, size_t n_expert, bool tile, Dtype dtype, size_t per = 0);
@@ -1561,6 +1570,8 @@ private:
 
     VkDescriptorBufferInfo bind(CSlice s);
     VkDescriptorBufferInfo bind(Slice s);
+    static void check_weight_scales(WeightView weight, size_t experts = 1);
+    VkDescriptorBufferInfo weight_floats(WeightView weight, VkDescriptorBufferInfo otherwise);
     VkDescriptorBufferInfo lookup_grid(uint32_t type, VkDescriptorBufferInfo otherwise);
     VkDescriptorBufferInfo args(const void* data, size_t bytes);
     void destroy_kernel(Kernel& k) noexcept;
@@ -1645,6 +1656,7 @@ private:
     Ticket staged_[2] = {};                   // the last copy out of each half of staging
     size_t next_half_ = 0;                    // the half of staging the next upload fills first
     std::array<BufferPtr, sizeof(weight_formats) / sizeof(weight_formats[0])> lookup_grids_;
+    BufferPtr unit_scale_;
     std::shared_ptr<VulkanBuffer> scratch_;   // attention split states; stream-ordered reuse
     std::shared_ptr<VulkanBuffer> select_state_;   // a wide selection's per-row histograms, prefixes and slice counts (select_rows)
     std::vector<VkQueryPool> queries_;        // timestamps, only for a diagnostics backend, as many pools as a reading interval has needed

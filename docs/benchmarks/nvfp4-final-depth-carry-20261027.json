@@ -1,0 +1,55 @@
+{
+  "schema": "nvfp4-final-depth-carry-v1",
+  "candidate": "2570b4e1166e07ca340e310b2ebef434e201152e",
+  "depth_revision": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+  "frozen_depth": {
+    "runtime_revision": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+    "pins_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/native-depth-candidate-v3/pins.json",
+    "source_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/candidate/source",
+    "build_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/candidate/build",
+    "source_manifest_sha256": "16d2d564ec9aef131d8305d244eec0b508c9d1408a7d6c22ecfcc3f9506f8a75",
+    "llmx_sha256": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+    "library_sha256": "133985e754f102b332fd4967ae2be5441e7626365166530a0e4b2907d40fe27b",
+    "build_receipt_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/input-overlap-main7ac-v1/build-result.json",
+    "build_receipt_library_hash_matches_pins": true,
+    "generated_nvfp4_modules_rig": {
+      "matmul_row_nvfp4.inc": "0951473654a47cf25fb3b60bea28416b57f61ded558f0eb625eadf30fa27097b",
+      "matmul_row_nvfp4_preserve.inc": "c99918df23ce24a38810f704c8ff9816983ff7e71818701b1470871c58951574",
+      "matmul_tile_nvfp4.inc": "5a57581e60c0718bb5ea338387e2902bf351ee34050c677c60e57005fc79b961",
+      "matmul_tile_nvfp4_bf16.inc": "0efd3eb195e027270e1930cd0eef2978ce94cbf876b2cc0077a8375a17c37fec",
+      "matmul_tile_nvfp4_bf16_preserve.inc": "587d04b50d952c1fdce4e7bd22c7555db983b1c420ef5db179f6f8073587ccce",
+      "matmul_tile_nvfp4_f16.inc": "db159847fbc8c5d8b4b9f525b8518c21fc40e229c8b113c7c7a86802370d455a",
+      "matmul_tile_nvfp4_preserve.inc": "388b32e46a74fb088f784aa9255bda72f05ef5852754543ec8bdda2e91252dcd"
+    },
+    "module_hash_evidence": "Hashes read with sha256sum from the exact candidate/build/generated/vulkan directory named in the frozen depth pins. The generated-before manifest and build-result show matmul_tile_nvfp4_f16.inc was the only changed generated file in the build; current generated hashes are tied to the pinned library hash."
+  },
+  "prior_audit_sha256": "fa7b8dbc40978ee8c5104304d7c20f70a143bcdd3aed45d81e1bebafab0709d0",
+  "final_build_receipt_sha256": "69e950fa892d3551f948716448243a395445e703da405ca6d4ed8789bd9bebe6",
+  "final_binary": {
+    "path": "candidate/build/llmx",
+    "bytes": 13223072,
+    "sha256": "c1b8b31cd00fd669e5fe617a711b9eb5e4f9627d01924bf95979de361a126076"
+  },
+  "final_version": "llmx 0.1.0+unknown numerics 0a82006ec5283643",
+  "final_generated_modules": 314,
+  "seven_modules_match": true,
+  "dispatch_headers": {
+    "src/backends/device_profile.hpp": {
+      "depth_blob": "cbab9632c8095530aac6a11d0a075f790d0c911d",
+      "candidate_blob": "cbab9632c8095530aac6a11d0a075f790d0c911d"
+    },
+    "src/backends/vulkan/vulkan_matmul.hpp": {
+      "depth_blob": "7eefcca30e295eb98b0be16fdd5c2dbdf9f1c6d2",
+      "candidate_blob": "7eefcca30e295eb98b0be16fdd5c2dbdf9f1c6d2"
+    }
+  },
+  "clarification": {
+    "entry": "f5f594ac4f41",
+    "time_utc": "2026-10-27 07:32",
+    "condition": "No split decision changed against the depth build, not a witnessed absence of splits.",
+    "verdict": "Raw/chat 16K carries with matching policy headers and seven Linux modules; host path held by Qwen3-0.6B identity."
+  },
+  "host_identity": "nvfp4-final-identities-20261027.json: exact Qwen3-0.6B CPU and MI50, Flash and routed 35B outputs.",
+  "depth_evidence": "nvfp4-native-f16-mi50-depth-20261026.json",
+  "conclusion": "All clarified carry conditions met. Frozen raw/chat 16K results carry. No new reference, budget or model change."
+}

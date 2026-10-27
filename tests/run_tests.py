@@ -32,6 +32,7 @@ import iq3_xxs
 import iq2_small
 import iq1
 import tq
+import nvfp4
 import qwen35
 import split
 import tensor_split
@@ -140,6 +141,7 @@ def main():
                   ("iq1", iq1.run),
                   ("tq1-0", tq.run_tq1),
                   ("tq2-0", tq.run_tq2),
+                  ("nvfp4", nvfp4.run),
                   ("qwen35", lambda: qwen35.run(require=args.require_tools)),
                   ("vision", lambda: vision.run(require=args.require_tools)),
                   ("image", image.run),

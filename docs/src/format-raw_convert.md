@@ -16,7 +16,7 @@ themselves are the quant layer's, reached through `quant::Registry`.
   The size of `model.bin` must match the shapes, and storage past what a vector or a stream can hold is refused before any allocation.
 - `dequantize_to_raw(in, json, bin)`: a GGUF file's tensors as raw F32, F32
   tensors copied and half or quantized ones decoded through the registry, from the
-  file's payload mapped in place (`gguf::map_payload`).
+  file's payload mapped in place (`gguf::map_payload`). Associated NVFP4 scalar or per-expert F32 scales are applied before writing effective F32 values; companion tensors remain present in the raw inventory. Association uses [weight_scales](format-weight_scales.md), without treating activation `.input_scale` as weight decoding.
   Every tensor's decoder support is checked before mapping the payload or
   allocating decoded buffers; a known layout without a decoder is refused
   by tensor name, with existing destinations preserved.
@@ -28,3 +28,5 @@ Both writers use checked staging and publication ([output_file](format-output_fi
 Every path is UTF-8 and every file is opened through `std::filesystem::u8path`, so a path outside the Windows code page opens too.
 
 `tests/roundtrip.py` quantizes and decodes both types, under an ASCII and a non-ASCII directory with the same bytes, and checks refusals. It also checks empty F32 and Q8_0 tensors alone and before, between and after populated tensors, preserving metadata and exact decoded bytes.
+
+Independent Python companion-reference and conversion checks cover scalar, per-expert and sharded weight scales. They verify effective F32 output separately from the runtime model path.

@@ -12,6 +12,7 @@
 #include <vector>
 #include "core/json.hpp"
 #include "format/gguf.hpp"
+#include "format/weight_scales.hpp"
 #include "format/output_file.hpp"
 #include "quant/quant.hpp"
 
@@ -150,6 +151,15 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
     if (same_name || std::filesystem::equivalent(json_path, bin_path, ec))
         throw std::runtime_error("raw outputs must be different files: " + out_json + " and " + out_bin);
     gguf::GGUFModel m = gguf::read_gguf(in_path);
+    const auto scales = gguf::weight_scales(m);
+    for (size_t i = 0; i < scales.size(); ++i) {
+        if (!scales[i]) continue;
+        const auto& weight = m.tensors[i];
+        const auto& scale = m.tensors[*scales[i]];
+        const uint64_t count = scale.n_elements(), experts = weight.ne.size() == 3 ? weight.ne[2] : 1;
+        if (scale.type != quant::GGML_TYPE_F32 || scale.ne.empty() || !count || (count != 1 && count != experts))
+            throw std::runtime_error("dequantize: incompatible weight scale " + weight.name);
+    }
     for (const auto& t : m.tensors) {
         const quant::QuantType* qt = quant::Registry::instance().get(t.type);
         if (t.type != quant::GGML_TYPE_F32 && (!qt || !qt->dequantize))
@@ -185,6 +195,16 @@ inline void dequantize_to_raw(const std::string& in_path, const std::string& out
         } else {
             const quant::QuantType* qt = quant::Registry::instance().get(t.type);
             qt->dequantize(raw, f.data(), n / qt->block_size);
+        }
+        if (scales[i]) {
+            const size_t count = size_t(m.tensors[*scales[i]].n_elements());
+            const uint8_t* values = m.tensor_data(*scales[i]);
+            const size_t per = n / count;
+            for (size_t j = 0; j < n; ++j) {
+                float scale;
+                std::memcpy(&scale, values + (j / per) * sizeof(float), sizeof(float));
+                f[j] *= scale;
+            }
         }
         out.resize(out.size() + n * 4);
         std::memcpy(out.data() + (out.size() - n * 4), f.data(), n * 4);

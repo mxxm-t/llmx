@@ -27,6 +27,7 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 |---|---|---|---|
 | `F32`, `F16`, `BF16` | Supported | Supported | No |
 | `MXFP4` | Supported | Supported | No |
+| `NVFP4` | Supported | Supported | No |
 | `Q2_K` | Supported | Supported | No |
 | `Q3_K` | Supported | Supported | No |
 | `Q4_0`, `Q4_1`, `Q4_K` | Supported | Supported | `Q4_0` |
@@ -40,6 +41,8 @@ This is the current model-weight support matrix. The [storage metadata page](doc
 | `TQ1_0`, `TQ2_0` | Supported | Supported | No |
 
 The current Vulkan `MXFP4` kernels require support for preserving small and special floating-point values and for double-precision intermediate calculations. A tensor assigned to a device that cannot process its format is rejected; llmx does not move it to the CPU automatically.
+
+`NVFP4` is read-only and uses software decoding. Vulkan may use F16-rounded tile inputs on capable devices and falls back to F32 inputs otherwise.
 
 GGUF metadata can recognize layouts without an inference decoder; `info`, `tokenize` and `detokenize` accept those known layouts. `Q8_1` and `Q8_K` are auxiliary formats. See the [storage type list](docs/src/quant-types.md); metadata recognition alone does not make a weight executable.
 

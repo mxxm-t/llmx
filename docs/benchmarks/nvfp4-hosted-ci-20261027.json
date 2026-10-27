@@ -1,0 +1,151 @@
+{
+  "run_id": 40443346959,
+  "url": "https://github.com/mxxm-t/llmx/actions/runs/40443346959",
+  "head": "1fccbb34459bcd2a5c25a899dfba5bb42b4c3387",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 121988638410,
+      "name": "CPU (Linux TSan)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "CPU (Linux TSan)",
+        "id": 121988638410,
+        "conclusion": "success",
+        "bytes": 248539,
+        "sha256": "e7c50f18a3230d7a630e6274850b2b308b8d5fcd1aa0d2dcbcc3bc16817067eb"
+      }
+    },
+    {
+      "id": 121988638680,
+      "name": "CPU (macos-15-intel)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "CPU (macos-15-intel)",
+        "id": 121988638680,
+        "conclusion": "success",
+        "bytes": 116180,
+        "sha256": "f12340a35f5d7aad52af6324f8db3e16e9163465b6f6cc1f1c4355253bc23315"
+      }
+    },
+    {
+      "id": 121988638687,
+      "name": "CPU (windows-2022)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "CPU (windows-2022)",
+        "id": 121988638687,
+        "conclusion": "success",
+        "bytes": 185161,
+        "sha256": "8f55b1057ac1a41fa31d6c3276e4fb8205b7303e16455d99b425ebec86e902f8"
+      }
+    },
+    {
+      "id": 121988638697,
+      "name": "CPU (ubuntu-24.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "CPU (ubuntu-24.04)",
+        "id": 121988638697,
+        "conclusion": "success",
+        "bytes": 182297,
+        "sha256": "cdc235fdd7cabd01527c5d93f4669ae2798717a9960f34f2cd041ef2ebd8b0d7"
+      }
+    },
+    {
+      "id": 121988638703,
+      "name": "Vulkan backend (build, Linux)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "Vulkan backend (build, Linux)",
+        "id": 121988638703,
+        "conclusion": "success",
+        "bytes": 240432,
+        "sha256": "016500c94504965c9b4e569334e8b39878cb015550d986ff3f67ef389836dff4"
+      }
+    },
+    {
+      "id": 121988638736,
+      "name": "CPU (Linux UBSan)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "CPU (Linux UBSan)",
+        "id": 121988638736,
+        "conclusion": "success",
+        "bytes": 206404,
+        "sha256": "0cff04b1c1d9d1e68a3efccabbc5646b775285f03af4a2c1c9a79acb313b7ef1"
+      }
+    },
+    {
+      "id": 121988638746,
+      "name": "HF reference (CPU)",
+      "status": "completed",
+      "conclusion": "success",
+      "active_steps": [],
+      "log": {
+        "job": "HF reference (CPU)",
+        "id": 121988638746,
+        "conclusion": "success",
+        "bytes": 192697,
+        "sha256": "4ea7a126dd00830b8efe0a0c95303eb5e3de96e708ca251eba6b3f37a18ab5eb"
+      }
+    }
+  ],
+  "coverage_notes": [
+    "Windows CMake 78 native tests, Ubuntu 77 and Vulkan build 94 passed.",
+    "Vulkan hosted job runs on the CPU and does not replace MI50 or Radeon device evidence.",
+    "The separate Windows build.bat CLI run skips helpers it does not build; the CMake suite requires tools.",
+    "Required-HF default and F32-cache baseline steps passed. CPU real-model split is byte-identical; all concurrent server requests match.",
+    "TSan covers the HTTP and scheduler threading tests, not every runtime operation."
+  ],
+  "source_scope": {
+    "head": "306973cc78c443a066deb0c8403ad45c1a448e93",
+    "ci_head": "1fccbb34459bcd2a5c25a899dfba5bb42b4c3387",
+    "runtime_test_build_scope": [
+      "src",
+      "tests",
+      "CMakeLists.txt",
+      "cmake",
+      "docker",
+      ".github"
+    ],
+    "runtime_test_build_delta": [],
+    "dashboard_published_blob_identity": {
+      "tools/health_dashboard/README.md": true,
+      "tools/health_dashboard/index.html": true,
+      "tools/health_dashboard/server.py": true,
+      "tools/health_dashboard/test_server.py": true,
+      "tools/health_dashboard/test_ui_rates.py": true
+    },
+    "other_changes": [
+      "README.md",
+      "docs/STATUS.md",
+      "docs/benchmarks/dashboard-startup-image-20261027.json",
+      "docs/benchmarks/nvfp4-combined-slot-binding-20261027.json",
+      "docs/benchmarks/nvfp4-dashboard-integration-20261027.json",
+      "tools/health_dashboard/README.md",
+      "tools/health_dashboard/index.html",
+      "tools/health_dashboard/server.py",
+      "tools/health_dashboard/test_server.py",
+      "tools/health_dashboard/test_ui_rates.py"
+    ],
+    "meaning": "Current runtime, tests and build inputs are identical to the pending CI tree. Separately qualified dashboard files retain published identities. This is scope evidence, not completion of CI or the pending rig gates."
+  },
+  "does_not_close": [
+    "Flash identity failure",
+    "35B matched timing",
+    "MI50 MXFP4 timing"
+  ]
+}

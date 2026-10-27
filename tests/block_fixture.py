@@ -16,7 +16,7 @@ VARIANTS = (("dense-untied", False, False), ("dense-tied", True, False), ("moe",
 def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False):
     """Raw-block matrices in the shared tiny dense/MoE layout, independently decoded for HF; norms and routers stay F32."""
     block = sd.TYPES[type_id][1]
-    assert block in (32, 256), "unsupported tiny block width"
+    assert block in (32, 64, 256), "unsupported tiny block width"
     width, hidden, head = (96, 160, 32) if block == 32 else (256, 768, 128)
     config = {"block_count": 2, "embedding_length": width, "feed_forward_length": hidden,
               "attention.head_count": 2, "attention.head_count_kv": 1,
@@ -98,7 +98,7 @@ def device_skip(model):
     return common.device_lacks_kernel(rc, out)
 
 
-def run_family(kind, label, make_fixture, family=None):
+def run_family(kind, label, make_fixture, family=None, repack=None):
     if common.f32_cache_skip(kind):
         return common.SKIPPED
     split = common.tensor_width() > 1
@@ -115,6 +115,11 @@ def run_family(kind, label, make_fixture, family=None):
             config, weights, packed = make_fixture(tied, moe, split=split)
             assert config == golden["config"] and weight_hash(weights) == golden["weights_sha256"], label + " decoded weights changed"
             assert packed_hash(packed) == golden["packed_sha256"], label + " packed weights changed"
+            if repack is not None:
+                # A concrete equivalent encoding may reuse HF outputs only after all original identities pass.
+                packed = repack(weights, packed)
+                print("%s: %s original packed %s, equivalent packed %s, effective F32 weights %s  [ok]"
+                      % (kind, name, golden["packed_sha256"], packed_hash(packed), golden["weights_sha256"]))
             model = write_fixture(os.path.join(directory, name + ".gguf"), config, weights, packed, moe)
             models.append((name, model, golden))
         if device_skip(models[0][1]):

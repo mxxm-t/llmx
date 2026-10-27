@@ -1,0 +1,1096 @@
+{
+  "title": "NVFP4 tile64 MI50 development screen",
+  "date": "2026-10-26",
+  "scope": "Two-arm development screen of the NVFP4 non-starved minimum tile height, raised from 32 to 64 rows, against the frozen native-F16 staging baseline. The existing 128-row tall choice remains unchanged. Not a final correctness, performance, depth, split, or merge qualification.",
+  "result": "All 12 timing calls and 2 actual-path profile witnesses completed. The control profile dispatched small 32-row and normal 64-row tiles; the candidate profile dispatched the 64-row normal tile for this workload. The source retains the 128-row tall choice. Two samples per cell show descriptive deltas only.",
+  "source": {
+    "base_commit": "c843bca58c3d4b7bf9f0276fd805e427719ace38",
+    "candidate_source_manifest_sha256": "551daac509f2389db306bb580106a543b80b0577bf90ca6fba839f653170c280",
+    "base_source_manifest_sha256": "9ef01196d925e35cf7db6aeb487e0c83284cf8ab299ef819e9ca789f33e46f14",
+    "changed_files": {
+      "src/backends/vulkan/vulkan_kernels.hpp": {
+        "baseline_sha256": "3f1a3ee7e4f81dace50f72d76f6ffda999f0630e005c51e427bdfebc21be35e3",
+        "candidate_sha256": "ff4b83f7b4863257562179b314d3dd57f3830abe639feca0b25d8a122c32629d"
+      },
+      "src/backends/vulkan/vulkan_matmul.hpp": {
+        "baseline_sha256": "1a0e061b02cadf294c2bfef0334911c00613ed2d3a09dcba245a24c742952513",
+        "candidate_sha256": "f807d6a678cafffb8cb386b6fab8f5b90854fcf29cc1adbc7ec40cf18b18a218"
+      }
+    }
+  },
+  "arms": {
+    "control": {
+      "revision": "a5b190d13",
+      "source_manifest_sha256": "9ef01196d925e35cf7db6aeb487e0c83284cf8ab299ef819e9ca789f33e46f14",
+      "binary_sha256": {
+        "llmx": {
+          "bytes": 12779456,
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13/candidate/build/llmx",
+          "sha256": "dfedaab9063112481b8df5d4674abbc69d5810a47500be33e5ff63fd919605df"
+        },
+        "llmx-nvfp4-test": {
+          "bytes": 9763320,
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/f16-staging-a5b190d13/candidate/build/llmx-nvfp4-test",
+          "sha256": "135cf7ff600c33ae7f963f2f48feb7c10bba8558415d3fa9751b71b6a6d40240"
+        }
+      },
+      "version": "llmx 0.1.0+unknown numerics bd60115c1d1a2457"
+    },
+    "candidate": {
+      "source_base_commit": "c843bca58c3d4b7bf9f0276fd805e427719ace38",
+      "source_manifest_sha256": "551daac509f2389db306bb580106a543b80b0577bf90ca6fba839f653170c280",
+      "binary_sha256": {
+        "llmx": {
+          "bytes": 12779456,
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/tile64-20261026/candidate/build/llmx",
+          "sha256": "4b073749c7bcc2c7dc5c7326396882baa609218b10ec657d65df56899b6893b5"
+        },
+        "llmx-nvfp4-test": {
+          "bytes": 9763320,
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/tile64-20261026/candidate/build/llmx-nvfp4-test",
+          "sha256": "5aa1877a88d174131095dc55cf084da15c0f47efc4e2673911e75922017bfdf7"
+        }
+      },
+      "version": "llmx 0.1.0+unknown numerics 245bd7ddd9bbb26f"
+    }
+  },
+  "build": {
+    "passed": true,
+    "scope": "CPU-only NVFP4 tile64 build; no tests or inference",
+    "commands": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "/work/candidate/source",
+          "-B",
+          "/work/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "started_unix": 1793004172.242957,
+        "ended_unix": 1793004172.759957,
+        "returncode": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--target",
+          "llmx",
+          "llmx-nvfp4-test",
+          "--parallel",
+          "1"
+        ],
+        "started_unix": 1793004172.7599626,
+        "ended_unix": 1793004297.967741,
+        "returncode": 0
+      }
+    ],
+    "version": "llmx 0.1.0+unknown numerics 245bd7ddd9bbb26f",
+    "raw_rig_build_launch_sha256": "468ecd094fe98eac9cb720484c5abdbf18faff1253447837b60a8cc8f7e0a697",
+    "raw_rig_build_result_sha256": "816ef50beb1e6cda73def728e81536111a5d24080bbacd331e477f8af89e32b9",
+    "container_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-26T08:42:52.079409937Z",
+      "FinishedAt": "2026-10-26T08:44:58.017443948Z"
+    }
+  },
+  "focused_native": {
+    "passed": true,
+    "command": [
+      "docker",
+      "create",
+      "--name",
+      "llmx-xdev-nv-tile64-focused-20261026",
+      "--init",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "3",
+      "--cpus",
+      "1",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "--device",
+      "/dev/dri/renderD130",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "-e",
+      "XDG_CACHE_HOME=/tmp/cache",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/tile64-20261026/candidate/build:/build:ro",
+      "--entrypoint",
+      "timeout",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "120",
+      "/build/llmx-nvfp4-test",
+      "--vulkan"
+    ],
+    "binary_sha256": "5aa1877a88d174131095dc55cf084da15c0f47efc4e2673911e75922017bfdf7",
+    "log_sha256": "6b57d5326ceae0e874df5987a9a392062c09d76a8423e142215ba1d15c42111d",
+    "container_removed": true,
+    "scope": "NVFP4 Vulkan native test only; not model inference correctness."
+  },
+  "model": {
+    "bytes": 578052704,
+    "path": "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+  },
+  "device": {
+    "node": "/dev/dri/renderD130",
+    "pci": "0000:c9:00.0",
+    "physical": 8,
+    "uuid": "00000000-c900-0000-0000-000000000000"
+  },
+  "environment": {
+    "image_id": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpuset": "2,3,10,11",
+    "runner_sha256": "1137676b09b44a8a6811f89addb087a6ce78b944f45673b8db9eb97b956bef4c",
+    "plan_sha256": "8a4e4d13f574c749300e22341ff72b3ae11d6e37a520d0f10115eb861bcd77e4",
+    "slot_sha256": "15c39561e0c224ecce23fe6d39ae62515af491d99bd7e8c2b2bc9c1b55ecd562",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "vulkaninfo_sha256": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "container_removed": true,
+    "cleanup_ok": true,
+    "pins_unchanged": true
+  },
+  "workload": {
+    "dtype": "f16",
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "device": "vulkan:0",
+    "threads": 4,
+    "ubatch": 512,
+    "decode_tokens": 256,
+    "measured_repetitions_per_cell": 2,
+    "warmups": [
+      {
+        "index": 0,
+        "arm": "control",
+        "phase": "warmup",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.32,
+          "prefill_tok_s": 2256.88
+        },
+        "stdout": "host-021-timing-00-control.stdout",
+        "stdout_sha256": "9960e35233b0ef0d153d06100081c975dd309d5d2610b0890cdbc62233824d19",
+        "stderr": "host-021-timing-00-control.stderr",
+        "stderr_sha256": "7d2ad64de8c38aa3e3c3f6983a749a6a623f3c0ee506d4a3baa515cd3b3de0b8",
+        "started_unix": 1793004746.0432775,
+        "ended_unix": 1793004751.67263
+      },
+      {
+        "index": 1,
+        "arm": "candidate",
+        "phase": "warmup",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.85,
+          "prefill_tok_s": 2325.36
+        },
+        "stdout": "host-022-timing-01-candidate.stdout",
+        "stdout_sha256": "32543b9da02a024531db8a6a04ba5ed5cb69336a5e55e602baa9f25eba7a3416",
+        "stderr": "host-022-timing-01-candidate.stderr",
+        "stderr_sha256": "db951012e7c362b6496410392b1856967c74145b2a928c4ec9fee8f5e04172ab",
+        "started_unix": 1793004751.6765788,
+        "ended_unix": 1793004756.7525206
+      },
+      {
+        "index": 6,
+        "arm": "control",
+        "phase": "warmup",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.76,
+          "prefill_tok_s": 3564.44
+        },
+        "stdout": "host-027-timing-06-control.stdout",
+        "stdout_sha256": "230ddeeb47e412a19d852116269675deb4f4b05facee02e681a2c8ea73c9243e",
+        "stderr": "host-027-timing-06-control.stderr",
+        "stderr_sha256": "247285c58e912cc742aab1d1d1d0d8e509e4daf0ad7f497a57ec661f937405ab",
+        "started_unix": 1793004777.2889986,
+        "ended_unix": 1793004784.6195982
+      },
+      {
+        "index": 7,
+        "arm": "candidate",
+        "phase": "warmup",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.78,
+          "prefill_tok_s": 3567.37
+        },
+        "stdout": "host-028-timing-07-candidate.stdout",
+        "stdout_sha256": "3511be2b71988ae5c9b0b83d245ead1cfd78415570bdfbfffe48b04896408757",
+        "stderr": "host-028-timing-07-candidate.stderr",
+        "stderr_sha256": "a256eb9e1ceeeba849cbd9a1e5560721b42539b64ed4b00604d9c36297ec27b8",
+        "started_unix": 1793004784.624045,
+        "ended_unix": 1793004791.9545016
+      }
+    ],
+    "measured_calls": [
+      {
+        "index": 2,
+        "arm": "control",
+        "phase": "measured",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.53,
+          "prefill_tok_s": 2275.75
+        },
+        "stdout": "host-023-timing-02-control.stdout",
+        "stdout_sha256": "6b7825bfff49895c51a5fb6feb02aeefc4e83fbf200be4d0c4fcbbc508b140be",
+        "stderr": "host-023-timing-02-control.stderr",
+        "stderr_sha256": "df4788285a93ae854758d2d4e8b3a95212081cf6a1d491dc132215a9f0011984",
+        "started_unix": 1793004756.7565393,
+        "ended_unix": 1793004761.886933
+      },
+      {
+        "index": 3,
+        "arm": "candidate",
+        "phase": "measured",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.84,
+          "prefill_tok_s": 2336.37
+        },
+        "stdout": "host-024-timing-03-candidate.stdout",
+        "stdout_sha256": "628225d5af2ff417cd5c532aa1a2d784b6f529d5cbf2fc18da2dbc2c14929b99",
+        "stderr": "host-024-timing-03-candidate.stderr",
+        "stderr_sha256": "65720d88a57a92c78d39aafa9c2df611a1ada5305c74c4cc4462af7343a2dbf4",
+        "started_unix": 1793004761.891063,
+        "ended_unix": 1793004766.9688623
+      },
+      {
+        "index": 4,
+        "arm": "candidate",
+        "phase": "measured",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.95,
+          "prefill_tok_s": 2324.26
+        },
+        "stdout": "host-025-timing-04-candidate.stdout",
+        "stdout_sha256": "a487a330e9b4cdc0fd3d01d51de57a5d35d70ce35b93cbbeb0fa58138b540d57",
+        "stderr": "host-025-timing-04-candidate.stderr",
+        "stderr_sha256": "b18dae4f300644ad90c41d9cb109d57c8e54f9cdefce923fa8c25469e6eb24b7",
+        "started_unix": 1793004766.9733412,
+        "ended_unix": 1793004772.1012852
+      },
+      {
+        "index": 5,
+        "arm": "control",
+        "phase": "measured",
+        "prompt": 128,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.88,
+          "prefill_tok_s": 2247.44
+        },
+        "stdout": "host-026-timing-05-control.stdout",
+        "stdout_sha256": "46f7895e7e3eff8d3ad4622a1deb73c59d9fbddc15a8351ee138fe868ff65bbe",
+        "stderr": "host-026-timing-05-control.stderr",
+        "stderr_sha256": "76de34923f69e18c463e16f6e272286e328066be32c85923d9f67c5eeaca896d",
+        "started_unix": 1793004772.106641,
+        "ended_unix": 1793004777.2849314
+      },
+      {
+        "index": 8,
+        "arm": "control",
+        "phase": "measured",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.84,
+          "prefill_tok_s": 3561.5
+        },
+        "stdout": "host-029-timing-08-control.stdout",
+        "stdout_sha256": "e7f4513983a56266f8a79321bb6b6ef4c9875e558a3e0141d019936cf4e295cd",
+        "stderr": "host-029-timing-08-control.stderr",
+        "stderr_sha256": "f0d66cb34874e18f9951720b7f6d54536de469f97c3b00c7f008baa384ba7e48",
+        "started_unix": 1793004791.9590926,
+        "ended_unix": 1793004799.291478
+      },
+      {
+        "index": 9,
+        "arm": "candidate",
+        "phase": "measured",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.59,
+          "prefill_tok_s": 3562.22
+        },
+        "stdout": "host-030-timing-09-candidate.stdout",
+        "stdout_sha256": "3c0c1823c947795c56b25e7e04d14fc085791615b54a9157a5fcae541511998a",
+        "stderr": "host-030-timing-09-candidate.stderr",
+        "stderr_sha256": "de7342ceee67b4383f71a880421cae1c1bfb4907f72684d3ed0bd95828a3c21a",
+        "started_unix": 1793004799.2958612,
+        "ended_unix": 1793004806.627499
+      },
+      {
+        "index": 10,
+        "arm": "candidate",
+        "phase": "measured",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.77,
+          "prefill_tok_s": 3564.43
+        },
+        "stdout": "host-031-timing-10-candidate.stdout",
+        "stdout_sha256": "b1b0c42f68d5c0b8fd694e531737548beb373c978deb81befd53b52e2237d895",
+        "stderr": "host-031-timing-10-candidate.stderr",
+        "stderr_sha256": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+        "started_unix": 1793004806.6323738,
+        "ended_unix": 1793004813.9131577
+      },
+      {
+        "index": 11,
+        "arm": "control",
+        "phase": "measured",
+        "prompt": 4096,
+        "decode": 256,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 123.52,
+          "prefill_tok_s": 3564.57
+        },
+        "stdout": "host-032-timing-11-control.stdout",
+        "stdout_sha256": "115dc14d753e29f08c01ca16b00ef2277431da8bbbf17680df904323dbaf1e02",
+        "stderr": "host-032-timing-11-control.stderr",
+        "stderr_sha256": "a168308e03665467e63abddb93d7fc65162625fe340bb670bf8d7b67d90fddc3",
+        "started_unix": 1793004813.9175673,
+        "ended_unix": 1793004821.1977727
+      }
+    ],
+    "post_timing_path_witnesses": [
+      {
+        "index": 12,
+        "arm": "control",
+        "phase": "path_witness",
+        "prompt": 128,
+        "decode": 1,
+        "argv": [
+          "/control/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "1",
+          "--r",
+          "1",
+          "--profile"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 111.76,
+          "prefill_tok_s": 2205.7
+        },
+        "stdout": "host-033-witness-12-control.stdout",
+        "stdout_sha256": "f595dbc9724398c862f6f12854c6de94bd0a5d6ae8ecd391cdb207fec169598b",
+        "stderr": "host-033-witness-12-control.stderr",
+        "stderr_sha256": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+        "started_unix": 1793004821.2025876,
+        "ended_unix": 1793004822.8257444,
+        "path_witness": {
+          "f32_tile_dispatches": 0,
+          "matrix_paths": {
+            "devices": [
+              [
+                "f32",
+                "f16",
+                "block-int16"
+              ]
+            ],
+            "dtype": "f16"
+          },
+          "native_f16_tile_dispatches": 2,
+          "timed_nvfp4_tile_names": [
+            "matmul_tile_nvfp4_f16",
+            "matmul_tile_nvfp4_f16_small"
+          ]
+        }
+      },
+      {
+        "index": 13,
+        "arm": "candidate",
+        "phase": "path_witness",
+        "prompt": 128,
+        "decode": 1,
+        "argv": [
+          "/candidate/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--device",
+          "vulkan:0",
+          "--threads",
+          "4",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--dtype",
+          "f16",
+          "--p",
+          "128",
+          "--n",
+          "1",
+          "--r",
+          "1",
+          "--profile"
+        ],
+        "exit_code": 0,
+        "status": "complete",
+        "rates": {
+          "decode_tok_s": 111.51,
+          "prefill_tok_s": 2254.16
+        },
+        "stdout": "host-034-witness-13-candidate.stdout",
+        "stdout_sha256": "773477a32b529642a3f6338256aafb79e092775e882983ff47137897151d0d5d",
+        "stderr": "host-034-witness-13-candidate.stderr",
+        "stderr_sha256": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+        "started_unix": 1793004822.8312998,
+        "ended_unix": 1793004824.4540803,
+        "path_witness": {
+          "f32_tile_dispatches": 0,
+          "matrix_paths": {
+            "devices": [
+              [
+                "f32",
+                "f16",
+                "block-int16"
+              ]
+            ],
+            "dtype": "f16"
+          },
+          "native_f16_tile_dispatches": 1,
+          "timed_nvfp4_tile_names": [
+            "matmul_tile_nvfp4_f16"
+          ]
+        }
+      }
+    ]
+  },
+  "matrix": [
+    {
+      "prompt_tokens": 128,
+      "metric": "prefill_tok_s",
+      "samples_tok_s": {
+        "control": [
+          2275.75,
+          2247.44
+        ],
+        "candidate": [
+          2336.37,
+          2324.26
+        ]
+      },
+      "means_tok_s": {
+        "control": 2261.5950000000003,
+        "candidate": 2330.315
+      },
+      "candidate_delta_percent": 3.038563491695001
+    },
+    {
+      "prompt_tokens": 128,
+      "metric": "decode_tok_s",
+      "samples_tok_s": {
+        "control": [
+          123.53,
+          123.88
+        ],
+        "candidate": [
+          123.84,
+          123.95
+        ]
+      },
+      "means_tok_s": {
+        "control": 123.705,
+        "candidate": 123.89500000000001
+      },
+      "candidate_delta_percent": 0.15359120488258604
+    },
+    {
+      "prompt_tokens": 4096,
+      "metric": "prefill_tok_s",
+      "samples_tok_s": {
+        "control": [
+          3561.5,
+          3564.57
+        ],
+        "candidate": [
+          3562.22,
+          3564.43
+        ]
+      },
+      "means_tok_s": {
+        "control": 3563.035,
+        "candidate": 3563.325
+      },
+      "candidate_delta_percent": 0.0081391285799981
+    },
+    {
+      "prompt_tokens": 4096,
+      "metric": "decode_tok_s",
+      "samples_tok_s": {
+        "control": [
+          123.84,
+          123.52
+        ],
+        "candidate": [
+          123.59,
+          123.77
+        ]
+      },
+      "means_tok_s": {
+        "control": 123.68,
+        "candidate": 123.68
+      },
+      "candidate_delta_percent": 0.0
+    }
+  ],
+  "profile": {
+    "control": [
+      "profile:   matmul_tile_nvfp4_f16_small 23.6432 ms (41.0767%)",
+      "profile:   matmul_tile_nvfp4_f16 20.2373 ms (35.1594%)",
+      "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=6419145438659096590 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7640 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=876927195 Instructions=1427 Copies=269 Branches=120 Latency=175232 Inverse Throughput=69028 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=648 SALU=351 VMEM=78 SMEM=62 VOPD=0",
+      "profile: kernel matmul_tile_nvfp4_f16_small: Driver pipeline hash=8202521682222522241 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6760 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=133058573 Instructions=1146 Copies=178 Branches=69 Latency=133248 Inverse Throughput=61660 VMEM Clause=42 SMEM Clause=38 Pre-Sched SGPRs=27 Pre-Sched VGPRs=40 VALU=623 SALU=225 VMEM=44 SMEM=38 VOPD=0"
+    ],
+    "candidate": [
+      "profile:   matmul_tile_nvfp4_f16 42.2384 ms (75.8564%)",
+      "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=6419145438659096590 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7640 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=876927195 Instructions=1427 Copies=269 Branches=120 Latency=175232 Inverse Throughput=69028 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=648 SALU=351 VMEM=78 SMEM=62 VOPD=0"
+    ],
+    "interpretation": "The control witness includes matmul_tile_nvfp4_f16_small and matmul_tile_nvfp4_f16; the candidate witness includes matmul_tile_nvfp4_f16 only. Matrix-path metadata reports dtype f16 and no F32 tile dispatch in either witness. Profiled pipelines report zero SGPR/VGPR spills. This is the witnessed profile workload only."
+  },
+  "activity": {
+    "samples": 44,
+    "intervals": 43,
+    "thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "sample_gap_seconds": 3,
+      "unrelated_cpu_cores": 1
+    },
+    "flagged_intervals": {
+      "other_gpu": 2,
+      "unrelated_cpu": 43,
+      "disk": 1,
+      "gap": 0
+    },
+    "intervals_with_unknown_process_cpu": 43,
+    "missed_process_observations": 17,
+    "unknown_gpu_observations": 0,
+    "monitor_meta": {
+      "event": "start",
+      "pid": 503232,
+      "ticks_per_second": 100,
+      "logical_cpus": 16,
+      "interval": 2.0,
+      "benchmark_cgroups": [
+        "a45c08779b2d97c4a1d339a494cf374853b54bc20c0f45865cb36f79b2d0fde1"
+      ],
+      "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+    },
+    "raw_activity_sha256": "b9475e690c8efd85889d497e5ddb00351077334cc150b6bdb5fb5db5166cb243",
+    "monitor_log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor_exit": 0,
+    "monitor_ok": true,
+    "post_call_sample": true
+  },
+  "artifact_audit": {
+    "count": 77,
+    "all_hashes_verified": true,
+    "execution_sha256": "9c8f21ef27d95cef1417769a4df182dc9d7309b17a3d73d091711698fcec051a",
+    "files": {
+      "activity.jsonl": "b9475e690c8efd85889d497e5ddb00351077334cc150b6bdb5fb5db5166cb243",
+      "host-000-fuser.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-000-fuser.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-001-docker-ps.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-001-docker-ps.stdout": "b924cdf7fc5b9952d5f8334c6f81aaf16208de0213d4b6dab6c8180c9ce9074f",
+      "host-002-peer-0-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-002-peer-0-inspect.stdout": "6ba448c77714a432f407437c8b181237b4ef3e75a8103d36ed4a9af1d406d155",
+      "host-003-peer-1-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-003-peer-1-inspect.stdout": "b44199afd6c07ce87afb54cdfd43f46a0c111ee504507f35652e944c7c5d0721",
+      "host-004-peer-2-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-004-peer-2-inspect.stdout": "702821032e7bf9a1335869fe31749c906be5edca0b47bb3d8bf8a01be8b7c852",
+      "host-005-peer-3-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-005-peer-3-inspect.stdout": "48e51b44e15bb8aa921ba5d35797594491d908889b4ed3bab3eea0d49c24aadf",
+      "host-006-peer-4-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-006-peer-4-inspect.stdout": "acc612dc9053ea0c0f13f04859bd44f33cedb30ab0d6f583867f523f9a5d032b",
+      "host-007-peer-5-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-007-peer-5-inspect.stdout": "91845b300d2ba334bd42f6cd5cece91c4d20c8fd0d2166980bb1a505c884e666",
+      "host-008-peer-5-top.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-008-peer-5-top.stdout": "0e15501ebab6e924021ba4f85732d3a9f7cecd32dd35b9d7d6d2ed2cedd5ca37",
+      "host-009-peer-6-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-009-peer-6-inspect.stdout": "080c322713514619328c50460b14d666c662e3bd8122f76b80ab71a491e81963",
+      "host-010-peer-6-top.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-010-peer-6-top.stdout": "103c3bd4484b220efbb0b6a8347b773d51093351fd0818caa2ce616e3c130776",
+      "host-011-image-inspect.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-011-image-inspect.stdout": "30a82d6f0689a3aba153254fcc4cdc5435aa07602752a850cb6223e1aeba702e",
+      "host-012-container-name-precheck.stderr": "a983518dbd27e31bc77e423bcead6d9bdccc019330424886f9de6301c1b3ea25",
+      "host-012-container-name-precheck.stdout": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "host-013-docker-create.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-013-docker-create.stdout": "1aa3a56d01ed5133c2a6a1f3ffe876ffe449b839d5338ca2d2235b040d7a707f",
+      "host-014-inspect-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-014-inspect-owned.stdout": "cd1700d3c7a16ce3719cf5626ae2cc1ccbfa8d365ad3d7455e24eb1e47391fba",
+      "host-015-docker-start.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-015-docker-start.stdout": "1aa3a56d01ed5133c2a6a1f3ffe876ffe449b839d5338ca2d2235b040d7a707f",
+      "host-016-control-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-016-control-version.stdout": "36c1be96a40e2af503d4017e293ae1ef4291270dd12b84fd79e65b5cdfdaf5fb",
+      "host-017-candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-017-candidate-version.stdout": "590db9236573654d505a9a22f8fd3a65043140373201eb9450b37b98a849bd5b",
+      "host-018-vulkaninfo.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+      "host-018-vulkaninfo.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+      "host-019-control-model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-019-control-model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "host-020-candidate-model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-020-candidate-model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "host-021-timing-00-control.stderr": "7d2ad64de8c38aa3e3c3f6983a749a6a623f3c0ee506d4a3baa515cd3b3de0b8",
+      "host-021-timing-00-control.stdout": "9960e35233b0ef0d153d06100081c975dd309d5d2610b0890cdbc62233824d19",
+      "host-022-timing-01-candidate.stderr": "db951012e7c362b6496410392b1856967c74145b2a928c4ec9fee8f5e04172ab",
+      "host-022-timing-01-candidate.stdout": "32543b9da02a024531db8a6a04ba5ed5cb69336a5e55e602baa9f25eba7a3416",
+      "host-023-timing-02-control.stderr": "df4788285a93ae854758d2d4e8b3a95212081cf6a1d491dc132215a9f0011984",
+      "host-023-timing-02-control.stdout": "6b7825bfff49895c51a5fb6feb02aeefc4e83fbf200be4d0c4fcbbc508b140be",
+      "host-024-timing-03-candidate.stderr": "65720d88a57a92c78d39aafa9c2df611a1ada5305c74c4cc4462af7343a2dbf4",
+      "host-024-timing-03-candidate.stdout": "628225d5af2ff417cd5c532aa1a2d784b6f529d5cbf2fc18da2dbc2c14929b99",
+      "host-025-timing-04-candidate.stderr": "b18dae4f300644ad90c41d9cb109d57c8e54f9cdefce923fa8c25469e6eb24b7",
+      "host-025-timing-04-candidate.stdout": "a487a330e9b4cdc0fd3d01d51de57a5d35d70ce35b93cbbeb0fa58138b540d57",
+      "host-026-timing-05-control.stderr": "76de34923f69e18c463e16f6e272286e328066be32c85923d9f67c5eeaca896d",
+      "host-026-timing-05-control.stdout": "46f7895e7e3eff8d3ad4622a1deb73c59d9fbddc15a8351ee138fe868ff65bbe",
+      "host-027-timing-06-control.stderr": "247285c58e912cc742aab1d1d1d0d8e509e4daf0ad7f497a57ec661f937405ab",
+      "host-027-timing-06-control.stdout": "230ddeeb47e412a19d852116269675deb4f4b05facee02e681a2c8ea73c9243e",
+      "host-028-timing-07-candidate.stderr": "a256eb9e1ceeeba849cbd9a1e5560721b42539b64ed4b00604d9c36297ec27b8",
+      "host-028-timing-07-candidate.stdout": "3511be2b71988ae5c9b0b83d245ead1cfd78415570bdfbfffe48b04896408757",
+      "host-029-timing-08-control.stderr": "f0d66cb34874e18f9951720b7f6d54536de469f97c3b00c7f008baa384ba7e48",
+      "host-029-timing-08-control.stdout": "e7f4513983a56266f8a79321bb6b6ef4c9875e558a3e0141d019936cf4e295cd",
+      "host-030-timing-09-candidate.stderr": "de7342ceee67b4383f71a880421cae1c1bfb4907f72684d3ed0bd95828a3c21a",
+      "host-030-timing-09-candidate.stdout": "3c0c1823c947795c56b25e7e04d14fc085791615b54a9157a5fcae541511998a",
+      "host-031-timing-10-candidate.stderr": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+      "host-031-timing-10-candidate.stdout": "b1b0c42f68d5c0b8fd694e531737548beb373c978deb81befd53b52e2237d895",
+      "host-032-timing-11-control.stderr": "a168308e03665467e63abddb93d7fc65162625fe340bb670bf8d7b67d90fddc3",
+      "host-032-timing-11-control.stdout": "115dc14d753e29f08c01ca16b00ef2277431da8bbbf17680df904323dbaf1e02",
+      "host-033-witness-12-control.stderr": "3de1a674470e464182615ee743dc343561f7850e093411b0f8d6888df96f2ed1",
+      "host-033-witness-12-control.stdout": "f595dbc9724398c862f6f12854c6de94bd0a5d6ae8ecd391cdb207fec169598b",
+      "host-034-witness-13-candidate.stderr": "87d8f24e2ac2e21a47a1dd235b56eb41a3d11c4952eee47c2eea39095ed8295a",
+      "host-034-witness-13-candidate.stdout": "773477a32b529642a3f6338256aafb79e092775e882983ff47137897151d0d5d",
+      "host-035-inspect-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-035-inspect-owned.stdout": "41f6150866baf0486013fbb9120fadd333de989e2893e0cabd8e8209284afd88",
+      "host-036-docker-remove-owned.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "host-036-docker-remove-owned.stdout": "1aa3a56d01ed5133c2a6a1f3ffe876ffe449b839d5338ca2d2235b040d7a707f",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+    }
+  },
+  "limitations": [
+    "Only two measured samples per prompt/phase; small deltas are not established gains or regressions.",
+    "The comparison is against the staging baseline, not MX.",
+    "Earlier d880/main730 matched MX results are a separate source/build comparison and are not current matched evidence for this tile64 candidate.",
+    "No HF/depth/split or existing-format identity evidence is added by this screen."
+  ],
+  "separate_earlier_mx_screen": {
+    "receipt": "nvfp4-main730-mx-mi50-screen-20261026.json",
+    "receipt_sha256": "c256070c9a9424a2df703cd738c909f5b354193c613b4a431ce07d138e3ba945",
+    "source_revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+    "current_tile64_comparison": false,
+    "scope": "Separate d880/main730 llmx-versus-mx screen. These rates do not measure the tile64 candidate and must not be combined with its results.",
+    "rates": [
+      {
+        "prompt_tokens": 128,
+        "phase": "pp",
+        "llmx_mean_tok_s": 2210.7275,
+        "mx_mean_tok_s": 3047.588684,
+        "llmx_over_mx": 0.7253977614532637
+      },
+      {
+        "prompt_tokens": 128,
+        "phase": "tg",
+        "llmx_mean_tok_s": 122.5225,
+        "mx_mean_tok_s": 136.30584825,
+        "llmx_over_mx": 0.8988760966208368
+      },
+      {
+        "prompt_tokens": 4096,
+        "phase": "pp",
+        "llmx_mean_tok_s": 3462.605,
+        "mx_mean_tok_s": 3605.68812525,
+        "llmx_over_mx": 0.9603175519324817
+      },
+      {
+        "prompt_tokens": 4096,
+        "phase": "tg",
+        "llmx_mean_tok_s": 122.77499999999999,
+        "mx_mean_tok_s": 137.12554175,
+        "llmx_over_mx": 0.8953344809674681
+      }
+    ]
+  },
+  "selection_semantics": {
+    "nonstarved_small_height_before": 32,
+    "nonstarved_small_height_candidate": 64,
+    "existing_tall_height": 128,
+    "dense_starvation_fallback": 32,
+    "note": "The profile witnessed only 64-row dispatch on the candidate; it does not claim the 128-row path ran."
+  },
+  "documentation_check": {
+    "command": "python -X utf8 tests/docs_check.py --exe ../nvfp4-f16-staging-20261026/build-staging/Release/llmx.exe",
+    "findings": 0,
+    "planted_faults": 21,
+    "seconds": 14.2,
+    "scope": "Documentation/source consistency. CLI unchanged from this executable."
+  }
+}

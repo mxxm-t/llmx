@@ -42,10 +42,10 @@ struct CountingCpu : backend::CpuBackend {
         outside += inside ? 0 : 1;
         backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
     }
-    void matmul_experts_add(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows,
+    void matmul_experts_add(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows,
                             const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         outside += inside ? 0 : 1;
-        backend::CpuBackend::matmul_experts_add(type, data, x, y, nin, nout, rows, routing, runs, dtype);
+        backend::CpuBackend::matmul_experts_add(weight, x, y, nin, nout, rows, routing, runs, dtype);
     }
 };
 
@@ -138,10 +138,13 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
     const backend::BufferPtr g = poisoned(slot), u = poisoned(slot), act = poisoned(slot);
     const size_t routed = rows * s.k * s.ff;
     std::vector<backend::RowRun> scratch;
-    const backend::MoeShared sh{{s.t.sh_gate, {w.sh_gate.get(), 0}, {g.get(), routed}, s.ff}, {s.t.sh_gate, {w.sh_up.get(), 0}, {u.get(), routed}, s.ff},
-                                s.t.sh_down, {w.sh_down.get(), 0}, {act.get(), routed}, {quant::GGML_TYPE_F32, {w.row_gate.get(), 0}, {sg.get(), 0}, 1}};
-    const backend::MoeStep m{{quant::GGML_TYPE_F32, {w.router.get(), 0}, {scores.get(), 0}, s.n_expert}, s.k, true, {ids.get(), 0}, {wts.get(), 0},
-                             {s.t.gate, {w.gate.get(), 0}, {g.get(), 0}, s.ff}, {s.t.gate, {w.up.get(), 0}, {u.get(), 0}, s.ff}, s.t.down, {w.down.get(), 0},
+    const backend::MoeShared sh{{{s.t.sh_gate, {w.sh_gate.get(), 0}}, {g.get(), routed}, s.ff},
+                                {{s.t.sh_gate, {w.sh_up.get(), 0}}, {u.get(), routed}, s.ff},
+                                {s.t.sh_down, {w.sh_down.get(), 0}}, {act.get(), routed},
+                                {{quant::GGML_TYPE_F32, {w.row_gate.get(), 0}}, {sg.get(), 0}, 1}};
+    const backend::MoeStep m{{{quant::GGML_TYPE_F32, {w.router.get(), 0}}, {scores.get(), 0}, s.n_expert}, s.k, true,
+                             {ids.get(), 0}, {wts.get(), 0}, {{s.t.gate, {w.gate.get(), 0}}, {g.get(), 0}, s.ff},
+                             {{s.t.gate, {w.up.get(), 0}}, {u.get(), 0}, s.ff}, {s.t.down, {w.down.get(), 0}},
                              {act.get(), 0}, shared ? &sh : nullptr, s.zero ? w.zero.get() : nullptr, &scratch};
     const backend::RowRuns rr{runs.data(), runs.size()};
     if (how == How::base) b.Backend::moe_step(m, {hb.get(), 0}, {yb.get(), 0}, s.E, rows, rr, dtype);
@@ -158,20 +161,20 @@ inline Out run(backend::Backend& b, const Weights& w, const std::vector<float>& 
                 done += count;
             }
         }
-        b.matmul(quant::GGML_TYPE_F32, m.router.data, h0, m.router.out, s.E, s.n_expert, rows, rr, backend::Dtype::f32);
+        b.matmul(m.router.weight, h0, m.router.out, s.E, s.n_expert, rows, rr, backend::Dtype::f32);
         b.route_experts(m.router.out, rows, s.n_expert, s.k, true, m.ids, m.weights);
         const backend::Backend::Routing routing{m.ids, m.weights, s.k, s.n_expert};
         b.matmul_experts({m.gate, m.up}, h0, s.E, rows, routing, rr, dtype);
         std::vector<backend::RowRun> entry_runs;
         for (const backend::RowRun& r : runs) entry_runs.push_back({r.end * s.k, r.extent});
         b.silu_mul(m.act, m.gate.out, m.up.out, routed, {entry_runs.data(), entry_runs.size()});
-        b.matmul_experts_add(s.t.down, m.down, m.act, y, s.ff, s.E, rows, routing, rr, dtype);
+        b.matmul_experts_add(m.down, m.act, y, s.ff, s.E, rows, routing, rr, dtype);
         if (shared) {
-            b.matmul(quant::GGML_TYPE_F32, sh.row_gate.data, h0, sh.row_gate.out, s.E, 1, rows, rr, dtype);
+            b.matmul(sh.row_gate.weight, h0, sh.row_gate.out, s.E, 1, rows, rr, dtype);
             b.matmul_group({sh.gate, sh.up}, h0, s.E, rows, rr, dtype);
             b.silu_mul(sh.act, sh.gate.out, sh.up.out, rows * s.ff, rr);
             b.sigmoid_mul(sh.act, sh.act, sh.row_gate.out, rows, s.ff, 1, 1, 0, rr);
-            b.matmul_add(s.t.sh_down, sh.down, sh.act, y, s.ff, s.E, rows, rr, dtype);
+            b.matmul_add(sh.down, sh.act, y, s.ff, s.E, rows, rr, dtype);
         }
     }
     Out o;

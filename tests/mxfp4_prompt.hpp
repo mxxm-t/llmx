@@ -36,10 +36,10 @@ inline size_t prompt_invariance(backend::Backend& b, size_t width, size_t extent
             const auto call = [&](size_t first, size_t count, backend::RowRuns runs) {
                 const backend::Slice ys{yb.get(), first * rows}, os{ob.get(), first * other_rows};
                 const backend::CSlice xs{xb.get(), first * width};
-                if (grouped) b.matmul_group({{type, input(wb), ys, rows}, {0, input(fb), os, other_rows}}, xs, width, count, runs);
+                if (grouped) b.matmul_group({{{type, input(wb)}, ys, rows}, {{0, input(fb)}, os, other_rows}}, xs, width, count, runs);
                 else {
-                    b.matmul(type, input(wb), xs, ys, width, rows, count, runs);
-                    b.matmul(0, input(fb), xs, os, width, other_rows, count, runs);
+                    b.matmul({type, input(wb)}, xs, ys, width, rows, count, runs);
+                    b.matmul({0, input(fb)}, xs, os, width, other_rows, count, runs);
                 }
             };
             if (micro) {
@@ -90,8 +90,8 @@ inline size_t routed_invariance(backend::Backend& b, size_t width, size_t extent
         auto yb = b.adopt(y.data(), y.size() * sizeof(float));
         const auto call = [&](size_t first, size_t count, backend::RowRuns runs) {
             const backend::Backend::Routing routing{{ib.get(), first * k}, {pb.get(), first * k}, k, experts};
-            if (add) b.matmul_experts_add(type, input(wb), {xb.get(), first * k * width}, {yb.get(), first * rows}, width, rows, count, routing, runs);
-            else b.matmul_experts({{type, input(wb), {yb.get(), first * k * rows}, rows}}, {xb.get(), first * width}, width, count, routing, runs);
+            if (add) b.matmul_experts_add({type, input(wb)}, {xb.get(), first * k * width}, {yb.get(), first * rows}, width, rows, count, routing, runs);
+            else b.matmul_experts({{{type, input(wb)}, {yb.get(), first * k * rows}, rows}}, {xb.get(), first * width}, width, count, routing, runs);
         };
         if (micro) {
             for (size_t c = 0; c < cols; ++c) {

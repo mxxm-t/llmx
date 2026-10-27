@@ -1,0 +1,62 @@
+{
+  "run": 40189406206,
+  "head": "208a1d223d8aea09467b9aacd1674e31f963b8a3",
+  "scope": "Independent HF versus HF control failures. No llmx process or candidate comparison ran; no depth arrays produced.",
+  "checks": [
+    {
+      "policy": "radeon",
+      "max_abs_logit_delta": 0.001583099365234375,
+      "limit": 2e-05,
+      "top1_exact": 80,
+      "positions": 80,
+      "seconds": 19.13336944580078,
+      "passed": false,
+      "module_witnesses_per_phase": 187,
+      "oom": false
+    },
+    {
+      "policy": "mi50",
+      "max_abs_logit_delta": 0.0015072077512741089,
+      "limit": 2e-05,
+      "top1_exact": 80,
+      "positions": 80,
+      "seconds": 19.12627625465393,
+      "passed": false,
+      "module_witnesses_per_phase": 187,
+      "oom": false
+    },
+    {
+      "policy": "cpu",
+      "max_abs_logit_delta": 0.0015163421630859375,
+      "limit": 2e-05,
+      "top1_exact": 80,
+      "positions": 80,
+      "seconds": 19.129775047302246,
+      "passed": false,
+      "module_witnesses_per_phase": 187,
+      "oom": false
+    }
+  ],
+  "retention": "Original failed run, 2e-5 limits, producer, both logit digests and full module/cache-write witnesses retained. No reference selected by outcome.",
+  "interpretation": "Chunked HF evaluation disagrees in logits under each narrowed policy while all 80 top-one tokens agree. This alone does not establish the cause. Test unrounded matrices and F32 KV separately, and locate the first changed rounding boundary before any policy disposition.",
+  "verified": "Every recorded artifact hash, six reference source hashes before/after, model/producer identities, no depth cells, both module-coverage records, no OOM and successful container cleanup.",
+  "archive_sha256": "983307a98ebbe68d513f7412c912f71d0055bb1f38c6292d10ff1c3623e8403c",
+  "artifacts": {
+    "docker-build.log": "d162dd98794d93aeb045fdfa1cf752b1559295e802950ff7b62e8bcd2b001cbf",
+    "image.json": "9645a62950ac0b014ccd98df5e7ff91c1660758d8d944fc4db66b53b29027fc1",
+    "pip-freeze.txt": "27d1d962dcfb6a1eccd1b30eb752d7969d4310f1e2fc01b90811ee900e160e95",
+    "prefetch.json": "1a37bd8b179360132eaedd6cc0f14b69e300627e11696d4994c05c83ae226e19",
+    "cpu\\execution.json": "1f38b921a429e7d9b40ab2d4e5d8296e93aa9deccf84a8046f6f6fd18eb87ca5",
+    "cpu\\memory.jsonl": "597821d377e835095c38c37584763811ad70a831784aa550e7a1cf9497c339bc",
+    "cpu\\reference.log": "78b5c37e26f9faedcd9d1c534276bc499bc1de26343c3eb5799f0fb1b0013120",
+    "mi50\\execution.json": "e227a43992f8dc733c0153fb7fb614e11a699597065020222906f9e79d915f6a",
+    "mi50\\memory.jsonl": "bd846f633794d900ebdc1f9d1aa4551e81859e58f9d21bd1f2429dbed6875dbc",
+    "mi50\\reference.log": "78b5c37e26f9faedcd9d1c534276bc499bc1de26343c3eb5799f0fb1b0013120",
+    "radeon\\execution.json": "19a024728b6add76f8417e9c58f5219c807453184bbc75fb0fd8e8301c1d76fe",
+    "radeon\\memory.jsonl": "b6630fcf489b5fe5a588e641bb71a7497b93b8b93b9a0bb3c91396d6fa83f613",
+    "radeon\\reference.log": "78b5c37e26f9faedcd9d1c534276bc499bc1de26343c3eb5799f0fb1b0013120",
+    "cpu\\reference\\report.json": "e0ae8ded1673fe8a74e88c104efc745cdacbfafce9159697ada0bded0947814f",
+    "mi50\\reference\\report.json": "acad2ec4dfb7c3231f11af525a947aa10560c3c847e6a12858981c4df35371ef",
+    "radeon\\reference\\report.json": "60f46ba4436b3cd5fb56724c7021ad6cff58b913f5ded0f332687c17bde8facc"
+  }
+}

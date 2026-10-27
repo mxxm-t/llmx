@@ -1,0 +1,97 @@
+{
+  "status": "passed",
+  "started_unix": 1793093064.1446571,
+  "previous_head": "5141d69e7",
+  "integrated_test_fix": "ed0cb930b61b0aa0a0ea0356185480975034b11f",
+  "test_source_sha256": "0cfab54bfecc252fb57da70decd5597a77613a4a2a4ef946761f31610183d131",
+  "scope": "Fresh Windows CPU-only build and rerun of the failed server-passes-cpu test. No Vulkan binary rebuild, no performance measurement.",
+  "steps": [
+    {
+      "name": "configure",
+      "command": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\boundary-pinned-cmake",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+        "-DBUILD_TESTING=ON"
+      ],
+      "started_unix": 1793093064.145656,
+      "pid": 1380,
+      "exit_code": 0,
+      "ended_unix": 1793093072.2121158,
+      "log_sha256": "3c687a2a2416758f17c5cfe434edff9df58d19c694ee9549a09fbdf0229a5f36"
+    },
+    {
+      "name": "build",
+      "command": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\boundary-pinned-cmake",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx-server-passes-cpu-test"
+      ],
+      "started_unix": 1793093072.222115,
+      "pid": 30344,
+      "exit_code": 0,
+      "ended_unix": 1793093096.021346,
+      "log_sha256": "c735b4f4e4ade542be05099d843ee96b44280f32bbc7c6b6b2b5fdb1139e8f79"
+    },
+    {
+      "name": "test",
+      "command": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\boundary-pinned-cmake",
+        "-C",
+        "Release",
+        "-R",
+        "^server-passes-cpu$",
+        "--output-on-failure"
+      ],
+      "started_unix": 1793093096.0563462,
+      "pid": 80072,
+      "exit_code": 0,
+      "ended_unix": 1793093475.3455143,
+      "log_sha256": "5ad42651f408e060553a82f77e899827c00ebdcc544d935d44ff0cdfb4ce0048"
+    }
+  ],
+  "binary_sha256": "0b2d418a894844c7dbf2642eb4c67e2342c2a33fcfc62d3c292ad62742949495",
+  "ended_unix": 1793093475.3525133,
+  "source_delta_after_build": "Only the redundant third comment sentence was removed. The original compiled test-source hash is retained; runtime, fixture data and callback behavior are unchanged.",
+  "static_checks": {
+    "dead-code": "pass",
+    "docs": "pass after removing redundant third comment sentence",
+    "original_docs_failure": "comment | tests/server_passes_cpu.cpp | wall: 3 sentences at line 2009"
+  },
+  "owner_followup": {
+    "head": "1da1d53505a0e172262ead042ca22682db528aef",
+    "scope": "Moves the same comment beside the callback. Its test behavior equals ed0cb930b; owner reports 1 MiB refusal, fixed 64 GiB pass, native 90/90 and static checks."
+  },
+  "ci": {
+    "status": "pushed",
+    "head": "49f612a703a7ede377035c72771dae6bc1f86576",
+    "tree": "bc864bbd38ac353b9bea26defc476fb3530fec81",
+    "parent": "ed0cb930b61b0aa0a0ea0356185480975034b11f",
+    "remote_ref": "refs/heads/gate/nvfp4-mainf61-20261026",
+    "expected_previous_head": "224bd14b3869e8393320f77b368a379910b1368b",
+    "feature_patch_identical_to": "2f8935e7a7a373b6ae7bb6f0ed949f54a5b2e51d",
+    "feature_patch_sha256": "7492e9bb344d247a816e2ed3f10c4881e963f3fed043a5995e07c4932ab207fe",
+    "dependency_comment_only_correction": "Remove the redundant third sentence from the boundary fixture comment; AGENTS retains its explanation.",
+    "message": "Add NVFP4 inference with tensor scales",
+    "prepared_unix": 1793093397.2518039,
+    "scope": "Temporary CI only. Main unchanged. Local CPU and GPU checks and Linux qualification remain required.",
+    "pushed_unix": 1793093420.7375493,
+    "observed_remote": {
+      "refs/heads/gate/nvfp4-mainf61-20261026": "49f612a703a7ede377035c72771dae6bc1f86576",
+      "refs/heads/main": "5e90171a842480f26c056b14bf1167e7300b6385"
+    },
+    "run": "https://github.com/mxxm-t/llmx/actions/runs/40481281480",
+    "qualification_status": "pending"
+  }
+}

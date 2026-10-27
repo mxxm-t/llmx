@@ -1,0 +1,242 @@
+{
+  "schema": "nvfp4-tile-probe-radeon-20261026-v1",
+  "date": "2026-10-26",
+  "scope": "Instrumented Radeon VII diagnostic using normal Vulkan matmul dispatch. Four model-shaped cases only. No baseline comparison, MX comparison, MI50 run, or qualification claim.",
+  "input_and_oracle": {
+    "probe_source": "build-integration/nvfp4-tile-probe.cpp",
+    "source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+    "mathematics": "Generated dyadic NVFP4 weights and F32 inputs use an independent E2M1/E4M3 decoder. decoded() includes the 0.125 companion scale. Products are multiples of 1/2048; maximum allowed sum numerator is 9,676,800, below 2^24, so the F32 sum is exact for these widths.",
+    "outputs_exact": 1507328,
+    "outputs_nonzero": 1507328,
+    "shape_cases": [
+      {
+        "width": 1024,
+        "rows": 3584,
+        "columns": 128,
+        "exact_outputs": 458752,
+        "nonzero_outputs": 458752,
+        "kernels": [
+          "matmul_tile_nvfp4_f16"
+        ],
+        "statistics": "matmul_tile_nvfp4_f16: numUsedVgprs=60 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=17408 scratchMemUsageInBytes=0",
+        "gpu_sample_count": 20,
+        "gpu_ms_summary": {
+          "median": 0.8178399999999999,
+          "min": 0.55808,
+          "max": 1.06976
+        },
+        "activity": {
+          "sample_count": 3,
+          "flagged_sample_counts": {
+            "system_cpu_percent": 0,
+            "unrelated_process_cpu_percent": 3,
+            "disk_bytes_per_second": 2,
+            "unrelated_gpu_engine_percent": 0
+          },
+          "competing_process_sample_counts": {
+            "Code.exe pid=27040": 3,
+            "cpptools.exe pid=80364": 3
+          },
+          "unknown_counts": {
+            "system_cpu": 0,
+            "disk": 0,
+            "gpu_engine": 0,
+            "process_cpu": 767,
+            "process_entries": 765
+          }
+        }
+      },
+      {
+        "width": 3584,
+        "rows": 1024,
+        "columns": 128,
+        "exact_outputs": 131072,
+        "nonzero_outputs": 131072,
+        "kernels": [
+          "matmul_tile_nvfp4_f16"
+        ],
+        "statistics": "matmul_tile_nvfp4_f16: numUsedVgprs=60 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=17408 scratchMemUsageInBytes=0",
+        "gpu_sample_count": 20,
+        "gpu_ms_summary": {
+          "median": 0.86928,
+          "min": 0.79376,
+          "max": 1.09392
+        },
+        "activity": {
+          "sample_count": 3,
+          "flagged_sample_counts": {
+            "system_cpu_percent": 0,
+            "unrelated_process_cpu_percent": 3,
+            "disk_bytes_per_second": 0,
+            "unrelated_gpu_engine_percent": 0
+          },
+          "competing_process_sample_counts": {
+            "Code.exe pid=27040": 3,
+            "cpptools.exe pid=80364": 3
+          },
+          "unknown_counts": {
+            "system_cpu": 0,
+            "disk": 0,
+            "gpu_engine": 0,
+            "process_cpu": 759,
+            "process_entries": 759
+          }
+        }
+      },
+      {
+        "width": 1024,
+        "rows": 6144,
+        "columns": 128,
+        "exact_outputs": 786432,
+        "nonzero_outputs": 786432,
+        "kernels": [
+          "matmul_tile_nvfp4_f16_tall"
+        ],
+        "statistics": "matmul_tile_nvfp4_f16_tall: numUsedVgprs=83 numUsedSgprs=62 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=26112 scratchMemUsageInBytes=0",
+        "gpu_sample_count": 20,
+        "gpu_ms_summary": {
+          "median": 1.34608,
+          "min": 1.1024,
+          "max": 1.6744
+        },
+        "activity": {
+          "sample_count": 3,
+          "flagged_sample_counts": {
+            "system_cpu_percent": 0,
+            "unrelated_process_cpu_percent": 3,
+            "disk_bytes_per_second": 0,
+            "unrelated_gpu_engine_percent": 0
+          },
+          "competing_process_sample_counts": {
+            "Code.exe pid=27040": 3,
+            "cpptools.exe pid=80364": 3
+          },
+          "unknown_counts": {
+            "system_cpu": 0,
+            "disk": 0,
+            "gpu_engine": 0,
+            "process_cpu": 763,
+            "process_entries": 759
+          }
+        }
+      },
+      {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128,
+        "exact_outputs": 131072,
+        "nonzero_outputs": 131072,
+        "kernels": [
+          "matmul_tile_nvfp4_f16"
+        ],
+        "statistics": "matmul_tile_nvfp4_f16: numUsedVgprs=60 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=17408 scratchMemUsageInBytes=0",
+        "gpu_sample_count": 20,
+        "gpu_ms_summary": {
+          "median": 0.49504000000000004,
+          "min": 0.45296,
+          "max": 0.67856
+        },
+        "activity": {
+          "sample_count": 3,
+          "flagged_sample_counts": {
+            "system_cpu_percent": 0,
+            "unrelated_process_cpu_percent": 3,
+            "disk_bytes_per_second": 0,
+            "unrelated_gpu_engine_percent": 0
+          },
+          "competing_process_sample_counts": {
+            "Code.exe pid=27040": 3,
+            "cpptools.exe pid=80364": 3
+          },
+          "unknown_counts": {
+            "system_cpu": 0,
+            "disk": 0,
+            "gpu_engine": 0,
+            "process_cpu": 767,
+            "process_entries": 762
+          }
+        }
+      }
+    ]
+  },
+  "windows_radeon_run": {
+    "passed": true,
+    "binary_unchanged": true,
+    "binary_sha256": "4d0a5ad1af7960efa50493f4be8774744f1a52c4a4e802fe860f14eee5f37345",
+    "build_result_sha256": "34698834e651c9664d29f3db787a6d4371674a0ea070a71f4b0b9a37e84efdab",
+    "execution_path": "build-integration/tile-probe-windows/results/execution.json",
+    "execution_sha256": "9a033562fe1991814124f4148f46dd472364979ff28bb61eafcfc4929570c715",
+    "summary_path": "build-integration/tile-probe-windows/summary.json",
+    "summary_sha256": "d9ae746ee07444ae79e94ca8f4619b3476824afd3446d46f3ed37db69840d007",
+    "calls": 4,
+    "instrumented_gpu_samples": 80,
+    "monitor_intervals": 12,
+    "activity_flags_aggregated": {
+      "system_cpu_percent": 0,
+      "unrelated_process_cpu_percent": 12,
+      "disk_bytes_per_second": 2,
+      "unrelated_gpu_engine_percent": 0
+    },
+    "unknown_observations_aggregated": {
+      "system_cpu": 0,
+      "disk": 0,
+      "gpu_engine": 0,
+      "process_cpu": 3056,
+      "process_entries": 3045
+    },
+    "competing_process_sample_counts": {
+      "Code.exe pid=27040": 12,
+      "cpptools.exe pid=80364": 12
+    },
+    "raw_logs_and_activity": "Per-call logs, JSONL, ISA and statistics remain in results/; every path/hash is recorded by execution.json."
+  },
+  "module_comparison": {
+    "path": "build-integration/tile-module-comparison/comparison.json",
+    "sha256": "c3668009b589c7216787e4368a4415b491339cff0b128f75383408fdff664b95",
+    "windows_spirv_words": 3415,
+    "linux_spirv_words": 3433,
+    "opcode_count_differences": {
+      "199": [
+        20,
+        22
+      ],
+      "124": [
+        9,
+        11
+      ]
+    },
+    "normalized_identical": false,
+    "linux_control": {
+      "build_passed": true,
+      "gpu_probe_run": false,
+      "build_result": "build-integration/module-control/build-result.json",
+      "build_result_sha256": "395691d65d589c5a899b17c1bb7a66b0afcd5ec0e85894fcd3de6c561946984d",
+      "observation": "build-integration/module-control/observation.json",
+      "observation_sha256": "0cca9c10c3f7299b55bd13997df6e1cda8f4c374e91e8602ea4a6ce4fd2730f3",
+      "container_id": "a49d66606c29416f4fee897cd4fa951d2454c066a00670fcf4518d1c2a620462",
+      "exit_code": 0,
+      "removed": true,
+      "source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+      "library_sha256": "6ae982d8010dbfea68f8e23223f7eea38ac8218b6cb6ad6cd48f521682086bb3",
+      "probe_binary_sha256": "2ab4d2747347087a453adbba9a0382d5d7ca6146982864dc4db0f210951bf756",
+      "generated_files": 305,
+      "changed_generated_files": [
+        "matmul_tile_nvfp4_f16.inc"
+      ],
+      "interpretation": "Build-only control. The Windows-generated F16 NVFP4 module was substituted into the Linux Vulkan library build. Exactly one of 305 generated module files changed (matmul_tile_nvfp4_f16.inc); the other 304 were identical. This separates shader frontend output from driver/device code generation but does not establish device behavior or attribute the earlier Windows/Linux output difference solely to the driver."
+    }
+  },
+  "checkpoint_checks": {
+    "docs_passed": true,
+    "unexpected_findings": 0,
+    "planted_faults": 21,
+    "elapsed_seconds": 16.6,
+    "runtime_source_unchanged_since": "3a6a7b19d"
+  },
+  "limitations": [
+    "No before/after arm, MX comparison, MI50 result, occupancy measurement, or bottleneck attribution.",
+    "Static opcode counts and VGPR/LDS/scratch metadata do not establish sampled instruction cost or achieved occupancy.",
+    "Activity flags and unknown process-attribution counts are retained; competing Code.exe and cpptools.exe samples are not removed.",
+    "Runtime source was not changed by this diagnostic."
+  ]
+}

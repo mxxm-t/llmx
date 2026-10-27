@@ -1,0 +1,42 @@
+{
+  "scope": "Completed isolated comparator/helper builds and focused Linux file-scale check; benchmark prepared, not measured.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "cpu": "CPU15, one compiler worker, one CPU quota, 8 GiB and no swap, no GPU devices.",
+  "linux_scale_test": {
+    "passed": true,
+    "cases": 4,
+    "binary_sha256": "841c761fb604e5e40c9492d0044c7a2fd3229cfa5eeafc578f2232947b45dcff"
+  },
+  "helpers": {
+    "nvfp4-default-witness": "fa432caf781524f5672d71b636f8dc1c2052680f125198bc7c313742d8b27f54",
+    "nvfp4-depth-capture": "d86614e5a18212bfa10b9f3cea9798f8acdb2e89c7fa780a1117999b3f54e4d6"
+  },
+  "mx_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "benchmark_only_changes": [
+    "Identical deterministic input IDs",
+    "262144-token capacity matching llmx file metadata",
+    "Full 256-token decode warmup matching llmx"
+  ],
+  "unchanged_model_kernel_libraries": 20,
+  "mx_benchmark_library_sha256": "89a4611ee7602ab715368ec17f622e2835b06614005e34a9e5a1888202e8f1a0",
+  "build_seconds": {
+    "initial_with_helpers": 1130.5659182071686,
+    "context_and_warmup": 12.527047395706177
+  },
+  "original_failures_retained": "Initial missing SPIRV-Headers build failed before inference; previous context-only build remains separately retained.",
+  "benchmark_not_run": true,
+  "planned_matrix": "P128/G256 and P4096/G256, four interleaved pairs each, same image/model/F16 KV/ubatch512/four threads. Actual GPU and timing slot remain unassigned.",
+  "preflight_fix": "Hash parsed ASCII token files as packed little-endian uint32 values, matching the frozen specification rather than hashing the text bytes.",
+  "artifact_hashes": {
+    "mx-probes-v2-execution.json": "042dfed87241e5441a85d74f3db0e5f19027e35320219b28cc7f4f716a7cdb12",
+    "mx-probes-v2-compile.log": "986adb2e8b543406eb409e4ed3e839209089eb06baf1de9ff99243e9885eb7a6",
+    "mx-context-warmup-execution.json": "1a35182479d83a40f18a4aa943632b5853365492a86e48c425416bc73a4aec91",
+    "mx-context-warmup-compile.log": "b90016b0d67fe5d5c82d0d1b18936e4cd1a243bd2b425cdaa0eec7a31a9cc97f",
+    "mx-context-warmup-inventory.json": "19cfdcbd78edd58eff62d6a01ec0319dd5626fb0809c26880b49c01b8a400aa7",
+    "mx-context-warmup/change.json": "0dd4be3f19f7413f92fd1882287c59e9a37c01305cc40f21f09ef32b51ee569c",
+    "performance-plan.json": "6dec6df32d407184adb084ac255e7c34ab74831ff11055fd480b136a6648bb3f",
+    "run-performance.py": "e6b8ab3a9dc86ba4b1f1c335ac38a6265c77886b0e2e0bfb1c321e513ed60185",
+    "performance_summary.py": "aaf8ff34e4110e7c541e2eb26c3c14b11a62d94ae73a3567e2f9823a14cf6a0a"
+  }
+}

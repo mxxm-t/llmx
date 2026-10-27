@@ -1,0 +1,112 @@
+{
+  "scope": "Existing Qwen3-0.6B Q8_0 CPU identity at pinned main/candidate builds only.",
+  "passed": true,
+  "original_execution_sha256": "c9aa5778f219ccc3733f38683a971d053f01e1bfdc8cded0a448b539f9e8487e",
+  "original_harness_passed": false,
+  "original_failure": "Whole generate stdout compared variable pp/tg timings. Original receipt remains unchanged.",
+  "disposition": "All captured logit output is byte-identical. Exact source-backed prefix/suffix grammar isolates the generated text; no inference rerun or numerical tolerance change.",
+  "binary_pins": {
+    "candidate": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/candidate-build/llmx",
+      "sha256": "17a62d9cb9f3f91036c6a9a0737efbe1726344ac72c6212d86b94403eb5b02fe",
+      "revision": "4f026d9418cea33ad7def3b847e234c62a881422"
+    },
+    "main": {
+      "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/main-build/llmx",
+      "sha256": "4a0decf0df6c24c89b3b7f40f8cb8d03fd29dc3a53bcd79a603254533e8b1ff1",
+      "revision": "8e84e4c4f38262e7792a3b9d4825a7cef25dc254"
+    }
+  },
+  "versions": {
+    "candidate": "llmx 0.1.0+unknown numerics 8976c4c93f96766b",
+    "main": "llmx 0.1.0+unknown numerics 1ac17687c6f1ab07"
+  },
+  "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+  "logit_comparisons": [
+    {
+      "dtype": "auto",
+      "path": "batch",
+      "positions": 16,
+      "top": 50,
+      "byte_identical": true
+    },
+    {
+      "dtype": "auto",
+      "path": "decode",
+      "positions": 16,
+      "top": 50,
+      "byte_identical": true
+    },
+    {
+      "dtype": "f32",
+      "path": "batch",
+      "positions": 16,
+      "top": 50,
+      "byte_identical": true
+    },
+    {
+      "dtype": "f32",
+      "path": "decode",
+      "positions": 16,
+      "top": 50,
+      "byte_identical": true
+    }
+  ],
+  "greedy_tokens": 64,
+  "greedy_text_sha256": "d0ee764a3ea19a3d21ff0445e2ab88a92b5dd48321af3c89705c0990102ac1c1",
+  "greedy_text_bytes": 315,
+  "capture_hashes": {
+    "candidate-version": {
+      "stdout": "9df86fed1290543f6da2320c0452000407799cd8f78fa6f6b906fbcdc9920bea",
+      "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "main-version": {
+      "stdout": "2c2edcdba53ce76cd6d41343a971c9fd7605a0578b3a740e3d1fc44d4a1a0a3d",
+      "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "main-auto-batch": {
+      "stdout": "c44d52050e52e165314fff88f89c2e75b2dd542c154b28b79946ca2035bb1cd3",
+      "stderr": "7ab5bf8ecb224e457145c3c16283abca94ad86fe92a0c35c793a9b67c04ce1ae"
+    },
+    "candidate-auto-batch": {
+      "stdout": "c44d52050e52e165314fff88f89c2e75b2dd542c154b28b79946ca2035bb1cd3",
+      "stderr": "7ab5bf8ecb224e457145c3c16283abca94ad86fe92a0c35c793a9b67c04ce1ae"
+    },
+    "main-auto-decode": {
+      "stdout": "c0e23aa474e36dcf3b8fba50cb43f4d28a95edad02be0defdc813c3a1f472f2c",
+      "stderr": "7ab5bf8ecb224e457145c3c16283abca94ad86fe92a0c35c793a9b67c04ce1ae"
+    },
+    "candidate-auto-decode": {
+      "stdout": "c0e23aa474e36dcf3b8fba50cb43f4d28a95edad02be0defdc813c3a1f472f2c",
+      "stderr": "7ab5bf8ecb224e457145c3c16283abca94ad86fe92a0c35c793a9b67c04ce1ae"
+    },
+    "main-f32-batch": {
+      "stdout": "c44d52050e52e165314fff88f89c2e75b2dd542c154b28b79946ca2035bb1cd3",
+      "stderr": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+    },
+    "candidate-f32-batch": {
+      "stdout": "c44d52050e52e165314fff88f89c2e75b2dd542c154b28b79946ca2035bb1cd3",
+      "stderr": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+    },
+    "main-f32-decode": {
+      "stdout": "c0e23aa474e36dcf3b8fba50cb43f4d28a95edad02be0defdc813c3a1f472f2c",
+      "stderr": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+    },
+    "candidate-f32-decode": {
+      "stdout": "c0e23aa474e36dcf3b8fba50cb43f4d28a95edad02be0defdc813c3a1f472f2c",
+      "stderr": "ee41058e78fdab50d29746fca19898af2072836c96326d7d6b11c58cc298f141"
+    },
+    "main-greedy": {
+      "stdout": "2b150c13e105c9418629cdea4cd1c4011026d4d6c2897a70524d47c4919137a7",
+      "stderr": "ccf4d9ba623ab36d339a61a56ade3ef708d7cf6a78a8a03ccacb9eab861c30b3"
+    },
+    "candidate-greedy": {
+      "stdout": "a055a79dc1f506da738aaef3be696e74c7ae304af3b631efcb0c1565d60f5ed2",
+      "stderr": "ccf4d9ba623ab36d339a61a56ade3ef708d7cf6a78a8a03ccacb9eab861c30b3"
+    }
+  },
+  "cleanup_exit": 0,
+  "pins_unchanged": true,
+  "limitations": "Top50 on 16 positions in each of four cases and generated text, not full-vocabulary identity or token-ID identity. No GPU or performance claim.",
+  "verifier_sha256": "097170297757b98e32f338f1e7b394654cb3774dc54bf5fc8b064aad4aec2a42"
+}

@@ -1,0 +1,12 @@
+{
+  "who": "F2DEV",
+  "date": "2026-10-26",
+  "time": "07:10",
+  "kind": "DECISION",
+  "re": "NVFP4 native-F16 MI50 reference self-control @XDEV",
+  "title": "APPROVED as a scoped self-control limit: 0.021387100219726562 (twice 0.010693550109863281) and 80/80 top-one, for file 71a0a29d..., map 67ea70a4aa91..., the 80-token MI50 control only, conditional on the MI50 completed-path witness.",
+  "body": "Rechecked against PRECISION.md's three 2026-10-25 dispositions: same method (HF prompt chunks 64 vs 17, continuation 16 vs 1, one phase boundary, twice the HF-only maximum, frozen before any candidate comparison), same scope, and the arithmetic holds. The traced cause is the mechanism diagnosed on 2026-10-25 (an int16 tie crossing, now amplified by F16 input rounding), so no further isolation is needed. This limit measures the reference's self-agreement at the F16-input policy, not the candidate's error; the candidate's 512-position exact/top-two rule with the 0.1 margin, the F32 quality companion and every short-model, NLL, split, identity and performance gate stay as they are.\n\nConditions and one record:\n1. The witness is the actual depth run's configuration (same flags and placement) showing the 108 modules on the literal-F16 variants, the output head's row class and the F16 K/V writes, matching map 67ea70a4; a source-derived map is a prediction (PRECISION.md, input reconstruction clarification).\n2. The tiny-fixture bound of the native-F16 tile is the existing frozen F16 budget (dtype_budget.json, 0.005869746208190918/0.0006043278951057829), calibrated with F16-rounded activations, so nothing new is frozen there; but it has been witnessed on the Radeon only (192 calls). The MI50's native-F16 build runs the nvfp4 component under that budget with its matrix-paths witness before or beside its depth candidate, since the 64-lane tile build is another path.\n3. Record beside the limit that the self-spread is 7.1x the block-int16 map's (0.0015072) and 7.6x the F32-input/F16-KV case's (0.0014052): the width is the F16-input policy's cost, not headroom gained, and the limit does not transfer to the CPU, the Radeon or another map.\n\nThe 07:04 MI50 screen (PP -2.35% at P128, -3.37% at P4096 against the F32-input tile) is noted; whether the F16 tile is carried is decided by the matched mx figures and the profile, per the 23:42 conditions, not here.",
+  "n": 690,
+  "id": "a07421678575",
+  "src": "live"
+}

@@ -1,0 +1,492 @@
+{
+  "run": 40191588221,
+  "head": "2bdf8d85913d7594e4553496d83a3d1c201de115",
+  "scope": "HF-only diagnosis, no candidate depth comparison or qualification pass.",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "policy_map_sha256": "7d967d2634cd487d619cb5f747d0ac2f13669bf4928da09e011b2c9545deee1d",
+  "rows": [
+    {
+      "matrix": "f32",
+      "kv": "f32",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "prompt": {
+            "max_abs": 1.3828277587890625e-05,
+            "changed_values": 14973312,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880446195602417
+            }
+          },
+          "continuation": {
+            "max_abs": 1.239776611328125e-05,
+            "changed_values": 3721638,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517440795898438
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "a21b8322f3e535048bab4cc799558ce6749c03d65f8b915fbcc65ceb05730292"
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 2.09808349609375e-05,
+            "changed_values": 3791861,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "0d9146127c1fbfa9a12fc60135be726c99fcf99e85d30320999b8317b16e75c7"
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 1.3828277587890625e-05,
+            "changed_values": 14973312,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880446195602417
+            }
+          },
+          "continuation": {
+            "max_abs": 1.9073486328125e-05,
+            "changed_values": 3796844,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "707f96eb71d2617ec8f87fa1684c3b4cae91a301e677f95010738fd993d216c2"
+        }
+      ]
+    },
+    {
+      "matrix": "f32",
+      "kv": "f16",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "prompt": {
+            "max_abs": 0.0007586479187011719,
+            "changed_values": 15849619,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815879821777344,
+              "b": 3.8815112113952637
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0014219284057617188,
+            "changed_values": 3963795,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517182350158691
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "be0665d81daa1287cafca7778e1030ed716c8ce5864303ef80133b861b2539dd"
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0005512237548828125,
+            "changed_values": 3921021,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517165184020996
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "4d14bd2f61776e1cac2edc98440765ddf480bf6d63604ab1e398d16b0c0b15be"
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0007586479187011719,
+            "changed_values": 15849619,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815879821777344,
+              "b": 3.8815112113952637
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0014052391052246094,
+            "changed_values": 3963633,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517160415649414
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "5757d43c4a05e50f26bd288bbf935eae48639a9df210ed9754013fa899b454b4"
+        }
+      ]
+    },
+    {
+      "matrix": "selected",
+      "kv": "f32",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "prompt": {
+            "max_abs": 0.000148773193359375,
+            "changed_values": 15767555,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8806324005126953,
+              "b": 3.8805861473083496
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0005030632019042969,
+            "changed_values": 3966192,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51740550994873,
+              "b": 9.51754379272461
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "f86ad00b6a0b900a9f723b981e077cd430c884398accd1317aaf6929a16b5010"
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0005578994750976562,
+            "changed_values": 3966400,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51740550994873,
+              "b": 9.517399787902832
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "233c24442294de3dfa83824780bc5429e2a914393476e909d670ab73e41d5c5e"
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.000148773193359375,
+            "changed_values": 15767555,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8806324005126953,
+              "b": 3.8805861473083496
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0004930496215820312,
+            "changed_values": 3966576,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51740550994873,
+              "b": 9.517494201660156
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "590b76eff191110d54143be8e7cb07e6b09d74a246f884ce5c21aedc7c755012"
+        }
+      ]
+    },
+    {
+      "matrix": "selected",
+      "kv": "f16",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "prompt": {
+            "max_abs": 0.0007703304290771484,
+            "changed_values": 15871379,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815858364105225,
+              "b": 3.881460189819336
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0015835762023925781,
+            "changed_values": 3968859,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517334938049316,
+              "b": 9.51723575592041
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "b926cf18b314223f100d1b3f5315d94b49bf65963cb37428b17cb824807938f5"
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0006545782089233398,
+            "changed_values": 3967711,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517334938049316,
+              "b": 9.517187118530273
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "0fec4bbcad6372cbe70b4947c21a11c17a7967f041accd4813cbf2bcf47da855"
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "prompt": {
+            "max_abs": 0.0007703304290771484,
+            "changed_values": 15871379,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815858364105225,
+              "b": 3.881460189819336
+            }
+          },
+          "continuation": {
+            "max_abs": 0.001583099365234375,
+            "changed_values": 3968707,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517334938049316,
+              "b": 9.517202377319336
+            }
+          },
+          "top1_exact": 80,
+          "sha256": "a2d2f6dad878fd5e1d84baa4dc96a81fa55c8fac511ee55ec41db7d0fc11c20f"
+        }
+      ]
+    }
+  ],
+  "original_failed_arm_hashes_reproduced": [
+    "376b184f7250a0e557b2b09f04deb0f5e1c9fb9c66e6ac31435cec78d5b66576",
+    "a2d2f6dad878fd5e1d84baa4dc96a81fa55c8fac511ee55ec41db7d0fc11c20f"
+  ],
+  "first_integer_boundary": {
+    "max_abs": 3.948993980884552e-05,
+    "changed_values": 122288,
+    "first": {
+      "index": [
+        0,
+        0
+      ],
+      "a": 4.41867123299744e-05,
+      "b": 4.4186715967953205e-05
+    },
+    "name": "model.layers.0.linear_attn.out_proj.after",
+    "before_rounding": {
+      "max_abs": 1.3113021850585938e-06,
+      "changed_values": 124255,
+      "first": {
+        "index": [
+          0,
+          0
+        ],
+        "a": 4.41867123299744e-05,
+        "b": 4.4186715967953205e-05
+      }
+    },
+    "integer_boundaries": [
+      {
+        "phase": "decode_1",
+        "position": 64,
+        "block": 7,
+        "lane": 6,
+        "different_codes": 128,
+        "input": [
+          0.002439417876303196,
+          0.002439421834424138
+        ],
+        "peak": [
+          0.040420953184366226,
+          0.040420956909656525
+        ],
+        "scaled": [
+          1977.499267578125,
+          1977.502197265625
+        ],
+        "code": [
+          1977,
+          1978
+        ]
+      }
+    ]
+  },
+  "first_cache_boundary": [
+    {
+      "max_abs": 0.00011342763900756836,
+      "changed_values": 38718,
+      "first": {
+        "index": [
+          0,
+          0
+        ],
+        "a": 1.4105421304702759,
+        "b": 1.4105424880981445
+      },
+      "name": "cache.3.k.before"
+    },
+    {
+      "max_abs": 0.00390625,
+      "changed_values": 585,
+      "first": {
+        "index": [
+          0,
+          378
+        ],
+        "a": 0.1026611328125,
+        "b": 0.10260009765625
+      },
+      "name": "cache.3.k.after"
+    }
+  ],
+  "interpretation": "F32 chunking differences cross block-int16 and F16 cache rounding boundaries. These are HF-versus-HF differences, not evidence of an llmx arithmetic defect. The separate F16-cache and block-int16 controls isolate both contributions; they need not add linearly.",
+  "proposed_radeon_self_control_limit": 0.00316619873046875,
+  "limit_status": "Confirmed by F2DEV at 12:19 before candidate default-depth comparison; frozen in PRECISION and the producer decision manifest.",
+  "unchanged": "Strict F32 combined control 2e-5; candidate depth 512 positions, exact or top-two gap <=0.1; short-model, NLL, split, range, identity and performance checks.",
+  "decisions": [
+    {
+      "id": "c622ed6159d1",
+      "who": "F2DEV",
+      "text": "**[F2DEV 2026-10-25 11:49 ANSWER re:the HF-only NVFP4 policy controls, XDEV's REVIEW of 11:48 @XDEV @LDEV @coordinator] The control is not defective; its limit is. The 2e-5 logit bound was the strict-F32 self-control's, where HF against itself differs only by summation order, and a rounding policy cannot meet it: once chunked and full arithmetic differ by a float step at any input, that input can round to another block-int16 code or another F16 cache value, and a code's step is of the order of 1e-3 in a logit, which is what all three policies show at 1.5e-3 with every one of the 80 top-one choices the same. So the control did its work, the arms agree at the scale the policy's own discontinuities allow and nowhere above it, and the diagnostic XDEV proposes is the right next step, cheap and discriminating: the same 80 tokens under F32 matrices with F32 KV, F32 with F16 KV, selected with F32 KV and the failed selected with F16 KV, prompt and continuation recorded apart, the first changed rounding boundary located, every failure kept. Its first arm must come back under 2e-5, or the control itself has moved and is read again before anything else; the other three show which rounding opens the gap, and each will sit near one step of its rounding. The limit for a selected-policy control is then set from that diagnostic before the candidate comparison, prospectively, as the rule of 2026-10-19 for a reference that differs from itself under chunking has it: twice the policy's own HF-against-HF chunking difference on those inputs, recorded in PRECISION beside the control, never set after a candidate is seen. The depth gate for the candidate is untouched by this: the 512-position exact and top-two rule at 0.1 reads tokens, not logits, and a 1.5e-3 reference wobble is two orders below the margin, which the 80 of 80 already shows. Two notes: the 17-token prompt chunks are a harder test than the runtime's 512-row slices, which is right for a control and should be said when its figure is read against the 16K producer's 32 chunks of 512; and the chunking difference of the F32-with-F16-KV arm is of interest on its own, since it is the part every default capture carries whatever the matrices do.**",
+      "received": "2026-10-25T13:49:27"
+    },
+    {
+      "id": "a6f1d7e42b8f",
+      "who": "F2DEV",
+      "text": "**[F2DEV 2026-10-25 12:02 ANSWER re:the unrounded HF diagnostic's control scope, XDEV's REVIEW of 12:01 @XDEV @LDEV @coordinator] Confirmed as XDEV proposes: the gate is the original combined control, prompt 64 with batched 16 against prompt 17 with singleton continuation, under 2e-5 for F32 matrices and F32 KV, which passes at 1.81e-5; the two isolation layouts are diagnosis, kept with their figures and their one failure, and grant nothing either way. The 2.7e-8 past 2e-5 on the continuation isolation is summation-order noise at the bound's own floor, where the earlier self-controls already sat at 1.4e-5 and 1.8e-5, and it says only that the batched continuation is where HF's chunking differs most, which is worth a line in the record and no more; a guard on an isolation cell was never asked for. So the run continues to the three narrowed cases with the combined control guarded as agreed and the isolation cells read as diagnosis, each rounded case's control limit then set prospectively from its own HF-against-HF figure as ruled at 11:49, and the traced selected-with-F16 case reproducing both failed arms' hashes before anything is read from it. The tiny-HF CPU figures for the current integration (300 full-logit cases and 24 NLL checks at 1.8e-6 and 1.3e-7 against 2e-5 and 1e-5) go in STATUS as they are.**",
+      "received": "2026-10-25T14:02:32"
+    }
+  ],
+  "current_radeon_tiny_hf": {
+    "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+    "full_logit_cases": 300,
+    "nll_checks": 24,
+    "printed_max_logit_error": 1.27e-06,
+    "printed_max_nll_error": 6e-08,
+    "limits": {
+      "logits": 2e-05,
+      "nll": 1e-05
+    },
+    "seconds": 99.5050482749939,
+    "binary_sha256": "05c5d56fea810ff78c7c8f7451eef330544707ac85b33e5b0971ba799d278d17"
+  },
+  "verified": "All artifact hashes, before/after source pins, producer and model pins, module counts, cache-write counts, original output digests, no OOM, successful cleanup.",
+  "artifact_sha256": {
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40191588221\\radeon\\execution.json": "685a2bd3db07bd6e2564f1ee009253586088ab957ceb2a04a8382be6d39f398e",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40191588221\\radeon\\reference\\report.json": "b23b68244d15ee2d7cde8110c7811a5c0fc2fa09cf29ce43c0b37281a2fe340c",
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40191588221.zip": "8d26c3386b5577418f198607554e89c592e340b42c75841d2e79837a2a7db025",
+    "build-nvfp4-main3-tiny-vulkan\\execution.json": "051877acd7b362b66b1825843aa3f03a1dc279b89f4afbacde03369f7f670010",
+    "build-nvfp4-main3-tiny-vulkan\\test.log": "93ce6296fb60c6c8af5ba5525c3872bdb06efa0e0ed061a304a641828cff42f3"
+  },
+  "review": {
+    "id": "5c02a3bc184d",
+    "who": "F2DEV",
+    "text": "**[F2DEV 2026-10-25 12:19 DECISION re:the scoped Radeon self-control limit for NVFP4's default depth reference, XDEV's REVIEW of 12:18 @XDEV @LDEV @coordinator] Confirmed: the Radeon selected-with-F16 HF-against-HF control's limit is 0.00316619873046875, twice its measured 0.001583099365234375, prospective to any candidate comparison, scoped to this pinned file, map and control, recorded in PRECISION beside the control, and run unchanged before the depth reference; the strict-F32 control stays at 2e-5 (met at 1.38e-5 and 1.91e-5), the candidate's 512-position exact and top-two rule at 0.1 and every other gate unchanged, the original failures kept; the CPU and the MI50 take their own witnesses and their own control dispositions by the same rule, nothing inherited. The diagnosis is the kind the rule asks for and it closes the question: the four arms place the reference's own chunking difference at the two roundings and nowhere else, 1.4e-3 from the F16 cache alone, 4.9e-4 from the block-int16 inputs alone, 1.58e-3 with both, against 1.9e-5 unrounded, the first integer boundary located at layer 0's `out_proj` on continuation position 64 where a 1.3e-6 pre-round difference became one code's step of 3.9e-5, and the first cache pair at layer 3's K where 1.1e-4 before the write became one F16 step of 3.9e-3; the failed arms reproduce byte for byte, so the diagnosis changed nothing it measured. Two lines for the record: the F16-cache share is the larger and is carried by every default capture whatever the matrices, which is worth stating where the limit is written; and the limit measures the reference's self-agreement, not the candidate, which the top-two rule reads.**",
+    "received": "2026-10-25T14:19:34"
+  }
+}

@@ -1,0 +1,544 @@
+{
+  "scope": "Windows Radeon focused development screen, not a final merge or mx gate.",
+  "passed": true,
+  "activity_flags": {
+    "unrelated_cpu": "sum of known unrelated process deltas over 100 percent of one logical CPU",
+    "system_cpu": "over 75 percent",
+    "disk": "physical total over 100 MiB/s, includes benchmark loading",
+    "gpu": "unrelated engine instance over 5 percent; engine values not additive",
+    "missing": "unknown counters/deltas reported as gaps, not zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "before": "2312b51e70f31359d405745dfe719092713d0e3c6ca3ffcbce96115fb825283c",
+    "after": "5237d60e83285e98b7a2423114637db9616bf2cd29dba0f67bd4da3ebab55722"
+  },
+  "versions": {
+    "before": "llmx 0.1.0+gbba8e3c15ef6 numerics 39a601fc41766b2a",
+    "after": "llmx 0.1.0+gfd4528857e4f.dirty numerics d861201c8d81aa75"
+  },
+  "source_sha256": {
+    "src\\backends\\vulkan\\shaders\\matmul_tile.comp": "186c7f423b0abc6fa6fff448e3ddf64ab20e67d4e1dd48b2648ea4155a9793c4",
+    "src\\backends\\vulkan\\vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9"
+  },
+  "calls": [
+    {
+      "arm": "before",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887081.5304737,
+      "log": "00-before.log",
+      "pid": 18684,
+      "exit_code": 0,
+      "end": 1792887086.9126735,
+      "rates": {
+        "pp512": 2844.06,
+        "tg128": 107.04
+      },
+      "sha256": "a70afc3bad115b59d1ef639a54c0f2db56a31f0c57dc036058c7a9bda6b5b38d",
+      "activity": {
+        "samples": 6,
+        "flags": {
+          "unrelated_cpu": 6,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 6,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887086.9199092,
+      "log": "01-after.log",
+      "pid": 23320,
+      "exit_code": 0,
+      "end": 1792887091.791872,
+      "rates": {
+        "pp512": 1431.84,
+        "tg128": 107.09
+      },
+      "sha256": "7d1519646ff15e69880555fa7c6f7be99e3588d59158bdfe23f5dd742b605c68",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 5,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887091.7988555,
+      "log": "02-before.log",
+      "pid": 61160,
+      "exit_code": 0,
+      "end": 1792887095.5319567,
+      "rates": {
+        "pp512": 2855.23,
+        "tg128": 106.78
+      },
+      "sha256": "abc628e28c44a578ddcc01e342ac29a8451c8d9678494376bd73e53e4cfbc78e",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887095.5381224,
+      "log": "03-after.log",
+      "pid": 36032,
+      "exit_code": 0,
+      "end": 1792887099.5563169,
+      "rates": {
+        "pp512": 1437.21,
+        "tg128": 107.11
+      },
+      "sha256": "9511f746d57c2ceefd967d44187f5cb2c4b0c8b2a80e93b76c0f7b8a98cb0bc6",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887099.562906,
+      "log": "04-after.log",
+      "pid": 65688,
+      "exit_code": 0,
+      "end": 1792887103.6015549,
+      "rates": {
+        "pp512": 1446.64,
+        "tg128": 106.91
+      },
+      "sha256": "02c80a1243242fb900c2b4bdfe14d69d9448731ba55edcf7b5936173b349ba84",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792887103.608605,
+      "log": "05-before.log",
+      "pid": 82752,
+      "exit_code": 0,
+      "end": 1792887107.241912,
+      "rates": {
+        "pp512": 2843.27,
+        "tg128": 106.55
+      },
+      "sha256": "7a78fee4475f6b92d99ef9391533537739e3b226ffee9873e7f68b618c2bd7f4",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    }
+  ],
+  "monitor": {
+    "pid": 8732,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-screen\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-screen\\monitor.stop",
+      "--seconds",
+      "1800",
+      "--interval",
+      "1"
+    ],
+    "source_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "profile_exit": 0,
+  "monitor_exit": 0,
+  "finished": 1792887114.6384885,
+  "means": {
+    "before": {
+      "pp512": 2849.25,
+      "tg128": 106.66499999999999
+    },
+    "after": {
+      "pp512": 1441.9250000000002,
+      "tg128": 107.00999999999999
+    }
+  },
+  "change_percent": {
+    "pp512": -49.392822672633145,
+    "tg128": 0.32344255378990994
+  },
+  "monitor_metadata": {
+    "kind": "metadata",
+    "pid": 8732,
+    "logical_cpus": 16,
+    "interval_seconds": 1.0,
+    "initial_counter_collection_bracket": [
+      2382825.4181494,
+      2382825.4186784
+    ],
+    "counters": {
+      "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+      "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+      "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+      "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+    },
+    "unavailable": {},
+    "process_cpu_units": "100 percent equals one logical CPU",
+    "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "pid_classification": {
+    "benchmark": [
+      18684,
+      23320,
+      36032,
+      61160,
+      65688,
+      82752
+    ],
+    "monitor": 8732
+  },
+  "profile": {
+    "scope": "Instrumented diagnostic only; compiler limits are not measured occupancy.",
+    "tall_lines": [
+      "profile:   matmul_tile_nvfp4_tall 298.071 ms (83.6135%)",
+      "profile: kernel matmul_tile_nvfp4_tall: numUsedVgprs=91 numUsedSgprs=34 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=25088 scratchMemUsageInBytes=0"
+    ]
+  },
+  "build_receipt": {
+    "started": 1792886965.283607,
+    "sources": {
+      "CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "186c7f423b0abc6fa6fff448e3ddf64ab20e67d4e1dd48b2648ea4155a9793c4",
+      "src/backends/vulkan/vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9",
+      "tests/nvfp4.cpp": "0c624e34a0a9ced81113730c131301ff6c533fce4b87e27bf76026e436a36c7e"
+    },
+    "passed": true,
+    "command": [
+      "cmake",
+      "--build",
+      "build-nvfp4-vulkan",
+      "--config",
+      "Release",
+      "--clean-first",
+      "--target",
+      "llmx",
+      "llmx-nvfp4-test",
+      "--parallel",
+      "4"
+    ],
+    "exit_code": 0,
+    "sources_unchanged": true,
+    "seconds": 93.34264850616455,
+    "binary_sha256": "5237d60e83285e98b7a2423114637db9616bf2cd29dba0f67bd4da3ebab55722",
+    "version": "llmx 0.1.0+gfd4528857e4f.dirty numerics d861201c8d81aa75"
+  },
+  "native_result": "NVFP4 Vulkan: AMD Radeon VII; row/tile timestamp witnesses present\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]",
+  "artifact_hashes": {
+    "build-nvfp4-threads128-screen/00-before.log": "a70afc3bad115b59d1ef639a54c0f2db56a31f0c57dc036058c7a9bda6b5b38d",
+    "build-nvfp4-threads128-screen/01-after.log": "7d1519646ff15e69880555fa7c6f7be99e3588d59158bdfe23f5dd742b605c68",
+    "build-nvfp4-threads128-screen/02-before.log": "abc628e28c44a578ddcc01e342ac29a8451c8d9678494376bd73e53e4cfbc78e",
+    "build-nvfp4-threads128-screen/03-after.log": "9511f746d57c2ceefd967d44187f5cb2c4b0c8b2a80e93b76c0f7b8a98cb0bc6",
+    "build-nvfp4-threads128-screen/04-after.log": "02c80a1243242fb900c2b4bdfe14d69d9448731ba55edcf7b5936173b349ba84",
+    "build-nvfp4-threads128-screen/05-before.log": "7a78fee4475f6b92d99ef9391533537739e3b226ffee9873e7f68b618c2bd7f4",
+    "build-nvfp4-threads128-screen/activity.jsonl": "3ab09408867cfa2d139b89cdebb72fa259352e0902eea5d840901f105fd3b2fe",
+    "build-nvfp4-threads128-screen/execution.json": "ede91e7e615b660c9ec94335400f4c781ab3283f52fa93378043adbea0adbbce",
+    "build-nvfp4-threads128-screen/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-threads128-screen/monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f",
+    "build-nvfp4-threads128-screen/profile.log": "38954a060afb94ecc27da486b6c39fef44d61838a053127066100b9feb5cc083",
+    "build-nvfp4-vulkan/nvfp4-threads128-build.json": "1aaf2cd1b29c1b67a3bfc2b4df9cd537ca2ee94c53b383afd27926e0b604ffb3",
+    "build-nvfp4-vulkan/nvfp4-threads128-native.log": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec",
+    "build-nvfp4-vulkan/nvfp4-threads128-build.log": "80fd25fd2ab8529f65f48bf25f2609e6e89ef7de83c035687a17d9ff81ee9274"
+  },
+  "limits": [
+    "Windows Radeon tall128 shape only; not MI50 short64 or final mx gate.",
+    "All six calls retained: two warmups and four measurements; two measured per arm.",
+    "Same prior Windows PDH thresholds; individual GPU engines never summed, benchmark/monitor excluded from known unrelated CPU; process/counter gaps unknown.",
+    "Dirty build identities preserved; native pass is not HF/performance acceptance."
+  ],
+  "root_recomputed_means": {
+    "before": {
+      "pp512": 2849.25,
+      "tg128": 106.66499999999999
+    },
+    "after": {
+      "pp512": 1441.9250000000002,
+      "tg128": 107.00999999999999
+    }
+  },
+  "disposition": "Do not adopt globally. Restore 256-thread runtime, retain new tall-tile native coverage. MI50 64-row behavior remains unmeasured.",
+  "limitations": [
+    "Different build revision identities and clean/dirty state; this is a development screen, not a final gate.",
+    "Background activity and process/counter gaps are retained for every call. No idle-machine claim.",
+    "Observed Radeon tile height is 128 rows. The MI50 experiment requires a matched 64-row tile and remains pending.",
+    "No selected mx dispatch or matched mx performance arm in this experiment.",
+    "Zero scratch memory excludes a spill explanation for this tile but does not identify the complete slowdown cause."
+  ],
+  "preserved_snapshot": {
+    "path": "build-nvfp4-threads128-frozen",
+    "pins_sha256": "36aa64546bca2693f6a3f66123bb48e6b13e4355227f4093e1502b66e542638e"
+  },
+  "restored_build": {
+    "started": 1792887216.7924109,
+    "sources": {
+      "CMakeLists.txt": "d6a3134688454457e012a7f9651ceffe6827d084f2a06f7746b9fde36cc6476d",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "44951140adcba4e081cd6dc93849ff1c7a5a7836a50ec9768f7dc0fbe71a3f21",
+      "src/backends/vulkan/vulkan_backend.cpp": "2986664f27b66a8adf3107985c7a8c15a33ef34b2d74682444257a96f5795549",
+      "tests/nvfp4.cpp": "0c624e34a0a9ced81113730c131301ff6c533fce4b87e27bf76026e436a36c7e"
+    },
+    "passed": true,
+    "command": [
+      "cmake",
+      "--build",
+      "build-nvfp4-vulkan",
+      "--config",
+      "Release",
+      "--clean-first",
+      "--target",
+      "llmx",
+      "llmx-nvfp4-test",
+      "--parallel",
+      "4"
+    ],
+    "exit_code": 0,
+    "sources_unchanged": true,
+    "seconds": 90.38313484191895,
+    "binary_sha256": "14bdfa482d9050d07b97b9a9635f332052e8d4dd5fee337e23e83fd02622eec9",
+    "version": "llmx 0.1.0+gfd4528857e4f.dirty numerics 39a601fc41766b2a"
+  },
+  "restored_native": [
+    {
+      "mode": "cpu",
+      "exit_code": 0,
+      "seconds": 0.08308053016662598,
+      "log": "build-nvfp4-vulkan\\nvfp4-tall-checkpoint-cpu.log",
+      "sha256": "f37ee0ca978456f187f0dfa4763186076770013683fa73cc812820c40c4b5da1"
+    },
+    {
+      "mode": "vulkan",
+      "exit_code": 0,
+      "seconds": 3.9624996185302734,
+      "log": "build-nvfp4-vulkan\\nvfp4-tall-checkpoint-vulkan.log",
+      "sha256": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec"
+    }
+  ],
+  "checkpoint_review": {
+    "tracked_markdown_pages": 137,
+    "changed_pages": [
+      "docs/STATUS.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "carry": "Other Markdown files unchanged since fd4528857 review. Runtime source and CMake are restored byte-for-byte in Git; only native test coverage and its docs change.",
+    "known_separate_docs_item": "Stale TQ progress paragraph in docs/CI.md remains assigned to a separate docs correction."
+  },
+  "restored_build_receipt_sha256": "0e98ca2cf3427e3e8421a7e90d036b15667814b31b368185283730408023f043",
+  "restored_native_receipt_sha256": "35f2936465e65bfd7217fa5e132512cd706e0361d9bd91698338da2489474f16",
+  "checkpoint_checks": {
+    "native_cpu": "pass",
+    "native_vulkan": "pass, including tall normal/BF16 timestamp assertions",
+    "docs": "pass, zero unlisted findings and 21 planted faults",
+    "dead_code": "pass, five listed findings and 18 planted faults",
+    "runtime_diff_from_fd4528857": "none",
+    "full_hf_rerun": "not run for rejected optimization; restored runtime source unchanged"
+  }
+}

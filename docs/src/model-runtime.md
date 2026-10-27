@@ -307,3 +307,5 @@ of the configuration and layout validation above.
 `prefill` enters one backend-owned synchronous scope around batch-buffer
 allocation and every microbatch, including the final projection. Empty input
 is rejected before entry; individual decode steps do not enter that scope.
+
+Runtime resolution marks each associated scale companion used and takes its buffer on the same destination as its weight, including expert roles. Matrix callers use `Weight.operand()` to preserve the association in a backend `WeightView`; they do not rediscover scale tensor names. If resolution throws after asynchronous adoption begins, backend work is drained before the local adoption cache is destroyed, so buffers remain live until their users finish. Scaled operator controls cover F32/F16/BF16 requests, overflow and invalid grouped inputs before writes; model controls cover tied, layer-split, TP2 and mapped/auto/direct loading. Released-file, candidate HF and performance qualification remain separate in STATUS.

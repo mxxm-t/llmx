@@ -165,7 +165,7 @@ void check_cpu_product(const Format& f, backend::CpuBackend& cpu) {
     auto y = cpu.alloc((columns * rows + 2) * sizeof(float), backend::Memory::host_visible);
     std::vector<float> initial(columns * rows + 2, guard);
     cpu.write(*y, 0, initial.data(), initial.size() * sizeof(float));
-    cpu.matmul(f.id, {w.get(), 0}, {x.get(), 0}, {y.get(), 1}, width, rows, columns,
+    cpu.matmul({f.id, {w.get(), 0}}, {x.get(), 0}, {y.get(), 1}, width, rows, columns,
                {}, backend::Dtype::f32);
     std::vector<float> got(initial.size());
     cpu.read(*y, 0, got.data(), got.size() * sizeof(float));
@@ -203,7 +203,7 @@ void check_cpu_rows_and_embedding(const Format& f, backend::CpuBackend& cpu) {
     auto embedded = cpu.alloc((ids.size() * width + 2) * sizeof(float), backend::Memory::host_visible);
     std::vector<float> initial(ids.size() * width + 2, guard);
     cpu.write(*embedded, 0, initial.data(), initial.size() * sizeof(float));
-    cpu.embed({embedded.get(), 1}, f.id, {w.get(), 0}, width, rows, ids.data(), ids.size());
+    cpu.embed({embedded.get(), 1}, {f.id, {w.get(), 0}}, width, rows, ids.data(), ids.size());
     std::vector<float> embedded_values(initial.size());
     cpu.read(*embedded, 0, embedded_values.data(), embedded_values.size() * sizeof(float));
     require(embedded_values.front() == guard && embedded_values.back() == guard,
@@ -222,7 +222,7 @@ void check_cpu_rows_and_embedding(const Format& f, backend::CpuBackend& cpu) {
         auto output = cpu.alloc((columns * rows + 2) * sizeof(float), backend::Memory::host_visible);
         std::vector<float> output_initial(columns * rows + 2, guard);
         cpu.write(*output, 0, output_initial.data(), output_initial.size() * sizeof(float));
-        cpu.matmul(f.id, {w.get(), 0}, {x.get(), 0}, {output.get(), 1}, width, rows, columns,
+        cpu.matmul({f.id, {w.get(), 0}}, {x.get(), 0}, {output.get(), 1}, width, rows, columns,
                    {}, backend::Dtype::f32);
         std::vector<float> got(output_initial.size());
         cpu.read(*output, 0, got.data(), got.size() * sizeof(float));

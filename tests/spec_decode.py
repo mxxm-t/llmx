@@ -24,6 +24,7 @@ IQ2_XXS, IQ2_XS = 16, 17
 IQ3_XXS = 18
 IQ1_S, IQ1_M = 19, 29
 TQ1_0, TQ2_0 = 34, 35
+NVFP4 = 40
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -52,6 +53,7 @@ TYPES = {
     TQ1_0: ("TQ1_0", 256, 54),
     TQ2_0: ("TQ2_0", 256, 66),
     MXFP4: ("MXFP4", 32, 17),
+    NVFP4: ("NVFP4", 64, 36),
 }
 
 # IQ2_XXS fixed dictionary bytes from ggml-common.h at 2fe50c3b322c54cfb984d68a6bdb64b8abf9e3ea; SHA256 05826b5d3e472a3a78f196be62ac78acf81df0f909626e12ab9fa2a5d490dd54.
@@ -430,6 +432,20 @@ def mxfp4(block):
     return [MXFP4_VALUES[q & 15] * scale for q in qs] + [MXFP4_VALUES[q >> 4] * scale for q in qs]
 
 
+# NVFP4 stores four UE4M3 scales and four 16-value groups, low nibbles first.
+# Scale 127 is zero, and other scale bytes ignore bit 7 (docs/src/quant-nvfp4.md).
+def nvfp4(block):
+    out = []
+    for g in range(4):
+        s = block[g]
+        e, m = (s >> 3) & 15, s & 7
+        half_scale = 0.0 if s in (0, 127) else math.ldexp(8 + m, e - 11) if e else math.ldexp(m, -10)
+        qs = block[4 + g * 8:12 + g * 8]
+        out += [MXFP4_VALUES[q & 15] * half_scale for q in qs]
+        out += [MXFP4_VALUES[q >> 4] * half_scale for q in qs]
+    return out
+
+
 # TQ1_0: 48 bytes hold five fractional radix-3 digits each, four bytes hold four each, then the f16 scale.
 # For byte b and digit n, floor(3 * fractional_part(b * 3**n / 256)) preserves the format's byte wrap.
 def tq1_0(block):
@@ -704,6 +720,7 @@ def iq1_m(block):
 
 
 PURE = {
+    NVFP4: nvfp4,
     F32: lambda block: [struct.unpack("<f", bytes(block))[0]],
     F16: lambda block: [f16(block, 0)],
     IQ1_S: iq1_s, IQ1_M: iq1_m,
@@ -782,6 +799,17 @@ def _np_iq4_nl(a):
 
 def _np_mxfp4(a):
     return np.ldexp(np.array(MXFP4_VALUES, dtype=np.float32)[_nibbles(a[:, 1:17])], a[:, 0:1].astype(np.int32) - 128)
+
+
+def _np_nvfp4(a):
+    scales = a[:, :4].astype(np.int32)
+    e, m = (scales >> 3) & 15, scales & 7
+    half = np.where(e == 0, np.ldexp(m.astype(np.float32), -10),
+                    np.ldexp((8 + m).astype(np.float32), e - 11))
+    half[(scales == 0) | (scales == 127)] = 0
+    qs = a[:, 4:].reshape(-1, 4, 8)
+    codes = np.concatenate((qs & 15, qs >> 4), axis=2)
+    return (np.array(MXFP4_VALUES, dtype=np.float32)[codes] * half[:, :, None]).reshape(-1, 64)
 
 
 def _np_k_scale_min(sm):
@@ -984,6 +1012,7 @@ def _np_iq1_m(a):
 
 
 NUMPY = {
+    NVFP4: _np_nvfp4,
     F32: _np_f32, F16: _np_f16, BF16: _np_bf16,
     IQ1_S: _np_iq1_s, IQ1_M: _np_iq1_m,
     TQ1_0: _np_tq1_0, TQ2_0: _np_tq2_0,
@@ -1088,6 +1117,7 @@ class GGUF:
             self.alignment = self.metadata.get("general.alignment", (4, 32))[1]
             start = f.tell() + -f.tell() % self.alignment
         self.tensors = [Tensor(name, shape, type_id, start + offset) for name, shape, type_id, offset in infos]
+        self._sources = {tensor.name: (self, tensor) for tensor in self.tensors}
 
     def value(self, key, default=None):
         return self.metadata[key][1] if key in self.metadata else default
@@ -1105,14 +1135,60 @@ class GGUF:
             raise ValueError("%s: tensor %s runs past the end of the file" % (self.path, tensor.name))
         return data
 
-    def decode(self, tensor, numpy=True):
-        """A tensor's values, flat with the first dimension varying fastest: a float32 array from the numpy form, or a list from the pure one."""
-        return self.decode_span(tensor, 0, tensor.count, numpy)
+    def _companion(self, tensor, suffix, sources):
+        """A recognized NVFP4 weight's scalar/per-expert F32 companion, or None."""
+        if tensor.type != NVFP4 or not tensor.name.endswith(".weight"):
+            return None
+        found = sources.get(tensor.name[:-7] + suffix)
+        if found is None:
+            return None
+        _, scale = found
+        experts = tensor.shape[2] if len(tensor.shape) == 3 else 1
+        if (scale.type != F32 or not 1 <= len(scale.shape) <= 4
+                or any(n <= 0 for n in scale.shape) or scale.count not in (1, experts)):
+            raise ValueError("tensor %s: incompatible NVFP4 %s companion" % (tensor.name, suffix))
+        return found
 
-    def decode_span(self, tensor, first, count, numpy=True):
-        """Decode only a flat element span, aligned to stored blocks, without reading the rest of a table or expert stack."""
+    def weight_tensors(self, tensors=None, tensor_sources=None):
+        """HF parameter tensors, excluding only recognized NVFP4 weight/activation companions.
+        The complete descriptor and raw-payload inventories remain in tensors and raw()."""
+        sources = self._sources if tensor_sources is None else tensor_sources
+        for tensor in self.tensors if tensors is None else tensors:
+            suffix = next((s for s in (".scale", ".input_scale") if tensor.name.endswith(s)), None)
+            if suffix is not None:
+                parent = sources.get(tensor.name[:-len(suffix)] + ".weight")
+                if parent is not None and self._companion(parent[1], suffix, sources) is not None:
+                    continue
+            yield tensor
+
+    def decode(self, tensor, numpy=True, tensor_sources=None):
+        """A tensor's reconstructed F32 weights, flat with the first dimension varying fastest."""
+        return self.decode_span(tensor, 0, tensor.count, numpy, tensor_sources)
+
+    def decode_span(self, tensor, first, count, numpy=True, tensor_sources=None):
+        """Decode a block-aligned flat span, applying NVFP4 weight companions before F32 products.
+        tensor_sources is the existing shard index {name: (reader, tensor)} when companions
+        live in another shard. input_scale belongs to activation quantization and is unused."""
+        sources = self._sources if tensor_sources is None else tensor_sources
+        companion = self._companion(tensor, ".scale", sources)
         raw = self.raw(tensor, first, count)
-        return decode_numpy(tensor.type, raw, count) if numpy else decode(tensor.type, raw, count)
+        values = decode_numpy(tensor.type, raw, count) if numpy else decode(tensor.type, raw, count)
+        if companion is None:
+            return values
+        reader, scale = companion
+        scales = decode(F32, reader.raw(scale), scale.count)
+        stride = tensor.shape[0] * tensor.shape[1] if len(scales) > 1 else tensor.count
+        # A bounded span can begin part way through an expert or cross several experts.
+        begin = 0
+        while begin < count:
+            expert = (first + begin) // stride if len(scales) > 1 else 0
+            end = min(count, (expert + 1) * stride - first) if len(scales) > 1 else count
+            if numpy:
+                values[begin:end] *= np.float32(scales[expert])
+            else:
+                values[begin:end] = [to_f32(value * scales[expert]) for value in values[begin:end]]
+            begin = end
+        return values
 
 
 def _pack_string(text):

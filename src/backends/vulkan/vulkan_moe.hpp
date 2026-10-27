@@ -34,22 +34,22 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
     for (size_t i = 0; i < runs.n; ++i)
         if (runs.runs[i].extent != 1) return nullptr;
     const size_t n_expert = m.router.rows, k = m.k, ff = m.gate.rows;
-    if (m.router.type != quant::GGML_TYPE_F32 || !k || k > n_expert || k > 256 || n_expert > 1024 || rows * k >= 2 * n_expert) return nullptr;
-    if (m.gate.type != m.up.type || m.up.rows != ff || ff % 32 || nin % 32) return nullptr;
+    if (m.router.weight.type != quant::GGML_TYPE_F32 || !k || k > n_expert || k > 256 || n_expert > 1024 || rows * k >= 2 * n_expert) return nullptr;
+    if (m.gate.weight.type != m.up.weight.type || m.up.rows != ff || ff % 32 || nin % 32) return nullptr;
     const MoeShared* s = m.shared;
-    if (s && (!s->row_gate.data.buffer || s->row_gate.type != quant::GGML_TYPE_F32 || s->gate.type != s->up.type || s->gate.rows != ff || s->up.rows != ff))
+    if (s && (!s->row_gate.weight.data.buffer || s->row_gate.weight.type != quant::GGML_TYPE_F32 || s->gate.weight.type != s->up.weight.type || s->gate.rows != ff || s->up.rows != ff))
         return nullptr;
     const MoeBuild* build = nullptr;
     for (const MoeBuild& b : kMoeBuilds)
-        if (b.gate == m.gate.type && b.down == m.down_type && b.sh_gate == (s ? s->gate.type : 0u) && b.sh_down == (s ? s->down_type : 0u)) build = &b;
+        if (b.gate == m.gate.weight.type && b.down == m.down.type && b.sh_gate == (s ? s->gate.weight.type : 0u) && b.sh_down == (s ? s->down.type : 0u)) build = &b;
     if (!build) return nullptr;
     // Every product the unfused step makes takes a row kernel: the routed calls below their tile crossover, the plain ones below theirs.
     auto routed_rows = [&](uint32_t type) { return 1 < prof.*(weight_kernels(type)->moe_from); };
-    if (!routed_rows(m.gate.type) || !routed_rows(m.down_type) || dtype == Dtype::bf16) return nullptr;
-    const Projection router{m.router.type, m.router.data, m.router.out, n_expert};
+    if (!routed_rows(m.gate.weight.type) || !routed_rows(m.down.type) || dtype == Dtype::bf16) return nullptr;
+    const Projection router{m.router.weight, m.router.out, n_expert};
     if (tile_from(&router, 1, nin) <= 1) return nullptr;
     if (s) {
-        const Projection group[2] = {s->gate, s->up}, down{s->down_type, s->down, Slice{}, nin};
+        const Projection group[2] = {s->gate, s->up}, down{s->down, Slice{}, nin};
         if (tile_from(group, 2, nin) <= 1 || tile_from(&down, 1, ff) <= 1) return nullptr;
     }
     // The kernels the fused builds share their bodies with: the routed row kernel of each type and the Q8_0 decode kernel.
@@ -61,7 +61,7 @@ inline const MoeBuild* VulkanBackend::moe_build(const MoeStep& m, size_t nin, si
         if (type == quant::GGML_TYPE_Q5_1) return id == (i8 ? K_MATMUL_ROW_Q5_I8 : K_MATMUL_ROW_Q5_DOT);
         return id == (i8 ? K_MATMUL_ROW_K_I8 : K_MATMUL_ROW_K_DOT);
     };
-    if (!kernel_of(m.gate.type, nin) || !kernel_of(m.down_type, ff) || (s && (!kernel_of(s->gate.type, nin) || !kernel_of(s->down_type, ff)))) return nullptr;
+    if (!kernel_of(m.gate.weight.type, nin) || !kernel_of(m.down.type, ff) || (s && (!kernel_of(s->gate.weight.type, nin) || !kernel_of(s->down.type, ff)))) return nullptr;
     return build;
 }
 
@@ -73,19 +73,27 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     const uint32_t S = dev_->caps.subgroup_size;
     const bool i8 = dtype == Dtype::int8;
     // The operands as the unfused calls check them.
-    check_matrix(m.router.type, m.router.data, nin, n_expert);
-    check_matrix(m.gate.type, m.gate.data, nin, size_mul(n_expert, ff));
-    check_matrix(m.up.type, m.up.data, nin, size_mul(n_expert, ff));
-    check_matrix(m.down_type, m.down, ff, size_mul(n_expert, E));
+    check_matrix(m.router.weight.type, m.router.weight.data, nin, n_expert);
+    check_weight_scales(m.router.weight);
+    check_matrix(m.gate.weight.type, m.gate.weight.data, nin, size_mul(n_expert, ff));
+    check_weight_scales(m.gate.weight, n_expert);
+    check_matrix(m.up.weight.type, m.up.weight.data, nin, size_mul(n_expert, ff));
+    check_weight_scales(m.up.weight, n_expert);
+    check_matrix(m.down.type, m.down.data, ff, size_mul(n_expert, E));
+    check_weight_scales(m.down, n_expert);
     const size_t act_n = size_mul(rows, k * ff + (s ? ff : 0));
     if (floats_from(h) < rows * E || floats_from(y) < rows * E || floats_from(m.router.out) < rows * n_expert || floats_from(m.ids) < entries ||
         floats_from(m.weights) < entries || floats_from(m.gate.out) < act_n || floats_from(m.up.out) < act_n || floats_from(m.act) < act_n)
         throw std::runtime_error("vulkan: routed step operand outside its allocation");
     if (s) {
-        check_matrix(s->gate.type, s->gate.data, nin, ff);
-        check_matrix(s->up.type, s->up.data, nin, ff);
-        check_matrix(s->down_type, s->down, ff, E);
-        check_matrix(s->row_gate.type, s->row_gate.data, nin, 1);
+        check_matrix(s->gate.weight.type, s->gate.weight.data, nin, ff);
+        check_weight_scales(s->gate.weight);
+        check_matrix(s->up.weight.type, s->up.weight.data, nin, ff);
+        check_weight_scales(s->up.weight);
+        check_matrix(s->down.type, s->down.data, ff, E);
+        check_weight_scales(s->down);
+        check_matrix(s->row_gate.weight.type, s->row_gate.weight.data, nin, 1);
+        check_weight_scales(s->row_gate.weight);
         // The shared rows sit right after the routed ones, which the fused kernels read as one run of entries.
         if (s->gate.out.buffer != m.gate.out.buffer || s->gate.out.offset != m.gate.out.offset + entries * ff || s->up.out.buffer != m.up.out.buffer ||
             s->up.out.offset != m.up.out.offset + entries * ff || s->act.buffer != m.act.buffer || s->act.offset != m.act.offset + entries * ff ||
@@ -110,8 +118,8 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         const uint32_t pc[26] = {u32(nin), u32(rows), 0, 0, plan.cluster, S / plan.cluster, s ? 2u : 1u,
                                  u32(n_expert), quant::GGML_TYPE_F32, 0, 0, 1, quant::GGML_TYPE_F32, 0, gr, 0, 0, 0, 0, 0, 0, 0,
                                  u32(n_expert), u32(k), m.normalize ? 1u : 0u, (gr + gg) * gy};
-        const VkDescriptorBufferInfo sc = bind(m.router.out), hf = bind(h), rw = bind(m.router.data);
-        const VkDescriptorBufferInfo sg = s ? bind(s->row_gate.out) : sc, gw = s ? bind(s->row_gate.data) : rw;
+        const VkDescriptorBufferInfo sc = bind(m.router.out), hf = bind(h), rw = bind(m.router.weight.data);
+        const VkDescriptorBufferInfo sg = s ? bind(s->row_gate.out) : sc, gw = s ? bind(s->row_gate.weight.data) : rw;
         dispatch(moe_route_kernel(n_expert), {sc, sg, sc, rw, gw, rw, rw, gw, rw, rw, gw, rw, hf, rw, gw, rw, hf, hf, hf, hf, hf, hf,
                                              sc, bind(m.ids), bind(m.weights), VkDescriptorBufferInfo{moe_count_->handle(), 0, VK_WHOLE_SIZE}},
                  pc, sizeof(pc), gr + gg, gy, variant, {rows * n_expert, s ? rows : 0, rows * n_expert, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -122,14 +130,14 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
     std::vector<RowRun>& entry_runs = *m.scratch;
     entry_runs.clear();
     for (size_t i = 0; i < runs.n; ++i) entry_runs.push_back(RowRun{runs.runs[i].end * k, runs.runs[i].extent});
-    const RowPlan down = row_plan(m.down_type, ff, dtype);
+    const RowPlan down = row_plan(m.down.type, ff, dtype);
     if (!s) {
         // D2 and D2b: without a shared expert the routed row kernel and the SiLU run as the unfused step runs them.
         matmul_experts({m.gate, m.up}, h, nin, rows, routing, runs, dtype);
         silu_mul(m.act, m.gate.out, m.up.out, entries * ff, {entry_runs.data(), entry_runs.size()});
     } else {
         // D2: the routed entries' gate and up rows beside each token's shared expert's.
-        const RowPlan rp = row_plan(m.gate.type, nin, dtype), sp = row_plan(s->gate.type, nin, dtype);
+        const RowPlan rp = row_plan(m.gate.weight.type, nin, dtype), sp = row_plan(s->gate.weight.type, nin, dtype);
         const bool q8 = is_vec_kernel(sp.kernel);
         const int variant = q8 ? one_column_build(nin, 2 * ff, reads_x8(sp.kernel)) : 1;
         const VkDescriptorBufferInfo xqi = row_twin(h, rp, rows * nin, dtype);
@@ -138,8 +146,8 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         const uint32_t pc[26] = {u32(nin), u32(rows), 0, 1, rp.cluster, S / rp.cluster, 4,
                                  u32(ff), rp.type, rp.wide, 0, u32(ff), rp.type, rp.wide, start1, 0, 0, 0, 0, 0, u32(k), 0,
                                  u32(entries), sh_start1, sp.type, sp.wide};
-        const VkDescriptorBufferInfo g = bind(m.gate.out), u = bind(m.up.out), a = bind(m.gate.data), b = bind(m.up.data);
-        const VkDescriptorBufferInfo c = bind(s->gate.data), d = bind(s->up.data), ids = bind(m.ids);
+        const VkDescriptorBufferInfo g = bind(m.gate.out), u = bind(m.up.out), a = bind(m.gate.weight.data), b = bind(m.up.weight.data);
+        const VkDescriptorBufferInfo c = bind(s->gate.weight.data), d = bind(s->up.weight.data), ids = bind(m.ids);
         dispatch(i8 ? build->up8 : build->up, {g, u, g, u, a, b, c, d, a, b, c, d, a, b, c, d, bind(h), a, b, c, d, xqi, xqi, xqi, xqi, ids, ids},
                  pc, sizeof(pc), std::max(2 * start1, 2 * sh_start1), u32(entries + rows), variant, {act_n, act_n, act_n, act_n});
         // D2b: every entry's SiLU product and each token's shared one under its gate, with the twin of all of them that the down kernel reads.
@@ -155,7 +163,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         const size_t columns = entries + (s ? rows : 0);
         const VkDescriptorBufferInfo xqi = row_twin(m.act, down, columns * ff, dtype);
         const bool routed_q8 = is_vec_kernel(down.kernel);
-        const RowPlan sp = s ? row_plan(s->down_type, ff, dtype) : down;
+        const RowPlan sp = s ? row_plan(s->down.type, ff, dtype) : down;
         const bool shared_q8 = s && is_vec_kernel(sp.kernel);
         const int variant = routed_q8 ? one_column_build(ff, E * entries, reads_x8(down.kernel)) : shared_q8 ? one_column_build(ff, E, reads_x8(sp.kernel)) : 1;
         const uint32_t rows_wg = routed_q8 ? (256 / S) * kVecBuilds[variant].rows : 256 / down.cluster;
@@ -163,7 +171,7 @@ inline void VulkanBackend::moe_step(const MoeStep& m, CSlice h, Slice y, size_t 
         const uint32_t pc[29] = {u32(ff), u32(columns), 0, 1, down.cluster, S / down.cluster, 2,
                                  u32(E), down.type, down.wide, 0, u32(E), sp.type, sp.wide, 0, 0, 0, 0, 0, 0, 1, 0,
                                  u32(k), u32(rows), m.zero ? 1u : 0u, rows_wg, sh_rows, sp.type, sp.wide};
-        const VkDescriptorBufferInfo yb = bind(y), a = bind(m.down), b = s ? bind(s->down) : a, ids = bind(m.ids);
+        const VkDescriptorBufferInfo yb = bind(y), a = bind(m.down.data), b = s ? bind(s->down.data) : a, ids = bind(m.ids);
         dispatch(i8 ? build->dn8 : build->dn, {yb, yb, a, b, a, b, a, b, bind(m.act), a, b, xqi, xqi, xqi, xqi, ids, ids, bind(m.weights),
                                                m.zero ? bind(CSlice(m.zero, 0)) : yb},
                  pc, sizeof(pc), u32(groups(E, rows_wg)), u32(rows), variant, {rows * E, rows * E});

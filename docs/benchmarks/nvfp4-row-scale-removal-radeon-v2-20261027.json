@@ -1,0 +1,305 @@
+{
+  "schema": "llmx-nvfp4-row-scale-removal-radeon-20261027-v2",
+  "scope": "Separate follow-up to v1 with three NVFP4 decoder branch guards. Exploratory experiment only; no performance qualification or landing decision.",
+  "lineage": {
+    "v1_receipt": "docs/benchmarks/nvfp4-row-scale-removal-radeon-20261027.json",
+    "v1_scope": "Removed the shared row scale factor; that alone was not full NVFP4 recovery."
+  },
+  "source": {
+    "baseline_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+    "baseline_archive_sha256": "df5405608274252ff0920b32097bf346c687a8711d78f76d1ffd079e25de2759",
+    "baseline_source_manifest_sha256": "75500c7955650ca2102542ee3f150f9171636febb2365abbe257e799a915e365",
+    "files_per_arm": 3070,
+    "changed_files": [
+      {
+        "path": "src/backends/vulkan/shaders/matmul_row_one.glsl",
+        "before": "2D8F418FBA32ECBBA041352A31E1DB6AD60A590083A1D4E5A8CFF8190FDD09DD",
+        "after": "14E13D9CFD779D0AB9151A64CCDFA3C06224606BC37EB1A5B6DAF67D4A12ADCF"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/q.glsl",
+        "before": "1060F318AB30CDEBA14778AB1FAA1A49A0A927342DDF293BEFD3DDD335DD7BB7",
+        "after": "A09260039E65DB0086EFB408904AAA77F9420D35614EE2C6E883B1D764BF5F64"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "before": "CB5C2DB727317804D25234705B0393FD8184FDA80DFB9572460945E9B9DDD0D7",
+        "after": "29B88559AE9420025EAB4DC4850475AA09289E08C607B3F7BDB6806BC27AFCA5"
+      }
+    ],
+    "candidate_tree_content_digest": "FE8F5287491F75E57A4F2BC9EBA53C9F78B6B8FD838B030A6EAEFD0DDBB5128B"
+  },
+  "shader_modules": {
+    "module_count_per_arm": 313,
+    "identical": 310,
+    "changed_count": 3,
+    "changed_modules": [
+      {
+        "module": "matmul_row_float_x.inc",
+        "baseline_sha256": "678AB0DA862B85529D61FDF64B36FDE53EA1CB6B6657D7CF2770F8010EF6DCE3",
+        "candidate_sha256": "703350EB8F2480B5C58AD1A5352800FC91565311D67117B20C1BB737931AB2BF"
+      },
+      {
+        "module": "matmul_row_float_x_preserve.inc",
+        "baseline_sha256": "B6EC48F0C9870EEE37DF20213258A3804FEDA872A0FF0722B7AD250B362ACC90",
+        "candidate_sha256": "9F1FCBE1CDD0BD3B27DF233828214FF01F8BFB4B12D5A3F8207A0DE855651D7A"
+      },
+      {
+        "module": "matmul_row_mxfp4_float_x.inc",
+        "baseline_sha256": "A8E0ED8DFA3EC44D224EF6316B2E925CE6089CCD1C58225AACF766BBF7B0ABE5",
+        "candidate_sha256": "AF1F1F14EDD6840E6058CDAF572B821F10B4D8C3FD7E9189A69B0CA43D5FB418"
+      }
+    ],
+    "dedicated_nvfp4_modules": 7,
+    "dedicated_nvfp4_all_byte_identical": true,
+    "module_comparison_sha256": "33D418C74E5CBEF88C9722A65018526DBBA2EB54176F5BE895B35517F313AA6C"
+  },
+  "output_identity": {
+    "cases": 137,
+    "f32_values_per_arm": 13630848,
+    "raw_arrays_byte_identical": 137,
+    "raw_files_rehashed_and_byte_compared": 137,
+    "case_hash_aggregate_sha256": "036BBC4F061C5E6D94DB4F30E7CABE44B6A44EAA528B794B698D5FD290A070F7",
+    "outputs_manifest_sha256": {
+      "main": "50A26720B1FB46EE76120B60909F55D626ED68D8DC8D698F19CB2E45E5579FB5",
+      "candidate": "FA0CBA0889CB3E0D69926864A97282FB1F210383AD30EA9DF65EDAA199698E00"
+    },
+    "run_json_sha256": "8008A0722A2A74C0CB9A69F0EC3093AA64B273190F497A63DBA48A41B6E43192",
+    "comparison_json_sha256": "4CE94D92321C8FC8899491A7E844A82E3DCAD374F52E0418DC0CED97219198A4",
+    "binary_harness_plan_pins": {
+      "main_exe": "4A6738B5C9532F776A5F777B6470B91BAA12447A2C33F52DF982E4A0B04C6871",
+      "candidate_exe": "9BB5863326EFD73E8AB486E2DD368A2A719489EEC7B25C55E90F4E7B8C30731B",
+      "main_lib": "43E2F34E864FE4311687EC7DC22D354DE12D06FB654E700D50F0606034FBB872",
+      "candidate_lib": "AB99B26F37FDBEFB00F68EE7A1F5859B838BC243313AFF514C4FE70925DF0E27",
+      "source": "43C2E917FC7DC2CB582D66B32B59769B3CE86B5EC2B5BF1D12B000150EC35F8A",
+      "comparer": "81378F54D51CA22D5DDA82F70CD215CEF98C8D0E471303416310F3BFEC953B4B",
+      "plan": "A6424D68AAA235E6C57AC1BA50EBF73BADBB05C8D4013F9B24365D95441E6EAF"
+    },
+    "cpu_reference_checks": 44,
+    "cpu_reference_nonzero_differences": 0,
+    "signed_zero_only_nonexact_cases": [
+      "embed_Q6_K",
+      "embed_Q8_0",
+      "embed_ids_Q6_K",
+      "embed_ids_Q8_0"
+    ]
+  },
+  "timing": {
+    "device": "Radeon VII, Windows Vulkan, isolated one-column operator harness",
+    "schedule": "Eight interleaved calls, ABBA then BAAB; 512 timed samples per family per call; four warm calls per case and arm. All samples retained.",
+    "families": {
+      "q8_0_f32_one_column": {
+        "kernel": "matmul_row_float_x_1col",
+        "arms": {
+          "main": {
+            "n": 2048,
+            "mean_ms": 0.07512765625000001,
+            "median_ms": 0.07376,
+            "min_ms": 0.07312,
+            "max_ms": 0.3144,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.07492546875,
+                "median_ms": 0.07376
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.07532984375,
+                "median_ms": 0.07376
+              }
+            }
+          },
+          "candidate": {
+            "n": 2048,
+            "mean_ms": 0.075941171875,
+            "median_ms": 0.07392,
+            "min_ms": 0.07312,
+            "max_ms": 0.31584,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.07608421875,
+                "median_ms": 0.07392
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.075798125,
+                "median_ms": 0.07376
+              }
+            }
+          }
+        },
+        "candidate_delta_percent": 1.082844408579553,
+        "candidate_over_main_ratio": 1.0108284440857955
+      },
+      "mxfp4_f32_one_column": {
+        "kernel": "matmul_row_mxfp4_float_x_1col",
+        "arms": {
+          "main": {
+            "n": 2048,
+            "mean_ms": 0.055251562500000004,
+            "median_ms": 0.05312,
+            "min_ms": 0.05232,
+            "max_ms": 0.28,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.05568625,
+                "median_ms": 0.05312
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.054816875,
+                "median_ms": 0.05296
+              }
+            }
+          },
+          "candidate": {
+            "n": 2048,
+            "mean_ms": 0.055024296875,
+            "median_ms": 0.05312,
+            "min_ms": 0.05232,
+            "max_ms": 0.29104,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.05464296875,
+                "median_ms": 0.05312
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.055405625,
+                "median_ms": 0.05312
+              }
+            }
+          }
+        },
+        "candidate_delta_percent": -0.41132886513390865,
+        "candidate_over_main_ratio": 0.9958867113486609
+      }
+    },
+    "timed_event_rows": 8192,
+    "invocations": [
+      {
+        "index": 1,
+        "arm": "main",
+        "block": "ABBA-1",
+        "event_rows": 1024,
+        "timings_sha256": "D630FCB123337801330922701237902CF383130FD33B6750CDE063497D2FF390",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 2,
+        "arm": "candidate",
+        "block": "ABBA-2",
+        "event_rows": 1024,
+        "timings_sha256": "710DF613673BC8AD59BF409B4B1C1075FD145A9023EEE78799935CFBE107B22F",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 3,
+        "arm": "candidate",
+        "block": "ABBA-3",
+        "event_rows": 1024,
+        "timings_sha256": "904752513C1ED188A28C32A32F3D5BEEFFB7C76991E5F5D3703684AE4F73FEC9",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 4,
+        "arm": "main",
+        "block": "ABBA-4",
+        "event_rows": 1024,
+        "timings_sha256": "D17969679DF71D9B679907EDBAC44A2FE5C2AD406DA70AD85DC0B9C5DC0B2F31",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 5,
+        "arm": "candidate",
+        "block": "BAAB-1",
+        "event_rows": 1024,
+        "timings_sha256": "C08FFB1078839AB4D14E7CCA3BF73B25ACD5A2A225F7D135A5CD788B34C98E68",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 6,
+        "arm": "main",
+        "block": "BAAB-2",
+        "event_rows": 1024,
+        "timings_sha256": "65B50D7D7960AE80FAECCA80CFD55AEDC1A7F0ACD2681A1785B56231D3ED67C8",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 7,
+        "arm": "main",
+        "block": "BAAB-3",
+        "event_rows": 1024,
+        "timings_sha256": "2C4BD36136D166829B9F863C5F6D73846D393190364CE4EF10945F89F5999C52",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 8,
+        "arm": "candidate",
+        "block": "BAAB-4",
+        "event_rows": 1024,
+        "timings_sha256": "F1FA2D58503FBAE85BB838EB2954F44F197D18E722F100CCC453CF7AC32AA80B",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      }
+    ],
+    "activity": {
+      "samples": 2,
+      "errors": 0,
+      "samples_by_state_at_start": {
+        "main": 0,
+        "candidate": 1
+      },
+      "target_met_each_arm": false,
+      "limitation": "The initial sample collection finished before invocation1. The second collection started in candidate invocation2 and ended after invocation8; its counter queries span all intervening arm invocations, so the start-state candidate tag is not a full-sample arm attribution. There are no independent monitor samples for later arms; activity for the intervals between collections remains unknown."
+    },
+    "analysis_sha256": "DCA5EB4CCCE05609AA6CBD59EEB7C20928346CBCB3FF539F57BEDAE5EBDC9AF8",
+    "run_sha256": "029B2B43BF6D1443AD64AA7A976B21E0C1FBAE9CE649092C7D06F8329AD5AD2E",
+    "binary_harness_monitor_plan_pins": {
+      "main_exe": "A28EABE4D1AF3C05792B156C64C2D9CAD6F4E7352065FD5E94E8309B06787C80",
+      "candidate_exe": "66798C4336E725EFC8E83E1404B0B5BCE65E3980227E474F94FCB8B3D9B6CB63",
+      "main_lib": "43E2F34E864FE4311687EC7DC22D354DE12D06FB654E700D50F0606034FBB872",
+      "candidate_lib": "AB99B26F37FDBEFB00F68EE7A1F5859B838BC243313AFF514C4FE70925DF0E27",
+      "source": "F2604DF9613C0256CC58B46E4A911114A00FB3AD90197B08D58B2D81DD80AE21",
+      "monitor": "FA36CFA8DE7BCB3DB5CB36959F212A57EEEDAE876ACC33F6A695053BF35579B3",
+      "plan": "BFA672C9224BD263BFE2ECBE50EBCCD9EBAEE776E6C42B32CEBD984603A1B943"
+    }
+  },
+  "interpretation": "The v2 operator result improves on v1 but remains small and order-sensitive: Q8_0 is +1.08% overall, MXFP4 is -0.41% overall, with ABBA/BAAB blocks disagreeing for MXFP4. This is not end-to-end model performance and does not establish full recovery. Activity monitoring is coarse and not attributable to individual arms.",
+  "limitations": [
+    "Only isolated one-column operator timings are measured.",
+    "Two activity samples do not provide complete per-arm monitoring; the second spans invocations 2 through 8.",
+    "No MI50 or final model performance qualification is claimed."
+  ],
+  "post_run_source_cleanup": {
+    "cleanup_receipt": "build-integration/shared-row-scale-removal-v2/root-whitespace-cleanup.json",
+    "cleanup_receipt_sha256": "F04F879415EE4D6426A0F14EE5512912E8ED79A49B1DA67F438F2C8284FD6769",
+    "numerical_or_dispatch_delta": false,
+    "files": [
+      {
+        "path": "src/backends/vulkan/shaders/q.glsl",
+        "tested_sha256": "a09260039e65db0086efb408904aaa77f9420d35614ee2c6e883b1d764bf5f64",
+        "cleaned_sha256": "a2aad53687ce5ae8bfb4aacddc3349e99f8f0b40f63e46a3f407dec6742d5ce3",
+        "only_delta": "Remove one trailing empty line after final preprocessor directive."
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "tested_sha256": "29b88559ae9420025eab4dc4850475aa09289e08c607b3f7bdb6806bc27afca5",
+        "cleaned_sha256": "ca1e84da19c44dd7697e5d25eeeb90821c43009fc1ca1a23f6b26214f527401a",
+        "only_delta": "Remove one trailing empty line after final preprocessor directive."
+      }
+    ],
+    "note": "After the v2 measurements, one trailing empty line was removed from each listed shader. The measured shader bytes are recorded as tested_sha256; the working tree now matches cleaned_sha256. No shader rebuild or numerical rerun was performed for this whitespace-only cleanup."
+  }
+}

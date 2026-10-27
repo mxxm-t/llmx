@@ -374,7 +374,7 @@ struct TwinConsumer {
         if (!weights) return;
         // This is the producer's exact buffer and offset; callers enqueue immediately before reading it or dispatching anything else.
         // Q8_0 with F16 consumes the Vulkan xquant16 twin in its row kernel, which matches the producer's cached tag.
-        device.matmul(quant::GGML_TYPE_Q8_0, {weights.get(), 0}, activation, {output.get(), 0}, dim, 3,
+        device.matmul({quant::GGML_TYPE_Q8_0, {weights.get(), 0}}, activation, {output.get(), 0}, dim, 3,
                       rows, {row_runs.data(), row_runs.size()}, backend::Dtype::f16);
     }
 

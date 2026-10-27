@@ -79,7 +79,11 @@ void main() {
             uint b = j / bv, k = j - b * bv;
             uint o = base + b * bb;
             float v;
-            if (p.type == TYPE_Q2_K) v = q2_k_at(o, k);
+            if (p.type == TYPE_NVFP4) {
+                precise float scaled = nvfp4_at(o, k) * table_f[0];
+                v = scaled;
+            }
+            else if (p.type == TYPE_Q2_K) v = q2_k_at(o, k);
             else if (p.type == TYPE_Q3_K) v = q3_k_at(o, k);
             else if (p.type == TYPE_Q4_0) v = q4_0_exact(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_Q5_0) v = q5_0_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));

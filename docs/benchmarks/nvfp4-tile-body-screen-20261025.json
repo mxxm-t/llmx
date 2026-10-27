@@ -1,0 +1,764 @@
+{
+  "passed": true,
+  "scope": "Local Radeon operator screen, not final model or mx gate",
+  "pins": {
+    "before": "9416b1d3c591ad6986372308251d16f68b8d186c3ebbf7de034ead32af8ff7c4",
+    "after": "cecbbc6e0c9e071ada658a2fcdf3dcf7c616952a35853101ac681d13881e57da"
+  },
+  "source_sha256": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b",
+  "calls": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\00-1024x896-before"
+      ],
+      "start": 1792888979.959083,
+      "log": "00-1024x896-before.log",
+      "pid": 72560,
+      "exit_code": 0,
+      "end": 1792888980.775772,
+      "log_sha256": "b18fd6107703dcd1f771bc74a814e147e22d118b67af7661c234db326fbc5d8b",
+      "mean_ms": 0.6193327,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "samples": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 1,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\01-1024x896-after"
+      ],
+      "start": 1792888980.785786,
+      "log": "01-1024x896-after.log",
+      "pid": 28260,
+      "exit_code": 0,
+      "end": 1792888982.3273835,
+      "log_sha256": "64699bbd09ed5349232f0c4538e849c33d373edbd8e6cf2262ddb1bd11fe1e4c",
+      "mean_ms": 1.2123175,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "samples": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 2,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\02-1024x896-after"
+      ],
+      "start": 1792888982.3358004,
+      "log": "02-1024x896-after.log",
+      "pid": 51828,
+      "exit_code": 0,
+      "end": 1792888983.7056513,
+      "log_sha256": "c18fac6d0f538034e128d0a7e795a10bfdd16162d425c65e67990843491d5010",
+      "mean_ms": 1.183423,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "samples": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 1,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\03-1024x896-before"
+      ],
+      "start": 1792888983.7244956,
+      "log": "03-1024x896-before.log",
+      "pid": 72872,
+      "exit_code": 0,
+      "end": 1792888984.5163608,
+      "log_sha256": "3f992dc119a7421b47c22a657719f6571a0f298e5f6a923ec34ee71ae75d8585",
+      "mean_ms": 0.6217916,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "samples": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 1,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\04-1024x4096-before"
+      ],
+      "start": 1792888984.5245473,
+      "log": "04-1024x4096-before.log",
+      "pid": 41032,
+      "exit_code": 0,
+      "end": 1792888986.0374756,
+      "log_sha256": "4933f8a2fc068c6fbaff9388c107a27d2ad2bd185f6d0c9ad84c72ad07585e7b",
+      "mean_ms": 1.3283015,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "samples": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 2,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\05-1024x4096-after"
+      ],
+      "start": 1792888986.05209,
+      "log": "05-1024x4096-after.log",
+      "pid": 48348,
+      "exit_code": 0,
+      "end": 1792888989.6470392,
+      "log_sha256": "a178920654b0d189a9b8961abb9c671202470b5461bef7df7ae9a1f85f79de7d",
+      "mean_ms": 3.0449707,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\06-1024x4096-after"
+      ],
+      "start": 1792888989.6616657,
+      "log": "06-1024x4096-after.log",
+      "pid": 49620,
+      "exit_code": 0,
+      "end": 1792888992.9089832,
+      "log_sha256": "7e4f38972ffff87a381da29a3579ed985be7fc12ff839074d385239f33ef2aac",
+      "mean_ms": 3.0409388,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\07-1024x4096-before"
+      ],
+      "start": 1792888992.922654,
+      "log": "07-1024x4096-before.log",
+      "pid": 73040,
+      "exit_code": 0,
+      "end": 1792888994.4456697,
+      "log_sha256": "2aec92c803fbdc838b4dfa30ada60807e8e600f76911aa693a61acef0364f439",
+      "mean_ms": 1.3294718,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "samples": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 2,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\08-3072x896-before"
+      ],
+      "start": 1792888994.4577858,
+      "log": "08-3072x896-before.log",
+      "pid": 19592,
+      "exit_code": 0,
+      "end": 1792888995.739663,
+      "log_sha256": "3ca32bea44d4559790fcbe4bd1af7551011a01c0d140cca41d359aa33dd1578c",
+      "mean_ms": 1.0966478,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "samples": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 1,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\09-3072x896-after"
+      ],
+      "start": 1792888995.7475858,
+      "log": "09-3072x896-after.log",
+      "pid": 88744,
+      "exit_code": 0,
+      "end": 1792888998.3881466,
+      "log_sha256": "a2daf7c59aa21b6714b089c2875b9185955058bd41868b32ba14103f2372c99c",
+      "mean_ms": 2.4450949,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "samples": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 3,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\10-3072x896-after"
+      ],
+      "start": 1792888998.3991468,
+      "log": "10-3072x896-after.log",
+      "pid": 47200,
+      "exit_code": 0,
+      "end": 1792889000.9904623,
+      "log_sha256": "9f1e3aefdcf7d580a8808b78f999fc73b3d82bc20f5a7bcb00db6b2149cc3a8b",
+      "mean_ms": 2.406186,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "samples": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 2,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-before\\Release\\nvfp4-tile-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\11-3072x896-before"
+      ],
+      "start": 1792889000.9969757,
+      "log": "11-3072x896-before.log",
+      "pid": 38648,
+      "exit_code": 0,
+      "end": 1792889002.277862,
+      "log_sha256": "2c5a7540b69209672298858f604d90a17f53f00672dc7b33dad16005352327e9",
+      "mean_ms": 1.1054716,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "samples": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_samples": 2,
+        "counter_gap_samples": 0
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    }
+  ],
+  "activity_flags": {
+    "unrelated_cpu": "known unrelated deltas >100 percent of one CPU",
+    "system_cpu": ">75 percent",
+    "disk": ">100 MiB/s physical total",
+    "other_gpu_engine": ">5 percent individually; no engine summation",
+    "missing": "unknown, never zero"
+  },
+  "monitor": {
+    "pid": 60660,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-body16-v1\\monitor.stop",
+      "--seconds",
+      "1200",
+      "--interval",
+      "1"
+    ]
+  },
+  "monitor_exit": 0,
+  "finished": 1792889004.066296,
+  "cells": {
+    "1024x4096": {
+      "before": [
+        1.3283015,
+        1.3294718
+      ],
+      "after": [
+        3.0449707,
+        3.0409388
+      ],
+      "means_ms": {
+        "before": 1.32888665,
+        "after": 3.04295475
+      },
+      "output_hashes": [
+        "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+      ]
+    },
+    "1024x896": {
+      "before": [
+        0.6193327,
+        0.6217916
+      ],
+      "after": [
+        1.2123175,
+        1.183423
+      ],
+      "means_ms": {
+        "before": 0.62056215,
+        "after": 1.1978702499999998
+      },
+      "output_hashes": [
+        "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+      ]
+    },
+    "3072x896": {
+      "before": [
+        1.0966478,
+        1.1054716
+      ],
+      "after": [
+        2.4450949,
+        2.406186
+      ],
+      "means_ms": {
+        "before": 1.1010597,
+        "after": 2.42564045
+      },
+      "output_hashes": [
+        "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+      ]
+    }
+  },
+  "monitor_metadata": {
+    "kind": "metadata",
+    "pid": 60660,
+    "logical_cpus": 16,
+    "interval_seconds": 1.0,
+    "initial_counter_collection_bracket": [
+      2384723.4281983,
+      2384723.4287445
+    ],
+    "counters": {
+      "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+      "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+      "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+      "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+    },
+    "unavailable": {},
+    "process_cpu_units": "100 percent equals one logical CPU",
+    "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "raw_hashes": {
+    "00-1024x896-before.log": "b18fd6107703dcd1f771bc74a814e147e22d118b67af7661c234db326fbc5d8b",
+    "01-1024x896-after.log": "64699bbd09ed5349232f0c4538e849c33d373edbd8e6cf2262ddb1bd11fe1e4c",
+    "02-1024x896-after.log": "c18fac6d0f538034e128d0a7e795a10bfdd16162d425c65e67990843491d5010",
+    "03-1024x896-before.log": "3f992dc119a7421b47c22a657719f6571a0f298e5f6a923ec34ee71ae75d8585",
+    "04-1024x4096-before.log": "4933f8a2fc068c6fbaff9388c107a27d2ad2bd185f6d0c9ad84c72ad07585e7b",
+    "05-1024x4096-after.log": "a178920654b0d189a9b8961abb9c671202470b5461bef7df7ae9a1f85f79de7d",
+    "06-1024x4096-after.log": "7e4f38972ffff87a381da29a3579ed985be7fc12ff839074d385239f33ef2aac",
+    "07-1024x4096-before.log": "2aec92c803fbdc838b4dfa30ada60807e8e600f76911aa693a61acef0364f439",
+    "08-3072x896-before.log": "3ca32bea44d4559790fcbe4bd1af7551011a01c0d140cca41d359aa33dd1578c",
+    "09-3072x896-after.log": "a2daf7c59aa21b6714b089c2875b9185955058bd41868b32ba14103f2372c99c",
+    "10-3072x896-after.log": "9f1e3aefdcf7d580a8808b78f999fc73b3d82bc20f5a7bcb00db6b2149cc3a8b",
+    "11-3072x896-before.log": "2c5a7540b69209672298858f604d90a17f53f00672dc7b33dad16005352327e9",
+    "activity.jsonl": "2a44a01e73d11f14c12d73d5e7426e846e358bfd81384c9fe3230107143ad4fe",
+    "diag-1024x4096-after.log": "868a304859706afa6b43e37b63fafb255b1b9060cc2c5480ea256a13d4b14364",
+    "diag-1024x4096-before.log": "9e7805ee9b27168625898d776c85d3f063285aff85221df060670bae14dfb4e7",
+    "diag-1024x896-after.log": "c0c3183233fcebd9f39558cde6324350d68ecaaed7bdfc30a6b170b30a47d38c",
+    "diag-1024x896-before.log": "9769c89ce75a2ae8e0e33a3a311a2c9a5d23417e2db120cfed7972c0f4749bf1",
+    "diag-3072x896-after.log": "2b2c606a0776db38f3f9e42bc9efc41599491a1cfd34994e3ef9a2d5eef722d4",
+    "diag-3072x896-before.log": "623e172159147d78636136758579da3e2808717bbb3e245b3ff484374bcd6a70",
+    "execution.json": "09e0997562632ef3de397ce74fe7f7a2b2a4f1afac2d5b38cd6784cdb00820b9",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f"
+  },
+  "diagnostic_files": {
+    "diag-1024x4096-after/0-matmul_tile_nvfp4_tall.txt": {
+      "sha256": "7e18b8bfc1b7a97a7d11b183d799dba0eb6649bafdb210544ae8af379ac2b6e5",
+      "statistics": null
+    },
+    "diag-1024x4096-after/output.f32": {
+      "sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "statistics": null
+    },
+    "diag-1024x4096-after/statistics.txt": {
+      "sha256": "7cb6e68b55165aae37c1f5a35b701a27d666ff4f0dc09f23a7c98c57388c8448",
+      "statistics": "matmul_tile_nvfp4_tall: numUsedVgprs=91 numUsedSgprs=34 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=25088 scratchMemUsageInBytes=0\n"
+    },
+    "diag-1024x4096-before/0-matmul_tile_nvfp4_tall.txt": {
+      "sha256": "ba6450d6964d855659536201f8b3877e5a341e8c86acf39ec456175b1923fd4e",
+      "statistics": null
+    },
+    "diag-1024x4096-before/output.f32": {
+      "sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "statistics": null
+    },
+    "diag-1024x4096-before/statistics.txt": {
+      "sha256": "fb0c845f998dff947c34da7bcac3b38a2a98d3d66c92abd64b3ce77f1a6e8806",
+      "statistics": "matmul_tile_nvfp4_tall: numUsedVgprs=93 numUsedSgprs=60 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=25088 scratchMemUsageInBytes=0\n"
+    },
+    "diag-1024x896-after/0-matmul_tile_nvfp4.txt": {
+      "sha256": "15b035c1f26be29bd737185eb19a6cc7ceba783c32f66aec12989e821d2fe85f",
+      "statistics": null
+    },
+    "diag-1024x896-after/output.f32": {
+      "sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "statistics": null
+    },
+    "diag-1024x896-after/statistics.txt": {
+      "sha256": "6a5b5248cf9142b25a85186a7b8d4c3e1ff735d59a5040ed5db22415b851cbe2",
+      "statistics": "matmul_tile_nvfp4: numUsedVgprs=80 numUsedSgprs=36 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16896 scratchMemUsageInBytes=0\n"
+    },
+    "diag-1024x896-before/0-matmul_tile_nvfp4.txt": {
+      "sha256": "8a3b6b2dbf8b03f143898c55b9d90eec770ffa45b9e8643e4a8dd29416f58659",
+      "statistics": null
+    },
+    "diag-1024x896-before/output.f32": {
+      "sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "statistics": null
+    },
+    "diag-1024x896-before/statistics.txt": {
+      "sha256": "ac6f1897b266edac0b2756a0382dfe53410eaeabee36de82240a98fac43c3981",
+      "statistics": "matmul_tile_nvfp4: numUsedVgprs=61 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16896 scratchMemUsageInBytes=0\n"
+    },
+    "diag-3072x896-after/0-matmul_tile_nvfp4.txt": {
+      "sha256": "15b035c1f26be29bd737185eb19a6cc7ceba783c32f66aec12989e821d2fe85f",
+      "statistics": null
+    },
+    "diag-3072x896-after/output.f32": {
+      "sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "statistics": null
+    },
+    "diag-3072x896-after/statistics.txt": {
+      "sha256": "6a5b5248cf9142b25a85186a7b8d4c3e1ff735d59a5040ed5db22415b851cbe2",
+      "statistics": "matmul_tile_nvfp4: numUsedVgprs=80 numUsedSgprs=36 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16896 scratchMemUsageInBytes=0\n"
+    },
+    "diag-3072x896-before/0-matmul_tile_nvfp4.txt": {
+      "sha256": "8a3b6b2dbf8b03f143898c55b9d90eec770ffa45b9e8643e4a8dd29416f58659",
+      "statistics": null
+    },
+    "diag-3072x896-before/output.f32": {
+      "sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "statistics": null
+    },
+    "diag-3072x896-before/statistics.txt": {
+      "sha256": "ac6f1897b266edac0b2756a0382dfe53410eaeabee36de82240a98fac43c3981",
+      "statistics": "matmul_tile_nvfp4: numUsedVgprs=61 numUsedSgprs=44 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=16896 scratchMemUsageInBytes=0\n"
+    }
+  },
+  "checks": {
+    "passed": true,
+    "library_sha256": "7796bc5b52b998d37a0a6ede3fbbc91cb18c2956c82c88b3b1caf23a422c1f85",
+    "test_sha256": "0072cbab6895f7ad14f18dea375f64fda822c2ccc6e1c04748ee629a86ecaded",
+    "calls": [
+      {
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-body16\\Release\\llmx-nvfp4-test.exe",
+          "--vulkan"
+        ],
+        "start": 1792888953.6825547,
+        "seconds": 5.278533220291138,
+        "exit": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_SOURCE_ROOT=C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025",
+          "-DLLMX_GENERATED_DIR=C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe-pins",
+          "-DLLMX_FROZEN_VULKAN_LIBRARY=C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-body16\\Release\\llmx-vulkan.lib"
+        ],
+        "start": 1792888958.961088,
+        "seconds": 3.9288740158081055,
+        "exit": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16",
+          "--config",
+          "Release",
+          "--parallel",
+          "2"
+        ],
+        "start": 1792888962.889962,
+        "seconds": 2.3974010944366455,
+        "exit": 0
+      },
+      {
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\build-body16\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--diagnostic",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\body16-checks\\smoke"
+        ],
+        "start": 1792888965.287363,
+        "seconds": 0.42499756813049316,
+        "exit": 0
+      }
+    ],
+    "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+    "exe_sha256": "cecbbc6e0c9e071ada658a2fcdf3dcf7c616952a35853101ac681d13881e57da"
+  },
+  "build": {
+    "passed": true,
+    "start": 1792888873.4427257,
+    "sources": {
+      "CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "4e8b9ebf15ea265ac01a3300fa30de5fe5eb09336a6e88b2a5311cc001e84ed1",
+      "src/backends/vulkan/vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9"
+    },
+    "commands": [
+      [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-body16",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON",
+        "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+        "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+      ],
+      [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-threads128-body16",
+        "--config",
+        "Release",
+        "--target",
+        "llmx-nvfp4-test",
+        "--parallel",
+        "4"
+      ]
+    ],
+    "library_sha256": "7796bc5b52b998d37a0a6ede3fbbc91cb18c2956c82c88b3b1caf23a422c1f85",
+    "test_sha256": "0072cbab6895f7ad14f18dea375f64fda822c2ccc6e1c04748ee629a86ecaded",
+    "seconds": 75.13736057281494
+  },
+  "receipt_sha256": {
+    "build-nvfp4-tile-probe/body16-checks/receipt.json": "f72591caa8e71611ad3fa8807e505ad10f1f9be32669609915a3dec6e4b57fdc",
+    "build-nvfp4-threads128-body16/build-receipt.json": "ff4473b9eaedcf4c47776217ae2bacc86fe7db23c98e34169fa20dc89d400d54"
+  },
+  "hf_control_preparation": {
+    "v2_bundle_sha256": "34c129b455e5c99f8cb7a0e0391dd99329fb37341692f7bfd11dbae399b89b3f",
+    "status": "prepared only; no HF forward or result claimed",
+    "original_cpu16_failed_launch_sha256": "87cb3b3eb56e247dde7e598e6cf0705b6c3ca7c052337285772e1bfc41140320",
+    "original_failed_launch_retained": true
+  },
+  "scope_limits": [
+    "Only body16 operator screen:128threads/K32,inner body8->16.",
+    "All12timedcalls retained; no model throughput, HF or mx gate claim.",
+    "Same prior Windows PDH flags; GPU engines never summed; process/counter gaps unknown.",
+    "Separate instrumented diagnostic statistics/ISA hashes; root owns final disposition."
+  ],
+  "disposition": "Do not adopt. The NV-only 16-value K-body keeps 128 threads and the 32-value stage, passes native and exact output controls, but is slower than the retained 256-thread implementation on all three local Radeon operator cases. This does not establish a MI50 result or final mx gate.",
+  "hf_control_launcher": {
+    "path": "build-nvfp4-depth-reference/launch-linux-control-v2.py",
+    "sha256": "ef30a98b06c8f32d49030f7936306b654a5b67d99fbe086683a9c246f8818da1",
+    "status": "Prepared and syntax reviewed only. Explicit expected CPU shared by Docker and supervisor, no fallback core. No transfer or execution."
+  }
+}

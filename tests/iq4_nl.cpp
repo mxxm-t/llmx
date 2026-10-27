@@ -160,28 +160,28 @@ size_t products(uint32_t type, backend::CpuBackend& cpu, size_t nin, size_t nout
     for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16, backend::Dtype::int8})
     for (backend::RowRuns runs : {backend::RowRuns{decode, 1}, backend::RowRuns{prompt, 1}, backend::RowRuns{mixed, 2}}) {
         reset();
-        cpu.matmul(type, {pw.get(), 0}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
-        cpu.matmul(0, {fw.get(), 0}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul({type, {pw.get(), 0}}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul({0, {fw.get(), 0}}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
         check(a, b, count);
         reset();
-        cpu.matmul_add(type, {pw.get(), 0}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
-        cpu.matmul_add(0, {fw.get(), 0}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul_add({type, {pw.get(), 0}}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul_add({0, {fw.get(), 0}}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
         check(a, b, count);
         reset();
-        cpu.matmul_logits(type, {pw.get(), 0}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
-        cpu.matmul_logits(0, {fw.get(), 0}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul_logits({type, {pw.get(), 0}}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, runs, dtype);
+        cpu.matmul_logits({0, {fw.get(), 0}}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, runs, dtype);
         check(a, b, count);
         reset();
-        cpu.matmul_group({{type, {pw.get(), 0}, {ab.get(), 1}, nout}, {type, {pw.get(), 0}, {cb.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, runs, dtype);
-        cpu.matmul_group({{0, {fw.get(), 0}, {bb.get(), 1}, nout}, {0, {fw.get(), 0}, {db.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, runs, dtype);
+        cpu.matmul_group({{{type, {pw.get(), 0}}, {ab.get(), 1}, nout}, {{type, {pw.get(), 0}}, {cb.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, runs, dtype);
+        cpu.matmul_group({{{0, {fw.get(), 0}}, {bb.get(), 1}, nout}, {{0, {fw.get(), 0}}, {db.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, runs, dtype);
         check(a, b, count); check(c, d, count);
         reset();
-        cpu.matmul_experts({{type, {pw.get(), 0}, {ab.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, routing, runs, dtype);
-        cpu.matmul_experts({{0, {fw.get(), 0}, {bb.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, routing, runs, dtype);
+        cpu.matmul_experts({{{type, {pw.get(), 0}}, {ab.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, routing, runs, dtype);
+        cpu.matmul_experts({{{0, {fw.get(), 0}}, {bb.get(), 1}, nout}}, {xb.get(), 1}, nin, cols, routing, runs, dtype);
         check(a, b, count * picks);
         reset();
-        cpu.matmul_experts_add(type, {pw.get(), 0}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, routing, runs, dtype);
-        cpu.matmul_experts_add(0, {fw.get(), 0}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, routing, runs, dtype);
+        cpu.matmul_experts_add({type, {pw.get(), 0}}, {xb.get(), 1}, {ab.get(), 1}, nin, nout, cols, routing, runs, dtype);
+        cpu.matmul_experts_add({0, {fw.get(), 0}}, {xb.get(), 1}, {bb.get(), 1}, nin, nout, cols, routing, runs, dtype);
         check(a, b, count);
         const auto paths = testq::take_matrix_paths(cpu);
         require(paths == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : "f32"}, "IQ4 arithmetic witness differs");
@@ -191,11 +191,11 @@ size_t products(uint32_t type, backend::CpuBackend& cpu, size_t nin, size_t nout
     const auto eb = cpu.adopt(embedding.data(), embedding.size() * sizeof(float));
     const auto rbuff = cpu.adopt(reference.data(), reference.size() * sizeof(float));
     const auto tokensb = cpu.adopt(tokens.data(), sizeof tokens);
-    cpu.embed({eb.get(), 1}, type, {pw.get(), 0}, nin, nout, tokens.data(), 3);
-    cpu.embed({rbuff.get(), 1}, 0, {fw.get(), 0}, nin, nout, tokens.data(), 3);
+    cpu.embed({eb.get(), 1}, {type, {pw.get(), 0}}, nin, nout, tokens.data(), 3);
+    cpu.embed({rbuff.get(), 1}, {0, {fw.get(), 0}}, nin, nout, tokens.data(), 3);
     check(embedding, reference, 3 * nin);
-    cpu.embed_ids({eb.get(), 1}, type, {pw.get(), 0}, nin, nout, {tokensb.get(), 0}, tokens.size());
-    cpu.embed_ids({rbuff.get(), 1}, 0, {fw.get(), 0}, nin, nout, {tokensb.get(), 0}, tokens.size());
+    cpu.embed_ids({eb.get(), 1}, {type, {pw.get(), 0}}, nin, nout, {tokensb.get(), 0}, tokens.size());
+    cpu.embed_ids({rbuff.get(), 1}, {0, {fw.get(), 0}}, nin, nout, {tokensb.get(), 0}, tokens.size());
     check(embedding, reference, 4 * nin);
     return checked;
 }
@@ -216,7 +216,7 @@ size_t ranges(uint32_t type, backend::CpuBackend& cpu) {
             y.fill(17);
             const double want = double(test_weight(type, bytes.data() + 1, h, shift, lane)) * scale;
             if (std::fabs(want) > std::numeric_limits<float>::max()) continue;
-            cpu.matmul(type, {wb.get(), 0}, {xb.get(), 1}, {yb.get(), 1}, width, 1, 1);
+            cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 1}, {yb.get(), 1}, width, 1, 1);
             require(y.front() == 17 && y.back() == 17, "IQ4 range product crossed guards");
             const double bound = std::max(double(std::numeric_limits<float>::denorm_min()), std::fabs(want) * 2e-7);
             require(std::isfinite(y[1]) && std::fabs(double(y[1]) - want) <= bound,

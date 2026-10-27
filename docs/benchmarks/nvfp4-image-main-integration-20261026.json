@@ -1,0 +1,3599 @@
+{
+  "scope": "Focused Windows/Radeon verification of image-main e46e72e9 integrated with NVFP4. Not Linux, split, timing, released-depth or hosted qualification.",
+  "parents": [
+    "044cc1db2f6876214df5aa0a9c94219a3033b056",
+    "e46e72e9047ab87488e008494509a4a9129ea5f2"
+  ],
+  "build": {
+    "passed": true,
+    "started_unix": 1793045342.297294,
+    "commands": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-integration-cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-integration-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-backend-vulkan-test",
+          "llmx-nvfp4-test",
+          "llmx-arch-qwen3vl-vision-test",
+          "llmx-vision-ops-test",
+          "llmx-model-weight-scales-test",
+          "llmx-weight-scales-test"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "purpose": "Fresh image-main/NVFP4 conflict integration build, not a full landing gate.",
+    "binaries": {
+      "llmx": "0badf1d0719bb73f4a2af134dcf6392bc52c305f1eb43a66d49c6fa16c99af62",
+      "llmx-backend-vulkan-test": "021daee9d05694d8e20e638f8c74c51f8e8510936c21f4e73bfd89394cbd4d97",
+      "llmx-nvfp4-test": "0a4d0ce475874c40d9551f24b198f8ebdd8891d44298e8bb124498f28a6da32c",
+      "llmx-arch-qwen3vl-vision-test": "8fdb3fb0d653a0fc8f8fd542fdde38e597df4fd835b1edbe33f4914471cf437a",
+      "llmx-vision-ops-test": "9131132f7a8bb221a9d155cf828d2e0b15d3c616bf435389868870dbaab4c139",
+      "llmx-model-weight-scales-test": "f4666aa30ea7d73783908d1c8c87c4a50510b52bcf93a8df8cbb3a8a199fe508",
+      "llmx-weight-scales-test": "3d52e29ac16096bfeb43b08bb5d2613129cad8720466868f6d53cb0c3b17be94"
+    },
+    "version": "llmx 0.1.0+g044cc1db2f68.dirty numerics a3570786a0d68218",
+    "ended_unix": 1793045560.627034
+  },
+  "source_sha256_lf": {
+    "CMakeLists.txt": "845e4fcf00625bd00c95b965e2ec6015cd497d8846f93509580f22f60b0f9366",
+    "cmake/build-info.cmake": "0999e20682214fa44c798d00b73e8466ba992ae64c9a5fc6ddc8b005f7bee544",
+    "cmake/llmx-config.hpp.in": "2d9d69b5e891ccd152b5188c3fe536da880b915cac6c0ebef3c341c38068ad7d",
+    "cmake/numerics-fingerprint.ps1": "cd5afc7eee318e648fe38844e615a7a9b721eef525381311ad0189eefe7df1e8",
+    "cmake/numerics-sources.txt": "5a7ea03cf7edc031231d00ac559bd5e1117ee549dad4b2b74a907193ee80820f",
+    "cmake/tests.cmake": "40aac543608819f4f964df0659f3152364a573ebc81030988a225a2c4c7da117",
+    "cmake/windows.manifest": "3242062989f717f0f1846b13ad2082e37438d32bdc33903effeaecaa6cfb7382",
+    "src/backends/backend.hpp": "1a2d72f249321b1b935652b3a578c8b3f528e832331625e27e8c37e70d06c41b",
+    "src/backends/cpu/cpu_backend.hpp": "0f71313dd5437c9364d80c760d1e23bfef79d58db8e6fdc96e717e58021a8e59",
+    "src/backends/cpu/prefill_placement.hpp": "c65bc2daf96d3b5e7710987c6142bb85e2af17b096651386222be79dc9c390c6",
+    "src/backends/cpu/q8_dots.hpp": "55e547b6a84faaf1e02ffddd0a9cde5a86cf28601d7c8eecc82be90a008dd548",
+    "src/backends/device_profile.hpp": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888",
+    "src/backends/devices.hpp": "52722db2a2a4f26ba8af9105909707f3e1a404ed5d7f7bf08f7e16632c9811ca",
+    "src/backends/kv_storage.hpp": "008797a587d6c35b3f8c5ca4fc351b08db85c227f9f0dda9af22fb57d288a685",
+    "src/backends/vulkan/shaders/add.comp": "c5df3e933f74fe109aa474b98b2055452183511e9b3514432d7c6dfaa769c795",
+    "src/backends/vulkan/shaders/add_bias.comp": "33c7a87f2aaf2844446b3869a19c2fbf3a63e4f2b156351ffa3f2dfce110dbde",
+    "src/backends/vulkan/shaders/argmax_rows.comp": "990e0de12559c68f028cbb3d2c3a9f83553bc5c568bf1c15b8becb3288a01f67",
+    "src/backends/vulkan/shaders/attention.comp": "afe12ee07756ce200c370459a535259b6a91a25cf6f1b2b2f10a640e810a28c0",
+    "src/backends/vulkan/shaders/attention_merge.comp": "1c8d6c12f351da4f69bd7728841aed73e216b6b81c437b9638209f1a5bdd05cd",
+    "src/backends/vulkan/shaders/attention_tile.comp": "081aa16ef798f997f71ded3387dda6be8b3ed01b09066912b79105ebccb5255c",
+    "src/backends/vulkan/shaders/attention_vec.comp": "d8cdfc5c9575a19641c65cf35df9ac397f73a40fd73714431ceac415eca55b31",
+    "src/backends/vulkan/shaders/causal_conv_silu.comp": "4c366e26bbcd23bbc4aa6cf3ff7f415a4bd2335e5afad44fd0b722a6e15eb96e",
+    "src/backends/vulkan/shaders/copy_mxfp4.comp": "18e242d90af568e0e1ba38979e7d5401e21bf4abf66816c7557d096bd3962a20",
+    "src/backends/vulkan/shaders/delta_rule.comp": "96a86452962cae0de9d2dd1adcd18b7eb7c91718a44d992405cb5a77e52d4da5",
+    "src/backends/vulkan/shaders/dilated_conv_silu_add.comp": "9e32e5a00ec53599fe0d52ecd0e2c719bd2409a7e06da564e55ce4ccf20b22c0",
+    "src/backends/vulkan/shaders/dot16.glsl": "6f4cb4c1684508a443c7cf598f920015d026a3e49518afc5f3be228f1b3822bc",
+    "src/backends/vulkan/shaders/embed.comp": "433cd50726d48f0fb6670f3aaa450597ff506cc337d0619db387fff854578e28",
+    "src/backends/vulkan/shaders/f16.glsl": "a5e1acaaa35f384aa96584b22f1571ff3ab7da0c0be6c4ba09bd85e37c879fc0",
+    "src/backends/vulkan/shaders/float_controls.glsl": "bf1a40d94b0365b6c1981c73a6ba2dde00232c7f1e729928969c3cea449b4e20",
+    "src/backends/vulkan/shaders/gated_rms_norm.comp": "3db5811eb5843b97f29864237a0f93ebd87296df3aaba125e4eb936dfa2b7745",
+    "src/backends/vulkan/shaders/gather_rows.comp": "2b6c58cb262754a35501656a9178c28bc1567440178a791cafeee4afd7de5dc3",
+    "src/backends/vulkan/shaders/gelu.comp": "4162d468063f7f1aa97e7859d3e355b938c59e9c36dab930e7fe5c05e5ee545b",
+    "src/backends/vulkan/shaders/group_rms_norm.comp": "f472e67e559f78b55a5f1f6eb11a82630d0a7aacbd516f698c100b13ccd01342",
+    "src/backends/vulkan/shaders/inject_streams.comp": "3de807e2f79838e2c03316fd7494061ccb6f3d2565a0ee4ef200255c918afb81",
+    "src/backends/vulkan/shaders/iq1.glsl": "afe1f50ff2c9f09357216d0582202527ffa7d4eb6b89b82868ae6d359952f55e",
+    "src/backends/vulkan/shaders/iq1_dot.glsl": "ebfd14d128fa3be1be023bfe7c09677fc391d01aaeb58290b0ff4b00f251a070",
+    "src/backends/vulkan/shaders/iq1_layout.glsl": "30b556fd6dc6d21d1c41c0f0a0fb18fc3cddafe2d0f6a2687262bac12e8dad23",
+    "src/backends/vulkan/shaders/iq2_dot.glsl": "59e096a4951a6b61543b28bafc409b57ef7d7900aafd5d4c6eb4da26ed5d6e74",
+    "src/backends/vulkan/shaders/iq2_layout.glsl": "e8961d5a53ceea810c64d23024a8e20f3eadce6fb4b4487f189837811f0eddfe",
+    "src/backends/vulkan/shaders/iq2_s.glsl": "0f9673028a06a1d82f9ecc8e7f8d430d06165d725efabcb685def5cca5d5b904",
+    "src/backends/vulkan/shaders/iq2_small.glsl": "f2a7608b707709f8a72777be46c8f09af523e50826e3846a3bcb0f8d4fcbea47",
+    "src/backends/vulkan/shaders/iq3_dot.glsl": "1fc88094ba8f476317645d3a87a39fe3ceca1613b773dc92fa283f1fd3617625",
+    "src/backends/vulkan/shaders/iq3_s.glsl": "4636e08e8d3a4783c4672ff09985f7d4795e9bfe3b2eaca3f849c3125bcbb5f2",
+    "src/backends/vulkan/shaders/iq3_xxs.glsl": "e4125e2cdc58308317561ce482c9fd99acf6416d99ba4a80f075305086058c77",
+    "src/backends/vulkan/shaders/iq3_xxs_dot.glsl": "c37d24c6def278d3ccc6f2573c0b3253e52c41502e66a4e0057263ca30e40f85",
+    "src/backends/vulkan/shaders/iq4_dot.glsl": "b3865e2234af33d42a714af69de99d9cd3817ef1b5a2c2ff98824cce8d56349e",
+    "src/backends/vulkan/shaders/k23_dot.glsl": "ce30fca07205f43895d8bc6c22828f3667f55445fa3c9712c855b88d4f1ad3a9",
+    "src/backends/vulkan/shaders/kv_index_pool.comp": "b74e33acfe591b26ea7fd458485fca7f81837fc8538c5bcc2c56672c0d6665cd",
+    "src/backends/vulkan/shaders/kv_index_scores_tile.comp": "a6fc09ba5a293cbe9f0033ff355b9697f504d12a8394227f2a70012eba4c4cbc",
+    "src/backends/vulkan/shaders/kv_index_select.comp": "3b7a915b8f1a8aacebe25619ad6cb92a7191643ba5c48bbff9a500c44cacbcd2",
+    "src/backends/vulkan/shaders/kv_index_select_wide.comp": "19c96071c43f7252aa11f333390c53573ad2f49c2e2fdc55fa9f84debba8e165",
+    "src/backends/vulkan/shaders/kv_write.comp": "2dbacc63aaf96240b9a9c8f4d69942a784c52e8978fb97b94a70ad9826fe6c5f",
+    "src/backends/vulkan/shaders/layer_norm_rows.comp": "8d85c91ca5aaa72c9a7fa6df77676234723e3ca5a3b481692ae3eaec9c71fe3e",
+    "src/backends/vulkan/shaders/lookup_cache.glsl": "8faf6aba8a026df2dc180292a80f7bbfe3a60beb7783a7153350ee9a419646ef",
+    "src/backends/vulkan/shaders/lookup_dot.glsl": "205d5a4a41afa6c2b1fb1e4ec55c884379cc31281aa7f6ea27e36f21f3828a28",
+    "src/backends/vulkan/shaders/matmul_reduce.comp": "1517e894d8f3b7b5a939829cecf0263b5b483476b075ecc098fa295a2cdae9d9",
+    "src/backends/vulkan/shaders/matmul_row.comp": "08007206768fb45f226ff4163d8de9e65ba621aa395df36acc6e9b97e06fd30d",
+    "src/backends/vulkan/shaders/matmul_row.glsl": "a8c88af974ac0fb450f9b27925c4373f66733b30c9736b3722feca70d8f5fc13",
+    "src/backends/vulkan/shaders/matmul_row_one.glsl": "9c6ec6279fce08730fbf3021ab7d746e3344ee8e3385b6c8bb6025a234864fb1",
+    "src/backends/vulkan/shaders/matmul_row_two.glsl": "f29167dbf1c6e0d7f7c7e57df077a1357845f97efd8c2c3e462e5b178172d83f",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "711abf682d1efce46c0f34014d23cf54c88ca9428d9dfb8fa25edca6271ca7c8",
+    "src/backends/vulkan/shaders/matmul_tile_q.comp": "4c63e3a505c92350432dc5c3697a2c999aeabd006161fb0263bd3f03a8b1bd69",
+    "src/backends/vulkan/shaders/matmul_vec_q8.comp": "4d49b6192936e9df7a9d4615215641564a81824458692d90fb10a122a929b6b8",
+    "src/backends/vulkan/shaders/matmul_vec_q8.glsl": "970460ce86b748c9c6a20b22502ee7af719e858c11af6ed23e5224f39f136cfb",
+    "src/backends/vulkan/shaders/matmul_vec_q8_one.glsl": "3e2eb3aa414ad413decbc255ba93081176f71cfb1d114a54fc9f7a61cf29987d",
+    "src/backends/vulkan/shaders/mix_rows.comp": "04021c9e996d8715cf45ef15619c35595666d98ffd430d5ac8ba971ca1714405",
+    "src/backends/vulkan/shaders/mix_streams.comp": "d6f641b61e92f4cc4f1d55199d9c72ed2726b31594f51cf1004b0fa01d02cc12",
+    "src/backends/vulkan/shaders/moe_combine.comp": "1be347ffe65fef400fae42a6701da3553a326e408a98bbac8e627f655a6369cf",
+    "src/backends/vulkan/shaders/moe_combine.glsl": "624b2962d9ac214625d1e53a0dedd2f19a29f8a439bab4cbe9467c563a74ac4b",
+    "src/backends/vulkan/shaders/moe_group.comp": "e0b8b6ba489952c4ba23471939e9da8f6157d5df2db99701c7d27fe3ced80025",
+    "src/backends/vulkan/shaders/moe_route.comp": "1791b9dbcec4e810cd853bec10119a0d1dc5a4dd50d9a5bfddf6273680714911",
+    "src/backends/vulkan/shaders/moe_route.glsl": "bb749932c5bc32ebaea28f7fb3a613b7a136ef83b0d9760372c8d9925e85d15a",
+    "src/backends/vulkan/shaders/moe_step_act.comp": "edcaca945185abde17f3dbfd5aad3163616ee579fd643642fea2a60a1220f140",
+    "src/backends/vulkan/shaders/moe_step_down.comp": "6226d735fba3c34fbf40e955451393e63c1f561f731fcd9c69eb3ea774e37ca2",
+    "src/backends/vulkan/shaders/moe_step_route.comp": "3fdd38be5fb50b5b855d62534cc93ada1154256cb90ffb2a49a1beb19d7d1f56",
+    "src/backends/vulkan/shaders/moe_step_up.comp": "1b1f78189c3c1ce83b83da1c8694c7d545ce812f0accd59a3931c1de022ad029",
+    "src/backends/vulkan/shaders/norm_rope_kv.comp": "14fd124eac47ba835beb65365f5f20d99b7c6281f75a7fec7c2c58286b41236f",
+    "src/backends/vulkan/shaders/norm_rope_partial.comp": "417b1dfd14fa6137d96a6dc9626de8407b42f9b6ede357e308247149dc274db9",
+    "src/backends/vulkan/shaders/q.glsl": "c989ac2c22c15d78c9f681631150a247e4da194e8a7db7d64df035ca54e9158b",
+    "src/backends/vulkan/shaders/qdecode.glsl": "5db9914cbac59b79d7ff5a6cf888520a80649d6a00ccc44c249320f4c681b99e",
+    "src/backends/vulkan/shaders/quantize_x.comp": "2996b60f89cf9ec2c086770ca9f93ddf8332f00eaa5821d6fd905f3cb59e88c7",
+    "src/backends/vulkan/shaders/quantize_xw.comp": "828e53dd0c582c0aa19b5415957a0e43c6ee769cf8f451f278fdef3f0da0e373",
+    "src/backends/vulkan/shaders/rms_norm_rows.comp": "cec809bba90432ac4562cc3c3e694d5a61ea322fe24df9704fdbf4247b018d7f",
+    "src/backends/vulkan/shaders/sigmoid_mul.comp": "30247d77ccb4e5e2586358cb6d09c79505b6b53aea7129956d819659faf9e71a",
+    "src/backends/vulkan/shaders/sigmoid_mul.glsl": "987b6dec1e8bafaab7e94440be3eed859753459262736db8ccb65ef365151583",
+    "src/backends/vulkan/shaders/signed_sqrt_gate.comp": "0db2801fbfbf8f7a9439d183228c5bcbcd05a08ebbf17b9a5a63822cfdd2f545",
+    "src/backends/vulkan/shaders/silu_mul.comp": "6414dddcad415ec88f22bb4cf63d5e3088f6b026faa8ec8724454fe680703c4e",
+    "src/backends/vulkan/shaders/silu_mul.glsl": "10c473a0b8daf763f2ed99146a76d3c365976227e7e71b6db60d674309f1fff9",
+    "src/backends/vulkan/shaders/silu_scaled.comp": "f5554bc5f387ab813e1cf2fab797db05bf5b613e948537b4c826ede1e81742c9",
+    "src/backends/vulkan/shaders/sum_rows.comp": "c832ed175b5e39501c030e9b1e4e8d68117335da5c56e95763594cfe73e13756",
+    "src/backends/vulkan/shaders/tq.glsl": "1b0e8ce4a59d7edce25c9b0ff1876096f1c831908879789a5925d62770767765",
+    "src/backends/vulkan/shaders/tq_dot.glsl": "dc5d91429bec0a2150f2892f795afeff18141ddf30be95f157225cb44b2bae10",
+    "src/backends/vulkan/shaders/tq_layout.glsl": "8a97d2c3fd48675ccb627c039f57d15dab8955b73a1a547089b4bd5acce3955e",
+    "src/backends/vulkan/shaders/tq_packed.glsl": "c30e77ae0f3e2762c8cf60fb17d6b11a1e377ef4983754addc8bf8c5eb44789c",
+    "src/backends/vulkan/shaders/views.glsl": "a8057e753e0eb373248e8f4bc315f4d652eabb0bcfef2d7e8da870e4d9c840aa",
+    "src/backends/vulkan/shaders/xquant.glsl": "b3feb72f931d9ff32b56aac69341f352eff5112f169d002a568477b0ce465145",
+    "src/backends/vulkan/vulkan_attention.hpp": "d969ead2434fbd965de0c2d5352e6fa9f7be7ace609a429527e38e83f2a05a90",
+    "src/backends/vulkan/vulkan_backend.cpp": "9c831e28859ceff9f7d9930436c933d80a862f2fd68a9ad2244a2d5dd416816c",
+    "src/backends/vulkan/vulkan_backend.hpp": "9966d4b9d8edd975516b6e6ea1f0a3933be971a29a833151e2a52a6aa0ab429a",
+    "src/backends/vulkan/vulkan_buffer.hpp": "3f655ade5fca70321d697027312239d6deaef63580a8d0c5a4e766a7f7a9fd40",
+    "src/backends/vulkan/vulkan_collective.hpp": "38c73b46379528f2ff2d91860939fbec1fbc89a7cce4c0b0669c71995d703875",
+    "src/backends/vulkan/vulkan_device.hpp": "3ddc95e65c3a1e024b454415d7f9bd83d2e7732b1439badae9e7a8bdf7eefad1",
+    "src/backends/vulkan/vulkan_dispatch.hpp": "f8dc02327757a3c4848f6c1b029d2b2ccd31d67f23b6937b011247002ef68d6a",
+    "src/backends/vulkan/vulkan_kernels.hpp": "34c6a6ae529e6a0ecf408ab0f8b3ad3c21de02da07b6ce00797d8d99f5ea7647",
+    "src/backends/vulkan/vulkan_matmul.hpp": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4",
+    "src/backends/vulkan/vulkan_memory.hpp": "ce365892a490a833a7f3165840451c9fb3945a7b6f703fa62f083492bc8bd104",
+    "src/backends/vulkan/vulkan_moe.hpp": "cd77f2e18633c13516729a16521aa73f630f04e7dc574e98b62ebc210a811b62",
+    "src/backends/vulkan/vulkan_twins.hpp": "948be6abd758f63e2b3f20a58756159479ffa4857b18c981e414cffce2349caf",
+    "src/cli/main.cpp": "015f0aeabe5641f6d538530eb5d2b73866371ed9ccff71fe297d706582057642",
+    "src/config.hpp": "326b4b3c9323d70e223d5a2284578a9582e2d450cb92c8a508222548a6802e70",
+    "src/core/bf16.hpp": "a736e94eedbc3ad083d2e3bfe6f4947b60bc6542a5f1d02962568f2f30c0fa03",
+    "src/core/cgroup.hpp": "0e35c64b32002666695b895019631fe0387617add365197d84063254fdcde487",
+    "src/core/cpus.hpp": "1b3f0c12bb0ee6f8372d7e15472f95a67ec7c5aced655d814a22a4573a671381",
+    "src/core/crc32c.hpp": "e82f7177bf95a917f0f4ccfb31681d86c5fc5e92625ac04e751c1da1f1e4d39a",
+    "src/core/file_sync.hpp": "26627fc6bbd73880cdfc736d3cf25f576ad5b758adbb5aa55351a8156b8c6afd",
+    "src/core/fp16.hpp": "5af255dd7137de7c3b36d6863f42540c7f8d2649c5838ebb0a990e80587c7d2e",
+    "src/core/host_memory.hpp": "ad0442286ba4e734f86aaf3faaefb2fc6b5d82693e99168da4c3c11da15f256d",
+    "src/core/job_threads.hpp": "033762ea41394d6b97c79eafc740615a7da9fc7b7af2454c5b0c5501014ba1fa",
+    "src/core/json.hpp": "bf7d5f7509e63ebce76a1aa2839e3978253a8cd12893ce0eadee3203ab384529",
+    "src/core/list.hpp": "832b04ace054f485f22f39510a7cac5df051a671b8e3eb25bf0e906d5ff6e845",
+    "src/core/sha.hpp": "28974fd17efc786ecfa73941eb4149e897f2ebf72fb93338949d66fad41c4fca",
+    "src/core/utf8.hpp": "ae50f03c84fa6264d8f780e659bf3007a3fd0c2ace5efd987395dbc7b2b0af51",
+    "src/format/file_digest.hpp": "4c4a46ff248812e9888ee863387ca5b082b16b499ee5161a5cf5659b3879f92b",
+    "src/format/file_reader.hpp": "0ea13c53114ac42ba2596814a765f0b31f3d9537e94f9f8182bb0c920e41b268",
+    "src/format/file_writer.hpp": "6296354fc3b34aecac9fd199853ea1a023498236a8c7396d136f15f49c38d5c4",
+    "src/format/format.hpp": "c4d6014b21e7e8b6e543e71dd6becb3763109420f6cc9bf345765bdb43282d53",
+    "src/format/gguf.hpp": "3d0d7309f7553fe035da873b1ed172c5387123fbf770b5b3dd2fb2e561dd501d",
+    "src/format/mapped_file.hpp": "4cad089853f3f9cd53c363c89c808e61e9809bb70b2b3b35a692687a36e1f963",
+    "src/format/output_file.hpp": "5868fe405446eb8ba5b5727fb6a9de0fc529710de2ad3945e8fc4daf17f92f70",
+    "src/format/raw_convert.hpp": "af78551637251349f58ef73bf6dd6d91934ab2ceef0b342c8a66f2f6535e1a03",
+    "src/format/weight_scales.hpp": "4bbab284d0aa68b9dfceaaafc67488dfcaec6ddd42d3a98dac7f83dba9d46684",
+    "src/hub/manifest.hpp": "5f00fe4ea9b0bc69c5067f3bc5990bc8ff02cd98f1cde66fde4c413b995b0ed0",
+    "src/hub/pull.hpp": "fcaea8cc02f0e321c360e93648d3dd47d85f048fca07a6a058477e0c20e8a695",
+    "src/hub/transport.hpp": "4de568eaa607961ada4a2b061292a0dd24560cc4cebd9488b5604fca45e00c29",
+    "src/image/image.hpp": "2177787e0f24d15ea9b32bc203cb1d55d45a8eaa1c9fd19ff9278d59b96531c5",
+    "src/image/inflate.hpp": "6c8ebea5f5d04cb2e8e223b856b7d2b18a9295133574909af03b4897fd2b2182",
+    "src/image/jpeg.hpp": "3df6fba51e1dd6a6283d257c83536e276d7073da7a5364ea09e387d0af9eeedc",
+    "src/image/png.hpp": "3b3c6f9f4a124e8de3e2db6a16f38e72e33753f5484d54ea709878c40989dc55",
+    "src/image/raster.hpp": "8d07cb149cb3f1285522068299e292e237117236568be80e8f0302aac6650283",
+    "src/inference/chat.hpp": "1ede7586acfb4a0759231b14828d7b4731053ce255373b75712e3d7934063ae2",
+    "src/inference/generate.hpp": "9dcdd3d3cc7ff1cdb82f22985da4ad587f18845c5ea3aa7db23bc530d3f1a871",
+    "src/inference/load.hpp": "8fb6c7b1fd7262ee1e683feeb7d549d130e402e50f08d57ba76ccc0de550353a",
+    "src/inference/logprobs.hpp": "12e6b34977e7d6c544df18a71cd1e0f48d45de5830bf81ded2086d6dada30d05",
+    "src/inference/media.hpp": "0089ea6479aea85735f6a7e35eff7c0ed7de1242ffc268c62474e652b4c4e555",
+    "src/inference/pair.hpp": "4906dd6879a3ee20991337c0743efa5be43d4e4bd17a4fdff370f62a26c44f30",
+    "src/inference/perplexity.hpp": "f2ec9a2beeeeeab0381058ac36ad2573bfc0d4afcd4f00f88da7ddba962bb9a4",
+    "src/inference/read_ring.hpp": "d192e553da8bac4d6cd7271f8026b6279068f2d8e0451885892e60ba30e88b47",
+    "src/inference/sampler.hpp": "7acb4664b41cb8df7a0ee8fbc4bfc1d5f9a3208de359a013ee470ef88c38385c",
+    "src/inference/spec.hpp": "8f2f882423a5f939f9e0478a2a35d0f0a3084bac840b14cc107cf8326c797705",
+    "src/model/arch/blocks.hpp": "96f0bf57b053cd0914529b0df4c23c012c9885ab6315fc819d54fb41f9dbbb78",
+    "src/model/arch/metadata.hpp": "13371aa36b1a1dd37b317f8ef5d72eb7da4b8d87beddfb1f9456438a24ac7e32",
+    "src/model/arch/qwen3.hpp": "d37437bbdb74ea637e75e0881acc57765fd517e6f5ce26c93b3cf1c870c626c2",
+    "src/model/arch/qwen35.hpp": "07256d0d5107665cfe5dfda709fd698353cfaccc2eb35e1cb234095e960388bd",
+    "src/model/arch/qwen3vl_vision.hpp": "ccac107e42adf01063b550368ccfdde0ef1fd479059fa5afb4e5296f845ac279",
+    "src/model/arch/qwen4exp.hpp": "1f5dbbdec9219d8e385bf22671a99939c7d313cba8eb311af3b1e182a96d1f24",
+    "src/model/arch/registry.hpp": "5708ef180c3831be177c3a8920863d4b8551d5ab907fefe0bdb177f862a855e8",
+    "src/model/architecture.hpp": "e149766e5ce0ec077078b39c9ff4cdd5a755bcdde836c3c8a56c3aff84634ece",
+    "src/model/encoder.hpp": "0f62fb15fe485924ffd90b331385d4e755f90d3e50c88d03c21595694821b2f8",
+    "src/model/history.hpp": "ed7791c4cc9213f3ecb23b45e633bb4188dca70dddb818176e1f78747b9846d4",
+    "src/model/kv_cache.hpp": "caec43c211983321ccecb503122e805bd91513e3cec820975bda232cd6e0557a",
+    "src/model/layer_split.hpp": "de5af330c652e5d5a0f724767c9f550a262a7eb5f7e3c0c03faf3e3c7d8149cc",
+    "src/model/passes.hpp": "825c271353b312a9b9491dc878b69be4de3ae8c2ddfbdaffe83738b919018ef2",
+    "src/model/place.hpp": "eb2c91355ce944828fc15bb6ffc4ea2b3b7dc7ffe128f64d5e6f47fb034cef3c",
+    "src/model/runtime.hpp": "fbe327eaa00515d9383de1c9082acbcc30746e63581b049660e416f3d23d29ac",
+    "src/model/shard.hpp": "f70f04253c7098d07bd77bd3789647a3ca6ccc3fe96ae2873349cd04e8c70908",
+    "src/model/stage_lanes.hpp": "3bcf63acabab61e9825a233798ef6d56e9e19400ac0b3f74f61c2921fcd70e97",
+    "src/model/weight_rows.hpp": "70240799292d8a59a9d62c9311ceff9e7122790fae99891f918cafb5ea061633",
+    "src/model/weights.hpp": "1d88a8bf98a0ed29ea1aa934f013aae8b6c1781a15c69b4c4225c82ecceb7bfc",
+    "src/quant/fp4.hpp": "7525ee2e55e70094a5211002a007a0ac6065f17374799c818b8c63ce29611887",
+    "src/quant/iq1.hpp": "9dd71074280df2f6bd618e43f518bbffd8793585ff22092bd6e02993bae28193",
+    "src/quant/iq1_grid.inc": "56560ef0031d374b7b4ac7a1c936265c30c933e0111c056de10589002dc2c491",
+    "src/quant/iq2_s.hpp": "5426aecc80fbee375980967d60c3325aff4f6b05493ddae4c90b7d59b1dc2059",
+    "src/quant/iq2_s_grid.inc": "d4117f4f81e3d8f8eede1e496cb2da154c31bb1fc376ebbf1022d582622e464a",
+    "src/quant/iq2_xs.hpp": "6d0f5ae005f555d96bb99359fa5bcd763d596e549b84a2c1fe54df4238d27c9a",
+    "src/quant/iq2_xs_grid.inc": "6638dfff47d8f8ac06af44f8a47e078404fe0e2ce467c8d2998ddecbb2073947",
+    "src/quant/iq2_xxs.hpp": "99701b24d128e1a6769cb493b30dee6ed9993505ead27494ac4dfc33d67c923c",
+    "src/quant/iq2_xxs_grid.inc": "d9c0a4448d3b3ec83f13cdef25b7010bce7da0c840c2c0c694e84c7a930b7509",
+    "src/quant/iq3_s.hpp": "e2b3e03e783bcf28fc75e68320273c349f0c18d3e992d88be543b6be8fe45eec",
+    "src/quant/iq3_s_grid.inc": "b32957a07b0bd7a1e4e83119308d55f113ad5f165ab8810dbea8ccf313a337fb",
+    "src/quant/iq3_xxs.hpp": "168a272b39735311a77c78bbc4ada224b2c91abda38547d8b28fb69bdbdeda61",
+    "src/quant/iq3_xxs_grid.inc": "87b3ce17a9083c5bff57e9c1f044206d5330a27d99c0188878ea5341f96664e1",
+    "src/quant/iq_signs.hpp": "98fced08a4dd7b6a215b0b4dc7eab89881de55c0cf3c6dc23262aeb6578eadbf",
+    "src/quant/k_quants.hpp": "b812e843ee595f872a861d6ed417c1e6b83e32ebcb73806e6adacb794460a2e8",
+    "src/quant/mxfp4.hpp": "909238f8bb3da80c6cc27343164cd665705b53e9e6ae15d0cb9fc3b58a9ba0c5",
+    "src/quant/nvfp4.hpp": "e7a57c14d2863e3bb6a971a40c6b0d07a972a0035548b8f248276d8ce545ac43",
+    "src/quant/quant.hpp": "5b9078c2201795045e5eaa3076b73c179ff36aee74647719dc75c76dda6f18a8",
+    "src/quant/tq.hpp": "c4bdf3e8a9a080345b4e41f2b9666e0212a3158b0e2583e78e7ee5a2dc5a2613",
+    "src/quant/types.hpp": "08027df69e9c8d49eb38663f3321ea341c890afb8027caeb24ccfc5fd1afef18",
+    "src/server/api.hpp": "4e036ceea980f6441e6e5175dc1e905ef6aef15e3ff546a6f0784e846f585a48",
+    "src/server/cache.hpp": "233a8f3dfbec33c5a6b00aa7109ed5db7c7c06a0182db2e9206ec30d6fda590e",
+    "src/server/context_cut.hpp": "bc1aae3cec2e7b90ebda76821b580ba4f9811329bac4ccbaeed52916677827ee",
+    "src/server/disk_index.hpp": "8f8466aead43c66932a3da7115a7612a8286b6e5c7fa46e23368c288001c8ecf",
+    "src/server/disk_store.hpp": "e9bf96fad6b1d80fc76ea90dbb5294118aaad81d43cbeb8fc2056a3ee81baeb4",
+    "src/server/disk_tier.hpp": "d3e62bebf47b87de5df427efffa16c7c590f9bec7564bd7e07c49ffb023989f9",
+    "src/server/http.hpp": "663ceca3b5018bd694d3f84f3e0c9357444dccc535149253ca7b8a540b2902a2",
+    "src/server/policy.hpp": "7ef91099300f32457d49e58d7e13bad0850b6d45cc5f8a928a2aa00e0e65abf8",
+    "src/server/scheduler.hpp": "a86f1a96f509b12732ca800e1c25e5c7a9e3deece5597c6ad7e2760e233c69df",
+    "src/tokenizer/tokenizer.hpp": "ab41a30aa337a52ec7a5c10175f8e3169d8f6ff4817e298f403a849557a78427",
+    "tests/arch_boundary.py": "85132c11572a2a9ce534f971d1dded0fa46931980c630c8a06c0781ae8f34b2e",
+    "tests/arch_qwen35.cpp": "8293930932c8ff419ce221f343bb22367d018e6476f034592ca32d6c670fc45e",
+    "tests/arch_qwen3vl_vision.cpp": "2a66d12e61df79834f3dbf500eed82d3f451ccf837a3ed43302841240e3a307e",
+    "tests/arch_qwen4exp.cpp": "5739225938056ce041f387faeb4a32b7a4e37157162efe8b83ed47484cc9bc96",
+    "tests/backend_errors.cpp": "1945a9ab87059376cc712f604e67f3e263a7425df52a580dc3de4d0d9b40a347",
+    "tests/backend_group.cpp": "62b97129e8ffaf3387117e6ad769ab42b464fc503b3b28687e55fc6b82b372b1",
+    "tests/backend_vulkan.cpp": "c17266d9f3f5817b7f3d88dd6ed679ae793913b08c6b211b1ca160e6b9bf7627",
+    "tests/baseline.py": "ccb7f9ca7475f8c1d0d1961dd2b53102234169ae7c374353c0a18abf0fd61063",
+    "tests/baseline_8b.py": "5458095d73e4a17316d39d0ba546ccad1d7cb300500b4811e99c0a0b7a01e1f3",
+    "tests/baseline_layered.py": "7f877f2d91dcf5e007edf47a79a7641fb5d203224d7efdf50881bd0b7c34de41",
+    "tests/baseline_mxfp4.py": "a68df65f6e1e9f99216bf4e59682ef95c2112f85998e5829ab97bcbafb58240e",
+    "tests/baseline_qwen35.py": "f99168ad0890173fe5ec437ea575e39675e4fe074df2fc44808ce3c91362b711",
+    "tests/block_fixture.py": "9427da66632f7e4806584258b94dc39687d88256a284ab005f8e7d22a1701c41",
+    "tests/cache_scenario.cpp": "0ff83022035364d2140337ac1a57d74285e622cfd437228bdaa199a7c79c4d8d",
+    "tests/chat.py": "803287c9a115b3fa4e6989363ec6c34097e76f7b8155aa546e19bb8afbe0e820",
+    "tests/chat_template.cpp": "0a2d6cf67391b99ba33f7f3b6f461a79152e3f614477e3240f955d94c8b59fe9",
+    "tests/cli.py": "52d4f79873f1bbe3ceb9629a547a9c5ba8e4c540fdb1835120bf423d9f7ef587",
+    "tests/cli_output.cpp": "852b78d9f5ca525a2c6b4c9de460a74923ad1abe91ff9d9bfd1da24214d140df",
+    "tests/common.py": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "tests/common_float_split.hpp": "413140ae86d6d463d42235b42ee94b1d84a043b0382ba87d2aac18c42ff026b4",
+    "tests/context_cut.cpp": "859c0b355c11d16ad279bbe43dd76b2ab13555cf8f25167d65ba59351330e19f",
+    "tests/cpus.cpp": "e0daa3a2f99e25ba3446c30e158848a3bb5d95d8fd8c0126ca6862346807b7a8",
+    "tests/data/baseline_chat.json": "6d755f3d925b7fa354c2d439f1b1866404bbc8e8ef048a038624f28d8bbcbbdf",
+    "tests/data/baseline_chat_template.json": "e71d3d15670f6e917b07353f24a959798dbff3925bfdf74d8e44a84a10777018",
+    "tests/data/baseline_f32.json": "42caa7b77f4ee09ea30b51bab28ef872286986396536c1d1966c9d805fa2cd29",
+    "tests/data/baseline_image_qwen4exp.json": "52eb010fc61d6586bb2b5f39cc748eb78312fe1f9ad58d96cf32429e5b8306df",
+    "tests/data/baseline_image_tiny.json": "a51007ecfbe4a1114aa03ae088a31b7055200ef0a134a214f7bac3cc3204d170",
+    "tests/data/baseline_int8.json": "2fd016383aaf8cb15fd98702f072705669bb9360727f04339b48fc6614dc389b",
+    "tests/data/baseline_iq1_m.json": "e207e45a69f5a741fac11595321f5ee0f9710064386c5d613590ec8c242f4240",
+    "tests/data/baseline_iq1_m_split.json": "9a3a5ef9b3bd18a7698765a0ad3a9c2966f0554ca55fbca25bc28c9282749260",
+    "tests/data/baseline_iq1_s.json": "c3aea8a3c9023770a8a392e106758738d6be7bb052a61d358744a06c7ff0fd1f",
+    "tests/data/baseline_iq1_s_split.json": "323e98bf18956a6a110c30adf343f51e63e63e41e05f8e7cfeb9cc3be13aa7dc",
+    "tests/data/baseline_iq2_s.json": "8c25ef685fde6ff921f3105f5a7e6208466f544b7e9c39b8e66d3c268d45c3d0",
+    "tests/data/baseline_iq2_s_split.json": "1c1bf944cd8f40bbee1064dff13962c781246a11978de025b5f1a316707b1617",
+    "tests/data/baseline_iq2_xs.json": "66bdf1e8277c8e46b006fc9b11f56d9588dbf5053c7dfcdd75de592b28418a6a",
+    "tests/data/baseline_iq2_xs_split.json": "2ae90131d114f063b9d7f64596aeaba164c49a858525af26ba5ec6601b31d03d",
+    "tests/data/baseline_iq2_xxs.json": "e053d7d70e35646de3c8723afd5c185c5cc99d00f7ef545cfa5bf0ec71e9d338",
+    "tests/data/baseline_iq2_xxs_split.json": "363b90946c413895cad946645667a5f7063f5ab811ffc5459e76ec8316a60275",
+    "tests/data/baseline_iq3_s.json": "b941049a460becbf35ee55ebd247becf1931181c0761dbdb8eeae3f2c029a537",
+    "tests/data/baseline_iq3_s_split.json": "fe3433f6686ba4cc7e389bd67b300767f4dc7aa335820597cf3110f9239ec304",
+    "tests/data/baseline_iq3_xxs.json": "09ff34449701ea3cf78c805bdeec264567be2303bbbe6db4b7a20a73b5ae7117",
+    "tests/data/baseline_iq3_xxs_split.json": "9670481236ed6748862c5c9d0e76ad8852c295c8388aa4ad5e3fc3188be6a32c",
+    "tests/data/baseline_iq4_nl.json": "4731d106ca131da01549696695005ce34c59998278ca31a7ecbab6e395129ba1",
+    "tests/data/baseline_iq4_nl_split.json": "fc7db87a6efead4bd5380a6f201145e51c5da3156ab2f8e25d43e0bb76e148d3",
+    "tests/data/baseline_iq4_xs.json": "2758bf587712ace40f5c672087e930a0ec44feb7eaa31b58ad12488c8dd9f6be",
+    "tests/data/baseline_iq4_xs_split.json": "800c4d7343b114d6c54e1aa7023d2b2dc93027737fb5de83f6ae706b8e05ed12",
+    "tests/data/baseline_logits.json": "0711f4e38bfe33262cbf7ae5a2b8299b6d99bd8fc02f8d8deef66cab65c676f2",
+    "tests/data/baseline_moe.json": "471f755667f2eb4ec530a9fc0e731f6de3036e2d03afc73dd79569ae76550d78",
+    "tests/data/baseline_moe_q8.json": "edc719729f56b9cb2545e0b7413ef7cb3097d9ba92747488c208ccf3ca4f2ff4",
+    "tests/data/baseline_mxfp4.json": "519ad30fcf579c4a0aed651c98a10974d5caadfb65ab031df2bae6f20d83a3f1",
+    "tests/data/baseline_mxfp4_prompt.json": "3ca2457c9ddeb712e8b323265af7bdeb3087763dca78c95dec0b34ba20a2d218",
+    "tests/data/baseline_nvfp4.json": "6a8a5aec90366901b51ed04be2405411b93bf9893b0e15f3a2cc07e13741f3bc",
+    "tests/data/baseline_nvfp4_prompt.json": "5fb70cea1534e187c40b3efe94f48bc7a716c1b2f4ae8259121ca7ce92592c2e",
+    "tests/data/baseline_nvfp4_prompt_split.json": "d326b676feedbbe464220ba6e0c03197362d782f6fc1050bc63b1d1d43cf662f",
+    "tests/data/baseline_nvfp4_split.json": "012eb2ad7f5fb2fc528f152229bfef0d3eeb857d2fad869948c49e754e1fbd2c",
+    "tests/data/baseline_perplexity.json": "63a6f788f1cd143d905c95e587c673d76a3c624fa252fc1545b31b3812beb42c",
+    "tests/data/baseline_q2_k.json": "70e2afe50f4f820fa4f9af83fe9565e99a9370c2fe10cc3eddce06d4b43599c8",
+    "tests/data/baseline_q2_k_split.json": "cca84e4b0ee192e04493229218ecdc34a0547f9b5d97662756737538315a2397",
+    "tests/data/baseline_q3_k.json": "24c02075c3f0e3824a557eb797aa31078ee3aa1131dfaf9515c4fa2f9e30275f",
+    "tests/data/baseline_q3_k_split.json": "fbaf2a324514ce2344fc6da21183e30110bd9427fba00b6f0292eeb3956c4417",
+    "tests/data/baseline_q5_0.json": "a3ab50806e10ce2a82c2b6b83b746157656271b2777ae350a4cc27e1b2c4628e",
+    "tests/data/baseline_q5_0_split.json": "789ccaa5f9a868b42bdfb82bc882bf938b075fe9e6bdaa101e1b797d47c10336",
+    "tests/data/baseline_q5_1.json": "7b3ea76701e518de4c3cd54bb9aefb7a1acf87d466b1bae68444b36cf7653db2",
+    "tests/data/baseline_q5_1_split.json": "039ee0cf45b8f103d111df410e9b2d87914e727a8b354ad1a73f33fc8ccb9bee",
+    "tests/data/baseline_qwen35.json": "7822861f77c7fe1be788bba149b8816cab9be9560b74bf26badec10e270d1c0c",
+    "tests/data/baseline_qwen35_mtp.json": "0b93143213a5b20a278cfa8fc08fcf9686d71bd93ab2b9407da7a2a40158c5c7",
+    "tests/data/baseline_tensor_split.json": "13552b23ca0726793a04434fd98914e04780810f43db4d06e96751c6f4b5295a",
+    "tests/data/baseline_tensor_split_moe.json": "ab33a488d4d70ede6613835b940f0b748778f12af53558b36abee969410417c1",
+    "tests/data/baseline_tokenizer.json": "8d62a3427081809f669444b716f6f7b87417b2401a63ab456b797af5d6cbfe3e",
+    "tests/data/baseline_tokenizer_qwen35.json": "fdf0bcfb75d77345f1321fcd6c98aa0b48abda41306371a499b659a8dce3cb6a",
+    "tests/data/baseline_tq1_0.json": "8672924b46b7d83f697bc02521c64228bf217cc60bd0bd8fcb460a28523476d3",
+    "tests/data/baseline_tq1_0_split.json": "c78dc85d1e2be1dda611b2d48294109d95f3297587ecc7898e40ee509de4571e",
+    "tests/data/baseline_tq2_0.json": "a30e99ef2dba3d825bce3ea1aa8be24568a64644235e457e1660898cb0d73ecf",
+    "tests/data/baseline_tq2_0_split.json": "461c2e21316e5e36a8129fd2cfb26098558664d4a8ee3e7cd9bddf28196b8333",
+    "tests/data/baseline_vision_tiny.json": "ecfdc553d44be0cfb0078ba52ec7fc1250627a3a68ee1e655aa8df50d5f04b9c",
+    "tests/data/comment_allowance.txt": "a689bf262a7976540eefbd04ba031c779e3cae1d3c6297d7905f9fdd7bf4a037",
+    "tests/data/decode_probe_30b_a3b.json": "00080993532554b4d983be582fd0733ba3d74e53c671ea75b11c6b72dd5d32b5",
+    "tests/data/dtype_budget.json": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+    "tests/data/fixtures.json": "cb16559957f6e23d8b5901437274c6feadbe89580269e1fa9807edf5ae88cf48",
+    "tests/data/image_decode.json": "5bc2a141a8f025f56588ff5075cfbcbea968eb42917cff5d4829b442b9059634",
+    "tests/data/images/.gitattributes": "5070edf4b5cd3081823f26084682f5e90d24bc653d93bcddc35462bcffbf1d72",
+    "tests/data/images/420-129x97-prog.jpg": "76e65149c105b8aad364b1e498a1df8dee4b283cee0e6bf919dd6f0cf76dd8f4",
+    "tests/data/images/420-129x97.jpg": "37b3ef7414937e8d0c44e5f57d3de414ff92b1eed3f90967c5c52ac0da491156",
+    "tests/data/images/420-16x16-prog.jpg": "f005f6823ae7b0aecc0d89c3b3ddf004bb689363fc094f354f81401df80c82af",
+    "tests/data/images/420-16x16-prog.jpg.rgb": "786fd740658e68da466b634a8d1baf5f29bfd239f932703adf07c14ccab406c8",
+    "tests/data/images/420-16x16.jpg": "5073779d000de190119a226eefeec5a021914f4fc2edfaf6d3aa95bdece430dc",
+    "tests/data/images/420-16x16.jpg.rgb": "786fd740658e68da466b634a8d1baf5f29bfd239f932703adf07c14ccab406c8",
+    "tests/data/images/420-17x15-prog.jpg": "ddbe79732c82777a33006115e790124c024d6ccc327c2b20a9d6d0e86ec13bf1",
+    "tests/data/images/420-17x15-prog.jpg.rgb": "e6a9d76d76feb00bb73d5a0b76925da137305e44e41f88d5ebbe506ac14e6009",
+    "tests/data/images/420-17x15.jpg": "63d7db12daf4c8fbe09e4eaa5fb85d3291e778b41ae8981bbd3bff8f8f70ef32",
+    "tests/data/images/420-17x15.jpg.rgb": "e6a9d76d76feb00bb73d5a0b76925da137305e44e41f88d5ebbe506ac14e6009",
+    "tests/data/images/420-1x1-prog.jpg": "79370f99c0f908ea7d14772feea9c2346a58844f864c97b193cf2b918c9d2fee",
+    "tests/data/images/420-1x1-prog.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/420-1x1.jpg": "71391d9cae897e4be1af85c5d342a0a90e257931406737d5f42dd81c881487b7",
+    "tests/data/images/420-1x1.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/420-2x2-prog.jpg": "ef7e3aaffb35051c026ed9c65c7cfb2e44d4538570f2ce4f21ffe4805b43c380",
+    "tests/data/images/420-2x2-prog.jpg.rgb": "83298a5894266ff319481a7a87cd021e72e26bc66cd1181c4339f8360d1983ce",
+    "tests/data/images/420-2x2.jpg": "5c56f286bfd32d6086e5cdd1ae5ebb089d7e26f2aee2b723173ae0604501e5c3",
+    "tests/data/images/420-2x2.jpg.rgb": "83298a5894266ff319481a7a87cd021e72e26bc66cd1181c4339f8360d1983ce",
+    "tests/data/images/420-300x200-prog.jpg": "285716de5c1d5fd2268193023cb97d84f0d58fff924af90293c7cecbab7f4a3e",
+    "tests/data/images/420-300x200.jpg": "860c11346b5b4ae78d66a659870dafec2b22d2a3ab9eeb2293b7067b9b182561",
+    "tests/data/images/420-33x17-prog.jpg": "0a8fb16bc52594b31b29b6669c2f3ffecfac6bcff4de24fd05d132f795c5b86d",
+    "tests/data/images/420-33x17-prog.jpg.rgb": "2124bb66e27f3cc6b4f6d05765c7b925383864829085c61d936dcb93734c24e3",
+    "tests/data/images/420-33x17.jpg": "ec8c9e5d5741fa2369846b7283ce386815b2b1d19bac3515f1f36fb56186c075",
+    "tests/data/images/420-33x17.jpg.rgb": "2124bb66e27f3cc6b4f6d05765c7b925383864829085c61d936dcb93734c24e3",
+    "tests/data/images/420-3x2-prog.jpg": "fdf2d64ffe70d90c503f9f9ba6e486e7434f8afbe3803db717a30c6d79320216",
+    "tests/data/images/420-3x2-prog.jpg.rgb": "bb0bcc7666631047a55937b988145b8c13bc1841ca8156db0deda31b9a767756",
+    "tests/data/images/420-3x2.jpg": "3f00ceacb61582e2166e790e33ada7163611b21f061d2e89f9994e1c7f3da922",
+    "tests/data/images/420-3x2.jpg.rgb": "bb0bcc7666631047a55937b988145b8c13bc1841ca8156db0deda31b9a767756",
+    "tests/data/images/420-3x5-prog.jpg": "b5cbea07b5f88ad7ff7da53c14a1f84881dd606dc381137decba7cf4a1caab85",
+    "tests/data/images/420-3x5-prog.jpg.rgb": "7d12096cf94617b5ba587ab65b170c09461b1fa7c08a57a9f64675ee3cd1b942",
+    "tests/data/images/420-3x5.jpg": "b9eec3c58e8162c9108819cec0d1cafd2f997281edc6b2787ab085317ac33ca6",
+    "tests/data/images/420-3x5.jpg.rgb": "7d12096cf94617b5ba587ab65b170c09461b1fa7c08a57a9f64675ee3cd1b942",
+    "tests/data/images/420-5x3-prog.jpg": "8bcc5b2ba6401e8cadbbaedbda3715711f59e6c4fd76a9e9819f6f1288e29e89",
+    "tests/data/images/420-5x3-prog.jpg.rgb": "84e76243974b473f7efc0b55ecd35dfc020d203ba87188cbecc20bb545a261da",
+    "tests/data/images/420-5x3.jpg": "6578784628674f1fc7497f33f9817fd1f4881a79c57e2c6919e69c545aac5fa4",
+    "tests/data/images/420-5x3.jpg.rgb": "84e76243974b473f7efc0b55ecd35dfc020d203ba87188cbecc20bb545a261da",
+    "tests/data/images/420-64x48-prog.jpg": "df65c3b210337d9aafba0ce8a233f59c27fbc734e4d42893fa5cf4650e4a372f",
+    "tests/data/images/420-64x48-prog.jpg.rgb": "5f229aefb1caf6c57b11f44f662230f6c5d2d8b509d27b06d0b45005c22ed28f",
+    "tests/data/images/420-64x48.jpg": "e1bb7f88340d5885cd27b1d4ec20b8d3b4df47f285b2ec40c69390659305508c",
+    "tests/data/images/420-64x48.jpg.rgb": "5f229aefb1caf6c57b11f44f662230f6c5d2d8b509d27b06d0b45005c22ed28f",
+    "tests/data/images/420-9x4-prog.jpg": "950386d37808818ff3b582e53170385029ec359d563cea3b3500e7963d184d96",
+    "tests/data/images/420-9x4-prog.jpg.rgb": "7e1aa0dfb64a118a71e095310a714ef936df01297196e38e36473c1fb24d07cb",
+    "tests/data/images/420-9x4.jpg": "0ed802748b2832254f56b7826cc6358b830e32ae96f7400361dc2f66d24bcbd5",
+    "tests/data/images/420-9x4.jpg.rgb": "7e1aa0dfb64a118a71e095310a714ef936df01297196e38e36473c1fb24d07cb",
+    "tests/data/images/420-optimized.jpg": "70fd6c0db0ac5bf503bd4360ebfbbfeaba6dac65e60172e6a688b6e47191f2da",
+    "tests/data/images/420-optimized.jpg.rgb": "d342cb5c00eea328c242a5dbd011bef1159973193cd031651381a74cf75682b9",
+    "tests/data/images/420-prog-optimized.jpg": "f099843c16d4eac0fed4feef7cedef76731d80ca3a4b30c71c291b7ed7f9498d",
+    "tests/data/images/420-prog-optimized.jpg.rgb": "d342cb5c00eea328c242a5dbd011bef1159973193cd031651381a74cf75682b9",
+    "tests/data/images/420-prog-restart.jpg": "1b1d3cb6c3a93e6389122849273a55de4bb61933f2c6624bffcbe58fbcc5b8b8",
+    "tests/data/images/420-prog-restart.jpg.rgb": "d342cb5c00eea328c242a5dbd011bef1159973193cd031651381a74cf75682b9",
+    "tests/data/images/420-q100.jpg": "86483e01743fa5b1169461b8c9efc60a314b59a6c96732be4c2f7b27b3d73f04",
+    "tests/data/images/420-q100.jpg.rgb": "ea73c3c8d9ad611fa32011b8609c971282a378c2fad6323963ec71a246486e9b",
+    "tests/data/images/420-q30.jpg": "5078298966313f740af9bd9eab5ea614e731848cc28e4f0cf5b17dad117d9396",
+    "tests/data/images/420-q30.jpg.rgb": "9d2f4efceca36a3557f9a2f39587d7297273b8cfc2857bf89f180f4fb945d0ad",
+    "tests/data/images/420-q75.jpg": "42f5d47c2ba2628a964ec6f7a04ff1fd74a46196fdb378f5661da9db961cbdaa",
+    "tests/data/images/420-q75.jpg.rgb": "62e8ceea2547cd8b91f193910ced4bdf732455a7ea811ce33fe6f90dd6244af5",
+    "tests/data/images/420-restart-blocks.jpg": "0f0f11bac3b750ffd5735bfd96a5390c68ae4bf791d078f1c2ff8bd1d9847b9f",
+    "tests/data/images/420-restart-blocks.jpg.rgb": "d342cb5c00eea328c242a5dbd011bef1159973193cd031651381a74cf75682b9",
+    "tests/data/images/422-129x97-prog.jpg": "5d8c51aff5d925658cebd61dc34e80051974e453bf7062f518db22b338555d13",
+    "tests/data/images/422-129x97.jpg": "3b5bf8dfd7f620c55d45eb9461235795cfbae7fd50604775af15de14d1ec12fa",
+    "tests/data/images/422-16x16-prog.jpg": "61321fe37fdf6ff954b1346c3851cf271911e796654610318a04349f80ece2a2",
+    "tests/data/images/422-16x16-prog.jpg.rgb": "ca1c8d1f82153c4e8a69befacbafdf34cb873ecf6158ea220456d6b67cd41e6e",
+    "tests/data/images/422-16x16.jpg": "7300c7ffdd354c468cc02122b2943e096ea2a06a9318c3e90db5baee2afc2e42",
+    "tests/data/images/422-16x16.jpg.rgb": "ca1c8d1f82153c4e8a69befacbafdf34cb873ecf6158ea220456d6b67cd41e6e",
+    "tests/data/images/422-17x15-prog.jpg": "b9cea9efd74d04af9b086e46ec3519c9febd9b81a20f7421a006d7c68b501250",
+    "tests/data/images/422-17x15-prog.jpg.rgb": "6b343261a777a3d85b2693f9ad820937eb81764145eb36bfc5a2cac2ee3d7989",
+    "tests/data/images/422-17x15.jpg": "ddad311db264b9b0771c1b0dadf27defcb276de205dece03458b8d4f46f4ae15",
+    "tests/data/images/422-17x15.jpg.rgb": "6b343261a777a3d85b2693f9ad820937eb81764145eb36bfc5a2cac2ee3d7989",
+    "tests/data/images/422-1x1-prog.jpg": "2b208c7e2769715fa4c7036818147e89b91fd80a198c2686e69259d3c2b98f86",
+    "tests/data/images/422-1x1-prog.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/422-1x1.jpg": "c0b17b6f05531ce0575e2e456f400a297a38b28277331ba25a4324527353d4c3",
+    "tests/data/images/422-1x1.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/422-2x2-prog.jpg": "4d9077f99eed3367c3ac0bfa8df11ed3d7435ce5e22903e6bae7a9c30b6d9a94",
+    "tests/data/images/422-2x2-prog.jpg.rgb": "43c1e5104d27b5b9b6ba10dec13277e8d24c5f8d46e32cfb080e47efd4c29914",
+    "tests/data/images/422-2x2.jpg": "90d2b29c62442df580b3d73dc79620d81ec4145e3cba787b571a4cb462687b52",
+    "tests/data/images/422-2x2.jpg.rgb": "43c1e5104d27b5b9b6ba10dec13277e8d24c5f8d46e32cfb080e47efd4c29914",
+    "tests/data/images/422-300x200-prog.jpg": "a0a60e59a36379c25fe074d6778240f91ef1f2bb315e2a928f20abaa7a54dc8b",
+    "tests/data/images/422-300x200.jpg": "b557eeed088517e288da027af0d32df2d03b8d2bcc9cb7afd96b0ee7c04c5b80",
+    "tests/data/images/422-33x17-prog.jpg": "18970dfd454df7224ee8d7198c034a8ea944a960afac9ea4c2141e9e935d96e3",
+    "tests/data/images/422-33x17-prog.jpg.rgb": "c5cbe6c3929fcf0d9b66aa729ffef3a2d1c396ae5515e4e975ce835ca857e956",
+    "tests/data/images/422-33x17.jpg": "b77f0c10292e413fc3ae760b351651dc1d0898d3b10bcaf2e8996fa0560520de",
+    "tests/data/images/422-33x17.jpg.rgb": "c5cbe6c3929fcf0d9b66aa729ffef3a2d1c396ae5515e4e975ce835ca857e956",
+    "tests/data/images/422-3x2-prog.jpg": "51e4d1fffc1bc1e1c41bf1a7157169f70f70ff10ad9d27465dfc3466d2f0abb8",
+    "tests/data/images/422-3x2-prog.jpg.rgb": "d7e2b51dff7cd8a32f588c1edb024543d3da1f1fa005b088827c7af4f43ed061",
+    "tests/data/images/422-3x2.jpg": "eace62f4a692086cde7675af86a6c7e0dcbddf5a8867e3d8fea571b6d6ddea2d",
+    "tests/data/images/422-3x2.jpg.rgb": "d7e2b51dff7cd8a32f588c1edb024543d3da1f1fa005b088827c7af4f43ed061",
+    "tests/data/images/422-3x5-prog.jpg": "44bf63b887a028e953b17f9556fdc6378eedde0ca4a70eaf0a0bdef7b9e23da5",
+    "tests/data/images/422-3x5-prog.jpg.rgb": "8ef7d26893de13b22fe261e06c62340e00b8e15ce6146a75796d12046efda18f",
+    "tests/data/images/422-3x5.jpg": "c0da647b99d2c46b0642682451cd147497af55d2e650da13a5e55b6d3faae327",
+    "tests/data/images/422-3x5.jpg.rgb": "8ef7d26893de13b22fe261e06c62340e00b8e15ce6146a75796d12046efda18f",
+    "tests/data/images/422-5x3-prog.jpg": "28b6e5a16b38c96ba6c4794eff944ca077197c8a603eaaf7cfd804fb963a81fc",
+    "tests/data/images/422-5x3-prog.jpg.rgb": "72ff58f146f4b9ef927558a73653a810809d7f9fd9c9b1541aae24ee7d63ea49",
+    "tests/data/images/422-5x3.jpg": "9337fb38ca4105a662564765d36f19ece1569a974a6c850b897bb7ebfbf472dd",
+    "tests/data/images/422-5x3.jpg.rgb": "72ff58f146f4b9ef927558a73653a810809d7f9fd9c9b1541aae24ee7d63ea49",
+    "tests/data/images/422-64x48-prog.jpg": "4f76559dae4606aa7e88ee251c2acea1570f21ed85d7de11d8eea1680643b4fe",
+    "tests/data/images/422-64x48-prog.jpg.rgb": "75ca5eea02ea044189a86aeff9dc33b9dbbd7e43f073e649cc776b2363c6946e",
+    "tests/data/images/422-64x48.jpg": "c66f1fdf0c9a65a16b695ad9f675940a82929b778ca080b77398cbb56522125e",
+    "tests/data/images/422-64x48.jpg.rgb": "75ca5eea02ea044189a86aeff9dc33b9dbbd7e43f073e649cc776b2363c6946e",
+    "tests/data/images/422-9x4-prog.jpg": "5d7501c30c244e0ae0107822107d3fc02a395dde7fba802fe6b367fa25f27454",
+    "tests/data/images/422-9x4-prog.jpg.rgb": "98caeb62189058b47f4514788aa8abe190ef26528297213690890db511f77f94",
+    "tests/data/images/422-9x4.jpg": "a8f99ae4f80f66991593520a46867f50224eeada026858a829b3c085313b0a35",
+    "tests/data/images/422-9x4.jpg.rgb": "98caeb62189058b47f4514788aa8abe190ef26528297213690890db511f77f94",
+    "tests/data/images/422-restart-rows.jpg": "723f3d3960b7523eaeaec4ea957ac5eaa70c6df623f6379f567ed6ff8866b72f",
+    "tests/data/images/422-restart-rows.jpg.rgb": "b02b6dd55dcea4756bfcaa99847954933a0b8b16127eebe29aeb05111fd14c1e",
+    "tests/data/images/444-129x97-prog.jpg": "a6735b39a06d15d4dd93880d2c7bf6902c52fc7f070d319cfd9e7b1afceb9ba8",
+    "tests/data/images/444-129x97.jpg": "bf788fe86822395d574916a8cf68cea77d1cff4763e192bd947a779294003348",
+    "tests/data/images/444-16x16-prog.jpg": "928c7caa7db7abfb43011f19d9e2f340381989d935fdc6f155c1724a6fcdee5e",
+    "tests/data/images/444-16x16-prog.jpg.rgb": "62ffc5427fff2b489ec346f18aeb61bd08f1e473910cc631295c9b6d381ae27b",
+    "tests/data/images/444-16x16.jpg": "9f74d73acfa0b68aa2f7d499afe7e666987b1d6783adefe5742cd411e5ac97e4",
+    "tests/data/images/444-16x16.jpg.rgb": "62ffc5427fff2b489ec346f18aeb61bd08f1e473910cc631295c9b6d381ae27b",
+    "tests/data/images/444-17x15-prog.jpg": "7ea691c914b186bb353ebfa0dcb401d10a50a4b19570075831d0450e7a70594e",
+    "tests/data/images/444-17x15-prog.jpg.rgb": "0cd4997424d9b570177bd3a9ec25b293c014464e8afaf48fe4227f1eb4c90f69",
+    "tests/data/images/444-17x15.jpg": "f953e161a6d5113595bf6808e3a1d0264697181ad792e267beb7644c20230845",
+    "tests/data/images/444-17x15.jpg.rgb": "0cd4997424d9b570177bd3a9ec25b293c014464e8afaf48fe4227f1eb4c90f69",
+    "tests/data/images/444-1x1-prog.jpg": "f4192af6131562d74ad94c34bdde039f25c102dc0efd473013328244c54e3b4a",
+    "tests/data/images/444-1x1-prog.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/444-1x1.jpg": "abecb0bca518e569ee259767299c5fc8fa21985ad412c82a9ff3266890329f03",
+    "tests/data/images/444-1x1.jpg.rgb": "89be01ba76d75d0abfadd88cafd155b1e2f2b49234554c59526499f0f1ef8944",
+    "tests/data/images/444-2x2-prog.jpg": "384e152465668dbf7c4280da6bae814e2786ef41cf84588245a7df9bf5cd2b5b",
+    "tests/data/images/444-2x2-prog.jpg.rgb": "8282480f5804f324205b14c1b2946be1940cc0e4e2f0f4e3c097f9b192170deb",
+    "tests/data/images/444-2x2.jpg": "b841c9a04da46df44dcc11d2ee9ae041c7d18e3bbdbfc799e77e793cf58bf813",
+    "tests/data/images/444-2x2.jpg.rgb": "8282480f5804f324205b14c1b2946be1940cc0e4e2f0f4e3c097f9b192170deb",
+    "tests/data/images/444-300x200-prog.jpg": "886c3d7219a4e1800b46f55477a3f64057501c0d8c12263c44c7aaffb2121af6",
+    "tests/data/images/444-300x200.jpg": "f0d4485de7e3221485d662d911a8438cbc0ec58ea49ec7b962e09ef81128922a",
+    "tests/data/images/444-33x17-prog.jpg": "81cca18062e384707fb04970d8e6009c0bb48e7718b58a0c8e955c259d6e0781",
+    "tests/data/images/444-33x17-prog.jpg.rgb": "78e5d1080bd3c8b2721d3eafd0f33058a33acb5fb6e300e593a07c3f3e03d7ed",
+    "tests/data/images/444-33x17.jpg": "d052167095e82717b498fc7c707a11c44fd4eb6d0b171f563a3c5f74d8d9bd44",
+    "tests/data/images/444-33x17.jpg.rgb": "78e5d1080bd3c8b2721d3eafd0f33058a33acb5fb6e300e593a07c3f3e03d7ed",
+    "tests/data/images/444-3x2-prog.jpg": "08f787fb0d0843f9d4fb9feca42bbbd500c5a543310086e25fb0f722bcce30a0",
+    "tests/data/images/444-3x2-prog.jpg.rgb": "f1387936626565de59c45ddc27e4eebcda4730674d82f7afa4e593b2c0a81807",
+    "tests/data/images/444-3x2.jpg": "a1b37cb1ea94f8a126eca7e9f984659033d2d94213c119be210ef7eaca84fa59",
+    "tests/data/images/444-3x2.jpg.rgb": "f1387936626565de59c45ddc27e4eebcda4730674d82f7afa4e593b2c0a81807",
+    "tests/data/images/444-3x5-prog.jpg": "0a85374cd47c6d0055b5abe2106e8487f73b5aba95eb1671fa4599380b6ddbae",
+    "tests/data/images/444-3x5-prog.jpg.rgb": "9df15d3352749448585989e96727f72025778424586a45f12be7ec0f7f772da7",
+    "tests/data/images/444-3x5.jpg": "753329168f3a9d3bd67ba8eb64dd0d464e9eca9ed7feb273c027d7294626038c",
+    "tests/data/images/444-3x5.jpg.rgb": "9df15d3352749448585989e96727f72025778424586a45f12be7ec0f7f772da7",
+    "tests/data/images/444-5x3-prog.jpg": "956e4c0594e34789eccb92ac1f5e0fe0026e843e0340739e841d47f9f522b695",
+    "tests/data/images/444-5x3-prog.jpg.rgb": "c2a74d256f389a79b37974e7f5dd3cd1f673361d7d158c3c0a4f05708a988b41",
+    "tests/data/images/444-5x3.jpg": "747c68f3ff2d0240a2f632926ddf35a01e0006442bc69d782ce69e547015c800",
+    "tests/data/images/444-5x3.jpg.rgb": "c2a74d256f389a79b37974e7f5dd3cd1f673361d7d158c3c0a4f05708a988b41",
+    "tests/data/images/444-64x48-prog.jpg": "851409d54e7b81ac0d771f4c5b2ed9dd59ed0d0ced6086dc963dd9c9ab4c2eb5",
+    "tests/data/images/444-64x48-prog.jpg.rgb": "d37c08baa100280ada8bec85b91b35a095ae9aece8333ae94617bd04bfd00a52",
+    "tests/data/images/444-64x48.jpg": "b8f0d3f1dbc4552c9315b447a97d8a500145bfe8312efd3cf163f725f17a0c14",
+    "tests/data/images/444-64x48.jpg.rgb": "d37c08baa100280ada8bec85b91b35a095ae9aece8333ae94617bd04bfd00a52",
+    "tests/data/images/444-9x4-prog.jpg": "5e5d384490bce74f3b886335738aaa7f07d1385194a91d29d3177958f9791c6f",
+    "tests/data/images/444-9x4-prog.jpg.rgb": "2f22c3fe24650c6ffbbc2d2127af1c32d0211cdf2fb83ace526e56305606b7f1",
+    "tests/data/images/444-9x4.jpg": "49208edba3837c84c66f4cdf4a25b42d8c3c61e8ceffc4d8b33d5ddbf4350386",
+    "tests/data/images/444-9x4.jpg.rgb": "2f22c3fe24650c6ffbbc2d2127af1c32d0211cdf2fb83ace526e56305606b7f1",
+    "tests/data/images/exif-0.jpg": "d6debd6f0743adff92a3adf11892673d24b6e01c00ecc9d7e11342106782fcce",
+    "tests/data/images/exif-0.jpg.rgb": "36e05526063ebbdaf7ffddd842d4f7cc22961a454d79f027497bb3e2f81b737c",
+    "tests/data/images/exif-1-xmp-6.png": "3aac24ad03a9a6313cc51ec962c10c06315f8f16700649d4fbb8e314eb8a09d0",
+    "tests/data/images/exif-1-xmp-6.png.rgb": "b1d2469fc81ffe3d5bdc8c225bc2826137aed6ef4ccac58acdb5b2f5f982dfc3",
+    "tests/data/images/exif-1.jpg": "530bfdf19e0db68affb6627a5255a9355631e2e34bd5210bb17e213fbc39abcd",
+    "tests/data/images/exif-1.jpg.rgb": "36e05526063ebbdaf7ffddd842d4f7cc22961a454d79f027497bb3e2f81b737c",
+    "tests/data/images/exif-2.jpg": "7ef5c828b224f519e5ad52316060f9ebb1420dced75b7f974165df2b0d57f87d",
+    "tests/data/images/exif-2.jpg.rgb": "6bbdb4d5e572ef58f0fc1d28a2afe796e7e00b50c280aa515fbcab16529e412c",
+    "tests/data/images/exif-3.jpg": "43906b42f0aa8bd6bba48dbba425e458b05138d1130ebebc487d6404e57f2658",
+    "tests/data/images/exif-3.jpg.rgb": "bbf4329df6186cbbd2c4e79fdf47984165a30df22a765d4d5bc8f6d3f56e4a42",
+    "tests/data/images/exif-4.jpg": "003a8027888f0ffc77ed1e515ee20caae4e3e195a92adfd5b317e3b9f74c1d13",
+    "tests/data/images/exif-4.jpg.rgb": "b428a1381788930e56a8275cd0c1c7be7611e1a4de46b97ecbe5bbe37b347025",
+    "tests/data/images/exif-5.jpg": "d9636f9af84b65b2a741ca2b665b0c9e0705b6fdb1c82a7ebfb8c4044c506726",
+    "tests/data/images/exif-5.jpg.rgb": "6a8552e367ff1652130dc2fc115721a63f44df949d226faacd7effbd7148eae2",
+    "tests/data/images/exif-6.jpg": "eefbb70795193f808def6795b91f17f09d7c014d60872bca9746563b0d44cf4f",
+    "tests/data/images/exif-6.jpg.rgb": "9c357d5dc51c39215af9d75d656341fbce7591d66da4e3344e3e09831b6d16ad",
+    "tests/data/images/exif-6.png": "8313afcd66d2ac6a617fccf57873ff00f643ad90c62c55a90e36cfa3db3aaeb8",
+    "tests/data/images/exif-6.png.rgb": "e27fdbad4a0f5377a402475225d818dba329d6966c931051fa553b8805083237",
+    "tests/data/images/exif-7.jpg": "659bc12d9619325afa2d714b4d3acb6e26aea3d5cb2ebb5075742faf89b48676",
+    "tests/data/images/exif-7.jpg.rgb": "8dffa5f556f9508a5d12a5ec446c69439b85351222c2bd8c020272935b17367c",
+    "tests/data/images/exif-8.jpg": "97813f045837b80d15dd70d9dd558eaa893b8b4caffa8da433b52cd8c2fee282",
+    "tests/data/images/exif-8.jpg.rgb": "b19c6e5bd49825c7dd9335e8a5ef960267c863919465597bdff9969a4fc5d939",
+    "tests/data/images/exif-9.jpg": "ba18f7ea8c4ac21c6729db38a4cc5ece642c9fa33f45a9c393ae3ec7b131b97d",
+    "tests/data/images/exif-9.jpg.rgb": "36e05526063ebbdaf7ffddd842d4f7cc22961a454d79f027497bb3e2f81b737c",
+    "tests/data/images/exif-after-idat-5.png": "427af208f81d6918a12274a38fafa61f582b74454dc7bed5edb1fc5a265a601e",
+    "tests/data/images/exif-after-idat-5.png.rgb": "073823d9e4f4cf594127e05ca6c36fe1b4a6c5341dcc0fce6542dc2618fb22a7",
+    "tests/data/images/exif-count2.jpg": "09aa0fabcca925adafa9704247f67454b65394f79db8f996d9996827a002293d",
+    "tests/data/images/exif-count2.jpg.rgb": "9c357d5dc51c39215af9d75d656341fbce7591d66da4e3344e3e09831b6d16ad",
+    "tests/data/images/exif-long-8.jpg": "2915737e95f2b666bd1635a1e277ea60c703e169c60c7ef0f9dbc05923880071",
+    "tests/data/images/exif-long-8.jpg.rgb": "b19c6e5bd49825c7dd9335e8a5ef960267c863919465597bdff9969a4fc5d939",
+    "tests/data/images/exif-mm-6.jpg": "eefbb70795193f808def6795b91f17f09d7c014d60872bca9746563b0d44cf4f",
+    "tests/data/images/exif-mm-6.jpg.rgb": "9c357d5dc51c39215af9d75d656341fbce7591d66da4e3344e3e09831b6d16ad",
+    "tests/data/images/gray-129x97.jpg": "4bff40e3faa62d3d5a42d804e7e285619eb09b01db988b2497584432cb272e83",
+    "tests/data/images/gray-16x16.jpg": "70ee6265462c0ddd44767bb654f2cf219bd93fcb87cee0bb25147848943e0271",
+    "tests/data/images/gray-16x16.jpg.rgb": "40befe52b6da275cc7e76b1a85d517a684e1772001cc3f655e3123e790e32934",
+    "tests/data/images/gray-17x15.jpg": "8ee27d7737e7f2bd7fd3cc357a5446f585351dab6318f15aa23fd93b41a4d1b3",
+    "tests/data/images/gray-17x15.jpg.rgb": "4ce95eb51c20a72028d0b557fff6393ddc11703c167bcd665a424b2ea9e16eaa",
+    "tests/data/images/gray-1x1.jpg": "4197f053d93c0b6f4e17c462bda15d06aee2790719d20461af31974115957b4d",
+    "tests/data/images/gray-1x1.jpg.rgb": "d60fba613b79950fb3514c0ab8ab56359779facdfa802f344d823490b0b515d9",
+    "tests/data/images/gray-2x2.jpg": "11f94039c618a7583bec41d8ec445450e0278e596289f73428bfa8066aee8817",
+    "tests/data/images/gray-2x2.jpg.rgb": "0c831ff0c2716570839b7078ae51311ce7dac56fa1782be806f8cba7b42dbaa3",
+    "tests/data/images/gray-300x200.jpg": "026006bd26e93a010a317007df9d379f6437407a8c110410c90a92fa00f63537",
+    "tests/data/images/gray-33x17.jpg": "fe7a604e20c95898e9cbd6c6fb0237f2b78e9f1ce4649618b5cacafb8c31277f",
+    "tests/data/images/gray-33x17.jpg.rgb": "d7403e736940223df068ceb5e3112e006f0cda97b857a721eef07d7aa859019e",
+    "tests/data/images/gray-3x2.jpg": "9c48a036a3f457945e5dd51c4ce3e5398af3f3612ea2bfb02a2aa17ce427ada0",
+    "tests/data/images/gray-3x2.jpg.rgb": "8494a23c60632a435ebd432c453b17faddf0abec4a3f905100f702d06f49fc3a",
+    "tests/data/images/gray-3x5.jpg": "4ca535babeedd10e2a872f16542e80cd89e1fa73f3be7cefedbb15e8fb5d5195",
+    "tests/data/images/gray-3x5.jpg.rgb": "c68c9c970f050ed827176114703cafbe992590e59c945b66bd804ed4a09ab120",
+    "tests/data/images/gray-5x3.jpg": "babe8638d8d5e66745263992ab212847fee36ef966b48a3b1b5be885dea4bdb9",
+    "tests/data/images/gray-5x3.jpg.rgb": "708b9da6e9c2f16a69ffcba64c351e293d92a840366681282011180f0ffc7c63",
+    "tests/data/images/gray-64x48.jpg": "c281a253191ce3918ba389abc88572d6d1fce4b36f600f869ff05f3d387c177f",
+    "tests/data/images/gray-64x48.jpg.rgb": "333b07d430f0722a41ba20ac15abd584ed6602a9357dfac6386577dd30e3385e",
+    "tests/data/images/gray-9x4.jpg": "e2f90d7ca21fb5f141761e8a28ba4499ea79436e8bbc5b4e48da5f5e41ba4a6b",
+    "tests/data/images/gray-9x4.jpg.rgb": "9a98a0de83f761cf6e512fec5976fcd639fffd09fbe0a163bb34ded86a1110dd",
+    "tests/data/images/gray-trns.png": "d1cf10151658a357a91c6aa0af73a87ee4b0d380dcaddbb297d3c694c6050a25",
+    "tests/data/images/gray-trns.png.rgb": "a14de43505a5741008402b49229fbdb4ad914890c9267147115f87dc723365aa",
+    "tests/data/images/gray1-17x9-i.png": "b4ad1cb495e80da167b9a9304811df8c83cadd2552624dc61fb93a936dd02ddf",
+    "tests/data/images/gray1-17x9-i.png.rgb": "02814bd0ab8edb29ba1f64bad528bbf0aeafceac0d67e181160cc9297add7aa9",
+    "tests/data/images/gray1-17x9.png": "d29df999ab3a7707d4a875c16a9de306213a40c2a8c165e42aed1df6c16c9870",
+    "tests/data/images/gray1-17x9.png.rgb": "9fc8df78f7156ea8f1ed11d1d6babb02f6890739979faf95c269da4f024c8660",
+    "tests/data/images/gray1-1x1-i.png": "5ad7ea395855424c343442964b3c69976d866e4d2778e65b1983a607d2027e68",
+    "tests/data/images/gray1-1x1-i.png.rgb": "5ae7e6a42304dc6e4176210b83c43024f99a0bce9a870c3b6d2c95fc8ebfb74c",
+    "tests/data/images/gray1-1x1.png": "b5bf8283afe82b5187d3adbac0b56d0c4db1f92439456f5da2020813e13e3157",
+    "tests/data/images/gray1-1x1.png.rgb": "5ae7e6a42304dc6e4176210b83c43024f99a0bce9a870c3b6d2c95fc8ebfb74c",
+    "tests/data/images/gray1-23x37-i.png": "cf602775d2d09d96c99c1432944bc4287db1853099acc4b126fa804790c05229",
+    "tests/data/images/gray1-23x37-i.png.rgb": "c5d81e01cec162836435469d8cfbf864271f4125a7d8152a5666cf3b3f6fe21f",
+    "tests/data/images/gray1-23x37.png": "d1dd8719f1af4ab70e03c90437e6c91987c66bc7e6bf529f867856f2753ef97d",
+    "tests/data/images/gray1-23x37.png.rgb": "f4550ee76945e5be1dd29d51a44e9a6ba6e14391f7e4e5e00b0e28d529399757",
+    "tests/data/images/gray1-2x3-i.png": "4f508502975aa81d5bbe8cdcde7a93a25be6eff0c786b37390d33ba0b584a99a",
+    "tests/data/images/gray1-2x3-i.png.rgb": "d97bcc9444087a0c506dbec9563dcfad2730115d0dde95d64b944d76b164d2a3",
+    "tests/data/images/gray1-2x3.png": "388629d2a664e90626d9ec444b56f13fb9647c8755c0f45ef589a0a52f8a2690",
+    "tests/data/images/gray1-2x3.png.rgb": "fa3323c8f38515e71c0c3fc56911c845ddf203d12c9a185c511ca0a44e3ad159",
+    "tests/data/images/gray2-17x9-i.png": "70c03185131812aa49f61d10e9facfb618b904c3e2c62c6ff0202994ddaad4a9",
+    "tests/data/images/gray2-17x9-i.png.rgb": "710127580426864d6816347300ed5b48aa65857798621958f10ae00b99f573ef",
+    "tests/data/images/gray2-17x9.png": "a6b26c82fa3de3cf975fd8f73930273a10e9cc2e4ccf5334ecf4669eb9f00aa9",
+    "tests/data/images/gray2-17x9.png.rgb": "85c810f2fcaaff035ba98f6e22dffbbc988618d041264c42aa49fd4db6b85d52",
+    "tests/data/images/gray2-1x1-i.png": "c73b708c810269ff3b2a0880b8e56592ed125ac84cdcd5ee671dad83f79593aa",
+    "tests/data/images/gray2-1x1-i.png.rgb": "5ae7e6a42304dc6e4176210b83c43024f99a0bce9a870c3b6d2c95fc8ebfb74c",
+    "tests/data/images/gray2-1x1.png": "3b8dd8891f2fa34d7ad95bdf083a0dfb94a0b106fc5864950699d92c187defc5",
+    "tests/data/images/gray2-1x1.png.rgb": "709e80c88487a2411e1ee4dfb9f22a861492d20c4765150c0c794abd70f8147c",
+    "tests/data/images/gray2-23x37-i.png": "479209836fa4a3307024477c1f390b6d95dc77d419e24049f1aa5e9bf365d486",
+    "tests/data/images/gray2-23x37-i.png.rgb": "cc21d478b4f7907470442e548bf4a86e68ec32099687cfc61165f8b5a54f19fd",
+    "tests/data/images/gray2-23x37.png": "f1762cace6e27ceb7c785ba26b15f598a3967fa8297cb123b7cc252ab12c8303",
+    "tests/data/images/gray2-23x37.png.rgb": "49e8cfe4da05bdd7941a0b12f582fecdf52584c1771492600939fd3a4c77ddaf",
+    "tests/data/images/gray2-2x3-i.png": "c6a4e10d422f30d5fa61c0439f48fcb759891080615866fa840349463f09ad6e",
+    "tests/data/images/gray2-2x3-i.png.rgb": "bca595dae267df232b8a0e6f40463cb50a3fea924ccbcd84e6f2479f4e0dec1d",
+    "tests/data/images/gray2-2x3.png": "05172e10ad7f6be3dc0a1e3a42542ad6fbb3fd39cd7ca1ef753cb8abe358a83a",
+    "tests/data/images/gray2-2x3.png.rgb": "d83b9d910b2139fcab6eab887f4d3449fc216097598f29ec8f506eda9786b5c0",
+    "tests/data/images/gray4-17x9-i.png": "6397f014992a064a6f54c0c84e99af0ffe71bff871e6bb34996e29ad2c8bd78d",
+    "tests/data/images/gray4-17x9-i.png.rgb": "ee427afdbe86759c2fbd60a98e466a01110d9f9b141ed183ef0a08ea6d7985b2",
+    "tests/data/images/gray4-17x9.png": "dc6e8ffce9cfdfe5e5e3fafc48401d92f3c8ffd4a058993322d4646f3939c3b0",
+    "tests/data/images/gray4-17x9.png.rgb": "8458c689203c2ee8905c24add4c4ea796a5b7c91689ce70c0e9e4058f7d24f7b",
+    "tests/data/images/gray4-1x1-i.png": "3ec665c531f8af2345de80c45cf13b7a51bd0142cb8234c56745cd3afb1b8c86",
+    "tests/data/images/gray4-1x1-i.png.rgb": "152555210b0a7746311018679660f7e30d1237a103019028e63a20e02b59f94c",
+    "tests/data/images/gray4-1x1.png": "b404d74b72c189fb3b617c2bed207e23d50e533d4b9f97232fb1f7f68c90d827",
+    "tests/data/images/gray4-1x1.png.rgb": "f284bdc3c1c9e24a494e285cb387c69510f28de51c15bb93179d9c7f28705398",
+    "tests/data/images/gray4-23x37-i.png": "c853af4291101bc4ba4e808d7a28d8faf29e9934ebc78429b53c007aea8ef77e",
+    "tests/data/images/gray4-23x37-i.png.rgb": "9aa4349bfba63a89741c4440eb5de9ec4a8a60802a529b1282d427b50c0cfe88",
+    "tests/data/images/gray4-23x37.png": "52f86e63140c13842f4780e265b22acd059ee078d3ae430ac59b3230f537bb0b",
+    "tests/data/images/gray4-23x37.png.rgb": "85117a5dbf9102a35e114b294f2ce9915d7e3199a825b89e2040da18bd9644c2",
+    "tests/data/images/gray4-2x3-i.png": "2eee01d0783b4ee8ff489f5e2901db1f69928e95789ea1e544a44a82d4059179",
+    "tests/data/images/gray4-2x3-i.png.rgb": "1477c125b4e786b7d07633aab894acc4732acddbe39c391f2a68b1cd8447c386",
+    "tests/data/images/gray4-2x3.png": "3a24e7b519ec891b87f95da19f5d6fc255a408f4448cfc986a48809b7941c1bd",
+    "tests/data/images/gray4-2x3.png.rgb": "bbe29cefde2f50bbb144b0e1c21880dd566a80a18344f35276d909a1754f6a79",
+    "tests/data/images/gray8-17x9-i.png": "f0548a41697ee184f52271d32f3c9333cc1633068001ea38e6593e4b11cfc219",
+    "tests/data/images/gray8-17x9-i.png.rgb": "f0e294714ae4aad3d42f694b6792c4b3f7b04c02f2c5917da581798030855fa7",
+    "tests/data/images/gray8-17x9.png": "b843bfdbeb491323990dc996840e01746eaca5e42bee7200f8dbd7592a5c633a",
+    "tests/data/images/gray8-17x9.png.rgb": "806595e6d80d46d1bf974a43976fefd0bdc597cceb5905fd302b1436189c3673",
+    "tests/data/images/gray8-1x1-i.png": "47630c3e1ead997cbcce0c96530a37c9d86a03835b7475320d00d2e077d4ec05",
+    "tests/data/images/gray8-1x1-i.png.rgb": "8ae40a3583aef6697d2c2eff57eb915ed0bda54aaa92812ad97982743ac06f37",
+    "tests/data/images/gray8-1x1.png": "2a7e853b0c82ccbcd702e82c16bf5b4d4ba29d69971ba15f6482ba880e897150",
+    "tests/data/images/gray8-1x1.png.rgb": "2cf2b04b1bae57d1fb472a2e73a6066ad6df8fe5dfd000336dead1b2f7627caa",
+    "tests/data/images/gray8-23x37-i.png": "64e1db2350577b45458546d88ba6fa11d1c0c39ecfbc1215bc6f29245e1f870f",
+    "tests/data/images/gray8-23x37-i.png.rgb": "e25b07032a75866f7badf9a3070a16a4df29dd2dc98a0b42893571d9aba0947f",
+    "tests/data/images/gray8-23x37.png": "c4a172faffa9da57fb2c850f5d6867d6e7342064515dd9be96c8673bc155f598",
+    "tests/data/images/gray8-23x37.png.rgb": "6043fffc089edf0a2928d89c16d3e9f25d4ac22a60a419cd655f958df075da35",
+    "tests/data/images/gray8-2x3-i.png": "368effc0c0ea1410ebc2050c504045913784f977cd96790af009321cd328f0a4",
+    "tests/data/images/gray8-2x3-i.png.rgb": "314b89d3277fdd3a6ab2395e7e3711bdebd9dce8b2a6b1bc736b4a127d6e6ddf",
+    "tests/data/images/gray8-2x3.png": "e19be1c73d364330021e389324c3f563c764299da5a0f0cef2ae0eaece46c00e",
+    "tests/data/images/gray8-2x3.png.rgb": "f1f88f33ea2565dde979514450412623cbb42acbc6901a5d3913b1d5ff7a408f",
+    "tests/data/images/graya-17x9-i.png": "be5b9d8bc44cc9d497b47f6e5762a879d82b9b5be9e84338bb20341d492558c7",
+    "tests/data/images/graya-17x9-i.png.rgb": "27ac1bd9ef979e1685fbb2b974f593371ca832a0f3ce0d9f37d4b004276f1257",
+    "tests/data/images/graya-17x9.png": "29c5a479ec223293e3f504c1ccc6451ceba64eeeee21fe0299cc5ea7603741fc",
+    "tests/data/images/graya-17x9.png.rgb": "27ac1bd9ef979e1685fbb2b974f593371ca832a0f3ce0d9f37d4b004276f1257",
+    "tests/data/images/graya-1x1-i.png": "68abefd9c715c5ea5f2ebbe2b51982775089aa603f14129e9ea4cb7bd4c96e1a",
+    "tests/data/images/graya-1x1-i.png.rgb": "01b9a11d616061dcf9e14453d98c71d4472dd48c78385773bbde01951736dfb7",
+    "tests/data/images/graya-1x1.png": "1ceb92523c5bc650eb8c27ec8a7b98ca2511f8f1e26d6123096eaf75c147159d",
+    "tests/data/images/graya-1x1.png.rgb": "01b9a11d616061dcf9e14453d98c71d4472dd48c78385773bbde01951736dfb7",
+    "tests/data/images/graya-23x37-i.png": "e1d117c1fbb024353a80ac5a1d2778ed81057e6b36bd1ae9c9c3e4668548703c",
+    "tests/data/images/graya-23x37-i.png.rgb": "55dbe5ea3395c3dae3fd2a4e0acf437173026c89e6209054b3ceb70cef41bc8d",
+    "tests/data/images/graya-23x37.png": "fe9d69c8e5761fd6686e3c23631d57a7d8c2c59176aaff8ac3848a2eb88a6343",
+    "tests/data/images/graya-23x37.png.rgb": "55dbe5ea3395c3dae3fd2a4e0acf437173026c89e6209054b3ceb70cef41bc8d",
+    "tests/data/images/graya-2x3-i.png": "27dd72394d448458cdbd6933a1ac79e273044b2ea2effb47fa2d0427e8d756ed",
+    "tests/data/images/graya-2x3-i.png.rgb": "5f8863c3662b8da6160876730df8e54807787598f5414f43598f687184b9209d",
+    "tests/data/images/graya-2x3.png": "8f31eaad7bc1c7fcf129c8613783c5466243716fff1f0465dc9a9038668b9fc9",
+    "tests/data/images/graya-2x3.png.rgb": "5f8863c3662b8da6160876730df8e54807787598f5414f43598f687184b9209d",
+    "tests/data/images/palette-trns.png": "66125f412c658f6a41ccc4369983b03f367884fe0fe1af53a3f2d36126a11365",
+    "tests/data/images/palette-trns.png.rgb": "8917c31124702999bff3bfe4cac9a357583673aa711a94bd8bda11ba9a0a6ef6",
+    "tests/data/images/palette1-17x9-i.png": "9451cc2a68cd34d9cada0dbe992da787d2e9dbebb0194f7b752338d14395a782",
+    "tests/data/images/palette1-17x9-i.png.rgb": "6ae2c50e3610366d7083789cf9412984a664f52c1e093f0cfbb271d7525e76db",
+    "tests/data/images/palette1-17x9.png": "32949bda7ab38588cfdf8237d35bccb56893338f1437d3d0ae9fef20bddf5cfd",
+    "tests/data/images/palette1-17x9.png.rgb": "4f5082ceb2fd89954b6703f2284a701023809faf3308909ed86b995fcfe49279",
+    "tests/data/images/palette1-1x1-i.png": "0677c630da033f75ca4d6ade1007a2602d13bc736022f8c7430fc82ed612d9a0",
+    "tests/data/images/palette1-1x1-i.png.rgb": "481f03f46e58a83ff75d88e6508c8ae61309e64bfed9ed3ee57c1e9e4be14981",
+    "tests/data/images/palette1-1x1.png": "9e60b2fcfafb0a5d02757d4aa9da8858cda0999aefca1a791aa5c83064abd81b",
+    "tests/data/images/palette1-1x1.png.rgb": "8ff3c47e447d36784d4bce341f372586080d0c276adef6e93c9a3baab95338e5",
+    "tests/data/images/palette1-23x37-i.png": "5814b24993c1d81eac67d8b9879a33bc074028fedf55427648f7e4e68fd204d8",
+    "tests/data/images/palette1-23x37-i.png.rgb": "487d11f1d27ecc655ff7310f28af50e3078505d72f88f203c0e9a6b6971e2a30",
+    "tests/data/images/palette1-23x37.png": "a314c0957154609ac9d45745a64cd105501188c329a92a4a2911ee84e11c4a41",
+    "tests/data/images/palette1-23x37.png.rgb": "1a4f4ef1323c1435b940f7d515f05f2f1395e2e76a1842c6e15e2e58ca154ad9",
+    "tests/data/images/palette1-2x3-i.png": "0608dd62b246eae5640d7041beb66f4463b7e71c18204343d66bb46d8e0eedc3",
+    "tests/data/images/palette1-2x3-i.png.rgb": "f604dbfbb2a95ec999ad6ae05752c89054fee0114806df3aaf37858d5c40423b",
+    "tests/data/images/palette1-2x3.png": "7f21e0d7757fa432913773a44d395f4b2d72cdfebae529096444f8ef1904bb40",
+    "tests/data/images/palette1-2x3.png.rgb": "7c192a1e5e7462eb534cb44d2ebe9c903c547ab51c9178addc03c191f74ea753",
+    "tests/data/images/palette2-17x9-i.png": "fa1c37191fe547887bb2a17bfe63e89858914161b504bc23251835e867b6d9a7",
+    "tests/data/images/palette2-17x9-i.png.rgb": "01e791bfa867b2ca50b8abb7134100252a74582798c76ffa9bbef21e4c3c2591",
+    "tests/data/images/palette2-17x9.png": "31f5567ab519f11d996b6e76c93746fdfc696e1dc69ee2b1814dd8134da643e6",
+    "tests/data/images/palette2-17x9.png.rgb": "dddb0610cfbd884ebe447675d79bc476a563a40c7fccaf8a9d5d0646f91154d8",
+    "tests/data/images/palette2-1x1-i.png": "24d49e20c855126eb1645f4a5b7d96ec46a6ec1471a286c4169bc02a215c6045",
+    "tests/data/images/palette2-1x1-i.png.rgb": "eae82a45ea3d2610534e56beba82de5955db441ac5f6354989b582d9b1593192",
+    "tests/data/images/palette2-1x1.png": "e96a4465939171ed5524ea30a55a47c55b3244116c2ce38daba2fec4634fff91",
+    "tests/data/images/palette2-1x1.png.rgb": "aafb7d33c382a0654480d3e7d1d285baf4da6758a38c0701af24ea9f1257bda9",
+    "tests/data/images/palette2-23x37-i.png": "1988ecb14d55cfdafd55a8fc8cd5cebf7e9aee59ee1cb2f603001a10fb4b23cf",
+    "tests/data/images/palette2-23x37-i.png.rgb": "2965cf70a0e10d9cecffe9a3f20d4b54dbe7eff0b1befad37c692d6ac71ed7b2",
+    "tests/data/images/palette2-23x37.png": "a6b44daf893ce5507a6303ea1422c38bf90ca00e3ecb2073604b59fef027b558",
+    "tests/data/images/palette2-23x37.png.rgb": "386559ea4d7450e3b6335f070bba4a4271c432f48704f29013e75297cde27d60",
+    "tests/data/images/palette2-2x3-i.png": "c26ec50045149771b8334df80cb4f403a00770211d47a447fdfb67c44db47c22",
+    "tests/data/images/palette2-2x3-i.png.rgb": "35312c220512d862445eeaeb1eda6d68fc44a61f42b08554d7c003e64c85d07b",
+    "tests/data/images/palette2-2x3.png": "2601c0cb71e7cf38cbfb4dc02040238d4599e9a20f9454992c86c2488415c1da",
+    "tests/data/images/palette2-2x3.png.rgb": "cb4137228f790d91a14216b158a97dcdb03a0c65459a3446f611dd45f2d74c6b",
+    "tests/data/images/palette4-17x9-i.png": "32d83b4cd2468d697b0603b06d66c4847375b98315f3524b1de93c8177521949",
+    "tests/data/images/palette4-17x9-i.png.rgb": "fb32dea786a5a6f7a1b8ca0c29969482ef1b85a4553cc0478a12f12af7ef541c",
+    "tests/data/images/palette4-17x9.png": "3ff7fc90dad5f6183edbe5faf4597149a082ac0529965061ecd67d5203b00e7c",
+    "tests/data/images/palette4-17x9.png.rgb": "0303a91e246f6953ed567aba7526e864a1e21fb56a66147567455eda7d3538f9",
+    "tests/data/images/palette4-1x1-i.png": "be794bee566443f84ac7ef2894d84a7d491fab1eee791f1cf1135d176ce822fa",
+    "tests/data/images/palette4-1x1-i.png.rgb": "5f1d63746b163956c9957387c79f09241fd4d8dfda5be814966fa6ed5dfabf68",
+    "tests/data/images/palette4-1x1.png": "e3eeeca656d1b2f25c9e53d56817bea6468c0aee9ff5d00a46f5459836cf0ec0",
+    "tests/data/images/palette4-1x1.png.rgb": "73cd4055c0935ac19f550bb7f86792dc194d8f0f63cef56fc9d4329b5ddb079b",
+    "tests/data/images/palette4-23x37-i.png": "f462d689cd1f66f6d7031f3d0622e1f90e12fa43b46161af7e38ecc66cea0061",
+    "tests/data/images/palette4-23x37-i.png.rgb": "e77ca85aefeac86ad43ed72157cf9f12c6207202e83be8529896b3fb1c1131fe",
+    "tests/data/images/palette4-23x37.png": "cd5bdf8dda7a626ae11d2e0103a797027ea5600f24f642d275136823c2f1d8e9",
+    "tests/data/images/palette4-23x37.png.rgb": "833bf48e816818810161454b5a7e7d4e5b61a534983d1273eff7cc288581e428",
+    "tests/data/images/palette4-2x3-i.png": "90bb862c5b1b7ea2dc60ee21aad685927d9e3214b59ebe38c3d66951d358f233",
+    "tests/data/images/palette4-2x3-i.png.rgb": "f183d73a8cc4e65f2d8f0e4be2cb6044b24810083e6ee0857f71adf854841af3",
+    "tests/data/images/palette4-2x3.png": "2e5e383aef2800803af5ac46bf36662b5643bbbfede77cb1c9fe4942e65d219d",
+    "tests/data/images/palette4-2x3.png.rgb": "074bcdb0b1cd439934d5f5e55a36a64113ae17153b6508cf6c2340a9324130f9",
+    "tests/data/images/palette8-17x9-i.png": "82182fe64f276ba8041b3f546bf939cf9b93aa2ddb62c12d0029f88a5abeccb8",
+    "tests/data/images/palette8-17x9-i.png.rgb": "c87236703f5c19965370d8d128802738109c662aafa580729709db94a21ea06f",
+    "tests/data/images/palette8-17x9.png": "5528760fa25793bbad5934ec8e35e2c356ff1ad15e1c1488e1d7b3782c5cc019",
+    "tests/data/images/palette8-17x9.png.rgb": "105f0a1e9b5415b82c3ea156a871116d6c3e9fd6d05ebb7506bc0496d5d72337",
+    "tests/data/images/palette8-1x1-i.png": "2555fa549832e4bf66cefbf97be916dea1d092b396e10a67781da2d55109740c",
+    "tests/data/images/palette8-1x1-i.png.rgb": "3d39f03b6baa3015757e5ed2127aafb1935e334f5c4d3770c446611f818c92c3",
+    "tests/data/images/palette8-1x1.png": "409309c22f623e6c8a9470cb521395191beb9479119262ea93e1e28d269a8fba",
+    "tests/data/images/palette8-1x1.png.rgb": "98af4828e5b0b324a7ddae5ed726b1c8e61fc513d5110a3b736046360b8920d8",
+    "tests/data/images/palette8-23x37-i.png": "700eb5dbaf7ab05edd508188e45050662fca5d802867b2b54188f3b8df158a40",
+    "tests/data/images/palette8-23x37-i.png.rgb": "5ccfd571a164ee1f4225e59271b1b2c82422f2f4b75171e76ecf781adcc950e7",
+    "tests/data/images/palette8-23x37.png": "d90c84960f3fb3d454206e6c91e1b42666df66a74f9ed8de51e6c313ded02099",
+    "tests/data/images/palette8-23x37.png.rgb": "f35951efe26b7bf3f2654b5eead3d6453fc58fc845df8201555d8e86d1e20f8d",
+    "tests/data/images/palette8-2x3-i.png": "c18b935b4c104f6aa8eb36152f06ba2d496a435bb5cd0ecab5aed604ccf64b9f",
+    "tests/data/images/palette8-2x3-i.png.rgb": "29836039dce06da9083d7e4188137b2e0efde8183b0a22035dd9cb983284596c",
+    "tests/data/images/palette8-2x3.png": "46f86b0caf43f0dee4117a2c15844fe1dc62e298c904c49d5b96a272da5aa36a",
+    "tests/data/images/palette8-2x3.png.rgb": "00020086cb5286bcc2a92821dbd2d98a19d6c7316a24133fb123ee17088d69cb",
+    "tests/data/images/photo-300x200.jpg": "e54e2cf4a3f84fc34e64b1625e6c4d28fed2e717328446517cce6d790a15d250",
+    "tests/data/images/photo-300x200.png": "c8fed0097bea4e0c0eb64afa9f3a3c6bab91fbbcf1e9c3749b5a1aae8262777d",
+    "tests/data/images/raw-profile-3.png": "0a1eb58892fc7187668a2eeb37b5795c9fc7e4bdc9023037e134381c4929c07e",
+    "tests/data/images/raw-profile-3.png.rgb": "0b1800defa4598b763d9361aca993f094aea5e8340b969da6bb3baec91e6d273",
+    "tests/data/images/raw-profile-z-7.png": "db7bd2de6f5d35d92d9e2fb67d6746d4ff328f65091ddd5fee6b155029cb7d83",
+    "tests/data/images/raw-profile-z-7.png.rgb": "2defc289248160090afdfa7de2ccc973781177638540a5e2bd66f8e515c50540",
+    "tests/data/images/refuse-12bit.jpg": "bb4eddd82f3d43eadcfca6b4ae020d0829908aa63037b058d45f4d9cdca008ae",
+    "tests/data/images/refuse-arith.jpg": "4c60d493ddf9b9c1cb56458d6ce60b4355c4d50db9705832ea2ffc283822a98d",
+    "tests/data/images/refuse-cmyk.jpg": "98ea994b8e2a8e31071adbd17b42501fc350af22afe2b5bd50f4572f12ab141c",
+    "tests/data/images/refuse-crc.png": "260478a0cc81abb8130a5d89a8f8a2e504783c24a6f0dfd7820b7e9b83f38815",
+    "tests/data/images/refuse-lossless.jpg": "c8d4af7dbcfe8fd8efdb6432cdeb36ee47365cf83fc5833b1938d1011159b936",
+    "tests/data/images/refuse-palette-index.png": "833a9cac74f74c6bc28372973db4718166cf16f5799d4017fad586523877b6eb",
+    "tests/data/images/refuse-rgb16.png": "faee4a7850e8fade2fe5e692ec40688893a5240781ae3959a8fd51d9494f6b39",
+    "tests/data/images/refuse-text.txt": "c04bee9d659201c6647cbc29f7c2e1556b8370c54f4a50a32d84ceab2fddf6cd",
+    "tests/data/images/refuse.gif": "ffba0a7176d920e87071345fc9ecf28897acd7afd4685bde3f76548e647c2640",
+    "tests/data/images/refuse.webp": "694a8ab3f6795f3dd3a9895eeb2be9ef45d8c907b5b36fa75e5b144dfa97abe3",
+    "tests/data/images/rgb-17x9-i.png": "a1e0a5fdc6a6ba1b39c7c8942800ee7a04d7b7b6c4977cc2b0212f244cd3794a",
+    "tests/data/images/rgb-17x9-i.png.rgb": "62451bafa4cbba0e0c6e348562069e617e29fe25241d56047f72ebeb2f8274af",
+    "tests/data/images/rgb-17x9.png": "4cc6125c24f481972cbaea9c1f44c670972f531a3b6c2cec1c7ecb40594b92de",
+    "tests/data/images/rgb-17x9.png.rgb": "62451bafa4cbba0e0c6e348562069e617e29fe25241d56047f72ebeb2f8274af",
+    "tests/data/images/rgb-1x1-i.png": "b246d5c67b55b37304f91a3b927b2cbebde9455722eacb63ad9b9b6c69adf670",
+    "tests/data/images/rgb-1x1-i.png.rgb": "c1d23ed1e6047129fd72a837331272d41058b49287ae17c15e2fb81cd7ed81df",
+    "tests/data/images/rgb-1x1.png": "d3bfad2dc3baf1414b5e5991d6db6b1f9c3553456fc74bb7adcc99b13ea11537",
+    "tests/data/images/rgb-1x1.png.rgb": "c1d23ed1e6047129fd72a837331272d41058b49287ae17c15e2fb81cd7ed81df",
+    "tests/data/images/rgb-23x37-i.png": "d91de1c880c08c8c9e7cf1511a7c3a3e9ac97592189d7325d4a754de5d1ba2bf",
+    "tests/data/images/rgb-23x37-i.png.rgb": "7752a767343d39befb2b8444c392b51fa9599878e4ed3fc367b55f4ede73ef56",
+    "tests/data/images/rgb-23x37.png": "f2ac6c59a7779728c8cd0690e314c3e5f22c9e0e3aaabb5049afbbc224d05122",
+    "tests/data/images/rgb-23x37.png.rgb": "7752a767343d39befb2b8444c392b51fa9599878e4ed3fc367b55f4ede73ef56",
+    "tests/data/images/rgb-2x3-i.png": "4b2a181b75144e377eca25a72fb45d7185d676163d68719cfef39ec767921556",
+    "tests/data/images/rgb-2x3-i.png.rgb": "d8ddd123d9d526ba626ec2fee92430c2b7d254fb778bbb8f7c44f712e0ba7238",
+    "tests/data/images/rgb-2x3.png": "3f3f79975c0c85290d0d197aaf9b96c4e2f09f3ecfdbce87198269d14d136ac6",
+    "tests/data/images/rgb-2x3.png.rgb": "d8ddd123d9d526ba626ec2fee92430c2b7d254fb778bbb8f7c44f712e0ba7238",
+    "tests/data/images/rgb-adobe.jpg": "8b897a2bba64b3813b2806d5c1634cb01da01727e7f571c8161e21baccd846e4",
+    "tests/data/images/rgb-adobe.jpg.rgb": "850b49938dfe8cd8965fd9755d46e1741539afb3c57ce13e8ae07d102e6c5ea2",
+    "tests/data/images/rgb-many-idat.png": "b513b8e8812fa4a492bd1e81159bf1b7c16c1eb3b73d794b22fc31a00da97690",
+    "tests/data/images/rgb-many-idat.png.rgb": "b1d2469fc81ffe3d5bdc8c225bc2826137aed6ef4ccac58acdb5b2f5f982dfc3",
+    "tests/data/images/rgba-17x9-i.png": "937d409c8c1e614f3718b1cd6c20e9782425ca90c364a9c23f5ff058f1739ce2",
+    "tests/data/images/rgba-17x9-i.png.rgb": "62451bafa4cbba0e0c6e348562069e617e29fe25241d56047f72ebeb2f8274af",
+    "tests/data/images/rgba-17x9.png": "42d4ef7e424d5b3a863cc7a967252f0b3f30a953ec662629fd59cfbcafbdc478",
+    "tests/data/images/rgba-17x9.png.rgb": "62451bafa4cbba0e0c6e348562069e617e29fe25241d56047f72ebeb2f8274af",
+    "tests/data/images/rgba-1x1-i.png": "42d071b5622a40ee02e85d0910c83953dbd2073f9dcccb970f62e3cc2891792f",
+    "tests/data/images/rgba-1x1-i.png.rgb": "c1d23ed1e6047129fd72a837331272d41058b49287ae17c15e2fb81cd7ed81df",
+    "tests/data/images/rgba-1x1.png": "8eba77a4e8b23695ce2ac08ab3869663d54f1b8a7d576628083c1d04e6ad20bb",
+    "tests/data/images/rgba-1x1.png.rgb": "c1d23ed1e6047129fd72a837331272d41058b49287ae17c15e2fb81cd7ed81df",
+    "tests/data/images/rgba-23x37-i.png": "84fcf5579088fdf5d219cc332563506cb77a2edca496c200e4587ea5f8dfdc24",
+    "tests/data/images/rgba-23x37-i.png.rgb": "7752a767343d39befb2b8444c392b51fa9599878e4ed3fc367b55f4ede73ef56",
+    "tests/data/images/rgba-23x37.png": "797678e18d4b363857f7189ec57178621de71b057b595155aa51232c5ac382dc",
+    "tests/data/images/rgba-23x37.png.rgb": "7752a767343d39befb2b8444c392b51fa9599878e4ed3fc367b55f4ede73ef56",
+    "tests/data/images/rgba-2x3-i.png": "b6865f3d710170a126b279f8b9143847e101f1bf54601e4ee63d1a10bec55b82",
+    "tests/data/images/rgba-2x3-i.png.rgb": "d8ddd123d9d526ba626ec2fee92430c2b7d254fb778bbb8f7c44f712e0ba7238",
+    "tests/data/images/rgba-2x3.png": "5aaaf19655b02fca55e70a96f689196ff7ccac433fae54061ba4a10df47cd425",
+    "tests/data/images/rgba-2x3.png.rgb": "d8ddd123d9d526ba626ec2fee92430c2b7d254fb778bbb8f7c44f712e0ba7238",
+    "tests/data/images/text-exif-2.png": "9ec6143768cb33cf86a71eca7b31a31324cba5a34e7587df9f401f48732f692a",
+    "tests/data/images/text-exif-2.png.rgb": "06467052b70c445e4cbe17924906d652a18caa4b58a4e7e62d60805dfa9e4375",
+    "tests/data/images/xmp-5.jpg": "b576842da0588e2821478aabc1ff4421c5f14237ec5a95eb49209f2cb9af1aaf",
+    "tests/data/images/xmp-5.jpg.rgb": "6a8552e367ff1652130dc2fc115721a63f44df949d226faacd7effbd7148eae2",
+    "tests/data/images/xmp-8.png": "ba6c1cd0a8b56ce6ea6229f26452c89a596099f8026b3d9079426e13e25f84b8",
+    "tests/data/images/xmp-8.png.rgb": "e79eba76c44fb8abab7bc6a98f957388883e755a70f01cb00c06f75e2bf35d4e",
+    "tests/data/images/xmp-attr-close-7.jpg": "6d25872accc5e918f1d8fc3b35ca515ec933f72b68104305c1d3e80958384e29",
+    "tests/data/images/xmp-attr-close-7.jpg.rgb": "8dffa5f556f9508a5d12a5ec446c69439b85351222c2bd8c020272935b17367c",
+    "tests/data/images/xmp-z-6.png": "36ce73a7cb4e9f9882aba2f8ff0e4e3d14aac5c2a6cc1dee7d55ef84d94e4a71",
+    "tests/data/images/xmp-z-6.png.rgb": "e27fdbad4a0f5377a402475225d818dba329d6966c931051fa553b8805083237",
+    "tests/data/iq4-nl-file-exact/baseline_logits.json": "b1bc376d57d9c717766aaff973149008eb7c8bce7c13d90f958f816bf258374a",
+    "tests/data/iq4-nl-file-exact/baseline_perplexity.json": "c1f9b8d2c2c97dc5e4350b8b3650c0ebdd7a98db257fc97cbf3f5f32d189a59c",
+    "tests/data/iq4-xs-file-exact/baseline_logits.json": "e2c93baee47dcd34af7c0f1e15147b82a060f1018d866432abc5f60389371577",
+    "tests/data/iq4-xs-file-exact/baseline_perplexity.json": "122a5d042a7e3dba19ed89242055725bec7bbc66fe66df42b44bdd1e741433e3",
+    "tests/data/known_findings.txt": "91cbf6fc806f2860324b333b515453ccc8b6f8f0593b9d314620222953a8af9d",
+    "tests/data/layered_equality.json": "8eb8653d487887adbc0fb484a5db9ec1222d4df78e01efdb3c814a37b52bd416",
+    "tests/data/layered_equality_qwen3.6-35b-a3b.json": "a2dec89a8847cb03bb1fc622837e3f58ea7c91550cb28d23451efb32caabc93a",
+    "tests/data/model_refusals.txt": "ae2758578e42d6e06bb4c288e39a412167d46f19401b33722e359b88e99d1199",
+    "tests/data/mxfp4-8b-file-exact/baseline_logits.json": "46e49605cbcaf3a2cebc78c4a0a5ef8c0499f20f1f1d22e34644df03e3b7ab4c",
+    "tests/data/mxfp4-8b-file-exact/baseline_perplexity.json": "b26745bc1c23e0f83b903a0f282da83cbe3dfdd210d20656e6184f5b4ae8f933",
+    "tests/data/mxfp4-file-exact/baseline_logits.json": "91c4e641885048836dec14018294b0b57a64ff99daafc34f70821f5a015329a7",
+    "tests/data/mxfp4-file-exact/baseline_perplexity.json": "11f4e48274c0d1394e3d6d64fd5eb8194011267d14b8c74c9865b3593a7e5000",
+    "tests/data/q5-1-file-exact/baseline_logits.json": "3054e14f93f59ec2efaaf703f877a57e57a8975970cdbaf115ee165aec0d9b82",
+    "tests/data/q5-1-file-exact/baseline_perplexity.json": "b4eb5bad24741c3481bc4d8771dc0a3c7047b952b3652ca36bd9e6dc7c8e2587",
+    "tests/data/qwen3-8b/baseline_logits.json": "e3eb726e06ff3bd9d5ecd69712c324a9842ccd58ec33fda4bb19dc4476f9680e",
+    "tests/data/qwen3-8b/baseline_perplexity.json": "c6e84d0d0661e07b285c7882ac0dd9d128dd45ad7215c2d83a345f3e84f71178",
+    "tests/data/qwen3-8b/baseline_tokenizer.json": "9f8cdedcd91e89e388ac6081c6e496ea7e2f95d2565664cc5117144e29b1fe2a",
+    "tests/data/qwen3.5-9b/baseline_logits.json": "02b8adba52a6fb354cd04a2e9c6b382c0d480922ced82243c1ffa15b3fc16903",
+    "tests/data/qwen3.5-9b/baseline_perplexity.json": "3f084ab54634182dfcdd441c42eed0ea7d3369e2c7a9747af168c1aa512a2f5f",
+    "tests/data/qwen3.5-9b/baseline_tokenizer.json": "ac9f09c19163e902b0b86fe73e9b24c8a0a762ee6e4bcd210f168156276bb983",
+    "tests/data/qwen3.6-27b/baseline_logits.json": "6715db5e42b2ae7386de25ec6a1b7c8fe3b9c658f6ea78afb464fdd060424ea7",
+    "tests/data/qwen3.6-27b/baseline_perplexity.json": "c014a20c804d68f3e68824df6d34ffff8e90ec66e3b62ff99fab4be59267aa36",
+    "tests/data/qwen3.6-27b/baseline_tokenizer.json": "25d59bac8e2fb151278664c66d1b5ebb42510cd735ca163920ced24096481689",
+    "tests/data/qwen3.6-35b-a3b-file-exact/baseline_logits.json": "6f8d22bdecba25f5fa1b5f98a68a6a8339f0ddcc7c1882bba1ccb5f126989a4a",
+    "tests/data/qwen3.6-35b-a3b-file-exact/baseline_perplexity.json": "d1d7d354d86e165898a905c1e5a048c747edae3a064052083250aab0b9ce92e0",
+    "tests/data/qwen3.6-35b-a3b/baseline_logits.json": "6ad2c1e0a28e2581adb8d8fda403b55bcf70e4f44ac23f4379fa122ffac9dbdf",
+    "tests/data/qwen3.6-35b-a3b/baseline_perplexity.json": "8ae6351740ea5f9ff0f456c1484486891ac519c24647695c5fff28cb1d054d0d",
+    "tests/data/qwen3.6-35b-a3b/baseline_tokenizer.json": "87a914328a35491d7d42b6794a346543f77c37ea57564313147a127e6efc7cdd",
+    "tests/data/qwen35-0.8b-q4_k_m-file-exact/baseline_logits.json": "28535cbbebbcf561e90a7e92ae57edacaae479d29a5e14d4d7fc4b8ac8014720",
+    "tests/data/qwen35-0.8b-q4_k_m-file-exact/baseline_perplexity.json": "d723cbe8fc1a2eff5cac8b81d35dd0fa03ffeda182ceaf86b2fa82e38c9aafa7",
+    "tests/data/qwen35-0.8b/baseline_chat.json": "9d0c6903633934efcc260ae38de4185f99c10824801957b11efa4fbd6acba3b1",
+    "tests/data/qwen35-0.8b/baseline_logits.json": "faa5d386b9eb0842e3f01f442fdd5478a744026d5606e6cff11f302a9ec3525b",
+    "tests/data/qwen35-0.8b/baseline_perplexity.json": "42c5ef92ec3da19b8ef67b81aa5cfafd55b7c9a9413a76c4e65df9a57d8e98f4",
+    "tests/data/qwen35-0.8b/baseline_perplexity_4096.json": "6c8bd8601709199c5ddde46d637ece9242efe03222a403a808ab0dca0a6c789a",
+    "tests/data/qwen35-4b/baseline_chat.json": "0fc52ab64ddb855c00bd441a702d91d7fb2c40bcafa6320636baf21740f5bab8",
+    "tests/data/qwen35-4b/baseline_logits.json": "2a2fbb27a70a6344835e751432bcc5a47aae73e542cb1e11562de09a4ef7d361",
+    "tests/data/qwen35-4b/baseline_perplexity.json": "bea1ad500f60333c546c328523efb0d9edf24deb7d8f99decb1b6e67e3359cbb",
+    "tests/data/qwen35-4b/baseline_perplexity_4096.json": "e19d2510d6acccb10fb292c530899e47843d7caff97915e1a93cb9d544af01e4",
+    "tests/data/qwen35_4b_dt_bias.json": "13e78d0db777dac7dd7943629a396992923ad214437ab3c58a30d43bc50c13e7",
+    "tests/data/qwen4exp_reference.json": "572a66daedd97a3795f824cc0c038b08f2ad1595bab3fc6b1dba1c42d5ba10a2",
+    "tests/data/vision/.gitattributes": "51f71b1b0c1ab0b29825b4666008cdeb043cdd15ad18f95356f81fbb2ea9b4c9",
+    "tests/data/vision/d312c4d02fd4-photo-300x200-12288.f32": "ffad25608c7354d44d6b182d0c9fabaca15b34a81c006ceff5447dd1b6a3f3d7",
+    "tests/data/vision/d312c4d02fd4-photo-300x200.f32": "2827f5444736a884ce7fe44a36b19ee28eefcab3e43edc1fe5fa42d85671c052",
+    "tests/data/vision/d312c4d02fd4-rgb-23x37.f32": "00c34ac032e43455c487962a7834483b6a7959d042050d004c8aa6c314e71eda",
+    "tests/data/vision/file_exact_d312c4d02fd4.json": "3e6a51c3d179f0513f893bfe571d1c720f3aa1e6de031b374ca306dd77798be8",
+    "tests/data/vision/tiny-mmproj-image.gguf": "a8c67e98d396e45e3312c5514b0ae22ced7519b5169810249a982c9f7f250c3b",
+    "tests/data/vision/tiny-mmproj-qwen4exp.gguf": "0d359feae8b7244eaf33150bbe7c91b92ecc9420fff668271e72d04461d824ea",
+    "tests/data/vision/tiny-mmproj.gguf": "9f5774f63fb5ee92067952f4714665cf01aaad38e38b223bd2054e44eaacd1d6",
+    "tests/data/vision/tiny-qwen4exp-image.gguf": "00460b0a875cba592e33188b88b9b8649cf9187ea0d87f343cb0b1c5f3066b74",
+    "tests/data/wiki.test.raw": "bbf94c53a05abe9ee670d3b6343608095822c85e26de37c70b24fc571964574a",
+    "tests/dead_code.py": "18ef5e227e91f75c8c774e79511af3afd88456720222ebd0a8ad932d45ab3ea0",
+    "tests/decode_probe.py": "ccbf3f73df1471c3461227c8dd003f00448f398512f37e37e6be53342ccadb84",
+    "tests/device_reference.py": "4bbafb23c4e32c5260a0b0204aab2e1dfdca5bf00bbdb75c17618f7bdca48bbc",
+    "tests/dilated_conv.cpp": "22b1cf7ec30b9212344292baf9df287a0477895380ec582f4af2457cd066da67",
+    "tests/disk_index.cpp": "f3a87501c32c39c91627520f7c88f16ade4f5762665ed8eb4d8345ec0372ebb1",
+    "tests/disk_store.cpp": "32c6e94888070cea99c1ee6ec04c1809ce708c01a8b1517e312707e5665cdee5",
+    "tests/docs_check.py": "f0c5dfd9e6795d30da4ba6e3e2250dafa4fdb9096a732d7ffd139060598409c7",
+    "tests/drafters.py": "a1965887c5a24883cd399e8b9d5521eb66f71098209ffdb1c5d14654de00f53c",
+    "tests/dtype.cpp": "fb766bae11ac031b9839a047f870cc963efc9c6da5b9b5b15f3c4ee606c99a2b",
+    "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+    "tests/fetch_models.py": "4cdd58632fb03d9d3dfa20fd32a403cbce5e21cf44440289056391f7018c7edd",
+    "tests/file_reader.cpp": "d886fb8f94df0da998df762a910863ad8c0436bd21e662c656ab2cc99bbfd389",
+    "tests/format_output.cpp": "4c8cccda7e6f544f8141f60422a2727ef441221cbf6209c4e1d02b4bb48bfd0c",
+    "tests/fp16.cpp": "e6ff8dfcb2cba54f2b3abf5608d369ed55afb71c78423068c8bca3a45968acda",
+    "tests/fused_dot_overflow.cpp": "22ba9c787f9229ebcf549030ca5893bbfd91c9a774703def4ad1d727b372f156",
+    "tests/generation_stream.cpp": "10b0361c96ee3b76c28bbd383afce3b10ecd185dc59f08b4fb45a50062002c88",
+    "tests/gguf_shards.cpp": "26826fc50a1a8f0da61a14bae32dbc9e470bb63aa3e4b356fe110bf77fdfc045",
+    "tests/gguf_validation.cpp": "b476ecd94e38e6c613b2a04825e43de2ee755b23d08aadb8e0bb81bd5035b85e",
+    "tests/half_weights.cpp": "c8d0e069008978f38d0d91112ae443e0651a01363dd6c044b5d456ca3be78f72",
+    "tests/half_weights.py": "a79b37f5395cc89479e9c78d0a33da38b0440c42e7ef92fe3e8bb990a4c1f1f2",
+    "tests/host_memory.cpp": "d6599c77aa5e4fddbb2a1dee0ec282d66eb853ec692ab23cad00e99c0d9d5334",
+    "tests/http.cpp": "1151260dc9d69572c430dab5eb09774d8f60d123b03a9a78bba96975a2f8614b",
+    "tests/hub_manifest.cpp": "592fba4741208090d80420b5244c7c57209f6245bdf99cb64ab59c698222ba99",
+    "tests/hub_pull.cpp": "9dd62f853ea770c091cfe5ad0ffb926625e44b364406aa8e0d289add6e230679",
+    "tests/hub_transport.cpp": "e1f773896bd692157bb0ca409528ac5eeff88c0ca125678535ef09034dec8f5b",
+    "tests/image.py": "9beffcb923fcbea578c52402e3d3b6a021b132f5ee6013cdc2dc4f7ba4cbb2c0",
+    "tests/image_cache.cpp": "4536a780d4ac0a96c15e8e66bfc9432b2f2842a651261da4f83b166076ea6e1c",
+    "tests/image_decode.cpp": "3ca67dbd56adbc9b5bfd52194f1df899fb0279c4d2fd00c7e8be04ef8f7f2772",
+    "tests/image_prompt.cpp": "99d793fcbdd82b13941b4b495f24dd2f82d8269de02c61be50e1a855077f3381",
+    "tests/int8.py": "b567f812966fc9cb630f4b0c57aead0a8d09837c6070b265e84dabdf352eed61",
+    "tests/iq1.cpp": "4026a88bc42402f47e54addc3892ed0782d656661c70fd435a92e0c379cece44",
+    "tests/iq1.py": "b83b6877f24ae03ae360867241d1a76e9a93c57f263918889dbcd84dc7b3b6de",
+    "tests/iq1_grid.inc": "a66a29b27eba07c3d531d46cef52ba63e9179617532af464c65b7df8f9b9a276",
+    "tests/iq2_s.cpp": "08484ea4f4e6ea21ab607e837b3066e387946c5764802a017b2f47e56e10452a",
+    "tests/iq2_s.py": "41a2e5529565d624c370df67a27a9bd81bfade3b9057b35f555ffe75fd9442d4",
+    "tests/iq2_small.cpp": "cb96ca4adf873e43185c0684f50a3635b02390f0fab694360c0d13fd494fcae0",
+    "tests/iq2_small.py": "1ceb48eb65c54ef9141dc8058b765011901b9fc6a0fe9482f8d3a5cd82feb4c8",
+    "tests/iq3_s.cpp": "3cbacd7f59e49acb88d0f11330a809f4142ec00afe4dd924a81beeabbe0ecffb",
+    "tests/iq3_s.py": "0bbe43a2a6bddb4d250ee7bbf69c036ffc0f476365cba2f52b5d04257ee20495",
+    "tests/iq3_xxs.cpp": "d33cfb1bbdb1a9b5189c7ab0ef808ba2560407a459ded7c5746b90e3f401bb1f",
+    "tests/iq3_xxs.py": "66624ce838dcd9b081b25bbc3e2e800403fdb5a8c43c273f483385a271442964",
+    "tests/iq4_nl.cpp": "e3ab179db7f5ec7199436ce36d345e880d620775ae809e97a44c6bdf40924528",
+    "tests/iq4_nl.py": "89cb20f2795d895f58c3080ac05ec323f6ecced963e82d5a8b6e3bbe7b3f2a38",
+    "tests/iq4_nl_vulkan.cpp": "94ea9665267dfa1eb082dd1d9fab8b6deb910db0654a94c535464ab25bb2df9a",
+    "tests/iq4_xs.py": "e25abc0fb6f61bcfb9b9d13b2732515b15d3caca67e6c7f577f95d8a6a359c90",
+    "tests/job_threads.cpp": "002ba976e86b23b454ef500e62ca22f8e209da238d8b5230624b888a4c15423b",
+    "tests/json.cpp": "f49afc51f03ed3885902663a598950098c6c33d5b92cfc2bd6bffdc23ef211d1",
+    "tests/kv_auxiliary.cpp": "3704fb78be51cc7b6ff4006cd90df705b4ba38f5539e03693e5b297c4e59c391",
+    "tests/kv_cache.cpp": "4a717985b24c927438a1e8214e2038d46a7739d8b59b7be537ca9f5e868e7f67",
+    "tests/kv_selection.cpp": "fee3baf0ee275a60d1b1a0b62a2ab57870ed53a29f6fab04b1df167214d0542a",
+    "tests/layered_moe_reference.py": "e8675c8dd81a7dead38ce243d07636860a934ff37d09775a075a12fbec22b9fe",
+    "tests/load_progress.cpp": "e4388262feeb80c8b1de5aca7b480b1e381383038fb0338d4001c206ce0bf771",
+    "tests/loading_backend.hpp": "b421590255be7a26c0de2c01b816a757793a3536929b423ece4419a344a6eab4",
+    "tests/logprobs.cpp": "118ce826ac86b88b480d111400f7bc6b83d38c36fdd41bff3ba28b70afdaf0bc",
+    "tests/matrix_precision.hpp": "e7fe6c83331433b62701ba25896efa66c7c55592fc6b8ff18e197fcee08d4508",
+    "tests/model_validation.cpp": "910399ca84bf6328333493fd4d6abfe718ca157b05b642a75ba4e1afeae5b347",
+    "tests/model_weight_scales.cpp": "ae434afb57ff1e06d27a043a385aaeeaaf7c579b98139abd1cd8c90cc64367c9",
+    "tests/moe.py": "b84b40727fab61812247080ad7367c437eee6f911d49ef3949d0c7eae133505a",
+    "tests/moe_step.hpp": "3c69bd05724957eb803a3f50a68edecebb08725f57589703311339e9167efef9",
+    "tests/mxfp4.cpp": "f4046bb9fc2fefa0f9fb02701b30be5811f70443cbe83bf4cba3a98490900511",
+    "tests/mxfp4.py": "0cc2ad7ab529ff138543095b88ff5a029727bc11295ca2ff482a1a254b47ef78",
+    "tests/mxfp4_prompt.hpp": "79c838f9a6597a79b099cf90394c2fb36e0039a077b1c2f464040e4c46ec8f29",
+    "tests/mxfp4_vulkan.cpp": "06e5e7eda9887d2310c798a05632a6bf67cccce64d4cfbf6ac656c7cf9db7f8f",
+    "tests/nvfp4.cpp": "8f2bdc4af174582b027dbcf4c85a1542f001bddde5408af133fb4d2ce1317d89",
+    "tests/nvfp4.py": "4e427afaa5f6d52d744cc3aba9d6247b2730265c4249e3cd9d79aa13953171fe",
+    "tests/perf.py": "8ff27eda43f291df808cb5d3bd3b08ca922407d3e98066a983997968cfcf24a0",
+    "tests/perplexity.py": "b5b108cc3b3de87492cb7006bc01d7c7d98487ff7a871f63655e5b6764638a6b",
+    "tests/placement.cpp": "b2ae7792596d63cd1be92f86d72fe3cfd80925dd3520e2edd8ab51644de68e94",
+    "tests/prefill_placement.cpp": "a8c63d830c885d10077ff30b90531ed8eaeb3d2d1898ebaf789846812bea1638",
+    "tests/prefill_scope.cpp": "9ed6713ebb698df054327ab9ccef599854f66304f7da0de9d4bc0f0d8f9a796a",
+    "tests/q2_k.cpp": "d18cc822906f4fb4f31994089bd5f8d6c60e993c5befbd429002599308cdf713",
+    "tests/q2_k.py": "025386616b1aa5d8b55b70799d5474706707537444a8184ebbb2a8e9767aaa62",
+    "tests/q3_k.cpp": "05b8c8ec3e33b96e2013462d37f7202a445585357d50422f9f6a1a536e07aecd",
+    "tests/q3_k.py": "9edb5e04802e3069032375e33590510bab18facea77e66c0da170859f9015d8e",
+    "tests/q5_0.cpp": "27b03194316a6be84366363cab40d4b545c7f70c63f347359bf105b80d5b2607",
+    "tests/q5_0.py": "6fe47cbd4ada889d88af5a8c590f5480afa3500ca302785fa77874dcef612ecc",
+    "tests/q5_1.py": "1342068f5c95f73a0b8b0dd2a23a9e86b17a5811acb2ca642c5f5a3e2e762b83",
+    "tests/q8_dots.cpp": "1c45118d08323fe458dc55cd7eb1db806935016b9f892185812344b141530513",
+    "tests/quantize_range.cpp": "722c8b355e5da368d7d678d66a06b3c2b3c0e145d3314446f884099d38e5bb1f",
+    "tests/quantizers.hpp": "1918a1cbe43e71bd242db545714232b8709b5011d9c7100a8d81b7a06b8d67dd",
+    "tests/qwen35.py": "d29849d61aca395f142a361e0ba5143b872e3e9c3d3d638073f8a4b458da73bc",
+    "tests/qwen35_ops.cpp": "142b04857ce89f39ae3a908f22da90432eb81e4f386e9d061e0669096da91a47",
+    "tests/qwen4exp.py": "458b2104e189e88f63f7ad7f292cf0dbd476771cb46114aa6f0eda95d3b1647c",
+    "tests/qwen4exp_fixture.py": "288f754c40a895c2d8a8bff5f54480aa02d5344c89edee139989f4a81ab9e9a6",
+    "tests/qwen4exp_graph.cpp": "e5aa755af6db5d6120b6497b067b8b27e41b832d3020244ccb38b89dc122b4f5",
+    "tests/qwen4exp_model.cpp": "37f7208be9236d491df4ed2aa51a5736403ed59770a767da4af7c99b05855e54",
+    "tests/qwen4exp_mtp.cpp": "59b1ffa4bc2bc4c16b092244aaa1bf823ee866bd5fd8fd7d2a60f95ea236ffb4",
+    "tests/qwen4exp_mtp_fixture.hpp": "7e0519f46460ad28845ef901d39037a8bd1a632a83ca8581534794dbb0ecd236",
+    "tests/raw_blocks.py": "d249470294994b24bf93ad60f3b447261490408f2c2ba91898a330b1933ba724",
+    "tests/reference_consumer.py": "81fdb13259196d911e8a9208ee60474920ed5807893de1056a10f2f9f399fc13",
+    "tests/reference_generator.py": "93522ad0dc4621c32b2539e57347fd55feeace56c50661b94122635ddea6397c",
+    "tests/reference_qwen4exp.py": "0199550dbbbe35cd119b7751e5dbe1a7d6bf4f3449781dbe242589ec22a57ce9",
+    "tests/reference_qwen4exp_file.py": "9a4de95efb27a41fe49c7b47ab0e2f945f14e661ae996e19f7c228933945f361",
+    "tests/roundtrip.py": "e8e5ac483cdc86aa741a8f9075394ad554939bd9dc23f75e1a51bbeddaceb03f",
+    "tests/row_classes.hpp": "c8dc26383084304a3bc95669f519108918ad42c1e7e93a5a9b42a80bbd225bc2",
+    "tests/run_tests.py": "a4d4419bba45112b1b3c11b1998706005bb57dbd12a0959743c688de9f288c77",
+    "tests/sampler.cpp": "20350e4de344db1ed431ae5c27ae350e71ed4626e78a8b37a12f98697e829939",
+    "tests/server.py": "abd6f276e0f097df65434b51e6c77256db905847b3b7a3816e02899839db6607",
+    "tests/server_harness.hpp": "707c905ce9a3f1fec4ced377a5e1ef67a01f8efd8a1d6355d91a8b61115360d1",
+    "tests/server_load_tool.py": "8b8348b2088f6ec87cbe27fb125c4c60d0dcaff2a98fd167408f135b10cd86fe",
+    "tests/server_mix_tool.py": "2ef96e90e685032d99cc4476310c59a0d0b5524fef34f71886db50911382d4de",
+    "tests/server_passes.cpp": "a68b5c0305359726800556db14dd0ecbf5cf60f8638b2b44cca3546056bd3dcf",
+    "tests/server_passes_cpu.cpp": "0078b19cfb0f4353b069e4f746a647566c44e6de22688098337c1500dc6eb7eb",
+    "tests/server_resume.cpp": "763a5f7fc4b241a3d1846dd2fef6bbbc7e9fbaf2e2b0177dd0f614cc883e0614",
+    "tests/server_spec.cpp": "d24869f536975d20c7e6c6a2fc93f32d3d39627bf972284442c50867d138f9dd",
+    "tests/server_utf8.cpp": "4379c51cac739433f209c87227c84ad80dca5d9bec4d571fd9c15db495a9f09d",
+    "tests/shard.cpp": "faa1aefcfda3f064a0dd70f7f8673e7738bf5a26db742f6c167a21b1a6b3ba16",
+    "tests/shards.py": "b84f52d86f9c81ef672842ad6ec7a6e332b152e915665f9d4cb56930167ac111",
+    "tests/sparse_attention.cpp": "b105d779cd9651075f77946dcab4c8b1c96c2176dae6d43c24c4609b27117959",
+    "tests/spec.cpp": "ef0d1f45172e1abef6ec305a65ec218a09897028b438d05a36408aad9975dbc0",
+    "tests/spec_decode.py": "345adaa34ecd36d2252f75bc034ff2fa304fb7ac3c9cfac4a661801d09325328",
+    "tests/split.py": "3a8816c0055af24c30f381dda8ac332cc41a3b6f81b0d80ff92346d4cedcf4bd",
+    "tests/stream_ops.cpp": "203a644c084dd1cb444bf2ee2c1b3a526cef30cf4a10196706677fc07a8146db",
+    "tests/tensor_split.py": "fe8b6667ee53e373894ddfde25c81e55742217c75fd0583f6137964abeb06ffb",
+    "tests/test_ci_annotations.py": "1a8db87b1c570bed833d15130a24403f32a611839e24f2040101bfd8073439b9",
+    "tests/threads.py": "3265befa959f99f015c0f50d688c3aeaf632f357b05f59f54245316ce4409b74",
+    "tests/tiny_qwen.hpp": "cf7d594b7891857117afe92178dea95d56abe77196e3c22bad74dc29e202c9e1",
+    "tests/tiny_qwen35.hpp": "1b17303e6a4250619101f2841494434c562934c56ad6f4a410199a3e2b44ceed",
+    "tests/tokenizer.py": "e1c383c6b5f9aa7ee4e9ff860a8b50a22efdb53eeb0288a10ad595eabbd618ae",
+    "tests/tokenizer_encode.cpp": "3b17a94890552457708c1e87ed8adfac6245c3f8dfe0360ef3275dd3caca2f65",
+    "tests/tq.cpp": "9699be6597bed7dc732aabe375071de980e27f5a204fc5b35b26adf5da3b4a9f",
+    "tests/tq.py": "cb564e3422f6c8278a3360a5249ec2751802c61d11e6c9376f2393b2bea3f6f7",
+    "tests/twin_quotients.cpp": "3a373ddb29a9bbef0ec5bbcbe18eab871e134aa9eb20dd28e0b4aa9a58ecfffc",
+    "tests/version.py": "b317d50c1d20c972e733501dcd3c34f457946c52c1b78db7ba62f936bbb3070a",
+    "tests/vision.py": "43430cf816fe4dcd7a8a9a486938f49c9b5cd1b012fdc2951a66e71a87bd5187",
+    "tests/vision_ops.cpp": "32db3555a9ef1644d965c158ea8740f7fc1cf0ee1dfc7e55affa1bd0fc2fac2e",
+    "tests/vulkan_buffer.cpp": "d988653439d0402f9dec906f1595a7e2bd0c55e851de55777d4c2a2771b1eddb",
+    "tests/vulkan_index.cpp": "5066f55a799472a3232647a443da754ea65533c11ad4d3ff244a04dd344715cd",
+    "tests/vulkan_quantization.cpp": "c4c21d248f97446f2ec51c46e916bc518c9473d343137b101a5b3dec04e3903e",
+    "tests/weight_rows.cpp": "a83c3603715dc9b7b72c7da0205bf8203a0b475a3187d6ecf2a4affb41857850",
+    "tests/weight_scales.cpp": "8a554f757fe458c942196b61c9acbbbdc28a1c34f8d2846e6c9237977255e72a"
+  },
+  "shader_comparison": {
+    "old_count": 305,
+    "new_count": 313,
+    "identical": [
+      "vulkan/add.inc",
+      "vulkan/argmax_rows.inc",
+      "vulkan/attention_merge.inc",
+      "vulkan/attention_vec.inc",
+      "vulkan/attention_vec_d256.inc",
+      "vulkan/attention_vec_d256_g4.inc",
+      "vulkan/attention_vec_d256_k16.inc",
+      "vulkan/attention_vec_d256_k16_g4.inc",
+      "vulkan/attention_vec_d256_kv16.inc",
+      "vulkan/attention_vec_d256_kv16_g4.inc",
+      "vulkan/attention_vec_d256_v16.inc",
+      "vulkan/attention_vec_d256_v16_g4.inc",
+      "vulkan/attention_vec_g4.inc",
+      "vulkan/attention_vec_k16.inc",
+      "vulkan/attention_vec_k16_g4.inc",
+      "vulkan/attention_vec_kv16.inc",
+      "vulkan/attention_vec_kv16_g4.inc",
+      "vulkan/attention_vec_v16.inc",
+      "vulkan/attention_vec_v16_g4.inc",
+      "vulkan/causal_conv_silu.inc",
+      "vulkan/copy_mxfp4.inc",
+      "vulkan/delta_rule.inc",
+      "vulkan/delta_rule_short.inc",
+      "vulkan/dilated_conv_silu_add.inc",
+      "vulkan/embed.inc",
+      "vulkan/embed_ids.inc",
+      "vulkan/embed_ids_mxfp4.inc",
+      "vulkan/embed_ids_wbf16.inc",
+      "vulkan/embed_ids_wf16.inc",
+      "vulkan/embed_mxfp4.inc",
+      "vulkan/embed_wbf16.inc",
+      "vulkan/embed_wf16.inc",
+      "vulkan/gated_rms_norm.inc",
+      "vulkan/gather_rows.inc",
+      "vulkan/group_rms_norm.inc",
+      "vulkan/inject_streams.inc",
+      "vulkan/inject_streams_preserve.inc",
+      "vulkan/kv_index_scores_tile.inc",
+      "vulkan/kv_index_select.inc",
+      "vulkan/kv_index_select_wide.inc",
+      "vulkan/kv_write.inc",
+      "vulkan/kv_write_k16.inc",
+      "vulkan/kv_write_kv16.inc",
+      "vulkan/kv_write_v16.inc",
+      "vulkan/matmul_reduce.inc",
+      "vulkan/matmul_reduce_mxfp4.inc",
+      "vulkan/matmul_reduce_preserve.inc",
+      "vulkan/matmul_row.inc",
+      "vulkan/matmul_row_f32_only.inc",
+      "vulkan/matmul_row_float_x.inc",
+      "vulkan/matmul_row_float_x_preserve.inc",
+      "vulkan/matmul_row_float_x_q2.inc",
+      "vulkan/matmul_row_float_x_q2_preserve.inc",
+      "vulkan/matmul_row_float_x_q3.inc",
+      "vulkan/matmul_row_float_x_q3_preserve.inc",
+      "vulkan/matmul_row_iq1_m.inc",
+      "vulkan/matmul_row_iq1_m_dot.inc",
+      "vulkan/matmul_row_iq1_m_preserve.inc",
+      "vulkan/matmul_row_iq1_s.inc",
+      "vulkan/matmul_row_iq1_s_dot.inc",
+      "vulkan/matmul_row_iq1_s_preserve.inc",
+      "vulkan/matmul_row_iq2_s.inc",
+      "vulkan/matmul_row_iq2_s_dot.inc",
+      "vulkan/matmul_row_iq2_s_preserve.inc",
+      "vulkan/matmul_row_iq2_xs.inc",
+      "vulkan/matmul_row_iq2_xs_dot.inc",
+      "vulkan/matmul_row_iq2_xs_preserve.inc",
+      "vulkan/matmul_row_iq2_xxs.inc",
+      "vulkan/matmul_row_iq2_xxs_dot.inc",
+      "vulkan/matmul_row_iq2_xxs_preserve.inc",
+      "vulkan/matmul_row_iq3_s.inc",
+      "vulkan/matmul_row_iq3_s_dot.inc",
+      "vulkan/matmul_row_iq3_s_preserve.inc",
+      "vulkan/matmul_row_iq3_xxs.inc",
+      "vulkan/matmul_row_iq3_xxs_dot.inc",
+      "vulkan/matmul_row_iq3_xxs_preserve.inc",
+      "vulkan/matmul_row_iq4_dot.inc",
+      "vulkan/matmul_row_iq4_xs_dot.inc",
+      "vulkan/matmul_row_k.inc",
+      "vulkan/matmul_row_k4.inc",
+      "vulkan/matmul_row_k4_dot.inc",
+      "vulkan/matmul_row_k4_dot_preserve.inc",
+      "vulkan/matmul_row_k4_i8.inc",
+      "vulkan/matmul_row_k4_i8_preserve.inc",
+      "vulkan/matmul_row_k5.inc",
+      "vulkan/matmul_row_k5_dot.inc",
+      "vulkan/matmul_row_k5_dot_preserve.inc",
+      "vulkan/matmul_row_k5_i8.inc",
+      "vulkan/matmul_row_k5_i8_preserve.inc",
+      "vulkan/matmul_row_k5_preserve.inc",
+      "vulkan/matmul_row_k_dot.inc",
+      "vulkan/matmul_row_k_dot_preserve.inc",
+      "vulkan/matmul_row_k_i8.inc",
+      "vulkan/matmul_row_k_i8_preserve.inc",
+      "vulkan/matmul_row_k_preserve.inc",
+      "vulkan/matmul_row_mxfp4.inc",
+      "vulkan/matmul_row_mxfp4_dot.inc",
+      "vulkan/matmul_row_mxfp4_float_x.inc",
+      "vulkan/matmul_row_nvfp4.inc",
+      "vulkan/matmul_row_nvfp4_preserve.inc",
+      "vulkan/matmul_row_preserve.inc",
+      "vulkan/matmul_row_q2_dot.inc",
+      "vulkan/matmul_row_q2_dot_preserve.inc",
+      "vulkan/matmul_row_q3_dot.inc",
+      "vulkan/matmul_row_q3_dot_preserve.inc",
+      "vulkan/matmul_row_q4.inc",
+      "vulkan/matmul_row_q4_dot.inc",
+      "vulkan/matmul_row_q4_dot_preserve.inc",
+      "vulkan/matmul_row_q4_i8.inc",
+      "vulkan/matmul_row_q4_i8_preserve.inc",
+      "vulkan/matmul_row_q4_preserve.inc",
+      "vulkan/matmul_row_q5.inc",
+      "vulkan/matmul_row_q50.inc",
+      "vulkan/matmul_row_q50_dot.inc",
+      "vulkan/matmul_row_q50_dot_preserve.inc",
+      "vulkan/matmul_row_q50_i8.inc",
+      "vulkan/matmul_row_q50_i8_preserve.inc",
+      "vulkan/matmul_row_q50_preserve.inc",
+      "vulkan/matmul_row_q5_dot.inc",
+      "vulkan/matmul_row_q5_dot_preserve.inc",
+      "vulkan/matmul_row_q5_i8.inc",
+      "vulkan/matmul_row_q5_i8_preserve.inc",
+      "vulkan/matmul_row_q5_preserve.inc",
+      "vulkan/matmul_row_q8w.inc",
+      "vulkan/matmul_row_q8w_preserve.inc",
+      "vulkan/matmul_row_tq1_0.inc",
+      "vulkan/matmul_row_tq1_0_dot.inc",
+      "vulkan/matmul_row_tq1_0_preserve.inc",
+      "vulkan/matmul_row_tq2_0.inc",
+      "vulkan/matmul_row_tq2_0_dot.inc",
+      "vulkan/matmul_row_tq2_0_preserve.inc",
+      "vulkan/matmul_row_wbf16.inc",
+      "vulkan/matmul_row_wf16.inc",
+      "vulkan/matmul_tile_iq1_m_dot.inc",
+      "vulkan/matmul_tile_iq1_s_dot.inc",
+      "vulkan/matmul_tile_iq2_s_dot.inc",
+      "vulkan/matmul_tile_iq2_xs_dot.inc",
+      "vulkan/matmul_tile_iq2_xxs_dot.inc",
+      "vulkan/matmul_tile_iq3_s_dot.inc",
+      "vulkan/matmul_tile_iq3_xxs_dot.inc",
+      "vulkan/matmul_tile_iq4.inc",
+      "vulkan/matmul_tile_iq4_xs.inc",
+      "vulkan/matmul_tile_nvfp4.inc",
+      "vulkan/matmul_tile_nvfp4_bf16.inc",
+      "vulkan/matmul_tile_nvfp4_bf16_preserve.inc",
+      "vulkan/matmul_tile_nvfp4_f16.inc",
+      "vulkan/matmul_tile_nvfp4_preserve.inc",
+      "vulkan/matmul_tile_q.inc",
+      "vulkan/matmul_tile_q2.inc",
+      "vulkan/matmul_tile_q2_preserve.inc",
+      "vulkan/matmul_tile_q3.inc",
+      "vulkan/matmul_tile_q3_preserve.inc",
+      "vulkan/matmul_tile_q5.inc",
+      "vulkan/matmul_tile_q50.inc",
+      "vulkan/matmul_tile_q50_preserve.inc",
+      "vulkan/matmul_tile_q50i8.inc",
+      "vulkan/matmul_tile_q50i8_preserve.inc",
+      "vulkan/matmul_tile_q5_preserve.inc",
+      "vulkan/matmul_tile_q5i8.inc",
+      "vulkan/matmul_tile_q5i8_preserve.inc",
+      "vulkan/matmul_tile_q6.inc",
+      "vulkan/matmul_tile_q6_preserve.inc",
+      "vulkan/matmul_tile_q6i8.inc",
+      "vulkan/matmul_tile_q6i8_preserve.inc",
+      "vulkan/matmul_tile_q8.inc",
+      "vulkan/matmul_tile_q8i8.inc",
+      "vulkan/matmul_tile_q8mx.inc",
+      "vulkan/matmul_tile_q_preserve.inc",
+      "vulkan/matmul_tile_qi8.inc",
+      "vulkan/matmul_tile_qi8_preserve.inc",
+      "vulkan/matmul_tile_tq1_0_dot.inc",
+      "vulkan/matmul_tile_tq2_0_dot.inc",
+      "vulkan/matmul_vec_q8.inc",
+      "vulkan/matmul_vec_q8_i8.inc",
+      "vulkan/matmul_vec_q8_i8_preserve.inc",
+      "vulkan/matmul_vec_q8_preserve.inc",
+      "vulkan/mix_streams.inc",
+      "vulkan/mix_streams_preserve.inc",
+      "vulkan/moe_combine.inc",
+      "vulkan/moe_combine_preserve.inc",
+      "vulkan/moe_group.inc",
+      "vulkan/moe_route.inc",
+      "vulkan/moe_route_s1.inc",
+      "vulkan/moe_route_s2.inc",
+      "vulkan/moe_route_s4.inc",
+      "vulkan/moe_route_s8.inc",
+      "vulkan/moe_step_act.inc",
+      "vulkan/moe_step_down_k.inc",
+      "vulkan/moe_step_down_k_i8.inc",
+      "vulkan/moe_step_down_k_i8_preserve.inc",
+      "vulkan/moe_step_down_k_preserve.inc",
+      "vulkan/moe_step_down_q5q8.inc",
+      "vulkan/moe_step_down_q5q8_i8.inc",
+      "vulkan/moe_step_down_q5q8_i8_preserve.inc",
+      "vulkan/moe_step_down_q5q8_preserve.inc",
+      "vulkan/moe_step_down_q8.inc",
+      "vulkan/moe_step_down_q8_i8.inc",
+      "vulkan/moe_step_down_q8_i8_preserve.inc",
+      "vulkan/moe_step_down_q8_preserve.inc",
+      "vulkan/moe_step_route.inc",
+      "vulkan/moe_step_route_s1.inc",
+      "vulkan/moe_step_route_s2.inc",
+      "vulkan/moe_step_route_s4.inc",
+      "vulkan/moe_step_route_s8.inc",
+      "vulkan/moe_step_up_k4.inc",
+      "vulkan/moe_step_up_k4_i8.inc",
+      "vulkan/moe_step_up_k4_i8_preserve.inc",
+      "vulkan/moe_step_up_k4_preserve.inc",
+      "vulkan/moe_step_up_k4q8.inc",
+      "vulkan/moe_step_up_k4q8_i8.inc",
+      "vulkan/moe_step_up_k4q8_i8_preserve.inc",
+      "vulkan/moe_step_up_k4q8_preserve.inc",
+      "vulkan/norm_rope_kv.inc",
+      "vulkan/norm_rope_kv_k16.inc",
+      "vulkan/norm_rope_kv_kv16.inc",
+      "vulkan/norm_rope_kv_v16.inc",
+      "vulkan/norm_rope_partial.inc",
+      "vulkan/quantize_x.inc",
+      "vulkan/quantize_xw.inc",
+      "vulkan/rms_norm_rows.inc",
+      "vulkan/sigmoid_mul.inc",
+      "vulkan/signed_sqrt_gate.inc",
+      "vulkan/silu_mul.inc",
+      "vulkan/silu_scaled.inc",
+      "vulkan/silu_scaled_preserve.inc",
+      "vulkan/sparse_attention.inc",
+      "vulkan/sparse_attention_k16.inc",
+      "vulkan/sparse_attention_kv16.inc",
+      "vulkan/sparse_attention_v16.inc",
+      "vulkan/sparse_attention_vec.inc",
+      "vulkan/sparse_attention_vec_d256.inc",
+      "vulkan/sparse_attention_vec_d256_k16.inc",
+      "vulkan/sparse_attention_vec_d256_kv16.inc",
+      "vulkan/sparse_attention_vec_d256_v16.inc",
+      "vulkan/sparse_attention_vec_k16.inc",
+      "vulkan/sparse_attention_vec_kv16.inc",
+      "vulkan/sparse_attention_vec_v16.inc",
+      "vulkan/sum_rows.inc"
+    ],
+    "changed": [
+      "vulkan/attention.inc",
+      "vulkan/attention_g4.inc",
+      "vulkan/attention_k16.inc",
+      "vulkan/attention_k16_g4.inc",
+      "vulkan/attention_kv16.inc",
+      "vulkan/attention_kv16_g4.inc",
+      "vulkan/attention_tile.inc",
+      "vulkan/attention_tile_d256.inc",
+      "vulkan/attention_tile_d256_k16.inc",
+      "vulkan/attention_tile_d256_kv16.inc",
+      "vulkan/attention_tile_d256_v16.inc",
+      "vulkan/attention_tile_k16.inc",
+      "vulkan/attention_tile_kv16.inc",
+      "vulkan/attention_tile_v16.inc",
+      "vulkan/attention_v16.inc",
+      "vulkan/attention_v16_g4.inc",
+      "vulkan/kv_index_pool.inc",
+      "vulkan/matmul_tile.inc",
+      "vulkan/matmul_tile_bf16.inc",
+      "vulkan/matmul_tile_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq1_m.inc",
+      "vulkan/matmul_tile_iq1_m_bf16.inc",
+      "vulkan/matmul_tile_iq1_m_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq1_m_preserve.inc",
+      "vulkan/matmul_tile_iq1_s.inc",
+      "vulkan/matmul_tile_iq1_s_bf16.inc",
+      "vulkan/matmul_tile_iq1_s_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq1_s_preserve.inc",
+      "vulkan/matmul_tile_iq2_s.inc",
+      "vulkan/matmul_tile_iq2_s_bf16.inc",
+      "vulkan/matmul_tile_iq2_s_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq2_s_preserve.inc",
+      "vulkan/matmul_tile_iq2_xs.inc",
+      "vulkan/matmul_tile_iq2_xs_bf16.inc",
+      "vulkan/matmul_tile_iq2_xs_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq2_xs_preserve.inc",
+      "vulkan/matmul_tile_iq2_xxs.inc",
+      "vulkan/matmul_tile_iq2_xxs_bf16.inc",
+      "vulkan/matmul_tile_iq2_xxs_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq2_xxs_preserve.inc",
+      "vulkan/matmul_tile_iq3_s.inc",
+      "vulkan/matmul_tile_iq3_s_bf16.inc",
+      "vulkan/matmul_tile_iq3_s_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq3_s_preserve.inc",
+      "vulkan/matmul_tile_iq3_xxs.inc",
+      "vulkan/matmul_tile_iq3_xxs_bf16.inc",
+      "vulkan/matmul_tile_iq3_xxs_bf16_preserve.inc",
+      "vulkan/matmul_tile_iq3_xxs_preserve.inc",
+      "vulkan/matmul_tile_mxfp4.inc",
+      "vulkan/matmul_tile_mxfp4_bf16.inc",
+      "vulkan/matmul_tile_preserve.inc",
+      "vulkan/matmul_tile_tq1_0.inc",
+      "vulkan/matmul_tile_tq1_0_bf16.inc",
+      "vulkan/matmul_tile_tq1_0_bf16_preserve.inc",
+      "vulkan/matmul_tile_tq1_0_preserve.inc",
+      "vulkan/matmul_tile_tq2_0.inc",
+      "vulkan/matmul_tile_tq2_0_bf16.inc",
+      "vulkan/matmul_tile_tq2_0_bf16_preserve.inc",
+      "vulkan/matmul_tile_tq2_0_preserve.inc",
+      "vulkan/matmul_tile_wbf16.inc",
+      "vulkan/matmul_tile_wbf16_bf16.inc",
+      "vulkan/matmul_tile_wbf16_bf16_preserve.inc",
+      "vulkan/matmul_tile_wbf16_preserve.inc",
+      "vulkan/matmul_tile_wf16.inc",
+      "vulkan/matmul_tile_wf16_bf16.inc",
+      "vulkan/matmul_tile_wf16_bf16_preserve.inc",
+      "vulkan/matmul_tile_wf16_preserve.inc"
+    ],
+    "added": [
+      "vulkan/add_bias.inc",
+      "vulkan/attention_full.inc",
+      "vulkan/attention_full_tile_d64.inc",
+      "vulkan/attention_full_tile_d72.inc",
+      "vulkan/gelu.inc",
+      "vulkan/layer_norm_rows.inc",
+      "vulkan/mix_rows.inc",
+      "vulkan/norm_rope_partial_streams.inc"
+    ],
+    "nvfp4": {
+      "vulkan/matmul_tile_nvfp4_preserve.inc": {
+        "before": "3014adcf96e4b62f313754b94d265d4ee5667775a3e9f473e0d0f6d8812714ae",
+        "after": "3014adcf96e4b62f313754b94d265d4ee5667775a3e9f473e0d0f6d8812714ae",
+        "equal": true
+      },
+      "vulkan/matmul_tile_nvfp4.inc": {
+        "before": "f4c2efe44c92035c14150ea2734a8d9ab7c6d79928139bca7baf6b88797700bb",
+        "after": "f4c2efe44c92035c14150ea2734a8d9ab7c6d79928139bca7baf6b88797700bb",
+        "equal": true
+      },
+      "vulkan/matmul_tile_nvfp4_f16.inc": {
+        "before": "c3754a6529bb0c77c048e8e8daa54a9cb8827807ec8384b8d63039ac56b6bc27",
+        "after": "c3754a6529bb0c77c048e8e8daa54a9cb8827807ec8384b8d63039ac56b6bc27",
+        "equal": true
+      },
+      "vulkan/matmul_row_nvfp4_preserve.inc": {
+        "before": "c2711a6e07f2b60d28a8f6220dffb8c09942e32be11292affe24716e60c7a017",
+        "after": "c2711a6e07f2b60d28a8f6220dffb8c09942e32be11292affe24716e60c7a017",
+        "equal": true
+      },
+      "vulkan/matmul_tile_nvfp4_bf16_preserve.inc": {
+        "before": "76d6b0776488291d4cbf27a8da913feaacf2088d183a86fc5bd2b11d3d04d52e",
+        "after": "76d6b0776488291d4cbf27a8da913feaacf2088d183a86fc5bd2b11d3d04d52e",
+        "equal": true
+      },
+      "vulkan/matmul_tile_nvfp4_bf16.inc": {
+        "before": "1d8cf0718ff28327695bc96ea8ceb27344584860e199864192613c84eec22bc4",
+        "after": "1d8cf0718ff28327695bc96ea8ceb27344584860e199864192613c84eec22bc4",
+        "equal": true
+      },
+      "vulkan/matmul_row_nvfp4.inc": {
+        "before": "cee69a88adb005cfb5d3c2775d7cb6ddf3bd34b8614ca1999e6075d72fd1df6b",
+        "after": "cee69a88adb005cfb5d3c2775d7cb6ddf3bd34b8614ca1999e6075d72fd1df6b",
+        "equal": true
+      }
+    }
+  },
+  "ctest": {
+    "passed": true,
+    "count": 7,
+    "seconds": 121.24,
+    "log_sha256": "3c8601b7432de36a2917006bb39d8af1963c868f3a75200fb994f2689b4c9b8b"
+  },
+  "docs_and_dead_code": {
+    "passed": true,
+    "log_sha256": "fa60dd8b62d238d23b7ef8073aec0e1fb6835c8fdf65eb8f48b266d7ede89b08"
+  },
+  "reference_generator": {
+    "passed": true,
+    "tests": 92,
+    "log_sha256": "c1b17862104733d431a802dc2a1868970076bacf57e26343c2de2fd40b75563e"
+  },
+  "wide_hf": {
+    "scope": "Integrated Windows wide shared-float HF check against the frozen independent reference. Candidate only, not matched timing or a depth check.",
+    "passed": true,
+    "started_unix": 1793045748.8521323,
+    "reference_sha256": "55c8185e2483362c117d036fe111cfe0d0197b92d04199cd663ba4473215facd",
+    "calls": [
+      {
+        "label": "candidate-f32-f32-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.6567070484161377,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-f32-f32-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.7367584705352783,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-f32-f32-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.7758147716522217,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-f32-f32-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.304185390472412,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-f32-f32-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.5127639770507812,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-f32-f16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.4711837768554688,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-f32-f16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.5763165950775146,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-f32-f16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.6730527877807617,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-f32-f16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.3066225051879883,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-f32-f16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.5402512550354004,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-f32-bf16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.739187240600586,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.014820814704895047,
+        "bound": 0.05409973859786987,
+        "headroom": 0.039278923892974826
+      },
+      {
+        "label": "candidate-f32-bf16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.7606968879699707,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.01628358463668822,
+        "bound": 0.05409973859786987,
+        "headroom": 0.03781615396118165
+      },
+      {
+        "label": "candidate-f32-bf16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.7225944995880127,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.018393060770034775,
+        "bound": 0.05409973859786987,
+        "headroom": 0.0357066778278351
+      },
+      {
+        "label": "candidate-f32-bf16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.4574987888336182,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0005320560763184545,
+        "bound": 0.007924573802609913,
+        "headroom": 0.007392517726291459
+      },
+      {
+        "label": "candidate-f32-bf16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f32.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.9664359092712402,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0002988369582421768,
+        "bound": 0.007924573802609913,
+        "headroom": 0.0076257368443677365
+      },
+      {
+        "label": "candidate-f16-f32-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0293300151824951,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-f16-f32-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.2893636226654053,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-f16-f32-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.465747356414795,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-f16-f32-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9867732524871826,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-f16-f32-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.1180808544158936,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-f16-f16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.288435459136963,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-f16-f16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.2840182781219482,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-f16-f16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0387802124023438,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-f16-f16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9709205627441406,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-f16-f16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.1993892192840576,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-f16-bf16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.2620410919189453,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.014820814704895047,
+        "bound": 0.05409973859786987,
+        "headroom": 0.039278923892974826
+      },
+      {
+        "label": "candidate-f16-bf16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.140796422958374,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.01628358463668822,
+        "bound": 0.05409973859786987,
+        "headroom": 0.03781615396118165
+      },
+      {
+        "label": "candidate-f16-bf16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.282402753829956,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.018393060770034775,
+        "bound": 0.05409973859786987,
+        "headroom": 0.0357066778278351
+      },
+      {
+        "label": "candidate-f16-bf16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0639760494232178,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0005320560763184545,
+        "bound": 0.007924573802609913,
+        "headroom": 0.007392517726291459
+      },
+      {
+        "label": "candidate-f16-bf16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/f16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.2800462245941162,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0002988369582421768,
+        "bound": 0.007924573802609913,
+        "headroom": 0.0076257368443677365
+      },
+      {
+        "label": "candidate-bf16-f32-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.2150955200195312,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-bf16-f32-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0568609237670898,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-bf16-f32-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0499241352081299,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-bf16-f32-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 1.0319106578826904,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-bf16-f32-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9729626178741455,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f32",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-bf16-f16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.8951311111450195,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.456905364991215e-06,
+        "bound": 2e-05,
+        "headroom": 1.5543094635008787e-05
+      },
+      {
+        "label": "candidate-bf16-f16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.8861408233642578,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.584636688287347e-06,
+        "bound": 2e-05,
+        "headroom": 1.5415363311712655e-05
+      },
+      {
+        "label": "candidate-bf16-f16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9462597370147705,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 4.507217407301312e-06,
+        "bound": 2e-05,
+        "headroom": 1.549278259269869e-05
+      },
+      {
+        "label": "candidate-bf16-f16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.839911937713623,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.9907631837744475e-07,
+        "bound": 1e-05,
+        "headroom": 9.700923681622556e-06
+      },
+      {
+        "label": "candidate-bf16-f16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9193949699401855,
+        "passed": true,
+        "bounds": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        },
+        "matrix_paths": [
+          {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32"
+              ]
+            ]
+          }
+        ],
+        "error": 2.904175833151612e-08,
+        "bound": 1e-05,
+        "headroom": 9.970958241668485e-06
+      },
+      {
+        "label": "candidate-bf16-bf16-logits-0",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvw",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.9904928207397461,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.014820814704895047,
+        "bound": 0.05409973859786987,
+        "headroom": 0.039278923892974826
+      },
+      {
+        "label": "candidate-bf16-bf16-logits-1",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.8389184474945068,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.01628358463668822,
+        "bound": 0.05409973859786987,
+        "headroom": 0.03781615396118165
+      },
+      {
+        "label": "candidate-bf16-bf16-logits-2",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "logits",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "--top",
+          "257",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.8156938552856445,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.018393060770034775,
+        "bound": 0.05409973859786987,
+        "headroom": 0.0357066778278351
+      },
+      {
+        "label": "candidate-bf16-bf16-nll-3",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "64",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.7737243175506592,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0005320560763184545,
+        "bound": 0.007924573802609913,
+        "headroom": 0.007392517726291459
+      },
+      {
+        "label": "candidate-bf16-bf16-nll-4",
+        "command": [
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/image-integration-cmake/Release/llmx.exe",
+          "perplexity",
+          "C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-mainf61-20261026/build-integration/common-float-split-v1/wide-hf/bf16.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy",
+          "-c",
+          "128",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "bf16",
+          "--threads",
+          "1",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 0.916365385055542,
+        "passed": true,
+        "bounds": {
+          "logit": 0.05409973859786987,
+          "nll": 0.007924573802609913
+        },
+        "matrix_paths": [
+          {
+            "dtype": "bf16",
+            "devices": [
+              [
+                "bf16"
+              ]
+            ]
+          }
+        ],
+        "error": 0.0002988369582421768,
+        "bound": 0.007924573802609913,
+        "headroom": 0.0076257368443677365
+      }
+    ],
+    "errors": [],
+    "ended_unix": 1793045805.2182431,
+    "artifacts": {
+      "candidate-bf16-bf16-logits-0.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-bf16-bf16-logits-0.stdout": "c78dbeba72f3ce45a42fad195bbe85d154b4bcddd5abd59694ce943c8404a2ca",
+      "candidate-bf16-bf16-logits-1.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-bf16-bf16-logits-1.stdout": "f7465f7dc47f1b5300f05c9c863a90f29faab849756af7afa4b0c8aafec949f4",
+      "candidate-bf16-bf16-logits-2.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-bf16-bf16-logits-2.stdout": "8584fbfb07005982805a356655ca275029061d0b1c727cc6aeebf76a376f23c9",
+      "candidate-bf16-bf16-nll-3.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-bf16-bf16-nll-3.stdout": "4f0ed90b1ab115b89cac32dfcc91019156fa77fa60951844fab2c2206f540a9c",
+      "candidate-bf16-bf16-nll-4.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-bf16-bf16-nll-4.stdout": "cca62abc99f1337f585950bbade0b0b738ef47579fb3a57fd25de0290c35ea36",
+      "candidate-bf16-f16-logits-0.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-bf16-f16-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-bf16-f16-logits-1.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-bf16-f16-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-bf16-f16-logits-2.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-bf16-f16-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-bf16-f16-nll-3.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-bf16-f16-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-bf16-f16-nll-4.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-bf16-f16-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "candidate-bf16-f32-logits-0.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-bf16-f32-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-bf16-f32-logits-1.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-bf16-f32-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-bf16-f32-logits-2.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-bf16-f32-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-bf16-f32-nll-3.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-bf16-f32-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-bf16-f32-nll-4.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-bf16-f32-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "candidate-f16-bf16-logits-0.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f16-bf16-logits-0.stdout": "c78dbeba72f3ce45a42fad195bbe85d154b4bcddd5abd59694ce943c8404a2ca",
+      "candidate-f16-bf16-logits-1.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f16-bf16-logits-1.stdout": "f7465f7dc47f1b5300f05c9c863a90f29faab849756af7afa4b0c8aafec949f4",
+      "candidate-f16-bf16-logits-2.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f16-bf16-logits-2.stdout": "8584fbfb07005982805a356655ca275029061d0b1c727cc6aeebf76a376f23c9",
+      "candidate-f16-bf16-nll-3.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f16-bf16-nll-3.stdout": "4f0ed90b1ab115b89cac32dfcc91019156fa77fa60951844fab2c2206f540a9c",
+      "candidate-f16-bf16-nll-4.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f16-bf16-nll-4.stdout": "cca62abc99f1337f585950bbade0b0b738ef47579fb3a57fd25de0290c35ea36",
+      "candidate-f16-f16-logits-0.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f16-f16-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-f16-f16-logits-1.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f16-f16-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-f16-f16-logits-2.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f16-f16-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-f16-f16-nll-3.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f16-f16-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-f16-f16-nll-4.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f16-f16-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "candidate-f16-f32-logits-0.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f16-f32-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-f16-f32-logits-1.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f16-f32-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-f16-f32-logits-2.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f16-f32-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-f16-f32-nll-3.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f16-f32-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-f16-f32-nll-4.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f16-f32-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "candidate-f32-bf16-logits-0.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f32-bf16-logits-0.stdout": "c78dbeba72f3ce45a42fad195bbe85d154b4bcddd5abd59694ce943c8404a2ca",
+      "candidate-f32-bf16-logits-1.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f32-bf16-logits-1.stdout": "f7465f7dc47f1b5300f05c9c863a90f29faab849756af7afa4b0c8aafec949f4",
+      "candidate-f32-bf16-logits-2.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f32-bf16-logits-2.stdout": "8584fbfb07005982805a356655ca275029061d0b1c727cc6aeebf76a376f23c9",
+      "candidate-f32-bf16-nll-3.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f32-bf16-nll-3.stdout": "4f0ed90b1ab115b89cac32dfcc91019156fa77fa60951844fab2c2206f540a9c",
+      "candidate-f32-bf16-nll-4.stderr": "7baed95543e8f639d54493e8bb61b9e387066a4b93fd6eda1329b018e0aff3be",
+      "candidate-f32-bf16-nll-4.stdout": "cca62abc99f1337f585950bbade0b0b738ef47579fb3a57fd25de0290c35ea36",
+      "candidate-f32-f16-logits-0.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f32-f16-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-f32-f16-logits-1.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f32-f16-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-f32-f16-logits-2.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f32-f16-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-f32-f16-nll-3.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f32-f16-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-f32-f16-nll-4.stderr": "29399260247e08905dc96355019236768ffb1e1ea94bcd0154dfbbf1a4bb1b15",
+      "candidate-f32-f16-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "candidate-f32-f32-logits-0.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f32-f32-logits-0.stdout": "f117bc5b7b373cd3bef96aa4e3b3abe392dba53e2f5dbb123a28af25d8de8eae",
+      "candidate-f32-f32-logits-1.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f32-f32-logits-1.stdout": "6a070eef43255538b9f21d9601160bc07894ddd66e072348ed365eeefb87e6c0",
+      "candidate-f32-f32-logits-2.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f32-f32-logits-2.stdout": "9beea6b4d6afb92dd4d89bc35b58a54a092d09684605c6a0a66d61847cb46485",
+      "candidate-f32-f32-nll-3.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f32-f32-nll-3.stdout": "7f2186cb967abd8b5fabc4b808f24b54eb3cb0365395f617dca24dcbe646e077",
+      "candidate-f32-f32-nll-4.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+      "candidate-f32-f32-nll-4.stdout": "053e7244496621f2e6662fdff97b4602ef1aaa629ce3b4d9d0d0e5ee3a018993",
+      "check.py": "70f218d793d55d8d089c393b308030e3b4ce8fb3279199152d1e6c17ac6e64ed",
+      "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "native_f16_hf": {
+    "started_unix": 1793045805.6812265,
+    "binary_sha256": "0badf1d0719bb73f4a2af134dcf6392bc52c305f1eb43a66d49c6fa16c99af62",
+    "golden_sha256": "ee718c2282b7e3e12477d783cd17ac17e583f802c95fc5ffbae64afd985ceb3a",
+    "budget_sha256": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+    "scope": "Single Radeon with existing wide split-fixture weights, no tensor split. Six 129-token logit and six window-NLL checks, ordinary/scaled dense tied/untied and MoE. Requires native f16 path in every completed measurement. No depth or speed claim.",
+    "cases": [
+      {
+        "name": "dense-untied",
+        "packed_sha256": "dc39fa1c14a1cf796239e40c7fcc77dd432bfcf3aacc9f00b08c4c373f7ef8fe",
+        "logits": {
+          "max_error": 0.0014790351600646456,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 1.2575400346825916e-05,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f16"
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "name": "dense-untied-scaled",
+        "packed_sha256": "7d11917a089af3237be44bea73d2a2948d44f30bf4613289396018e5d12618d8",
+        "logits": {
+          "max_error": 0.0014790351600646456,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 1.2575400346825916e-05,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f16"
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "name": "dense-tied",
+        "packed_sha256": "448d4b6d8f7c86d9190f33c4d9b26fd0273702fbd3c4984c1abd703f93421dc1",
+        "logits": {
+          "max_error": 0.0013988700408935628,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 0.00011667275086857387,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f16"
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "name": "dense-tied-scaled",
+        "packed_sha256": "8a8f6dfad2368593eff413ee59c841f1d518cad03008b3a5e9be1d12b0de46be",
+        "logits": {
+          "max_error": 0.0013988700408935628,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 0.00011667275086857387,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f16"
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "name": "moe",
+        "packed_sha256": "907f1a931f604d306c5ea30b9dbee476a8045988d0765669b4e9b75d0d0e5ada",
+        "logits": {
+          "max_error": 0.001137894226074243,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 5.431510727404998e-05,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "name": "moe-scaled",
+        "packed_sha256": "d5e1ef5916846efc8f372ee8a4809daadafa7f4953bf2d540fbc689fb67bf320",
+        "logits": {
+          "max_error": 0.001137894226074243,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        },
+        "perplexity": {
+          "max_error": 5.431510727404998e-05,
+          "bounds": {
+            "logit": 0.005869746208190918,
+            "nll": 0.0006043278951057829
+          },
+          "witness": {
+            "dtype": "f16",
+            "devices": [
+              [
+                "f32",
+                "f16"
+              ]
+            ]
+          }
+        }
+      }
+    ],
+    "passed": true,
+    "ended_unix": 1793045870.1607068,
+    "binary_unchanged": true,
+    "artifacts": {
+      "dense-tied-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "dense-tied-logits.stdout": "b179ac3f1670bc68454bb7172821d356651fff9b0fed836524ebbc568d370ea9",
+      "dense-tied-perplexity.stderr": "37f9e8389dfb4dd2a7744ff81b55a4f1a2213dd98108b7c290a6abae17b66b89",
+      "dense-tied-perplexity.stdout": "1dfef5c5c3be933ec4e34d11a459df92bba972cfea0b9485d6d73afdb901159c",
+      "dense-tied-scaled-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "dense-tied-scaled-logits.stdout": "b179ac3f1670bc68454bb7172821d356651fff9b0fed836524ebbc568d370ea9",
+      "dense-tied-scaled-perplexity.stderr": "37f9e8389dfb4dd2a7744ff81b55a4f1a2213dd98108b7c290a6abae17b66b89",
+      "dense-tied-scaled-perplexity.stdout": "1dfef5c5c3be933ec4e34d11a459df92bba972cfea0b9485d6d73afdb901159c",
+      "dense-untied-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "dense-untied-logits.stdout": "ba101691cb2383b58074c4b8523400f8a96d4120b3e4ffff1c0b7aee168dc2f9",
+      "dense-untied-perplexity.stderr": "37f9e8389dfb4dd2a7744ff81b55a4f1a2213dd98108b7c290a6abae17b66b89",
+      "dense-untied-perplexity.stdout": "944f63c01ea19ccf92a84dd4d3c984465839cd0495822407a42103ab258a1b24",
+      "dense-untied-scaled-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "dense-untied-scaled-logits.stdout": "ba101691cb2383b58074c4b8523400f8a96d4120b3e4ffff1c0b7aee168dc2f9",
+      "dense-untied-scaled-perplexity.stderr": "37f9e8389dfb4dd2a7744ff81b55a4f1a2213dd98108b7c290a6abae17b66b89",
+      "dense-untied-scaled-perplexity.stdout": "944f63c01ea19ccf92a84dd4d3c984465839cd0495822407a42103ab258a1b24",
+      "moe-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "moe-logits.stdout": "d533768801ecbf025de4d63aa807035f30e9ee6bc7859934d6cad85df4be5bfe",
+      "moe-perplexity.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "moe-perplexity.stdout": "9923b609baefcba1128f785552e1d9878db0ce21c7cbfbdac8e301fb884f0f80",
+      "moe-scaled-logits.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "moe-scaled-logits.stdout": "d533768801ecbf025de4d63aa807035f30e9ee6bc7859934d6cad85df4be5bfe",
+      "moe-scaled-perplexity.stderr": "9f925bb74199ffcee5ea92d8c8f3cf46aaed2e1c04e8a05716eac21d2807e788",
+      "moe-scaled-perplexity.stdout": "9923b609baefcba1128f785552e1d9878db0ce21c7cbfbdac8e301fb884f0f80"
+    }
+  },
+  "integration": "Preserved main paced vision encoder and shared non-NVFP4 tile prefetch, NVFP4 scale operands and paired tile path. Adapted two new BF16 benchmark calls to WeightView. Generator choices and encoder docs retain both features.",
+  "harness_note": "Initial HF wrapper stopped before inference because its CTest-log reader omitted PowerShell UTF-16 encoding. Corrected the reader without changing any product, fixture or limit."
+}

@@ -1,0 +1,867 @@
+{
+  "scope": "Two independent preliminary before/after screens; never compare absolute rates across PCI c3 and cc. No final win or full qualification claim.",
+  "experiments": {
+    "pair-loader": {
+      "scope": "Focused before/after packed NVFP4 tile loading experiment. Same build image/options and archive layout, default clocks. Not final qualification.",
+      "source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+      "change": "paired nibble loading and group scale reuse, two shader files",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "pci": "0000:c3:00.0",
+      "node": "/dev/dri/renderD128",
+      "preflight": {
+        "vram": 10919936,
+        "busy": 0
+      },
+      "activity_flags": {
+        "unrelated_cpu": "over 100 percent of one logical CPU",
+        "system_cpu": "over 75 percent busy",
+        "disk": "over 100 MiB/s summed physical device reads and writes",
+        "coverage": "unavailable counters or missing monitor samples are reported, never zero"
+      },
+      "pins": {
+        "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+        "llmx": "6acfb113b5a9b929544760f6316a203025fcd148a467a61f10b87f2de7a8ed23",
+        "after": "930924f55c0ae60d7341d113d51bdd903a454370107d20703488aa6be2b6edf4",
+        "build_receipt": "070abb45203776d847fa1be5802a6bbae48e46aaf377c815ce75b59c0613d2e5"
+      },
+      "calls": [
+        {
+          "arm": "before",
+          "warmup": true,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883135.6807475,
+          "log": "00-before.log",
+          "end": 1792883140.6030097,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1842.3,
+            "tg128": 86.36
+          },
+          "log_sha256": "177dc9dcd47b1fb18a81dc508199beee1890a44421b7951b414d8c186d742557",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 48.974918037370465,
+              "system_busy_percent": 8.886107634543183,
+              "disk_mib_s": 5.317940555396095
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": true,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883140.603579,
+          "log": "01-after.log",
+          "end": 1792883145.1259615,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1854.17,
+            "tg128": 85.95
+          },
+          "log_sha256": "efb95d9a8e01c266c654894fbd08d5aaf8e0fae072c10164496698941439270c",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 3
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 51.97433357172538,
+              "system_busy_percent": 6.340238543628374,
+              "disk_mib_s": 2.64705666824477
+            }
+          }
+        },
+        {
+          "arm": "before",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883145.1264205,
+          "log": "02-before.log",
+          "end": 1792883149.547868,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1826.34,
+            "tg128": 86.28
+          },
+          "log_sha256": "0c7277dc9b336aee2ae635ea965713d5c40557dcad98110e987d9a619061ec78",
+          "activity": {
+            "samples": 4,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 4
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 16.99119566899025,
+              "system_busy_percent": 6.265664160401007,
+              "disk_mib_s": 2.0296966181096994
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883149.5484803,
+          "log": "03-after.log",
+          "end": 1792883153.9706388,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1844.1,
+            "tg128": 86.78
+          },
+          "log_sha256": "df07978e84e6ca9516537751251da18b47e003da7906ac532db837a2b58b5f39",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 4
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 21.989988442659207,
+              "system_busy_percent": 5.642633228840122,
+              "disk_mib_s": 2.092812257042985
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883153.9710479,
+          "log": "04-after.log",
+          "end": 1792883158.3931212,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1879.35,
+            "tg128": 86.87
+          },
+          "log_sha256": "696249f0cfe61d52346b8cb11090491e09025e5ba623b27d820f5f6cf12d6561",
+          "activity": {
+            "samples": 4,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 4
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 18.98891197817465,
+              "system_busy_percent": 7.147335423197488,
+              "disk_mib_s": 2.2253924999221155
+            }
+          }
+        },
+        {
+          "arm": "before",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883158.393567,
+          "log": "05-before.log",
+          "end": 1792883162.8149896,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1794.07,
+            "tg128": 85.39
+          },
+          "log_sha256": "45ee1f6becf002a1a5fd19cd390c147723a6bb1c55f777c4186a92a87e88a87c",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 0,
+              "system_cpu": 0,
+              "disk": 0,
+              "process_coverage_gaps": 4
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 24.98940084092889,
+              "system_busy_percent": 6.026365348399243,
+              "disk_mib_s": 5.478043741232102
+            }
+          }
+        }
+      ],
+      "passed": true,
+      "version": "llmx 0.1.0+unknown numerics 4913f6ea64653cb0",
+      "device": "==========\nVULKANINFO\n==========\n\nVulkan Instance Version: 1.4.309\n\n\nInstance Extensions: count = 24\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_headless_surface                : extension revision 1\nVK_EXT_surface_maintenance1            : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_portability_enumeration         : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6\nVK_KHR_xcb_surface                     : extension revision 6\nVK_KHR_xlib_surface                    : extension revision 6\nVK_LUNARG_direct_driver_loading        : extension revision 1\n\nInstance Layers: count = 3\n--------------------------\nVK_LAYER_INTEL_nullhw       INTEL NULL HW                1.1.73   version 1\nVK_LAYER_MESA_device_select Linux device selection layer 1.4.303  version 1\nVK_LAYER_MESA_overlay       Mesa Overlay layer           1.4.303  version 1\n\nDevices:\n========\nGPU0:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 25.0.7\n\tvendorID           = 0x1002\n\tdeviceID           = 0x66a1\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName         = AMD Instinct MI60 / MI50 (RADV VEGA20)\n\tdriverID           = DRIVER_ID_MESA_RADV\n\tdriverName         = radv\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1\n\tconformanceVersion = 1.4.0.0\n\tdeviceUUID         = 00000000-c300-0000-0000-000000000000\n\tdriverUUID         = 414d442d-4d45-5341-2d44-525600000000\nGPU1:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 0.0.1\n\tvendorID           = 0x10005\n\tdeviceID           = 0x0000\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_CPU\n\tdeviceName         = llvmpipe (LLVM 19.1.7, 256 bits)\n\tdriverID           = DRIVER_ID_MESA_LLVMPIPE\n\tdriverName         = llvmpipe\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7)\n\tconformanceVersion = 1.3.1.1\n\tdeviceUUID         = 6d657361-3235-2e30-2e37-2d322b646500\n\tdriverUUID         = 6c6c766d-7069-7065-5555-494400000000",
+      "native_exit": 0,
+      "candidate_version": "llmx 0.1.0+unknown numerics 8a5339b76242256c",
+      "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "profile_exit": 0,
+      "monitor_exit": 0,
+      "container_state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 3541458,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-24T23:05:32.770764889Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      },
+      "end": 1792883170.9955814,
+      "means": {
+        "before": {
+          "pp512": 1810.205,
+          "tg128": 85.83500000000001
+        },
+        "after": {
+          "pp512": 1861.725,
+          "tg128": 86.825
+        }
+      },
+      "change_percent": {
+        "pp512": 2.846086492966271,
+        "tg128": 1.1533756626084912
+      },
+      "source_delta": {
+        "matmul_tile.comp": {
+          "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+          "before": "75c265f3a1bcc44e96d85aa012d562369a597374c0bba01c103b17d613fb926c",
+          "after": "685f996ca356640743ff093121f90039dfa5f6d0984e3114f4f35b70f5247ff5"
+        },
+        "qdecode.glsl": {
+          "path": "src/backends/vulkan/shaders/qdecode.glsl",
+          "before": "67cca3da53fa1f4e9eaa47da38d7ba0fececa05cea8c84b568c5ffc8c4a10f6d",
+          "after": "d5ae088a3c8a70a353dfff3a6e0d4e144ec6a0f136cbe33f9216364840a05411"
+        }
+      },
+      "artifact_hashes": {
+        "00-before.log": "177dc9dcd47b1fb18a81dc508199beee1890a44421b7951b414d8c186d742557",
+        "01-after.log": "efb95d9a8e01c266c654894fbd08d5aaf8e0fae072c10164496698941439270c",
+        "02-before.log": "0c7277dc9b336aee2ae635ea965713d5c40557dcad98110e987d9a619061ec78",
+        "03-after.log": "df07978e84e6ca9516537751251da18b47e003da7906ac532db837a2b58b5f39",
+        "04-after.log": "696249f0cfe61d52346b8cb11090491e09025e5ba623b27d820f5f6cf12d6561",
+        "05-before.log": "45ee1f6becf002a1a5fd19cd390c147723a6bb1c55f777c4186a92a87e88a87c",
+        "activity.jsonl": "60b3640e3b678fd38d86502c6da54e0a4ceac51fc074c86df2d03c5f8a69948b",
+        "execution.json": "6aedc32319f246911bfc6972a654adc4e614d34b5ad6f205560042990a835ed1",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "native.log": "6674678090a447214ec8a7f12b4a06769f8f945df52f36363369912f2b365342",
+        "profile.log": "6922d831d768b17c04fda4e717ce55a7ba3c72daf6de4570bcc0d89f937389f0"
+      },
+      "profile": {
+        "scope": "Separate instrumented diagnostic, not comparison throughput or measured occupancy.",
+        "tile_lines": [
+          "profile:   matmul_tile 233.263 ms (81.3542%)",
+          "profile: kernel matmul_tile: Driver pipeline hash=5738751878884721553 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=26188 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2670462769 Instructions=4831 Copies=608 Branches=296 Latency=249871 Inverse Throughput=67781 VMEM Clause=138 SMEM Clause=82 Pre-Sched SGPRs=33 Pre-Sched VGPRs=37 VALU=2957 SALU=813 VMEM=238 SMEM=82 VOPD=0"
+        ],
+        "native_log": "NVFP4 Vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20); row/tile timestamp witnesses present\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]"
+      },
+      "activity_aggregate": {
+        "samples": 37,
+        "intervals": 36,
+        "process_gap_intervals": 30
+      }
+    },
+    "fixed-type": {
+      "scope": "Focused before/after packed NVFP4 tile loading experiment. Same build image/options and archive layout, default clocks. Not final qualification.",
+      "source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+      "change": "paired nibble loads plus fixed NVFP4 tile type, three runtime files",
+      "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "pci": "0000:cc:00.0",
+      "node": "/dev/dri/renderD131",
+      "preflight": {
+        "vram": 10919936,
+        "busy": 0
+      },
+      "activity_flags": {
+        "unrelated_cpu": "over 100 percent of one logical CPU",
+        "system_cpu": "over 75 percent busy",
+        "disk": "over 100 MiB/s summed physical device reads and writes",
+        "coverage": "unavailable counters or missing monitor samples are reported, never zero"
+      },
+      "pins": {
+        "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+        "llmx": "6acfb113b5a9b929544760f6316a203025fcd148a467a61f10b87f2de7a8ed23",
+        "after": "63dde3587566682b0ef8f9ecd58f5e6ed83dae9d43bf4d58e9a8333b7ce922e1",
+        "build_receipt": "95b2b67f67e68c1b86febee1ba04bad72e2cffc77666fad3e9c2b9078b9355c8"
+      },
+      "calls": [
+        {
+          "arm": "before",
+          "warmup": true,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883482.3037071,
+          "log": "00-before.log",
+          "end": 1792883487.2753396,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1847.54,
+            "tg128": 87.72
+          },
+          "log_sha256": "583f6631bd93202b76a4af720467e8a7c7c3f94af9d84adf75d29bb5cf6c66be",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 5,
+              "system_cpu": 0,
+              "disk": 5,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 528.775910572757,
+              "system_busy_percent": 42.409033877038894,
+              "disk_mib_s": 389.5235535575005
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": true,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883487.2759595,
+          "log": "01-after.log",
+          "end": 1792883492.2514307,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1872.66,
+            "tg128": 85.83
+          },
+          "log_sha256": "370eeda2f4786ae51182e8267267c382af51889d4a158a8836989845030c5581",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 5,
+              "system_cpu": 0,
+              "disk": 3,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 521.6844096237122,
+              "system_busy_percent": 40.12539184952978,
+              "disk_mib_s": 393.0434745028056
+            }
+          }
+        },
+        {
+          "arm": "before",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883492.2520885,
+          "log": "02-before.log",
+          "end": 1792883497.083646,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1836.23,
+            "tg128": 85.46
+          },
+          "log_sha256": "79a82b0f8beb5b1a200107a80aaceac6f9001f78fa2b04991a35d5bce9866bce",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 5,
+              "system_cpu": 0,
+              "disk": 5,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 1084.2647631489126,
+              "system_busy_percent": 73.14465408805032,
+              "disk_mib_s": 1260.1988984295338
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883497.084272,
+          "log": "03-after.log",
+          "end": 1792883501.8706956,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1881.62,
+            "tg128": 85.57
+          },
+          "log_sha256": "9170cbb9c732cc4435e2518f957f55a07610be82efc45a74100acba01b80820a",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 5,
+              "system_cpu": 1,
+              "disk": 5,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 1110.1948224245884,
+              "system_busy_percent": 75.81658291457286,
+              "disk_mib_s": 1240.6930737656626
+            }
+          }
+        },
+        {
+          "arm": "after",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/candidate/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883501.871323,
+          "log": "04-after.log",
+          "end": 1792883506.5461602,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1871.74,
+            "tg128": 86.32
+          },
+          "log_sha256": "31b0292983f7a1fd50d430fde87915712e00299a7ab00680c1eb46e0248854d8",
+          "activity": {
+            "samples": 5,
+            "flags": {
+              "unrelated_cpu": 5,
+              "system_cpu": 0,
+              "disk": 5,
+              "process_coverage_gaps": 5
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 1121.168161808531,
+              "system_busy_percent": 73.64779874213836,
+              "disk_mib_s": 1220.6951547501549
+            }
+          }
+        },
+        {
+          "arm": "before",
+          "warmup": false,
+          "status": "passed",
+          "command": [
+            "/llmx/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "512",
+            "--n",
+            "128",
+            "--r",
+            "1",
+            "--device",
+            "vulkan:0",
+            "--threads",
+            "4",
+            "--ubatch",
+            "512",
+            "--dtype",
+            "auto",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--load-mode",
+            "auto"
+          ],
+          "start": 1792883506.547082,
+          "log": "05-before.log",
+          "end": 1792883511.4246054,
+          "exit_code": 0,
+          "rates": {
+            "pp512": 1839.62,
+            "tg128": 85.12
+          },
+          "log_sha256": "d45fe765c70f8c1eaca8cc461448e36cb3a4c14c319e0e08dd472fc470ec361b",
+          "activity": {
+            "samples": 4,
+            "flags": {
+              "unrelated_cpu": 4,
+              "system_cpu": 1,
+              "disk": 4,
+              "process_coverage_gaps": 4
+            },
+            "maximum": {
+              "unrelated_cpu_percent": 1112.1913822842128,
+              "system_busy_percent": 75.55135475740391,
+              "disk_mib_s": 1110.8977085787528
+            }
+          }
+        }
+      ],
+      "passed": true,
+      "version": "llmx 0.1.0+unknown numerics 4913f6ea64653cb0",
+      "device": "==========\nVULKANINFO\n==========\n\nVulkan Instance Version: 1.4.309\n\n\nInstance Extensions: count = 24\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_headless_surface                : extension revision 1\nVK_EXT_surface_maintenance1            : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_portability_enumeration         : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6\nVK_KHR_xcb_surface                     : extension revision 6\nVK_KHR_xlib_surface                    : extension revision 6\nVK_LUNARG_direct_driver_loading        : extension revision 1\n\nInstance Layers: count = 3\n--------------------------\nVK_LAYER_INTEL_nullhw       INTEL NULL HW                1.1.73   version 1\nVK_LAYER_MESA_device_select Linux device selection layer 1.4.303  version 1\nVK_LAYER_MESA_overlay       Mesa Overlay layer           1.4.303  version 1\n\nDevices:\n========\nGPU0:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 25.0.7\n\tvendorID           = 0x1002\n\tdeviceID           = 0x66a1\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName         = AMD Instinct MI60 / MI50 (RADV VEGA20)\n\tdriverID           = DRIVER_ID_MESA_RADV\n\tdriverName         = radv\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1\n\tconformanceVersion = 1.4.0.0\n\tdeviceUUID         = 00000000-cc00-0000-0000-000000000000\n\tdriverUUID         = 414d442d-4d45-5341-2d44-525600000000\nGPU1:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 0.0.1\n\tvendorID           = 0x10005\n\tdeviceID           = 0x0000\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_CPU\n\tdeviceName         = llvmpipe (LLVM 19.1.7, 256 bits)\n\tdriverID           = DRIVER_ID_MESA_LLVMPIPE\n\tdriverName         = llvmpipe\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7)\n\tconformanceVersion = 1.3.1.1\n\tdeviceUUID         = 6d657361-3235-2e30-2e37-2d322b646500\n\tdriverUUID         = 6c6c766d-7069-7065-5555-494400000000",
+      "native_exit": 0,
+      "candidate_version": "llmx 0.1.0+unknown numerics 83a838a39d8b406b",
+      "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "profile_exit": 0,
+      "monitor_exit": 0,
+      "container_state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 3558076,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-24T23:11:19.018220612Z",
+        "FinishedAt": "0001-01-01T00:00:00Z"
+      },
+      "end": 1792883519.848072,
+      "means": {
+        "before": {
+          "pp512": 1837.925,
+          "tg128": 85.28999999999999
+        },
+        "after": {
+          "pp512": 1876.6799999999998,
+          "tg128": 85.945
+        }
+      },
+      "change_percent": {
+        "pp512": 2.1086279363956573,
+        "tg128": 0.7679681088052615
+      },
+      "source_delta": {
+        "matmul_tile.comp": {
+          "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+          "before": "ad09d0f006306e84db73cb2b0323625ae84cfa5e890e8a30dd502161fe808983",
+          "after": "2e342d14fd51e51724e8012d82ce4a14eda1b8b82ad2c821296ef9a1061575c2"
+        },
+        "vulkan_backend.cpp": {
+          "path": "src/backends/vulkan/vulkan_backend.cpp",
+          "before": "e97a62ff5f28dd168b76d12c93a4d0c7201ce689f08c98541eeb2def5d345d24",
+          "after": "01efc295dde39fb01730df5b1075037ef0a975b3c9bce282ff696937660b0acd"
+        }
+      },
+      "artifact_hashes": {
+        "00-before.log": "583f6631bd93202b76a4af720467e8a7c7c3f94af9d84adf75d29bb5cf6c66be",
+        "01-after.log": "370eeda2f4786ae51182e8267267c382af51889d4a158a8836989845030c5581",
+        "02-before.log": "79a82b0f8beb5b1a200107a80aaceac6f9001f78fa2b04991a35d5bce9866bce",
+        "03-after.log": "9170cbb9c732cc4435e2518f957f55a07610be82efc45a74100acba01b80820a",
+        "04-after.log": "31b0292983f7a1fd50d430fde87915712e00299a7ab00680c1eb46e0248854d8",
+        "05-before.log": "d45fe765c70f8c1eaca8cc461448e36cb3a4c14c319e0e08dd472fc470ec361b",
+        "activity.jsonl": "e7f1d8ecd97e937e0698cc33337e392c846e5b768dceb50967411226a0fa3721",
+        "execution.json": "d903a0cca9556c5f24713c76f3ae9c35cc2357040c766524077fbe769ae90e34",
+        "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "native.log": "6674678090a447214ec8a7f12b4a06769f8f945df52f36363369912f2b365342",
+        "profile.log": "c5746cc74f21c5579f93f28429f5dc3d9f1d6eb9cfb71f87207b9c8baf90c354"
+      },
+      "profile": {
+        "scope": "Separate instrumented diagnostic, not comparison throughput or measured occupancy.",
+        "tile_lines": [
+          "profile:   matmul_tile_nvfp4 234.255 ms (84.729%)",
+          "profile: kernel matmul_tile_nvfp4: Driver pipeline hash=10111590328494778297 SGPRs=48 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8320 LDS size=16384 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=405880279 Instructions=1547 Copies=286 Branches=120 Latency=251587 Inverse Throughput=72660 VMEM Clause=75 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=37 VALU=692 SALU=390 VMEM=78 SMEM=62 VOPD=0"
+        ],
+        "native_log": "NVFP4 Vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20); row/tile timestamp witnesses present\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]"
+      },
+      "activity_aggregate": {
+        "samples": 39,
+        "intervals": 38,
+        "process_gap_intervals": 38
+      }
+    }
+  },
+  "limits": [
+    "Each screen has six calls: two warmups and two measured per arm; all retained.",
+    "Call activity includes loading and internal warmup; missing/new/exited processes are coverage gaps, not zero activity.",
+    "Fixed type reduces tile instructions to 1547 but measured prefill gain remains small.",
+    "Earlier mx screen has different build inputs and is not a matched qualification comparison."
+  ],
+  "markdown_review": {
+    "prior_inventory": 137,
+    "scope": "Carry prior 137-page review for unchanged Markdown; inspect STATUS and the Vulkan owner page against the paired loader and specialization delta. Owner page now describes constant 14 and paired decoding. Docs and dead-code components pass on this checkpoint."
+  }
+}

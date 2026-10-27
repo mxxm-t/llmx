@@ -1,0 +1,31 @@
+{
+  "previous_private_head": "293381c8102daddb69e59423e857130ba013098f",
+  "integrated_main": "8bdef686795a785e4f0a031d0f8586fbd169fb48",
+  "hosted_runtime_gate_head": "1fccbb34459bcd2a5c25a899dfba5bb42b4c3387",
+  "hosted_run": 40443346959,
+  "incoming_paths": [
+    "docs/STATUS.md",
+    "docs/benchmarks/dashboard-startup-image-20261027.json",
+    "tools/health_dashboard/README.md",
+    "tools/health_dashboard/index.html",
+    "tools/health_dashboard/server.py",
+    "tools/health_dashboard/test_server.py",
+    "tools/health_dashboard/test_ui_rates.py"
+  ],
+  "dashboard_main_blob_identity": {
+    "tools/health_dashboard/README.md": "534a2aaee2e3c483bf4b4bb0d64dc6c9d952370a556f9435a24ac150a92a88b7",
+    "tools/health_dashboard/index.html": "c261940fe7b9787e024e8cb808a3569a6671d18d178c94ff81390571fba7eb84",
+    "tools/health_dashboard/server.py": "4cd0bb1d968823e6c59335501220b3d4e856c6ffbf6b0aba970f6ae9a0a1e7a8",
+    "tools/health_dashboard/test_server.py": "078ea2d7078d1ad0025e04c6f507f4a98af1b83df6cb5bf6e77f6412d249b01a",
+    "tools/health_dashboard/test_ui_rates.py": "1fce6262d822e612af661a8b0b9b906ed315a74cc561b66844f2444f1e389344"
+  },
+  "runtime_delta": [],
+  "focused_evidence": "dashboard-startup-image-20261027.json",
+  "tracked_markdown_files": 150,
+  "checks": {
+    "docs": "pass, 0 findings, 21 planted faults",
+    "dead_code": "pass, accepted baseline unchanged, 19 planted faults",
+    "runtime_build_test_configuration_diff": "empty against previous private head"
+  },
+  "inventory_correction": "Recounted from git ls-files at 67ebe1ac9: 150 Markdown files, not the previously recorded 152."
+}

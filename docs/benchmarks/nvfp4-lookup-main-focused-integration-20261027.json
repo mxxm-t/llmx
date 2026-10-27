@@ -1,0 +1,154 @@
+{
+  "schema": "nvfp4-lookup-main-focused-integration-v1",
+  "scope": "Private integration of lookup row-store main8ccc10162 into NVFP4. Fresh Windows CPU build and affected tests only, not full landing qualification.",
+  "feature_parent": "5a5a780fdb32369df026830ce1d58076418d1da7",
+  "main_parent": "8ccc10162",
+  "prepared_tree": "ddeb773b24686ec7d56090841f52de5acf244518",
+  "preparation_sha256": "8921142a36a52c81a0463aa1b46522cfdc6634b04e481e634c2c887ddad960cd",
+  "resolutions": {
+    "src/model/place.hpp": "Retain NVFP4 companion scale accounting and adopt host_bytes for row-store plus I/O memory",
+    "docs/USAGE.md": "Retain asynchronous reads and use new store description with accurate CLOCK wording",
+    "docs/STATUS.md": "Keep both blocks and record integration pending"
+  },
+  "result": {
+    "started_utc": "2026-10-27T00:38:28.281364+00:00",
+    "base_main": "8ccc10162",
+    "feature_head": "5a5a780fd",
+    "scope": "Fresh CPU build and focused lookup/placement/scale integration checks",
+    "commands": [
+      {
+        "name": "configure",
+        "argv": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DBUILD_TESTING=ON",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 5.623051404953003
+      },
+      {
+        "name": "build",
+        "argv": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-placement-test",
+          "llmx-weight-rows-test",
+          "llmx-weight-scales-test",
+          "llmx-model-weight-scales-test",
+          "llmx-server-passes-test"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 64.36500477790833
+      },
+      {
+        "name": "ctest",
+        "argv": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build",
+          "-C",
+          "Release",
+          "--output-on-failure",
+          "-R",
+          "^(placement|weight-rows|weight-scales|model-weight-scales|server-passes)$"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 70.0962188243866
+      },
+      {
+        "name": "docs",
+        "argv": [
+          "python",
+          "-X",
+          "utf8",
+          "tests/run_tests.py",
+          "--exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx.exe",
+          "--only",
+          "docs,dead-code"
+        ],
+        "exit_code": 0,
+        "elapsed_seconds": 37.22217535972595
+      }
+    ],
+    "completed_utc": "2026-10-27T00:41:25.591811+00:00",
+    "binaries": [
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx-model-weight-scales-test.exe",
+        "sha256": "6fe26e7ea07ea362ea1f21e6bde89d64b7193f0f698df9978e8facf3a7cd8b35"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx-placement-test.exe",
+        "sha256": "1a661c0ca9e4d142554368abb2f39861d272643967d5999a2a60e48a787da10d"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx-server-passes-test.exe",
+        "sha256": "fa207a636e7a26e61874a31eed3c32fea8554da981ce3cd3d94195783f3a1847"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx-weight-rows-test.exe",
+        "sha256": "2d4010998e86ce3e2e7160437dbd02e6e1812799af9425c87841b05132611225"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx-weight-scales-test.exe",
+        "sha256": "59f281b43b690f8ef2ed2bb60577b60f4ca83e08d48d4a8f935e47e6ed65f892"
+      },
+      {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-main-integration-v1\\build\\Release\\llmx.exe",
+        "sha256": "22131d98e86d47e8efc026e01932e9f066be3f4ff6e9babaa29b12fedf076e30"
+      }
+    ],
+    "passed": true
+  },
+  "logs": [
+    {
+      "path": "build-integration/lookup-main-integration-v1/build.log",
+      "sha256": "721d61e81467ba695016d4d1690414b8311353c46b8eb307feb38c2f51676549"
+    },
+    {
+      "path": "build-integration/lookup-main-integration-v1/configure.log",
+      "sha256": "d5b6cdc2202c8c5756428678ba873aaf2143257217f1a2e2795a4f23e8686252"
+    },
+    {
+      "path": "build-integration/lookup-main-integration-v1/ctest.log",
+      "sha256": "6d2fcea93e191d6fad70addb9f7b92b31efae31bcb24c4197a17ef1da0d96aa2"
+    },
+    {
+      "path": "build-integration/lookup-main-integration-v1/docs.log",
+      "sha256": "ae5f431015e40dde0162f4b231bdb2d936052310797517263af7c2a8c05d4f2c"
+    }
+  ],
+  "tests": {
+    "placement": "pass",
+    "weight-rows": "pass",
+    "weight-scales": "pass",
+    "model-weight-scales": "pass",
+    "server-passes": "pass",
+    "docs": "pass",
+    "dead-code": "pass"
+  },
+  "pending": [
+    "new integrated Linux paired builds",
+    "operator timing",
+    "35B matched timing",
+    "Flash2x2 raw identity",
+    "applicable hosted CI on integrated tree",
+    "final landing audit"
+  ],
+  "carry": "Vulkan backend and shaders unchanged by main8ccc lookup delta. Frozen operator artifacts retain their exact provenance. Flash lookup placement/read behavior changed and requires integrated builds."
+}

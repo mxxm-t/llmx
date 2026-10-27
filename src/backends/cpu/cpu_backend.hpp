@@ -209,10 +209,12 @@ public:
         if (error) std::rethrow_exception(error);
     }
 
-    void embed(Slice dst_s, uint32_t type, CSlice table, size_t nin,
+    void embed(Slice dst_s, WeightView weight, size_t nin,
                size_t nrows, const uint32_t* ids, size_t count) override {
+        const float* scales = weight_scales(weight);
+        const uint32_t type = weight.type;
         float* dst = at(dst_s);
-        const uint8_t* rows = (const uint8_t*)bytes_at(table);
+        const uint8_t* rows = (const uint8_t*)bytes_at(weight.data);
         const quant::QuantType* qt = type == quant::GGML_TYPE_F32
                                    ? nullptr : quant::Registry::instance().get(type);
         if (type != quant::GGML_TYPE_F32 && (!qt || !qt->dequantize))
@@ -223,10 +225,13 @@ public:
             const uint8_t* row = rows + (size_t)ids[i] * stride;
             if (qt) qt->dequantize(row, dst + i * nin, nin / qt->block_size);
             else std::memcpy(dst + i * nin, row, nin * sizeof(float));
+            if (scales)
+                for (size_t j = 0; j < nin; ++j) dst[i * nin + j] *= scales[0];
         }
     }
 
-    void embed_ids(Slice dst_s, uint32_t type, CSlice table, size_t nin, size_t nrows, CSlice ids_s, size_t count) override {
+    void embed_ids(Slice dst_s, WeightView weight, size_t nin, size_t nrows, CSlice ids_s, size_t count) override {
+        weight_scales(weight);
         if (!count) return;
         span(*ids_s.buffer, ids_s.offset * sizeof(float), size_mul(count, sizeof(float)));
         span(*dst_s.buffer, dst_s.offset * sizeof(float), size_mul(size_mul(count, nin), sizeof(float)));
@@ -235,7 +240,7 @@ public:
         for (size_t i = 0; i < count; ++i) {
             uint32_t id;
             std::memcpy(&id, slots + i, sizeof(id));
-            if (id < nrows) embed(Slice{dst_s.buffer, dst_s.offset + i * nin}, type, table, nin, nrows, &id, 1);
+            if (id < nrows) embed(Slice{dst_s.buffer, dst_s.offset + i * nin}, weight, nin, nrows, &id, 1);
             else std::fill(dst + i * nin, dst + (i + 1) * nin, 0.0f);
         }
     }
@@ -315,27 +320,30 @@ public:
     }
 
     // The product lands in a scratch buffer kept across calls and is added to Y, so the arithmetic is the separate matmul and add exactly.
-    void matmul_add(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
+    void matmul_add(WeightView weight, CSlice X_s, Slice Y_s,
                     size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        weight_scales(weight);
         const size_t bytes = nout * nbatch * sizeof(float);
         if (!add_scratch_ || add_scratch_bytes_ < bytes) {
             add_scratch_ = alloc(bytes, Memory::device);
             add_scratch_bytes_ = bytes;
         }
-        matmul(type, weights, X_s, {add_scratch_.get(), 0}, nin, nout, nbatch, runs, dtype);
+        matmul(weight, X_s, {add_scratch_.get(), 0}, nin, nout, nbatch, runs, dtype);
         add(Y_s, {add_scratch_.get(), 0}, nout * nbatch);
     }
     BufferPtr add_scratch_;
     size_t add_scratch_bytes_ = 0;
 
     // With row runs a generated token (extent 1) takes the decode dots and a prompt's rows the batched path, so a row computes the same however it is batched, as on a device (backend.hpp RowRuns); without them a one-column call is decode.
-    void matmul(uint32_t type, CSlice weights, CSlice X_s, Slice Y_s,
+    void matmul(WeightView weight, CSlice X_s, Slice Y_s,
                 size_t nin, size_t nout, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
-        const uint8_t* data = (const uint8_t*)bytes_at(weights);
+        const float* scales = weight_scales(weight);
+        const uint32_t type = weight.type;
+        const uint8_t* data = (const uint8_t*)bytes_at(weight.data);
         const float* X = dtype_input(X_s, size_mul(nbatch, nin), dtype);
         float* Y = at(Y_s);
         each_run(nbatch, runs, [&](size_t first, size_t count, bool decode) {
-            matmul_raw(type, data, X + first * nin, Y + first * nout, nin, nout, count, decode, dtype);
+            matmul_raw(type, data, X + first * nin, Y + first * nout, nin, nout, count, decode, dtype, scales);
         });
     }
 
@@ -395,7 +403,7 @@ public:
 
     // The matmul on host addresses, which an expert's matrix inside a stacked tensor needs; `decode` picks the decode dots, and otherwise a type with quantized dots takes the prompt dots and the rest the batched float path.
     void matmul_raw(uint32_t type, const uint8_t* data, const float* X, float* Y,
-                    size_t nin, size_t nout, size_t nbatch, bool decode, Dtype dtype) {
+                    size_t nin, size_t nout, size_t nbatch, bool decode, Dtype dtype, const float* scales = nullptr) {
         if (decode && quantized_dots(type, nin, dtype)) {
             matvec_q8x(type, data, X, Y, nin, nout, nbatch);
             return;
@@ -423,7 +431,7 @@ public:
             return;
         }
         if (decode && nbatch > 1) {
-            for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true, dtype);
+            for (size_t c = 0; c < nbatch; ++c) matmul_raw(type, data, X + c * nin, Y + c * nout, nin, nout, 1, true, dtype, scales);
             return;
         }
         const quant::QuantType* qt = quant::Registry::instance().get(type);
@@ -442,6 +450,9 @@ public:
                 if (!f32)
                     for (size_t k = 0; k < nr; k++)
                         qt->dequantize(data + (o + k) * rowbytes, buf.data() + k * nin, nblocks);
+                // Round the reconstructed weight to F32 before any activation product.
+                if (scales)
+                    for (size_t i = 0; i < nr * nin; ++i) buf[i] *= scales[0];
                 size_t b = 0;
                 // Three activation columns at a time where the row block is full, so weight loads amortise across all three.
                 for (; b + 3 <= nbatch && nr == RB; b += 3) {
@@ -487,12 +498,14 @@ public:
 
     void matmul_group(std::initializer_list<Projection> projections,
                       CSlice X_s, size_t nin, size_t nbatch, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
-        for (const auto& p : projections)
-            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
+        for (const auto& p : projections) {
+            if (!p.weight.data.buffer) throw std::runtime_error("backend: projection without storage");
+            weight_scales(p.weight);
+        }
         bool decode = nbatch > 0;
         each_run(nbatch, runs, [&](size_t, size_t, bool d) { decode = decode && d; });
         bool q8 = decode && projections.size() > 1;
-        for (const auto& p : projections) q8 = q8 && quantized_dots(p.type, nin, dtype);
+        for (const auto& p : projections) q8 = q8 && !p.weight.scales.buffer && quantized_dots(p.weight.type, nin, dtype);
         if (!q8) { Backend::matmul_group(projections, X_s, nin, nbatch, runs, dtype); return; }
         // One quantized X for every projection, and one pool dispatch over all their rows.
         xq8_.reset(at(X_s), nbatch, nin);
@@ -504,7 +517,7 @@ public:
         std::vector<Part> parts;
         size_t total = 0;
         for (const auto& p : projections) {
-            parts.push_back({p.type, (const uint8_t*)bytes_at(p.data), at(p.out), p.rows, quant::row_bytes(p.type, nin), total});
+            parts.push_back({p.weight.type, (const uint8_t*)bytes_at(p.weight.data), at(p.out), p.rows, quant::row_bytes(p.weight.type, nin), total});
             total += nbatch * p.rows;
         }
         split_rows(total, [&](size_t r0, size_t r1) {
@@ -2064,6 +2077,7 @@ public:
 
     void matmul_experts(std::initializer_list<Projection> projections, CSlice X_s, size_t nin,
                         size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        for (const Projection& p : projections) weight_scales(p.weight, routing.n_expert);
         const size_t entries = size_mul(nrows, routing.k);
         if (!entries) return;
         const Grouping g = group_by_expert(routing, entries);
@@ -2073,15 +2087,16 @@ public:
         const float* X = dtype_input(X_s, size_mul(nrows, nin), dtype);
         xq8_.reset(X, nrows, nin);
         for (const Projection& p : projections) {
-            if (!p.data.buffer) throw std::runtime_error("backend: projection without storage");
+            if (!p.weight.data.buffer) throw std::runtime_error("backend: projection without storage");
             span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(entries, p.rows) * sizeof(float));
-            expert_products(p.type, p.data, routing.n_expert, X, nrows, routing.k, routing.k, at(p.out), nin, p.rows, g, decode, dtype);
+            expert_products(p.weight, routing.n_expert, X, nrows, routing.k, routing.k, at(p.out), nin, p.rows, g, decode, dtype);
         }
     }
 
     // The slots' products land in scratch; each row's weighted sum is then formed in slot order and added, the order the interface fixes.
-    void matmul_experts_add(uint32_t type, CSlice data, CSlice X_s, Slice Y_s, size_t nin, size_t nout,
+    void matmul_experts_add(WeightView weight, CSlice X_s, Slice Y_s, size_t nin, size_t nout,
                             size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) override {
+        weight_scales(weight, routing.n_expert);
         const size_t k = routing.k, entries = size_mul(nrows, k);
         if (!entries) return;
         const Grouping g = group_by_expert(routing, entries);
@@ -2091,7 +2106,7 @@ public:
         expert_out_.resize(size_mul(entries, nout));
         const float* X = dtype_input(X_s, size_mul(entries, nin), dtype);
         xq8_.reset(X, entries, nin);
-        expert_products(type, data, routing.n_expert, X, entries, 1, k, expert_out_.data(), nin, nout, g,
+        expert_products(weight, routing.n_expert, X, entries, 1, k, expert_out_.data(), nin, nout, g,
                         decode_rows(nrows, runs), dtype);
         const float* w = at(routing.weights);
         float* Y = at(Y_s);
@@ -2109,6 +2124,23 @@ public:
     }
 
 private:
+    // Validate the companion span and shape before any output is written.
+    static const float* weight_scales(WeightView weight, size_t experts = 1) {
+        if (!weight.scales.buffer) {
+            if (weight.scale_count || weight.scales.offset)
+                throw std::runtime_error("backend: weight scale count without storage");
+            return nullptr;
+        }
+        if (weight.type != quant::GGML_TYPE_NVFP4)
+            throw std::runtime_error("backend: weight scales require NVFP4 storage");
+        if (weight.scale_count != 1 && weight.scale_count != experts)
+            throw std::runtime_error("backend: weight scale count differs from its matrices");
+        if (!weight.scale_count)
+            throw std::runtime_error("backend: weight scales have no values");
+        span(*weight.scales.buffer, size_mul(weight.scales.offset, sizeof(float)), size_mul(weight.scale_count, sizeof(float)));
+        return at(weight.scales);
+    }
+
     static void validate_float_slice(CSlice slice, size_t count) {
         if (!slice.buffer) throw std::runtime_error("backend: operand without storage");
         span(*slice.buffer, size_mul(slice.offset, sizeof(float)), size_mul(count, sizeof(float)));
@@ -2192,8 +2224,11 @@ private:
 
     // out[e*nout ..] = expert id(e)'s matrix times X row e / per, X having xrows rows and entry e belonging to token row e / k.
     // Decode entries share one pool dispatch and prompt entries share unpacked expert rows (one float matmul per expert without prompt dots), and each entry keeps its arithmetic regardless of the entries routed beside it.
-    void expert_products(uint32_t type, CSlice data_s, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
+    void expert_products(WeightView weight, size_t n_expert, const float* X, size_t xrows, size_t per, size_t k,
                          float* out, size_t nin, size_t nout, const Grouping& g, const std::vector<char>& decode, Dtype dtype) {
+        const uint32_t type = weight.type;
+        const CSlice data_s = weight.data;
+        const float* scales = weight_scales(weight, n_expert);
         const size_t row_bytes = quant::row_bytes(type, nin), stride = size_mul(nout, row_bytes);
         span(*data_s.buffer, data_s.offset * sizeof(float), size_mul(n_expert, stride));
         const uint8_t* data = (const uint8_t*)bytes_at(data_s);
@@ -2228,7 +2263,7 @@ private:
                 for (size_t r = r0; r < r1; ++r) {
                     const size_t s = r / nout, o = r - s * nout, i = single[s];
                     const uint8_t* w = data + expert_of[s] * stride + o * row_bytes;
-                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin);
+                    out[i * nout + o] = q8 ? q8::dot(type, w, xq8_, i / per) : row_dot(type, w, X + (i / per) * nin, nin, scales ? scales + (weight.scale_count == 1 ? 0 : expert_of[s]) : nullptr);
                 }
             });
         }
@@ -2263,7 +2298,7 @@ private:
             expert_y_.resize(batch.size() * nout);
             for (size_t c = 0; c < batch.size(); ++c)
                 std::memcpy(expert_x_.data() + c * nin, X + (batch[c] / per) * nin, nin * sizeof(float));
-            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, batch.size(), false, dtype);
+            matmul_raw(type, w, expert_x_.data(), expert_y_.data(), nin, nout, batch.size(), false, dtype, scales ? scales + (weight.scale_count == 1 ? 0 : e) : nullptr);
             for (size_t c = 0; c < batch.size(); ++c)
                 std::memcpy(out + (size_t)batch[c] * nout, expert_y_.data() + c * nout, nout * sizeof(float));
         }
@@ -2271,7 +2306,8 @@ private:
 
     // One weight row against one activation row in float: a dense decode row of float storage, Q8_0, IQ4 or a K-quant, and a routed decode entry of any type, each through its fused dot where it has one.
     // Types without one, routed Q4_0 and Q4_1 decode among them, take the dequantized dot in double, where their dense decode keeps the batched float path.
-    float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin) {
+    float row_dot(uint32_t type, const uint8_t* row, const float* x, size_t nin, const float* scales = nullptr) {
+        if (scales) return dot_row_dequant(type, row, x, nin, nin / quant::NVFP4_BLOCK, scales);
         switch (type) {
         case quant::GGML_TYPE_F32: return dot_f32((const float*)row, x, nin);
         case quant::GGML_TYPE_IQ4_NL: return dot_float<quant::GGML_TYPE_IQ4_NL>(row, x, nin);
@@ -2615,12 +2651,14 @@ private:
     // Applies each scale before multiplying by the activation and accumulates in double: a K-quant row whose fused dot overflowed, and a routed decode row of a type without a fused dot.
     // Local scratch avoids reserving a buffer per worker for paths the default decode, over quantized activations, does not take.
     float dot_row_dequant(uint32_t type, const uint8_t* row, const float* x,
-                          size_t nin, size_t nb) {
+                          size_t nin, size_t nb, const float* scales = nullptr) {
         const quant::QuantType* qt = quant::Registry::instance().get(type);
         if (!qt || !qt->dequantize)
             throw std::runtime_error("backend: no dequantizer for fallback dot");
         std::vector<float> buf(nin);
         qt->dequantize(row, buf.data(), nb);
+        if (scales)
+            for (float& value : buf) value *= scales[0];
         double s = 0.0;
         for (size_t i = 0; i < nin; i++) s += (double)buf[i] * (double)x[i];
         return (float)s;

@@ -1,0 +1,434 @@
+{
+  "schema": "nvfp4-mainf61-completed-checks-v1",
+  "scope": {
+    "runtime_integration": "candidate source revision 7956764c64e0fbdd52b162cb471de7a1b0a5b484; recorded numerics fingerprint c84fd0a57ab1f80c",
+    "intervening_commits": "55c989862 and 9da8a3f8a changed docs/evidence only; git diff 7956764c..HEAD contained no runtime/test/build changes for this record.",
+    "feature_limit": "This build and Windows checks cover the 7956764 runtime/integration. They do not qualify the later common-float-split-v1 experiment; that experiment has separate scratch build, native-test and timing evidence and remains unqualified for landing.",
+    "numerical_limits_changed": false
+  },
+  "linux_build": {
+    "passed": true,
+    "tests_run": false,
+    "container_absent_after_collection": true,
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "launch_cpuset": "8,9",
+    "cpu_quota": 2,
+    "memory_limit": "8 GiB",
+    "network": "none",
+    "gpu_mounts": false,
+    "arms": {
+      "main": {
+        "revision": "f61c8ca75a71f545026829a6cd8255b3bc3e4ca5",
+        "source_files": 2934,
+        "source_manifest_sha256": "b4a6c453adc8256964fb8b159000eca7a98460f1a5366a71b8590ae71852c7b6",
+        "version": "llmx 0.1.0+unknown numerics 7fe148d9b535fb21",
+        "binaries": {
+          "llmx": {
+            "path": "main/build/llmx",
+            "bytes": 12659968,
+            "sha256": "8e2ef22f7ee4ce9a6e6a0e730478c46c4676c5ed9556f4fae01119f5c88baeff"
+          },
+          "llmx-model-logits": {
+            "path": "main/build/llmx-model-logits",
+            "bytes": 10827928,
+            "sha256": "5030bc4a36b81da01c205977226d06cb0b713a0a3857ea522686a264bcfc2d2e"
+          }
+        }
+      },
+      "candidate": {
+        "revision": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+        "source_files": 3046,
+        "source_manifest_sha256": "9c787ada150bbfe728ab26624fa71ac9a1088553aace237aa031697b4cf4a5d5",
+        "version": "llmx 0.1.0+unknown numerics c84fd0a57ab1f80c",
+        "binaries": {
+          "llmx": {
+            "path": "candidate/build/llmx",
+            "bytes": 12795128,
+            "sha256": "4e1cf87f8bdfb928706ce77cb1ef5fb267bc04a1701a8a918a3702085a3cb0da"
+          },
+          "llmx-model-logits": {
+            "path": "candidate/build/llmx-model-logits",
+            "bytes": 10959216,
+            "sha256": "7f79d55a063f1bc393216b7c4c994a19818030bec7c60d327ff936ff94284e24"
+          },
+          "llmx-nvfp4-test": {
+            "path": "candidate/build/llmx-nvfp4-test",
+            "bytes": 9783952,
+            "sha256": "1e3fada4d680bb4ed2cc22a1395d69458814209544b5f8f2b6776bf60e92622d"
+          },
+          "llmx-backend-vulkan-test": {
+            "path": "candidate/build/llmx-backend-vulkan-test",
+            "bytes": 10547544,
+            "sha256": "523d5399a56603769d4a5401941ab6be9106d7ce113c72f1169b47dd4239ac3f"
+          },
+          "llmx-model-weight-scales-test": {
+            "path": "candidate/build/llmx-model-weight-scales-test",
+            "bytes": 1808464,
+            "sha256": "b4bc4f1c95c460ea6af18b56ffa7bccfb00b0b97a42b6c68f3b90135eaecdf3a"
+          },
+          "llmx-disk-store-test": {
+            "path": "candidate/build/llmx-disk-store-test",
+            "bytes": 768056,
+            "sha256": "434475a694b4e43fa29d4c05592a39b6d401ee52d8d9b36de2469ae2e853d86a"
+          },
+          "llmx-format-output-test": {
+            "path": "candidate/build/llmx-format-output-test",
+            "bytes": 59416,
+            "sha256": "4c31c3a31a5ed73820f26e42a437ee050156d96b500ecf89d7143270abd9c8fc"
+          }
+        }
+      }
+    },
+    "receipt_sha256": {
+      "build-result.json": "cf216ecde48dc1ecd758d7d9bfd7007cb93c27177e7fbb0baf9a0bf111b1037d",
+      "launch-result.json": "9480198f3a169f2883e165c9ad0fd06b22c5a62c9954a97a132c42d153b24d4a",
+      "build-launch.json": "1cb7ef13a51edc4789854113c807329afcb99cb551a523e3739fa5b975374c95"
+    }
+  },
+  "windows_checks": {
+    "binary": {
+      "path": "build-integration/cmake/Release/llmx.exe",
+      "sha256": "d2927418c46cad6cb2439f3907d8e3accc8f78d1cacae8b9d3c4d798bf7f2d54",
+      "version": "llmx 0.1.0+g8e929215b7fd.dirty numerics c84fd0a57ab1f80c",
+      "numerics_fingerprint": "c84fd0a57ab1f80c"
+    },
+    "full_device_suite": {
+      "command": "python -u -X utf8 tests/run_tests.py --exe build-integration/cmake/Release/llmx.exe --device vulkan:0 --require-tools --require-baseline --require-device-types NVFP4 --no-perf-floor",
+      "exit_code": 1,
+      "ended_utc": "2026-10-26T17:50:00.1579175Z",
+      "components_total": 46,
+      "counts": {
+        "PASS": 40,
+        "FAIL": 5,
+        "SKIP": 1
+      },
+      "components": [
+        {
+          "component": "dead-code",
+          "status": "PASS"
+        },
+        {
+          "component": "docs",
+          "status": "PASS"
+        },
+        {
+          "component": "arch-boundary",
+          "status": "PASS"
+        },
+        {
+          "component": "version",
+          "status": "PASS"
+        },
+        {
+          "component": "cli",
+          "status": "FAIL"
+        },
+        {
+          "component": "reference-generator",
+          "status": "PASS"
+        },
+        {
+          "component": "reference-consumer",
+          "status": "PASS"
+        },
+        {
+          "component": "device-reference",
+          "status": "PASS"
+        },
+        {
+          "component": "roundtrip",
+          "status": "FAIL"
+        },
+        {
+          "component": "raw-blocks",
+          "status": "PASS"
+        },
+        {
+          "component": "perf",
+          "status": "PASS"
+        },
+        {
+          "component": "tokenizer",
+          "status": "PASS"
+        },
+        {
+          "component": "perplexity",
+          "status": "PASS"
+        },
+        {
+          "component": "f32",
+          "status": "PASS"
+        },
+        {
+          "component": "half-weights",
+          "status": "PASS"
+        },
+        {
+          "component": "moe",
+          "status": "PASS"
+        },
+        {
+          "component": "int8",
+          "status": "PASS"
+        },
+        {
+          "component": "mxfp4",
+          "status": "PASS"
+        },
+        {
+          "component": "q5-0",
+          "status": "PASS"
+        },
+        {
+          "component": "q2-k",
+          "status": "PASS"
+        },
+        {
+          "component": "q3-k",
+          "status": "PASS"
+        },
+        {
+          "component": "q5-1",
+          "status": "PASS"
+        },
+        {
+          "component": "iq4-nl",
+          "status": "PASS"
+        },
+        {
+          "component": "iq4-xs",
+          "status": "PASS"
+        },
+        {
+          "component": "iq3-s",
+          "status": "PASS"
+        },
+        {
+          "component": "iq2-s",
+          "status": "FAIL"
+        },
+        {
+          "component": "iq2-xxs",
+          "status": "PASS"
+        },
+        {
+          "component": "iq2-xs",
+          "status": "PASS"
+        },
+        {
+          "component": "iq3-xxs",
+          "status": "FAIL"
+        },
+        {
+          "component": "iq1",
+          "status": "FAIL"
+        },
+        {
+          "component": "tq1-0",
+          "status": "PASS"
+        },
+        {
+          "component": "tq2-0",
+          "status": "PASS"
+        },
+        {
+          "component": "nvfp4",
+          "status": "PASS"
+        },
+        {
+          "component": "qwen35",
+          "status": "PASS"
+        },
+        {
+          "component": "vision",
+          "status": "PASS"
+        },
+        {
+          "component": "image",
+          "status": "SKIP"
+        },
+        {
+          "component": "split",
+          "status": "PASS"
+        },
+        {
+          "component": "tensor-split",
+          "status": "PASS"
+        },
+        {
+          "component": "decode-probe",
+          "status": "PASS"
+        },
+        {
+          "component": "drafters",
+          "status": "PASS"
+        },
+        {
+          "component": "shards",
+          "status": "PASS"
+        },
+        {
+          "component": "server",
+          "status": "PASS"
+        },
+        {
+          "component": "server-load",
+          "status": "PASS"
+        },
+        {
+          "component": "chat",
+          "status": "PASS"
+        },
+        {
+          "component": "threads",
+          "status": "PASS"
+        },
+        {
+          "component": "baseline",
+          "status": "PASS"
+        }
+      ],
+      "initial_filesystem_failures": {
+        "components": [
+          "cli",
+          "roundtrip",
+          "iq2-s",
+          "iq3-xxs",
+          "iq1"
+        ],
+        "detail": "Captured CLI, roundtrip, IQ2_S, IQ3_XXS and IQ1 output attempts failed with Windows filesystem error 5 (access denied) in the restricted run. Roundtrip detail is pinned separately."
+      },
+      "image": "SKIP: Vulkan device does not implement vision encoder layer_norm; this is not counted as a pass."
+    },
+    "focused_unsandboxed_reruns": {
+      "exit_code": 0,
+      "ended_utc": "2026-10-26T17:54:03.1556785Z",
+      "components": [
+        "cli",
+        "iq2-s",
+        "iq3-xxs",
+        "iq1"
+      ],
+      "result": "all four passed; full-device suite was not rerun as a whole."
+    },
+    "roundtrip_unsandboxed": {
+      "result": "PASS recorded in the complete terminal log; no standalone result sidecar is present.",
+      "log_sha256": "de1e950ced961d76961f4ff45a9dfc5f7175645fbad430c9989d7db3c3dacfa3",
+      "file_size_limit_injection": "SKIP: unavailable on this platform",
+      "exit_code_recorded": false
+    }
+  },
+  "windows_native_and_focused_tests": {
+    "build": {
+      "command": "cmake --build build-integration/cmake --config Release --parallel 2",
+      "exit": 0,
+      "log": "build-integration/full-native-build-fixed.log",
+      "sha256": "30401bf5e71d3ceba3f526baf3fa8451d8cd9e64ad3c7c7fb322418e32a9ea67"
+    },
+    "native_ctest": {
+      "command": "ctest --test-dir build-integration/cmake -C Release --output-on-failure -E ^vulkan-quantization$",
+      "passed": 93,
+      "failed": 0,
+      "exit_code": 0,
+      "seconds": 1362.44,
+      "log_sha256": "a38ae2ab94d70bd3505ac8754440a1b17b8d29718107ab38e6a5bdeae1f0ae53",
+      "excluded": "vulkan-quantization was already rerun separately and passed, recorded above"
+    },
+    "focused_vulkan_quantization": {
+      "command": "ctest --test-dir build-integration/cmake -C Release -R '^vulkan-quantization$' --output-on-failure",
+      "exit": 0,
+      "passed": 1,
+      "seconds": 38.43,
+      "log_sha256": "7ec4e1cf4113ffd378839f5cddc01be04c2072b57008f27735358c2890c198a7"
+    },
+    "note": "These are separate native/focused checks, not evidence that the full Python device suite passed."
+  },
+  "artifacts": {
+    "linux_build_result": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/build-result.json",
+      "sha256": "cf216ecde48dc1ecd758d7d9bfd7007cb93c27177e7fbb0baf9a0bf111b1037d",
+      "bytes": 5852
+    },
+    "linux_launch_result": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/launch-result.json",
+      "sha256": "9480198f3a169f2883e165c9ad0fd06b22c5a62c9954a97a132c42d153b24d4a",
+      "bytes": 3368
+    },
+    "linux_collection": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/collection.json",
+      "sha256": "3bf1afe5bd0862a35357059c8a6326080fa5f27b1f64d076abb68c3d9948e5e6",
+      "bytes": 1784
+    },
+    "linux_main_configure_stdout": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/main-configure.stdout.log",
+      "sha256": "17dfc49159e7aa04d5847dfa3187182a9c628a0155329076b109f4a88582ce3a",
+      "bytes": 485
+    },
+    "linux_main_build_stdout": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/main-build.stdout.log",
+      "sha256": "89d9bdd67ce84f6b70be19f722a287ac3459e35fd329107a3cf0efac2e08c9bc",
+      "bytes": 10607
+    },
+    "linux_main_build_stderr": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/main-build.stderr.log",
+      "sha256": "ec402210efd048a29e815d732a3910cba3258d6884fb4db9203652cfd1a9274d",
+      "bytes": 3997
+    },
+    "linux_candidate_configure_stdout": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/candidate-configure.stdout.log",
+      "sha256": "af072494027fd9383a14c34a4da0ea94f9e5aae99997a1d6fe0e9f96f603e0ed",
+      "bytes": 490
+    },
+    "linux_candidate_build_stdout": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/candidate-build.stdout.log",
+      "sha256": "bf41a3bfcc3182f86ac261a29bf455349d15c71709e8ca57193af3e701396184",
+      "bytes": 26770
+    },
+    "linux_candidate_build_stderr": {
+      "path": "build-integration/linux-mainf61-v2/verified-results/candidate-build.stderr.log",
+      "sha256": "dd7f4d7f6bb0a8a3f4d436a233a4f68d03dd3e2d2433bf0cd8bf207fc273481d",
+      "bytes": 49227
+    },
+    "windows_test_api": {
+      "path": "docs/benchmarks/nvfp4-mainf61-test-api-20261026.json",
+      "sha256": "c99ae5f4f467a5824815575e829d277ca10a2312566c3e90a6755519f48f0181",
+      "bytes": 1808
+    },
+    "windows_full_device_suite": {
+      "path": "build-integration/full-device-suite.log",
+      "sha256": "bf606bfb27038efa8c3d9ea71a5eb6a35fbcb9f33b9525b773b157b324709747",
+      "bytes": 79260
+    },
+    "windows_device_suite_result": {
+      "path": "build-integration/device-suite-result.json",
+      "sha256": "198b49099aec6a7a4bc09c4e5e7db7181225a1e9c8993630f020130136c9de45",
+      "bytes": 78
+    },
+    "windows_roundtrip_failure_detail": {
+      "path": "build-integration/roundtrip-failure/result.json",
+      "sha256": "b60535611e831932194b7e4e4acd1d230b6cd8a7b2064d39b1b45056c2899857",
+      "bytes": 1385
+    },
+    "windows_roundtrip_unsandboxed": {
+      "path": "build-integration/roundtrip-unsandboxed.log",
+      "sha256": "de1e950ced961d76961f4ff45a9dfc5f7175645fbad430c9989d7db3c3dacfa3",
+      "bytes": 5784
+    },
+    "windows_focused_components_unsandboxed": {
+      "path": "build-integration/failed-components-unsandboxed.log",
+      "sha256": "5fa82b56ca14df6226aecf032a6c5dfc520bd3c69a87ee6fb2e727d4a56646f5",
+      "bytes": 6272
+    },
+    "windows_focused_components_result": {
+      "path": "build-integration/failed-components-unsandboxed-result.json",
+      "sha256": "25cf51e3aae2e8b772f426ed8984810142f4a376ab4c1464e81125a24edebdc7",
+      "bytes": 78
+    }
+  },
+  "remaining_scope": [
+    "The initial full Vulkan Python suite exited 1. Four failed components were rerun separately and passed; roundtrip was separately rerun and passed. No full-suite rerun is recorded.",
+    "The image component remains skipped on this Vulkan device.",
+    "No common-float-split-v1 build or execution is included.",
+    "No performance or merge-readiness conclusion follows from these checks."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "reference_repo": "Qwen/Qwen3.5-0.8B-Base",
+  "reference_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+  "template_sha256": "273d8e0e683b885071fb17e08d71e5f2a5ddfb5309756181681de4f5a1822d80",
+  "baseline_executable": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-stage16-baseline\\llmx.exe",
+    "bytes": 10093056,
+    "sha256": "2934c91212edf09ac08a6145c1392ed66968e390c0d73956ee423b458cc68eab"
+  },
+  "baseline_version": "llmx 0.1.0+g72e163024da2.dirty numerics 39a601fc41766b2a",
+  "cases": {
+    "raw": {
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "score_tokens": 16895,
+      "positions_inclusive": [
+        16383,
+        16894
+      ],
+      "whole_HF_equals_HF_chunks_equals_llmx_chunks": true,
+      "continuation_source": "Next512 source corpus token IDs from original attempt02 producer; candidate-independent, never generated"
+    },
+    "chat": {
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "score_tokens": 16895,
+      "positions_inclusive": [
+        16383,
+        16894
+      ],
+      "whole_HF_equals_HF_chunks_equals_llmx_chunks": true,
+      "continuation_source": "Next512 source corpus token IDs from original attempt02 producer; candidate-independent, never generated"
+    }
+  },
+  "environment": {
+    "cpu_limit": "one inherited allowed logical CPU selected by original producer",
+    "versions": {
+      "transformers": "5.17.0",
+      "tokenizers": "0.23.2",
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.3"
+    },
+    "torch_imported": true,
+    "HF_model_constructed": false,
+    "model_forward_calls": 0
+  },
+  "amendment_reason": "transformers5.17 incidentally imported torch despite USE_TORCH=0; final no-torch-import audit assertion invalid. Original failed assertion/log retained; no tokenizer/model checks rerun.",
+  "original_failure": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\inputs-f32-v2\\failure.json",
+    "bytes": 440,
+    "sha256": "7d7d9ff105040e218e725a81df6706e4dcb496b2ea5ed9b6c5208cb969dc26db"
+  },
+  "original_log": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\prepare-inputs-attempt02.log",
+    "bytes": 1458,
+    "sha256": "22e07f0ce18978aa2b49b7d4b145f312d5ac0760d99451da55525222e37738dd"
+  },
+  "scope": "Frozen input/tokenizer evidence only; no HF model forward or depth acceptance.",
+  "manifest_sha256": "69d8bc5e7d665042826546248d9488a8248b6557dd7346a782f874afa3c0580d",
+  "tokenizer_chunks": 18,
+  "artifacts_rehashed": 69,
+  "bundle_sha256": "2e23459ed0d2447e0182566b0679c4c2634b484119e7bea5b44e66c9b9fe10e5"
+}

@@ -98,8 +98,8 @@ void embeddings(backend::Backend& b) {
         b.write(*table, 0, storage.data(), storage.size());
         for (bool device_ids : {false, true}) {
             b.write(*out, 0, initial.data(), initial.size() * 4);
-            if (device_ids) b.embed_ids({out.get(), 1}, type, {table.get(), 0}, width, 3, {ids.get(), 0}, 5);
-            else b.embed({out.get(), 1}, type, {table.get(), 0}, width, 3, host, 3);
+            if (device_ids) b.embed_ids({out.get(), 1}, {type, {table.get(), 0}}, width, 3, {ids.get(), 0}, 5);
+            else b.embed({out.get(), 1}, {type, {table.get(), 0}}, width, 3, host, 3);
             const auto got = read(b, *out, initial.size());
             const size_t n = (device_ids ? 5 : 3) * width;
             require(got.front() == sentinel && std::all_of(got.begin() + n + 1, got.end(), [](float x) { return x == sentinel; }), "Q3_K embedding crossed guards");
@@ -139,12 +139,12 @@ void projections(backend::Backend& b, size_t nin, size_t cols, size_t extent = 0
     for (unsigned op = 0; op < 6; ++op) {
         b.write(*y, 0, initial.data(), initial.size() * 4); b.write(*z, 0, initial.data(), initial.size() * 4); testq::take_matrix_paths(b);
         const backend::RowRuns runs{run, 1};
-        if (op == 0) b.matmul(type, {w.get(), 0}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 1) b.matmul_logits(type, {w.get(), 0}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 2) b.matmul_add(type, {w.get(), 0}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-        if (op == 3) b.matmul_group({{type, {w.get(), 0}, {y.get(), 1}, rows}, {type, {w.get(), 0}, {z.get(), 1}, rows}}, {input.get(), 0}, nin, cols, runs, dtype);
-        if (op == 4) b.matmul_experts({{type, {w.get(), 0}, {y.get(), 1}, rows}}, {input.get(), 0}, nin, cols, routing, runs, dtype);
-        if (op == 5) b.matmul_experts_add(type, {w.get(), 0}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, routing, runs, dtype);
+        if (op == 0) b.matmul({type, {w.get(), 0}}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 1) b.matmul_logits({type, {w.get(), 0}}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 2) b.matmul_add({type, {w.get(), 0}}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+        if (op == 3) b.matmul_group({{{type, {w.get(), 0}}, {y.get(), 1}, rows}, {{type, {w.get(), 0}}, {z.get(), 1}, rows}}, {input.get(), 0}, nin, cols, runs, dtype);
+        if (op == 4) b.matmul_experts({{{type, {w.get(), 0}}, {y.get(), 1}, rows}}, {input.get(), 0}, nin, cols, routing, runs, dtype);
+        if (op == 5) b.matmul_experts_add({type, {w.get(), 0}}, {input.get(), 0}, {y.get(), 1}, nin, rows, cols, routing, runs, dtype);
         const bool integer = testq::k23_integer(b, dtype);
         const auto got = read(b, *y, initial.size()), other = read(b, *z, initial.size()); witness(b, dtype, integer);
         const size_t entries = op == 4 ? cols * picks : cols;
@@ -206,7 +206,7 @@ void ranges(backend::Backend& b) {
             b.write(*input, 0, x.data(), sizeof x);
             for (const auto* run : {&row, &tile}) {
                 b.write(*y, 0, clear.data(), sizeof clear); testq::take_matrix_paths(b);
-                b.matmul(type, {w.get(), 0}, {input.get(), 0}, {y.get(), 1}, width, 1, 1, {run, 1}, dtype);
+                b.matmul({type, {w.get(), 0}}, {input.get(), 0}, {y.get(), 1}, width, 1, 1, {run, 1}, dtype);
                 const bool integer = testq::k23_integer(b, dtype);
                 const auto got = read(b, *y, 3); witness(b, dtype, integer);
                 // Extreme twins may round their scale to a subnormal; one reconstruction step plus F32 rounding bounds the selected input independently.

@@ -1,0 +1,38 @@
+{
+  "status": "passed",
+  "started_unix": 1793092292.6446786,
+  "source_checkpoint": "26fc48b102b36f525be8ab85ca9eb9012ebe20c5",
+  "prior_attempt": "main5e9-device-check: controller absent, no test log or child, no result claimed",
+  "prior_suite_status": "passed",
+  "wait_pid": 60548,
+  "wait_created_unix": 1793090143.118946,
+  "preflight": {
+    "processes": [],
+    "busy_engines": []
+  },
+  "preflight_unix": 1793093492.459232,
+  "binaries": {
+    "llmx.exe": "99129ce962846920dbb17be34e3b26eae9a3d44018887b70f6052a6103182ae5",
+    "llmx-backend-vulkan-test.exe": "009b49c92eadfb1aa08f64ed61be0630498ce5051b487476a7b2ab725a079bf4",
+    "llmx-vulkan-lifetime-test.exe": "7831eb92b6cb9349587aada2bff32937425063bbfb8095bf8158e9d1ab6fa51f",
+    "llmx-server-passes-cpu-test.exe": "144b4e3325cbfc3b7a25b983991c633eb1bdf1cdc8f1d74cca4cfa3e26f1975c",
+    "llmx-nvfp4-test.exe": "2d5abbd21297c4ec3f0f0f988328ae2ef260e07d3dc40f786276fe84f5395567"
+  },
+  "version": "llmx 0.1.0+g051bb83b2b0b.dirty numerics ba61f539e42d669c",
+  "test_started_unix": 1793093492.6258085,
+  "command": [
+    "ctest",
+    "--test-dir",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\main5e9-cmake",
+    "-C",
+    "Release",
+    "-R",
+    "^(backend-vulkan|vulkan-buffer|vulkan-lifetime|vulkan-float-controls|vulkan-float-controls-device|nvfp4-vulkan)$",
+    "--output-on-failure"
+  ],
+  "test_pid": 68800,
+  "exit_code": 0,
+  "ended_unix": 1793093632.2113461,
+  "log_sha256": "1d13282630e074b9b3e6de8fbb2a757e5ac276d6e96460fd0d07802664552110",
+  "scope": "Six affected Windows Vulkan integration checks on the unchanged main5e9 build. No performance claim. Later boundary fixture and documentation edits do not alter these binaries or tests."
+}

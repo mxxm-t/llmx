@@ -79,9 +79,9 @@ struct MixScratch {
 inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Slice out, const MixScratch& tmp) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count), L = size_t(c.hc_low_rank);
     s.b.group_rms_norm(tmp.normed, s.x, w.norm.slice(), s.rows, H, E, c.rms_eps, s.runs);
-    s.b.matmul(w.down.type, w.down.slice(), tmp.normed, tmp.low, H * E, L, s.rows, s.runs, s.dtype);
+    s.b.matmul(w.down.operand(), tmp.normed, tmp.low, H * E, L, s.rows, s.runs, s.dtype);
     s.b.silu_scaled(tmp.low, tmp.low, s.rows, L, 1.0f / float(H), s.runs);
-    s.b.matmul(w.up.type, w.up.slice(), tmp.low, tmp.gates, L, H * E, s.rows, s.runs, s.dtype);
+    s.b.matmul(w.up.operand(), tmp.low, tmp.gates, L, H * E, s.rows, s.runs, s.dtype);
     s.b.mix_streams(out, tmp.normed, tmp.gates, s.rows, H, E, s.runs);
 }
 
@@ -89,7 +89,7 @@ inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Sl
 inline void inject(const Config& c, const Step& s, const Weight& w, backend::CSlice normed,
                    backend::CSlice block, backend::Slice gates) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count);
-    s.b.matmul(w.type, w.slice(), normed, gates, H * E, H, s.rows, s.runs, s.dtype);
+    s.b.matmul(w.operand(), normed, gates, H * E, H, s.rows, s.runs, s.dtype);
     if (s.width > 1) s.b.repeat_row(s.partial, *s.tables[2], s.rows, H * E);
     s.b.inject_streams(s.width > 1 ? s.partial : s.x, block, gates, s.rows, H, E);
 }
@@ -668,7 +668,7 @@ public:
         for (size_t r = 0; r < s.rows; ++r)
             for (size_t h = 0; h < H; ++h) s.indices[r * H + h] = ids[r];
         const Weight& table = s.w[token_embd];
-        s.b.embed(s.x, table.type, table.slice(), table.nin, table.nout, s.indices, count);
+        s.b.embed(s.x, table.operand(), table.nin, table.nout, s.indices, count);
     }
 
     void lookup_ids(const Step& s) const override {
@@ -719,7 +719,7 @@ public:
         s.b.gather_rows(compact.x, s.x, size_t(cfg_.hc_count) * size_t(cfg_.n_embd), s.pick, s.want);
         mix(cfg_, compact, {s.w[output_hc_norm], s.w[output_hc_down], s.w[output_hc_up]}, s.slot(mixed), mix_scratch(s));
         const Weight& out = s.w[output];
-        s.b.matmul_logits(out.type, out.slice(), s.slot(mixed), s.logits, out.nin, out.nout, s.want, s.head_runs, s.dtype);
+        s.b.matmul_logits(out.operand(), s.slot(mixed), s.logits, out.nin, out.nout, s.want, s.head_runs, s.dtype);
     }
 
     // The MTP block uses the target's raw HC residual, its own per-stream input norms and its own HC head.
@@ -774,7 +774,7 @@ public:
                 s.b.copy(*prev.buffer, (prev.offset + (first + 1) * R) * sizeof(float), *h.buffer, (h.offset + first * R) * sizeof(float), (end - first - 1) * R * sizeof(float));
             first = end;
         }
-        s.b.embed(s.slot(base + 4), s.w[token_embd].type, s.w[token_embd].slice(), E, vocab_, s.ids, s.rows);
+        s.b.embed(s.slot(base + 4), s.w[token_embd].operand(), E, vocab_, s.ids, s.rows);
         draft_input(s);
         Step layer = s;
         layer.x = s.slot(base + 3);
@@ -790,7 +790,7 @@ public:
             const backend::Slice prev{s.slot(base + 1).buffer, s.slot(base + 1).offset + s.rows * R};
             if (s.prev_rows) s.b.gather_rows(prev, s.prev, R, s.prev_rows, s.rows);
             else s.b.copy(*prev.buffer, prev.offset * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), s.rows * R * sizeof(float));
-            s.b.embed_ids(s.slot(base + 4), s.w[token_embd].type, s.w[token_embd].slice(), size_t(cfg_.n_embd), vocab_, s.id, s.rows);
+            s.b.embed_ids(s.slot(base + 4), s.w[token_embd].operand(), size_t(cfg_.n_embd), vocab_, s.id, s.rows);
             draft_input(s);
             mixer(layer);
         }
@@ -798,7 +798,7 @@ public:
         if (s.phase < 0 || s.phase == 2) {
             s.b.copy(*s.out.buffer, s.out.offset * sizeof(float), *layer.x.buffer, layer.x.offset * sizeof(float), s.rows * R * sizeof(float));
             mix(cfg_, layer, {s.w[output_hc_norm], s.w[output_hc_down], s.w[output_hc_up]}, s.slot(mixed), mix_scratch(s));
-            s.b.matmul_logits(s.w[output].type, s.w[output].slice(), s.slot(mixed), s.logits, size_t(cfg_.n_embd), vocab_, s.rows, s.runs, s.dtype);
+            s.b.matmul_logits(s.w[output].operand(), s.slot(mixed), s.logits, size_t(cfg_.n_embd), vocab_, s.rows, s.runs, s.dtype);
             s.b.argmax_rows(s.next, s.logits, s.rows, vocab_, s.id);
         }
     }
@@ -841,9 +841,9 @@ private:
         const backend::RowRuns streams{runs.data(), runs.size()};
         const Weight& projection = s.w[nextn_eh_proj];
         if (projection.nin == E) {
-            s.b.matmul(projection.type, projection.slice(), pair, out, E, E, n * H, streams, s.dtype);
+            s.b.matmul(projection.operand(), pair, out, E, E, n * H, streams, s.dtype);
             const Weight& hidden = s.w[nextn_fc_hidden];
-            s.b.matmul(hidden.type, hidden.slice(), prev, side, E, E, n * H, streams, s.dtype);
+            s.b.matmul(hidden.operand(), prev, side, E, E, n * H, streams, s.dtype);
             s.b.add(out, side, n * R);
         } else {
             for (size_t row = 0; row < n * H; ++row) {
@@ -851,7 +851,7 @@ private:
                 s.indices[2 * row + 1] = uint32_t(n * H + row);
             }
             s.b.gather_rows(side, pair, E, s.indices, 2 * n * H);
-            s.b.matmul(projection.type, projection.slice(), side, out, 2 * E, E, n * H, streams, s.dtype);
+            s.b.matmul(projection.operand(), side, out, 2 * E, E, n * H, streams, s.dtype);
         }
     }
 
@@ -994,10 +994,12 @@ private:
         if (s.lookup) {
             if (!s.lookup->data.buffer || !s.lookup->rows || (count && !s.lookup->ids))
                 throw std::runtime_error("inference: Qwen4Exp prepared lookup is incomplete");
-            s.b.embed(s.slot(ple_embeddings), table.type, s.lookup->data, table.nin, s.lookup->rows, s.lookup->ids, count);
+            auto weight = table.operand();
+            weight.data = s.lookup->data;
+            s.b.embed(s.slot(ple_embeddings), weight, table.nin, s.lookup->rows, s.lookup->ids, count);
         } else {
             lookup_ids(s);
-            s.b.embed(s.slot(ple_embeddings), table.type, table.slice(), table.nin, table.nout, s.indices, count);
+            s.b.embed(s.slot(ple_embeddings), table.operand(), table.nin, table.nout, s.indices, count);
         }
         ple(cfg_, s, {w[ple_key], w[ple_value], w[ple_norm_key], w[ple_norm_query], w[ple_norm_conv], w[ple_conv]},
             s.slot(ple_embeddings), s.slot(ple_output), ple_scratch(s));
@@ -1008,7 +1010,7 @@ private:
         const Weight* w = s.w;
         const size_t E = size_t(cfg_.n_embd), Hv = w[ssm_alpha].nout;
         const backend::Slice alpha = s.slot(alpha_beta), beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        s.b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), s.slot(mixed), s.slot(raw), E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
+        s.b.matmul(w[attn_qkv].operand(), s.slot(mixed), s.slot(raw), E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
         s.b.matmul_group({blocks::projection(w[attn_gate], s.slot(value_gate)), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
                          s.slot(mixed), E, s.rows, s.runs, s.dtype);
         // PLE has already updated its separate tail.
@@ -1018,7 +1020,7 @@ private:
                             s.state_layer, s.states, s.n_views);
         s.b.gated_rms_norm(s.slot(recurrent), s.slot(recurrent), s.slot(value_gate), w[ssm_norm].slice(),
                           s.rows, Hv, size_t(cfg_.v_dim), cfg_.rms_eps, s.runs, backend::NormGate::sigmoid);
-        s.b.matmul(w[ssm_out].type, w[ssm_out].slice(), s.slot(recurrent), s.x, w[ssm_out].nin, E, s.rows, s.runs, s.dtype);
+        s.b.matmul(w[ssm_out].operand(), s.slot(recurrent), s.x, w[ssm_out].nin, E, s.rows, s.runs, s.dtype);
     }
 
     // Context rows need only the projections that the next draft reads from its cache.
@@ -1032,7 +1034,7 @@ private:
                               w[attn_k_norm].slice(), cfg_.rms_eps, cos, sin, s.pos);
         backend::CSlice auxiliary;
         if (s.kind == mtp_qsa_kind) {
-            s.b.matmul(w[index_k].type, w[index_k].slice(), s.slot(mixed), s.slot(index_key), E, size_t(cfg_.indexer_head_dim), s.rows, s.runs, s.dtype);
+            s.b.matmul(w[index_k].operand(), s.slot(mixed), s.slot(index_key), E, size_t(cfg_.indexer_head_dim), s.rows, s.runs, s.dtype);
             auxiliary = s.slot(index_key);
         }
         s.b.kv_write(s.kv_layer, s.views, s.n_views, s.slot(conv), s.slot(value_gate), auxiliary);
@@ -1073,7 +1075,7 @@ private:
         }
         const backend::Slice qraw = s.slot(raw);
         s.b.sigmoid_mul(s.slot(recurrent), s.slot(recurrent), {qraw.buffer, qraw.offset + D}, s.rows, H, D, 2 * H * D, 2 * D, s.runs);
-        s.b.matmul(w[attn_output].type, w[attn_output].slice(), s.slot(recurrent), s.x, H * D, E, s.rows, s.runs, s.dtype);
+        s.b.matmul(w[attn_output].operand(), s.slot(recurrent), s.x, H * D, E, s.rows, s.runs, s.dtype);
     }
 };
 

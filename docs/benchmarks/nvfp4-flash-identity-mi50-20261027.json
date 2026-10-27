@@ -1,0 +1,363 @@
+{
+  "schema": "nvfp4-flash-identity-mi50-v1",
+  "passed": false,
+  "status": "Complete captures, failed exact identity. No limits changed.",
+  "remote_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-flash-identity-v3",
+  "execution_sha256": "62dc92d880da356ed9379e62b3252b0155d250115b62aedd427d937fbd565997",
+  "plan_sha256": "e4c0283bebc7adc04c9460523304dbff3d494b4f783d0231e00de3b828829ef0",
+  "arms": {
+    "candidate": {
+      "actual_version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325",
+      "llmx_sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+      "model_logits_sha256": "47db66d145709165be2776888c7b85f701f6a5a6f7b76c25b93a59c76ae465da",
+      "receipt_paths": {
+        "llmx": "candidate/build/llmx",
+        "llmx-model-logits": "candidate/build/llmx-model-logits"
+      },
+      "revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+      "source_files": 3088,
+      "source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+      "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325",
+      "version_matches_pin": true
+    },
+    "main": {
+      "actual_version": "llmx 0.1.0+unknown numerics 97d1d871087d6246",
+      "llmx_sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87",
+      "model_logits_sha256": "4b7e126d554237fc02cab7307eb9b7443e542b3f8104fd836fdcd00463ba6964",
+      "receipt_paths": {
+        "llmx": "main/build/llmx",
+        "llmx-model-logits": "main/build/llmx-model-logits"
+      },
+      "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+      "source_files": 2942,
+      "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+      "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246",
+      "version_matches_pin": true
+    }
+  },
+  "model": {
+    "files": [
+      {
+        "bytes": 10946624,
+        "expected_sha256": "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082",
+        "matches_pin": true,
+        "path": "/models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00004.gguf",
+        "sha256": "4448186216b3af4cc558bbce2c3213f01608f8f8b2e5267a9767971dd3ec8082"
+      },
+      {
+        "bytes": 49859583136,
+        "expected_sha256": "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9",
+        "matches_pin": true,
+        "path": "/models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00002-of-00004.gguf",
+        "sha256": "3f342f1c1580473f1ee94ddd5b28206e8c07a70fa1a366f59d1d6c922919a6c9"
+      },
+      {
+        "bytes": 49376141504,
+        "expected_sha256": "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3",
+        "matches_pin": true,
+        "path": "/models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00003-of-00004.gguf",
+        "sha256": "56758f40269cad5cd9b0d3d6fbae0f40f6d5be6de49e4ab392dbe83157d9cbd3"
+      },
+      {
+        "bytes": 12087983520,
+        "expected_sha256": "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a",
+        "matches_pin": true,
+        "path": "/models/Qwen3.8-Flash-Next-UD-Q4_K_XL-00004-of-00004.gguf",
+        "sha256": "753bda48b98ba4f1636134a90a967de1b2d3908a236c026e464777342e53510a"
+      }
+    ],
+    "total_bytes": 111334654784
+  },
+  "model_unchanged": true,
+  "config": {
+    "physical_gpus": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "tensor_width": 2,
+    "shares": "1,1",
+    "kv_cache": "f32",
+    "matrix_policy": "automatic",
+    "effective_dtype": "f16",
+    "ubatch": 128
+  },
+  "actual_dtype_and_matrix_paths": {
+    "candidate": {
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      }
+    },
+    "main": {
+      "dtype": "f16",
+      "matrix_paths": {
+        "batched": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "decode": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "greedy": [
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ],
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      }
+    }
+  },
+  "phase_comparisons": [
+    {
+      "exact_byte_equal": false,
+      "expected_rows": 128,
+      "finite_pairs": 31784960,
+      "matched_float_values": 31784960,
+      "max_abs_difference_finite_pairs": 1.2736620903015137,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 31779511,
+      "phase": "batched",
+      "same_vocab": true,
+      "top1_id_mismatches": 0,
+      "main": {
+        "path": "/out/main/capture.batched.bin",
+        "rows": 128,
+        "bytes": 127139840,
+        "float_values": 31784960,
+        "sha256": "0929b7bb89c86c532cd9f89ba453dd5e7d18fd30f39a5755dab8a6ff870f3458",
+        "nonfinite_values_saved": 0
+      },
+      "candidate": {
+        "path": "/out/candidate/capture.batched.bin",
+        "rows": 128,
+        "bytes": 127139840,
+        "float_values": 31784960,
+        "sha256": "86eeb4b258745a51cf13b1a40f775cc2fda504788688b3a605e458b3f0fd7404",
+        "nonfinite_values_saved": 0
+      }
+    },
+    {
+      "exact_byte_equal": true,
+      "expected_rows": 128,
+      "finite_pairs": 31784960,
+      "matched_float_values": 31784960,
+      "max_abs_difference_finite_pairs": 0.0,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 0,
+      "phase": "decode",
+      "same_vocab": true,
+      "top1_id_mismatches": 0,
+      "main": {
+        "path": "/out/main/capture.decode.bin",
+        "rows": 128,
+        "bytes": 127139840,
+        "float_values": 31784960,
+        "sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b",
+        "nonfinite_values_saved": 0
+      },
+      "candidate": {
+        "path": "/out/candidate/capture.decode.bin",
+        "rows": 128,
+        "bytes": 127139840,
+        "float_values": 31784960,
+        "sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b",
+        "nonfinite_values_saved": 0
+      }
+    },
+    {
+      "exact_byte_equal": false,
+      "expected_rows": 64,
+      "finite_pairs": 15892480,
+      "matched_float_values": 15892480,
+      "max_abs_difference_finite_pairs": 29.45595371723175,
+      "nonfinite_pairs": 0,
+      "numeric_value_mismatches": 15892471,
+      "phase": "greedy",
+      "same_vocab": true,
+      "top1_id_mismatches": 46,
+      "main": {
+        "path": "/out/main/capture.greedy.bin",
+        "rows": 64,
+        "bytes": 63569920,
+        "float_values": 15892480,
+        "sha256": "abb25df2a5abd65bf332ee6b998274b4bf24c8e2b29ef435f7ea8f02474ff466",
+        "nonfinite_values_saved": 0
+      },
+      "candidate": {
+        "path": "/out/candidate/capture.greedy.bin",
+        "rows": 64,
+        "bytes": 63569920,
+        "float_values": 15892480,
+        "sha256": "f09249b532af5d0a530f48ca7f0b27f7d8763b4f3c41bedb52faef91b6d9f04f",
+        "nonfinite_values_saved": 0
+      }
+    }
+  ],
+  "metadata_comparison": {
+    "architecture": true,
+    "dtype": true,
+    "greedy": false,
+    "matrix_paths": true,
+    "storage_types": true,
+    "tokens": true,
+    "vocab": true
+  },
+  "capture_exit_codes": {
+    "candidate": 0,
+    "main": 0
+  },
+  "cleanup": {
+    "controller_exit": 1,
+    "container_removed": true,
+    "terminal_processes": "PID                 COMMAND\n633758              docker-init\n633771              sleep\n",
+    "monitor_exit": 0,
+    "activity_sha256": "ce234aaf105c58d731bb384d4a5984d2b2105e66ccb84ff62a73d8912b65116c"
+  },
+  "diagnosis": {
+    "scope": "Offline saved-logit diagnosis only, main versus candidate, not HF or a gate amendment. Greedy rows after first divergent token are excluded.",
+    "first_greedy_id_difference": 14,
+    "main_id": 43741,
+    "candidate_id": 38095,
+    "started_unix": 1793079484.8595126,
+    "ended_unix": 1793079513.925774
+  },
+  "same_history_summary": {
+    "batched": {
+      "mean_nll_delta": -0.00037249030732261707,
+      "max_abs_nll_delta": 0.03917491739084511
+    },
+    "greedy": {
+      "mean_nll_delta": 0.009444020748682884,
+      "max_abs_nll_delta": 0.14582011180505816
+    }
+  },
+  "first_divergent_row": {
+    "row": 14,
+    "max_abs": 0.4745759963989258,
+    "mean_signed_shift": -0.008342029832900003,
+    "max_abs_after_mean_shift": 0.4829180262318258,
+    "main_top1": 43741,
+    "candidate_top1": 38095,
+    "main_gap": 0.0414276123046875,
+    "candidate_gap": 0.2156829833984375,
+    "lognormalizer_delta": -0.017721682018184026,
+    "target": 43741,
+    "main_nll": 0.8165350306564036,
+    "candidate_nll": 0.9623551424614618,
+    "nll_delta": 0.14582011180505816,
+    "main_scores": {
+      "43741": 21.475154876708984,
+      "38095": 21.433727264404297
+    },
+    "candidate_scores": {
+      "43741": 21.311613082885742,
+      "38095": 21.52729606628418
+    }
+  },
+  "interpretation": "Forced decode is byte-identical, prefill is not. Greedy rows after index14 have different histories and cannot bound same-history error. These relative-to-main NLL diagnostics are not HF qualification. Shared float split policy is a hypothesis; the isolated reversal is not built or tested yet.",
+  "proposed_control": {
+    "review_entry": "088268ea8393",
+    "reverse_source_commit": "b9c94f5d68f01e21ccf656fa1f465b26d058c96a",
+    "files": [
+      "src/backends/device_profile.hpp",
+      "src/backends/vulkan/vulkan_matmul.hpp"
+    ],
+    "shader_changes": false
+  }
+}

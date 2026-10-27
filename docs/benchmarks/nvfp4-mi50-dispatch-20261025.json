@@ -1,0 +1,253 @@
+{
+  "passed": true,
+  "policy_map_matches": true,
+  "device_policy": "mi50",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "frozen_projection_map_sha256": "7d967d2634cd487d619cb5f747d0ac2f13669bf4928da09e011b2c9545deee1d",
+  "current_projection_map_sha256": "cdb560d63b65d1c9dc5722362d4090d1ffa02e6c3df34ea664b9055de1059bb6",
+  "source_files_verified_on_rig": 853,
+  "source_files_verified_locally": {
+    "src/backends/vulkan/vulkan_backend.cpp": "9095621592de17d62300ba1881e6b35b7c08a3bbdca4cf7be301b3316fa2854d",
+    "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+    "src/backends/cpu/cpu_backend.hpp": "73d5a9a66be47eda4921d69355f6c0648a9ccdb4d5c148f7c29c2911aaad089c",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+    "src/model/runtime.hpp": "409a359217ac2393bade6e3968d96889bb00a21e1f1914af43cc709d4cc1b76e",
+    "src/model/passes.hpp": "de204700f18b493ff68f9a665f2613f1d1be6ac7c6d750b3e757873dde0d49dd",
+    "src/model/arch/qwen35.hpp": "a6f80b4f8ae06ee51bb7546fd0a8bce9d9ad5f6c4fd92b46a2053378ea82adad",
+    "tests/qwen35.py": "942765dc4914c574718d88b85fc70982bfb515439ea9aa49b9d8fa57b352ff3e",
+    "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+    "tools/gen_baseline.py": "30a7cb12a72ff80ee1cfe90a2f73cbfd65388864bba069ad3b1b7619dc632e35"
+  },
+  "completed_witness_call": {
+    "name": "default-witness",
+    "command": [
+      "/probes-bin/nvfp4-default-witness",
+      "/model.gguf",
+      "/fixtures/raw.json",
+      "vulkan:0"
+    ],
+    "started": 1792940566.6210723,
+    "exit": 0,
+    "ended": 1792940575.1991906
+  },
+  "binary_pins_verified": {
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/candidate-build/llmx": "17a62d9cb9f3f91036c6a9a0737efbe1726344ac72c6212d86b94403eb5b02fe",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/candidate-build/llmx-nvfp4-test": "c3c56b6ff01a78d2bb89993b74f651568440e01406e742c47292c3afda3745ec",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/candidate-build/llmx-model-logits": "bfdaecaacef705b8df15839c481f12de9eac1698bfa1eae64ff2f1b4b64fad0b",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/build-pair-v1/candidate-build/llmx-split-check": "49e41b342cbf04e2956f4b567ef8e5e6f186a4c24fdefe9b048fb692deb6d99d",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/mx-probes-v2/build/nvfp4-default-witness": "fa432caf781524f5672d71b636f8dc1c2052680f125198bc7c313742d8b27f54",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/mx-probes-v2/build/nvfp4-depth-capture": "d86614e5a18212bfa10b9f3cea9798f8acdb2e89c7fa780a1117999b3f54e4d6"
+  },
+  "setup": {
+    "kind": "setup",
+    "version": "0.1.0+unknown",
+    "device": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+    "requested_dtype": "auto",
+    "effective_dtype": "f16",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "prompt_tokens": 16384,
+    "forced_steps": 1,
+    "forced_token": 6426,
+    "profile": {
+      "prefer_integer_dot": true,
+      "lookup_integer_dot": true,
+      "q8_decode_cols": 32,
+      "q8_decode_forms": 3,
+      "row_decode_cols": 16,
+      "k45_row_lanes": 32,
+      "tile_from_8bit": 16,
+      "tile_from_8bit_narrow": 32,
+      "tile_from_other": 24,
+      "tile_from_other_narrow": 40,
+      "tile_narrow_nin": 4096,
+      "tile_tall_per_cu": 4,
+      "tile_tall_per_cu_narrow": 8,
+      "dispatch_chunk": 64
+    }
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "phase": "prefill",
+      "timed_dispatches": 11459,
+      "matrix_paths": [
+        [
+          "f32",
+          "block-int16"
+        ]
+      ],
+      "kernels": [
+        {
+          "name": "silu_mul",
+          "milliseconds": 59.29936
+        },
+        {
+          "name": "gather_rows",
+          "milliseconds": 0.00832
+        },
+        {
+          "name": "rms_norm_rows",
+          "milliseconds": 34.88608
+        },
+        {
+          "name": "norm_rope_partial",
+          "milliseconds": 11.21472
+        },
+        {
+          "name": "embed",
+          "milliseconds": 0.70592
+        },
+        {
+          "name": "matmul_tile_nvfp4",
+          "milliseconds": 3950.61856
+        },
+        {
+          "name": "kv_write_kv16",
+          "milliseconds": 3.3064
+        },
+        {
+          "name": "matmul_tile_q",
+          "milliseconds": 344.78464
+        },
+        {
+          "name": "matmul_tile_q8_small",
+          "milliseconds": 12.30672
+        },
+        {
+          "name": "matmul_reduce",
+          "milliseconds": 10.90928
+        },
+        {
+          "name": "sigmoid_mul",
+          "milliseconds": 15.3032
+        },
+        {
+          "name": "gated_rms_norm",
+          "milliseconds": 55.96048
+        },
+        {
+          "name": "causal_conv_silu",
+          "milliseconds": 50.3832
+        },
+        {
+          "name": "delta_rule",
+          "milliseconds": 399.82752
+        },
+        {
+          "name": "attention_tile_d256_kv16",
+          "milliseconds": 1999.64768
+        },
+        {
+          "name": "matmul_tile_wbf16",
+          "milliseconds": 109.2848
+        },
+        {
+          "name": "matmul_tile_wbf16_small",
+          "milliseconds": 16.52592
+        },
+        {
+          "name": "matmul_vec_q8_1col head",
+          "milliseconds": 0.98416
+        }
+      ]
+    },
+    {
+      "kind": "phase",
+      "phase": "forced-step",
+      "timed_dispatches": 306,
+      "matrix_paths": [
+        [
+          "f32",
+          "block-int16"
+        ]
+      ],
+      "kernels": [
+        {
+          "name": "silu_mul",
+          "milliseconds": 0.19408
+        },
+        {
+          "name": "gather_rows",
+          "milliseconds": 0.00608
+        },
+        {
+          "name": "rms_norm_rows",
+          "milliseconds": 0.55248
+        },
+        {
+          "name": "norm_rope_partial",
+          "milliseconds": 0.12112
+        },
+        {
+          "name": "embed",
+          "milliseconds": 0.01584
+        },
+        {
+          "name": "attention_merge",
+          "milliseconds": 0.19744
+        },
+        {
+          "name": "kv_write_kv16",
+          "milliseconds": 0.0656
+        },
+        {
+          "name": "matmul_row_k4_dot_1col",
+          "milliseconds": 0.14304
+        },
+        {
+          "name": "matmul_row_k5_dot_1col",
+          "milliseconds": 0.3096
+        },
+        {
+          "name": "matmul_vec_q8_1col",
+          "milliseconds": 0.12176
+        },
+        {
+          "name": "sigmoid_mul",
+          "milliseconds": 0.0464
+        },
+        {
+          "name": "gated_rms_norm",
+          "milliseconds": 0.19424
+        },
+        {
+          "name": "causal_conv_silu",
+          "milliseconds": 0.19664
+        },
+        {
+          "name": "attention_vec_d256_kv16_g4",
+          "milliseconds": 1.29408
+        },
+        {
+          "name": "matmul_row_nvfp4_1col",
+          "milliseconds": 10.28448
+        },
+        {
+          "name": "delta_rule_short",
+          "milliseconds": 0.61184
+        },
+        {
+          "name": "matmul_row_wbf16_1col",
+          "milliseconds": 0.12672
+        },
+        {
+          "name": "matmul_vec_q8_1col head",
+          "milliseconds": 0.33168
+        }
+      ]
+    }
+  ],
+  "interpretation": "Completed kernel families plus the unchanged source/shape dispatch map match the fixed MI50 policy for 186 transformer matrices and the tied head. Q4_K/Q5_K share the integer tile owner; Q8 trunk/head use block-int16. NVFP4/BF16 products keep F32 inputs.",
+  "limitations": "Aggregated completed kernel-family witness, not a per-layer call trace or numerical/performance pass. Tiny checks and depth captures may still be running. Candidate acceptance limits unchanged.",
+  "artifacts": {
+    "build-nvfp4-rig-main3\\mi50-witness-snapshot\\collection.json": "f2adb6146ab181b561030e07a55512186912288253db67ea92e9587d587bb319",
+    "build-nvfp4-rig-main3\\mi50-witness-snapshot\\execution-snapshot.json": "7c0559c7a6d77c371710a5e673c24c6dcf640f401800d183499a7f25b6d426b3",
+    "build-nvfp4-rig-main3\\mi50-witness-snapshot\\default-witness.stdout": "ff6cae18e8d205310d2f8b07bb980a06db7596a3babde58c961a6d89ab9e4b6f",
+    "build-nvfp4-rig-main3\\mi50-witness-snapshot\\default-witness.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-rig-main3\\mi50-witness-snapshot\\vulkan-devices.stdout": "3af1f82e7f1dcc7bba1205c7c7703a19fcbcba00948e5e3dcafa335827092b63",
+    "build-nvfp4-rig-main3\\verify-mi50-witness.py": "d4ca5393d5f083eebeb05fe1b1bc6bd2989e824e6b09f8b5f7d9ee7f5cbd185e"
+  }
+}

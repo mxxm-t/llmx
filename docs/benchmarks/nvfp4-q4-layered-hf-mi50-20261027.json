@@ -1,0 +1,253 @@
+{
+  "schema": "llmx-nvfp4-q4-layered-hf-v3",
+  "status": "passed",
+  "scope": "Existing Q4-specific layered-HF checks for the pinned Qwen3.6-35B-A3B Q4_K_M file. This is not routed-Q8 validation, a performance result, or full NVFP4 landing qualification.",
+  "model": {
+    "name": "Qwen3.6-35B-A3B Q4_K_M",
+    "bytes": 21166758880,
+    "sha256": "a8adba03e892f519579290e30f21abb1a9dbb5bfd092afecccd12a4ee670f0de"
+  },
+  "arms": {
+    "main": {
+      "binary_sha256": "22520d43a5237d7eaa7e72aa459fbd762dfaedf7b3a56ba0582e4029d7ba5f28",
+      "report_sha256": "0cf8a24b4df6c4db09210154ebe36b3dc8c5ba2f6ed6ce5d84ab2c205ae54c7b",
+      "checks": 63,
+      "commands": 63,
+      "check_counts": {
+        "tokenizer": 20,
+        "file_exact": 21,
+        "quality": 22
+      },
+      "file_exact": {
+        "checks": 21,
+        "logit_rankings": 6,
+        "nll_checks": 8,
+        "logit_bounds": {
+          "top5_overlap_min_required": 5,
+          "minimum_observed_top5_overlap": 5,
+          "top5_headroom": 0,
+          "top1_matches": 6,
+          "top1_required": 6,
+          "top1_headroom": 0,
+          "max_abs_logit": 100.0,
+          "largest_reported_abs_top10_logit": 22.267315,
+          "max_abs_logit_headroom": 77.732685
+        },
+        "nll": {
+          "continuous": {
+            "checks": 2,
+            "bound": 0.02,
+            "maximum_absolute_error": 0.0006952818997976173,
+            "minimum_headroom": 0.019304718100202383,
+            "worst_label": "file-exact-ppl-00"
+          },
+          "window": {
+            "checks": 6,
+            "bound": 0.02,
+            "maximum_absolute_error": 0.0008444574809050032,
+            "minimum_headroom": 0.019155542519094997,
+            "worst_label": "file-exact-ppl-03-per-token"
+          }
+        }
+      },
+      "quality": {
+        "checks": 22,
+        "logit_rankings": 6,
+        "nll_checks": 8,
+        "logit_bounds": {
+          "top5_overlap_min_required": 4,
+          "minimum_observed_top5_overlap": 5,
+          "top5_headroom": 1,
+          "top1_matches": 5,
+          "top1_required": 5,
+          "top1_headroom": 0,
+          "max_abs_logit": 100.0,
+          "largest_reported_abs_top10_logit": 22.267315,
+          "max_abs_logit_headroom": 77.732685
+        },
+        "nll": {
+          "continuous": {
+            "checks": 2,
+            "bound": 0.13,
+            "maximum_absolute_error": 0.03987562062420924,
+            "minimum_headroom": 0.09012437937579076,
+            "worst_label": "ppl-00"
+          },
+          "window": {
+            "checks": 6,
+            "bound": 0.25,
+            "maximum_absolute_error": 0.09731398370093203,
+            "minimum_headroom": 0.15268601629906797,
+            "worst_label": "ppl-01-per-token"
+          }
+        }
+      }
+    },
+    "candidate": {
+      "binary_sha256": "5b46cd654f2ce16045e469238cf5af5e389d23f67e74b7c3efd9a58f5188bb49",
+      "report_sha256": "00cbc1c5443fc90658c305e5e37d5d0e017542ee17c0db167174b7a733d5530a",
+      "checks": 63,
+      "commands": 63,
+      "check_counts": {
+        "tokenizer": 20,
+        "file_exact": 21,
+        "quality": 22
+      },
+      "file_exact": {
+        "checks": 21,
+        "logit_rankings": 6,
+        "nll_checks": 8,
+        "logit_bounds": {
+          "top5_overlap_min_required": 5,
+          "minimum_observed_top5_overlap": 5,
+          "top5_headroom": 0,
+          "top1_matches": 6,
+          "top1_required": 6,
+          "top1_headroom": 0,
+          "max_abs_logit": 100.0,
+          "largest_reported_abs_top10_logit": 22.267315,
+          "max_abs_logit_headroom": 77.732685
+        },
+        "nll": {
+          "continuous": {
+            "checks": 2,
+            "bound": 0.02,
+            "maximum_absolute_error": 0.000882884899797709,
+            "minimum_headroom": 0.01911711510020229,
+            "worst_label": "file-exact-ppl-00"
+          },
+          "window": {
+            "checks": 6,
+            "bound": 0.02,
+            "maximum_absolute_error": 0.0008444574809050032,
+            "minimum_headroom": 0.019155542519094997,
+            "worst_label": "file-exact-ppl-03-per-token"
+          }
+        }
+      },
+      "quality": {
+        "checks": 22,
+        "logit_rankings": 6,
+        "nll_checks": 8,
+        "logit_bounds": {
+          "top5_overlap_min_required": 4,
+          "minimum_observed_top5_overlap": 5,
+          "top5_headroom": 1,
+          "top1_matches": 5,
+          "top1_required": 5,
+          "top1_headroom": 0,
+          "max_abs_logit": 100.0,
+          "largest_reported_abs_top10_logit": 22.267315,
+          "max_abs_logit_headroom": 77.732685
+        },
+        "nll": {
+          "continuous": {
+            "checks": 2,
+            "bound": 0.13,
+            "maximum_absolute_error": 0.04006322362420933,
+            "minimum_headroom": 0.08993677637579067,
+            "worst_label": "ppl-00"
+          },
+          "window": {
+            "checks": 6,
+            "bound": 0.25,
+            "maximum_absolute_error": 0.09731398370093203,
+            "minimum_headroom": 0.15268601629906797,
+            "worst_label": "ppl-01-per-token"
+          }
+        }
+      }
+    }
+  },
+  "check_accounting": {
+    "per_arm_checks": 63,
+    "per_arm_check_labels": {
+      "tokenizer": 20,
+      "file_exact": 21,
+      "quality": 22
+    },
+    "per_arm_cli_commands": 63,
+    "per_arm_cli_command_labels": {
+      "version": 1,
+      "tokenizer": 20,
+      "file_exact": 21,
+      "quality_commands": 21
+    },
+    "quality_extra_check": "The 22nd quality check is an aggregate top1 count over six ranking cases; it has no separate CLI command.",
+    "raw_stdout_stderr_pairs_per_arm": 63
+  },
+  "configuration": {
+    "device": "vulkan:0,vulkan:1",
+    "layer_shares": "1,1",
+    "threads": 6,
+    "ubatch": 128,
+    "cache_type": "f32",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "physical_devices": [
+      "MI50 8 / renderD130 / PCI 0000:c9:00.0",
+      "MI50 9 / renderD131 / PCI 0000:cc:00.0"
+    ]
+  },
+  "builds": {
+    "main": {
+      "revision": "e46e72e9047ab87488e008494509a4a9129ea5f2",
+      "source_manifest_sha256": "b09aac8b8cae67496bf38b2dcb5de3593143dc66a02e3006cef61eb95d96fe0a",
+      "version": "llmx 0.1.0+unknown numerics 6f8d73e0490b8d22",
+      "binary_sha256": "22520d43a5237d7eaa7e72aa459fbd762dfaedf7b3a56ba0582e4029d7ba5f28"
+    },
+    "candidate": {
+      "base_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "integrated_main_delta": "ae5b79518 (public-main test/documentation integration)",
+      "source_manifest_sha256": "75500c7955650ca2102542ee3f150f9171636febb2365abbe257e799a915e365",
+      "version": "llmx 0.1.0+unknown numerics d4e5fc4f20727871",
+      "binary_sha256": "5b46cd654f2ce16045e469238cf5af5e389d23f67e74b7c3efd9a58f5188bb49",
+      "additional_candidate_change": "one-line NVFP4 declaration-order shader correction"
+    }
+  },
+  "candidate_shader": {
+    "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+    "sha256": "bb114dbd2dfce573fda8ccfeb0d738f348fb2301b2a1a8d29f5f081941cbf07d"
+  },
+  "bounds": {
+    "file_exact": {
+      "top5_overlap": 5,
+      "continuous_nll": 0.02,
+      "window_nll": 0.02,
+      "max_abs_logit": 100.0
+    },
+    "quality": {
+      "top5_overlap": 4,
+      "max_abs_logit": 100.0,
+      "continuous_nll": 0.13,
+      "window_nll": 0.25,
+      "top1_matches": 5
+    }
+  },
+  "offline_audit": {
+    "script_sha256": "0b292f811835c55ef939009dc67207deff2d59e998bee96cba19469fa7a72a80",
+    "result_sha256": "3b712fcfb9f92e5afc8a7522173b2681c3e5ba336bdd4ba7483105c34daeaf1a",
+    "worker_execution_sha256": "6ece76527a6cfd68ad06df6ae620e4e28a5dc756e16d5c1c37418f3fe5e08aa4",
+    "controller_sha256": "5aef3bce6ba7bd9cff4f9815f0d8b544efc1f0444cfb6668261bb427b86098ab",
+    "transfer_manifest_sha256": "f863a2f5715e6fa156ae95e4fc75ac03f5b2ac615cd32ce24c511bc143652e40",
+    "copied_files": 516,
+    "copied_bytes": 476768,
+    "independent_recomputation": "The audit reran the existing tests/common.py validators from saved stdout and frozen goldens, compared every stored check payload, and compared all labeled stdout/stderr with the 63 raw-call pairs per arm. No inference was run by the audit."
+  },
+  "candidate_source_lineage": {
+    "base_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+    "integrated_main_delta": "ae5b79518 (public-main test/documentation integration)",
+    "additional_candidate_change": "one-line NVFP4 declaration-order shader correction",
+    "corrected_shader_sha256": "bb114dbd2dfce573fda8ccfeb0d738f348fb2301b2a1a8d29f5f081941cbf07d",
+    "final_source_manifest_sha256": "75500c7955650ca2102542ee3f150f9171636febb2365abbe257e799a915e365"
+  },
+  "retry_lineage": {
+    "v1": "preserved; stopped before inference because nine Linux inputs had CRLF raw bytes while pins expected canonical LF. Normalization verified all nine inputs matched frozen LF bytes.",
+    "v2": "preserved; no inference ran. First admission was refused while GPU9 was busy. After GPU9 cleared, retry was refused before container creation because available host memory was below the 10 GiB floor. No GPU9 process was attributed.",
+    "v3": "completed both main and candidate reports with status pass; this is the successful inference run audited by this receipt."
+  },
+  "limitations": [
+    "This is the Q4_K_M file's own existing layered-HF gate; these Q4 goldens are not applied to the routed Q8 file.",
+    "No performance conclusion is made.",
+    "This does not establish general NVFP4 merge readiness or replace remaining integration and hosted checks."
+  ]
+}

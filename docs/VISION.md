@@ -2,8 +2,8 @@
 
 This page is the plan for image input, ROADMAP item 10, as F2DEV approved it as the plan of record on 2026-10-25.
 The coordinator and F2DEV answered its open questions the same day, on the owner's delegation.
-Nothing in `src/` reads an image yet; the sections below say what will, in the order it is built.
-Audio follows on the same encoder contract once images are done.
+The image decoder and standalone Qwen vision encoder are implemented, along with `llmx-encode-image` for checking encoder rows against the reference. Image rows are not yet wired into text prompts, chat templates or the server. The sections below retain the broader image-input plan and distinguish its implemented pieces from the remaining integration work.
+Audio follows on the same encoder contract once image input is integrated.
 
 ## 1. The models and the weights (planned)
 

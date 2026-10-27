@@ -1,0 +1,1566 @@
+{
+  "activity_by_arm": {
+    "candidate": {
+      "flagged_sample_counts": {
+        "disk_bytes_per_second": 1,
+        "system_cpu_percent": 0,
+        "unrelated_gpu_engine_percent": 6,
+        "unrelated_process_cpu_percent": 60
+      },
+      "process_attribution_sample_counts": {
+        "Code.exe pid=40908": 3,
+        "Code.exe pid=44924": 1,
+        "Code.exe pid=80412": 4,
+        "cpptools.exe pid=80364": 60
+      },
+      "timing_call_count": 6,
+      "timing_monitor_samples": 60,
+      "unknown_counts": {
+        "disk": 0,
+        "gpu_engine": 0,
+        "process_cpu": 7930,
+        "process_entries": 7880,
+        "system_cpu": 0
+      }
+    },
+    "control": {
+      "flagged_sample_counts": {
+        "disk_bytes_per_second": 3,
+        "system_cpu_percent": 0,
+        "unrelated_gpu_engine_percent": 6,
+        "unrelated_process_cpu_percent": 60
+      },
+      "process_attribution_sample_counts": {
+        "Code.exe pid=27040": 3,
+        "cpptools.exe pid=80364": 60
+      },
+      "timing_call_count": 6,
+      "timing_monitor_samples": 60,
+      "unknown_counts": {
+        "disk": 0,
+        "gpu_engine": 0,
+        "process_cpu": 7925,
+        "process_entries": 7888,
+        "system_cpu": 0
+      }
+    }
+  },
+  "activity_flags": {
+    "disk_bytes_per_second": {
+      "meaning": "any physical disk instance at or above threshold",
+      "threshold": 10485760
+    },
+    "system_cpu_percent": {
+      "meaning": "system CPU use at or above threshold",
+      "threshold": 90.0
+    },
+    "unrelated_gpu_engine_percent": {
+      "meaning": "GPU engine instance above threshold whose PDH PID is not this benchmark PID",
+      "threshold": 5.0
+    },
+    "unrelated_process_cpu_percent": {
+      "meaning": "one process above threshold; excludes this runner, monitor, and exact benchmark PID",
+      "threshold": 50.0
+    }
+  },
+  "all_calls": [
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=27040": 3,
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 1,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1451,
+          "process_entries": 1449,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 8.141000000294298,
+      "ended_monotonic": 2479030.078,
+      "ended_utc": "2026-10-26T02:54:42.501987+00:00",
+      "exit_code": 0,
+      "index": 0,
+      "monitor": "00-p128-control-warmup.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 58692,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "00-p128-control-warmup.monitor.stderr.txt",
+      "monitor_stdout": "00-p128-control-warmup.monitor.stdout.txt",
+      "phase": "warmup",
+      "pid": 30692,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 112.48,
+        "prefill_tok_s": 1503.99
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479021.937,
+      "started_utc": "2026-10-26T02:54:34.363783+00:00",
+      "status": "complete",
+      "stderr": "00-p128-control-warmup.stderr.txt",
+      "stderr_sha256": "0f2ab11f1f5f23d8614e1645bba31b778b23f852f5f16a51fd6134f67fcbddb7",
+      "stderr_verified_sha256": "0f2ab11f1f5f23d8614e1645bba31b778b23f852f5f16a51fd6134f67fcbddb7",
+      "stdout": "00-p128-control-warmup.stdout.txt",
+      "stdout_sha256": "1de0797d73f333b30420542f693ff00b50b1464bbf3f6535dd4d11314a688364",
+      "stdout_verified_sha256": "1de0797d73f333b30420542f693ff00b50b1464bbf3f6535dd4d11314a688364",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=40908": 1,
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 1,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1454,
+          "process_entries": 1446,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 8.108999999705702,
+      "ended_monotonic": 2479041.187,
+      "ended_utc": "2026-10-26T02:54:53.603968+00:00",
+      "exit_code": 0,
+      "index": 1,
+      "monitor": "01-p128-candidate-warmup.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 21168,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "01-p128-candidate-warmup.monitor.stderr.txt",
+      "monitor_stdout": "01-p128-candidate-warmup.monitor.stdout.txt",
+      "phase": "warmup",
+      "pid": 32352,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 112.41,
+        "prefill_tok_s": 1556.53
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479033.078,
+      "started_utc": "2026-10-26T02:54:45.503163+00:00",
+      "status": "complete",
+      "stderr": "01-p128-candidate-warmup.stderr.txt",
+      "stderr_sha256": "1b02e2591ce1127bcb2639af13a871f566be4f89290848644a3febe8d20d2ccc",
+      "stderr_verified_sha256": "1b02e2591ce1127bcb2639af13a871f566be4f89290848644a3febe8d20d2ccc",
+      "stdout": "01-p128-candidate-warmup.stdout.txt",
+      "stdout_sha256": "d119522930c5b21dc3eae07fb1d5c2253c154b27a67ad1ea309a72c481cee1a0",
+      "stdout_verified_sha256": "d119522930c5b21dc3eae07fb1d5c2253c154b27a67ad1ea309a72c481cee1a0",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 8
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 2,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 8
+        },
+        "sample_count": 8,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1058,
+          "process_entries": 1049,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 5.7030000002123415,
+      "ended_monotonic": 2479049.921,
+      "ended_utc": "2026-10-26T02:55:02.349714+00:00",
+      "exit_code": 0,
+      "index": 2,
+      "monitor": "02-p128-control-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 74824,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "02-p128-control-measured.monitor.stderr.txt",
+      "monitor_stdout": "02-p128-control-measured.monitor.stdout.txt",
+      "pair_position": 0,
+      "phase": "measured",
+      "pid": 70764,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 112.38,
+        "prefill_tok_s": 1491.84
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479044.218,
+      "started_utc": "2026-10-26T02:54:56.642602+00:00",
+      "status": "complete",
+      "stderr": "02-p128-control-measured.stderr.txt",
+      "stderr_sha256": "c7378b9cf016f1a9cd5c972af002a21fb601c7f8c1f6a7ebe5a75f6654a7188a",
+      "stderr_verified_sha256": "c7378b9cf016f1a9cd5c972af002a21fb601c7f8c1f6a7ebe5a75f6654a7188a",
+      "stdout": "02-p128-control-measured.stdout.txt",
+      "stdout_sha256": "19ed8c84e41de02a089053f872e3e1105f7e80123bd50a866f8d63a97fb2d774",
+      "stdout_verified_sha256": "19ed8c84e41de02a089053f872e3e1105f7e80123bd50a866f8d63a97fb2d774",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 8
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 8
+        },
+        "sample_count": 8,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1060,
+          "process_entries": 1054,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 5.640999999828637,
+      "ended_monotonic": 2479058.0,
+      "ended_utc": "2026-10-26T02:55:10.422769+00:00",
+      "exit_code": 0,
+      "index": 3,
+      "monitor": "03-p128-candidate-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 34728,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "03-p128-candidate-measured.monitor.stderr.txt",
+      "monitor_stdout": "03-p128-candidate-measured.monitor.stdout.txt",
+      "pair_position": 1,
+      "phase": "measured",
+      "pid": 36276,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 112.52,
+        "prefill_tok_s": 1586.24
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479052.359,
+      "started_utc": "2026-10-26T02:55:04.788955+00:00",
+      "status": "complete",
+      "stderr": "03-p128-candidate-measured.stderr.txt",
+      "stderr_sha256": "1e21f449de2645595f7d4a4d022309800c1d163b01010bba491b84bf9963290f",
+      "stderr_verified_sha256": "1e21f449de2645595f7d4a4d022309800c1d163b01010bba491b84bf9963290f",
+      "stdout": "03-p128-candidate-measured.stdout.txt",
+      "stdout_sha256": "e614088eeb1ab25600cbdde6d9e35dba49a955bf8d58e1a7a7b4e2257bd53f00",
+      "stdout_verified_sha256": "e614088eeb1ab25600cbdde6d9e35dba49a955bf8d58e1a7a7b4e2257bd53f00",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=40908": 1,
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 8
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 8
+        },
+        "sample_count": 8,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1062,
+          "process_entries": 1051,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 5.688000000081956,
+      "ended_monotonic": 2479066.203,
+      "ended_utc": "2026-10-26T02:55:18.632649+00:00",
+      "exit_code": 0,
+      "index": 4,
+      "monitor": "04-p128-candidate-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 50336,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "04-p128-candidate-measured.monitor.stderr.txt",
+      "monitor_stdout": "04-p128-candidate-measured.monitor.stdout.txt",
+      "pair_position": 2,
+      "phase": "measured",
+      "pid": 6540,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 112.16,
+        "prefill_tok_s": 1555.4
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479060.515,
+      "started_utc": "2026-10-26T02:55:12.942019+00:00",
+      "status": "complete",
+      "stderr": "04-p128-candidate-measured.stderr.txt",
+      "stderr_sha256": "3344a1d1eccb694f7fed53a266ad2d63c4b1c0a2e6bee0d9e516bc836f103094",
+      "stderr_verified_sha256": "3344a1d1eccb694f7fed53a266ad2d63c4b1c0a2e6bee0d9e516bc836f103094",
+      "stdout": "04-p128-candidate-measured.stdout.txt",
+      "stdout_sha256": "810c2873aecd7433dfa23e13e2f78b9d657a3966875e24bd5c23be061c95a5ad",
+      "stdout_verified_sha256": "810c2873aecd7433dfa23e13e2f78b9d657a3966875e24bd5c23be061c95a5ad",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 8
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 8
+        },
+        "sample_count": 8,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1061,
+          "process_entries": 1054,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 5.6719999997876585,
+      "ended_monotonic": 2479074.343,
+      "ended_utc": "2026-10-26T02:55:26.766841+00:00",
+      "exit_code": 0,
+      "index": 5,
+      "monitor": "05-p128-control-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 84292,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "05-p128-control-measured.monitor.stderr.txt",
+      "monitor_stdout": "05-p128-control-measured.monitor.stdout.txt",
+      "pair_position": 3,
+      "phase": "measured",
+      "pid": 24796,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 111.85,
+        "prefill_tok_s": 1505.43
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479068.671,
+      "started_utc": "2026-10-26T02:55:21.094680+00:00",
+      "status": "complete",
+      "stderr": "05-p128-control-measured.stderr.txt",
+      "stderr_sha256": "a9aedd85a504851ce38391ec0cd6ca1d6bcb9ad754c2e64713a302f3ba01c77e",
+      "stderr_verified_sha256": "a9aedd85a504851ce38391ec0cd6ca1d6bcb9ad754c2e64713a302f3ba01c77e",
+      "stdout": "05-p128-control-measured.stdout.txt",
+      "stdout_sha256": "92c16a3d46398b8f60a8e346be469864b30cd2289ebb0a618b98551715ea28d5",
+      "stdout_verified_sha256": "92c16a3d46398b8f60a8e346be469864b30cd2289ebb0a618b98551715ea28d5",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1451,
+          "process_entries": 1446,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 8.5,
+      "ended_monotonic": 2479085.312,
+      "ended_utc": "2026-10-26T02:55:37.733929+00:00",
+      "exit_code": 0,
+      "index": 6,
+      "monitor": "06-p4096-control-warmup.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 15508,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "06-p4096-control-warmup.monitor.stderr.txt",
+      "monitor_stdout": "06-p4096-control-warmup.monitor.stdout.txt",
+      "phase": "warmup",
+      "pid": 79024,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 112.51,
+        "prefill_tok_s": 2813.93
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479076.812,
+      "started_utc": "2026-10-26T02:55:29.242323+00:00",
+      "status": "complete",
+      "stderr": "06-p4096-control-warmup.stderr.txt",
+      "stderr_sha256": "4944f07b2d2659716855e676d85fff5db4025112f8e14fa2d956402850975df3",
+      "stderr_verified_sha256": "4944f07b2d2659716855e676d85fff5db4025112f8e14fa2d956402850975df3",
+      "stdout": "06-p4096-control-warmup.stdout.txt",
+      "stdout_sha256": "ffbbd8fc88d7d94a2c70d9279af8ce6c5419b748890e25278c1bee3ac4fa16bb",
+      "stdout_verified_sha256": "ffbbd8fc88d7d94a2c70d9279af8ce6c5419b748890e25278c1bee3ac4fa16bb",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=40908": 1,
+          "Code.exe pid=44924": 1,
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1456,
+          "process_entries": 1445,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 8.45299999974668,
+      "ended_monotonic": 2479096.406,
+      "ended_utc": "2026-10-26T02:55:48.826681+00:00",
+      "exit_code": 0,
+      "index": 7,
+      "monitor": "07-p4096-candidate-warmup.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 75212,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "07-p4096-candidate-warmup.monitor.stderr.txt",
+      "monitor_stdout": "07-p4096-candidate-warmup.monitor.stdout.txt",
+      "phase": "warmup",
+      "pid": 23884,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 111.91,
+        "prefill_tok_s": 2834.2
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479087.953,
+      "started_utc": "2026-10-26T02:55:40.378840+00:00",
+      "status": "complete",
+      "stderr": "07-p4096-candidate-warmup.stderr.txt",
+      "stderr_sha256": "77c3fed4b10707808a33f3699ed7b1e4e0710309e74012e3229aa56c9e04a8ee",
+      "stderr_verified_sha256": "77c3fed4b10707808a33f3699ed7b1e4e0710309e74012e3229aa56c9e04a8ee",
+      "stdout": "07-p4096-candidate-warmup.stdout.txt",
+      "stdout_sha256": "37ba92eb8b93ec347a820cdaa3dd1fd488180bb36d6c185791e10c672d50a0d8",
+      "stdout_verified_sha256": "37ba92eb8b93ec347a820cdaa3dd1fd488180bb36d6c185791e10c672d50a0d8",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1458,
+          "process_entries": 1447,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 8.485000000335276,
+      "ended_monotonic": 2479107.578,
+      "ended_utc": "2026-10-26T02:55:59.995042+00:00",
+      "exit_code": 0,
+      "index": 8,
+      "monitor": "08-p4096-control-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 47480,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "08-p4096-control-measured.monitor.stderr.txt",
+      "monitor_stdout": "08-p4096-control-measured.monitor.stdout.txt",
+      "pair_position": 0,
+      "phase": "measured",
+      "pid": 85552,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 112.33,
+        "prefill_tok_s": 2813.59
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479099.093,
+      "started_utc": "2026-10-26T02:55:51.522280+00:00",
+      "status": "complete",
+      "stderr": "08-p4096-control-measured.stderr.txt",
+      "stderr_sha256": "f1bdb56998b8cc91ce9af9ebfbfbc6b109a3c36327a06cac2c56a48b0acd2b79",
+      "stderr_verified_sha256": "f1bdb56998b8cc91ce9af9ebfbfbc6b109a3c36327a06cac2c56a48b0acd2b79",
+      "stdout": "08-p4096-control-measured.stdout.txt",
+      "stdout_sha256": "eeb1c52f55fbd84dd6386add604ce00650a24c20f681f5980220460c1251b500",
+      "stdout_verified_sha256": "eeb1c52f55fbd84dd6386add604ce00650a24c20f681f5980220460c1251b500",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1451,
+          "process_entries": 1442,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 8.344000000040978,
+      "ended_monotonic": 2479118.578,
+      "ended_utc": "2026-10-26T02:56:10.995204+00:00",
+      "exit_code": 0,
+      "index": 9,
+      "monitor": "09-p4096-candidate-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 25304,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "09-p4096-candidate-measured.monitor.stderr.txt",
+      "monitor_stdout": "09-p4096-candidate-measured.monitor.stdout.txt",
+      "pair_position": 1,
+      "phase": "measured",
+      "pid": 22940,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 112.69,
+        "prefill_tok_s": 2831.22
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479110.234,
+      "started_utc": "2026-10-26T02:56:02.663972+00:00",
+      "status": "complete",
+      "stderr": "09-p4096-candidate-measured.stderr.txt",
+      "stderr_sha256": "22039bab42fbbb37e1150723253a1178a5c543d84594bbf4816df61851373117",
+      "stderr_verified_sha256": "22039bab42fbbb37e1150723253a1178a5c543d84594bbf4816df61851373117",
+      "stdout": "09-p4096-candidate-measured.stdout.txt",
+      "stdout_sha256": "4671cf51ae14fc2d9c53ed043b957f5c72d32d1a69dc656e686822f8f00c10c8",
+      "stdout_verified_sha256": "4671cf51ae14fc2d9c53ed043b957f5c72d32d1a69dc656e686822f8f00c10c8",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1447,
+          "process_entries": 1442,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "candidate",
+      "decode": 256,
+      "elapsed_seconds": 8.375,
+      "ended_monotonic": 2479129.765,
+      "ended_utc": "2026-10-26T02:56:22.188857+00:00",
+      "exit_code": 0,
+      "index": 10,
+      "monitor": "10-p4096-candidate-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 72200,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "10-p4096-candidate-measured.monitor.stderr.txt",
+      "monitor_stdout": "10-p4096-candidate-measured.monitor.stdout.txt",
+      "pair_position": 2,
+      "phase": "measured",
+      "pid": 45032,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 112.94,
+        "prefill_tok_s": 2831.96
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479121.39,
+      "started_utc": "2026-10-26T02:56:13.806888+00:00",
+      "status": "complete",
+      "stderr": "10-p4096-candidate-measured.stderr.txt",
+      "stderr_sha256": "a4aede6313152c5c29f1364c11f58555766a8343f0aaa5d36ff0e03bbc9325f9",
+      "stderr_verified_sha256": "a4aede6313152c5c29f1364c11f58555766a8343f0aaa5d36ff0e03bbc9325f9",
+      "stdout": "10-p4096-candidate-measured.stdout.txt",
+      "stdout_sha256": "76c80217b2938b56447f40fc822f3a3e0f26c07c8db28bf05e1efc8d28ee035c",
+      "stdout_verified_sha256": "76c80217b2938b56447f40fc822f3a3e0f26c07c8db28bf05e1efc8d28ee035c",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 11
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 11
+        },
+        "sample_count": 11,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 1446,
+          "process_entries": 1443,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "arm": "control",
+      "decode": 256,
+      "elapsed_seconds": 8.405999999959022,
+      "ended_monotonic": 2479140.921,
+      "ended_utc": "2026-10-26T02:56:33.341925+00:00",
+      "exit_code": 0,
+      "index": 11,
+      "monitor": "11-p4096-control-measured.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 7596,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "11-p4096-control-measured.monitor.stderr.txt",
+      "monitor_stdout": "11-p4096-control-measured.monitor.stdout.txt",
+      "pair_position": 3,
+      "phase": "measured",
+      "pid": 50864,
+      "prompt": 4096,
+      "rates": {
+        "decode_tok_s": 112.03,
+        "prefill_tok_s": 2816.57
+      },
+      "record_type": "timing",
+      "started_monotonic": 2479132.515,
+      "started_utc": "2026-10-26T02:56:24.940347+00:00",
+      "status": "complete",
+      "stderr": "11-p4096-control-measured.stderr.txt",
+      "stderr_sha256": "4944f07b2d2659716855e676d85fff5db4025112f8e14fa2d956402850975df3",
+      "stderr_verified_sha256": "4944f07b2d2659716855e676d85fff5db4025112f8e14fa2d956402850975df3",
+      "stdout": "11-p4096-control-measured.stdout.txt",
+      "stdout_sha256": "9262c4180689eacfaf788e22f779fb713dfd4baa098d598a4f6921072c2d19a9",
+      "stdout_verified_sha256": "9262c4180689eacfaf788e22f779fb713dfd4baa098d598a4f6921072c2d19a9",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 6
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 2,
+          "unrelated_process_cpu_percent": 6
+        },
+        "sample_count": 6,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 792,
+          "process_entries": 789,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "arm": "control",
+      "decode": 1,
+      "elapsed_seconds": 3.7970000002533197,
+      "ended_monotonic": 2479147.453,
+      "ended_utc": "2026-10-26T02:56:39.881620+00:00",
+      "exit_code": 0,
+      "index": 12,
+      "monitor": "12-p128-control-path_witness.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 69732,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "12-p128-control-path_witness.monitor.stderr.txt",
+      "monitor_stdout": "12-p128-control-path_witness.monitor.stdout.txt",
+      "path_witness": {
+        "f32_tile_dispatches": 3,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 0,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4",
+          "matmul_tile_nvfp4_small",
+          "matmul_tile_nvfp4_tall"
+        ]
+      },
+      "phase": "path_witness",
+      "pid": 69828,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 102.35,
+        "prefill_tok_s": 1490.41
+      },
+      "record_type": "path_witness",
+      "started_monotonic": 2479143.656,
+      "started_utc": "2026-10-26T02:56:36.076477+00:00",
+      "status": "complete",
+      "stderr": "12-p128-control-path_witness.stderr.txt",
+      "stderr_sha256": "236d4f3403e8c519ac4db6a3a4647af9839ead745743d5f695ee7fbf0571513f",
+      "stderr_verified_sha256": "236d4f3403e8c519ac4db6a3a4647af9839ead745743d5f695ee7fbf0571513f",
+      "stdout": "12-p128-control-path_witness.stdout.txt",
+      "stdout_sha256": "74c6fc8908948a949840c46b05ed20a663bb71855fc9b769cc89117b0871e5d3",
+      "stdout_verified_sha256": "74c6fc8908948a949840c46b05ed20a663bb71855fc9b769cc89117b0871e5d3",
+      "timed_out": false
+    },
+    {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=40908": 1,
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 7
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 7
+        },
+        "sample_count": 7,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 928,
+          "process_entries": 919,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "arm": "candidate",
+      "decode": 1,
+      "elapsed_seconds": 4.125,
+      "ended_monotonic": 2479153.906,
+      "ended_utc": "2026-10-26T02:56:46.327812+00:00",
+      "exit_code": 0,
+      "index": 13,
+      "monitor": "13-p128-candidate-path_witness.activity.jsonl",
+      "monitor_ok": true,
+      "monitor_pid": 17224,
+      "monitor_post_call_sample": true,
+      "monitor_stderr": "13-p128-candidate-path_witness.monitor.stderr.txt",
+      "monitor_stdout": "13-p128-candidate-path_witness.monitor.stdout.txt",
+      "path_witness": {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 3,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small",
+          "matmul_tile_nvfp4_f16_tall"
+        ]
+      },
+      "phase": "path_witness",
+      "pid": 89132,
+      "prompt": 128,
+      "rates": {
+        "decode_tok_s": 105.53,
+        "prefill_tok_s": 1556.32
+      },
+      "record_type": "path_witness",
+      "started_monotonic": 2479149.781,
+      "started_utc": "2026-10-26T02:56:42.208322+00:00",
+      "status": "complete",
+      "stderr": "13-p128-candidate-path_witness.stderr.txt",
+      "stderr_sha256": "12d4839dc722125dbb5255424b40431947cea7a7c6b7e22b1e96e7cb3f15f256",
+      "stderr_verified_sha256": "12d4839dc722125dbb5255424b40431947cea7a7c6b7e22b1e96e7cb3f15f256",
+      "stdout": "13-p128-candidate-path_witness.stdout.txt",
+      "stdout_sha256": "2a622a18476c46508f2303cdc263ad2799f948c9bcf643bd425511f65ed26080",
+      "stdout_verified_sha256": "2a622a18476c46508f2303cdc263ad2799f948c9bcf643bd425511f65ed26080",
+      "timed_out": false
+    }
+  ],
+  "documentation_review": "Prior inventory covered all 149 tracked Markdown pages. This delta updates only the active NVFP4 STATUS text and adds this JSON receipt; the other Markdown pages carry forward as unchanged from that inventory, with the new STATUS wording reviewed.",
+  "environment": {
+    "backend": "Vulkan",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "decode_tokens": 256,
+    "device": "Radeon VII",
+    "dtype": "f16",
+    "measured_order": "ABBA per prompt after one warmup per arm",
+    "prompt_lengths": [
+      128,
+      4096
+    ],
+    "repetitions": 1,
+    "threads": 4,
+    "ubatch": 512
+  },
+  "focused_documentation_check": {
+    "dead_code_passed": true,
+    "docs_passed": true,
+    "log": "build-integration/model-screen-docs.log",
+    "sha256": "249cb45f11982d146685f058bced6f43f74f955acfd3273936b7ae967fa97eda"
+  },
+  "frozen_precision_budget": {
+    "family": "nvfp4",
+    "path": "tests/data/dtype_budget.json",
+    "scope_note": "Existing budget retained unchanged. Its tiny calibration is on unscaled NVFP4 blocks and does not qualify the scaled released model.",
+    "sha256": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+    "values": {
+      "bf16": {
+        "logit_budget": 0.0439532995223999,
+        "nll_budget": 0.004616805201523633,
+        "runs": 30
+      },
+      "f16": {
+        "logit_budget": 0.005869746208190918,
+        "nll_budget": 0.0006043278951057829,
+        "runs": 30
+      }
+    }
+  },
+  "model": {
+    "bytes": 578052704,
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+  },
+  "native_device_check": {
+    "argv": [
+      "ctest",
+      "--test-dir",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\cmake",
+      "-C",
+      "Release",
+      "-R",
+      "^(nvfp4-vulkan|vulkan-float-controls-device)$",
+      "--output-on-failure"
+    ],
+    "binaries": {
+      "llmx-nvfp4-test.exe": "19086256bfdbf400fff20f5f101b8b6fda8a59d294e8a9e6ecf389fa61ed3447",
+      "llmx-vulkan-lifetime-test.exe": "a5a2110437eaea0422baeda12ed289b7a1d28a6167bd019be87297e67d6529e5"
+    },
+    "exit_code": 0,
+    "passed": true,
+    "path": "build-integration/native-device/state.json",
+    "revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+    "sha256": "77876d2e013c06f789d1805c167401eeddcf9f2c22baf4c75b866265856d8cd2"
+  },
+  "next_checks": [
+    "Same-environment MI50 screen and matched-precision mx Vulkan comparison; current historical speed floor remains unmet.",
+    "Affected file-exact HF checks, released depth and device split, final-head MoE identity and existing-format regression/identity checks.",
+    "Applicable hosted CI and final train integration/landing checks; args-flush and narrow-tile integration remain future work."
+  ],
+  "path_witnesses": {
+    "candidate": {
+      "activity": {
+        "competing_process_sample_counts": {
+          "Code.exe pid=40908": 1,
+          "Code.exe pid=80412": 1,
+          "cpptools.exe pid=80364": 7
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 1,
+          "unrelated_process_cpu_percent": 7
+        },
+        "sample_count": 7,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 928,
+          "process_entries": 919,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "exit_code": 0,
+      "f32_tile_dispatches": 0,
+      "matrix_paths": {
+        "devices": [
+          [
+            "f32",
+            "f16",
+            "block-int16"
+          ]
+        ],
+        "dtype": "f16"
+      },
+      "monitor_ok": true,
+      "native_f16_tile_dispatches": 3,
+      "stderr_sha256": "12d4839dc722125dbb5255424b40431947cea7a7c6b7e22b1e96e7cb3f15f256",
+      "stdout_sha256": "2a622a18476c46508f2303cdc263ad2799f948c9bcf643bd425511f65ed26080",
+      "timed_nvfp4_tile_names": [
+        "matmul_tile_nvfp4_f16",
+        "matmul_tile_nvfp4_f16_small",
+        "matmul_tile_nvfp4_f16_tall"
+      ]
+    },
+    "control": {
+      "activity": {
+        "competing_process_sample_counts": {
+          "cpptools.exe pid=80364": 6
+        },
+        "flagged_sample_counts": {
+          "disk_bytes_per_second": 0,
+          "system_cpu_percent": 0,
+          "unrelated_gpu_engine_percent": 2,
+          "unrelated_process_cpu_percent": 6
+        },
+        "sample_count": 6,
+        "unknown_counts": {
+          "disk": 0,
+          "gpu_engine": 0,
+          "process_cpu": 792,
+          "process_entries": 789,
+          "system_cpu": 0
+        }
+      },
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "exit_code": 0,
+      "f32_tile_dispatches": 3,
+      "matrix_paths": {
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "dtype": "f16"
+      },
+      "monitor_ok": true,
+      "native_f16_tile_dispatches": 0,
+      "stderr_sha256": "236d4f3403e8c519ac4db6a3a4647af9839ead745743d5f695ee7fbf0571513f",
+      "stdout_sha256": "74c6fc8908948a949840c46b05ed20a663bb71855fc9b769cc89117b0871e5d3",
+      "timed_nvfp4_tile_names": [
+        "matmul_tile_nvfp4",
+        "matmul_tile_nvfp4_small",
+        "matmul_tile_nvfp4_tall"
+      ]
+    }
+  },
+  "plan": {
+    "complete": true,
+    "execution_path": "build-integration/model-screen-run/execution.json",
+    "path": "build-integration/model-screen-run/plan.json",
+    "performance_verdict": null,
+    "plan_sha256_in_execution": "c55a0249d2ee9b653befceab05513236bc27a1d63e8c89488fe8161dceda75bc",
+    "sha256": "c55a0249d2ee9b653befceab05513236bc27a1d63e8c89488fe8161dceda75bc",
+    "sha256_execution": "92be9a631af83f28be58fb527a77f0b927da366a9a1c31a372578b48e830d0cb"
+  },
+  "result": "All 12 planned timing calls and both executed-path witness calls completed; no timing samples were dropped. Small observed differences are not treated as proven gains or regressions.",
+  "schema": "nvfp4-train-native-f16-model-screen-20261026-v1",
+  "scope": "Radeon VII Vulkan development timing screen of native F16 NVFP4 tile selection versus same-archive F32-input tile control. Not an mx comparison, MI50 result, output-identity test, speed-floor pass, or final qualification.",
+  "source_and_binaries": {
+    "archive_sha256": "b23f2cf5aeadee8c3db565a99b46aa86aeb64db487c22b19e14d11d0f6d007f6",
+    "candidate": {
+      "archive_sha256": "b23f2cf5aeadee8c3db565a99b46aa86aeb64db487c22b19e14d11d0f6d007f6",
+      "binaries": {
+        "llmx-model-logits.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx-model-logits.exe",
+          "sha256": "78f5631c241aa1b3d64d24fc41c6d3573f1affa3dfefb39cbc164f4a755ac091"
+        },
+        "llmx.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+          "sha256": "134d2396d5440ab9b2cb48e09155bae0dba0409ba186e0fd687c748fa9892e19"
+        }
+      },
+      "revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+      "selector_before_sha256": "b74f6fae1915dd9198910486e6841645a0e116ce4036b7406c240e66dfc4038c",
+      "selector_sha256": "b74f6fae1915dd9198910486e6841645a0e116ce4036b7406c240e66dfc4038c",
+      "version": "llmx 0.1.0+unknown numerics 1acbbbcbf924cb48",
+      "version_stderr": "",
+      "version_stdout": "llmx 0.1.0+unknown numerics 1acbbbcbf924cb48"
+    },
+    "control": {
+      "archive_sha256": "b23f2cf5aeadee8c3db565a99b46aa86aeb64db487c22b19e14d11d0f6d007f6",
+      "binaries": {
+        "llmx-model-logits.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx-model-logits.exe",
+          "sha256": "ede6cdf39a67b08bb5d0826be20ff79c35eeda1fee1e5ad61010e363f14432a0"
+        },
+        "llmx.exe": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\control\\build\\Release\\llmx.exe",
+          "sha256": "14506b5f5a60649eca3657044b213633fa6214fb6333256e48e4ad8b6c73741e"
+        }
+      },
+      "revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+      "selector_before_sha256": "b74f6fae1915dd9198910486e6841645a0e116ce4036b7406c240e66dfc4038c",
+      "selector_sha256": "236935de15e6c2407d06bc1a7d755be54db149d5aa574f66a98b31e72fb946bc",
+      "version": "llmx 0.1.0+unknown numerics 9f7ef9f3875ffa90",
+      "version_stderr": "",
+      "version_stdout": "llmx 0.1.0+unknown numerics 9f7ef9f3875ffa90"
+    },
+    "receipts": {
+      "archive_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\source.tar",
+      "archive_sha256": "b23f2cf5aeadee8c3db565a99b46aa86aeb64db487c22b19e14d11d0f6d007f6",
+      "build_state_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\build-state.json",
+      "build_state_sha256": "118863c301ca589963736b274fc5e0d437303270b8fa91904274d0eceb5120e9",
+      "helper_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\build-float-controls\\run-timing.py",
+      "helper_sha256": "42bcb4b7f9d095d7a643e241b44a631c98c770d325f40de02cad3397021139cb",
+      "monitor_path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-float-controls-train-20261026\\tools\\monitor_windows.py",
+      "monitor_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+    },
+    "revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+    "source_tree_differences": [
+      "src/backends/vulkan/vulkan_kernels.hpp"
+    ],
+    "source_trees": {
+      "candidate": {
+        "files": 3010,
+        "manifest_sha256": "e018ca525049f209e2bce2e4ca417ca7b7cd73dcfb1a74f9cfd82c15e282c9c6"
+      },
+      "control": {
+        "files": 3010,
+        "manifest_sha256": "af68fbcaed36f0320586f98f3b309c8fa798f6d01ed553899f05fbf372c54220"
+      }
+    }
+  },
+  "timing_by_prompt": {
+    "128": {
+      "measured": {
+        "candidate": {
+          "delta_percent": {
+            "pp_tok_s": 4.816716545389643,
+            "tg_tok_s": 0.20068679480891305
+          },
+          "means": {
+            "pp_tok_s": 1570.8200000000002,
+            "tg_tok_s": 112.34
+          },
+          "samples": [
+            {
+              "index": 3,
+              "pp_tok_s": 1586.24,
+              "tg_tok_s": 112.52
+            },
+            {
+              "index": 4,
+              "pp_tok_s": 1555.4,
+              "tg_tok_s": 112.16
+            }
+          ]
+        },
+        "control": {
+          "means": {
+            "pp_tok_s": 1498.635,
+            "tg_tok_s": 112.115
+          },
+          "samples": [
+            {
+              "index": 2,
+              "pp_tok_s": 1491.84,
+              "tg_tok_s": 112.38
+            },
+            {
+              "index": 5,
+              "pp_tok_s": 1505.43,
+              "tg_tok_s": 111.85
+            }
+          ]
+        }
+      }
+    },
+    "4096": {
+      "measured": {
+        "candidate": {
+          "delta_percent": {
+            "pp_tok_s": 0.5864842206971144,
+            "tg_tok_s": 0.566054555179174
+          },
+          "means": {
+            "pp_tok_s": 2831.59,
+            "tg_tok_s": 112.815
+          },
+          "samples": [
+            {
+              "index": 9,
+              "pp_tok_s": 2831.22,
+              "tg_tok_s": 112.69
+            },
+            {
+              "index": 10,
+              "pp_tok_s": 2831.96,
+              "tg_tok_s": 112.94
+            }
+          ]
+        },
+        "control": {
+          "means": {
+            "pp_tok_s": 2815.08,
+            "tg_tok_s": 112.18
+          },
+          "samples": [
+            {
+              "index": 8,
+              "pp_tok_s": 2813.59,
+              "tg_tok_s": 112.33
+            },
+            {
+              "index": 11,
+              "pp_tok_s": 2816.57,
+              "tg_tok_s": 112.03
+            }
+          ]
+        }
+      }
+    }
+  }
+}

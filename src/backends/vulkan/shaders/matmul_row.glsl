@@ -56,6 +56,7 @@ const bool AFFINE_Q5 = false;
 layout(local_size_x = 256) in;
 // Batch columns a lane keeps in registers, specialization constant 0; the backend takes the one-column build for a one-column chunk, which frees the registers seven unused accumulators would hold.
 layout(constant_id = 0) const uint MAX_COLS = 8;
+layout(constant_id = 15) const uint WEIGHT_TYPE = 0xffffffffu;
 layout(push_constant) uniform P {
     uint nin; uint nbatch; uint col0; uint ncols; uint cluster; uint rows_per_sg; uint nproj;
     uint nout0; uint type0; uint wide0; uint start0;

@@ -1,0 +1,118 @@
+{
+  "schema": "nvfp4-short-prompts-integration-v1",
+  "passed": true,
+  "started_utc": "2026-10-27T03:05:39.923990+00:00",
+  "feature_head": "cf56d13ae0b55bfa2980afdea47203aabe41deee",
+  "main": "e9efe108b64bc2fbae66184ffc539eca568591bc",
+  "scope": "Fresh CPU runtime and both scheduler test targets, focused server-passes and server-passes-cpu CTests, documentation checks. No GPU or performance claim.",
+  "commands": [
+    {
+      "name": "configure",
+      "argv": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\short-prompts-integration-v1\\build",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      "exit_code": 0,
+      "seconds": 5.359999999869615,
+      "log_sha256": "0d9d83cb9e0cbce9173feb001cd6b7561d52bf1e8f53bc511d8799f39b9ca22d"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\short-prompts-integration-v1\\build",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx",
+        "llmx-server-passes-test",
+        "llmx-server-passes-cpu-test"
+      ],
+      "exit_code": 0,
+      "seconds": 45.125,
+      "log_sha256": "cc05ab9f915d9744ccd6abe973b02417fd11c1590ebf0a87d8137517ba3c309f"
+    },
+    {
+      "name": "scheduler",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\short-prompts-integration-v1\\build",
+        "-C",
+        "Release",
+        "--output-on-failure",
+        "-R",
+        "^server-passes(-cpu)?$"
+      ],
+      "exit_code": 0,
+      "seconds": 356.75,
+      "log_sha256": "a65d768e1ab90a332935291f62374aa1aebd2283f0e98c5886cde5a318eec86f"
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\short-prompts-integration-v1\\build\\Release\\llmx.exe",
+        "--only",
+        "docs,dead-code"
+      ],
+      "exit_code": 0,
+      "seconds": 29.844000000040978,
+      "log_sha256": "5b6f63b0fdd64d410cd2fc7c3a5af59e1fc2a4a5878c729359cac977388e11f1"
+    }
+  ],
+  "binaries": {
+    "llmx-server-passes-cpu-test.exe": {
+      "sha256": "147f7b3458944fbd38bae1e8223454fd011d434a51a9b00a122355c1236f3b90",
+      "bytes": 2171904
+    },
+    "llmx-server-passes-test.exe": {
+      "sha256": "b711fc915c3e1665cdf90daabe2369b4bcc2f0b35681addf8e39cd55f42108a0",
+      "bytes": 254976
+    },
+    "llmx.exe": {
+      "sha256": "a69f28ded1fd63229b06b25942adf1cc33eecadcc73b9f1f9953aa6118cd3f79",
+      "bytes": 2809344
+    }
+  },
+  "version": "llmx 0.1.0+gcf56d13ae0b5.dirty numerics c815ff1b0099663f",
+  "ended_utc": "2026-10-27T03:12:57.051468+00:00",
+  "source_sha256": {
+    "src/server/api.hpp": "cc18d704bf7d8b373a461b24d322f5a22322e8184fb5ec187eb1f265e6b5ce80",
+    "src/server/policy.hpp": "12bbc817c50f876d35d429169a0e8a043b4c3806fd8fd71a1efba18e75920317",
+    "src/server/scheduler.hpp": "bd14e0301723f1dd7baf89cc12824af159956c6d2c6726227b87f039a2b3db95",
+    "tests/server_passes.cpp": "b765cf26d39053168528c62462b9b2345d7888f6c6c5325f1a26839c2b36ef8a",
+    "tests/server_passes_cpu.cpp": "fc37f756f863adf42fa985ee08957afbc347ac4e9f0b25e15d6cc1ad59a1719e"
+  },
+  "upstream_hosted": {
+    "id": 40432597941,
+    "head_sha": "e9efe108b64bc2fbae66184ffc539eca568591bc",
+    "head_branch": "gate/short-prompts",
+    "status": "completed",
+    "conclusion": "success",
+    "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40432597941"
+  },
+  "post_check_delta": "Documentation corrections and this receipt only. No source or test changes after the focused checks.",
+  "remaining": [
+    "queued Flash identity",
+    "35B routed timing",
+    "MI50 MXFP4 timing control",
+    "integrated hosted CI and final landing audit"
+  ]
+}

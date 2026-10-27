@@ -1,0 +1,5054 @@
+{
+  "schema": "nvfp4-final-mi50-regression-timing-20261027",
+  "scope": "Frozen main versus cleanup candidate, not mx-llama.cpp. All planned samples retained.",
+  "runtime_source_note": "Frozen main 8ccc10162 and candidate af6a4dfdb with the recorded shader cleanup. Later host and dashboard deltas require the existing separate scope audit.",
+  "assessment": "The 35B PP128 gain accompanies a sub-percent decode reduction in both blocks. PP4096 and MXFP4 changes are small. This is an acceptable measured phase tradeoff under AGENTS.md, not proof that small differences are noise. No extra timing round is justified by these results alone. Flash numerical qualification remains unresolved and blocks landing.",
+  "analysis_correction": {
+    "analyzer_sha256": "43737a85d4819ad25c3969259959108a1f90763cfd6cc056cf32f5c1750ac004",
+    "scope": "Only offline dtype-banner parsing corrected; original rejected analysis retained; no benchmark rerun.",
+    "focused_parser_checks": 40
+  },
+  "bundles": [
+    {
+      "name": "routed-35b-timing-row-dispatch-v1",
+      "remote_bundle": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-35b-timing-row-dispatch-v1",
+      "local_retained_bundle": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\completed-mi50-timings-20261027\\routed-35b-timing-row-dispatch-v1",
+      "plan": {
+        "schema": "llmx-routed-35b-lookup-main-v1-row-dispatch-v2-timing-v1",
+        "status": "prepared-awaiting-device-release",
+        "purpose": "Matched timing comparison of lookup-main-linux-v1 main 8ccc101 and lookup-row-dispatch-linux-v2 candidate af6a4f with three shader source deltas; no numerical or performance qualification claim.",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "build_receipts": {
+          "main": {
+            "result_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1/build-result.json",
+            "result_local_path": "build-integration/lookup-linux-build-20261027/remote-artifacts/build-result.json",
+            "launch_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1/launch-result.json",
+            "launch_local_path": "build-integration/lookup-linux-build-20261027/remote-artifacts/launch-result.json",
+            "schema": "lookup-main-linux-build-result-v1",
+            "launch_schema": "lookup-main-linux-build-launch-v1",
+            "result_sha256": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31",
+            "launch_sha256": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743",
+            "bound_from_local": {
+              "build_result": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-linux-build-20261027\\remote-artifacts\\build-result.json",
+              "launch_result": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-linux-build-20261027\\remote-artifacts\\launch-result.json"
+            }
+          },
+          "candidate": {
+            "result_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2/build-result.json",
+            "result_local_path": "build-integration/lookup-row-dispatch-linux-v2/remote-artifacts/build-result.json",
+            "launch_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2/launch-result.json",
+            "launch_local_path": "build-integration/lookup-row-dispatch-linux-v2/remote-artifacts/launch-result.json",
+            "schema": "lookup-row-dispatch-linux-build-result-v2",
+            "launch_schema": "lookup-row-dispatch-linux-build-v2",
+            "result_sha256": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3",
+            "launch_sha256": "09a1f7d8b8456bd5d3ab473b5d649f2f6bd4c0c43a79d90d481d0934f7c63e7d",
+            "bound_from_local": {
+              "build_result": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-row-dispatch-linux-v2\\remote-artifacts\\build-result.json",
+              "launch_result": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\lookup-row-dispatch-linux-v2\\remote-artifacts\\launch-result.json"
+            }
+          }
+        },
+        "arms": {
+          "A": {
+            "name": "main",
+            "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+            "binary": "main-root/build/llmx",
+            "binary_sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87",
+            "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246",
+            "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+            "receipt_paths": {
+              "llmx": "main/build/llmx"
+            }
+          },
+          "B": {
+            "name": "candidate",
+            "revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+            "binary": "candidate-root/build/llmx",
+            "binary_sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+            "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325",
+            "source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+            "receipt_paths": {
+              "llmx": "candidate/build/llmx"
+            }
+          }
+        },
+        "model": {
+          "path": "/zpool1/models/Qwen3.6-35B-A3B/Qwen3.6-35B-A3B-Q4_K_M.gguf",
+          "container_path": "/model.gguf",
+          "bytes": 21166758880,
+          "sha256": "a8adba03e892f519579290e30f21abb1a9dbb5bfd092afecccd12a4ee670f0de",
+          "format": "Q4_K_M"
+        },
+        "device": {
+          "backend": "Vulkan",
+          "physical_gpus": [
+            8,
+            9
+          ],
+          "render_nodes": [
+            "renderD130",
+            "renderD131"
+          ],
+          "pci": [
+            "0000:c9:00.0",
+            "0000:cc:00.0"
+          ],
+          "vulkan_device_order": "physical 8 then physical 9, freshly checked at launch",
+          "device_arg": "vulkan:0,vulkan:1",
+          "layer_shares": "1,1",
+          "clocks": "default; no mutation"
+        },
+        "settings": {
+          "dtype": "auto (expected F16 on MI50; retain runtime dtype/path records)",
+          "cache_k": "f16",
+          "cache_v": "f16",
+          "threads": 4,
+          "cpus": "0,1,8,9 (fresh admission required)",
+          "ubatch": 512,
+          "context": "model default; no override",
+          "generation": 256,
+          "load_mode": "runtime default",
+          "repetitions_per_process": 1
+        },
+        "cells": [
+          {
+            "id": "pp128-tg256",
+            "prompt": 128,
+            "generation": 256
+          },
+          {
+            "id": "pp4096-tg256",
+            "prompt": 4096,
+            "generation": 256
+          }
+        ],
+        "schedule": {
+          "blocks": [
+            "ABBA",
+            "BAAB"
+          ],
+          "order": [
+            "main",
+            "candidate",
+            "candidate",
+            "main",
+            "candidate",
+            "main",
+            "main",
+            "candidate"
+          ],
+          "calls_per_arm_cell": 4,
+          "total_calls": 16,
+          "retain_all": true,
+          "interpretation": "Each process invocation reports a prompt-prefill phase at the cell prompt length and a separate empty-history TG256 phase. Keep both records for every invocation; do not trim samples."
+        },
+        "monitor": {
+          "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+          "sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+          "interval_seconds": 2,
+          "retain_raw": true,
+          "classification": "Attribute only exact benchmark container/cgroup and monitor PID; retain other activity and unknown contention without discarding runs.",
+          "thresholds": {
+            "disk_bytes_per_second_above": 104857600,
+            "other_gpu_percent_above": 0,
+            "sample_gap_seconds": 3,
+            "unrelated_cpu_cores_above": 1
+          }
+        },
+        "guard": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/diagnostic-v1/run-common-float-split.py",
+          "cpus": "0,1,8,9",
+          "gpu_checks": [
+            "renderD130 / 0000:c9:00.0",
+            "renderD131 / 0000:cc:00.0"
+          ],
+          "requirement": "Fresh admission before container creation; no assumed reservation."
+        },
+        "container": {
+          "name": "llmx-xdev-routed-35b-row-dispatch-v1",
+          "cpus": "0,1,8,9",
+          "cpu_quota": 4,
+          "memory": "8g",
+          "memory_swap": "8g",
+          "network": "none",
+          "read_only_root": true,
+          "init": true,
+          "timeout_per_call_seconds": 900,
+          "termination": "Stop admitting new calls at the stop-admission deadline; send TERM to timed-out GPU work; no SIGKILL; retain live children/container until safe cleanup.",
+          "label": "llmx.xdev.routed.35b.row.dispatch.v1"
+        },
+        "limitations": [
+          "This is a matched timing screen, not a numerical-identity, speedup, regression-threshold, or qualification claim.",
+          "The arms previously differed in routed batched/router rounding during raw identity capture; this run measures performance only and does not resolve that difference.",
+          "Both arms use the same model, image, device pair, layer shares, dtype policy, cache types, context, prompt/generation sizes, and loading defaults.",
+          "Preserve every planned call and raw monitor sample; report activity flags and complete per-call timings."
+        ],
+        "estimated_duration": "Approximately 30-60 minutes. The 90-minute stop-admission deadline reserves 15 minutes for cleanup; it is not a hard completion bound. Timed-out GPU work receives TERM and remains retained until it exits; no SIGKILL.",
+        "build_roots": {
+          "main": {
+            "host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1",
+            "container_path": "/work/main-root",
+            "receipt_container_path": "/receipts/main"
+          },
+          "candidate": {
+            "host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2",
+            "container_path": "/work/candidate-root",
+            "receipt_container_path": "/receipts/candidate"
+          }
+        },
+        "bundle_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-35b-timing-row-dispatch-v1",
+        "candidate_source_correction": {
+          "base_revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+          "source_manifest_before_sha256": "78c3dfbd1ea583d4b51732a0adfbfc112242dda76e33a1c105c7f2f847736deb",
+          "source_manifest_after_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+          "changes": [
+            "matmul_row_one.glsl generic TYPE_NVFP4 scaling removed",
+            "q.glsl TYPE_NVFP4 block_bytes and block_values guarded for non-FLOAT_X or NVFP4",
+            "qdecode.glsl TYPE_NVFP4 quantized_at guarded for non-FLOAT_X or NVFP4"
+          ],
+          "expected_module_changes": [
+            "matmul_row_float_x.inc",
+            "matmul_row_float_x_preserve.inc",
+            "matmul_row_mxfp4_float_x.inc"
+          ],
+          "dedicated_nvfp4_module_count": 7,
+          "row_dispatch_plan": "build-integration/lookup-row-dispatch-linux-v2/plan.json",
+          "row_dispatch_plan_sha256": "517389C245A034F3656B141DA963E9F776DE70DFE165E0DFBF2D93BF5999A9CF"
+        },
+        "receipt_binding": {
+          "status": "bound",
+          "bound_utc": "2026-10-27T01:28:31.851604+00:00",
+          "binder": "bind-build-receipts.py",
+          "schema_map": {
+            "main_result": "lookup-main-linux-build-result-v1",
+            "main_launch": "lookup-main-linux-build-launch-v1",
+            "candidate_result": "lookup-row-dispatch-linux-build-result-v2",
+            "candidate_launch": "lookup-row-dispatch-linux-build-v2"
+          },
+          "binary_paths": {
+            "main": "main/build/llmx",
+            "candidate": "candidate/build/llmx"
+          },
+          "build_result_hashes": {
+            "main": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31",
+            "candidate": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3"
+          },
+          "launch_result_hashes": {
+            "main": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743",
+            "candidate": "09a1f7d8b8456bd5d3ab473b5d649f2f6bd4c0c43a79d90d481d0934f7c63e7d"
+          }
+        },
+        "source_pins": {
+          "main": {
+            "local_path": "build-integration/lookup-main-linux-v1/source-pins.json",
+            "sha256": "0a2915a0e661f9b471859c22d6aede6ed7da5b5dd6fbb9a96fbcd97707a30c82"
+          }
+        },
+        "runner_sha256": "0e7b50979b688a4d10c01f37be13be3d58a34c0058795081b3cb9ad1cc823734",
+        "coordination": {
+          "slot_authorized": true,
+          "status": "assigned by coordinator 04:55",
+          "order": "Coordinator 2026-10-27 04:55: VDEV and DDEV complete, XDEV Flash then 35B then MXFP4, shared xdev-flash-v2-DONE, SDEV then quiet",
+          "markers": {
+            "predecessor_done": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-flash-identity-v3/capture-DONE",
+            "go": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/combined-mi50-timing-v1/timing-GO",
+            "done": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-35b-timing-row-dispatch-v1/timing-DONE"
+          },
+          "protected_gpu_ids": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ],
+          "protected_render_nodes": [
+            "/dev/dri/renderD128",
+            "/dev/dri/renderD129",
+            "/dev/dri/renderD130",
+            "/dev/dri/renderD131",
+            "/dev/dri/renderD134",
+            "/dev/dri/renderD135"
+          ],
+          "protected_devices": [
+            {
+              "physical_gpu": 4,
+              "render_node": "renderD134",
+              "pci": "0000:89:00.0"
+            },
+            {
+              "physical_gpu": 5,
+              "render_node": "renderD135",
+              "pci": "0000:8c:00.0"
+            },
+            {
+              "physical_gpu": 6,
+              "render_node": "renderD128",
+              "pci": "0000:c3:00.0"
+            },
+            {
+              "physical_gpu": 7,
+              "render_node": "renderD129",
+              "pci": "0000:c6:00.0"
+            },
+            {
+              "physical_gpu": 8,
+              "render_node": "renderD130",
+              "pci": "0000:c9:00.0"
+            },
+            {
+              "physical_gpu": 9,
+              "render_node": "renderD131",
+              "pci": "0000:cc:00.0"
+            }
+          ],
+          "mapping_evidence": "Physical GPU to PCI/render-node mapping copied from routed-flash-identity-v3 plan host_admission; fresh node/card availability and peer mapping checks remain required.",
+          "idle_access_exception": {
+            "container_id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "container_name": "/cdev-abc-run2",
+            "original_processes": [
+              [
+                "75100",
+                "sleep",
+                "sleep infinity"
+              ]
+            ],
+            "scope": "Broad device access only; allow solely while the exact original idle process remains and all protected GPUs pass actual free/fuser checks."
+          }
+        }
+      },
+      "artifact_sha256": {
+        "execution.json": "70c6bc64be94990ed7757560bcf12a5bf81b225d15ba426c1f317a0a601cbf00",
+        "analysis-original-parser.json": "c462105d108e50233aa37b038bc1dd9b89eece0cb14b052fdfc94bb779253777",
+        "analysis.json": "3a40475f43c9a64139232b4a8a33ae2df993fee5f051d9d1ae8380ab15b59006",
+        "activity.jsonl": "f261382fd9173f9c3f3d07395d31aa4631a0b7db1be7580d84fe05418b7d5d46",
+        "activity-analysis.json": "8c05d866af9774dcc99c5934326b86b895b8b8f985451357520d0d72151a21f8"
+      },
+      "build_pins": {
+        "candidate": {
+          "binary_sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+          "modules_changed": [
+            "matmul_row_float_x.inc",
+            "matmul_row_float_x_preserve.inc",
+            "matmul_row_mxfp4_float_x.inc"
+          ],
+          "source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+          "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325"
+        },
+        "main": {
+          "binary_sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87",
+          "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+          "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246"
+        }
+      },
+      "audit": {
+        "all_planned_calls_have_valid_logs_and_metrics": true,
+        "analysis_status": "complete",
+        "errors": [],
+        "measurement_set_complete": true,
+        "qualification_verdict": "not_assessed",
+        "terminal_run_passed": true
+      },
+      "summary": {
+        "pp128-tg256": {
+          "pp": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-2-candidate",
+                  "value_tok_s": 865.76
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-3-candidate",
+                  "value_tok_s": 863.57
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-5-candidate",
+                  "value_tok_s": 863.45
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-8-candidate",
+                  "value_tok_s": 863.78
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-1-main",
+                  "value_tok_s": 820.21
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-4-main",
+                  "value_tok_s": 820.18
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-6-main",
+                  "value_tok_s": 821.05
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-7-main",
+                  "value_tok_s": 820.45
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 865.76,
+                "mean": 864.14,
+                "median": 863.675,
+                "min": 863.45,
+                "values": [
+                  865.76,
+                  863.57,
+                  863.45,
+                  863.78
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 821.05,
+                "mean": 820.4725,
+                "median": 820.33,
+                "min": 820.18,
+                "values": [
+                  820.21,
+                  820.18,
+                  821.05,
+                  820.45
+                ]
+              }
+            },
+            "bench_phase": "pp128",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 865.76,
+                    "mean": 864.665,
+                    "median": 864.665,
+                    "min": 863.57,
+                    "values": [
+                      865.76,
+                      863.57
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 820.21,
+                    "mean": 820.1949999999999,
+                    "median": 820.1949999999999,
+                    "min": 820.18,
+                    "values": [
+                      820.21,
+                      820.18
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.054218813818665,
+                  "reciprocal_time_per_token_change_percent": -5.143032272614256,
+                  "throughput_change_percent": 5.4218813818665
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 863.78,
+                    "mean": 863.615,
+                    "median": 863.615,
+                    "min": 863.45,
+                    "values": [
+                      863.45,
+                      863.78
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 821.05,
+                    "mean": 820.75,
+                    "median": 820.75,
+                    "min": 820.45,
+                    "values": [
+                      821.05,
+                      820.45
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0522266219920804,
+                  "reciprocal_time_per_token_change_percent": -4.963438569269874,
+                  "throughput_change_percent": 5.222662199208039
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 1.0532223810060666,
+              "reciprocal_time_per_token_change_percent": -5.053289976161269,
+              "throughput_change_percent": 5.322238100606658
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          },
+          "tg": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-2-candidate",
+                  "value_tok_s": 112.52
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-3-candidate",
+                  "value_tok_s": 112.82
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-5-candidate",
+                  "value_tok_s": 114.75
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-8-candidate",
+                  "value_tok_s": 113.78
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-1-main",
+                  "value_tok_s": 113.87
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp128-tg256-4-main",
+                  "value_tok_s": 113.72
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-6-main",
+                  "value_tok_s": 114.51
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp128-tg256-7-main",
+                  "value_tok_s": 114.34
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 114.75,
+                "mean": 113.4675,
+                "median": 113.3,
+                "min": 112.52,
+                "values": [
+                  112.52,
+                  112.82,
+                  114.75,
+                  113.78
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 114.51,
+                "mean": 114.11,
+                "median": 114.105,
+                "min": 113.72,
+                "values": [
+                  113.87,
+                  113.72,
+                  114.51,
+                  114.34
+                ]
+              }
+            },
+            "bench_phase": "tg256",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 112.82,
+                    "mean": 112.66999999999999,
+                    "median": 112.66999999999999,
+                    "min": 112.52,
+                    "values": [
+                      112.52,
+                      112.82
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 113.87,
+                    "mean": 113.795,
+                    "median": 113.795,
+                    "min": 113.72,
+                    "values": [
+                      113.87,
+                      113.72
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9901138011336174,
+                  "reciprocal_time_per_token_change_percent": 0.9984911689003395,
+                  "throughput_change_percent": -0.9886198866382645
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 114.75,
+                    "mean": 114.265,
+                    "median": 114.265,
+                    "min": 113.78,
+                    "values": [
+                      114.75,
+                      113.78
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 114.51,
+                    "mean": 114.42500000000001,
+                    "median": 114.42500000000001,
+                    "min": 114.34,
+                    "values": [
+                      114.51,
+                      114.34
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9986017041730391,
+                  "reciprocal_time_per_token_change_percent": 0.14002537960007277,
+                  "throughput_change_percent": -0.1398295826960938
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 0.9943694680571379,
+              "reciprocal_time_per_token_change_percent": 0.5662414347720635,
+              "throughput_change_percent": -0.5630531942862116
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          }
+        },
+        "pp4096-tg256": {
+          "pp": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-2-candidate",
+                  "value_tok_s": 2023.09
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-3-candidate",
+                  "value_tok_s": 2021.78
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-5-candidate",
+                  "value_tok_s": 2021.47
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-8-candidate",
+                  "value_tok_s": 2020.29
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-1-main",
+                  "value_tok_s": 2024.11
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-4-main",
+                  "value_tok_s": 2021.71
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-6-main",
+                  "value_tok_s": 2020.61
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-7-main",
+                  "value_tok_s": 2019.18
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 2023.09,
+                "mean": 2021.6575,
+                "median": 2021.625,
+                "min": 2020.29,
+                "values": [
+                  2023.09,
+                  2021.78,
+                  2021.47,
+                  2020.29
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 2024.11,
+                "mean": 2021.4025,
+                "median": 2021.1599999999999,
+                "min": 2019.18,
+                "values": [
+                  2024.11,
+                  2021.71,
+                  2020.61,
+                  2019.18
+                ]
+              }
+            },
+            "bench_phase": "pp4096",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 2023.09,
+                    "mean": 2022.435,
+                    "median": 2022.435,
+                    "min": 2021.78,
+                    "values": [
+                      2023.09,
+                      2021.78
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 2024.11,
+                    "mean": 2022.9099999999999,
+                    "median": 2022.9099999999999,
+                    "min": 2021.71,
+                    "values": [
+                      2024.11,
+                      2021.71
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9997651897513978,
+                  "reciprocal_time_per_token_change_percent": 0.02348653974044712,
+                  "throughput_change_percent": -0.02348102486021686
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 2021.47,
+                    "mean": 2020.88,
+                    "median": 2020.88,
+                    "min": 2020.29,
+                    "values": [
+                      2021.47,
+                      2020.29
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 2020.61,
+                    "mean": 2019.895,
+                    "median": 2019.895,
+                    "min": 2019.18,
+                    "values": [
+                      2020.61,
+                      2019.18
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0004876491104737,
+                  "reciprocal_time_per_token_change_percent": -0.04874114247259698,
+                  "throughput_change_percent": 0.04876491104737202
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 1.0001261500369174,
+              "reciprocal_time_per_token_change_percent": -0.012613412509299149,
+              "throughput_change_percent": 0.012615003691740512
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          },
+          "tg": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-2-candidate",
+                  "value_tok_s": 112.94
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-3-candidate",
+                  "value_tok_s": 114.1
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-5-candidate",
+                  "value_tok_s": 114.32
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-8-candidate",
+                  "value_tok_s": 113.11
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-1-main",
+                  "value_tok_s": 113.29
+                },
+                {
+                  "block": "ABBA",
+                  "label": "pp4096-tg256-4-main",
+                  "value_tok_s": 115.2
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-6-main",
+                  "value_tok_s": 114.01
+                },
+                {
+                  "block": "BAAB",
+                  "label": "pp4096-tg256-7-main",
+                  "value_tok_s": 113.55
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 114.32,
+                "mean": 113.61749999999999,
+                "median": 113.60499999999999,
+                "min": 112.94,
+                "values": [
+                  112.94,
+                  114.1,
+                  114.32,
+                  113.11
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 115.2,
+                "mean": 114.0125,
+                "median": 113.78,
+                "min": 113.29,
+                "values": [
+                  113.29,
+                  115.2,
+                  114.01,
+                  113.55
+                ]
+              }
+            },
+            "bench_phase": "tg256",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 114.1,
+                    "mean": 113.52,
+                    "median": 113.52,
+                    "min": 112.94,
+                    "values": [
+                      112.94,
+                      114.1
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 115.2,
+                    "mean": 114.245,
+                    "median": 114.245,
+                    "min": 113.29,
+                    "values": [
+                      113.29,
+                      115.2
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9936539892336644,
+                  "reciprocal_time_per_token_change_percent": 0.6386539816772396,
+                  "throughput_change_percent": -0.6346010766335564
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 114.32,
+                    "mean": 113.715,
+                    "median": 113.715,
+                    "min": 113.11,
+                    "values": [
+                      114.32,
+                      113.11
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 114.01,
+                    "mean": 113.78,
+                    "median": 113.78,
+                    "min": 113.55,
+                    "values": [
+                      114.01,
+                      113.55
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9994287220952716,
+                  "reciprocal_time_per_token_change_percent": 0.05716044497208195,
+                  "throughput_change_percent": -0.057127790472844
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 0.9965354676022365,
+              "reciprocal_time_per_token_change_percent": 0.3476577111800605,
+              "throughput_change_percent": -0.34645323977634535
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          }
+        }
+      },
+      "calls": [
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079781.736264,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-1-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 820.21,
+            "tg": 113.87
+          },
+          "prompt": 128,
+          "started_unix": 1793079768.4387774,
+          "status": "valid",
+          "stderr_sha256": "40bb1b816c7802dd6bfa07b431e13ff3c9960a132ca25ab75b615fb0047fe491",
+          "stdout_sha256": "2167e4435389e3dbb3d30990eb9ad9b3da418fd6f53f5180a12fe86e3fdcbe4f",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079795.0755417,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-2-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 865.76,
+            "tg": 112.52
+          },
+          "prompt": 128,
+          "started_unix": 1793079781.7369676,
+          "status": "valid",
+          "stderr_sha256": "1eae282ba5dd5f0e4613495759fc25d753607d5bd3e598ef8d9bf6895c26a4e2",
+          "stdout_sha256": "85a8487a39e8e3e2bf761750d076f7eefe55668afa8134d418d4e194faed9fa7",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079808.4195971,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-3-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 863.57,
+            "tg": 112.82
+          },
+          "prompt": 128,
+          "started_unix": 1793079795.07612,
+          "status": "valid",
+          "stderr_sha256": "0dc2f8d5de657e1e6866e7e8e77a44f36df1d6baa0b9457cca9479e73e539037",
+          "stdout_sha256": "1b4a0bfd9647b02060b602119d74614d450a1416c668b8228f16223cbfa2023a",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079821.7060788,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-4-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 820.18,
+            "tg": 113.72
+          },
+          "prompt": 128,
+          "started_unix": 1793079808.42018,
+          "status": "valid",
+          "stderr_sha256": "3d931478a90dd55a54c5b08c59526055751ebae3454092b6bd676d6dd9cb8f3e",
+          "stdout_sha256": "34b681aeb0111d1dfc4604511844af1bcb579309494a7bc29d2ab4b490e27f65",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079835.025717,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-5-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 863.45,
+            "tg": 114.75
+          },
+          "prompt": 128,
+          "started_unix": 1793079821.706659,
+          "status": "valid",
+          "stderr_sha256": "4ea4e1945bac41459a764a47ba1ad9fe9c8caf911a20cc12a5cc3eecd6b7953b",
+          "stdout_sha256": "e95b038cce9017000a3fe1a031f2a1c0f591072ba7c895a3a1a3c8cbf4456752",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079848.278204,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-6-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 821.05,
+            "tg": 114.51
+          },
+          "prompt": 128,
+          "started_unix": 1793079835.026314,
+          "status": "valid",
+          "stderr_sha256": "f49fe634c19f419fbc4fa79c5bfbab30e5cc5ab0d5186e5f185f24f43f296db2",
+          "stdout_sha256": "eac92d4237a22b3c0ed0eb16b3236a5608d2fb546fe8c48c3d1d9c3adae50f3f",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079861.567337,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-7-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 820.45,
+            "tg": 114.34
+          },
+          "prompt": 128,
+          "started_unix": 1793079848.2788155,
+          "status": "valid",
+          "stderr_sha256": "56eb8dfafb83868dae00d96b522daf16ef04cfdd89510607aa5c904c8d0f9d02",
+          "stdout_sha256": "100a8dc9ca2f1dbf89e9e1a976d20c0c2d208cd152cfb51f25b31e0e74e6d6c9",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "pp128-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079874.8293447,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp128-tg256-8-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 863.78,
+            "tg": 113.78
+          },
+          "prompt": 128,
+          "started_unix": 1793079861.5679538,
+          "status": "valid",
+          "stderr_sha256": "fc5738f14a8b88d02d3995d3c24fdeb81884bc5500d1f7bc673bf894873e1979",
+          "stdout_sha256": "761f860b6f70475ae5f2a74d020077f4dd147e87a1577218d9bd61c510ce590e",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079891.786309,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-1-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2024.11,
+            "tg": 113.29
+          },
+          "prompt": 4096,
+          "started_unix": 1793079874.8299596,
+          "status": "valid",
+          "stderr_sha256": "ead803d9cdec848667041b184230302e1c4058e90799f01c9623e7fb2582117c",
+          "stdout_sha256": "b4544e02840b146573da868192d03f33520d5037e60b2d89ae4b2ad2abc66499",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079908.780386,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-2-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2023.09,
+            "tg": 112.94
+          },
+          "prompt": 4096,
+          "started_unix": 1793079891.7870915,
+          "status": "valid",
+          "stderr_sha256": "0764daa951bf21bfa5f30a23428f05a17d229ec688ddc5b089b201ef2a93ce98",
+          "stdout_sha256": "9fbf654d591435a25fe613b695b834784a29797b69080c5e1e4836a4a0aef1fd",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079925.6663582,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-3-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2021.78,
+            "tg": 114.1
+          },
+          "prompt": 4096,
+          "started_unix": 1793079908.781021,
+          "status": "valid",
+          "stderr_sha256": "8df3d3f78a4ba8475351daeaf25a7ddd5a67d9b7c1995411d09d465408c313f5",
+          "stdout_sha256": "34a255992d0cb2cd9806cb8dd5a4fc0111e4068b7e4c8f972b1fe4633b647a70",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079942.5017695,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-4-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2021.71,
+            "tg": 115.2
+          },
+          "prompt": 4096,
+          "started_unix": 1793079925.6670027,
+          "status": "valid",
+          "stderr_sha256": "e1c063cad0e338424335ff22703ec1a68888e4510bbc11298b04575d34d534fd",
+          "stdout_sha256": "5f7b7c8039a508e5d8b7e9d6cc7471a9fa1d0e86b544c56d7134a92779787ea0",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079959.351198,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-5-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2021.47,
+            "tg": 114.32
+          },
+          "prompt": 4096,
+          "started_unix": 1793079942.502422,
+          "status": "valid",
+          "stderr_sha256": "968d5419082fbf3183214e83cb4affdd20484497ed904f7ecac0371fad44353c",
+          "stdout_sha256": "4c87c056a44fe7d1b7961d36a11cebfc4c4890395a551cd2404eded6b1c499b2",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079976.2057633,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-6-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2020.61,
+            "tg": 114.01
+          },
+          "prompt": 4096,
+          "started_unix": 1793079959.3518412,
+          "status": "valid",
+          "stderr_sha256": "f1ab667f17243444f6b636f5c9dc54155b1345f74d619ceffc94d30aa5528bd4",
+          "stdout_sha256": "33d47f2675073c4d14fcb52061ba6672b8f01dd386275e6a7cee77046738917f",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793079993.2336257,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-7-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2019.18,
+            "tg": 113.55
+          },
+          "prompt": 4096,
+          "started_unix": 1793079976.2064078,
+          "status": "valid",
+          "stderr_sha256": "4bcf4d8eb73a3cd5190289fd5dac05ed55d13dc476b85e38a2c1a708850a6f5e",
+          "stdout_sha256": "3b1fa3de67b9e177fb17488b92e53eb69c71d1e8babc7196dbd174cfc208d557",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "4096",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0,vulkan:1",
+            "--layer-shares",
+            "1,1",
+            "--dtype",
+            "auto",
+            "--ubatch",
+            "512",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "pp4096-tg256",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers); vulkan:1 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080010.16765,
+          "exit_code": 0,
+          "expected_dtype": "auto",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "pp4096-tg256-8-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ],
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 2020.29,
+            "tg": 113.11
+          },
+          "prompt": 4096,
+          "started_unix": 1793079993.2343907,
+          "status": "valid",
+          "stderr_sha256": "f04e01d88ccd844755c66de36244150ae808f7d4f619b0635168db1c7c3e0759",
+          "stdout_sha256": "979dafb2b7f7e84446247d18bcdb75782baa8c63b3a40662098149c4824fe611",
+          "within_block_index": 4
+        }
+      ],
+      "activity": {
+        "samples": 121,
+        "monitor_stop_recorded": true,
+        "monitor_exit": 0,
+        "cgroup_matches_execution": true,
+        "thresholds": {
+          "disk_bytes_per_second_above": 104857600,
+          "other_gpu_percent_above": 0,
+          "sample_gap_seconds": 3,
+          "unrelated_cpu_cores_above": 1
+        },
+        "calls": [
+          {
+            "label": "pp128-tg256-1-main",
+            "arm": "main",
+            "intervals": 7,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 7,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 4,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-2-candidate",
+            "arm": "candidate",
+            "intervals": 8,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-3-candidate",
+            "arm": "candidate",
+            "intervals": 8,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-4-main",
+            "arm": "main",
+            "intervals": 7,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 7,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-5-candidate",
+            "arm": "candidate",
+            "intervals": 8,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 6,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-6-main",
+            "arm": "main",
+            "intervals": 7,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 7,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 4,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-7-main",
+            "arm": "main",
+            "intervals": 8,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp128-tg256-8-candidate",
+            "arm": "candidate",
+            "intervals": 8,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 6,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-1-main",
+            "arm": "main",
+            "intervals": 9,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 9,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 4,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-2-candidate",
+            "arm": "candidate",
+            "intervals": 10,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 10,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-3-candidate",
+            "arm": "candidate",
+            "intervals": 9,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 9,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-4-main",
+            "arm": "main",
+            "intervals": 10,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 10,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 6,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-5-candidate",
+            "arm": "candidate",
+            "intervals": 9,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 9,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-6-main",
+            "arm": "main",
+            "intervals": 9,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 9,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 4,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-7-main",
+            "arm": "main",
+            "intervals": 10,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 10,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 5,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "pp4096-tg256-8-candidate",
+            "arm": "candidate",
+            "intervals": 8,
+            "span_covers_call": false,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 8,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 4,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          }
+        ],
+        "limitations": [
+          "Every call and interval is retained; no sample exclusion or acceptance threshold.",
+          "Disk traffic is system-wide and includes benchmark loading.",
+          "CPU rates are observed lower bounds when processes appear, disappear or cannot be read. Short-lived work can be missed.",
+          "The controller and Docker clients outside the benchmark cgroup remain in other-process activity.",
+          "GPU flags describe other devices, not process attribution. Unknown counters are not zero.",
+          "An interval can overlap multiple calls; endpoint coverage does not remove gaps or establish causality."
+        ]
+      },
+      "arm_activity": {
+        "main": {
+          "calls": 8,
+          "fully_bracketed_calls": 8,
+          "covered_seconds": 120.79605293273926,
+          "overlap_weighted_observed_cpu_cores": {
+            "benchmark": 0.3465704956968098,
+            "monitor": 0.02686933693874879,
+            "unrelated": 4.173281791166366,
+            "unknown": 0.0
+          },
+          "calls_with_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 8,
+            "disk": 8,
+            "gap": 0
+          },
+          "calls_with_unknown_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          }
+        },
+        "candidate": {
+          "calls": 8,
+          "fully_bracketed_calls": 7,
+          "covered_seconds": 119.24067306518555,
+          "overlap_weighted_observed_cpu_cores": {
+            "benchmark": 0.35226432246786643,
+            "monitor": 0.027454328958556613,
+            "unrelated": 4.202585124562988,
+            "unknown": 0.0
+          },
+          "calls_with_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 8,
+            "disk": 8,
+            "gap": 0
+          },
+          "calls_with_unknown_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          }
+        }
+      },
+      "top_other_processes_all_intervals": [
+        {
+          "pid": 718900,
+          "start_ticks": 134385900,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 126.75000000000001
+        },
+        {
+          "pid": 720324,
+          "start_ticks": 134389103,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 79.44
+        },
+        {
+          "pid": 720091,
+          "start_ticks": 134388668,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 78.12999999999998
+        },
+        {
+          "pid": 721428,
+          "start_ticks": 134392411,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 60.02000000000001
+        },
+        {
+          "pid": 703511,
+          "start_ticks": 134373965,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 48.87
+        },
+        {
+          "pid": 718530,
+          "start_ticks": 134384847,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 47.92
+        },
+        {
+          "pid": 721283,
+          "start_ticks": 134391858,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 45.339999999999996
+        },
+        {
+          "pid": 715405,
+          "start_ticks": 134376708,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 39.68000000000001
+        },
+        {
+          "pid": 723163,
+          "start_ticks": 134396911,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 30.119999999999997
+        },
+        {
+          "pid": 702267,
+          "start_ticks": 134371292,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 26.73
+        },
+        {
+          "pid": 695707,
+          "start_ticks": 134355193,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 24.020000000000003
+        },
+        {
+          "pid": 716114,
+          "start_ticks": 134378819,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 23.51
+        }
+      ],
+      "limitations": [
+        "The last candidate call in each bundle ends after the last monitor sample; endpoint coverage is incomplete.",
+        "CPU observations include lower bounds for appeared/disappeared processes. Disk activity includes model loading. No sample was dropped.",
+        "GPU activity counters are samples and cannot exclude short activity between samples."
+      ]
+    },
+    {
+      "name": "mxfp4-mi50-control-v1",
+      "remote_bundle": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/mxfp4-mi50-control-v1",
+      "local_retained_bundle": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\completed-mi50-timings-20261027\\mxfp4-mi50-control-v1",
+      "plan": {
+        "schema": "nvfp4-mxfp4-mi50-control-plan-v1",
+        "status": "prepared; explicit combined-slot handoff required; no launch",
+        "purpose": "Two-arm MXFP4 model control on MI50: public main 8ccc101 vs NVFP4 candidate af6a4df. One Vulkan device. Default and explicit-F32 P128/G256 cells, four calls per arm/cell in ABBA and BAAB blocks.",
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "build_receipts": {
+          "main": {
+            "result_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1/build-result.json",
+            "launch_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1/launch-result.json",
+            "schema": "lookup-main-linux-build-result-v1",
+            "launch_schema": "lookup-main-linux-build-launch-v1",
+            "result_sha256": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31",
+            "launch_sha256": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743"
+          },
+          "candidate": {
+            "result_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2/build-result.json",
+            "launch_host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2/launch-result.json",
+            "schema": "lookup-row-dispatch-linux-build-result-v2",
+            "launch_schema": "lookup-row-dispatch-linux-build-v2",
+            "result_sha256": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3",
+            "launch_sha256": "09a1f7d8b8456bd5d3ab473b5d649f2f6bd4c0c43a79d90d481d0934f7c63e7d"
+          }
+        },
+        "arms": {
+          "A": {
+            "name": "main",
+            "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+            "binary": "main-root/build/llmx",
+            "binary_sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87",
+            "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246",
+            "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+            "receipt_paths": {
+              "llmx": "main/build/llmx"
+            }
+          },
+          "B": {
+            "name": "candidate",
+            "revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+            "binary": "candidate-root/build/llmx",
+            "binary_sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+            "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325",
+            "source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+            "receipt_paths": {
+              "llmx": "candidate/build/llmx"
+            }
+          }
+        },
+        "model": {
+          "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/fixtures/Qwen3-0.6B-MXFP4.gguf",
+          "container_path": "/model.gguf",
+          "bytes": 322830656,
+          "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+          "format": "MXFP4",
+          "source": "existing pinned MXFP4 fixture; no conversion or reference generation"
+        },
+        "device": {
+          "backend": "Vulkan",
+          "physical_gpu": 8,
+          "render_node": "renderD130",
+          "pci": "0000:c9:00.0",
+          "uuid": "00000000-c900-0000-0000-000000000000",
+          "vulkan_device_order": "MI50 physical 8 is the only exposed device; freshly verify at launch",
+          "device_arg": "vulkan:0",
+          "clocks": "default; no mutation"
+        },
+        "settings": {
+          "threads": 4,
+          "ubatch": 128,
+          "cache_k": "f16",
+          "cache_v": "f16",
+          "context": "model default; no override",
+          "generation": 256,
+          "load_mode": "runtime default; omit flag",
+          "repetitions_per_invocation": 1,
+          "dtype_cells": [
+            {
+              "id": "default",
+              "flag": [],
+              "expected_runtime_dtype": "f16"
+            },
+            {
+              "id": "f32",
+              "flag": [
+                "--dtype",
+                "f32"
+              ],
+              "expected_runtime_dtype": "f32"
+            }
+          ]
+        },
+        "cells": [
+          {
+            "id": "default",
+            "prompt": 128,
+            "generation": 256,
+            "dtype_flag": [],
+            "expected_dtype": "f16",
+            "intent": "Runtime default dtype, no dtype flag."
+          },
+          {
+            "id": "f32",
+            "prompt": 128,
+            "generation": 256,
+            "dtype_flag": [
+              "--dtype",
+              "f32"
+            ],
+            "expected_dtype": "f32",
+            "intent": "Explicit F32 activation path."
+          }
+        ],
+        "schedule": {
+          "blocks": [
+            "ABBA",
+            "BAAB"
+          ],
+          "order": [
+            "main",
+            "candidate",
+            "candidate",
+            "main",
+            "candidate",
+            "main",
+            "main",
+            "candidate"
+          ],
+          "calls_per_arm_cell": 4,
+          "total_calls": 16,
+          "retain_all": true,
+          "interpretation": "Each call reports PP128 and empty-history TG256. Retain every call, every sample and both blocks."
+        },
+        "monitor": {
+          "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+          "sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+          "interval_seconds": 2,
+          "retain_raw": true,
+          "classification": "Attribute only exact benchmark container/cgroup and monitor PID; retain other activity and unknown contention without discarding runs.",
+          "thresholds": {
+            "disk_bytes_per_second_above": 104857600,
+            "other_gpu_percent_above": 0,
+            "sample_gap_seconds": 3,
+            "unrelated_cpu_cores_above": 1
+          }
+        },
+        "guard": {
+          "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/diagnostic-v1/run-common-float-split.py",
+          "cpus": "0,1,8,9",
+          "gpu_checks": [
+            "renderD134 / 0000:89:00.0",
+            "renderD135 / 0000:8c:00.0",
+            "renderD128 / 0000:c3:00.0",
+            "renderD129 / 0000:c6:00.0",
+            "renderD130 / 0000:c9:00.0",
+            "renderD131 / 0000:cc:00.0"
+          ],
+          "requirement": "Fresh admission before container creation; no assumed reservation."
+        },
+        "container": {
+          "name": "llmx-xdev-mxfp4-mi50-control-v1",
+          "cpus": "0,1,8,9",
+          "cpu_quota": 4,
+          "memory": "8g",
+          "memory_swap": "8g",
+          "network": "none",
+          "read_only_root": true,
+          "init": true,
+          "timeout_per_call_seconds": 300,
+          "termination": "Stop admitting calls before the shared deadline; TERM timed-out owned work only, never SIGKILL; retain live children/container until safe cleanup.",
+          "label": "llmx.xdev.mxfp4.mi50.control.v1",
+          "total_timeout_seconds": 1200,
+          "cleanup_reserve_seconds": 180,
+          "devices": [
+            "/dev/dri/renderD130"
+          ],
+          "shared_done_marker": "not written by this worker"
+        },
+        "limitations": [
+          "This is a main-versus-candidate control using an MXFP4 model, not a matched mx-llama.cpp reference comparison or an HF correctness gate.",
+          "Default and explicit-F32 cells each have four measurements per arm. Do not treat these small-cell results as a speed qualification or infer causality.",
+          "The shared 35B+MX slot completion marker is parent-owned and is never written by this worker."
+        ],
+        "estimated_duration": "Short 0.6B model screen; stop admitting calls after 17 minutes within the planned 20-minute window, reserving 3 minutes for cleanup. TERM-only termination can retain live children beyond that window.",
+        "build_roots": {
+          "main": {
+            "host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-main-linux-v1",
+            "container_path": "/work/main-root",
+            "receipt_container_path": "/receipts/main"
+          },
+          "candidate": {
+            "host_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2",
+            "container_path": "/work/candidate-root",
+            "receipt_container_path": "/receipts/candidate"
+          }
+        },
+        "bundle_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/mxfp4-mi50-control-v1",
+        "candidate_source_correction": {
+          "base_revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+          "source_manifest_before_sha256": "78c3dfbd1ea583d4b51732a0adfbfc112242dda76e33a1c105c7f2f847736deb",
+          "source_manifest_after_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+          "changes": [
+            "matmul_row_one.glsl generic TYPE_NVFP4 scaling removed",
+            "q.glsl TYPE_NVFP4 block_bytes and block_values guarded for non-FLOAT_X or NVFP4",
+            "qdecode.glsl TYPE_NVFP4 quantized_at guarded for non-FLOAT_X or NVFP4"
+          ],
+          "expected_module_changes": [
+            "matmul_row_float_x.inc",
+            "matmul_row_float_x_preserve.inc",
+            "matmul_row_mxfp4_float_x.inc"
+          ],
+          "dedicated_nvfp4_module_count": 7,
+          "row_dispatch_plan": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2/plan.json",
+          "row_dispatch_plan_sha256": "517389C245A034F3656B141DA963E9F776DE70DFE165E0DFBF2D93BF5999A9CF"
+        },
+        "receipt_binding": {
+          "status": "bound",
+          "bound_utc": "2026-10-27T01:28:31.851604+00:00",
+          "binder": "bind-build-receipts.py",
+          "schema_map": {
+            "main_result": "lookup-main-linux-build-result-v1",
+            "main_launch": "lookup-main-linux-build-launch-v1",
+            "candidate_result": "lookup-row-dispatch-linux-build-result-v2",
+            "candidate_launch": "lookup-row-dispatch-linux-build-v2"
+          },
+          "binary_paths": {
+            "main": "main/build/llmx",
+            "candidate": "candidate/build/llmx"
+          },
+          "build_result_hashes": {
+            "main": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31",
+            "candidate": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3"
+          },
+          "launch_result_hashes": {
+            "main": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743",
+            "candidate": "09a1f7d8b8456bd5d3ab473b5d649f2f6bd4c0c43a79d90d481d0934f7c63e7d"
+          }
+        },
+        "source_pins": {
+          "main": {
+            "local_path": "build-integration/lookup-main-linux-v1/source-pins.json",
+            "sha256": "0a2915a0e661f9b471859c22d6aede6ed7da5b5dd6fbb9a96fbcd97707a30c82"
+          }
+        },
+        "runner_sha256": "5c84643c47fa521e20b26146f651a87e6a546e2ba4bf59b15fd47d436b3ab89b",
+        "coordination": {
+          "slot_authorized": true,
+          "status": "assigned by coordinator 04:55",
+          "markers": {
+            "predecessor_done": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/routed-flash-identity-v3/capture-DONE",
+            "go": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/combined-mi50-timing-v1/timing-GO",
+            "done": "/zpool1/llmx-ldev-scratch/slots/xdev-flash-v2-DONE"
+          },
+          "write_done_marker": false,
+          "completion_marker_owner": "parent combined-slot controller; this worker never writes the shared DONE marker",
+          "protected_gpu_ids": [
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9"
+          ],
+          "protected_render_nodes": [
+            "/dev/dri/renderD128",
+            "/dev/dri/renderD129",
+            "/dev/dri/renderD130",
+            "/dev/dri/renderD131",
+            "/dev/dri/renderD134",
+            "/dev/dri/renderD135"
+          ],
+          "protected_devices": [
+            {
+              "physical_gpu": 4,
+              "render_node": "renderD134",
+              "pci": "0000:89:00.0"
+            },
+            {
+              "physical_gpu": 5,
+              "render_node": "renderD135",
+              "pci": "0000:8c:00.0"
+            },
+            {
+              "physical_gpu": 6,
+              "render_node": "renderD128",
+              "pci": "0000:c3:00.0"
+            },
+            {
+              "physical_gpu": 7,
+              "render_node": "renderD129",
+              "pci": "0000:c6:00.0"
+            },
+            {
+              "physical_gpu": 8,
+              "render_node": "renderD130",
+              "pci": "0000:c9:00.0"
+            },
+            {
+              "physical_gpu": 9,
+              "render_node": "renderD131",
+              "pci": "0000:cc:00.0"
+            }
+          ],
+          "mapping_evidence": "Physical GPU to PCI/render-node mapping copied from routed-flash-identity-v3 plan host_admission; fresh node/card availability and peer mapping checks remain required.",
+          "order": "Coordinator 2026-10-27 04:55: VDEV and DDEV complete, XDEV Flash then 35B then MXFP4, shared xdev-flash-v2-DONE, SDEV then quiet",
+          "idle_access_exception": {
+            "container_id": "5ec6a0de8494b57581a4d641a549392ecd226ebb8f23344455117875408a34e7",
+            "container_name": "/cdev-abc-run2",
+            "original_processes": [
+              [
+                "75100",
+                "sleep",
+                "sleep infinity"
+              ]
+            ],
+            "scope": "Broad device access only; allow solely while the exact original idle process remains and all protected GPUs pass actual free/fuser checks."
+          }
+        }
+      },
+      "artifact_sha256": {
+        "execution.json": "e6611a08f6fe83296ecb0b75f0f7f6c29c4153b866a03a4f74819d91ef0618b8",
+        "analysis-original-parser.json": "72b29cb6cc52cad5b0716df1ffc5c0042d34f33a44458338cae0050cd80dbfd8",
+        "analysis.json": "4bb1ee3049372326a52e56cd50c36b2221f9d092034bbe64d75cbc9fe2b8c0b3",
+        "activity.jsonl": "68e833b0679a36d810cdc4943c7e4c77d7649794c3eeb7ffd847bf4f6308a563",
+        "activity-analysis.json": "34ce156d937c6b8229eba62be13bd6ec68b7b82fc26b31ad50cc50df4c58e7ba"
+      },
+      "build_pins": {
+        "candidate": {
+          "binary_sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+          "modules_changed": [
+            "matmul_row_float_x.inc",
+            "matmul_row_float_x_preserve.inc",
+            "matmul_row_mxfp4_float_x.inc"
+          ],
+          "source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+          "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325"
+        },
+        "main": {
+          "binary_sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87",
+          "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+          "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246"
+        }
+      },
+      "audit": {
+        "all_planned_calls_have_valid_logs_and_metrics": true,
+        "analysis_status": "complete",
+        "errors": [],
+        "measurement_set_complete": true,
+        "qualification_verdict": "not_assessed",
+        "terminal_run_passed": true
+      },
+      "summary": {
+        "default": {
+          "pp": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "default-2-candidate",
+                  "value_tok_s": 4812.52
+                },
+                {
+                  "block": "ABBA",
+                  "label": "default-3-candidate",
+                  "value_tok_s": 4816.21
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-5-candidate",
+                  "value_tok_s": 4809.68
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-8-candidate",
+                  "value_tok_s": 4819.32
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "default-1-main",
+                  "value_tok_s": 4822.93
+                },
+                {
+                  "block": "ABBA",
+                  "label": "default-4-main",
+                  "value_tok_s": 4810.34
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-6-main",
+                  "value_tok_s": 4788.05
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-7-main",
+                  "value_tok_s": 4816.56
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 4819.32,
+                "mean": 4814.4325,
+                "median": 4814.365,
+                "min": 4809.68,
+                "values": [
+                  4812.52,
+                  4816.21,
+                  4809.68,
+                  4819.32
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 4822.93,
+                "mean": 4809.47,
+                "median": 4813.450000000001,
+                "min": 4788.05,
+                "values": [
+                  4822.93,
+                  4810.34,
+                  4788.05,
+                  4816.56
+                ]
+              }
+            },
+            "bench_phase": "pp128",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 4816.21,
+                    "mean": 4814.365,
+                    "median": 4814.365,
+                    "min": 4812.52,
+                    "values": [
+                      4812.52,
+                      4816.21
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 4822.93,
+                    "mean": 4816.635,
+                    "median": 4816.635,
+                    "min": 4810.34,
+                    "values": [
+                      4822.93,
+                      4810.34
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9995287166247805,
+                  "reciprocal_time_per_token_change_percent": 0.04715055879644936,
+                  "throughput_change_percent": -0.047128337521951114
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 4819.32,
+                    "mean": 4814.5,
+                    "median": 4814.5,
+                    "min": 4809.68,
+                    "values": [
+                      4809.68,
+                      4819.32
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 4816.56,
+                    "mean": 4802.305,
+                    "median": 4802.305,
+                    "min": 4788.05,
+                    "values": [
+                      4788.05,
+                      4816.56
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0025394055562902,
+                  "reciprocal_time_per_token_change_percent": -0.2532973309793296,
+                  "throughput_change_percent": 0.2539405556290175
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 1.0010318184748006,
+              "reciprocal_time_per_token_change_percent": -0.10307549228283364,
+              "throughput_change_percent": 0.10318184748006054
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          },
+          "tg": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "default-2-candidate",
+                  "value_tok_s": 324.93
+                },
+                {
+                  "block": "ABBA",
+                  "label": "default-3-candidate",
+                  "value_tok_s": 325.04
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-5-candidate",
+                  "value_tok_s": 324.89
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-8-candidate",
+                  "value_tok_s": 323.04
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "default-1-main",
+                  "value_tok_s": 324.65
+                },
+                {
+                  "block": "ABBA",
+                  "label": "default-4-main",
+                  "value_tok_s": 324.0
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-6-main",
+                  "value_tok_s": 325.26
+                },
+                {
+                  "block": "BAAB",
+                  "label": "default-7-main",
+                  "value_tok_s": 324.7
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 325.04,
+                "mean": 324.475,
+                "median": 324.90999999999997,
+                "min": 323.04,
+                "values": [
+                  324.93,
+                  325.04,
+                  324.89,
+                  323.04
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 325.26,
+                "mean": 324.6525,
+                "median": 324.67499999999995,
+                "min": 324.0,
+                "values": [
+                  324.65,
+                  324.0,
+                  325.26,
+                  324.7
+                ]
+              }
+            },
+            "bench_phase": "tg256",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 325.04,
+                    "mean": 324.985,
+                    "median": 324.985,
+                    "min": 324.93,
+                    "values": [
+                      324.93,
+                      325.04
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 324.65,
+                    "mean": 324.325,
+                    "median": 324.325,
+                    "min": 324.0,
+                    "values": [
+                      324.65,
+                      324.0
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0020349957604255,
+                  "reciprocal_time_per_token_change_percent": -0.20308629629061103,
+                  "throughput_change_percent": 0.20349957604255398
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 324.89,
+                    "mean": 323.96500000000003,
+                    "median": 323.96500000000003,
+                    "min": 323.04,
+                    "values": [
+                      324.89,
+                      323.04
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 325.26,
+                    "mean": 324.98,
+                    "median": 324.98,
+                    "min": 324.7,
+                    "values": [
+                      325.26,
+                      324.7
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9968767308757462,
+                  "reciprocal_time_per_token_change_percent": 0.31330544966277074,
+                  "throughput_change_percent": -0.3123269124253758
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 0.9994532615642882,
+              "reciprocal_time_per_token_change_percent": 0.05470375221510171,
+              "throughput_change_percent": -0.054673843571184655
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          }
+        },
+        "f32": {
+          "pp": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "f32-2-candidate",
+                  "value_tok_s": 1845.09
+                },
+                {
+                  "block": "ABBA",
+                  "label": "f32-3-candidate",
+                  "value_tok_s": 1828.37
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-5-candidate",
+                  "value_tok_s": 1838.49
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-8-candidate",
+                  "value_tok_s": 1851.61
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "f32-1-main",
+                  "value_tok_s": 1838.79
+                },
+                {
+                  "block": "ABBA",
+                  "label": "f32-4-main",
+                  "value_tok_s": 1832.87
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-6-main",
+                  "value_tok_s": 1845.84
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-7-main",
+                  "value_tok_s": 1818.99
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 1851.61,
+                "mean": 1840.8899999999999,
+                "median": 1841.79,
+                "min": 1828.37,
+                "values": [
+                  1845.09,
+                  1828.37,
+                  1838.49,
+                  1851.61
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 1845.84,
+                "mean": 1834.1225,
+                "median": 1835.83,
+                "min": 1818.99,
+                "values": [
+                  1838.79,
+                  1832.87,
+                  1845.84,
+                  1818.99
+                ]
+              }
+            },
+            "bench_phase": "pp128",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 1845.09,
+                    "mean": 1836.73,
+                    "median": 1836.73,
+                    "min": 1828.37,
+                    "values": [
+                      1845.09,
+                      1828.37
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 1838.79,
+                    "mean": 1835.83,
+                    "median": 1835.83,
+                    "min": 1832.87,
+                    "values": [
+                      1838.79,
+                      1832.87
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0004902414711603,
+                  "reciprocal_time_per_token_change_percent": -0.04900012522254249,
+                  "throughput_change_percent": 0.04902414711602798
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 1851.61,
+                    "mean": 1845.05,
+                    "median": 1845.05,
+                    "min": 1838.49,
+                    "values": [
+                      1838.49,
+                      1851.61
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 1845.84,
+                    "mean": 1832.415,
+                    "median": 1832.415,
+                    "min": 1818.99,
+                    "values": [
+                      1845.84,
+                      1818.99
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0068952720862905,
+                  "reciprocal_time_per_token_change_percent": -0.6848052898295487,
+                  "throughput_change_percent": 0.6895272086290483
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 1.00368977535579,
+              "reciprocal_time_per_token_change_percent": -0.3676210963175386,
+              "throughput_change_percent": 0.36897753557900703
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          },
+          "tg": {
+            "all_retained_values": {
+              "candidate": [
+                {
+                  "block": "ABBA",
+                  "label": "f32-2-candidate",
+                  "value_tok_s": 87.53
+                },
+                {
+                  "block": "ABBA",
+                  "label": "f32-3-candidate",
+                  "value_tok_s": 87.63
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-5-candidate",
+                  "value_tok_s": 87.82
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-8-candidate",
+                  "value_tok_s": 87.85
+                }
+              ],
+              "main": [
+                {
+                  "block": "ABBA",
+                  "label": "f32-1-main",
+                  "value_tok_s": 87.04
+                },
+                {
+                  "block": "ABBA",
+                  "label": "f32-4-main",
+                  "value_tok_s": 87.47
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-6-main",
+                  "value_tok_s": 87.93
+                },
+                {
+                  "block": "BAAB",
+                  "label": "f32-7-main",
+                  "value_tok_s": 88.17
+                }
+              ]
+            },
+            "arms": {
+              "candidate": {
+                "count": 4,
+                "max": 87.85,
+                "mean": 87.7075,
+                "median": 87.725,
+                "min": 87.53,
+                "values": [
+                  87.53,
+                  87.63,
+                  87.82,
+                  87.85
+                ]
+              },
+              "main": {
+                "count": 4,
+                "max": 88.17,
+                "mean": 87.6525,
+                "median": 87.7,
+                "min": 87.04,
+                "values": [
+                  87.04,
+                  87.47,
+                  87.93,
+                  88.17
+                ]
+              }
+            },
+            "bench_phase": "tg256",
+            "blocks": {
+              "ABBA": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 87.63,
+                    "mean": 87.58,
+                    "median": 87.58,
+                    "min": 87.53,
+                    "values": [
+                      87.53,
+                      87.63
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 87.47,
+                    "mean": 87.255,
+                    "median": 87.255,
+                    "min": 87.04,
+                    "values": [
+                      87.04,
+                      87.47
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 1.0037247149160506,
+                  "reciprocal_time_per_token_change_percent": -0.37108928979219247,
+                  "throughput_change_percent": 0.3724714916050642
+                }
+              },
+              "BAAB": {
+                "arms": {
+                  "candidate": {
+                    "count": 2,
+                    "max": 87.85,
+                    "mean": 87.835,
+                    "median": 87.835,
+                    "min": 87.82,
+                    "values": [
+                      87.82,
+                      87.85
+                    ]
+                  },
+                  "main": {
+                    "count": 2,
+                    "max": 88.17,
+                    "mean": 88.05000000000001,
+                    "median": 88.05000000000001,
+                    "min": 87.93,
+                    "values": [
+                      87.93,
+                      88.17
+                    ]
+                  }
+                },
+                "comparison": {
+                  "candidate_over_main_throughput_ratio": 0.9975582055650197,
+                  "reciprocal_time_per_token_change_percent": 0.24477713895374453,
+                  "throughput_change_percent": -0.24417944349802712
+                }
+              }
+            },
+            "comparison": {
+              "candidate_over_main_throughput_ratio": 1.0006274778243631,
+              "reciprocal_time_per_token_change_percent": -0.06270843428439754,
+              "throughput_change_percent": 0.06274778243631207
+            },
+            "complete_four_per_arm": true,
+            "mx_llama_cpp": "not_run_in_this_regression_control"
+          }
+        }
+      },
+      "calls": [
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080039.635524,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-1-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4822.93,
+            "tg": 324.65
+          },
+          "prompt": 128,
+          "started_unix": 1793080037.2044091,
+          "status": "valid",
+          "stderr_sha256": "584f107117a34f408fb17af747ebec24b624619505bd28d9b014d9848e27d636",
+          "stdout_sha256": "85c3dee9283df276179d63a9d3b10226cd933b314e02201ef61ca3571943807d",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080041.9817474,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-2-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4812.52,
+            "tg": 324.93
+          },
+          "prompt": 128,
+          "started_unix": 1793080039.6363256,
+          "status": "valid",
+          "stderr_sha256": "0fdba9d52c1adb65af62609abe43ecbc69f4d7442061c5a0bca2378c963be81e",
+          "stdout_sha256": "b122ad85143e3e78daeee1f21409b4d430cca96cd1320528e67d6fa0faf6e527",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080044.3355339,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-3-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4816.21,
+            "tg": 325.04
+          },
+          "prompt": 128,
+          "started_unix": 1793080041.9823048,
+          "status": "valid",
+          "stderr_sha256": "0fdba9d52c1adb65af62609abe43ecbc69f4d7442061c5a0bca2378c963be81e",
+          "stdout_sha256": "1ad1e8a0f0b0c4f3b8466ce8dd52db71131fdbc97bbe2e204881b93ecaffe398",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080046.6865575,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-4-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4810.34,
+            "tg": 324.0
+          },
+          "prompt": 128,
+          "started_unix": 1793080044.3361104,
+          "status": "valid",
+          "stderr_sha256": "af6706661226f25b54e6590901f0f7342b4279e32c2d15789748295e0d035f9e",
+          "stdout_sha256": "ba69b75e093f82398dd5885b2bfd5e84f4dd2426cf847e0095b726d78593f9f3",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080049.0767064,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-5-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4809.68,
+            "tg": 324.89
+          },
+          "prompt": 128,
+          "started_unix": 1793080046.6871533,
+          "status": "valid",
+          "stderr_sha256": "0fdba9d52c1adb65af62609abe43ecbc69f4d7442061c5a0bca2378c963be81e",
+          "stdout_sha256": "9273a7c81c0af2505887a84de7e8c33a34e766edac65840ee4a824c00dbd1521",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080051.4260786,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-6-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4788.05,
+            "tg": 325.26
+          },
+          "prompt": 128,
+          "started_unix": 1793080049.0772867,
+          "status": "valid",
+          "stderr_sha256": "af6706661226f25b54e6590901f0f7342b4279e32c2d15789748295e0d035f9e",
+          "stdout_sha256": "e2553f0a9c24bcfbe08e681e7be41643d2903fcf5536a6aec843ceb7497bf31c",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080053.7740345,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-7-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4816.56,
+            "tg": 324.7
+          },
+          "prompt": 128,
+          "started_unix": 1793080051.4266775,
+          "status": "valid",
+          "stderr_sha256": "af6706661226f25b54e6590901f0f7342b4279e32c2d15789748295e0d035f9e",
+          "stdout_sha256": "98ede2c412df96e10994809ab97cd617af1391b483ba61f90e8190ccfb513b79",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "default",
+          "dtype_effective": "f16",
+          "dtype_lines": [
+            "auto -> f16 (model declares bf16); vulkan:0 native: f16 (NVFP4 tile inputs), block-int16 (quantized rows and eligible tiles; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback, other products, routers)"
+          ],
+          "dtype_request": "auto",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080056.169905,
+          "exit_code": 0,
+          "expected_dtype": "f16",
+          "expected_dtype_request": "auto",
+          "generation": 256,
+          "issues": [],
+          "label": "default-8-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "block-int16"
+                ]
+              ],
+              "dtype": "f16"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 4819.32,
+            "tg": 323.04
+          },
+          "prompt": 128,
+          "started_unix": 1793080053.7746406,
+          "status": "valid",
+          "stderr_sha256": "a03a97b1e87d42f8ba6e07dbd1675ec7eb079a8a419e5ea6c0cf611d5d4a6546",
+          "stdout_sha256": "0b92fb6e36a9e78feb64fd361c0de74a10e21a7c4a4b46cbe8fa90e7dba909c7",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080062.8135602,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-1-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1838.79,
+            "tg": 87.04
+          },
+          "prompt": 128,
+          "started_unix": 1793080056.1707237,
+          "status": "valid",
+          "stderr_sha256": "3fe7fef1d035b312466471af0da128aafb6763c00f15598e3364b836c5f54ddf",
+          "stdout_sha256": "1f95273733c38fa65868032f48ae34a82cf6a9df5091e88024aeb28e64de2083",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080069.4644394,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-2-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1845.09,
+            "tg": 87.53
+          },
+          "prompt": 128,
+          "started_unix": 1793080062.8141868,
+          "status": "valid",
+          "stderr_sha256": "f7382bba84394ca7ec0c48362d83c12f91f3bac6e026774ee8672334f87ab0b2",
+          "stdout_sha256": "5d41efec2f44a76c00863c2cc46c02d420ff65b97f405f20c9d7e950bbc96396",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "candidate",
+          "block": "ABBA",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080076.077903,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-3-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1828.37,
+            "tg": 87.63
+          },
+          "prompt": 128,
+          "started_unix": 1793080069.4651866,
+          "status": "valid",
+          "stderr_sha256": "3fe7fef1d035b312466471af0da128aafb6763c00f15598e3364b836c5f54ddf",
+          "stdout_sha256": "c4b5cf4661035047e15bbdc6c69813ee0425147572ec6cac1ce2d417ab388723",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "main",
+          "block": "ABBA",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080082.6751144,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-4-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1832.87,
+            "tg": 87.47
+          },
+          "prompt": 128,
+          "started_unix": 1793080076.078693,
+          "status": "valid",
+          "stderr_sha256": "3fe7fef1d035b312466471af0da128aafb6763c00f15598e3364b836c5f54ddf",
+          "stdout_sha256": "8c9d6a74098f9995dd8e36c703817ca9d1a4d16ecae1eed990fb6cab03632433",
+          "within_block_index": 4
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080089.3088593,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-5-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1838.49,
+            "tg": 87.82
+          },
+          "prompt": 128,
+          "started_unix": 1793080082.6757832,
+          "status": "valid",
+          "stderr_sha256": "a6a138be30d5a6affe6e3559b2c29f02ff52e68748d3c0f2624d7fe9278e5aed",
+          "stdout_sha256": "d8b60f6129da834fb572930151e9de8b789bfda2c5d069020d6e7ebef85c3754",
+          "within_block_index": 1
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080095.9237628,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-6-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1845.84,
+            "tg": 87.93
+          },
+          "prompt": 128,
+          "started_unix": 1793080089.3095434,
+          "status": "valid",
+          "stderr_sha256": "69384f5512d428abcecbd8dfa4d03275e5305013b51df598575f3dc2ce969de5",
+          "stdout_sha256": "87cacd4331b82b973959c43e60d1aec94f1260cdb49a0fdb5c39b4878cff5a11",
+          "within_block_index": 2
+        },
+        {
+          "argv": [
+            "/work/main-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "main",
+          "block": "BAAB",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080102.4948287,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-7-main",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1818.99,
+            "tg": 88.17
+          },
+          "prompt": 128,
+          "started_unix": 1793080095.924437,
+          "status": "valid",
+          "stderr_sha256": "f4b265ff773e3d2207bc3b6aeda888343e94d3f648d3d45a554ac6a68c03d672",
+          "stdout_sha256": "8bf3b9703cc44c355b06ad2e48cc43614ad5ba0327632292e3f96bcc81b00ac4",
+          "within_block_index": 3
+        },
+        {
+          "argv": [
+            "/work/candidate-root/build/llmx",
+            "bench",
+            "--model",
+            "/model.gguf",
+            "--p",
+            "128",
+            "--n",
+            "256",
+            "--r",
+            "1",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--ubatch",
+            "128",
+            "--cache-type-k",
+            "f16",
+            "--cache-type-v",
+            "f16",
+            "--dtype",
+            "f32"
+          ],
+          "arm": "candidate",
+          "block": "BAAB",
+          "cell": "f32",
+          "dtype_effective": "f32",
+          "dtype_lines": [
+            "f32 -> f32 (model declares bf16); vulkan:0 native: f32"
+          ],
+          "dtype_request": "f32",
+          "dtype_witness_valid": true,
+          "ended_unix": 1793080109.0630608,
+          "exit_code": 0,
+          "expected_dtype": "f32",
+          "expected_dtype_request": "f32",
+          "generation": 256,
+          "issues": [],
+          "label": "f32-8-candidate",
+          "matrix_paths": [
+            {
+              "devices": [
+                [
+                  "f32"
+                ]
+              ],
+              "dtype": "f32"
+            }
+          ],
+          "metrics_tok_s": {
+            "pp": 1851.61,
+            "tg": 87.85
+          },
+          "prompt": 128,
+          "started_unix": 1793080102.4954863,
+          "status": "valid",
+          "stderr_sha256": "3fe184765cdd3876e0f4adab694cb568984d80b5edb7b929bac2364fe0607762",
+          "stdout_sha256": "3a3fc618817af6e5a9029ff22513abe0779bdcae93d569bf0cbb66b4abf16228",
+          "within_block_index": 4
+        }
+      ],
+      "activity": {
+        "samples": 36,
+        "monitor_stop_recorded": true,
+        "monitor_exit": 0,
+        "cgroup_matches_execution": true,
+        "thresholds": {
+          "disk_bytes_per_second_above": 104857600,
+          "other_gpu_percent_above": 0,
+          "sample_gap_seconds": 3,
+          "unrelated_cpu_cores_above": 1
+        },
+        "calls": [
+          {
+            "label": "default-1-main",
+            "arm": "main",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-2-candidate",
+            "arm": "candidate",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-3-candidate",
+            "arm": "candidate",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-4-main",
+            "arm": "main",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-5-candidate",
+            "arm": "candidate",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-6-main",
+            "arm": "main",
+            "intervals": 3,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 3,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-7-main",
+            "arm": "main",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "default-8-candidate",
+            "arm": "candidate",
+            "intervals": 2,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 2,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-1-main",
+            "arm": "main",
+            "intervals": 4,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 4,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-2-candidate",
+            "arm": "candidate",
+            "intervals": 5,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 5,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-3-candidate",
+            "arm": "candidate",
+            "intervals": 4,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 4,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-4-main",
+            "arm": "main",
+            "intervals": 4,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 4,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-5-candidate",
+            "arm": "candidate",
+            "intervals": 5,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 5,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-6-main",
+            "arm": "main",
+            "intervals": 4,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 4,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-7-main",
+            "arm": "main",
+            "intervals": 4,
+            "span_covers_call": true,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 4,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          },
+          {
+            "label": "f32-8-candidate",
+            "arm": "candidate",
+            "intervals": 3,
+            "span_covers_call": false,
+            "flags": {
+              "other_gpu": {
+                "true": 0,
+                "unknown": 0
+              },
+              "unrelated_cpu": {
+                "true": 3,
+                "unknown": 0
+              },
+              "disk": {
+                "true": 0,
+                "unknown": 0
+              },
+              "gap": {
+                "true": 0,
+                "unknown": 0
+              }
+            }
+          }
+        ],
+        "limitations": [
+          "Every call and interval is retained; no sample exclusion or acceptance threshold.",
+          "Disk traffic is system-wide and includes benchmark loading.",
+          "CPU rates are observed lower bounds when processes appear, disappear or cannot be read. Short-lived work can be missed.",
+          "The controller and Docker clients outside the benchmark cgroup remain in other-process activity.",
+          "GPU flags describe other devices, not process attribution. Unknown counters are not zero.",
+          "An interval can overlap multiple calls; endpoint coverage does not remove gaps or establish causality."
+        ]
+      },
+      "arm_activity": {
+        "main": {
+          "calls": 8,
+          "fully_bracketed_calls": 8,
+          "covered_seconds": 35.90158009529114,
+          "overlap_weighted_observed_cpu_cores": {
+            "benchmark": 0.04120659538406215,
+            "monitor": 0.029302093378430347,
+            "unrelated": 3.5045181496565263,
+            "unknown": 0.0
+          },
+          "calls_with_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 8,
+            "disk": 0,
+            "gap": 0
+          },
+          "calls_with_unknown_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          }
+        },
+        "candidate": {
+          "calls": 8,
+          "fully_bracketed_calls": 7,
+          "covered_seconds": 34.06561017036438,
+          "overlap_weighted_observed_cpu_cores": {
+            "benchmark": 0.06899682755009705,
+            "monitor": 0.029251281544573824,
+            "unrelated": 3.1740013080094096,
+            "unknown": 0.0
+          },
+          "calls_with_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 8,
+            "disk": 0,
+            "gap": 0
+          },
+          "calls_with_unknown_flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          }
+        }
+      },
+      "top_other_processes_all_intervals": [
+        {
+          "pid": 724533,
+          "start_ticks": 134400170,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 31.95
+        },
+        {
+          "pid": 734370,
+          "start_ticks": 134402553,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 31.95
+        },
+        {
+          "pid": 738846,
+          "start_ticks": 134408015,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 19.429999999999996
+        },
+        {
+          "pid": 736941,
+          "start_ticks": 134404265,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 17.95
+        },
+        {
+          "pid": 734023,
+          "start_ticks": 134402502,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 17.92
+        },
+        {
+          "pid": 738849,
+          "start_ticks": 134408016,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 15.5
+        },
+        {
+          "pid": 738623,
+          "start_ticks": 134407650,
+          "name": "llmx-shard-test",
+          "observed_cpu_seconds": 14.0
+        },
+        {
+          "pid": 738851,
+          "start_ticks": 134408016,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 12.87
+        },
+        {
+          "pid": 738847,
+          "start_ticks": 134408015,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 12.639999999999999
+        },
+        {
+          "pid": 738199,
+          "start_ticks": 134406492,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 12.01
+        },
+        {
+          "pid": 738165,
+          "start_ticks": 134406396,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 11.99
+        },
+        {
+          "pid": 725176,
+          "start_ticks": 134400874,
+          "name": "cc1plus",
+          "observed_cpu_seconds": 9.969999999999999
+        }
+      ],
+      "limitations": [
+        "The last candidate call in each bundle ends after the last monitor sample; endpoint coverage is incomplete.",
+        "CPU observations include lower bounds for appeared/disappeared processes. Disk activity includes model loading. No sample was dropped.",
+        "GPU activity counters are samples and cannot exclude short activity between samples."
+      ]
+    }
+  ]
+}

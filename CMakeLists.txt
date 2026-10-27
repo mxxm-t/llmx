@@ -143,6 +143,8 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_iq3_s_bf16_preserve=matmul_tile=LLMX_IQ3_S+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_row_float_x=matmul_row=LLMX_FLOAT_X
         matmul_row_float_x_preserve=matmul_row=LLMX_FLOAT_X+LLMX_PRESERVE_F32
+        matmul_row_nvfp4=matmul_row=LLMX_FLOAT_X+LLMX_NVFP4
+        matmul_row_nvfp4_preserve=matmul_row=LLMX_FLOAT_X+LLMX_NVFP4+LLMX_PRESERVE_F32
         matmul_row_float_x_q2=matmul_row=LLMX_FLOAT_X+LLMX_Q2
         matmul_row_float_x_q2_preserve=matmul_row=LLMX_FLOAT_X+LLMX_Q2+LLMX_PRESERVE_F32
         matmul_row_float_x_q3=matmul_row=LLMX_FLOAT_X+LLMX_Q3
@@ -155,6 +157,11 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_preserve=matmul_tile=LLMX_PRESERVE_F32
         matmul_tile_bf16=matmul_tile=LLMX_BF16
         matmul_tile_bf16_preserve=matmul_tile=LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_nvfp4=matmul_tile=LLMX_NVFP4
+        matmul_tile_nvfp4_preserve=matmul_tile=LLMX_NVFP4+LLMX_PRESERVE_F32
+        matmul_tile_nvfp4_f16=matmul_tile=LLMX_NVFP4+LLMX_INPUT_F16+LLMX_PRESERVE_F32
+        matmul_tile_nvfp4_bf16=matmul_tile=LLMX_NVFP4+LLMX_BF16
+        matmul_tile_nvfp4_bf16_preserve=matmul_tile=LLMX_NVFP4+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_q_preserve=matmul_tile_q=LLMX_PRESERVE_F32
         matmul_tile_q6_preserve=matmul_tile_q=LLMX_Q6+LLMX_PRESERVE_F32
         matmul_tile_q3=matmul_tile_q=LLMX_Q3

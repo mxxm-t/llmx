@@ -1,0 +1,158 @@
+{
+  "schema": "nvfp4-digest-stop-integration-v1",
+  "passed": true,
+  "started_utc": "2026-10-27T01:59:17.905772+00:00",
+  "feature_head": "0ca48b871aca062c07107b1d915a6538441898b8",
+  "main": "d1525c6e9e7ea84a2f7b20f7b3aba116559c2548",
+  "scope": "Fresh CPU runtime and file-reader build, focused file-reader test, documentation checks. No GPU or performance claim.",
+  "commands": [
+    {
+      "name": "configure",
+      "argv": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\digest-stop-integration-v1\\build",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64",
+        "-DBUILD_TESTING=ON",
+        "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+      ],
+      "exit_code": 0,
+      "seconds": 6.296000000089407,
+      "log_sha256": "98b079f202aad79f96a74bd6a4ce40a9d1f53e3a64a1a709a7d125965e3b65b6"
+    },
+    {
+      "name": "build",
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\digest-stop-integration-v1\\build",
+        "--config",
+        "Release",
+        "--parallel",
+        "1",
+        "--target",
+        "llmx",
+        "llmx-file-reader-test"
+      ],
+      "exit_code": 0,
+      "seconds": 28.641000000294298,
+      "log_sha256": "ff45aa7deb7ac0a9958859cda64e7cf4642a806086e6f8e8c2da420d31d3e70d"
+    },
+    {
+      "name": "file-reader",
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\digest-stop-integration-v1\\build",
+        "-C",
+        "Release",
+        "--output-on-failure",
+        "-R",
+        "^file-reader$"
+      ],
+      "exit_code": 0,
+      "seconds": 5.938000000081956,
+      "log_sha256": "4e1549a8f0734c76b113cc6d6b0733826c8064a6821a6d26fb6ee2e1c4d985ce"
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\digest-stop-integration-v1\\build\\Release\\llmx.exe",
+        "--only",
+        "docs,dead-code"
+      ],
+      "exit_code": 0,
+      "seconds": 33.375,
+      "log_sha256": "4ecfbf7cced3b0fffe3053fcf84009f350490c7d877d260832ca719e746f0327"
+    }
+  ],
+  "binaries": {
+    "llmx-file-reader-test.exe": {
+      "sha256": "1e10f4e4ac7ebe6e984a97a8b7abafa9163db38c2714d2ca2cd90d28cccc7573",
+      "bytes": 147456
+    },
+    "llmx.exe": {
+      "sha256": "caee06e4cdf0091e06a00166630191bf066630b862795b8e7dd2870e390920ef",
+      "bytes": 2802176
+    }
+  },
+  "version": "llmx 0.1.0+g0ca48b871aca.dirty numerics c815ff1b0099663f",
+  "ended_utc": "2026-10-27T02:00:32.239648+00:00",
+  "receipt_path": "build-integration/digest-stop-integration-v1/receipt.json",
+  "receipt_sha256": "4cea45f2a0aaf70667008ba02dc6705dd6e9fe82e8abd234b73694367a0db102",
+  "inherited_main_ci": {
+    "run": 40426623853,
+    "head": "d1525c6e9e7ea84a2f7b20f7b3aba116559c2548",
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853",
+    "jobs": [
+      {
+        "name": "CPU (Linux UBSan)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933879715"
+      },
+      {
+        "name": "CPU (ubuntu-24.04)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880031"
+      },
+      {
+        "name": "Vulkan backend (build, Linux)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880065"
+      },
+      {
+        "name": "CPU (macos-15-intel)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880090"
+      },
+      {
+        "name": "CPU (Linux TSan)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880123"
+      },
+      {
+        "name": "HF reference (CPU)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880174"
+      },
+      {
+        "name": "CPU (windows-2022)",
+        "conclusion": "success",
+        "html_url": "https://github.com/mxxm-t/llmx/actions/runs/40426623853/job/121933880204"
+      }
+    ],
+    "scope": "Upstream disk-digest-stop main commit, not the integrated NVFP4 candidate."
+  },
+  "incoming_delta": [
+    "docs/DISK-TIER.md",
+    "docs/STATUS.md",
+    "docs/src/format-file_digest.md",
+    "docs/src/server.md",
+    "src/format/file_digest.hpp",
+    "src/server/cache.hpp",
+    "src/server/disk_tier.hpp",
+    "tests/file_reader.cpp",
+    "tests/server_resume.cpp"
+  ],
+  "unchanged_from_feature_parent": [
+    "src/quant",
+    "src/backends",
+    "src/model",
+    "src/inference"
+  ],
+  "carry_forward_limits": "Frozen GPU pairs still identify main 8ccc and cleanup a57/af6-plus-patch. This host-only merge does not rewrite those artifacts or claim final NVFP4 CI, timing or merge qualification.",
+  "post_check_documentation_delta": [
+    "Added this evidence receipt and its STATUS link.",
+    "Marked the inherited disk-digest-stop STATUS block landed after verifying all seven upstream jobs."
+  ]
+}

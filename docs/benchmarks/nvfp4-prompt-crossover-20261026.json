@@ -1,0 +1,99 @@
+{
+  "scope": "Permanent NVFP4 prompt crossover consumer on CPU F32 and Radeon F16, ordinary and equivalent scaled fixtures",
+  "runtime_revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+  "results": {
+    "f32": {
+      "state": {
+        "passed": true,
+        "started": 1792986550.2766068,
+        "runtime_revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+        "device": "cpu",
+        "dtype": "f32",
+        "input_pins": {
+          "tests/nvfp4.py": "7e3ff7950dbaadb1dc00ad4cdd8444f90199f5e959aa2759a24bd4e475b29243",
+          "tests/block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+          "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+          "tests/data/dtype_budget.json": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+          "tests/data/baseline_nvfp4_prompt.json": "5fb70cea1534e187c40b3efe94f48bc7a716c1b2f4ae8259121ca7ce92592c2e",
+          "tests/data/baseline_nvfp4_prompt_split.json": "d326b676feedbbe464220ba6e0c03197362d782f6fc1050bc63b1d1d43cf662f"
+        },
+        "binary_sha256": "134d2396d5440ab9b2cb48e09155bae0dba0409ba186e0fd687c748fa9892e19",
+        "calls": 240,
+        "f16_witnesses": 0,
+        "ended": 1792986586.0331054
+      },
+      "state_sha256": "dbcc651cc259ca25f4e0b90be12cb5607c943c2e0b5f90da25ea8a174a383cec",
+      "calls_sha256": "314bb031290bd4613455ad0fd7aa4dbd478e2cbe5034cf59a9669bb2ef4f0988",
+      "raw_output_hashes_verified": 480,
+      "statistics": {
+        "logits f32": {
+          "calls": 216,
+          "max_error": 2.0008964538575924e-06,
+          "bound": 2e-05
+        },
+        "perplexity f32": {
+          "calls": 24,
+          "max_error": 8.982959087688869e-08,
+          "bound": 1e-05
+        }
+      },
+      "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\prompt-consumer-f32"
+    },
+    "f16": {
+      "state": {
+        "passed": true,
+        "started": 1792986550.9013062,
+        "runtime_revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+        "device": "vulkan:0",
+        "dtype": "f16",
+        "input_pins": {
+          "tests/nvfp4.py": "7e3ff7950dbaadb1dc00ad4cdd8444f90199f5e959aa2759a24bd4e475b29243",
+          "tests/block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+          "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+          "tests/data/dtype_budget.json": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+          "tests/data/baseline_nvfp4_prompt.json": "5fb70cea1534e187c40b3efe94f48bc7a716c1b2f4ae8259121ca7ce92592c2e",
+          "tests/data/baseline_nvfp4_prompt_split.json": "d326b676feedbbe464220ba6e0c03197362d782f6fc1050bc63b1d1d43cf662f"
+        },
+        "binary_sha256": "134d2396d5440ab9b2cb48e09155bae0dba0409ba186e0fd687c748fa9892e19",
+        "calls": 240,
+        "f16_witnesses": 216,
+        "ended": 1792986610.4449925
+      },
+      "state_sha256": "bfa636f014bfc8895f0993d4c6e3e1164418420f6906bff99220caf53950f9eb",
+      "calls_sha256": "e7ca3afd620de57533fab504b19bd09eb32ff95f9ab6742d9bc56525c1ba9a64",
+      "raw_output_hashes_verified": 480,
+      "statistics": {
+        "logits f32": {
+          "calls": 24,
+          "max_error": 1.1522407531439072e-06,
+          "bound": 2e-05
+        },
+        "logits native-f16": {
+          "calls": 192,
+          "max_error": 0.0010783418197631844,
+          "bound": 0.005869746208190918
+        },
+        "perplexity native-f16": {
+          "calls": 24,
+          "max_error": 2.2391234439034235e-05,
+          "bound": 0.0006043278951057829
+        }
+      },
+      "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\prompt-consumer-f16"
+    }
+  },
+  "reference_install": {
+    "short_goldens_unchanged": true,
+    "independent_outputs_identical": true,
+    "installed": {
+      "baseline_nvfp4_prompt.json": "5fb70cea1534e187c40b3efe94f48bc7a716c1b2f4ae8259121ca7ce92592c2e",
+      "baseline_nvfp4_prompt_split.json": "d326b676feedbbe464220ba6e0c03197362d782f6fc1050bc63b1d1d43cf662f"
+    }
+  },
+  "limitations": [
+    "Single-device executions only. Split goldens are generated and independently matched, but split execution remains pending.",
+    "Tiny fixtures do not qualify scaled released models, long-context output, performance, or merge readiness."
+  ],
+  "initial_attempt": "f16-prompt-v1 stopped before inference on system torch 2.11.0+cu130 instead of pinned 2.5.1+cpu. It remains retained.",
+  "short_prompt_coverage": "The earlier 300-logit/24-NLL Radeon F16-request run reached only F32 paths. Its passing result does not cover native F16 tiles."
+}

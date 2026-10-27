@@ -1,0 +1,794 @@
+{
+  "scope": "Completed current integrated-source, one-MI50 NVFP4 performance comparison only. No HF/depth/correctness qualification or merge claim.",
+  "source": {
+    "llmx_revision": "d86fb838b3d50fb0651aa5c38a0b97423de8b315",
+    "llmx_branch": "feat/nvfp4 (not merged)",
+    "integrated_main_revision": "6d6f0897d",
+    "mx_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b"
+  },
+  "model": {
+    "filename": "Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "bytes": 578052704,
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "mtp_enabled": false
+  },
+  "device": {
+    "physical": 4,
+    "node": "/dev/dri/renderD134",
+    "pci": "0000:89:00.0",
+    "uuid": "00000000-8900-0000-0000-000000000000"
+  },
+  "configuration": {
+    "context": 262144,
+    "llmx_dtype": "auto -> f16",
+    "llmx_matrix_paths": [
+      {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      }
+    ],
+    "threads": 4,
+    "ubatch": 512,
+    "kv": "f16/f16",
+    "llmx_load_mode": "direct",
+    "mx_batch": 4096,
+    "mx_ubatch": 512,
+    "mx_flash_attention": true,
+    "same_model_and_context": true
+  },
+  "versions": {
+    "llmx": "llmx 0.1.0+unknown numerics 78afa6e9748102c1",
+    "mx": "ggml_vulkan: Found 1 Vulkan devices:\nggml_vulkan: 0 = AMD Instinct MI60 / MI50 (RADV VEGA20) (radv) | uma: 0 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 65536 | int dot: 1 | matrix cores: none\nversion: 0.6.0-dev (build 0, commit unknown)\nbuilt with GNU 14.2.0 for Linux x86_64"
+  },
+  "binary_sha256": {
+    "llmx": "bb7036e6637c3c20e3b383257d77c58881aa11df957a7b51f6f7ae5d0831bc0b",
+    "mx_llama_bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa"
+  },
+  "build_receipt_sha256": "697467867125c851466b1f91a71c35bcbd1fa8cb2dbcfec39848fd88110f29a8",
+  "result": {
+    "complete": true,
+    "all_16_calls_passed": true,
+    "container_removed": true,
+    "pins_unchanged": true,
+    "monitor_exit": 0,
+    "reference_floor": {
+      "ratio": "llmx/mx >= 1.0 for each cell",
+      "met": false
+    },
+    "matrix": [
+      {
+        "p": 128,
+        "g": 256,
+        "phase": "pp",
+        "llmx": {
+          "n": 4,
+          "mean": 1933.76,
+          "min": 1918.85,
+          "max": 1944.83,
+          "sd": 10.87068841732974
+        },
+        "mx": {
+          "n": 4,
+          "mean": 3055.44596825,
+          "min": 3036.376358,
+          "max": 3081.235028,
+          "sd": 20.5826902947333
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              0,
+              1
+            ],
+            "ratio": 0.6285628919573609
+          },
+          {
+            "block": 1,
+            "indices": [
+              2,
+              3
+            ],
+            "ratio": 0.6308672252666269
+          },
+          {
+            "block": 2,
+            "indices": [
+              4,
+              5
+            ],
+            "ratio": 0.6405101906672137
+          },
+          {
+            "block": 3,
+            "indices": [
+              6,
+              7
+            ],
+            "ratio": 0.6316958248074238
+          }
+        ],
+        "llmx_over_mx": 0.6328928488458219,
+        "descriptive_95pct_interval": [
+          0.6246400564744945,
+          0.6412546777434146
+        ],
+        "reference_floor": "ratio >= 1.0"
+      },
+      {
+        "p": 128,
+        "g": 256,
+        "phase": "tg",
+        "llmx": {
+          "n": 4,
+          "mean": 115.72,
+          "min": 115.42,
+          "max": 116.0,
+          "sd": 0.24055491403558188
+        },
+        "mx": {
+          "n": 4,
+          "mean": 136.25211425,
+          "min": 134.5938,
+          "max": 136.966947,
+          "sd": 1.128531351583228
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              0,
+              1
+            ],
+            "ratio": 0.8469421420456168
+          },
+          {
+            "block": 1,
+            "indices": [
+              2,
+              3
+            ],
+            "ratio": 0.8575432152149655
+          },
+          {
+            "block": 2,
+            "indices": [
+              4,
+              5
+            ],
+            "ratio": 0.8483020832293074
+          },
+          {
+            "block": 3,
+            "indices": [
+              6,
+              7
+            ],
+            "ratio": 0.844583328560284
+          }
+        ],
+        "llmx_over_mx": 0.849328503082073,
+        "descriptive_95pct_interval": [
+          0.8403634395887231,
+          0.8583892065802751
+        ],
+        "reference_floor": "ratio >= 1.0"
+      },
+      {
+        "p": 4096,
+        "g": 256,
+        "phase": "pp",
+        "llmx": {
+          "n": 4,
+          "mean": 2967.6675,
+          "min": 2963.93,
+          "max": 2972.69,
+          "sd": 3.6548814390255995
+        },
+        "mx": {
+          "n": 4,
+          "mean": 3607.488613,
+          "min": 3606.637886,
+          "max": 3607.864622,
+          "sd": 0.5764172467868728
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              8,
+              9
+            ],
+            "ratio": 0.8242274644591254
+          },
+          {
+            "block": 1,
+            "indices": [
+              10,
+              11
+            ],
+            "ratio": 0.8215191839312866
+          },
+          {
+            "block": 2,
+            "indices": [
+              12,
+              13
+            ],
+            "ratio": 0.8224321691225145
+          },
+          {
+            "block": 3,
+            "indices": [
+              14,
+              15
+            ],
+            "ratio": 0.8223851039938016
+          }
+        ],
+        "llmx_over_mx": 0.8226403904523656,
+        "descriptive_95pct_interval": [
+          0.820832454072244,
+          0.8244523089288801
+        ],
+        "reference_floor": "ratio >= 1.0"
+      },
+      {
+        "p": 4096,
+        "g": 256,
+        "phase": "tg",
+        "llmx": {
+          "n": 4,
+          "mean": 115.0925,
+          "min": 113.55,
+          "max": 115.77,
+          "sd": 1.034871167505085
+        },
+        "mx": {
+          "n": 4,
+          "mean": 136.773877,
+          "min": 136.240596,
+          "max": 137.072169,
+          "sd": 0.37734737214666947
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              8,
+              9
+            ],
+            "ratio": 0.8445138011730692
+          },
+          {
+            "block": 1,
+            "indices": [
+              10,
+              11
+            ],
+            "ratio": 0.8334520204242206
+          },
+          {
+            "block": 2,
+            "indices": [
+              12,
+              13
+            ],
+            "ratio": 0.8445915815339582
+          },
+          {
+            "block": 3,
+            "indices": [
+              14,
+              15
+            ],
+            "ratio": 0.8433218445998998
+          }
+        ],
+        "llmx_over_mx": 0.8414568754024119,
+        "descriptive_95pct_interval": [
+          0.8329185043429352,
+          0.8500827745693436
+        ],
+        "reference_floor": "ratio >= 1.0"
+      }
+    ],
+    "calls": [
+      {
+        "index": 0,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947793.597584,
+        "end_epoch": 1792947802.3739254,
+        "seconds": 8.776341,
+        "tok_s": {
+          "pp": 1936.75,
+          "tg": 116.0
+        },
+        "activity": {
+          "samples": 6,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 5,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 1,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947802.3747706,
+        "end_epoch": 1792947839.991358,
+        "seconds": 37.616587,
+        "tok_s": {
+          "pp": 3081.235028,
+          "tg": 136.963311
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 0,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 19,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 2,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947839.991839,
+        "end_epoch": 1792947877.8984156,
+        "seconds": 37.906577,
+        "tok_s": {
+          "pp": 3041.606733,
+          "tg": 134.5938
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 16,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 4,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 3,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947877.898797,
+        "end_epoch": 1792947883.7650251,
+        "seconds": 5.866228,
+        "tok_s": {
+          "pp": 1918.85,
+          "tg": 115.42
+        },
+        "activity": {
+          "samples": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 4,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 3,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 4,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947883.7654233,
+        "end_epoch": 1792947921.99822,
+        "seconds": 38.232797,
+        "tok_s": {
+          "pp": 3036.376358,
+          "tg": 136.484399
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 20,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 6,
+          "unknown_process_cpu_intervals": 19,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 5,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947921.998784,
+        "end_epoch": 1792947927.8899353,
+        "seconds": 5.891151,
+        "tok_s": {
+          "pp": 1944.83,
+          "tg": 115.78
+        },
+        "activity": {
+          "samples": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 4,
+            "disk": 2,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 6,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947927.8903048,
+        "end_epoch": 1792947933.7827914,
+        "seconds": 5.892487,
+        "tok_s": {
+          "pp": 1934.61,
+          "tg": 115.68
+        },
+        "activity": {
+          "samples": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 4,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 7,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947933.7832584,
+        "end_epoch": 1792947971.970325,
+        "seconds": 38.187067,
+        "tok_s": {
+          "pp": 3062.565754,
+          "tg": 136.966947
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 20,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 3,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 8,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947971.9708622,
+        "end_epoch": 1792947980.7309387,
+        "seconds": 8.760077,
+        "tok_s": {
+          "pp": 2972.69,
+          "tg": 115.51
+        },
+        "activity": {
+          "samples": 5,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 5,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 5,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 9,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792947980.7313764,
+        "end_epoch": 1792948019.208981,
+        "seconds": 38.477605,
+        "tok_s": {
+          "pp": 3606.637886,
+          "tg": 136.776924
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 20,
+            "disk": 0,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 10,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948019.2096417,
+        "end_epoch": 1792948057.6174355,
+        "seconds": 38.407794,
+        "tok_s": {
+          "pp": 3607.864622,
+          "tg": 136.240596
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 20,
+            "disk": 0,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 11,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948057.618163,
+        "end_epoch": 1792948066.3971446,
+        "seconds": 8.778981,
+        "tok_s": {
+          "pp": 2963.93,
+          "tg": 113.55
+        },
+        "activity": {
+          "samples": 6,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 6,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 6,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 12,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948066.3976555,
+        "end_epoch": 1792948104.739743,
+        "seconds": 38.342088,
+        "tok_s": {
+          "pp": 3607.82337,
+          "tg": 137.072169
+        },
+        "activity": {
+          "samples": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 20,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 18,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 13,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948104.7401464,
+        "end_epoch": 1792948113.587788,
+        "seconds": 8.847642,
+        "tok_s": {
+          "pp": 2967.19,
+          "tg": 115.77
+        },
+        "activity": {
+          "samples": 5,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 5,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 5,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 14,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948113.588414,
+        "end_epoch": 1792948122.4443035,
+        "seconds": 8.85589,
+        "tok_s": {
+          "pp": 2966.86,
+          "tg": 115.54
+        },
+        "activity": {
+          "samples": 6,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 6,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 6,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 15,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "exit": 0,
+        "start_epoch": 1792948122.4447508,
+        "end_epoch": 1792948163.392745,
+        "seconds": 40.947994,
+        "tok_s": {
+          "pp": 3607.628574,
+          "tg": 137.005819
+        },
+        "activity": {
+          "samples": 21,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 21,
+            "disk": 0,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 5,
+          "unknown_process_cpu_intervals": 19,
+          "coverage_complete": true
+        }
+      }
+    ]
+  },
+  "monitoring": {
+    "sample_count": 213,
+    "thresholds": {
+      "other_gpu_percent": 0,
+      "unrelated_cpu_cores": 1,
+      "disk_bytes_per_second": 104857600,
+      "sample_gap_seconds": 3
+    },
+    "gpu_guard_preflight": {
+      "gpu_busy_percent": "0",
+      "mem_info_vram_used": "10932224",
+      "power_dpm_force_performance_level": "auto"
+    },
+    "interpretation": "All planned calls retained. Ratio intervals describe four adjacent matched log-ratios with Student t(df=3); they are not an acceptance policy. PP and TG reset independently; neither describes request latency. Unknown activity is not zero. Disk counters are aggregate physical-device traffic and cannot distinguish model loading from unrelated I/O; the disk flag conservatively reports that limitation."
+  },
+  "profile": {
+    "scope": "Separate single P128/G256 diagnostic profile; not one of the 16 timed samples.",
+    "artifact_sha256": "c34e7912f39e0e9b401688f422d4ccf3a9be9166a00fe862784378d86246a454",
+    "pp_device_line": "profile pp: 73.5995 ms of device time over 386 dispatches sampled",
+    "pp_nvfp4_tile": "profile:   matmul_tile_nvfp4 31.5166 ms (42.8218%)",
+    "pp_nvfp4_small_tile": "profile:   matmul_tile_nvfp4_small 26.4246 ms (35.9033%)",
+    "tg_device_line": "profile tg: 2320.24 ms of device time over 78144 dispatches sampled",
+    "tg_nvfp4_row": "profile:   matmul_row_nvfp4_1col 1712.76 ms (73.818%)",
+    "interpretation": "NVFP4 kernels account for about 78.7% of profiled PP time and 73.8% of profiled TG time. Diagnostic attribution only; it does not identify the underlying stall cause.",
+    "kernel_statistics": {
+      "nvfp4_full_tile": "profile: kernel matmul_tile_nvfp4: Driver pipeline hash=7607304456131621550 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7960 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=3794712955 Instructions=1475 Copies=273 Branches=120 Latency=209248 Inverse Throughput=73284 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=696 SALU=350 VMEM=78 SMEM=62 VOPD=0",
+      "nvfp4_small_tile": "profile: kernel matmul_tile_nvfp4_small: Driver pipeline hash=4183707569260601415 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=6932 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=313035702 Instructions=1170 Copies=180 Branches=69 Latency=164800 Inverse Throughput=63548 VMEM Clause=42 SMEM Clause=38 Pre-Sched SGPRs=27 Pre-Sched VGPRs=39 VALU=645 SALU=225 VMEM=44 SMEM=38 VOPD=0",
+      "nvfp4_row": "profile: kernel matmul_row_nvfp4_1col: Driver pipeline hash=14426701663261960293 SGPRs=32 VGPRs=24 Spilled SGPRs=0 Spilled VGPRs=0 Code size=1344 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1592390597 Instructions=259 Copies=31 Branches=12 Latency=29348 Inverse Throughput=11320 VMEM Clause=6 SMEM Clause=6 Pre-Sched SGPRs=21 Pre-Sched VGPRs=11 VALU=127 SALU=92 VMEM=7 SMEM=7 VOPD=0"
+    }
+  },
+  "raw_evidence": {
+    "execution_sha256": "468245a025e04bf49c920851c0ace482cc39bc9b088d5e29bc1762d4ee3748ad",
+    "summary_sha256": "b45c03869e3825fe1d69f93656826859b3088fbf77e2d55f53a4c47e861bc150",
+    "configured_profile_stdout_sha256": "c34e7912f39e0e9b401688f422d4ccf3a9be9166a00fe862784378d86246a454",
+    "complete_source_binary_library_pins": "Retained in the pinned execution record; digest: 468245a025e04bf49c920851c0ace482cc39bc9b088d5e29bc1762d4ee3748ad"
+  },
+  "limitations": [
+    "This compares performance only. It does not establish HF accuracy, released-depth equivalence, full device-suite completion, existing-format regression status, or merge readiness.",
+    "Per-call activity preserves unrelated CPU/disk flags and unknown/missed process attribution; no flagged sample was removed.",
+    "A separate capture/native runner is not treated as depth acceptance. Its wrapper hit a pre/post helper-pin comparison error: no helper hashes before compilation versus two newly generated helper hashes afterward. The local runner fix was not rerun; HF comparison and the full fixture matrix remain pending.",
+    "The diagnostic operator probe is prepared but has not been run."
+  ]
+}

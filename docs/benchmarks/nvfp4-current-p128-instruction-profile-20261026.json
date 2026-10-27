@@ -1,0 +1,295 @@
+{
+  "scope": "Current native-F16 NVFP4 P128 synthetic operator hardware instruction timing. Diagnostic sampled cost, not elapsed-time decomposition or merge qualification.",
+  "runtime_revision": "3a6a7b19d",
+  "probe_sha256": "0a0956009c296d570519a0ce689303488f4c912a0d0274014ba7b16886205e47",
+  "capture": {
+    "probe_2026.10.26_13.16.04.rgp": {
+      "bytes": 4664148,
+      "sha256": "2d0bf2b70c0f81b3cbb47dee19a1d2cfed10b60712b53fb42fc27396700c628d"
+    }
+  },
+  "viewer": {
+    "version": "RGP 1.16",
+    "event": 1,
+    "dispatch": [
+      32,
+      2,
+      1
+    ],
+    "pipeline_hash_hex": "591562C430D8300E",
+    "pipeline_hash_decimal": 6419145438659096590,
+    "sampled_wavefronts": 16,
+    "display_normalization": "Clks normalized by hit counts",
+    "viewer_hits": 541056,
+    "exported_hits": 541056,
+    "hit_sum_matches": true
+  },
+  "export_sha256": "9592b891e1ee5c1a992f710bcf07897060fbfc3638a0e373e3c83611450caffd",
+  "instruction_rows": 1432,
+  "rounded_cost_sum_percent": 99.73,
+  "groups": {
+    "wait: vmcnt(0)": {
+      "cost_percent": 22.060000000000006,
+      "hits": 1488,
+      "instructions": 64
+    },
+    "FMA": {
+      "cost_percent": 21.139999999999983,
+      "hits": 262144,
+      "instructions": 128
+    },
+    "wait: lgkmcnt(0)": {
+      "cost_percent": 15.809999999999997,
+      "hits": 10496,
+      "instructions": 65
+    },
+    "other vector ALU": {
+      "cost_percent": 15.189999999999968,
+      "hits": 152144,
+      "instructions": 520
+    },
+    "wait: lgkmcnt(3)": {
+      "cost_percent": 7.62,
+      "hits": 4096,
+      "instructions": 2
+    },
+    "other scalar ALU/control": {
+      "cost_percent": 5.359999999999992,
+      "hits": 50272,
+      "instructions": 474
+    },
+    "LDS reads": {
+      "cost_percent": 4.37,
+      "hits": 32768,
+      "instructions": 16
+    },
+    "wait: vmcnt(4)": {
+      "cost_percent": 2.96,
+      "hits": 512,
+      "instructions": 1
+    },
+    "barrier": {
+      "cost_percent": 1.12,
+      "hits": 1024,
+      "instructions": 2
+    },
+    "global memory": {
+      "cost_percent": 0.9299999999999998,
+      "hits": 6912,
+      "instructions": 78
+    },
+    "wait: lgkmcnt(2)": {
+      "cost_percent": 0.78,
+      "hits": 4096,
+      "instructions": 2
+    },
+    "LDS writes": {
+      "cost_percent": 0.6200000000000001,
+      "hits": 4096,
+      "instructions": 10
+    },
+    "wait: lgkmcnt(1)": {
+      "cost_percent": 0.62,
+      "hits": 4096,
+      "instructions": 2
+    },
+    "scalar memory": {
+      "cost_percent": 0.6000000000000001,
+      "hits": 5376,
+      "instructions": 60
+    },
+    "wait: vmcnt(3)": {
+      "cost_percent": 0.38,
+      "hits": 512,
+      "instructions": 1
+    },
+    "wait: vmcnt(1)": {
+      "cost_percent": 0.09,
+      "hits": 512,
+      "instructions": 1
+    },
+    "wait: vmcnt(2)": {
+      "cost_percent": 0.08,
+      "hits": 512,
+      "instructions": 1
+    },
+    "other": {
+      "cost_percent": 0.0,
+      "hits": 0,
+      "instructions": 5
+    }
+  },
+  "top": [
+    {
+      "line": 466,
+      "opcode": "s_waitcnt",
+      "operands": "vmcnt(0)",
+      "hits": 512,
+      "cost_percent": 17.89,
+      "latency": "1,863 clk"
+    },
+    {
+      "line": 614,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(3)",
+      "hits": 2048,
+      "cost_percent": 3.99,
+      "latency": "103 clk"
+    },
+    {
+      "line": 442,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 3.74,
+      "latency": "389 clk"
+    },
+    {
+      "line": 529,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(3)",
+      "hits": 2048,
+      "cost_percent": 3.63,
+      "latency": "94 clk"
+    },
+    {
+      "line": 458,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 3.62,
+      "latency": "377 clk"
+    },
+    {
+      "line": 199,
+      "opcode": "s_waitcnt",
+      "operands": "vmcnt(4)",
+      "hits": 512,
+      "cost_percent": 2.96,
+      "latency": "308 clk"
+    },
+    {
+      "line": 426,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 2.36,
+      "latency": "245 clk"
+    },
+    {
+      "line": 497,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 2.27,
+      "latency": "236 clk"
+    },
+    {
+      "line": 686,
+      "opcode": "s_barrier",
+      "operands": "",
+      "hits": 512,
+      "cost_percent": 1.06,
+      "latency": "110 clk"
+    },
+    {
+      "line": 684,
+      "opcode": "s_cbranch_scc0",
+      "operands": "_L18",
+      "hits": 2048,
+      "cost_percent": 0.73,
+      "latency": "19 clk"
+    },
+    {
+      "line": 169,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 0.72,
+      "latency": "75 clk"
+    },
+    {
+      "line": 410,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 0.59,
+      "latency": "61 clk"
+    },
+    {
+      "line": 527,
+      "opcode": "ds_read2_b64",
+      "operands": "v[60:63], v50 offset1:1",
+      "hits": 2048,
+      "cost_percent": 0.56,
+      "latency": "14 clk"
+    },
+    {
+      "line": 176,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(0)",
+      "hits": 512,
+      "cost_percent": 0.51,
+      "latency": "53 clk"
+    },
+    {
+      "line": 520,
+      "opcode": "v_add_u32_e32",
+      "operands": "v51, s7, v43",
+      "hits": 2048,
+      "cost_percent": 0.44,
+      "latency": "11 clk"
+    },
+    {
+      "line": 605,
+      "opcode": "v_add_u32_e32",
+      "operands": "v61, s15, v43",
+      "hits": 2048,
+      "cost_percent": 0.44,
+      "latency": "11 clk"
+    },
+    {
+      "line": 925,
+      "opcode": "s_waitcnt",
+      "operands": "vmcnt(0)",
+      "hits": 16,
+      "cost_percent": 0.43,
+      "latency": "1,424 clk"
+    },
+    {
+      "line": 525,
+      "opcode": "ds_read2_b64",
+      "operands": "v[52:55], v40 offset1:1",
+      "hits": 2048,
+      "cost_percent": 0.42,
+      "latency": "11 clk"
+    },
+    {
+      "line": 526,
+      "opcode": "ds_read2_b64",
+      "operands": "v[56:59], v41 offset1:1",
+      "hits": 2048,
+      "cost_percent": 0.42,
+      "latency": "11 clk"
+    },
+    {
+      "line": 534,
+      "opcode": "s_waitcnt",
+      "operands": "lgkmcnt(2)",
+      "hits": 2048,
+      "cost_percent": 0.42,
+      "latency": "11 clk"
+    }
+  ],
+  "finding": "The largest single wait, exported line 466 vmcnt(0), contributes 17.89% sampled cost immediately before F16 input conversions/shared writes. Lines 442 and 458 wait for scalar SSBO descriptor loads (s_load_dwordx4 offset 0x30) before input buffer reads and contribute 3.74% and 3.62%. This motivates grouping valid-column input loads and removing redundant K-tail predicates for validated NVFP4 rows.",
+  "limits": [
+    "A wait may include earlier outstanding loads. This is not a measured cache-miss rate or bandwidth limit.",
+    "lgkmcnt can include scalar memory and LDS. The cited descriptor waits were identified from their neighboring instructions.",
+    "The capture uses 16 sampled waves and does not establish every model matrix bottleneck.",
+    "All three ordinary-before, SQTT and ordinary-after calls passed the exact-output oracle. Captured timing is not compared as a speed result.",
+    "Raw activity and capture output are retained. The analyzer used CPU 2 with no GPU device."
+  ],
+  "raw_rig_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/combined-main7ac-20261026/current-p128-sqtt-v2",
+  "capture_container_removed": true,
+  "analyzer_removed": true
+}

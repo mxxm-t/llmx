@@ -72,12 +72,12 @@ void products(backend::CpuBackend& cpu, size_t nin, size_t cols) {
         std::fill(a.begin(), a.end(), 19.0f); std::fill(b.begin(), b.end(), 19.0f);
         testq::take_matrix_paths(cpu);
         switch (call) {
-        case 0: cpu.matmul(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
-        case 1: cpu.matmul_add(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
-        case 2: cpu.matmul_logits(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
-        case 3: cpu.matmul_group({{type, {w.get(), 0}, {out.get(), 1}, rows}, {type, {w.get(), 0}, {other.get(), 1}, rows}}, {in.get(), 0}, nin, cols, runs, dtype); break;
-        case 4: cpu.matmul_experts({{type, {w.get(), 0}, {out.get(), 1}, rows}}, {in.get(), 0}, nin, cols, routing, runs, dtype); break;
-        case 5: cpu.matmul_experts_add(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, routing, runs, dtype); break;
+        case 0: cpu.matmul({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
+        case 1: cpu.matmul_add({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
+        case 2: cpu.matmul_logits({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, runs, dtype); break;
+        case 3: cpu.matmul_group({{{type, {w.get(), 0}}, {out.get(), 1}, rows}, {{type, {w.get(), 0}}, {other.get(), 1}, rows}}, {in.get(), 0}, nin, cols, runs, dtype); break;
+        case 4: cpu.matmul_experts({{{type, {w.get(), 0}}, {out.get(), 1}, rows}}, {in.get(), 0}, nin, cols, routing, runs, dtype); break;
+        case 5: cpu.matmul_experts_add({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, nin, rows, cols, routing, runs, dtype); break;
         }
         require(testq::take_matrix_paths(cpu) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : "f32"},
                 "Q5_0 wider CPU arithmetic witness incorrect");
@@ -118,8 +118,8 @@ void products(backend::CpuBackend& cpu, size_t nin, size_t cols) {
     std::vector<float> embedding(3 * nin + 2, 19); auto eb = cpu.adopt(embedding.data(), embedding.size() * 4);
     const uint32_t tokens[] = {4, 0, 2}; auto tb = cpu.adopt(tokens, sizeof tokens);
     for (bool resident : {false, true}) {
-        if (resident) cpu.embed_ids({eb.get(), 1}, type, {w.get(), 0}, nin, rows, {tb.get(), 0}, 3);
-        else cpu.embed({eb.get(), 1}, type, {w.get(), 0}, nin, rows, tokens, 3);
+        if (resident) cpu.embed_ids({eb.get(), 1}, {type, {w.get(), 0}}, nin, rows, {tb.get(), 0}, 3);
+        else cpu.embed({eb.get(), 1}, {type, {w.get(), 0}}, nin, rows, tokens, 3);
         require(embedding.front() == 19 && embedding.back() == 19, "Q5_0 embedding crossed guards");
         for (size_t i = 0; i < 3 * nin; ++i) {
             require(bits(embedding[1 + i]) == bits(weights[tokens[i / nin] * nin + i % nin]), "Q5_0 embedding differs bitwise"); ++checked;
@@ -136,7 +136,7 @@ void ranges(backend::CpuBackend& cpu) {
             x.fill(0); x[i] = magnitude; y.fill(19);
             const double want = double(value(h, unsigned(i))) * magnitude;
             if (std::fabs(want) > std::numeric_limits<float>::max()) continue;
-            cpu.matmul(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, 32, 1, 1);
+            cpu.matmul({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, 32, 1, 1);
             const double bound = std::max(double(std::numeric_limits<float>::denorm_min()), std::fabs(want) * 2e-7);
             require(y.front() == 19 && y.back() == 19 && std::isfinite(y[1]) && std::fabs(double(y[1]) - want) <= bound,
                     "Q5_0 finite one-hot range differs from independent product"); ++checked;

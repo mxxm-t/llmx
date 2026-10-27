@@ -1,0 +1,98 @@
+{
+  "scope": "Scratch NVFP4 128-thread paired-K kernel preparation and Radeon native correctness only; not adopted in product",
+  "base_runtime": "d86fb838b3d50fb0651aa5c38a0b97423de8b315",
+  "test_overlay_revision": "7d6ba6f77",
+  "before_shader_sha256": "a95e311260343bf2e8e1950010dce01a3b60993f19e4bf57d3a2295cbe39bdc5",
+  "after_shader_sha256": "f762c40ee2e5ea85f9c5fbeecb9d2c079ca8a24acc897f30035d6977c3ab0b48",
+  "shader_patch": "--- a/src/backends/vulkan/shaders/matmul_tile.comp\n+++ b/src/backends/vulkan/shaders/matmul_tile.comp\n@@ -23,7 +23,12 @@\n #define WEIGHT_FLOAT(h) bf16_to_f32(h)\n #endif\n #endif\n-layout(local_size_x = 256) in;\n+#ifdef LLMX_NVFP4\n+#define TILE_THREADS 128u\n+#else\n+#define TILE_THREADS 256u\n+#endif\n+layout(local_size_x = TILE_THREADS) in;\n layout(constant_id = 0) const uint TILE_ROWS = 64;\n layout(constant_id = 14) const uint WEIGHT_TYPE = 0xffffffffu;\n #define TILE_COLS 64u\n@@ -89,11 +94,11 @@\n     return value;\n }\n \n-// Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; 256 threads cover one stage of TILE_ROWS rows.\n+// Rows a thread accumulates, threads sharing one W-tile row, and the values each loads; TILE_THREADS threads cover one stage of TILE_ROWS rows.\n #define THREAD_COLS (TILE_COLS / 4u)\n-#define MROWS (TILE_ROWS / (256u / THREAD_COLS))\n-#define XPR (256u / TILE_COLS)\n-#define WPR (256u / TILE_ROWS)\n+#define MROWS (TILE_ROWS / (TILE_THREADS / THREAD_COLS))\n+#define XPR (TILE_THREADS / TILE_COLS)\n+#define WPR (TILE_THREADS / TILE_ROWS)\n #ifdef LLMX_MXFP4\n #define STAGE_K 16u\n #else\n@@ -224,20 +229,24 @@\n #ifdef LLMX_NVFP4\n         if (row < p.nout) {\n             uint o = (wr * (p.nin / NVFP4_BLOCK) + k0 / NVFP4_BLOCK) * NVFP4_BYTES;\n-            uint group = wseg * (WVALS / 2u) / 8u, lane = wseg * (WVALS / 2u) % 8u;\n-            uint block_group = k0 % NVFP4_BLOCK / 16u + group;\n-            float scale = nvfp4_scale(QBYTE(o + block_group));\n             float global = wf[min(expert, uint(wf.length()) - 1u)];\n-            for (uint i = 0u; i < WVALS / 2u; i += 2u) {\n-                uint first = QBYTE(o + 4u + block_group * 8u + lane + i);\n-                uint second = QBYTE(o + 4u + block_group * 8u + lane + i + 1u);\n-                precise float low0 = nvfp4_value(scale, first & 15u) * global;\n-                precise float low1 = nvfp4_value(scale, second & 15u) * global;\n-                precise float high0 = nvfp4_value(scale, first >> 4u) * global;\n-                precise float high1 = nvfp4_value(scale, second >> 4u) * global;\n-                uint pair = (group * 16u + lane + i) / 2u;\n-                ws_pairs[wrow][pair] = vec2(low0, low1);\n-                ws_pairs[wrow][pair + 4u] = vec2(high0, high1);\n+            for (uint at = 0u; at < WVALS / 2u; at += 8u) {\n+                uint packed = wseg * (WVALS / 2u) + at;\n+                uint group = packed / 8u, lane = packed % 8u;\n+                uint block_group = k0 % NVFP4_BLOCK / 16u + group;\n+                float scale = nvfp4_scale(QBYTE(o + block_group));\n+                uint count = min(WVALS / 2u - at, 8u - lane);\n+                for (uint i = 0u; i < count; i += 2u) {\n+                    uint first = QBYTE(o + 4u + block_group * 8u + lane + i);\n+                    uint second = QBYTE(o + 4u + block_group * 8u + lane + i + 1u);\n+                    precise float low0 = nvfp4_value(scale, first & 15u) * global;\n+                    precise float low1 = nvfp4_value(scale, second & 15u) * global;\n+                    precise float high0 = nvfp4_value(scale, first >> 4u) * global;\n+                    precise float high1 = nvfp4_value(scale, second >> 4u) * global;\n+                    uint pair = (group * 16u + lane + i) / 2u;\n+                    ws_pairs[wrow][pair] = vec2(low0, low1);\n+                    ws_pairs[wrow][pair + 4u] = vec2(high0, high1);\n+                }\n             }\n         } else {\n             for (uint i = 0u; i < WVALS / 2u; ++i)\n",
+  "source_preparation_sha256": "64678228863237dc560a000e13e2032350b5438ffee05ddb00d44e270df3e9c7",
+  "source_preparation_script_sha256": "fd4034c0bb8cd7398c3598f7778361a15e12103f5799b6457cc744791d8db2ae",
+  "windows_build": {
+    "command": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-build",
+      "--config",
+      "Release",
+      "--target",
+      "llmx-nvfp4-test",
+      "--parallel",
+      "1"
+    ],
+    "exit": 0,
+    "seconds": 89.89977407455444,
+    "scope": "Experimental native-test build only, no performance comparison or GPU execution"
+  },
+  "windows_module_audit": {
+    "scope": "Windows experimental native-test build and generated-module isolation; no GPU execution or performance claim",
+    "module_count": 270,
+    "unchanged_modules": 266,
+    "changed_modules": [
+      "matmul_tile_nvfp4.inc",
+      "matmul_tile_nvfp4_bf16.inc",
+      "matmul_tile_nvfp4_bf16_preserve.inc",
+      "matmul_tile_nvfp4_preserve.inc"
+    ],
+    "experimental_local_sizes": {
+      "matmul_tile_nvfp4.inc": [
+        [
+          128,
+          1,
+          1
+        ]
+      ],
+      "matmul_tile_nvfp4_bf16.inc": [
+        [
+          128,
+          1,
+          1
+        ]
+      ],
+      "matmul_tile_nvfp4_bf16_preserve.inc": [
+        [
+          128,
+          1,
+          1
+        ]
+      ],
+      "matmul_tile_nvfp4_preserve.inc": [
+        [
+          128,
+          1,
+          1
+        ]
+      ]
+    },
+    "baseline_generated_scope": "Existing main5 Windows glslc output, previously verified byte-identical to frozen main4 generated output",
+    "test_binary": "build-nv128-preparation\\paired-source-v1\\experimental\\windows-build\\Release\\llmx-nvfp4-test.exe",
+    "test_binary_sha256": "eb019ed41e3ba3afdc0df9eb74cd8bbbd134989b616592e1e348654a6db7d49e",
+    "library_sha256": "509aedca633be9c8d2ab399ecfc9dc59c5ebcae11a4bccbee51cda631f056c3f",
+    "test_source_sha256": "51bf48cd4aaf9ce4dea28194cf9e16e0e42bee0fefd425887cec0ace1879a95c",
+    "shader_source_sha256": "f762c40ee2e5ea85f9c5fbeecb9d2c079ca8a24acc897f30035d6977c3ab0b48"
+  },
+  "native_result": {
+    "scope": "Experimental 128-thread native correctness only, desktop/video GPU activity observed; no performance comparison",
+    "command": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-build\\Release\\llmx-nvfp4-test.exe",
+      "--vulkan"
+    ],
+    "binary_sha256": "eb019ed41e3ba3afdc0df9eb74cd8bbbd134989b616592e1e348654a6db7d49e",
+    "start": 1792960246.3847618,
+    "timeout": false,
+    "pid": 70180,
+    "exit": 0,
+    "seconds": 6.549180746078491,
+    "reaped": true,
+    "log_sha256": "28d4c8e00c37134ffb4bce10ffd8b7a4600c60d251c653e9c88c36691c765b25",
+    "passed": true
+  },
+  "native_stdout": "NVFP4 Vulkan: AMD Radeon VII; row/tile timestamp witnesses present\nNVFP4 Vulkan 2049-row one-hot f32: matmul_tile_nvfp4 [ok]\nNVFP4 Vulkan 2049-row one-hot f16: matmul_tile_nvfp4 [ok]\nNVFP4 Vulkan 2049-row one-hot bf16: matmul_tile_nvfp4_bf16 [ok]\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]\n",
+  "native_stdout_matches_retained_run": true,
+  "limits": [
+    "Desktop/video GPU activity observed; native duration is not a performance comparison",
+    "No MI50 run, A/B speed result, released-model HF/depth, split or merge qualification",
+    "The product retains its 256-thread runtime; this corrected experiment retains ascending-K FMA order and uses paired-K storage",
+    "Earlier Radeon 128-thread screens remain historical measurements for their own shader variants; this result neither erases nor repeats those timing claims"
+  ],
+  "raw_directory": "build-nv128-preparation/paired-source-v1/experimental"
+}

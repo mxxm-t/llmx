@@ -1,0 +1,9 @@
+{
+  "run": 40192797722,
+  "head": "dedb69619529c1ac5a2c84071ec366d635f2eb93",
+  "branch": "gate/nvfp4-policy-controls-20261025",
+  "status_at_record": "queued",
+  "source_policy": "Frozen Radeon module/phase rules; current runtime witness has identical rules.",
+  "resources": "1 CPU, 8 GiB/no swap, 512 MiB live host floor, 3600-second deadline",
+  "candidate_comparison": false
+}

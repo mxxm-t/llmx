@@ -1,0 +1,267 @@
+{
+  "schema": "llmx-nvfp4-row-scale-removal-radeon-20261027-v1",
+  "scope": "Private shader-factor experiment. The v1 result is not full NVFP4 recovery or a landing/performance qualification.",
+  "source": {
+    "baseline_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+    "baseline_archive_sha256": "df5405608274252ff0920b32097bf346c687a8711d78f76d1ffd079e25de2759",
+    "baseline_source_manifest_sha256": "75500c7955650ca2102542ee3f150f9171636febb2365abbe257e799a915e365",
+    "files_per_arm": 3070,
+    "candidate_changed_files": [
+      {
+        "path": "src/backends/vulkan/shaders/matmul_row_one.glsl",
+        "before": "2D8F418FBA32ECBBA041352A31E1DB6AD60A590083A1D4E5A8CFF8190FDD09DD",
+        "after": "14E13D9CFD779D0AB9151A64CCDFA3C06224606BC37EB1A5B6DAF67D4A12ADCF"
+      }
+    ],
+    "candidate_tree_content_digest": "6D2742A6DD2388300AD045C0A01BAF36B874715A401295A68D7990440A2A108F"
+  },
+  "shader_modules": {
+    "count_per_arm": 313,
+    "identical": 310,
+    "changed_shared_modules": [
+      "matmul_row_float_x.inc",
+      "matmul_row_float_x_preserve.inc",
+      "matmul_row_mxfp4_float_x.inc"
+    ],
+    "dedicated_nvfp4_modules": 7,
+    "all_dedicated_nvfp4_byte_identical": true,
+    "independent_audit": {
+      "modules_verified": 313,
+      "unchanged": 310,
+      "all_seven_nvfp4_exact": true,
+      "root_scratch_shader_lf_exact": true,
+      "module_receipt_sha256": "D1F4A8577BC9BAE5D6C8748AD0DBB7FF781F659001D23078619FF70FD70C8D53"
+    }
+  },
+  "output_identity": {
+    "cases": 137,
+    "f32_values_per_arm": 13630848,
+    "strict_raw_byte_identical_cases": 137,
+    "all_kernel_and_matrix_path_witnesses_present": true,
+    "cpu_reference_checked_cases": 44,
+    "cpu_reference_nonzero_differences": 0,
+    "signed_zero_only_nonexact_reference_cases": [
+      "embed_Q6_K",
+      "embed_Q8_0",
+      "embed_ids_Q6_K",
+      "embed_ids_Q8_0"
+    ],
+    "raw_files_rehashed_and_byte_compared": 137,
+    "raw_case_hashes_aggregate_sha256": "036BBC4F061C5E6D94DB4F30E7CABE44B6A44EAA528B794B698D5FD290A070F7",
+    "outputs_manifest_sha256": {
+      "main": "4EBA4EC906F93C9E0FD04BAE059E9BB2D93824AC419B9A4598D3865886FE142E",
+      "candidate": "DA3A5BCA239DA755277A6FB9B95704D0EF26FAED97BCBDC39228A4FA7530514E"
+    },
+    "run_json_sha256": "6C6C7196F97F82EDFECBF71ECAF816C07140807D2C26FB4798023A613F90845B",
+    "comparison_json_sha256": "051E671265902A9D2EE64C8562C24B9DF0030A791DFC4D1191938D5F1D8C6256",
+    "root_audit_json_sha256": "104E59922FCA5BF2D2AC74D47AD6F4E62749529FDDD03DCFB000B10A1A32789D",
+    "binary_harness_plan_pins": {
+      "main_exe": "A4E12EDE29F4ED3545928D80358C00FAC1FEDF92433DEAB7302E62EA54D39A82",
+      "candidate_exe": "1A4E7F131DBEB9D604D84040E865310EF16AE467025F287C9FBCF86AED15E0EA",
+      "main_lib": "43E2F34E864FE4311687EC7DC22D354DE12D06FB654E700D50F0606034FBB872",
+      "candidate_lib": "E114E34086813016D6E4AA3A018777314E79D44324C9296F9B18CBF189A87C4C",
+      "source": "43C2E917FC7DC2CB582D66B32B59769B3CE86B5EC2B5BF1D12B000150EC35F8A",
+      "comparer": "81378F54D51CA22D5DDA82F70CD215CEF98C8D0E471303416310F3BFEC953B4B",
+      "plan": "EC2E03F95E14B10C1947E844A4C8F914DCFEA1A06D635E5EE675AF24E86296EA"
+    }
+  },
+  "timing": {
+    "device": "Radeon VII, Windows Vulkan, isolated operator harness",
+    "design": "Eight interleaved calls, ABBA then BAAB. Each call has 512 timed samples per family. Four warm calls per case and arm. All samples retained.",
+    "families": {
+      "q8_0_f32_one_column": {
+        "kernel": "matmul_row_float_x_1col",
+        "arms": {
+          "main": {
+            "n": 2048,
+            "mean_ms": 0.07608140625,
+            "median_ms": 0.07392,
+            "min_ms": 0.07328,
+            "max_ms": 0.31488,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.07599015625,
+                "median_ms": 0.07392
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.07617265625,
+                "median_ms": 0.07392
+              }
+            }
+          },
+          "candidate": {
+            "n": 2048,
+            "mean_ms": 0.079417890625,
+            "median_ms": 0.0768,
+            "min_ms": 0.07584,
+            "max_ms": 0.31696,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.07913218749999999,
+                "median_ms": 0.0768
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.07970359375,
+                "median_ms": 0.0768
+              }
+            }
+          }
+        },
+        "candidate_over_main_ratio": 1.043854136502636,
+        "candidate_delta_percent": 4.385413650263592
+      },
+      "mxfp4_f32_one_column": {
+        "kernel": "matmul_row_mxfp4_float_x_1col",
+        "arms": {
+          "main": {
+            "n": 2048,
+            "mean_ms": 0.054694609375,
+            "median_ms": 0.05312,
+            "min_ms": 0.05248,
+            "max_ms": 0.27872,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.05413578125,
+                "median_ms": 0.05312
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.0552534375,
+                "median_ms": 0.05312
+              }
+            }
+          },
+          "candidate": {
+            "n": 2048,
+            "mean_ms": 0.054861796875,
+            "median_ms": 0.05328,
+            "min_ms": 0.05232,
+            "max_ms": 0.27728,
+            "blocks": {
+              "ABBA": {
+                "n": 1024,
+                "mean_ms": 0.05523421875,
+                "median_ms": 0.05328
+              },
+              "BAAB": {
+                "n": 1024,
+                "mean_ms": 0.054489375,
+                "median_ms": 0.05328
+              }
+            }
+          }
+        },
+        "candidate_over_main_ratio": 1.0030567454802304,
+        "candidate_delta_percent": 0.3056745480230383
+      }
+    },
+    "timed_event_rows": 8192,
+    "rows_per_call": 1024,
+    "invocations": [
+      {
+        "index": 1,
+        "arm": "main",
+        "block": "ABBA-1",
+        "event_rows": 1024,
+        "timings_sha256": "F08CD80B8BB326A8FFFF0C951BFFFDF4487E1C1222871D159BCE61502F914DA5",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 2,
+        "arm": "candidate",
+        "block": "ABBA-2",
+        "event_rows": 1024,
+        "timings_sha256": "3242D85FAA2F2AE46467F369040E56E1256D2DCF6BFB937F53ACD9548A02E9B1",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 3,
+        "arm": "candidate",
+        "block": "ABBA-3",
+        "event_rows": 1024,
+        "timings_sha256": "BE5EFAA837602C6375496FE6997635FD42D4D132B258EB81B42913D2F5F042C4",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 4,
+        "arm": "main",
+        "block": "ABBA-4",
+        "event_rows": 1024,
+        "timings_sha256": "D8C85BB279073DFB06923439E5516D79A370B1C4B7680023F94ACE41E65946F4",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 5,
+        "arm": "candidate",
+        "block": "BAAB-1",
+        "event_rows": 1024,
+        "timings_sha256": "5FE17CFF2D928EF699F851AF78C5EBB553117CDD07CC8BE5DEC9B28D8B2545E0",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 6,
+        "arm": "main",
+        "block": "BAAB-2",
+        "event_rows": 1024,
+        "timings_sha256": "3993F1DEC1E1EF1413934F37C7CDEBF0C497ACB26E555CC00FE35292451B4BD1",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 7,
+        "arm": "main",
+        "block": "BAAB-3",
+        "event_rows": 1024,
+        "timings_sha256": "6ADE552D77C003033A72559C29E02035935B386D1B46557DA37DACF8CBB27A88",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      },
+      {
+        "index": 8,
+        "arm": "candidate",
+        "block": "BAAB-4",
+        "event_rows": 1024,
+        "timings_sha256": "089DA0B32D641E5EA20B20A144BA4CCA67E2DC2ED198072FAEA79CAE35374338",
+        "stdout_sha256": "23BB660E2BD698E628A0F772F29C6A841B102CA42BF498FD11B7D182357459F7",
+        "stderr_sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+      }
+    ],
+    "activity": {
+      "samples": 2,
+      "errors": 0,
+      "samples_by_state_at_start": {
+        "main": 0,
+        "candidate": 1
+      },
+      "target_met_each_arm": false,
+      "limitation": "The initial sample collection finished before invocation1. The second collection started in candidate invocation2 and ended after invocation8; its counter queries span all intervening arm invocations, so the start-state candidate tag is not a full-sample arm attribution. There are no independent monitor samples for later arms; activity for the intervals between collections remains unknown."
+    },
+    "timing_analysis_sha256": "BE81E10F838016EAA0B7294FD4ACF2D7BB3ACE6707C3527874509446CA41E117",
+    "timing_run_sha256": "0EE772576733A0F499A5D5BE2827E5559A7F5A123977FB7531AE5B4239F4761D",
+    "binary_harness_monitor_plan_pins": {
+      "main_exe": "922B20623F471624AFC8EFE5D65BB9F0966BEE3E075FD3D7D73DAC3E331D3987",
+      "candidate_exe": "AD9730DB97331E03BC83BD372658A46AE16DCEAD775B03B90447496F75EFC48B",
+      "main_lib": "43E2F34E864FE4311687EC7DC22D354DE12D06FB654E700D50F0606034FBB872",
+      "candidate_lib": "E114E34086813016D6E4AA3A018777314E79D44324C9296F9B18CBF189A87C4C",
+      "source": "F2604DF9613C0256CC58B46E4A911114A00FB3AD90197B08D58B2D81DD80AE21",
+      "monitor": "FA36CFA8DE7BCB3DB5CB36959F212A57EEEDAE876ACC33F6A695053BF35579B3",
+      "plan": "9B1ED896032532F4158E16C402490BBE185DA8E7BE4F66F752D3EE9B22EF06B9"
+    }
+  },
+  "interpretation": "All 137 output arrays remained byte-identical, and the seven dedicated NVFP4 shader modules remained unchanged. In these one-column operator measurements Q8_0 was slower in both order blocks (+4.13% ABBA, +4.64% BAAB). MXFP4 was slower in ABBA (+2.03%) and faster in BAAB (-1.38%). Coarse activity monitoring does not support attribution. The shared helper change alone did not establish full NVFP4 performance recovery. A separate follow-up with three NVFP4 decode branch guards in q.glsl/qdecode is under development and is not covered by this receipt.",
+  "limitations": [
+    "Operator timings are not end-to-end model performance.",
+    "Only two activity samples were collected. The second spans candidate invocation 2 through invocation 8 and cannot be attributed to a single arm; later intervals are unobserved.",
+    "No MI50 result or performance gate is claimed."
+  ]
+}

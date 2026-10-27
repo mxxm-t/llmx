@@ -217,7 +217,7 @@ size_t embeddings(backend::Backend& b) {
     auto weights = b.adopt(packed.data(), packed.size());
     auto output = b.alloc(initial.size() * sizeof(float));
     b.write(*output, 0, initial.data(), initial.size() * sizeof(float));
-    b.embed({output.get(), 1}, 22, {weights.get(), 1}, width, rows, ids.data(), rows);
+    b.embed({output.get(), 1}, {22, {weights.get(), 1}}, width, rows, ids.data(), rows);
     auto got = read(b, *output, initial.size());
     require(got.front() == initial.front() && got.back() == initial.back(), "embedding output guards");
     for (size_t row = 0; row < rows; ++row)
@@ -226,7 +226,7 @@ size_t embeddings(backend::Backend& b) {
     const uint32_t selected[] = {1024, 1025, 1027, 0, 0, uint32_t(rows), UINT32_MAX};
     auto id_buffer = b.adopt(selected, sizeof selected);
     b.write(*output, 0, initial.data(), initial.size() * sizeof(float));
-    b.embed_ids({output.get(), 1}, 22, {weights.get(), 1}, width, rows, {id_buffer.get(), 0}, 7);
+    b.embed_ids({output.get(), 1}, {22, {weights.get(), 1}}, width, rows, {id_buffer.get(), 0}, 7);
     got = read(b, *output, initial.size());
     for (size_t i = 0; i < got.size(); ++i) {
         uint32_t want = bits(initial[i]);
@@ -239,7 +239,7 @@ size_t embeddings(backend::Backend& b) {
     }
     const uint32_t invalid = uint32_t(rows);
     bool refused = false;
-    try { b.embed({output.get(), 1}, 22, {weights.get(), 1}, width, rows, &invalid, 1); }
+    try { b.embed({output.get(), 1}, {22, {weights.get(), 1}}, width, rows, &invalid, 1); }
     catch (const std::runtime_error&) { refused = true; }
     require(refused, "host embedding accepted invalid ID");
     const auto after_invalid = read(b, *output, initial.size());
@@ -298,12 +298,12 @@ size_t products(backend::Backend& b, size_t width, size_t rows, size_t cols, boo
                 const backend::CSlice w{weights.get(), 1}, in{x.get(), 1};
                 const backend::Slice out{output.get(), 1};
                 switch (op) {
-                case 0: b.matmul(22, w, in, out, width, rows, cols, runs, dtype); break;
-                case 1: b.matmul_logits(22, w, in, out, width, rows, cols, runs, dtype); break;
-                case 2: b.matmul_group({{22, w, out, rows}, {22, w, {output.get(), count + 1}, rows}}, in, width, cols, runs, dtype); break;
-                case 3: b.matmul_add(22, w, in, out, width, rows, cols, runs, dtype); break;
-                case 4: b.matmul_experts({{22, w, out, rows}}, in, width, cols, routing, runs, dtype); break;
-                case 5: b.matmul_experts_add(22, w, in, out, width, rows, cols, routing, runs, dtype); break;
+                case 0: b.matmul({22, w}, in, out, width, rows, cols, runs, dtype); break;
+                case 1: b.matmul_logits({22, w}, in, out, width, rows, cols, runs, dtype); break;
+                case 2: b.matmul_group({{{22, w}, out, rows}, {{22, w}, {output.get(), count + 1}, rows}}, in, width, cols, runs, dtype); break;
+                case 3: b.matmul_add({22, w}, in, out, width, rows, cols, runs, dtype); break;
+                case 4: b.matmul_experts({{{22, w}, out, rows}}, in, width, cols, routing, runs, dtype); break;
+                case 5: b.matmul_experts_add({22, w}, in, out, width, rows, cols, routing, runs, dtype); break;
                 }
                 const auto got = read(b, *output, initial.size());
                 require(paths(b) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"}, "requested dtype matrix witness");
@@ -373,7 +373,7 @@ size_t precision_products(backend::Backend& b) {
             const bool integer = integer_path(b, dtype, extent);
             const backend::RowRun run{1, extent};
             paths(b);
-            b.matmul(22, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
+            b.matmul({22, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
             const auto got = read(b, *out, 3);
             require(paths(b) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"}, "precision witness");
             if (integer) ++integer_calls;
@@ -410,7 +410,7 @@ size_t range_products(backend::Backend& b) {
                 const bool integer = integer_path(b, dtype, extent);
                 const backend::RowRun run{1, extent};
                 paths(b);
-                b.matmul(22, {w.get(), 0}, {x.get(), 1}, {out.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
+                b.matmul({22, {w.get(), 0}}, {x.get(), 1}, {out.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
                 const auto got = read(b, *out, 3);
                 require(paths(b) == std::vector<std::string>{integer ? "block-int16" : "f32"}, "range witness");
                 if (integer) ++integer_calls;
@@ -440,7 +440,7 @@ size_t tall_tile_control(backend::Backend& b) {
     const auto out = b.adopt(initial.data(), initial.size() * sizeof(float));
     const backend::RowRun run{cols, 16384};
     paths(b);
-    b.matmul(22, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, {&run, 1}, backend::Dtype::f16);
+    b.matmul({22, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, {&run, 1}, backend::Dtype::f16);
     const auto got = read(b, *out, initial.size());
     const bool integer = integer_path(b, backend::Dtype::f16, 16384);
     require(paths(b) == std::vector<std::string>{integer ? "block-int16" : "f32"}, "tall tile witness");

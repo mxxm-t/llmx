@@ -1,0 +1,86 @@
+{
+  "schema": "nvfp4-common-policy-integration-v1",
+  "scope": "Fresh Windows main-f61 feature integration of the measured common float split policy. Focused build/native checks, not final landing qualification.",
+  "build": {
+    "passed": true,
+    "started_unix": 1793041616.9021466,
+    "commands": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\common-policy-cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\common-policy-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-backend-vulkan-test",
+          "llmx-nvfp4-test"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "binaries": {
+      "llmx.exe": "307754f1a561ec634056e6f3964a6d59e9c39f492d3bbc6eef80175a3f749e8b",
+      "llmx-backend-vulkan-test.exe": "14c4bb1c8e9b3720516f0de1497ddba50d9f2197c857c4ee0edb73e01e70e506",
+      "llmx-nvfp4-test.exe": "b318a676ae817b3f51d2094a1538ead01962ef5f7ebb1bf289d83d62030ece1f"
+    },
+    "version": "llmx 0.1.0+g2473f6b49b34.dirty numerics 2231ef07fd09195d",
+    "ended_unix": 1793041728.7054248
+  },
+  "source_pins": {
+    "src/backends/device_profile.hpp": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888",
+    "src/backends/vulkan/vulkan_matmul.hpp": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4",
+    "tests/common_float_split.hpp": "5197c22d101cea8684199e8a8c57c4045f86ecbf7620dc6894ef9a09c7bff599",
+    "tests/backend_vulkan.cpp": "ccbdbaf48d517825b6dfab026afafb7adf0a1a24624b9b889314ed6a2bd393f8"
+  },
+  "logs": {
+    "build-integration/common-policy-build-v1/0.log": "62c4eefc8fa18f3656d508f5e14ec0c3d538c9377b7099edb0c0067f7a643775",
+    "build-integration/common-policy-build-v1/1.log": "6d19e4331d8ccb9001cef9f494905d2d00eaa634e7e7cdeb93df1aab0416472d",
+    "build-integration/common-policy-cmake/Testing/Temporary/LastTest.log": "853c6ef9a67ef6d023f1f4e18a1eefbaed021723e8a8a263a05bccc5b0f5e249",
+    "build-integration/common-policy-build-v1/availability.jsonl": "00dd8993e5e7e0559e246377a03376a533d5526bdc8c5d5b871ac01c75c54941"
+  },
+  "shader_modules_identical": 305,
+  "native": {
+    "backend-vulkan": {
+      "passed": true,
+      "seconds": 80.17,
+      "wide_row_class_cases": 30,
+      "wide_row_class_pairs": 3750,
+      "wide_exact_p128_cases": 30
+    },
+    "nvfp4-vulkan": {
+      "passed": true,
+      "seconds": 4.73
+    }
+  },
+  "availability": {
+    "compute_engine_observations": 192,
+    "maximum_compute_percent": 0.0,
+    "scope": "Two-second preflight, not a performance measurement"
+  },
+  "code_review": "One selected height is reused for fill and dispatch. Profile defaults retain divisor4/target4, MI50 uses divisor1/target2. Whole-prompt splitting and BF16 partial-sum cap remain. New test helper uses independent encoded weights, nondyadic row-class controls, exact dyadic double oracles and output guards reset per dtype.",
+  "prior_measured_candidate": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+  "prior_measurement_scope": "MI50 scratch results remain on their original binary, with current integrated Linux and affected existing-format checks still required.",
+  "next": [
+    "Reconcile docs-only main92b4cbba2",
+    "Existing-format identity/HF and matched timing against main for affected float paths",
+    "Integrated MI50 and remaining device/model checks",
+    "Applicable hosted landing run"
+  ]
+}

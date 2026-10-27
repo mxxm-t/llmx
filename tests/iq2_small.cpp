@@ -319,7 +319,7 @@ void check_backend(backend::Backend& backend, const Format& format) {
     auto embedding = backend.alloc((4 * width + 2) * sizeof(float));
     std::vector<float> embedding_guard(4 * width + 2, 99.0f);
     backend.write(*embedding, 0, embedding_guard.data(), embedding_guard.size() * sizeof(float));
-    backend.embed_ids({embedding.get(), 1}, format.id, {weight_buffer.get(), 0}, width, rows,
+    backend.embed_ids({embedding.get(), 1}, {format.id, {weight_buffer.get(), 0}}, width, rows,
                       {id_buffer.get(), 0}, 4);
     auto actual = read(backend, *embedding, embedding_guard.size());
     require(actual.front() == 99.0f && actual.back() == 99.0f, "embedding crossed output guards");
@@ -347,7 +347,7 @@ void check_backend(backend::Backend& backend, const Format& format) {
             std::fill(output_guard.begin(), output_guard.end(), 77.0f);
             backend.write(*output, 0, output_guard.data(), output_guard.size() * sizeof(float));
             (void)take_matrix_paths(backend);
-            backend.matmul(format.id, {weight_buffer.get(), 0}, {input_buffer.get(), 0},
+            backend.matmul({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                            {output.get(), 1}, width, rows, columns, {&run, 1}, dtype);
             actual = read(backend, *output, output_guard.size());
             const auto paths = take_matrix_paths(backend);
@@ -389,8 +389,8 @@ void check_backend(backend::Backend& backend, const Format& format) {
     std::vector<float> grouped_guard(2 * count + 2, 0.0f);
     grouped_guard.front() = grouped_guard.back() = 81.0f;
     backend.write(*grouped, 0, grouped_guard.data(), grouped_guard.size() * sizeof(float));
-    backend.matmul_group({{format.id, {weight_buffer.get(), 0}, {grouped.get(), 1}, rows},
-                          {format.id, {weight_buffer.get(), 0}, {grouped.get(), count + 1}, rows}},
+    backend.matmul_group({{{format.id, {weight_buffer.get(), 0}}, {grouped.get(), 1}, rows},
+                          {{format.id, {weight_buffer.get(), 0}}, {grouped.get(), count + 1}, rows}},
                          {input_buffer.get(), 0}, width, columns, {&run, 1}, backend::Dtype::f32);
     actual = read(backend, *grouped, grouped_guard.size());
     require(actual.front() == 81.0f && actual.back() == 81.0f, "grouped call crossed guards");
@@ -403,7 +403,7 @@ void check_backend(backend::Backend& backend, const Format& format) {
     std::vector<float> residual_guard(count + 2, 0.25f);
     residual_guard.front() = residual_guard.back() = 81.0f;
     backend.write(*residual, 0, residual_guard.data(), residual_guard.size() * sizeof(float));
-    backend.matmul_add(format.id, {weight_buffer.get(), 0}, {input_buffer.get(), 0},
+    backend.matmul_add({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                        {residual.get(), 1}, width, rows, columns, {&run, 1}, backend::Dtype::f32);
     actual = read(backend, *residual, residual_guard.size());
     require(actual.front() == 81.0f && actual.back() == 81.0f, "residual call crossed guards");
@@ -419,7 +419,7 @@ void check_backend(backend::Backend& backend, const Format& format) {
     std::vector<float> routed_guard(count + 2, 0.0f);
     routed_guard.front() = routed_guard.back() = 83.0f;
     backend.write(*routed, 0, routed_guard.data(), routed_guard.size() * sizeof(float));
-    backend.matmul_experts({{format.id, {weight_buffer.get(), 0}, {routed.get(), 1}, rows}},
+    backend.matmul_experts({{{format.id, {weight_buffer.get(), 0}}, {routed.get(), 1}, rows}},
                            {input_buffer.get(), 0}, width, columns, routing, {&run, 1}, backend::Dtype::f32);
     actual = read(backend, *routed, routed_guard.size());
     require(actual.front() == 83.0f && actual.back() == 83.0f, "routed call crossed guards");
@@ -429,7 +429,7 @@ void check_backend(backend::Backend& backend, const Format& format) {
     std::fill(routed_guard.begin(), routed_guard.end(), 0.25f);
     routed_guard.front() = routed_guard.back() = 83.0f;
     backend.write(*routed, 0, routed_guard.data(), routed_guard.size() * sizeof(float));
-    backend.matmul_experts_add(format.id, {weight_buffer.get(), 0}, {input_buffer.get(), 0},
+    backend.matmul_experts_add({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                                {routed.get(), 1}, width, rows, columns, routing, {&run, 1}, backend::Dtype::f32);
     actual = read(backend, *routed, routed_guard.size());
     require(actual.front() == 83.0f && actual.back() == 83.0f, "routed residual crossed guards");
@@ -495,7 +495,7 @@ size_t check_range(backend::Backend& backend, const Format& format) {
                         const bool integer = integer_path(backend, dtype, extent);
                         const backend::RowRun run{1, extent};
                         (void)take_matrix_paths(backend);
-                        backend.matmul(format.id, {weight_buffer.get(), 0}, {input_buffer.get(), 0},
+                        backend.matmul({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                                        {output.get(), 1}, width, 1, 1, {&run, 1}, dtype);
                         const auto actual = read(backend, *output, 3);
                         const auto paths = take_matrix_paths(backend);
@@ -579,7 +579,7 @@ size_t check_tile_threshold(backend::Backend& device, const Format& format) {
             device.write(*output, 0, guard.data(), guard.size() * sizeof(float));
             (void)backend::vulkan_kernel_times(device);
             (void)take_matrix_paths(device);
-            device.matmul(format.id, {weight_buffer.get(), 0}, {input_buffer.get(), 0},
+            device.matmul({format.id, {weight_buffer.get(), 0}}, {input_buffer.get(), 0},
                           {output.get(), 1}, width, rows, columns, {&run, 1}, dtype);
             const auto actual = read(device, *output, guard.size());
             require(actual.front() == 77.0f && actual.back() == 77.0f,

@@ -1,0 +1,457 @@
+{
+  "schema": "nvfp4-common-float-split-screen-20261026-v1",
+  "scope": "Isolated common float-tile split policy development screen. Not adopted into tracked runtime; not final HF/depth, mx, or landing qualification.",
+  "base_runtime": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+  "integration_source": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+  "review": "F2DEV 30d17d2ff496 approves common experiment with actual-height, whole-prompt, affected-family and row-class conditions.",
+  "source": {
+    "scope": "Prepared isolated common float split candidate. Not built, run, adopted or qualified.",
+    "base_integration": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+    "files": {
+      "src/backends/device_profile.hpp": {
+        "baseline_normalized_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+        "candidate_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888"
+      },
+      "src/backends/vulkan/vulkan_matmul.hpp": {
+        "baseline_normalized_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3",
+        "candidate_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4"
+      }
+    },
+    "policy": "Use the actual selected height and whole-prompt tile count for both fill and dispatch. MI50/RADV fill divisor 1, target 2 workgroups per CU. Other profiles retain divisor/target 4.",
+    "arithmetic": "Partial sum association may change for every affected float-tile type. Existing bounds fixed.",
+    "required": [
+      "Review the shared policy",
+      "Focused operator and range checks including existing float types",
+      "Short timing including total reduction time",
+      "Row-class batching invariance at changed shapes",
+      "Affected HF and raw/chat depth",
+      "Matched candidate/main/mx timing"
+    ],
+    "limits": "The preceding three-part NVFP4-only experiment does not qualify this four-part common rule."
+  },
+  "source_patch": [
+    "--- src/backends/device_profile.hpp",
+    "+++ src/backends/device_profile.hpp",
+    "@@ -54,8 +54,8 @@",
+    "     size_t attention_split_chunk = 32, attention_split_max = 64, attention_split_max_wide = 64;",
+    "     // Workgroups per compute unit below which the integer-dot tile splits a call's inner dimension, for rows at least tile_narrow_nin wide and narrower, and the fewest quant blocks of 32 a part may sum.",
+    "     uint32_t tile_split_per_cu = 8, tile_split_per_cu_narrow = 4, tile_split_min_blocks = 8;",
+    "-    // The float tile's target when it splits, which only a call of a quarter of a workgroup per compute unit or fewer does, such as a router's.",
+    "-    uint32_t float_tile_split_per_cu = 4;",
+    "+    // Split a float tile below this fraction of a workgroup per compute unit, then aim for the target workgroups per compute unit.",
+    "+    uint32_t float_tile_split_fill_divisor = 4, float_tile_split_per_cu = 4;",
+    "     // Workgroups per compute unit the tallest tile must yield before a call takes it, for rows at least tile_narrow_nin wide and narrower: fewer leave too few waves per SIMD to hide the loads.",
+    "     uint32_t tile_tall_per_cu = 1, tile_tall_per_cu_narrow = 1;",
+    "     // Complete groups from which the indexer's selection takes its wide form, where the two forms cross; both give the same ids (docs/VULKAN.md).",
+    "@@ -97,6 +97,8 @@",
+    "              p.q8_decode_one_row_below_16bit = 1280;",
+    "          }},",
+    "         {\"MI60 / MI50\", \"radv\", [](DeviceProfile& p) {",
+    "+             p.float_tile_split_fill_divisor = 1;",
+    "+             p.float_tile_split_per_cu = 2;",
+    "              p.tile_from_8bit = 16;",
+    "              p.tile_from_8bit_narrow = 32;",
+    "              p.tile_from_other = 24;",
+    "--- src/backends/vulkan/vulkan_matmul.hpp",
+    "+++ src/backends/vulkan/vulkan_matmul.hpp",
+    "@@ -153,18 +153,14 @@",
+    "             if (integer(pr)) continue;",
+    "             // Split as the integer-dot tile is, by the rows' whole prompt (matmul_runs), so a projection of few rows, such as a router's, still fills the device.",
+    "             const size_t st = split_tiles ? split_tiles : gy;",
+    "-            const uint32_t hs = tile_rows_for(dev_->caps, dev_->profile, kTileRowsSmall, kTileRowsShort, kTileRowsTall, pr->rows, st, nin);",
+    "+            const uint32_t height = float_tile_rows_for(dev_->caps, dev_->profile, pr->weight.type, pr->rows, st, nin);",
+    "             const size_t steps = (nin + 31) / 32;   // an F32 row's last step may be partial",
+    "-            // Split only below a quarter of a workgroup per compute unit to limit reduction overhead (docs/VULKAN.md).",
+    "-            const size_t fwg = groups(pr->rows, hs) * st;",
+    "-            const bool starved = fwg * 4 < dev_->caps.compute_units;",
+    "-            const size_t base_kper = starved ? split_blocks(groups(pr->rows, kTileRowsSmall) * st, steps, dev_->profile.float_tile_split_per_cu) : steps;",
+    "+            const size_t fwg = groups(pr->rows, height) * st;",
+    "+            const bool starved = fwg * dev_->profile.float_tile_split_fill_divisor < dev_->caps.compute_units;",
+    "+            const size_t base_kper = starved ? split_blocks(fwg, steps, dev_->profile.float_tile_split_per_cu) : steps;",
+    "             // Shorter F32 sums keep the BF16 depth agreement; retain a finer split chosen for occupancy.",
+    "             const size_t kper = dtype == Dtype::bf16 ? std::min(base_kper, (steps + 3) / 4) : base_kper;",
+    "             const size_t parts = (steps + kper - 1) / kper;",
+    "-            // A taller tile reads less shared memory per product but halves the workgroups; below one per compute unit the call takes a shorter one, and a starved call the shortest, for the most workgroups.",
+    "-            const uint32_t height = starved ? kTileRowsSmall",
+    "-                                            : float_tile_rows_for(dev_->caps, dev_->profile, pr->weight.type, pr->rows, gy, nin);",
+    "             const bool tall = height == kTileRowsTall;",
+    "             const VkDescriptorBufferInfo wf = padded_f32(pr->weight.data, pr->weight.type, pr->rows, nin);",
+    "             const size_t wstride = wf.buffer == bind(pr->weight.data).buffer ? nin : nin + kF32Pad;"
+  ],
+  "build": {
+    "running": false,
+    "result": {
+      "scope": "Common float-tile split policy isolated build only",
+      "passed": true,
+      "started_unix": 1793037094.2476149,
+      "steps": [
+        {
+          "command": [
+            "cmake",
+            "--build",
+            "/work/candidate/build",
+            "--parallel",
+            "1",
+            "--target",
+            "llmx-vulkan",
+            "llmx",
+            "llmx-nvfp4-test"
+          ],
+          "exit_code": 0
+        },
+        {
+          "command": [
+            "c++",
+            "-std=c++17",
+            "-O3",
+            "-DNDEBUG",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I/work/candidate/build/generated",
+            "-I/work/candidate/source/src",
+            "/work/probe.cpp",
+            "/work/candidate/build/libllmx-vulkan.a",
+            "-ldl",
+            "-pthread",
+            "-o",
+            "/work/probe"
+          ],
+          "exit_code": 0
+        }
+      ],
+      "source_files": {
+        "src/backends/device_profile.hpp": {
+          "baseline_normalized_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+          "candidate_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888"
+        },
+        "src/backends/vulkan/vulkan_matmul.hpp": {
+          "baseline_normalized_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3",
+          "candidate_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4"
+        }
+      },
+      "binaries": {
+        "probe": "73f77fc7c2d6ac6706ef1897dde6a1652acac335c9aeda62ded8b741f4c65f94",
+        "llmx": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+        "nvfp4_test": "5d9ef70cdf499b657723bde237c518f0bd8d199b157c042b42dd178af4159cc9",
+        "library": "8554ce8f2fd8bd9d5adc431f5e41c13a7165c86766a884a5ead2d26660fd1f05"
+      },
+      "shader_modules_identical": true,
+      "probe_source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+      "ended_unix": 1793037210.8144312
+    },
+    "receipt_sha256": "3dd86d19b7a391d09ab2eae0ab764363336e471f1132c9e58c4f24a1d89e33bb",
+    "source_manifest_sha256": "b61da6b5af1945c16328585ed64e80cb90fc073b33ed41eae16577a7d9a3f309",
+    "preparation": {
+      "scope": "Prepared isolated common float split candidate. Not built, run, adopted or qualified.",
+      "base_integration": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+      "files": {
+        "src/backends/device_profile.hpp": {
+          "baseline_normalized_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+          "candidate_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888"
+        },
+        "src/backends/vulkan/vulkan_matmul.hpp": {
+          "baseline_normalized_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3",
+          "candidate_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4"
+        }
+      },
+      "policy": "Use the actual selected height and whole-prompt tile count for both fill and dispatch. MI50/RADV fill divisor 1, target 2 workgroups per CU. Other profiles retain divisor/target 4.",
+      "arithmetic": "Partial sum association may change for every affected float-tile type. Existing bounds fixed.",
+      "required": [
+        "Review the shared policy",
+        "Focused operator and range checks including existing float types",
+        "Short timing including total reduction time",
+        "Row-class batching invariance at changed shapes",
+        "Affected HF and raw/chat depth",
+        "Matched candidate/main/mx timing"
+      ],
+      "limits": "The preceding three-part NVFP4-only experiment does not qualify this four-part common rule."
+    },
+    "container_removed": true,
+    "local_preparation_sha256": "9b9a93bbc76bd6531328b045b4394b6c4c369740d5bc328d02372fe422fe3a1d",
+    "manifest_serialization_note": "Local Windows and remote Linux newline bytes differ; parsed complete preparation objects and source hashes agree. Both byte hashes retained."
+  },
+  "versions": {
+    "baseline": "llmx 0.1.0+unknown numerics 153417f7b2f6f5d2",
+    "candidate": "llmx 0.1.0+unknown numerics 3bc154ef08f9e21b"
+  },
+  "binary_pins": {
+    "baseline": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+    "candidate": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784"
+  },
+  "device": "MI50 physical 8, renderD130, PCI 0000:c9:00.0, default auto performance level",
+  "operator": {
+    "matrix": [
+      {
+        "width_rows_columns": [
+          1024,
+          3584,
+          128
+        ],
+        "device": {
+          "baseline_ms": 0.534536,
+          "candidate_ms": 0.560416,
+          "time_change_percent": 4.841582232066699
+        },
+        "host": {
+          "baseline_ms": 0.651134875,
+          "candidate_ms": 0.75566475,
+          "time_change_percent": 16.053490453878695
+        }
+      },
+      {
+        "width_rows_columns": [
+          2048,
+          1024,
+          128
+        ],
+        "device": {
+          "baseline_ms": 0.58178,
+          "candidate_ms": 0.315068,
+          "time_change_percent": -45.84413352126233
+        },
+        "host": {
+          "baseline_ms": 0.896747675,
+          "candidate_ms": 0.442212875,
+          "time_change_percent": -50.68703412027246
+        }
+      },
+      {
+        "width_rows_columns": [
+          2048,
+          1024,
+          512
+        ],
+        "device": {
+          "baseline_ms": 0.932492,
+          "candidate_ms": 0.94794,
+          "time_change_percent": 1.656636196342709
+        },
+        "host": {
+          "baseline_ms": 1.04492615,
+          "candidate_ms": 1.0694728,
+          "time_change_percent": 2.349127735007883
+        }
+      },
+      {
+        "width_rows_columns": [
+          3584,
+          1024,
+          128
+        ],
+        "device": {
+          "baseline_ms": 0.824124,
+          "candidate_ms": 0.46504,
+          "time_change_percent": -43.571598448777124
+        },
+        "host": {
+          "baseline_ms": 0.95409715,
+          "candidate_ms": 0.6908466,
+          "time_change_percent": -27.591587502383796
+        }
+      },
+      {
+        "width_rows_columns": [
+          3584,
+          1024,
+          512
+        ],
+        "device": {
+          "baseline_ms": 1.1950560000000001,
+          "candidate_ms": 1.26928,
+          "time_change_percent": 6.210922333346702
+        },
+        "host": {
+          "baseline_ms": 1.3176507499999999,
+          "candidate_ms": 1.4761042500000001,
+          "time_change_percent": 12.025455151905785
+        }
+      }
+    ],
+    "calls": 20,
+    "verified_artifacts": 85,
+    "all_calls_monitor_coverage_complete": true,
+    "flagged_calls": {
+      "other_gpu": 0,
+      "unrelated_cpu": 20,
+      "disk": 20,
+      "gap": 0
+    },
+    "activity_samples": 27,
+    "thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "unrelated_cpu_cores": 1,
+      "sample_gap_seconds": 3
+    },
+    "monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "model": {
+    "matrix": [
+      {
+        "prompt": 128,
+        "phase": "pp",
+        "baseline": 2872.3050000000003,
+        "candidate": 3580.145,
+        "change_percent": 24.643622456528803
+      },
+      {
+        "prompt": 128,
+        "phase": "tg",
+        "baseline": 233.015,
+        "candidate": 231.62,
+        "change_percent": -0.5986739051134005
+      },
+      {
+        "prompt": 4096,
+        "phase": "pp",
+        "baseline": 4162.375,
+        "candidate": 4159.635,
+        "change_percent": -0.06582780263670873
+      },
+      {
+        "prompt": 4096,
+        "phase": "tg",
+        "baseline": 236.21499999999997,
+        "candidate": 231.62,
+        "change_percent": -1.9452617318967746
+      }
+    ],
+    "calls": 8,
+    "verified_artifacts": 23,
+    "all_calls_monitor_coverage_complete": true,
+    "flagged_calls": {
+      "other_gpu": 7,
+      "unrelated_cpu": 8,
+      "disk": 8,
+      "gap": 0
+    },
+    "activity_samples": 44,
+    "thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "unrelated_cpu_cores": 1,
+      "sample_gap_seconds": 3
+    },
+    "monitor_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "native": {
+    "record": {
+      "scope": "Existing NVFP4 native Vulkan operator/range tests only, not wide shared-float or model HF qualification",
+      "passed": true,
+      "started_unix": 1793037487.5906415,
+      "gpu": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      },
+      "binary_sha256": "5d9ef70cdf499b657723bde237c518f0bd8d199b157c042b42dd178af4159cc9",
+      "container": "3c584f780842504b8c54c30605f974006ac2aacb2255489b38409fc8f8e1722f",
+      "command": [
+        "docker",
+        "create",
+        "--name",
+        "llmx-xdev-common-split-native-v1",
+        "--init",
+        "--network",
+        "none",
+        "--read-only",
+        "--cpuset-cpus",
+        "8,9",
+        "--cpus",
+        "2",
+        "--memory",
+        "8g",
+        "--memory-swap",
+        "8g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "--tmpfs",
+        "/tmp:rw,size=512m",
+        "--device",
+        "/dev/dri/renderD130",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/candidate/build:/build:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "timeout",
+        "180",
+        "/build/llmx-nvfp4-test",
+        "--vulkan"
+      ],
+      "exit_code": 0,
+      "container_removed": true,
+      "ended_unix": 1793037489.8845031,
+      "artifacts": {
+        "stdout.log": "6b57d5326ceae0e874df5987a9a392062c09d76a8423e142215ba1d15c42111d",
+        "stderr.log": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35"
+      }
+    },
+    "logs": {
+      "stdout.log": "NVFP4 Vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20); row/tile timestamp witnesses present\nNVFP4 Vulkan 2049-row one-hot f32: matmul_tile_nvfp4 [ok]\nNVFP4 Vulkan 2049-row one-hot f16: matmul_tile_nvfp4_f16 [ok]\nNVFP4 Vulkan 2049-row one-hot bf16: matmul_tile_nvfp4_bf16 [ok]\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]\nNVFP4 Vulkan: literal F16 input boundary conversion, F32 accumulation and explicit-F32 control [ok]\n",
+      "stderr.log": "Failed to create /root/.cache for shader cache (Read-only file system)---disabling.\nFailed to create /root/.cache for shader cache (Read-only file system)---disabling.\nFailed to create /root/.cache for shader cache (Read-only file system)---disabling.\n"
+    }
+  },
+  "model_scope": "Eight ABBA calls, P128/P4096 and G256, four threads, ubatch512, F16 KV, direct load. TG starts with empty history. All samples retained.",
+  "numerics": "Existing exact dyadic output/guards and native NVFP4 checks pass. Changed partial-sum association still needs wide affected F32/F16/BF16/NVFP4 HF and row-class checks. No limits changed.",
+  "coverage": "Tiny width37/FF19 fixtures do not reach the wide split. A 16K prompt remains st8 even at ubatch128, so it does not replace a wide P128/st2 reference. Source-derived matrix map is conditional, not a runtime dispatch witness.",
+  "open": [
+    "wide affected-family HF and boundary/row-class coverage",
+    "released raw/chat depth on candidate",
+    "matched main/mx performance including TG tradeoff",
+    "current-tree Windows/device and hosted landing checks"
+  ],
+  "limitations": [
+    "Short two-sample-per-arm model screen, no matched mx arm.",
+    "Operator unchanged-shape device time varied +1.66 to +6.21 percent, so timing drift remains visible.",
+    "Model TG moved -0.60 and -1.95 percent; neither rejected nor waived. Background activity retained.",
+    "The existing native test does not by itself establish wide shared-float coverage."
+  ],
+  "artifacts": {
+    "preparation.json": {
+      "path": "../../build-integration/common-float-split-v1/preparation.json",
+      "sha256": "9b9a93bbc76bd6531328b045b4394b6c4c369740d5bc328d02372fe422fe3a1d"
+    },
+    "source.patch": {
+      "path": "../../build-integration/common-float-split-v1/source.patch",
+      "sha256": "b4f10174757ac0806ffc496e196c75bd2e771af5ceab7404d1618ed436ea8646"
+    },
+    "verified-build.json": {
+      "path": "../../build-integration/common-float-split-v1/verified-build.json",
+      "sha256": "81959a9c19da1eb342e9d220f09be0240bd810036c5b420b1ba7c82c0fbe77a7"
+    },
+    "plan.json": {
+      "path": "../../build-integration/common-float-split-v1/plan.json",
+      "sha256": "dd465fa67d06d0bc63ccfbca24162cd78204dd5478c4358ebc10690a95c2e0a7"
+    },
+    "analysis.json": {
+      "path": "../../build-integration/common-float-split-v1/analysis.json",
+      "sha256": "2343e970019ebbe0cc01ee5297e56521dfc77097542a5bbdb89441fbb2b4ecfa"
+    },
+    "model-analysis.json": {
+      "path": "../../build-integration/common-float-split-v1/model-analysis.json",
+      "sha256": "b3d733a2591d387c8439757479d3da1917dd9bf32df8fbfc410c45c97f8685d6"
+    },
+    "native-check.json": {
+      "path": "../../build-integration/common-float-split-v1/native-check.json",
+      "sha256": "372f657094fe2be1f4e39e69a7dc96504f4f282c8745ded4980556bee019405c"
+    },
+    "results/execution.json": {
+      "path": "../../build-integration/common-float-split-v1/results/execution.json",
+      "sha256": "f96fa3ccb7a218fffadaff0651a0ee290175147ef4dd2d16d15b9e29c4e69f72"
+    },
+    "model-results/execution.json": {
+      "path": "../../build-integration/common-float-split-v1/model-results/execution.json",
+      "sha256": "a3c37f322bcc6b2b3223cafb953ab3fc8f806c4e3461ddedac0d6dde8fac9a4b"
+    },
+    "model-matrix-predictions.json": {
+      "path": "../../build-integration/common-float-split-v1/model-matrix-predictions.json",
+      "sha256": "6fa40fc37e46bb9e55ccbf27517f9903b7b0eb67786ccfbe1513947ab0df0020"
+    },
+    "hf-wide-fixture-reuse.md": {
+      "path": "../../build-integration/common-float-split-v1/hf-wide-fixture-reuse.md",
+      "sha256": "6dda39bcd8e13d301bec8dea3f30c8c4f2bc28bcb1fd547cd174aead5eb8f655"
+    }
+  }
+}

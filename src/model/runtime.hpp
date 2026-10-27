@@ -3,6 +3,7 @@
 #include <array>
 #include <memory>
 #include <functional>
+#include <exception>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -421,7 +422,10 @@ public:
         auto require_type = [&](const Role& role, size_t device, const std::string& part, bool lookup = false) {
             if (role.tensor && weights.tensors[*role.tensor].row_source && !lookup)
                 throw std::runtime_error("inference: external row source needs a declared lookup " + role.name);
-            if (role.tensor) used[*role.tensor] = true;
+            if (role.tensor) {
+                used[*role.tensor] = true;
+                if (weight_scale_count(weights, *role.tensor)) used[*weights.tensors[*role.tensor].scale] = true;
+            }
             if (!accepts(role, device)) {
                 const TensorView& t = weights.tensors[*role.tensor];
                 throw std::runtime_error("inference: " + part + " needs tensor " + t.name + " of type " + type_name(t.type) +
@@ -1183,12 +1187,30 @@ private:
     void resolve_tensors(const ModelWeights& weights, const AdoptWeight& adopt) {
         const size_t n_devices = devices_.size();
         std::vector<backend::BufferPtr> taken(weights.tensors.size() * n_devices);
+        // A failed later adoption must drain while this local cache still owns earlier scale uploads.
+        struct Pending {
+            Model& model;
+            int exceptions = std::uncaught_exceptions();
+            ~Pending() { if (std::uncaught_exceptions() > exceptions) model.retire(); }
+        } pending{*this};
+        auto take = [&](size_t tensor, size_t device) {
+            backend::BufferPtr& buffer = taken[tensor * n_devices + device];
+            if (!buffer) {
+                const TensorView& t = weights.tensors[tensor];
+                backend::Backend& b = *devices_[device]->b;
+                buffer = adopt ? adopt(tensor, b, nullptr) : b.adopt(t.data, t.bytes);
+            }
+            return buffer;
+        };
         auto resolve = [&](const Role& role, size_t device, size_t member = 0) -> Weight {
             if (!role.tensor) throw TensorIndex::missing(role.alias.empty() ? role.name : role.alias);
             const size_t i = *role.tensor;
             const TensorView& t = weights.tensors[i];
             if (!role_fits(role, t.shape, t.type)) throw std::runtime_error("inference: incompatible tensor layout " + t.name);
-            if (t.row_source) return Weight{t.type, {}, size_t(role.in), size_t(role.out), t.row_source};
+            Weight weight{t.type, {}, size_t(role.in), size_t(role.out), t.row_source};
+            weight.scale_count = weight_scale_count(weights, i);
+            if (weight.scale_count) weight.scales = take(*t.scale, device + member);
+            if (t.row_source) return weight;
             backend::Backend& b = *devices_[device + member]->b;
             // A member of a tensor group takes its shard of a split role, a buffer of its own even where another role reads the whole tensor there, as a tied head beside the embedding does.
             if (width_ > 1 && role.shard.axis != Axis::none) {
@@ -1203,11 +1225,13 @@ private:
                 }
                 const size_t n = (size_t)shard::share(role, width_, member);
                 const bool rows = role.shard.axis == Axis::rows;
-                return Weight{t.type, buffer, rows ? (size_t)role.in : n, rows ? n : (size_t)role.out};
+                weight.data = std::move(buffer);
+                weight.nin = rows ? size_t(role.in) : n;
+                weight.nout = rows ? n : size_t(role.out);
+                return weight;
             }
-            backend::BufferPtr& buffer = taken[i * n_devices + device + member];
-            if (!buffer) buffer = adopt ? adopt(i, b, nullptr) : b.adopt(t.data, t.bytes);
-            return Weight{t.type, buffer, (size_t)role.in, (size_t)role.out};
+            weight.data = take(i, device + member);
+            return weight;
         };
         pass_.assign(plan_.role_ids, Weight{});
         for (const Role& role : plan_.pass) pass_[role.id] = resolve(role, device_of(role.part, 0));
@@ -1261,8 +1285,10 @@ private:
             size_t k = 0;
             for (const Role& role : plan_.layers[l].roles) {
                 if (role.stream != Stream::window) continue;
-                const Weight& home = home_[l][role.id];
-                stream_[l][role.id] = Weight{home.type, windows_[(size_t)stream_device_[l]][k++], home.nin, home.nout};
+                Weight& weight = stream_[l][role.id];
+                const size_t device = size_t(stream_device_[l]);
+                weight.data = windows_[device][k++];
+                if (weight.scale_count) weight.scales = take(*weights.tensors[*role.tensor].scale, device);
             }
         }
     }

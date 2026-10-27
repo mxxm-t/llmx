@@ -1,0 +1,565 @@
+{
+  "scope": "HF-only source-derived MI50 input-policy self-control diagnosis before any current native-F16 released-model depth comparison. This does not qualify llmx or establish actual MI50 dispatch.",
+  "runtime_revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+  "reference_source_revision": "57b14db944267fa9c8a703f4a020221794048db3",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "policy_map_sha256": "67ea70a4aa91c2934b3d8e1327c50fcc5f8309184c1192c2dcd0cb8eaf313513",
+  "versions": {
+    "torch": "2.5.1+cpu",
+    "transformers": "5.17.0",
+    "tokenizers": "0.23.2",
+    "huggingface_hub": "1.33.0",
+    "safetensors": "0.8.0",
+    "numpy": "2.2.6",
+    "Jinja2": "3.1.6",
+    "MarkupSafe": "3.0.3"
+  },
+  "container_state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-26T05:19:31.375750099Z",
+    "FinishedAt": "2026-10-26T05:22:08.601612983Z"
+  },
+  "container_removed": true,
+  "resource_limits": {
+    "kind": "v2",
+    "limit_bytes": 8589934592,
+    "initial_usage_bytes": 22114304,
+    "swap_bytes": 0,
+    "expected_cpu": 2,
+    "cpu_affinity": [
+      2
+    ],
+    "online_cpu_list": "0-15",
+    "allowed_cpu_list": "2"
+  },
+  "original_control": {
+    "max_abs_logit_delta": 0.010693550109863281,
+    "max_abs_limit": 2e-05,
+    "top1_exact": 80,
+    "logit_sha256": [
+      "d4bcbb3132ebe9f37075afeb4da4fca6f605e3dd604f23415ba3bf264ca9047e",
+      "642452441c3bc130ac21bd47ca0e115706ccddc0ebb63313e19c5da3a7416924"
+    ],
+    "passed": false
+  },
+  "original_control_reproduced_exactly": true,
+  "diagnostic_completed": true,
+  "qualification_pass": false,
+  "limits_changed": false,
+  "cases": [
+    {
+      "matrix": "f32",
+      "storage": "f32",
+      "base_sha256": "8e2890e07e5bce6b9cef011482064296891ef0a8c133eda780e2152866db257a",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "sha256": "a21b8322f3e535048bab4cc799558ce6749c03d65f8b915fbcc65ceb05730292",
+          "prompt": {
+            "max_abs": 1.3828277587890625e-05,
+            "changed_values": 14973312,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880446195602417
+            }
+          },
+          "continuation": {
+            "max_abs": 1.239776611328125e-05,
+            "changed_values": 3721638,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517440795898438
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "sha256": "0d9146127c1fbfa9a12fc60135be726c99fcf99e85d30320999b8317b16e75c7",
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 2.09808349609375e-05,
+            "changed_values": 3791861,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "sha256": "707f96eb71d2617ec8f87fa1684c3b4cae91a301e677f95010738fd993d216c2",
+          "prompt": {
+            "max_abs": 1.3828277587890625e-05,
+            "changed_values": 14973312,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880446195602417
+            }
+          },
+          "continuation": {
+            "max_abs": 1.9073486328125e-05,
+            "changed_values": 3796844,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517437934875488,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80
+        }
+      ]
+    },
+    {
+      "matrix": "f32",
+      "storage": "f16",
+      "base_sha256": "ef6e10f6d2f87719a10a568b72fa854aa576b206b34a9969716540055583ac5a",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "sha256": "be0665d81daa1287cafca7778e1030ed716c8ce5864303ef80133b861b2539dd",
+          "prompt": {
+            "max_abs": 0.0007586479187011719,
+            "changed_values": 15849619,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815879821777344,
+              "b": 3.8815112113952637
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0014219284057617188,
+            "changed_values": 3963795,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517182350158691
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "sha256": "4d14bd2f61776e1cac2edc98440765ddf480bf6d63604ab1e398d16b0c0b15be",
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0005512237548828125,
+            "changed_values": 3921021,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517165184020996
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "sha256": "5757d43c4a05e50f26bd288bbf935eae48639a9df210ed9754013fa899b454b4",
+          "prompt": {
+            "max_abs": 0.0007586479187011719,
+            "changed_values": 15849619,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8815879821777344,
+              "b": 3.8815112113952637
+            }
+          },
+          "continuation": {
+            "max_abs": 0.0014052391052246094,
+            "changed_values": 3963633,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.51716136932373,
+              "b": 9.517160415649414
+            }
+          },
+          "top1_exact": 80
+        }
+      ]
+    },
+    {
+      "matrix": "selected",
+      "storage": "f32",
+      "base_sha256": "0092b02a914337a5f3be7d696a2cf9d4bae4fb10c52f34bbacb63da90c1f41ad",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "sha256": "b08de0e45c5e6357fdeed362410ab9abb0d4d07cf727e5ab0c7ba6ab4430375b",
+          "prompt": {
+            "max_abs": 0.012685894966125488,
+            "changed_values": 15890942,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8828580379486084,
+              "b": 3.880105495452881
+            }
+          },
+          "continuation": {
+            "max_abs": 0.003390789031982422,
+            "changed_values": 3971862,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518287658691406,
+              "b": 9.51764965057373
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "sha256": "21bd5fd2a464fa42ce032d2f3bfc0d6e730c37c8a9a8f08d613675a86fc8b72f",
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0005197525024414062,
+            "changed_values": 3966350,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518287658691406,
+              "b": 9.518211364746094
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "sha256": "3de4db83f43981f032ce78b6a49e17107d230faf0796311b589c06494486bc85",
+          "prompt": {
+            "max_abs": 0.012685894966125488,
+            "changed_values": 15890942,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8828580379486084,
+              "b": 3.880105495452881
+            }
+          },
+          "continuation": {
+            "max_abs": 0.003300964832305908,
+            "changed_values": 3971863,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518287658691406,
+              "b": 9.517715454101562
+            }
+          },
+          "top1_exact": 80
+        }
+      ]
+    },
+    {
+      "matrix": "selected",
+      "storage": "f16",
+      "base_sha256": "d4bcbb3132ebe9f37075afeb4da4fca6f605e3dd604f23415ba3bf264ca9047e",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "sha256": "e19ce11f76461a7a2776a8fd05e2f3f2adcf9cc0c7b89b093b1ccde965e5176c",
+          "prompt": {
+            "max_abs": 0.010693550109863281,
+            "changed_values": 15890904,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8816065788269043,
+              "b": 3.8805603981018066
+            }
+          },
+          "continuation": {
+            "max_abs": 0.004025816917419434,
+            "changed_values": 3971976,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518070220947266,
+              "b": 9.51752758026123
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "sha256": "671ff8af8f85c7f08eb1bb33512dcf989136e49a026900ee47c8f66f55e33c91",
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 0.0006943941116333008,
+            "changed_values": 3968042,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518070220947266,
+              "b": 9.51807975769043
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "sha256": "642452441c3bc130ac21bd47ca0e115706ccddc0ebb63313e19c5da3a7416924",
+          "prompt": {
+            "max_abs": 0.010693550109863281,
+            "changed_values": 15890904,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8816065788269043,
+              "b": 3.8805603981018066
+            }
+          },
+          "continuation": {
+            "max_abs": 0.003993511199951172,
+            "changed_values": 3971992,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.518070220947266,
+              "b": 9.51763916015625
+            }
+          },
+          "top1_exact": 80
+        }
+      ]
+    }
+  ],
+  "first_boundary_traces": [
+    {
+      "max_abs": 1.430511474609375e-06,
+      "changed_values": 124501,
+      "first": {
+        "index": [
+          0,
+          0
+        ],
+        "a": 4.418751996126957e-05,
+        "b": 4.418752359924838e-05
+      },
+      "name": "model.layers.0.linear_attn.out_proj.before"
+    },
+    {
+      "max_abs": 4.795193672180176e-05,
+      "changed_values": 107133,
+      "first": {
+        "index": [
+          0,
+          0
+        ],
+        "a": 4.4198899558978155e-05,
+        "b": 4.419890319695696e-05
+      },
+      "name": "model.layers.0.linear_attn.out_proj.after",
+      "before_rounding": {
+        "max_abs": 1.430511474609375e-06,
+        "changed_values": 124501,
+        "first": {
+          "index": [
+            0,
+            0
+          ],
+          "a": 4.418751996126957e-05,
+          "b": 4.418752359924838e-05
+        }
+      },
+      "integer_boundaries": [
+        {
+          "phase": "prefill_512",
+          "position": 0,
+          "block": 12,
+          "lane": 11,
+          "different_codes": 169,
+          "input": [
+            -0.13436844944953918,
+            -0.13436846435070038
+          ],
+          "peak": [
+            0.14597104489803314,
+            0.14597104489803314
+          ],
+          "scaled": [
+            -30162.49609375,
+            -30162.5
+          ],
+          "code": [
+            -30162,
+            -30163
+          ]
+        },
+        {
+          "phase": "decode_1",
+          "position": 64,
+          "block": 4,
+          "lane": 27,
+          "different_codes": 133,
+          "input": [
+            -0.02507341280579567,
+            -0.025073427706956863
+          ],
+          "peak": [
+            0.04586634412407875,
+            0.04586634412407875
+          ],
+          "scaled": [
+            -17912.4921875,
+            -17912.501953125
+          ],
+          "code": [
+            -17912,
+            -17913
+          ]
+        }
+      ]
+    },
+    {
+      "max_abs": 4.8160552978515625e-05,
+      "changed_values": 78509,
+      "first": {
+        "index": [
+          0,
+          0
+        ],
+        "a": -9.273781776428223,
+        "b": -9.273777961730957
+      },
+      "name": "model.layers.0.mlp.gate_proj.before"
+    },
+    {
+      "max_abs": 0.001953125,
+      "changed_values": 17274,
+      "first": {
+        "index": [
+          0,
+          29
+        ],
+        "a": 0.05914306640625,
+        "b": 0.059112548828125
+      },
+      "name": "model.layers.0.mlp.gate_proj.after",
+      "before_rounding": {
+        "max_abs": 4.8160552978515625e-05,
+        "changed_values": 78509,
+        "first": {
+          "index": [
+            0,
+            0
+          ],
+          "a": -9.273781776428223,
+          "b": -9.273777961730957
+        }
+      }
+    }
+  ],
+  "trace_rows_retained": 390,
+  "conclusion": "The combined F32/F32 control passes its original 2e-5 bound. Selected matrix inputs reproduce a much larger HF-only difference even with F32 KV. The first traced block-int16 projection crosses integer rounding boundaries; the following NVFP4 F16 gate projection increases the maximum input difference from 0.000048160552978515625 before rounding to 0.001953125 after rounding. All twelve comparisons retain 80/80 top-one choices. The strict selected-policy control remains failed pending a scoped disposition.",
+  "pending": [
+    "Peer review of the reference self-control disposition. No allowance installed.",
+    "Actual MI50 dispatch must match the frozen map before depth qualification.",
+    "Current candidate released-model HF/depth, split, identity and performance gates remain separate."
+  ],
+  "artifacts": {
+    "build-integration/main730-depth-policy/retained-attempts/diagnostic-attempt-01/output/diagnostic-attempt-01/report.json": "494e120cb30c86a6fb48f37277e05d502d268159bd552d2e0514cbbea6192cb1",
+    "build-integration/main730-depth-policy/retained-attempts/diagnostic-attempt-01/execution.json": "0a4eafb9f858172a63166d434ceb8d1f17d361be03fef9deb99ee6b0f0f54a4d",
+    "build-integration/main730-depth-policy/retained-attempts/diagnostic-attempt-01/container.log": "493e7d420ec1ac4aff56cb30cb98ffbc6ce06f2ec7b684fc2b3acb541e8e521a",
+    "build-integration/main730-depth-policy/retained-attempts/control-attempt-02/output/control-attempt-02/report.json": "d1fb47a2057f6db77497fb33d24915d3c24da97a903d3a568d0cfa9b920195ca",
+    "build-integration/main730-depth-policy/projection-map.json": "67ea70a4aa91c2934b3d8e1327c50fcc5f8309184c1192c2dcd0cb8eaf313513",
+    "build-integration/main730-depth-policy/reference-source-comparison.json": "f8b0ef1355c23bba7f3cf91b86c2d80fc5e8c53bb9b13fb08234db8b562bb55b",
+    "build-integration/main730-depth-policy/remote-reference-source-raw.json": "c7444a71269b5969db88ab5166288b513b47a68684c2111fe80b545f645095b3",
+    "build-integration/main730-depth-policy/diagnostic-bundle-v2/plan.json": "4b96db0bbdc892874721a633ff805349aa04f9d9fa54e72757533e072b12e062",
+    "build-integration/main730-depth-policy/run-rig-diagnostic-v2.py": "1f5dba7737fc1d8d10c718936cb5791202e9be4df3a3700a1d95cd95347f28a4"
+  },
+  "remote_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/depth-policy/diagnostic-attempt-01",
+  "setup_failures_retained": "Earlier manifest-order, new vision-dependency and CRLF-pin refusals stopped before inference and remain under build-integration/main730-depth-policy/retained-attempts and the original rig launcher logs."
+}

@@ -557,7 +557,7 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   247. The tile is TILE_ROWS by 64, and TILE_ROWS is a specialization
   constant, so each tile module builds a 128-row pipeline and a 64-row
   one, whose second variant is the 32-row tile, and the backend picks
-  per dispatch through `tile_rows_for` in `backends/device_profile.hpp`.
+  per dispatch through `tile_rows_for` in `backends/device_profile.hpp`. NVFP4 float tiles use `float_tile_rows_for`, which selects 64 or 128 rows for both ordinary and routed calls; NVFP4 has no 32-row fallback.
   The taller tile reads three quarters of the shared memory per product, so
   128 rows are taken while they still give `tile_tall_per_cu` workgroups
   per compute unit (`tile_tall_per_cu_narrow` under 4096 values to a row),

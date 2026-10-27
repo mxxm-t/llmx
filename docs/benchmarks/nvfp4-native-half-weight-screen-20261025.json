@@ -1,0 +1,1487 @@
+{
+  "passed": true,
+  "scope": "Paired-K F32 weight storage versus native-half exact weight storage. Shared probe object/config, F32 inputs/sums and pre-dot global scaling retained. Local Radeon operator screen only, not final model or mx gate.",
+  "pins": {
+    "before": "946d12ce300f05db95c39ce9e98001baf6103bc7339b3aa4f88ac42597cd5269",
+    "after": "e95623af506f5379b7295447253b7a8e8b775f1b4aaf4a6294b1546b181c7330"
+  },
+  "source_sha256": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b",
+  "calls": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\00-1024x896-before"
+      ],
+      "start": 1792892446.1928449,
+      "log": "00-1024x896-before.log",
+      "pid": 37212,
+      "exit_code": 0,
+      "end": 1792892446.9320645,
+      "log_sha256": "b443a364e46dafa641509f2a7654a2b02f4f34ddb161241e3015ca927cb074f8",
+      "mean_ms": 0.4765527,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\01-1024x896-after"
+      ],
+      "start": 1792892446.9400656,
+      "log": "01-1024x896-after.log",
+      "pid": 72424,
+      "exit_code": 0,
+      "end": 1792892447.7297683,
+      "log_sha256": "c3cabce81001d6a313db1e578f97cca1a11754d71d924c4695047b2be686e57a",
+      "mean_ms": 0.498424,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\02-1024x896-after"
+      ],
+      "start": 1792892447.7387686,
+      "log": "02-1024x896-after.log",
+      "pid": 23932,
+      "exit_code": 0,
+      "end": 1792892448.4196024,
+      "log_sha256": "02559709da4832bd174a068137a924129744ad32c2553f440e7d443cc12326f8",
+      "mean_ms": 0.4935365,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\03-1024x896-before"
+      ],
+      "start": 1792892448.4301133,
+      "log": "03-1024x896-before.log",
+      "pid": 61592,
+      "exit_code": 0,
+      "end": 1792892449.1011403,
+      "log_sha256": "2e6a29dbf677723cb923a0bf3f001b9a344876edf6143271059204c9b25f5592",
+      "mean_ms": 0.497798,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 1,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\04-1024x4096-before"
+      ],
+      "start": 1792892449.1091394,
+      "log": "04-1024x4096-before.log",
+      "pid": 25728,
+      "exit_code": 0,
+      "end": 1792892450.7699487,
+      "log_sha256": "e61a1e29def6106dbb85e6f4c98cbd54980e1507413181843fdc00ea55ceb2b6",
+      "mean_ms": 1.3105387,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\05-1024x4096-after"
+      ],
+      "start": 1792892450.7839491,
+      "log": "05-1024x4096-after.log",
+      "pid": 4148,
+      "exit_code": 0,
+      "end": 1792892452.4931936,
+      "log_sha256": "d768c83e5f1cc6c9c3b76346b638afc6c9aa0afa800b6f89ac99c55f5232f582",
+      "mean_ms": 1.3217236,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\06-1024x4096-after"
+      ],
+      "start": 1792892452.5073392,
+      "log": "06-1024x4096-after.log",
+      "pid": 26704,
+      "exit_code": 0,
+      "end": 1792892454.0116396,
+      "log_sha256": "33738c7aac32154b76eaf4c958ac25f6593a6362b57b749991e573a766035b16",
+      "mean_ms": 1.3272591,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\07-1024x4096-before"
+      ],
+      "start": 1792892454.0316374,
+      "log": "07-1024x4096-before.log",
+      "pid": 56156,
+      "exit_code": 0,
+      "end": 1792892455.5415308,
+      "log_sha256": "21f7b5f0ded6dae583646e17f563658ad4f818ed00733ec59a9a0ac0b7f79ed3",
+      "mean_ms": 1.3139017,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\08-3072x896-before"
+      ],
+      "start": 1792892455.5555325,
+      "log": "08-3072x896-before.log",
+      "pid": 7200,
+      "exit_code": 0,
+      "end": 1792892456.7988212,
+      "log_sha256": "8df2d0fbe49d5386c3033849867a5cb45bd83430ed262c28b031028c84c2b258",
+      "mean_ms": 1.0631475,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\09-3072x896-after"
+      ],
+      "start": 1792892456.8073997,
+      "log": "09-3072x896-after.log",
+      "pid": 49044,
+      "exit_code": 0,
+      "end": 1792892458.0616999,
+      "log_sha256": "16693a90ea8bf73a79b1d37929b1e3f86b9e28b7325cbf938f2794a57356ce3a",
+      "mean_ms": 1.0702865,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\10-3072x896-after"
+      ],
+      "start": 1792892458.074697,
+      "log": "10-3072x896-after.log",
+      "pid": 85428,
+      "exit_code": 0,
+      "end": 1792892459.3461456,
+      "log_sha256": "10c244445526c0878de8cad33cd456ff4d2f48d939d127f6e2875b1e7e577aec",
+      "mean_ms": 1.0837792,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\11-3072x896-before"
+      ],
+      "start": 1792892459.3551452,
+      "log": "11-3072x896-before.log",
+      "pid": 37132,
+      "exit_code": 0,
+      "end": 1792892460.6117752,
+      "log_sha256": "d2d4b6802b768176da7d758a66a6888b72f9067aa9cb32396c8a1ad627ba9529",
+      "mean_ms": 1.0915788,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\12-1024x896-scaled-before"
+      ],
+      "start": 1792892460.6237767,
+      "log": "12-1024x896-scaled-before.log",
+      "pid": 63844,
+      "exit_code": 0,
+      "end": 1792892461.291188,
+      "log_sha256": "dfa72ac40053bc587d00bbeac356a2e496e82ae734ec10d4d8a1d8fe15fcfd52",
+      "mean_ms": 0.4928485,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\13-1024x896-scaled-after"
+      ],
+      "start": 1792892461.300693,
+      "log": "13-1024x896-scaled-after.log",
+      "pid": 52592,
+      "exit_code": 0,
+      "end": 1792892461.9826727,
+      "log_sha256": "1bf366fc6ed9fbfb2d6305fb61e14d8db649781c3be64b156736df7d129d1de2",
+      "mean_ms": 0.5132141,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 1,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\14-1024x896-scaled-after"
+      ],
+      "start": 1792892461.991674,
+      "log": "14-1024x896-scaled-after.log",
+      "pid": 67872,
+      "exit_code": 0,
+      "end": 1792892462.634768,
+      "log_sha256": "e7f55bdd71d564e00a2abf7621e0574f48542a1d3c576dccbde1d41e71183b39",
+      "mean_ms": 0.5016672,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\15-1024x896-scaled-before"
+      ],
+      "start": 1792892462.6447675,
+      "log": "15-1024x896-scaled-before.log",
+      "pid": 21836,
+      "exit_code": 0,
+      "end": 1792892463.3017697,
+      "log_sha256": "0d2596465787dd0f5b894bb36c8bee3713796fa8764f84d91b007d221c45ff94",
+      "mean_ms": 0.4924998,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\16-1024x4096-scaled-before"
+      ],
+      "start": 1792892463.3117702,
+      "log": "16-1024x4096-scaled-before.log",
+      "pid": 64796,
+      "exit_code": 0,
+      "end": 1792892464.8094625,
+      "log_sha256": "494700bdcd00e3b13171709d80046814f128f08f0a5910c5b441740a5322ebc5",
+      "mean_ms": 1.3083406,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\17-1024x4096-scaled-after"
+      ],
+      "start": 1792892464.824035,
+      "log": "17-1024x4096-scaled-after.log",
+      "pid": 30636,
+      "exit_code": 0,
+      "end": 1792892466.3126986,
+      "log_sha256": "083961fa4acacc274086b747039c23332f85459889057827afb04c134c1925d7",
+      "mean_ms": 1.3206566,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\18-1024x4096-scaled-after"
+      ],
+      "start": 1792892466.3276992,
+      "log": "18-1024x4096-scaled-after.log",
+      "pid": 11540,
+      "exit_code": 0,
+      "end": 1792892467.8468285,
+      "log_sha256": "917ca18c98a5c68801ff8a53bb0b9a14e618158d89f9400f79573f08e0b4f6f9",
+      "mean_ms": 1.3223698,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\19-1024x4096-scaled-before"
+      ],
+      "start": 1792892467.861235,
+      "log": "19-1024x4096-scaled-before.log",
+      "pid": 66240,
+      "exit_code": 0,
+      "end": 1792892469.3493109,
+      "log_sha256": "1d50f8519b131f99c9300fa9f3df02b8cd001f14175375db79d13419e11f67ac",
+      "mean_ms": 1.3045377,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\20-3072x896-scaled-before"
+      ],
+      "start": 1792892469.3633113,
+      "log": "20-3072x896-scaled-before.log",
+      "pid": 57536,
+      "exit_code": 0,
+      "end": 1792892470.6099217,
+      "log_sha256": "9e8dff940a0b813bd0552f9859b658afc4d88699bbfad3557edb7d00a0244316",
+      "mean_ms": 1.0677203,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\21-3072x896-scaled-after"
+      ],
+      "start": 1792892470.619923,
+      "log": "21-3072x896-scaled-after.log",
+      "pid": 1816,
+      "exit_code": 0,
+      "end": 1792892471.857278,
+      "log_sha256": "5a887797aaefde7b29c1cdd8fe3e126449c7d0b6c417de027bdbfcaf28e756f4",
+      "mean_ms": 1.0638059,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\22-3072x896-scaled-after"
+      ],
+      "start": 1792892471.8803103,
+      "log": "22-3072x896-scaled-after.log",
+      "pid": 69740,
+      "exit_code": 0,
+      "end": 1792892473.1382458,
+      "log_sha256": "158b52b1db6afcfbec8312c64e1f9f38acd64ba6588bbfcba3c766ae3f4a34c4",
+      "mean_ms": 1.0788608,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\23-3072x896-scaled-before"
+      ],
+      "start": 1792892473.1472476,
+      "log": "23-3072x896-scaled-before.log",
+      "pid": 57468,
+      "exit_code": 0,
+      "end": 1792892474.399939,
+      "log_sha256": "a734e9e4a96c706b7da2f3588c39086ea517820c6d02a3c1ab66074b1e9b0762",
+      "mean_ms": 1.0700023,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+    }
+  ],
+  "activity_flags": {
+    "unrelated_cpu": "known unrelated deltas >100 percent of one CPU",
+    "system_cpu": ">75 percent",
+    "disk": ">100 MiB/s physical total",
+    "other_gpu_engine": ">5 percent individually; no engine summation",
+    "missing": "unknown, never zero"
+  },
+  "monitor": {
+    "pid": 76252,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-native-half-weight-v1\\monitor.stop",
+      "--seconds",
+      "1200",
+      "--interval",
+      "1"
+    ]
+  },
+  "monitor_exit": 0,
+  "finished": 1792892478.289263,
+  "cells": {
+    "1024x4096": {
+      "before": {
+        "samples_ms": [
+          1.3105387,
+          1.3139017
+        ],
+        "mean_ms": 1.3122202,
+        "min_ms": 1.3105387,
+        "max_ms": 1.3139017
+      },
+      "after": {
+        "samples_ms": [
+          1.3217236,
+          1.3272591
+        ],
+        "mean_ms": 1.3244913500000002,
+        "min_ms": 1.3217236,
+        "max_ms": 1.3272591
+      },
+      "wall_time_change_percent": 0.9351441168182095,
+      "output_hashes": [
+        "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+      ]
+    },
+    "1024x4096-scaled": {
+      "before": {
+        "samples_ms": [
+          1.3083406,
+          1.3045377
+        ],
+        "mean_ms": 1.30643915,
+        "min_ms": 1.3045377,
+        "max_ms": 1.3083406
+      },
+      "after": {
+        "samples_ms": [
+          1.3206566,
+          1.3223698
+        ],
+        "mean_ms": 1.3215132,
+        "min_ms": 1.3206566,
+        "max_ms": 1.3223698
+      },
+      "wall_time_change_percent": 1.1538271797810085,
+      "output_hashes": [
+        "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+      ]
+    },
+    "1024x896": {
+      "before": {
+        "samples_ms": [
+          0.4765527,
+          0.497798
+        ],
+        "mean_ms": 0.48717535,
+        "min_ms": 0.4765527,
+        "max_ms": 0.497798
+      },
+      "after": {
+        "samples_ms": [
+          0.498424,
+          0.4935365
+        ],
+        "mean_ms": 0.49598025,
+        "min_ms": 0.4935365,
+        "max_ms": 0.498424
+      },
+      "wall_time_change_percent": 1.807336927042802,
+      "output_hashes": [
+        "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+      ]
+    },
+    "1024x896-scaled": {
+      "before": {
+        "samples_ms": [
+          0.4928485,
+          0.4924998
+        ],
+        "mean_ms": 0.49267415000000003,
+        "min_ms": 0.4924998,
+        "max_ms": 0.4928485
+      },
+      "after": {
+        "samples_ms": [
+          0.5132141,
+          0.5016672
+        ],
+        "mean_ms": 0.5074406499999999,
+        "min_ms": 0.5016672,
+        "max_ms": 0.5132141
+      },
+      "wall_time_change_percent": 2.997214284532679,
+      "output_hashes": [
+        "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+      ]
+    },
+    "3072x896": {
+      "before": {
+        "samples_ms": [
+          1.0631475,
+          1.0915788
+        ],
+        "mean_ms": 1.07736315,
+        "min_ms": 1.0631475,
+        "max_ms": 1.0915788
+      },
+      "after": {
+        "samples_ms": [
+          1.0702865,
+          1.0837792
+        ],
+        "mean_ms": 1.07703285,
+        "min_ms": 1.0702865,
+        "max_ms": 1.0837792
+      },
+      "wall_time_change_percent": -0.030658186146437227,
+      "output_hashes": [
+        "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+      ]
+    },
+    "3072x896-scaled": {
+      "before": {
+        "samples_ms": [
+          1.0677203,
+          1.0700023
+        ],
+        "mean_ms": 1.0688613,
+        "min_ms": 1.0677203,
+        "max_ms": 1.0700023
+      },
+      "after": {
+        "samples_ms": [
+          1.0638059,
+          1.0788608
+        ],
+        "mean_ms": 1.07133335,
+        "min_ms": 1.0638059,
+        "max_ms": 1.0788608
+      },
+      "wall_time_change_percent": 0.23127883851721265,
+      "output_hashes": [
+        "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+      ]
+    }
+  },
+  "candidate_receipts": {
+    "manifest.json": {
+      "scope": "Scratch native half shared weights only; paired-K 256 threads, K32, F32 inputs and sums; precise F32 global product before ordered FMA.",
+      "baseline_source": "a32f0ff7f34be83a9ec7f63a81e10bf2c389d2bf plus frozen paired-K overlay",
+      "explicit_selection": "LLMX_NVFP4_NATIVE_HALF_WEIGHT on four dedicated NV tile variants only; shaderFloat16 required, no fallback claim",
+      "declared_shared_bytes": {
+        "32": 10880,
+        "64": 13056,
+        "128": 17408
+      },
+      "gpu_execution": "Root authorized bounded native and smoke; both passed. No timing claim.",
+      "files": {
+        "build-native.log": "fa96beeafa6eb98effa47cc29de9cec54887f71acf8ba2a362c06df1bd60f383",
+        "build-probe.log": "e027981a6a070223bc0574b59416aa96742415f9f779e412db6013b054156381",
+        "build.log": "557e98f98f76b00ae639e603c3c2534f92a095171eeb35431f1446a6f0d774eb",
+        "candidate.patch": "3965bb0df0fff2efc1819e83d8248e62bf9705913b971f82c700256ae120787a",
+        "CMakeLists.txt": "fe9ed40abc88e75d1d639adef072062af65411a69abe1e8f83d2f886a1a5b269",
+        "configure-probe-after.log": "24a8b59814fd6b71409a83a1c8688791ddc729f5e5b015bdd94f73eb2bb13365",
+        "configure-probe-before.log": "24a8b59814fd6b71409a83a1c8688791ddc729f5e5b015bdd94f73eb2bb13365",
+        "configure-probe.log": "c4ddc2c42a22e0507b900fbdd1647f3887ff2d4ff9f397b0d1c2046ba7a04f15",
+        "configure.log": "7c9306873a22516c42aa8c8320155f1cd8fc3f586d383220538b36f4bb4464e1",
+        "inspect_spirv.py": "ffed4e95709097cce9fc4f066a0f6fb164ccff6cbea309801a6f50e2b1e18427",
+        "matmul_tile.comp": "d702aa22023caa1f3840f7826262ba06b0d0567e38daf9ba38ed11fa12085c45",
+        "matmul_tile_nvfp4.spv": "c21c47f38edce914c7ed35b740d05e6f8d855a5c6cac2dbf40bd9f4f8e188e54",
+        "matmul_tile_nvfp4.spvasm": "de1cba3e717bd5da6df3685e51680c7407e28e28975ef5ee0befca6aa6dfcbb9",
+        "matmul_tile_nvfp4_bf16.spv": "9be54ae6be5fd74806efafd5a6216cd089189c665203165ceb70841513063bcd",
+        "matmul_tile_nvfp4_bf16.spvasm": "864abec49954764a0d46a57958749544aff712690bc7c182c36de8e401026671",
+        "matmul_tile_nvfp4_bf16_preserve.spv": "060884db9315caba1433924d3cd938856d5e5c7610a10df2a264096d583a1c7d",
+        "matmul_tile_nvfp4_bf16_preserve.spvasm": "a487720eff52286e81b1ded1ee202e38070544db43212d07c56bfc3a26bc67e2",
+        "matmul_tile_nvfp4_preserve.spv": "65fa7072ff9549f05cde05100079b7d79ec1886d72ce564e2b8c7efc619b8c2b",
+        "matmul_tile_nvfp4_preserve.spvasm": "7d0e0fb2d01fec0ac108182fe0b384b8d401a6b28d6d56aeb934fce1d3f3dc20",
+        "native-result.json": "50f03e46a56dc98c462722b5a60d6d349c86d4648f2435f69328d99e36d58325",
+        "native.log": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec",
+        "preflight-processes-fallback.json": "776b04b6c250b1c0c289a508d493f1ec79e3ca6459ffbfdb716aa81eff91bf83",
+        "preflight-processes.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preflight-smoke.json": "3f2595ef8e74a3c2c7feed0fd5a4e841732d57171f0317d2ffe54d7f0e8c1823",
+        "probe-object-before.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "probe-object-pinned.json": "364f2e0335d6941dbe5cb685fafa424d114a9f0c7e090d59b1a035b28a32ffcb",
+        "README.txt": "4c3aa911bcc0e71a988b7d0ce8767c5699f3237403bbf19984812a331d9d4591",
+        "relink-probe-after.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+        "relink-probe-before.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+        "smoke-native-half-1024x4096-scaled.log": "0673df08691e3d5b6fc7c738b942b1bcc1c85c1951d294da64d2f7e3c2d43241",
+        "smoke-native-half-1024x4096.log": "7b733f230bf55046ca290cff6269977a586987ccb9d4e92c2ef72821b98952b7",
+        "smoke-native-half-1024x896-scaled.log": "bc3f222142ecbd22cadb2df51764dda371f2f8417991cbeb0a03bcab12a296b9",
+        "smoke-native-half-1024x896.log": "0f2983aa18c3a20d7f361cb8c5546a0ebd8b2ca2292183aae3608bd6594f3f4b",
+        "smoke-native-half-3072x896-scaled.log": "760aa371e8b5276cecd95a6a22a09d40e3617971c7fcff68d3aa71173c70cd05",
+        "smoke-native-half-3072x896.log": "4c8dd60b88a8d1832795c3b5eacd8a581bf21014105e0b6ecec331851b25c6ec",
+        "smoke-paired-k-1024x4096-scaled.log": "198dfb01e28ccfdc00537d2399e7ba94411fe2d087e753022f78cc10a223fa3c",
+        "smoke-paired-k-1024x4096.log": "4e092d9bf41560da51239b5937c8c4c14ee8cf4cf9181bcd8bc8915bcf412a64",
+        "smoke-paired-k-1024x896-scaled.log": "c585baadd244f94038e932b30b52ca44fec743c708e446d6337e5720bf1b19e0",
+        "smoke-paired-k-1024x896.log": "ebd3bf10a5fea9e3fc69fc76050f21aa1c13b8c192378121b662edffafb87a50",
+        "smoke-paired-k-3072x896-scaled.log": "6c3352aae10587011057deb14386233fcc8e642c967b427f7f451e04c772e742",
+        "smoke-paired-k-3072x896.log": "589f076acb5505d479bc6108278479b74a082c89dd67f342d34d3f3516f0a5ff",
+        "smoke-preflight-failed.log": "3d05ff6a7fc6687ccae5187d3566078b5a7a34c1d5ea8f30c619aa763502ff59",
+        "smoke-result.json": "56785886bcae015bf22c639538ba7ea8db4ecabde4d33332cf5481a18650ccee",
+        "smoke.log": "88ab5a6f993d05ff8a20265324ab2f70040923656e46cc6f8ab339764f250352",
+        "smoke.py": "c43fbf24b2093912527bc68f72eb9898531112d48ce19b1290532077cd10d617",
+        "spirv-inspection.json": "aa9b2457f8a622dcae822685b6a7620f62e51c92d3f36480958953c9c5d762a8",
+        "spirv-inspection.log": "4d5dfe4b3bdfb749506ee2f04a491cf20408fdd4a3e86d26f97dc1b3f7a55a5c",
+        "vulkan-capabilities.log": "b915bee67637f971e72823cd31754b8c60e6d5da2f7e82adf6490f9ff9107b67",
+        "vulkan-summary.log": "15c47321d70ddfe1c2ceeee7451798b3bf125b3bfe2ecc54084a90461ca2fc0d",
+        "vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9",
+        "pins\\check-half-weight-raw.json": "f9321c93eefc67cd6dbdbf7834bdc3b33e9fab1868ffb10bb55de7e1af6ad1a3",
+        "pins\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "pins\\native-half-probe.exe": "e95623af506f5379b7295447253b7a8e8b775f1b4aaf4a6294b1546b181c7330",
+        "pins\\native-half.lib": "2413270f33c18f946e9b86341966eaba8f6a6113c87ec3418c5b0d028060e821",
+        "pins\\paired-k-probe.exe": "946d12ce300f05db95c39ce9e98001baf6103bc7339b3aa4f88ac42597cd5269",
+        "pins\\paired-k.lib": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+        "pins\\probe.cpp": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b",
+        "build\\Release\\llmx-nvfp4-test.exe": "973fd253228aaee1a2aab3eeaf212a4433525c10ed5b6d22c2e8550420e0a1af",
+        "probe-build\\nvfp4-tile-probe.dir\\Release\\probe.obj": "3bd9299768dc1fd9e7c1430492dd3abfd6b969135b8b937e8e1329558dc8fec9"
+      },
+      "source_qualification": "Frozen a32f0ff7f paired-K overlay on old main55a; integrate main07fac before final qualification.",
+      "smoke_passed": true,
+      "native_passed": true
+    },
+    "probe-object-pinned.json": {
+      "Algorithm": "SHA256",
+      "Hash": "3BD9299768DC1FD9E7C1430492DD3ABFD6B969135B8B937E8E1329558DC8FEC9",
+      "Path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\probe-build\\nvfp4-tile-probe.dir\\Release\\probe.obj"
+    },
+    "native-result.json": {
+      "exit_code": 0,
+      "seconds": 4.444056749343872
+    },
+    "smoke-result.json": {
+      "probe_object_sha256": "3bd9299768dc1fd9e7c1430492dd3abfd6b969135b8b937e8e1329558dc8fec9",
+      "runs": [
+        {
+          "case": "1024x896",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-1024x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.2931387424468994
+        },
+        {
+          "case": "1024x896",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "1024x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-1024x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.2751898765563965,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+        },
+        {
+          "case": "1024x4096",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x4096",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-1024x4096"
+          ],
+          "exit_code": 0,
+          "seconds": 0.3825397491455078
+        },
+        {
+          "case": "1024x4096",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "1024x4096",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-1024x4096"
+          ],
+          "exit_code": 0,
+          "seconds": 0.3701193332672119,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+        },
+        {
+          "case": "3072x896",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "3072x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-3072x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.29247164726257324
+        },
+        {
+          "case": "3072x896",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "3072x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-3072x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.35619401931762695,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+        },
+        {
+          "case": "1024x896-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-1024x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.28087782859802246
+        },
+        {
+          "case": "1024x896-scaled",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "1024x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-1024x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.30060553550720215,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+        },
+        {
+          "case": "1024x4096-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x4096-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-1024x4096-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.365126371383667
+        },
+        {
+          "case": "1024x4096-scaled",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "1024x4096-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-1024x4096-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.38266921043395996,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+        },
+        {
+          "case": "3072x896-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "3072x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-paired-k-3072x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.29533815383911133
+        },
+        {
+          "case": "3072x896-scaled",
+          "arm": "native-half",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\native-half-probe.exe",
+            "--case",
+            "3072x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\smoke-native-half-3072x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.3167076110839844,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+        }
+      ],
+      "comparison": "Smoke only, one measured invocation after three warmups; no performance claim.",
+      "passed": true
+    },
+    "spirv-inspection.json": {
+      "matmul_tile_nvfp4": {
+        "spv_sha256": "c21c47f38edce914c7ed35b740d05e6f8d855a5c6cac2dbf40bd9f4f8e188e54",
+        "half_workgroup_weights": true,
+        "f32_fmas": 8,
+        "half_multiply_count": 0,
+        "f32_widen_present": true,
+        "validated": true
+      },
+      "matmul_tile_nvfp4_bf16": {
+        "spv_sha256": "9be54ae6be5fd74806efafd5a6216cd089189c665203165ceb70841513063bcd",
+        "half_workgroup_weights": true,
+        "f32_fmas": 8,
+        "half_multiply_count": 0,
+        "f32_widen_present": true,
+        "validated": true
+      },
+      "matmul_tile_nvfp4_bf16_preserve": {
+        "spv_sha256": "060884db9315caba1433924d3cd938856d5e5c7610a10df2a264096d583a1c7d",
+        "half_workgroup_weights": true,
+        "f32_fmas": 8,
+        "half_multiply_count": 0,
+        "f32_widen_present": true,
+        "validated": true
+      },
+      "matmul_tile_nvfp4_preserve": {
+        "spv_sha256": "65fa7072ff9549f05cde05100079b7d79ec1886d72ce564e2b8c7efc619b8c2b",
+        "half_workgroup_weights": true,
+        "f32_fmas": 8,
+        "half_multiply_count": 0,
+        "f32_widen_present": true,
+        "validated": true
+      }
+    }
+  },
+  "diagnostic_stats": {
+    "diag-1024x4096-after.log": [],
+    "diag-1024x4096-before.log": [],
+    "diag-1024x4096-scaled-after.log": [],
+    "diag-1024x4096-scaled-before.log": [],
+    "diag-1024x896-after.log": [],
+    "diag-1024x896-before.log": [],
+    "diag-1024x896-scaled-after.log": [],
+    "diag-1024x896-scaled-before.log": [],
+    "diag-3072x896-after.log": [],
+    "diag-3072x896-before.log": [],
+    "diag-3072x896-scaled-after.log": [],
+    "diag-3072x896-scaled-before.log": []
+  },
+  "artifact_sha256": {
+    "build-nvfp4-tile-probe/native-half-weight-candidate/build-native.log": "fa96beeafa6eb98effa47cc29de9cec54887f71acf8ba2a362c06df1bd60f383",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/build-probe.log": "e027981a6a070223bc0574b59416aa96742415f9f779e412db6013b054156381",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/build.log": "557e98f98f76b00ae639e603c3c2534f92a095171eeb35431f1446a6f0d774eb",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/candidate.patch": "3965bb0df0fff2efc1819e83d8248e62bf9705913b971f82c700256ae120787a",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/CMakeLists.txt": "fe9ed40abc88e75d1d639adef072062af65411a69abe1e8f83d2f886a1a5b269",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/configure-probe-after.log": "24a8b59814fd6b71409a83a1c8688791ddc729f5e5b015bdd94f73eb2bb13365",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/configure-probe-before.log": "24a8b59814fd6b71409a83a1c8688791ddc729f5e5b015bdd94f73eb2bb13365",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/configure-probe.log": "c4ddc2c42a22e0507b900fbdd1647f3887ff2d4ff9f397b0d1c2046ba7a04f15",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/configure.log": "7c9306873a22516c42aa8c8320155f1cd8fc3f586d383220538b36f4bb4464e1",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/inspect_spirv.py": "ffed4e95709097cce9fc4f066a0f6fb164ccff6cbea309801a6f50e2b1e18427",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/manifest.json": "b30adb4837480e0ac0c8161f1146b9094a03a57d2aec67f8e874f292d61cec98",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile.comp": "d702aa22023caa1f3840f7826262ba06b0d0567e38daf9ba38ed11fa12085c45",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4.spv": "c21c47f38edce914c7ed35b740d05e6f8d855a5c6cac2dbf40bd9f4f8e188e54",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4.spvasm": "de1cba3e717bd5da6df3685e51680c7407e28e28975ef5ee0befca6aa6dfcbb9",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_bf16.spv": "9be54ae6be5fd74806efafd5a6216cd089189c665203165ceb70841513063bcd",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_bf16.spvasm": "864abec49954764a0d46a57958749544aff712690bc7c182c36de8e401026671",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_bf16_preserve.spv": "060884db9315caba1433924d3cd938856d5e5c7610a10df2a264096d583a1c7d",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_bf16_preserve.spvasm": "a487720eff52286e81b1ded1ee202e38070544db43212d07c56bfc3a26bc67e2",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_preserve.spv": "65fa7072ff9549f05cde05100079b7d79ec1886d72ce564e2b8c7efc619b8c2b",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/matmul_tile_nvfp4_preserve.spvasm": "7d0e0fb2d01fec0ac108182fe0b384b8d401a6b28d6d56aeb934fce1d3f3dc20",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/native-result.json": "50f03e46a56dc98c462722b5a60d6d349c86d4648f2435f69328d99e36d58325",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/native.log": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/preflight-processes-fallback.json": "776b04b6c250b1c0c289a508d493f1ec79e3ca6459ffbfdb716aa81eff91bf83",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/preflight-processes.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/preflight-smoke.json": "3f2595ef8e74a3c2c7feed0fd5a4e841732d57171f0317d2ffe54d7f0e8c1823",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/probe-object-before.json": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/probe-object-pinned.json": "364f2e0335d6941dbe5cb685fafa424d114a9f0c7e090d59b1a035b28a32ffcb",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/README.txt": "4c3aa911bcc0e71a988b7d0ce8767c5699f3237403bbf19984812a331d9d4591",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/relink-probe-after.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/relink-probe-before.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-1024x4096-scaled.log": "0673df08691e3d5b6fc7c738b942b1bcc1c85c1951d294da64d2f7e3c2d43241",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-1024x4096.log": "7b733f230bf55046ca290cff6269977a586987ccb9d4e92c2ef72821b98952b7",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-1024x896-scaled.log": "bc3f222142ecbd22cadb2df51764dda371f2f8417991cbeb0a03bcab12a296b9",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-1024x896.log": "0f2983aa18c3a20d7f361cb8c5546a0ebd8b2ca2292183aae3608bd6594f3f4b",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-3072x896-scaled.log": "760aa371e8b5276cecd95a6a22a09d40e3617971c7fcff68d3aa71173c70cd05",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-native-half-3072x896.log": "4c8dd60b88a8d1832795c3b5eacd8a581bf21014105e0b6ecec331851b25c6ec",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-1024x4096-scaled.log": "198dfb01e28ccfdc00537d2399e7ba94411fe2d087e753022f78cc10a223fa3c",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-1024x4096.log": "4e092d9bf41560da51239b5937c8c4c14ee8cf4cf9181bcd8bc8915bcf412a64",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-1024x896-scaled.log": "c585baadd244f94038e932b30b52ca44fec743c708e446d6337e5720bf1b19e0",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-1024x896.log": "ebd3bf10a5fea9e3fc69fc76050f21aa1c13b8c192378121b662edffafb87a50",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-3072x896-scaled.log": "6c3352aae10587011057deb14386233fcc8e642c967b427f7f451e04c772e742",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-paired-k-3072x896.log": "589f076acb5505d479bc6108278479b74a082c89dd67f342d34d3f3516f0a5ff",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-preflight-failed.log": "3d05ff6a7fc6687ccae5187d3566078b5a7a34c1d5ea8f30c619aa763502ff59",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke-result.json": "56785886bcae015bf22c639538ba7ea8db4ecabde4d33332cf5481a18650ccee",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke.log": "88ab5a6f993d05ff8a20265324ab2f70040923656e46cc6f8ab339764f250352",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/smoke.py": "c43fbf24b2093912527bc68f72eb9898531112d48ce19b1290532077cd10d617",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/spirv-inspection.json": "aa9b2457f8a622dcae822685b6a7620f62e51c92d3f36480958953c9c5d762a8",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/spirv-inspection.log": "4d5dfe4b3bdfb749506ee2f04a491cf20408fdd4a3e86d26f97dc1b3f7a55a5c",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/vulkan-capabilities.log": "b915bee67637f971e72823cd31754b8c60e6d5da2f7e82adf6490f9ff9107b67",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/vulkan-summary.log": "15c47321d70ddfe1c2ceeee7451798b3bf125b3bfe2ecc54084a90461ca2fc0d",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/check-half-weight-raw.json": "f9321c93eefc67cd6dbdbf7834bdc3b33e9fab1868ffb10bb55de7e1af6ad1a3",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/native-half-probe.exe": "e95623af506f5379b7295447253b7a8e8b775f1b4aaf4a6294b1546b181c7330",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/native-half.lib": "2413270f33c18f946e9b86341966eaba8f6a6113c87ec3418c5b0d028060e821",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/paired-k-probe.exe": "946d12ce300f05db95c39ce9e98001baf6103bc7339b3aa4f88ac42597cd5269",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/paired-k.lib": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+    "build-nvfp4-tile-probe/native-half-weight-candidate/pins/probe.cpp": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/00-1024x896-before.log": "b443a364e46dafa641509f2a7654a2b02f4f34ddb161241e3015ca927cb074f8",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/01-1024x896-after.log": "c3cabce81001d6a313db1e578f97cca1a11754d71d924c4695047b2be686e57a",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/02-1024x896-after.log": "02559709da4832bd174a068137a924129744ad32c2553f440e7d443cc12326f8",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/03-1024x896-before.log": "2e6a29dbf677723cb923a0bf3f001b9a344876edf6143271059204c9b25f5592",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/04-1024x4096-before.log": "e61a1e29def6106dbb85e6f4c98cbd54980e1507413181843fdc00ea55ceb2b6",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/05-1024x4096-after.log": "d768c83e5f1cc6c9c3b76346b638afc6c9aa0afa800b6f89ac99c55f5232f582",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/06-1024x4096-after.log": "33738c7aac32154b76eaf4c958ac25f6593a6362b57b749991e573a766035b16",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/07-1024x4096-before.log": "21f7b5f0ded6dae583646e17f563658ad4f818ed00733ec59a9a0ac0b7f79ed3",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/08-3072x896-before.log": "8df2d0fbe49d5386c3033849867a5cb45bd83430ed262c28b031028c84c2b258",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/09-3072x896-after.log": "16693a90ea8bf73a79b1d37929b1e3f86b9e28b7325cbf938f2794a57356ce3a",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/10-3072x896-after.log": "10c244445526c0878de8cad33cd456ff4d2f48d939d127f6e2875b1e7e577aec",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/11-3072x896-before.log": "d2d4b6802b768176da7d758a66a6888b72f9067aa9cb32396c8a1ad627ba9529",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/12-1024x896-scaled-before.log": "dfa72ac40053bc587d00bbeac356a2e496e82ae734ec10d4d8a1d8fe15fcfd52",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/13-1024x896-scaled-after.log": "1bf366fc6ed9fbfb2d6305fb61e14d8db649781c3be64b156736df7d129d1de2",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/14-1024x896-scaled-after.log": "e7f55bdd71d564e00a2abf7621e0574f48542a1d3c576dccbde1d41e71183b39",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/15-1024x896-scaled-before.log": "0d2596465787dd0f5b894bb36c8bee3713796fa8764f84d91b007d221c45ff94",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/16-1024x4096-scaled-before.log": "494700bdcd00e3b13171709d80046814f128f08f0a5910c5b441740a5322ebc5",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/17-1024x4096-scaled-after.log": "083961fa4acacc274086b747039c23332f85459889057827afb04c134c1925d7",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/18-1024x4096-scaled-after.log": "917ca18c98a5c68801ff8a53bb0b9a14e618158d89f9400f79573f08e0b4f6f9",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/19-1024x4096-scaled-before.log": "1d50f8519b131f99c9300fa9f3df02b8cd001f14175375db79d13419e11f67ac",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/20-3072x896-scaled-before.log": "9e8dff940a0b813bd0552f9859b658afc4d88699bbfad3557edb7d00a0244316",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/21-3072x896-scaled-after.log": "5a887797aaefde7b29c1cdd8fe3e126449c7d0b6c417de027bdbfcaf28e756f4",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/22-3072x896-scaled-after.log": "158b52b1db6afcfbec8312c64e1f9f38acd64ba6588bbfcba3c766ae3f4a34c4",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/23-3072x896-scaled-before.log": "a734e9e4a96c706b7da2f3588c39086ea517820c6d02a3c1ab66074b1e9b0762",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/activity.jsonl": "30ccf05fcff9c2afd39b37dc2830d2b46c26a10dc32661675e99562f7fc14598",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x4096-after.log": "92d21122dd5a10120dcbaea8a5e8d2897ef39655736e17ecaebb184e7dc95363",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x4096-before.log": "3725cda23e2b3c899f90f7090e8a23a446a5c3bf636340c007fe0fdab6eb4b53",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x4096-scaled-after.log": "66ad151f17dd05d84fe78fa9f804b24409429635efb374e92816a54e33338de0",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x4096-scaled-before.log": "f5a76f2d7f9c38817a549b55479633fb27d5af192fd6c6ce6d6d3f7ea2e5fb36",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x896-after.log": "801aaf0ff2ee9c372d915e6af9dce6fa8def0961d90d609e3ae66d44c84bcb58",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x896-before.log": "04699f21ff9bb8e7f9cb2852b6a2ad5b4887e3e33a5e0de8569baf44054b44f1",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x896-scaled-after.log": "debb68d70d86c5ecf6c924af50d9c58698758426a9592c9ba2d8c23d3703ac02",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-1024x896-scaled-before.log": "c494ba64d49d1754ff7fd8bbdb4eca5bda9fcb30594449295aaa1e31b523afc9",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-3072x896-after.log": "d8ca610e0f893acb0561c31cc0cbc1e4057ce8e323cc2ef43933d96e436216b8",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-3072x896-before.log": "d52fd32d037237d0aa3f4f681c7ce15b0b5cb5eb3d5ece1d8d968fd35b4ebca9",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-3072x896-scaled-after.log": "22c969f5de326653134ff58a7f350eced0aba6a2a0f2ba0b01d45483b885c30e",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/diag-3072x896-scaled-before.log": "147d9a6704efbbad70809967bd2dd2335c09050d734fdbf3fc5939a80ddbaa11",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/execution.json": "c0d762db168f475b3919ab2556963f34c845b4c84b583a5b8f7d820e9e84d333",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-tile-probe/comparison-native-half-weight-v1/monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f"
+  },
+  "limits": [
+    "Before uses paired-K F32 staging. After uses exact native-half weight storage. Main and mx were not measured.",
+    "All 24 timings and 12 diagnostics are retained across six shape/scale cells, with two observations per arm. Native checks pass. The candidate is not adopted and has no model HF result.",
+    "Interval overlap uses the same PDH flags. Benchmark and monitor PIDs are excluded from known unrelated CPU. GPU engines are never summed. Unknown gaps are retained.",
+    "Near-flat to small losses do not prove regression outside noise. Column-ownership candidate separate."
+  ],
+  "native_binary_retention_limit": "Original native test executable was overwritten by interleaved relink and was not frozen. Original log and manifest-recorded SHA are witnessed evidence only; current mutable path does not verify that binary. Probe executables/libraries,source and SPIR-V remain retained; timings unaffected."
+}

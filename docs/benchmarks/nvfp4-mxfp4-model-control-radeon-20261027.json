@@ -1,0 +1,842 @@
+{
+  "schema": "nvfp4-mxfp4-model-control-radeon-20261027",
+  "scope": "Matched Windows development control: public main 8ccc10162 vs NVFP4 candidate a57b3fa67, running the MXFP4 Qwen3-0.6B model on AMD Radeon VII. This is not an mx-llama.cpp reference comparison or an HF/correctness gate.",
+  "build": {
+    "preparation_path": "build-integration/mxfp4-vulkan-decode-win-v1/preparation.json",
+    "preparation_sha256": "dca60d864323f030c06df330066578f81f01689874d1a3618f65424f13bc8158",
+    "configuration": {
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "config": "Release",
+      "build_parallel": 1,
+      "build_testing": true,
+      "vulkan": true,
+      "glslc": "C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+      "vulkan_include": "C:/VulkanSDK/1.4.357.0/Include",
+      "reused_shader_or_library_artifacts": false
+    },
+    "arms": {
+      "main": {
+        "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+        "source_archive_sha256": "b82acdd839afae2d44503ce0648f630f6a612525d574d23cb8a1b5a294b85639",
+        "source_tree_manifest_sha256": "667e4bf322f478e9c585ca789261a9de2fec331a1a21ef8b43e6c6c92c320434",
+        "source_file_count": 2942,
+        "binary_sha256": "e62df6af32af3e73671f30505b9a4d23d45b0634b1e7647414bce046b5ee4b58",
+        "binary_bytes": 11855872,
+        "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246"
+      },
+      "candidate": {
+        "revision": "a57b3fa67f2e66aba1ac35f60c117a783269e9f5",
+        "source_archive_sha256": "998077bae94df671f9705d850d24a84727723e6ac6effa74aa15b2e0b112b8ec",
+        "source_tree_manifest_sha256": "3851a0d0a5ac5d20b2c38821383665affdbe1eafb74edec924898e984d668d2f",
+        "source_file_count": 3093,
+        "binary_sha256": "8dcef07988046662f60bc815ef639aa165012ab6cd8b14df8a54335046c887d6",
+        "binary_bytes": 11973120,
+        "version": "llmx 0.1.0+unknown numerics 9b562eeffc94fbe1"
+      }
+    }
+  },
+  "plan": {
+    "path": "build-integration/mxfp4-two-cell-windows-timing-v1/plan.json",
+    "sha256": "7413ffa6aa4d683fa2ba0f5b5c1655a1cfbcd524dd659b689bb6f49f624b287a",
+    "runner_sha256": "b9b68b66ead64f762cb196e99e2842b4a1996137980acd413de081c303836c0f",
+    "monitor_path": "build-integration\\shared-row-scale-removal-v2\\bundle\\timing-source\\monitor-activity.ps1",
+    "monitor_sha256": "fa36cfa8de7bcb3db5cb36959f212a57eeedae876acc33f6a695053bf35579b3",
+    "model": {
+      "path": "C:/Users/Marko/AppData/Local/Temp/llmx-mxfp4-windows-real-20260928/Qwen3-0.6B-MXFP4.gguf",
+      "sha256": "84de98ed82dbcd8ee077731a03806b6861839684916b468569e65e8b26ddce45",
+      "verified_locally_during_preparation": true,
+      "bytes": 322830656,
+      "mtime_ns": 1790543855593173100
+    },
+    "settings": {
+      "p": 128,
+      "n": 256,
+      "r": 1,
+      "threads": 4,
+      "ubatch": 128,
+      "cache_type_k": "f16",
+      "cache_type_v": "f16",
+      "device": "vulkan:0",
+      "drafter": "off by default; no drafter flags",
+      "load_mode": "runtime default; omit flag",
+      "profile": false
+    },
+    "cells": [
+      {
+        "id": "default",
+        "dtype_flag": [],
+        "intent": "Runtime default dtype, with --dtype omitted."
+      },
+      {
+        "id": "f32",
+        "dtype_flag": [
+          "--dtype",
+          "f32"
+        ],
+        "intent": "Explicit original F32 activation path."
+      }
+    ],
+    "order": [
+      {
+        "arm": "main",
+        "block": "ABBA-1"
+      },
+      {
+        "arm": "candidate",
+        "block": "ABBA-2"
+      },
+      {
+        "arm": "candidate",
+        "block": "ABBA-3"
+      },
+      {
+        "arm": "main",
+        "block": "ABBA-4"
+      },
+      {
+        "arm": "candidate",
+        "block": "BAAB-1"
+      },
+      {
+        "arm": "main",
+        "block": "BAAB-2"
+      },
+      {
+        "arm": "main",
+        "block": "BAAB-3"
+      },
+      {
+        "arm": "candidate",
+        "block": "BAAB-4"
+      }
+    ],
+    "calls_expected": 16,
+    "calls_per_dtype_arm_metric": 4
+  },
+  "execution": {
+    "path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/run.json",
+    "sha256": "34243fae9619e4873842ede57c55d5b0edbc49858a46e82db522d98a7436fd65",
+    "passed": true,
+    "plan_sha256": "7413ffa6aa4d683fa2ba0f5b5c1655a1cfbcd524dd659b689bb6f49f624b287a",
+    "runner_sha256": "b9b68b66ead64f762cb196e99e2842b4a1996137980acd413de081c303836c0f",
+    "activity_sha256": "2cad2dcc5badaba1eb46e6e2ad0ee48460a9713333171772160ea594b7a6d58a",
+    "calls": [
+      {
+        "index": 1,
+        "cell": "default",
+        "arm": "main",
+        "block": "ABBA-1",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.08,
+          "tg256": 97.37
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/01-default-main-ABBA-1.stdout",
+        "stdout_sha256": "8a26bb28922f44cb6dee4dc159482d088e97ae4cbdc73465357c465014b65907",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/01-default-main-ABBA-1.stderr",
+        "stderr_sha256": "a4951687223267517f202d3b8fa645fcfbadcee70a4681b49cb8971e4d8080e8"
+      },
+      {
+        "index": 2,
+        "cell": "default",
+        "arm": "candidate",
+        "block": "ABBA-2",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.48,
+          "tg256": 97.07
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/02-default-candidate-ABBA-2.stdout",
+        "stdout_sha256": "bd24ebe2cfcbdf16746989ab4f357b76935100103ad031fec0aa578f8aa40ecc",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/02-default-candidate-ABBA-2.stderr",
+        "stderr_sha256": "243c9d74e3662f6d884ef8f770dc6721a03dc6eecdd1f1420a291ef304878488"
+      },
+      {
+        "index": 3,
+        "cell": "default",
+        "arm": "candidate",
+        "block": "ABBA-3",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 558.87,
+          "tg256": 97.13
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/03-default-candidate-ABBA-3.stdout",
+        "stdout_sha256": "cc16071ca4987607da43d3da4614984fb232884cc442f982b292ea448a48eaca",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/03-default-candidate-ABBA-3.stderr",
+        "stderr_sha256": "4a4c29c43fc3bcc2859cfc91420217c3e09b52eb8128b06555e725d312afde5f"
+      },
+      {
+        "index": 4,
+        "cell": "default",
+        "arm": "main",
+        "block": "ABBA-4",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.55,
+          "tg256": 97.43
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/04-default-main-ABBA-4.stdout",
+        "stdout_sha256": "24b70e222c61978844ca6b01007818d1e803b17560269c3453a6b39c5528786e",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/04-default-main-ABBA-4.stderr",
+        "stderr_sha256": "48da908a7d949de7dece3e6582e536c85184e4bc78f7a751cb3e1c83de432a76"
+      },
+      {
+        "index": 5,
+        "cell": "default",
+        "arm": "candidate",
+        "block": "BAAB-1",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.52,
+          "tg256": 97.41
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/05-default-candidate-BAAB-1.stdout",
+        "stdout_sha256": "88e6be88093d120956a164c4cc84960c0703ff99fbb9946829aec27ffe0704ec",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/05-default-candidate-BAAB-1.stderr",
+        "stderr_sha256": "835bc44e4f300eb6397361d84d18b0eb94ad8d0bf9ae3f561a26994fc6158838"
+      },
+      {
+        "index": 6,
+        "cell": "default",
+        "arm": "main",
+        "block": "BAAB-2",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.4,
+          "tg256": 98.21
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/06-default-main-BAAB-2.stdout",
+        "stdout_sha256": "1bd387321c04310e039d583dcf2b6888f1ac9f6de822eb398c08c01a90a6230f",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/06-default-main-BAAB-2.stderr",
+        "stderr_sha256": "691bc936ed1856afa5e0052e0aea5851f0c21f589328d07a2249cfd18f0e8023"
+      },
+      {
+        "index": 7,
+        "cell": "default",
+        "arm": "main",
+        "block": "BAAB-3",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 560.33,
+          "tg256": 98.1
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/07-default-main-BAAB-3.stdout",
+        "stdout_sha256": "15632d9fdbc507ff5f4ed0450f4d327a828197f6a6e9e73138854676bf900cc4",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/07-default-main-BAAB-3.stderr",
+        "stderr_sha256": "0123a8b6f89093d710cbaa1bc472917fd6b515e8c0e519627742bcb457bdf2ea"
+      },
+      {
+        "index": 8,
+        "cell": "default",
+        "arm": "candidate",
+        "block": "BAAB-4",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 559.83,
+          "tg256": 98.29
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/08-default-candidate-BAAB-4.stdout",
+        "stdout_sha256": "ec8484c87ab6fdfe110559b4ad58f9b85036c2f0ea36c521fad111d65e1502eb",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/08-default-candidate-BAAB-4.stderr",
+        "stderr_sha256": "baa0301256a77fb5d4a072f117682ed013281f97df3d7baeea301de910462754"
+      },
+      {
+        "index": 9,
+        "cell": "f32",
+        "arm": "main",
+        "block": "ABBA-1",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 547.15,
+          "tg256": 30.02
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/09-f32-main-ABBA-1.stdout",
+        "stdout_sha256": "a0a07f686431ff2f7766bb4c0c773d3b8adc6d8fc58d0f64ff78d959fc8f4a82",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/09-f32-main-ABBA-1.stderr",
+        "stderr_sha256": "d29288ebec1dbf4d84eed2c727a086ad5912d34143dbc1c1612658eecc328ff2"
+      },
+      {
+        "index": 10,
+        "cell": "f32",
+        "arm": "candidate",
+        "block": "ABBA-2",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 548.54,
+          "tg256": 29.99
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/10-f32-candidate-ABBA-2.stdout",
+        "stdout_sha256": "70a08a6a1196b6d39f38451b39bc910377f01bc4dbe997d6dc048652bf972d5e",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/10-f32-candidate-ABBA-2.stderr",
+        "stderr_sha256": "d29288ebec1dbf4d84eed2c727a086ad5912d34143dbc1c1612658eecc328ff2"
+      },
+      {
+        "index": 11,
+        "cell": "f32",
+        "arm": "candidate",
+        "block": "ABBA-3",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 548.56,
+          "tg256": 30.02
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/11-f32-candidate-ABBA-3.stdout",
+        "stdout_sha256": "ea2806b58645ac8e25d2dc351c8259ba4800a9fc94f03e8b994cdce454b8c5e5",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/11-f32-candidate-ABBA-3.stderr",
+        "stderr_sha256": "d29288ebec1dbf4d84eed2c727a086ad5912d34143dbc1c1612658eecc328ff2"
+      },
+      {
+        "index": 12,
+        "cell": "f32",
+        "arm": "main",
+        "block": "ABBA-4",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 547.91,
+          "tg256": 30.05
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/12-f32-main-ABBA-4.stdout",
+        "stdout_sha256": "05dffcdc314d4a0aae7b0c7f5db7ace19f39bb8043e5419c08599d64364f5533",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/12-f32-main-ABBA-4.stderr",
+        "stderr_sha256": "1f9368026524f4ef10ae4fd7737092624566a1bd7a8a6307e2c40f71194d8ea2"
+      },
+      {
+        "index": 13,
+        "cell": "f32",
+        "arm": "candidate",
+        "block": "BAAB-1",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 548.39,
+          "tg256": 30.09
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/13-f32-candidate-BAAB-1.stdout",
+        "stdout_sha256": "9d200b4292aa18104e879e8d94c19df4fe3b2d15a228bc1923d79f471908ae8d",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/13-f32-candidate-BAAB-1.stderr",
+        "stderr_sha256": "756f02900b383daf6fb79dbfdd18baa870ae05a5d6bf099ec79fb724d507f1a7"
+      },
+      {
+        "index": 14,
+        "cell": "f32",
+        "arm": "main",
+        "block": "BAAB-2",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 547.22,
+          "tg256": 30.06
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/14-f32-main-BAAB-2.stdout",
+        "stdout_sha256": "de89a581937e98e53019662e1f0ca90055befeaf35f0a54485cd340b8f618963",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/14-f32-main-BAAB-2.stderr",
+        "stderr_sha256": "1b777901bfd7ae207972787bfb1a34b9e56116c763335701a6e97313a32f26db"
+      },
+      {
+        "index": 15,
+        "cell": "f32",
+        "arm": "main",
+        "block": "BAAB-3",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 547.8,
+          "tg256": 30.06
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/15-f32-main-BAAB-3.stdout",
+        "stdout_sha256": "635e0d000bb535c556eccb1a0b633efe4e563d1dd47727c07bef689097714be9",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/15-f32-main-BAAB-3.stderr",
+        "stderr_sha256": "8ba935f0f43ea3b0a7ff7dd988b269064d1978033b25d135dc898e7d88aaa37e"
+      },
+      {
+        "index": 16,
+        "cell": "f32",
+        "arm": "candidate",
+        "block": "BAAB-4",
+        "exit_code": 0,
+        "rates_tok_s": {
+          "pp128": 547.15,
+          "tg256": 30.07
+        },
+        "stdout_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/16-f32-candidate-BAAB-4.stdout",
+        "stdout_sha256": "5d20f33cb8bae373cc8e11e0d59744dd875428de1d2ccf039d748a63f8eefcd0",
+        "stderr_path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/16-f32-candidate-BAAB-4.stderr",
+        "stderr_sha256": "5e11d6fc82488ab04dfe254ba37a716aa3270b7d076971a7f7731ced89eb8afd"
+      }
+    ],
+    "mean_sample_results": {
+      "default": {
+        "pp128": {
+          "samples_tok_s": {
+            "main": [
+              560.08,
+              560.55,
+              560.4,
+              560.33
+            ],
+            "candidate": [
+              560.48,
+              558.87,
+              560.52,
+              559.83
+            ]
+          },
+          "mean_tok_s": {
+            "main": 560.34,
+            "candidate": 559.925
+          },
+          "median_tok_s": {
+            "main": 560.365,
+            "candidate": 560.155
+          },
+          "min_tok_s": {
+            "main": 560.08,
+            "candidate": 558.87
+          },
+          "max_tok_s": {
+            "main": 560.55,
+            "candidate": 560.52
+          },
+          "candidate_over_main_throughput_change_percent": -0.07406217653568303,
+          "blocks": {
+            "ABBA": {
+              "main_samples_tok_s": [
+                560.08,
+                560.55
+              ],
+              "candidate_samples_tok_s": [
+                560.48,
+                558.87
+              ],
+              "candidate_over_main_throughput_change_percent": -0.11422146471182781
+            },
+            "BAAB": {
+              "main_samples_tok_s": [
+                560.4,
+                560.33
+              ],
+              "candidate_samples_tok_s": [
+                560.52,
+                559.83
+              ],
+              "candidate_over_main_throughput_change_percent": -0.03390647167472727
+            }
+          }
+        },
+        "tg256": {
+          "samples_tok_s": {
+            "main": [
+              97.37,
+              97.43,
+              98.21,
+              98.1
+            ],
+            "candidate": [
+              97.07,
+              97.13,
+              97.41,
+              98.29
+            ]
+          },
+          "mean_tok_s": {
+            "main": 97.7775,
+            "candidate": 97.475
+          },
+          "median_tok_s": {
+            "main": 97.765,
+            "candidate": 97.27
+          },
+          "min_tok_s": {
+            "main": 97.37,
+            "candidate": 97.07
+          },
+          "max_tok_s": {
+            "main": 98.21,
+            "candidate": 98.29
+          },
+          "candidate_over_main_throughput_change_percent": -0.3093758789087575,
+          "blocks": {
+            "ABBA": {
+              "main_samples_tok_s": [
+                97.37,
+                97.43
+              ],
+              "candidate_samples_tok_s": [
+                97.07,
+                97.13
+              ],
+              "candidate_over_main_throughput_change_percent": -0.30800821355236874
+            },
+            "BAAB": {
+              "main_samples_tok_s": [
+                98.21,
+                98.1
+              ],
+              "candidate_samples_tok_s": [
+                97.41,
+                98.29
+              ],
+              "candidate_over_main_throughput_change_percent": -0.3107330242983153
+            }
+          }
+        }
+      },
+      "f32": {
+        "pp128": {
+          "samples_tok_s": {
+            "main": [
+              547.15,
+              547.91,
+              547.22,
+              547.8
+            ],
+            "candidate": [
+              548.54,
+              548.56,
+              548.39,
+              547.15
+            ]
+          },
+          "mean_tok_s": {
+            "main": 547.52,
+            "candidate": 548.16
+          },
+          "median_tok_s": {
+            "main": 547.51,
+            "candidate": 548.4649999999999
+          },
+          "min_tok_s": {
+            "main": 547.15,
+            "candidate": 547.15
+          },
+          "max_tok_s": {
+            "main": 547.91,
+            "candidate": 548.56
+          },
+          "candidate_over_main_throughput_change_percent": 0.11689070718876593,
+          "blocks": {
+            "ABBA": {
+              "main_samples_tok_s": [
+                547.15,
+                547.91
+              ],
+              "candidate_samples_tok_s": [
+                548.54,
+                548.56
+              ],
+              "candidate_over_main_throughput_change_percent": 0.18629116212809382
+            },
+            "BAAB": {
+              "main_samples_tok_s": [
+                547.22,
+                547.8
+              ],
+              "candidate_samples_tok_s": [
+                548.39,
+                547.15
+              ],
+              "candidate_over_main_throughput_change_percent": 0.04748771711930999
+            }
+          }
+        },
+        "tg256": {
+          "samples_tok_s": {
+            "main": [
+              30.02,
+              30.05,
+              30.06,
+              30.06
+            ],
+            "candidate": [
+              29.99,
+              30.02,
+              30.09,
+              30.07
+            ]
+          },
+          "mean_tok_s": {
+            "main": 30.0475,
+            "candidate": 30.0425
+          },
+          "median_tok_s": {
+            "main": 30.055,
+            "candidate": 30.045
+          },
+          "min_tok_s": {
+            "main": 30.02,
+            "candidate": 29.99
+          },
+          "max_tok_s": {
+            "main": 30.06,
+            "candidate": 30.09
+          },
+          "candidate_over_main_throughput_change_percent": -0.01664031949413225,
+          "blocks": {
+            "ABBA": {
+              "main_samples_tok_s": [
+                30.02,
+                30.05
+              ],
+              "candidate_samples_tok_s": [
+                29.99,
+                30.02
+              ],
+              "candidate_over_main_throughput_change_percent": -0.09988346928583303
+            },
+            "BAAB": {
+              "main_samples_tok_s": [
+                30.06,
+                30.06
+              ],
+              "candidate_samples_tok_s": [
+                30.09,
+                30.07
+              ],
+              "candidate_over_main_throughput_change_percent": 0.06653359946773296
+            }
+          }
+        }
+      }
+    }
+  },
+  "independent_analysis": {
+    "path": "build-integration/mxfp4-two-cell-windows-timing-v1/attempt-01/independent-analysis.json",
+    "sha256": "f8240dbbe92f1f7d61f78e7c9a2fccf35c5313c4216a70a8f2896a984e86586d",
+    "checks": {
+      "run_passed": true,
+      "plan_hash_matches_run": true,
+      "runner_hash_matches_run": true,
+      "call_count": 16,
+      "planned_count": 16,
+      "monitor_exit_zero": true,
+      "all_planned_calls_retained": true,
+      "all_calls_exit_zero": true,
+      "binary_hashes_still_match": {
+        "main": true,
+        "candidate": true
+      }
+    },
+    "activity": {
+      "samples": 52,
+      "sample_errors": 0,
+      "all_adapter_other_gpu_activity_samples": 52,
+      "observed_other_process_cpu_over_1_core_samples": 51,
+      "sample_gap_over_3_seconds": 51,
+      "disk_over_threshold_samples": 0,
+      "cross_call_collections": 3,
+      "calls_with_monitor_coverage": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "raw_activity_sha256": "2cad2dcc5badaba1eb46e6e2ad0ee48460a9713333171772160ea594b7a6d58a"
+    },
+    "limitations": [
+      "Every planned sample and block is retained; no replacement or outlier exclusion.",
+      "Monitor start-state labels do not assign the entire collection to an arm. Multi-call overlaps remain ambiguous.",
+      "GPU counters above include all Windows adapters; a counter-to-Radeon mapping is not established by Vulkan enumeration.",
+      "Other-process CPU excludes known benchmark and monitor PIDs. The controller and short-lived query helpers are not fully separable; new/disappeared processes limit accounting.",
+      "Unavailable counters remain unknown. This analysis reports a workload tradeoff, not a new numerical tolerance or qualification waiver."
+    ],
+    "actual_matrix_paths": {
+      "default": {
+        "main": [
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ]
+        ],
+        "candidate": [
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "block-int16"
+                ]
+              ]
+            }
+          ]
+        ]
+      },
+      "f32": {
+        "main": [
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ]
+        ],
+        "candidate": [
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ],
+          [
+            {
+              "dtype": "f32",
+              "devices": [
+                [
+                  "f32"
+                ]
+              ]
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "interpretation": [
+    "Default and explicit-F32 workloads are both retained. Candidate-minus-main shifts are small and mixed across these cells.",
+    "All 16 planned calls exited successfully. All samples and ABBA/BAAB blocks are retained.",
+    "This compares the NVFP4 candidate with public main on one Windows Radeon VII using an MXFP4 model. It is neither a matched mx-llama.cpp reference comparison nor model correctness or qualification evidence.",
+    "Activity flags are descriptive. GPU counters cover all adapters and are not mapped conclusively to the selected Vulkan adapter. Process CPU attribution is partial, some monitor windows overlap multiple calls, and unavailable observations remain unknown."
+  ]
+}

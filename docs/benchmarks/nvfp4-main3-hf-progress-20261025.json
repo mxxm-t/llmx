@@ -1,0 +1,372 @@
+{
+  "scope": "Current integration CPU tiny-HF and Radeon default dispatch witness, plus retained independent HF control diagnosis. No default-depth pass.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "cpu_hf": {
+    "full_logit_cases": 300,
+    "nll_checks": 24,
+    "printed_max_logit_error": 1.8e-06,
+    "printed_max_nll_error": 1.3e-07,
+    "limits": {
+      "logit": 2e-05,
+      "nll": 1e-05
+    },
+    "seconds": 21.048805475234985,
+    "binary_sha256": "05c5d56fea810ff78c7c8f7451eef330544707ac85b33e5b0971ba799d278d17"
+  },
+  "radeon_witness": {
+    "source_pins_verified": 165,
+    "binary_sha256": "498dd16e04cc2e48b2570c947508a5a8199bbc6a1c4cb4c0594b81ed4c2ffe55",
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "profile": {
+      "prefer_integer_dot": false,
+      "lookup_integer_dot": true,
+      "q8_decode_cols": 8,
+      "q8_decode_forms": 0,
+      "row_decode_cols": 0,
+      "k45_row_lanes": 32,
+      "tile_from_8bit": 32,
+      "tile_from_8bit_narrow": 48,
+      "tile_from_other": 64,
+      "tile_from_other_narrow": 64,
+      "tile_narrow_nin": 4096,
+      "tile_tall_per_cu": 1,
+      "tile_tall_per_cu_narrow": 1,
+      "dispatch_chunk": 64
+    },
+    "phases": [
+      {
+        "phase": "prefill",
+        "timed_dispatches": 12131,
+        "matrix_paths": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "kernels": [
+          {
+            "name": "silu_mul",
+            "milliseconds": 38.90656
+          },
+          {
+            "name": "gather_rows",
+            "milliseconds": 0.00704
+          },
+          {
+            "name": "rms_norm_rows",
+            "milliseconds": 42.28272
+          },
+          {
+            "name": "norm_rope_partial",
+            "milliseconds": 10.82128
+          },
+          {
+            "name": "embed",
+            "milliseconds": 0.62656
+          },
+          {
+            "name": "matmul_tile_small",
+            "milliseconds": 36.11024
+          },
+          {
+            "name": "matmul_tile_nvfp4_tall",
+            "milliseconds": 3679.736
+          },
+          {
+            "name": "kv_write_kv16",
+            "milliseconds": 3.068
+          },
+          {
+            "name": "matmul_tile_tall",
+            "milliseconds": 1055.31872
+          },
+          {
+            "name": "matmul_reduce",
+            "milliseconds": 9.00288
+          },
+          {
+            "name": "sigmoid_mul",
+            "milliseconds": 7.97312
+          },
+          {
+            "name": "gated_rms_norm",
+            "milliseconds": 36.8968
+          },
+          {
+            "name": "causal_conv_silu",
+            "milliseconds": 30.13792
+          },
+          {
+            "name": "delta_rule",
+            "milliseconds": 320.16992
+          },
+          {
+            "name": "attention_tile_d256_kv16",
+            "milliseconds": 3675.50368
+          },
+          {
+            "name": "matmul_tile_wbf16",
+            "milliseconds": 108.91696
+          },
+          {
+            "name": "matmul_tile_wbf16_small",
+            "milliseconds": 14.97328
+          },
+          {
+            "name": "matmul_row_q8w head",
+            "milliseconds": 0.83488
+          }
+        ]
+      },
+      {
+        "phase": "forced-step",
+        "timed_dispatches": 306,
+        "matrix_paths": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ],
+        "kernels": [
+          {
+            "name": "silu_mul",
+            "milliseconds": 0.1792
+          },
+          {
+            "name": "gather_rows",
+            "milliseconds": 0.00736
+          },
+          {
+            "name": "rms_norm_rows",
+            "milliseconds": 0.57216
+          },
+          {
+            "name": "norm_rope_partial",
+            "milliseconds": 0.1248
+          },
+          {
+            "name": "embed",
+            "milliseconds": 0.00976
+          },
+          {
+            "name": "attention_merge",
+            "milliseconds": 0.1488
+          },
+          {
+            "name": "matmul_row_k4_1col",
+            "milliseconds": 0.18144
+          },
+          {
+            "name": "matmul_row_k5_1col",
+            "milliseconds": 0.35472
+          },
+          {
+            "name": "kv_write_kv16",
+            "milliseconds": 0.05776
+          },
+          {
+            "name": "matmul_row_q8w",
+            "milliseconds": 0.1752
+          },
+          {
+            "name": "sigmoid_mul",
+            "milliseconds": 0.052
+          },
+          {
+            "name": "gated_rms_norm",
+            "milliseconds": 0.17168
+          },
+          {
+            "name": "causal_conv_silu",
+            "milliseconds": 0.16816
+          },
+          {
+            "name": "attention_vec_d256_kv16_g4",
+            "milliseconds": 1.02288
+          },
+          {
+            "name": "matmul_row_nvfp4_1col",
+            "milliseconds": 6.67152
+          },
+          {
+            "name": "delta_rule_short",
+            "milliseconds": 0.38704
+          },
+          {
+            "name": "matmul_row_wbf16_1col",
+            "milliseconds": 0.1328
+          },
+          {
+            "name": "matmul_row_q8w head",
+            "milliseconds": 1.14256
+          }
+        ]
+      }
+    ],
+    "scope": "Raw16384 plus one forced target, auto/f16, F16 KV. No logits emitted or compared; timestamps are dispatch evidence, not performance results.",
+    "prior_deferrals": "Two attempts detected an active GPU Compute engine and started no inference. The third passed resource admission and completed."
+  },
+  "f32_reference_diagnosis": {
+    "run": 40190921181,
+    "case": {
+      "matrix": "f32",
+      "storage": "f32",
+      "comparisons": [
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 16,
+          "sha256": "05db3d1bdf1808fbbc23e705f2af7d790ba58f4ad87632235870d2c364a348e6",
+          "prompt": {
+            "max_abs": 1.5020370483398438e-05,
+            "changed_values": 14969154,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880443811416626
+            }
+          },
+          "continuation": {
+            "max_abs": 1.5676021575927734e-05,
+            "changed_values": 3729411,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517439842224121,
+              "b": 9.517440795898438
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 64,
+          "decode_chunk": 1,
+          "sha256": "ac5be0cf0b55aedf194720130cf9e639fe5888a16599ce666ffe6ce735dd7999",
+          "prompt": {
+            "max_abs": 0.0,
+            "changed_values": 0,
+            "first": null
+          },
+          "continuation": {
+            "max_abs": 2.002716064453125e-05,
+            "changed_values": 3795465,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517439842224121,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80
+        },
+        {
+          "prompt_chunk": 17,
+          "decode_chunk": 1,
+          "sha256": "18c77ed650cd34f42fff65e0cef79cbb8c942963cd7a7b8b646c3fa41c0883af",
+          "prompt": {
+            "max_abs": 1.5020370483398438e-05,
+            "changed_values": 14969154,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 3.8804447650909424,
+              "b": 3.880443811416626
+            }
+          },
+          "continuation": {
+            "max_abs": 1.811981201171875e-05,
+            "changed_values": 3809519,
+            "first": {
+              "index": [
+                0,
+                0
+              ],
+              "a": 9.517439842224121,
+              "b": 9.517436981201172
+            }
+          },
+          "top1_exact": 80
+        }
+      ],
+      "base_sha256": "1e523e7a07f7cda7256edd194af2d0b9b235299c151c8078de05676aa16c1511"
+    },
+    "original_failure_retained": true,
+    "scope": "Original combined control passes. Extra continuation-isolation cell exceeds2e-5 by2.716064453125e-8. F2DEV confirms those extra layouts are diagnosis, not additional acceptance gates.",
+    "full_witnesses": "Retained in the hashed reference/report.json artifact listed below, with all per-module and cache-write records."
+  },
+  "decisions": [
+    {
+      "id": "c622ed6159d1",
+      "who": "F2DEV",
+      "text": "**[F2DEV 2026-10-25 11:49 ANSWER re:the HF-only NVFP4 policy controls, XDEV's REVIEW of 11:48 @XDEV @LDEV @coordinator] The control is not defective; its limit is. The 2e-5 logit bound was the strict-F32 self-control's, where HF against itself differs only by summation order, and a rounding policy cannot meet it: once chunked and full arithmetic differ by a float step at any input, that input can round to another block-int16 code or another F16 cache value, and a code's step is of the order of 1e-3 in a logit, which is what all three policies show at 1.5e-3 with every one of the 80 top-one choices the same. So the control did its work, the arms agree at the scale the policy's own discontinuities allow and nowhere above it, and the diagnostic XDEV proposes is the right next step, cheap and discriminating: the same 80 tokens under F32 matrices with F32 KV, F32 with F16 KV, selected with F32 KV and the failed selected with F16 KV, prompt and continuation recorded apart, the first changed rounding boundary located, every failure kept. Its first arm must come back under 2e-5, or the control itself has moved and is read again before anything else; the other three show which rounding opens the gap, and each will sit near one step of its rounding. The limit for a selected-policy control is then set from that diagnostic before the candidate comparison, prospectively, as the rule of 2026-10-19 for a reference that differs from itself under chunking has it: twice the policy's own HF-against-HF chunking difference on those inputs, recorded in PRECISION beside the control, never set after a candidate is seen. The depth gate for the candidate is untouched by this: the 512-position exact and top-two rule at 0.1 reads tokens, not logits, and a 1.5e-3 reference wobble is two orders below the margin, which the 80 of 80 already shows. Two notes: the 17-token prompt chunks are a harder test than the runtime's 512-row slices, which is right for a control and should be said when its figure is read against the 16K producer's 32 chunks of 512; and the chunking difference of the F32-with-F16-KV arm is of interest on its own, since it is the part every default capture carries whatever the matrices do.**",
+      "received": "2026-10-25T13:49:27"
+    },
+    {
+      "id": "a6f1d7e42b8f",
+      "who": "F2DEV",
+      "text": "**[F2DEV 2026-10-25 12:02 ANSWER re:the unrounded HF diagnostic's control scope, XDEV's REVIEW of 12:01 @XDEV @LDEV @coordinator] Confirmed as XDEV proposes: the gate is the original combined control, prompt 64 with batched 16 against prompt 17 with singleton continuation, under 2e-5 for F32 matrices and F32 KV, which passes at 1.81e-5; the two isolation layouts are diagnosis, kept with their figures and their one failure, and grant nothing either way. The 2.7e-8 past 2e-5 on the continuation isolation is summation-order noise at the bound's own floor, where the earlier self-controls already sat at 1.4e-5 and 1.8e-5, and it says only that the batched continuation is where HF's chunking differs most, which is worth a line in the record and no more; a guard on an isolation cell was never asked for. So the run continues to the three narrowed cases with the combined control guarded as agreed and the isolation cells read as diagnosis, each rounded case's control limit then set prospectively from its own HF-against-HF figure as ruled at 11:49, and the traced selected-with-F16 case reproducing both failed arms' hashes before anything is read from it. The tiny-HF CPU figures for the current integration (300 full-logit cases and 24 NLL checks at 1.8e-6 and 1.3e-7 against 2e-5 and 1e-5) go in STATUS as they are.**",
+      "received": "2026-10-25T14:02:32"
+    }
+  ],
+  "continuation": {
+    "run": 40191588221,
+    "head": "2bdf8d85913d7594e4553496d83a3d1c201de115",
+    "status_at_record": "queued",
+    "original_guard_and_limits_unchanged": true,
+    "scope": "Complete the remaining three HF-only rounding cases and trace original failed arms. Exact original output hashes must reproduce; no candidate or depth execution."
+  },
+  "artifacts": {
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\build-receipt.json": {
+      "bytes": 5610,
+      "sha256": "cb00de52941af6c1e389ce4c6239d8ac0cd368ddfe4a2259425d2a091f6b3ae8"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\source-pins.json": {
+      "bytes": 17824,
+      "sha256": "e86806ad9544e02279ded8f0fc558809fc71cad3fbb2ee1a3ca9f144c880f4ef"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\projection-map.json": {
+      "bytes": 97379,
+      "sha256": "cdb560d63b65d1c9dc5722362d4090d1ffa02e6c3df34ea664b9055de1059bb6"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\capture.cpp": {
+      "bytes": 5811,
+      "sha256": "6408bf76fdb78df78ac887ff483661b0b5e76ec8c402753a6b4132d75597cbd3"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\run-v1\\execution.json": {
+      "bytes": 534384,
+      "sha256": "93bb4c41a21a42ef4fc47d8770819f9d6755647981d8866c2a15232826e58429"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\run-v2\\execution.json": {
+      "bytes": 533465,
+      "sha256": "7775de3d9fb9b721642acbe4b8db60190644e2c1b82d2490737eb9ffd49513bf"
+    },
+    "build-nvfp4-depth-reference\\default-policy\\witness-main3\\run-v3\\execution.json": {
+      "bytes": 524692,
+      "sha256": "d2e4c0e46f2101597c53aa6dd02212683c67d86abc5f01e2732630ffa80fd7d5"
+    },
+    "build-nvfp4-main3-tiny-cpu\\execution.json": {
+      "bytes": 2947,
+      "sha256": "d0c1bc56537002ff3875d97a398ca352b3153e0433fe01210b8439f305210748"
+    },
+    "build-nvfp4-main3-tiny-cpu\\test.log": {
+      "bytes": 1726,
+      "sha256": "da1fc580396cd9385a04abc3e13ec764ded4a04892a63e7d1abcf125d26f298f"
+    },
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40190921181\\radeon\\execution.json": {
+      "bytes": 284192,
+      "sha256": "017fa4d52782a046e868fb84ead665d5f34fa780f91b0a8e6d0df758ea54da6d"
+    },
+    "build-nvfp4-research\\policy-controls-ci\\artifacts-40190921181\\radeon\\reference\\report.json": {
+      "bytes": 264585,
+      "sha256": "6d809d71368ff375be43f48b270f9e45998e8a425e7e3688f7e232f2e7b8e527"
+    }
+  }
+}

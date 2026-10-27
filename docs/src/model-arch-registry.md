@@ -44,3 +44,5 @@ which variant it reads and under which prefix.
   written by the first entry's module as a file that names that entry,
   qwen3, so the CLI names no architecture and the file does not lean on
   the default for a missing name.
+
+`gguf_weights` associates NVFP4 `.weight` tensors with optional F32 `.scale` companions through [weight_scales](format-weight_scales.md), storing indices in `TensorView.scale`. It does not apply arithmetic or treat `.input_scale` as a weight scale. Model validation owns companion compatibility; existing `TensorIndex` owns duplicate-name refusal. `vision_weights` asks the same format owner to refuse any associated scale companion before reading the vision module or exposing tensor storage, since the vision encoder does not consume scaled weights yet.

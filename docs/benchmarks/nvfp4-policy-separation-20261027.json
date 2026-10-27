@@ -1,0 +1,133 @@
+{
+  "source": "b9c94f5d6 shared scheduling feature only",
+  "runtime_changes": [
+    {
+      "path": "src/backends/device_profile.hpp",
+      "before_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888",
+      "after_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3"
+    },
+    {
+      "path": "src/backends/vulkan/vulkan_matmul.hpp",
+      "before_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4",
+      "after_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3"
+    }
+  ],
+  "test_removed": "tests/common_float_split.hpp",
+  "docs_and_registration_reversed": [
+    "docs/VULKAN.md",
+    "docs/src/backends-device_profile.md",
+    "docs/src/backends-vulkan.md",
+    "tests/backend_vulkan.cpp"
+  ],
+  "nvfp4_kernels_and_plumbing_unchanged": true,
+  "gates_passed": false,
+  "separate_worktree": "../common-float-scheduling-20261027",
+  "schema": "nvfp4-policy-separation-v1",
+  "base": "b2ae1c00d318",
+  "scope": "Source separation and fresh local build/static checks. No device or merge pass.",
+  "decision": "Coordinator 2026-10-27 06:50, confirmed by F2DEV 06:53",
+  "build": {
+    "passed": true,
+    "started_unix": 1793084389.3048105,
+    "commands": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\separated-policy-cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\separated-policy-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-backend-vulkan-test",
+          "llmx-nvfp4-test"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "tests_run": false,
+    "binaries": {
+      "llmx.exe": "cdcfc54f84ff04ec042c2f601f801fa5f55ed18f41d2293ad18f15e7a0fc8dda",
+      "llmx-backend-vulkan-test.exe": "82cdf31ea6d0a30b69e6b85b674229580b9b2d966e0a6d29a06456e01345d43a",
+      "llmx-nvfp4-test.exe": "cafbabb591524e2e22f05041be5984078e5527750d8e40958ebfc303ae113472"
+    },
+    "version": "llmx 0.1.0+gb2ae1c00d318.dirty numerics e2993f8656e9b25a",
+    "ended_unix": 1793084529.6708753
+  },
+  "modules": {
+    "baseline": "shared-row-scale-removal-v2/build-shader-only-02/generated/vulkan",
+    "candidate": "separated-policy-cmake/generated/vulkan",
+    "before_count": 313,
+    "after_count": 313,
+    "changed": [],
+    "nvfp4": {
+      "matmul_row_nvfp4.inc": "cee69a88adb005cfb5d3c2775d7cb6ddf3bd34b8614ca1999e6075d72fd1df6b",
+      "matmul_row_nvfp4_preserve.inc": "c2711a6e07f2b60d28a8f6220dffb8c09942e32be11292affe24716e60c7a017",
+      "matmul_tile_nvfp4.inc": "f4c2efe44c92035c14150ea2734a8d9ab7c6d79928139bca7baf6b88797700bb",
+      "matmul_tile_nvfp4_bf16.inc": "1d8cf0718ff28327695bc96ea8ceb27344584860e199864192613c84eec22bc4",
+      "matmul_tile_nvfp4_bf16_preserve.inc": "76d6b0776488291d4cbf27a8da913feaacf2088d183a86fc5bd2b11d3d04d52e",
+      "matmul_tile_nvfp4_f16.inc": "c3754a6529bb0c77c048e8e8daa54a9cb8827807ec8384b8d63039ac56b6bc27",
+      "matmul_tile_nvfp4_preserve.inc": "3014adcf96e4b62f313754b94d265d4ee5667775a3e9f473e0d0f6d8812714ae"
+    },
+    "scope": "Compared with the qualified shared-row cleanup modules, not the earlier identity-repair build"
+  },
+  "checks": {
+    "docs": {
+      "passed": true,
+      "seconds": 20.1
+    },
+    "dead-code": {
+      "passed": true,
+      "seconds": 23.3
+    },
+    "docs_final": {
+      "passed": true,
+      "seconds": 16.3,
+      "log_sha256": "59c3d7d92fa05bd65caf9f22a00f1a99b0eb6d20db31803aeeee7158cebcd92e"
+    }
+  },
+  "artifacts": {
+    "build-integration/separated-policy-static.log": "a4aef244094c0620df99deea3500e553a373234240701510918af55154753cb2",
+    "build-integration/separated-policy-build-v1/0.log": "4f8b10b330554f510cfde82707f884f0cbb88b5ad7d4889784e5a8ce85e1df5e",
+    "build-integration/separated-policy-build-v1/1.log": "9b3916f1870e088234d5aaf82f0aff2446c7cb1ff59f6db3e75b569cc9dfec64",
+    "build-integration/separated-policy-build-v1/result.json": "0979faa727c1d00d14d415fc0cd99237785918ab0a824325fa072c7439d68c9e",
+    "build-integration/separated-policy-build-v1/final-module-comparison.json": "586a6a4bf49308eae56e734fb95a054169b2e04e9da82905d0fde50e9df091e6",
+    "build-integration/flash-control-slot-arm-receipt.json": "48ab12df4860f3821473de93163259bb2226d71de5ef567c7a74a0111c39dd40"
+  },
+  "preliminary_module_comparison": "The earlier identity-repair Windows build was an older source stage and differs in 53 modules. That comparison is retained in separated-policy-build-v1/module-comparison.json; the qualified shared-row cleanup comparator above matches all 313. No shader source changed in this separation.",
+  "markdown_review": {
+    "total": 150,
+    "reviewed_changed": [
+      "docs/STATUS.md",
+      "docs/VULKAN.md",
+      "docs/src/backends-device_profile.md",
+      "docs/src/backends-vulkan.md"
+    ],
+    "unchanged_carried": 146
+  },
+  "remaining": [
+    "Queued Flash saved-main control",
+    "Separated patch confirmation",
+    "Qwen3-0.6B CPU/MI50, Flash 2x2 batched and 35B Q8 routed identity",
+    "NVFP4 focused HF: 516 logits and 48 NLL",
+    "16K carry audit: original seven modules and no-split evidence, otherwise raw/chat rerun",
+    "Device suite and Radeon VII CTest/suite",
+    "One existing-path MXFP4/35B timing round",
+    "Hosted run"
+  ]
+}

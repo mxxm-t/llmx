@@ -1,0 +1,5448 @@
+{
+  "scope": "Four bounded NVFP4 F16-input tile experiments on physical MI50 8, with independent native conversion checks. No final model, HF/depth, split, mx parity or merge qualification.",
+  "base_commit": "21c0be391",
+  "retained_candidate": "v4: actual Float16 conversions and shared pairs, exact decoded F32 weights, F32 accumulation, capability-gated native controls; F32 fallback otherwise. Private checkpoint pending matched model timing.",
+  "frozen_limits_unchanged": {
+    "f16_logits": 0.005869746208190918,
+    "f16_nll": 0.0006043278951057829
+  },
+  "operator": {
+    "input_width": 1024,
+    "output_rows": 896,
+    "columns": [
+      128,
+      512
+    ],
+    "input_values": "Exactly F16-representable, independently generated. Output hashes agree across all arms within each width; separate native boundary checks exercise rounding.",
+    "per_width": "One warmup per arm, eight ABBAABBA diagnostic calls, four ABBA ordinary calls; 1000 iterations per ordinary call.",
+    "baseline": "Frozen prefetch+constant-decoder library from nv-decoder-prefetch-v1; probe rebuilt against each arm using identical source and build settings.",
+    "candidate": "Current main5 integration plus each F16 experiment. This is not a fresh full-model same-base comparison; that remains required.",
+    "environment": "Pinned image sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600, GPU8/renderD130/0000:c9:00.0, default power, CPU3 capped at one core. Every call retained, background activity monitored."
+  },
+  "experiments": {
+    "v1": {
+      "disposition": "Software half packing and widening: rejected after large operator slowdown.",
+      "remote": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v1/screen-20261025T230408Z",
+      "summary": {
+        "128-ordinary": {
+          "baseline": {
+            "mean_ms": 0.242791305,
+            "samples": [
+              0.244323168,
+              0.241259442
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.6431253484999999,
+            "samples": [
+              0.643877902,
+              0.642372795
+            ]
+          },
+          "change_percent": 164.88813036364704
+        },
+        "128-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.30052,
+            "samples": [
+              0.29232,
+              0.30208,
+              0.2984,
+              0.30928
+            ]
+          },
+          "candidate": {
+            "mean_ms": 1.0162,
+            "samples": [
+              1.01232,
+              1.01264,
+              1.03104,
+              1.0088
+            ]
+          },
+          "change_percent": 238.14721150006653
+        },
+        "512-ordinary": {
+          "baseline": {
+            "mean_ms": 0.354891234,
+            "samples": [
+              0.355509173,
+              0.354273295
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.8303389615,
+            "samples": [
+              0.843468488,
+              0.817209435
+            ]
+          },
+          "change_percent": 133.9699834625952
+        },
+        "512-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.52168,
+            "samples": [
+              0.5272,
+              0.51824,
+              0.53248,
+              0.5088
+            ]
+          },
+          "candidate": {
+            "mean_ms": 1.3566799999999999,
+            "samples": [
+              1.35824,
+              1.35088,
+              1.35936,
+              1.35824
+            ]
+          },
+          "change_percent": 160.0598067781015
+        }
+      },
+      "calls": [
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "00-c128-warmup-baseline",
+          "started": 1792969454.7834961,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/00-c128-warmup-baseline"
+          ],
+          "ended": 1792969454.9639227,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.35663158,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "01-c128-warmup-candidate",
+          "started": 1792969454.9647472,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/01-c128-warmup-candidate"
+          ],
+          "ended": 1792969455.196209,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.70394056,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "02-c128-diagnostic-baseline",
+          "started": 1792969455.1967847,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/02-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969455.3466604,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.29232
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "03-c128-diagnostic-candidate",
+          "started": 1792969455.3471808,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/03-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969455.5251412,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 1.01232
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "04-c128-diagnostic-candidate",
+          "started": 1792969455.5257452,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/04-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969455.7009425,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 1.01264
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "05-c128-diagnostic-baseline",
+          "started": 1792969455.7014658,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/05-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969455.8496518,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30208
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "06-c128-diagnostic-baseline",
+          "started": 1792969455.8503013,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/06-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969455.995218,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.2984
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "07-c128-diagnostic-candidate",
+          "started": 1792969455.9957604,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/07-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969456.1718278,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 1.03104
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "08-c128-diagnostic-candidate",
+          "started": 1792969456.17242,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/08-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969456.3495183,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 1.0088
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "09-c128-diagnostic-baseline",
+          "started": 1792969456.3500934,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/09-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969456.4949412,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30928
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "10-c128-ordinary-baseline",
+          "started": 1792969456.495517,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/10-c128-ordinary-baseline"
+          ],
+          "ended": 1792969456.877663,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.244323168,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "11-c128-ordinary-candidate",
+          "started": 1792969456.8783357,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/11-c128-ordinary-candidate"
+          ],
+          "ended": 1792969457.6833897,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.643877902,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "12-c128-ordinary-candidate",
+          "started": 1792969457.683999,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/12-c128-ordinary-candidate"
+          ],
+          "ended": 1792969458.486662,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.642372795,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "13-c128-ordinary-baseline",
+          "started": 1792969458.4873328,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/13-c128-ordinary-baseline"
+          ],
+          "ended": 1792969458.864679,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.241259442,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "14-c512-warmup-baseline",
+          "started": 1792969458.8653262,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/14-c512-warmup-baseline"
+          ],
+          "ended": 1792969459.0518696,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.42122421,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 2
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "15-c512-warmup-candidate",
+          "started": 1792969459.0537033,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/15-c512-warmup-candidate"
+          ],
+          "ended": 1792969459.3013456,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.87114951,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "16-c512-diagnostic-baseline",
+          "started": 1792969459.303085,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/16-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969459.4569902,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.5272
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "17-c512-diagnostic-candidate",
+          "started": 1792969459.458658,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/17-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969459.6342516,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 1.35824
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "18-c512-diagnostic-candidate",
+          "started": 1792969459.63598,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/18-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969459.8121293,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 1.35088
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "19-c512-diagnostic-baseline",
+          "started": 1792969459.813751,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/19-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969459.9683073,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.51824
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "20-c512-diagnostic-baseline",
+          "started": 1792969459.9700723,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/20-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969460.1258457,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.53248
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "21-c512-diagnostic-candidate",
+          "started": 1792969460.1274703,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/21-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969460.303077,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 1.35936
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "22-c512-diagnostic-candidate",
+          "started": 1792969460.3047311,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/22-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969460.4778137,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 1.35824
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "23-c512-diagnostic-baseline",
+          "started": 1792969460.4794443,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/23-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969460.6364827,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.5088
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "24-c512-ordinary-baseline",
+          "started": 1792969460.63826,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/24-c512-ordinary-baseline"
+          ],
+          "ended": 1792969461.1396115,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.355509173,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "25-c512-ordinary-candidate",
+          "started": 1792969461.1414065,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/25-c512-ordinary-candidate"
+          ],
+          "ended": 1792969462.1458378,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.843468488,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "26-c512-ordinary-candidate",
+          "started": 1792969462.1476483,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/26-c512-ordinary-candidate"
+          ],
+          "ended": 1792969463.1251564,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.817209435,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "27-c512-ordinary-baseline",
+          "started": 1792969463.1268995,
+          "argv": [
+            "docker",
+            "exec",
+            "baebeaef617bdfaff12ab5a9bd29802544bf42c23b52771924470350aa1938da",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/27-c512-ordinary-baseline"
+          ],
+          "ended": 1792969463.6278372,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.354273295,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        }
+      ],
+      "activity": {
+        "samples": 9,
+        "intervals": 8,
+        "all_calls_covered": true,
+        "flags": {
+          "other_gpu": 28,
+          "unrelated_cpu": 28,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_intervals": 8,
+        "missed_process_intervals": 3
+      },
+      "evidence": {
+        "execution.json": "9cdf9b3e163211988c2b9f8bdbc34c445d655182b3b52cb20d39d89bfa860b42",
+        "activity.jsonl": "f87a5c5c7430aa3ab65b7028e3239687a2082267e4be02db9dba5837444e7383",
+        "plan.json": "4df64ac209cf032400616000e9f1b0593992ea2711d52bb5f460d9e5c9fa8846",
+        "build.json": "0572966253c7213123891c1c0538f7e5433e7828d2f2e9d91d59432282b0f24a",
+        "bundle.json": "6700a94da9f2487c1e7e426277db16739e35ec585bf6326af847c7a685d316a2"
+      },
+      "raw_logs_verified": 60,
+      "all_outputs_identical_by_width": true,
+      "build": {
+        "passed": true,
+        "started": 1792969308.365473,
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "command": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-nv-f16-build-1792969308365442035",
+          "--label",
+          "llmx.xdev.nv.f16.build",
+          "--network",
+          "none",
+          "--read-only",
+          "--cpuset-cpus",
+          "3",
+          "--cpus",
+          "1",
+          "--memory",
+          "2g",
+          "--memory-swap",
+          "2g",
+          "--ulimit",
+          "core=0",
+          "--tmpfs",
+          "/tmp:rw,exec,nosuid,nodev,size=512m",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v1/source:/source:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v1/out:/out:rw",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-decoder-prefetch-v1/out/cmake:/baseline:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v1/probe:/probe:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sleep",
+          "900"
+        ],
+        "calls": [
+          {
+            "tag": "library-native",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/cmake",
+              "--config",
+              "Release",
+              "--target",
+              "llmx-vulkan",
+              "llmx-nvfp4-test",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "1f1be82dba148a0b0797b7397fcc4c807a5db602e6db47bcdb1234273525dfa0"
+          },
+          {
+            "tag": "baseline-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-baseline",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/baseline/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/baseline/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "57094aa3047cf9c021e0d61e03cb5ea34f5c9c6bac5a230e83d4b6fef03c0d58"
+          },
+          {
+            "tag": "baseline-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-baseline",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          },
+          {
+            "tag": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-candidate",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/out/cmake/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/out/cmake/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "9eeb6b9fc2f509f619724afcd6c91581b7ffbad5370687684ab3bf45d21dff99"
+          },
+          {
+            "tag": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-candidate",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          }
+        ],
+        "scope": "F16-input NVFP4 shader experiment, explicit F32 unchanged; current integrated source, frozen prefetch+decoder baseline library",
+        "container_id": "710265e390e1ac25190ba71182f8fe7aaeecb7541fd66da8238cadb091db5a88",
+        "binaries": {
+          "out/cmake/libllmx-vulkan.a": "425ede8a3b592a1da0adb287121e30b4549e21019ceaa35100f620a49d4690a8",
+          "out/cmake/llmx-nvfp4-test": "b71a89daddc39f98e69c01b88aef56d36a9c3ebb1cd1affd5a6d4da92c14ddbb",
+          "out/probe-baseline/nvfp4-tile-probe": "e73ffcef893d70554358a204ba1ebb9cd174edfad71e29d745d4b9e1bc9aa694",
+          "out/probe-candidate/nvfp4-tile-probe": "88e4343c74e4f6ad277120ff7988c820ee5c2c12659903ec786bac3623e912e8"
+        },
+        "changed_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_bf16.inc",
+          "generated/vulkan/matmul_tile_nvfp4.inc",
+          "generated/vulkan/matmul_tile_nvfp4_preserve.inc",
+          "generated/vulkan/matmul_tile_nvfp4_bf16_preserve.inc"
+        ],
+        "new_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_f16.inc",
+          "generated/vulkan/matmul_tile_nvfp4_f16_preserve.inc"
+        ],
+        "probe_sha256": "e03dcfcddadd5943f7224308073b053b1ac10f663808f845abec9b5f30f34514",
+        "container_removed": true,
+        "ended": 1792969391.9030013
+      },
+      "source_archive_sha256": "3d2b69dd82ba1387e752c45ce9d6bdf37886a12e43ef804344df0ff75a15fb17",
+      "source_pins": {
+        "CMakeLists.txt": "7086354c5fe677f54961c49f1155ff381ff4a59d8d95f8b3d0cbd59846e15cd8",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "e942f90d0c7eda2c2e291d3e3ede8192b67c7235fc13dbef620a6e7f7c55a343",
+        "src/backends/vulkan/vulkan_backend.cpp": "80ea56a6694cd374b25c7331f691903c81c5ca53d0130a8d12098382a3da1330",
+        "src/backends/vulkan/vulkan_device.hpp": "3427e9ad7c720e81b6c1a4b8c079233e76a97589732dfa657ae06464e632c827",
+        "src/backends/vulkan/vulkan_dispatch.hpp": "0ec2c9ef366cee565ca01827cccd70140ec42a7626dd0e67118816b8d5aaa826",
+        "src/backends/vulkan/vulkan_kernels.hpp": "d97506d64842aa4debb87660d2ac1f3776bfea3e79b743b98335111b031c9446",
+        "src/backends/vulkan/vulkan_matmul.hpp": "c952ab934745721950d8cb592fcaaa123cb139d8974fec923b6174bf6b54253a",
+        "tests/nvfp4.cpp": "4a7b6aa4e6a68e9f3cfdff73047f408d68b187f7a3c3f574b5c2ad87a3d0b3de"
+      }
+    },
+    "v2": {
+      "disposition": "Native unpack with explicit subnormal reconstruction: rejected after remaining large slowdown.",
+      "remote": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v2/screen-20261025T231054Z",
+      "summary": {
+        "128-ordinary": {
+          "baseline": {
+            "mean_ms": 0.2982594335,
+            "samples": [
+              0.287430429,
+              0.309088438
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.41127601599999997,
+            "samples": [
+              0.413758689,
+              0.408793343
+            ]
+          },
+          "change_percent": 37.89203954885134
+        },
+        "128-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.29856000000000005,
+            "samples": [
+              0.30048,
+              0.29952,
+              0.30336,
+              0.29088
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.53728,
+            "samples": [
+              0.54224,
+              0.53664,
+              0.53744,
+              0.5328
+            ]
+          },
+          "change_percent": 79.95712754555196
+        },
+        "512-ordinary": {
+          "baseline": {
+            "mean_ms": 0.40373580499999995,
+            "samples": [
+              0.409589328,
+              0.397882282
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.629291135,
+            "samples": [
+              0.628940464,
+              0.629641806
+            ]
+          },
+          "change_percent": 55.86706138188564
+        },
+        "512-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.51092,
+            "samples": [
+              0.51104,
+              0.51632,
+              0.49536,
+              0.52096
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.96272,
+            "samples": [
+              0.96368,
+              0.94832,
+              0.97776,
+              0.96112
+            ]
+          },
+          "change_percent": 88.42871682455178
+        }
+      },
+      "calls": [
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "00-c128-warmup-baseline",
+          "started": 1792969861.6721447,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/00-c128-warmup-baseline"
+          ],
+          "ended": 1792969862.1233642,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.43357669,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "01-c128-warmup-candidate",
+          "started": 1792969862.126438,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/01-c128-warmup-candidate"
+          ],
+          "ended": 1792969862.4401195,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.49060798,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "02-c128-diagnostic-baseline",
+          "started": 1792969862.4406989,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/02-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969862.6593828,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30048
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "03-c128-diagnostic-candidate",
+          "started": 1792969862.6600215,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/03-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969862.8762443,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.54224
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "04-c128-diagnostic-candidate",
+          "started": 1792969862.8768854,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/04-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969863.089663,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.53664
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "05-c128-diagnostic-baseline",
+          "started": 1792969863.0903,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/05-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969863.2890456,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.29952
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "06-c128-diagnostic-baseline",
+          "started": 1792969863.2897127,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/06-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969863.4918556,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30336
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "07-c128-diagnostic-candidate",
+          "started": 1792969863.4925451,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/07-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969863.7084396,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.53744
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "08-c128-diagnostic-candidate",
+          "started": 1792969863.7090905,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/08-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969863.936476,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.5328
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "09-c128-diagnostic-baseline",
+          "started": 1792969863.9371498,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/09-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969864.1662724,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.29088
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "10-c128-ordinary-baseline",
+          "started": 1792969864.1669202,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/10-c128-ordinary-baseline"
+          ],
+          "ended": 1792969864.6452963,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.287430429,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "11-c128-ordinary-candidate",
+          "started": 1792969864.6459734,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/11-c128-ordinary-candidate"
+          ],
+          "ended": 1792969865.2679062,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.413758689,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "12-c128-ordinary-candidate",
+          "started": 1792969865.2686467,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/12-c128-ordinary-candidate"
+          ],
+          "ended": 1792969865.882905,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.408793343,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "13-c128-ordinary-baseline",
+          "started": 1792969865.883618,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/13-c128-ordinary-baseline"
+          ],
+          "ended": 1792969866.4077406,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.309088438,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "14-c512-warmup-baseline",
+          "started": 1792969866.4083302,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/14-c512-warmup-baseline"
+          ],
+          "ended": 1792969866.985891,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.49056058,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "15-c512-warmup-candidate",
+          "started": 1792969866.9877768,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/15-c512-warmup-candidate"
+          ],
+          "ended": 1792969867.3745363,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.70980945,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "16-c512-diagnostic-baseline",
+          "started": 1792969867.3763912,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/16-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969867.677644,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.51104
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "17-c512-diagnostic-candidate",
+          "started": 1792969867.6793892,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/17-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969867.9457705,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.96368
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 2
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "18-c512-diagnostic-candidate",
+          "started": 1792969867.9474902,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/18-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969868.2903137,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.94832
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "19-c512-diagnostic-baseline",
+          "started": 1792969868.2920752,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/19-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969868.581914,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.51632
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "20-c512-diagnostic-baseline",
+          "started": 1792969868.583804,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/20-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969868.851369,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.49536
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "21-c512-diagnostic-candidate",
+          "started": 1792969868.853173,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/21-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969869.1963184,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.97776
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "22-c512-diagnostic-candidate",
+          "started": 1792969869.1981733,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/22-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792969869.4821703,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.96112
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "23-c512-diagnostic-baseline",
+          "started": 1792969869.4840455,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/23-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792969869.7679982,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.52096
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "24-c512-ordinary-baseline",
+          "started": 1792969869.7697134,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/24-c512-ordinary-baseline"
+          ],
+          "ended": 1792969870.4494267,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.409589328,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "25-c512-ordinary-candidate",
+          "started": 1792969870.4513624,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/25-c512-ordinary-candidate"
+          ],
+          "ended": 1792969871.3419225,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.628940464,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "26-c512-ordinary-candidate",
+          "started": 1792969871.3438563,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/26-c512-ordinary-candidate"
+          ],
+          "ended": 1792969872.188117,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.629641806,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "27-c512-ordinary-baseline",
+          "started": 1792969872.189895,
+          "argv": [
+            "docker",
+            "exec",
+            "de42a535bdec4176bbf5588fc9169bb48aee079d497447ba50e1df9a94f3a345",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/27-c512-ordinary-baseline"
+          ],
+          "ended": 1792969872.7983088,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.397882282,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        }
+      ],
+      "activity": {
+        "samples": 10,
+        "intervals": 9,
+        "all_calls_covered": true,
+        "flags": {
+          "other_gpu": 27,
+          "unrelated_cpu": 28,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_intervals": 9,
+        "missed_process_intervals": 3
+      },
+      "evidence": {
+        "execution.json": "5f2b71e8bd64271bf34e6870b38351d513f3c90695d1da73fc2499dfef057260",
+        "activity.jsonl": "65ff3028d059cbffac88f6bb67e255142c0eeeae48ebcadb70a87be8b4c14e46",
+        "plan.json": "4df64ac209cf032400616000e9f1b0593992ea2711d52bb5f460d9e5c9fa8846",
+        "build.json": "25b87b4e17bc07fdb2fd6f03cd19d38e671889093c7716c14b15c32ec0fa4da1",
+        "bundle.json": "5e7e4aa2acfb36afe974719b8d5cf4a59f1cd02126f106957a3c2e12a59ef4cc"
+      },
+      "raw_logs_verified": 60,
+      "all_outputs_identical_by_width": true,
+      "build": {
+        "passed": true,
+        "started": 1792969663.0604227,
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "command": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-nv-f16-v2-build-1792969663060382371",
+          "--label",
+          "llmx.xdev.nv.f16.build",
+          "--network",
+          "none",
+          "--read-only",
+          "--cpuset-cpus",
+          "3",
+          "--cpus",
+          "1",
+          "--memory",
+          "2g",
+          "--memory-swap",
+          "2g",
+          "--ulimit",
+          "core=0",
+          "--tmpfs",
+          "/tmp:rw,exec,nosuid,nodev,size=512m",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v2/source:/source:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v2/out:/out:rw",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-decoder-prefetch-v1/out/cmake:/baseline:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v2/probe:/probe:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sleep",
+          "900"
+        ],
+        "calls": [
+          {
+            "tag": "library-native",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/cmake",
+              "--config",
+              "Release",
+              "--target",
+              "llmx-vulkan",
+              "llmx-nvfp4-test",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "45f6b52571c6182eedfe7ef4b679e7e46c38622ab297772bc6efa126f952e210"
+          },
+          {
+            "tag": "baseline-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-baseline",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/baseline/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/baseline/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "87f92c32857ce5206cb8690a2403d45f2103d355f75c236fa011541ba8da6200"
+          },
+          {
+            "tag": "baseline-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-baseline",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          },
+          {
+            "tag": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-candidate",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/out/cmake/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/out/cmake/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "cfc20826b2fe30a6b64f5782e0da8c093bfe08ebd984ebd2842c1d79b8b00ed0"
+          },
+          {
+            "tag": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-candidate",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          }
+        ],
+        "scope": "F16-input NVFP4 shader experiment, explicit F32 unchanged; current integrated source, frozen prefetch+decoder baseline library",
+        "container_id": "9da974580126d9826aea7e75697faf95b0d6ac06d961889ac395d6394a4e9201",
+        "binaries": {
+          "out/cmake/libllmx-vulkan.a": "dee52d0c0f883f4631883149c2ee938c4708f7ae0bce7ebb201ce7134db7f4e5",
+          "out/cmake/llmx-nvfp4-test": "6fdb59e0a343bde465a2171920ecbf6b59ea5561f289ce926e9c91fd03e729ca",
+          "out/probe-baseline/nvfp4-tile-probe": "e73ffcef893d70554358a204ba1ebb9cd174edfad71e29d745d4b9e1bc9aa694",
+          "out/probe-candidate/nvfp4-tile-probe": "7aca827e3691495d8edbe11c5684c67e13961dc586aea6652f446b528c967505"
+        },
+        "changed_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_bf16.inc",
+          "generated/vulkan/matmul_tile_nvfp4.inc",
+          "generated/vulkan/matmul_tile_nvfp4_preserve.inc",
+          "generated/vulkan/matmul_tile_nvfp4_bf16_preserve.inc"
+        ],
+        "new_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_f16.inc",
+          "generated/vulkan/matmul_tile_nvfp4_f16_preserve.inc"
+        ],
+        "probe_sha256": "e03dcfcddadd5943f7224308073b053b1ac10f663808f845abec9b5f30f34514",
+        "container_removed": true,
+        "ended": 1792969801.8117
+      },
+      "source_archive_sha256": "a4aefe0150610abc16781e8a9ddea6e85ba14fdc48913af5ffdb5949d198e041",
+      "source_pins": {
+        "CMakeLists.txt": "7086354c5fe677f54961c49f1155ff381ff4a59d8d95f8b3d0cbd59846e15cd8",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "0452393f5e3cfa4403e25c3a83c75678753489a1ebc8da867d65501144256129",
+        "src/backends/vulkan/vulkan_backend.cpp": "80ea56a6694cd374b25c7331f691903c81c5ca53d0130a8d12098382a3da1330",
+        "src/backends/vulkan/vulkan_device.hpp": "3427e9ad7c720e81b6c1a4b8c079233e76a97589732dfa657ae06464e632c827",
+        "src/backends/vulkan/vulkan_dispatch.hpp": "0ec2c9ef366cee565ca01827cccd70140ec42a7626dd0e67118816b8d5aaa826",
+        "src/backends/vulkan/vulkan_kernels.hpp": "d97506d64842aa4debb87660d2ac1f3776bfea3e79b743b98335111b031c9446",
+        "src/backends/vulkan/vulkan_matmul.hpp": "c952ab934745721950d8cb592fcaaa123cb139d8974fec923b6174bf6b54253a",
+        "tests/nvfp4.cpp": "4a7b6aa4e6a68e9f3cfdff73047f408d68b187f7a3c3f574b5c2ad87a3d0b3de"
+      }
+    },
+    "v3": {
+      "disposition": "Actual Float16 shared pairs: MI50 passed but Radeon rounding boundary failed; incomplete compiled float controls, not qualified.",
+      "remote": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v3/screen-20261025T231954Z",
+      "summary": {
+        "128-ordinary": {
+          "baseline": {
+            "mean_ms": 0.25114474750000004,
+            "samples": [
+              0.249880188,
+              0.252409307
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.243999527,
+            "samples": [
+              0.242830935,
+              0.245168119
+            ]
+          },
+          "change_percent": -2.845060695525814
+        },
+        "128-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.3016,
+            "samples": [
+              0.296,
+              0.2976,
+              0.29648,
+              0.31632
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.29416,
+            "samples": [
+              0.28352,
+              0.29792,
+              0.28928,
+              0.30592
+            ]
+          },
+          "change_percent": -2.4668435013262657
+        },
+        "512-ordinary": {
+          "baseline": {
+            "mean_ms": 0.3686291765,
+            "samples": [
+              0.366559796,
+              0.370698557
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.37219172349999996,
+            "samples": [
+              0.37240373,
+              0.371979717
+            ]
+          },
+          "change_percent": 0.9664310985432634
+        },
+        "512-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.50776,
+            "samples": [
+              0.50336,
+              0.50528,
+              0.50928,
+              0.51312
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.514,
+            "samples": [
+              0.516,
+              0.51488,
+              0.51472,
+              0.5104
+            ]
+          },
+          "change_percent": 1.2289270521506301
+        }
+      },
+      "calls": [
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "00-c128-warmup-baseline",
+          "started": 1792970400.2867699,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/00-c128-warmup-baseline"
+          ],
+          "ended": 1792970400.4963996,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.37520893,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "01-c128-warmup-candidate",
+          "started": 1792970400.4972339,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/01-c128-warmup-candidate"
+          ],
+          "ended": 1792970400.696037,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.36818891,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "02-c128-diagnostic-baseline",
+          "started": 1792970400.6967697,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/02-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970400.8606248,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.296
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "03-c128-diagnostic-candidate",
+          "started": 1792970400.861261,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/03-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.0201676,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.28352
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "04-c128-diagnostic-candidate",
+          "started": 1792970401.0208216,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/04-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.1962454,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.29792
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "05-c128-diagnostic-baseline",
+          "started": 1792970401.1968992,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/05-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.3747556,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.2976
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "06-c128-diagnostic-baseline",
+          "started": 1792970401.37541,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/06-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.5427191,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.29648
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "07-c128-diagnostic-candidate",
+          "started": 1792970401.543401,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/07-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.7074225,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.28928
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "08-c128-diagnostic-candidate",
+          "started": 1792970401.7080472,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/08-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970401.8793914,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.30592
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "09-c128-diagnostic-baseline",
+          "started": 1792970401.88009,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/09-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970402.0543056,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.31632
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "10-c128-ordinary-baseline",
+          "started": 1792970402.0550056,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/10-c128-ordinary-baseline"
+          ],
+          "ended": 1792970402.473805,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.249880188,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "11-c128-ordinary-candidate",
+          "started": 1792970402.4745321,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/11-c128-ordinary-candidate"
+          ],
+          "ended": 1792970402.865498,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.242830935,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "12-c128-ordinary-candidate",
+          "started": 1792970402.866284,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/12-c128-ordinary-candidate"
+          ],
+          "ended": 1792970403.2691948,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.245168119,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "13-c128-ordinary-baseline",
+          "started": 1792970403.2699516,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/13-c128-ordinary-baseline"
+          ],
+          "ended": 1792970403.6800609,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.252409307,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "14-c512-warmup-baseline",
+          "started": 1792970403.6810057,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/14-c512-warmup-baseline"
+          ],
+          "ended": 1792970403.9040222,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.50319157,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "15-c512-warmup-candidate",
+          "started": 1792970403.905976,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/15-c512-warmup-candidate"
+          ],
+          "ended": 1792970404.1315632,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.44711679,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "16-c512-diagnostic-baseline",
+          "started": 1792970404.1333878,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/16-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970404.3117895,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.50336
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "17-c512-diagnostic-candidate",
+          "started": 1792970404.313776,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/17-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970404.4898555,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.516
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "18-c512-diagnostic-candidate",
+          "started": 1792970404.4919643,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/18-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970404.6567345,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.51488
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "19-c512-diagnostic-baseline",
+          "started": 1792970404.6589723,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/19-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970404.8269458,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.50528
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "20-c512-diagnostic-baseline",
+          "started": 1792970404.8286946,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/20-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970405.0121896,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.50928
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "21-c512-diagnostic-candidate",
+          "started": 1792970405.0146546,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/21-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970405.1963546,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.51472
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "22-c512-diagnostic-candidate",
+          "started": 1792970405.1988728,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/22-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970405.3729618,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.5104
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "23-c512-diagnostic-baseline",
+          "started": 1792970405.375263,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/23-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970405.56302,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.51312
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "24-c512-ordinary-baseline",
+          "started": 1792970405.565149,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/24-c512-ordinary-baseline"
+          ],
+          "ended": 1792970406.0950089,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.366559796,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "25-c512-ordinary-candidate",
+          "started": 1792970406.0974147,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/25-c512-ordinary-candidate"
+          ],
+          "ended": 1792970406.6501122,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.37240373,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": true,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "26-c512-ordinary-candidate",
+          "started": 1792970406.6525834,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/26-c512-ordinary-candidate"
+          ],
+          "ended": 1792970407.181992,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.371979717,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "27-c512-ordinary-baseline",
+          "started": 1792970407.1843147,
+          "argv": [
+            "docker",
+            "exec",
+            "3aaaaace287e1855a02cbb35d84b3d20b1a088ab6b7e4a15901917cbfc9b2729",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/27-c512-ordinary-baseline"
+          ],
+          "ended": 1792970407.716703,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.370698557,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": true,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        }
+      ],
+      "activity": {
+        "samples": 8,
+        "intervals": 7,
+        "all_calls_covered": true,
+        "flags": {
+          "other_gpu": 17,
+          "unrelated_cpu": 28,
+          "disk": 28,
+          "gap": 0
+        },
+        "unknown_process_cpu_intervals": 7,
+        "missed_process_intervals": 1
+      },
+      "evidence": {
+        "execution.json": "002431650af223496e42ca4e196da2803c219d132e6f6e34747bc5da91096b1d",
+        "activity.jsonl": "c5184bee9e37945a9939df2e297ad0ada4019d71957321644ee6e9c60d03c382",
+        "plan.json": "4df64ac209cf032400616000e9f1b0593992ea2711d52bb5f460d9e5c9fa8846",
+        "build.json": "bb0cbbd502a012529c20cb39173d80920aca483f7a4ffe3ce5d36375991b7171",
+        "bundle.json": "f11749d9e261c494916fbfc6ca524b7848d974e7b870342a4c30fff595d351bb"
+      },
+      "raw_logs_verified": 60,
+      "all_outputs_identical_by_width": true,
+      "build": {
+        "passed": true,
+        "started": 1792970246.23946,
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "command": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-nv-f16-v3-build-1792970246239415087",
+          "--label",
+          "llmx.xdev.nv.f16.build",
+          "--network",
+          "none",
+          "--read-only",
+          "--cpuset-cpus",
+          "3",
+          "--cpus",
+          "1",
+          "--memory",
+          "2g",
+          "--memory-swap",
+          "2g",
+          "--ulimit",
+          "core=0",
+          "--tmpfs",
+          "/tmp:rw,exec,nosuid,nodev,size=512m",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v3/source:/source:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v3/out:/out:rw",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-decoder-prefetch-v1/out/cmake:/baseline:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v3/probe:/probe:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sleep",
+          "900"
+        ],
+        "calls": [
+          {
+            "tag": "library-native",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/cmake",
+              "--config",
+              "Release",
+              "--target",
+              "llmx-vulkan",
+              "llmx-nvfp4-test",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "f5adcd635206290df424457ccac709e3ff5950ccb7bb2b51a0fe158922dbdf2f"
+          },
+          {
+            "tag": "baseline-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-baseline",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/baseline/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/baseline/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "87f92c32857ce5206cb8690a2403d45f2103d355f75c236fa011541ba8da6200"
+          },
+          {
+            "tag": "baseline-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-baseline",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          },
+          {
+            "tag": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-candidate",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/out/cmake/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/out/cmake/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "a13542816d2ce6e6563bf4ebc3d43c900d2b6860ae103419008267825028e6e0"
+          },
+          {
+            "tag": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-candidate",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          }
+        ],
+        "scope": "F16-input NVFP4 shader experiment, explicit F32 unchanged; current integrated source, frozen prefetch+decoder baseline library",
+        "container_id": "284d1ad6931fdaf1cd921d3e3cc55205858a279c943268cc58a177c201ab14b9",
+        "binaries": {
+          "out/cmake/libllmx-vulkan.a": "11487893e12b006854c755670d2d66d843de4987e1ae8cc12b4e5b38a15d4308",
+          "out/cmake/llmx-nvfp4-test": "3f0bad847ce0aa66f4b0e908c64fbc9d494b1986e10a19387ada2384b68a2783",
+          "out/probe-baseline/nvfp4-tile-probe": "e73ffcef893d70554358a204ba1ebb9cd174edfad71e29d745d4b9e1bc9aa694",
+          "out/probe-candidate/nvfp4-tile-probe": "f8da3c93e52ab4046e922a5037083c64a6f5bc402b5704115374294761c5f9af"
+        },
+        "changed_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_bf16.inc",
+          "generated/vulkan/matmul_tile_nvfp4.inc",
+          "generated/vulkan/matmul_tile_nvfp4_preserve.inc",
+          "generated/vulkan/matmul_tile_nvfp4_bf16_preserve.inc"
+        ],
+        "new_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_f16.inc"
+        ],
+        "probe_sha256": "e03dcfcddadd5943f7224308073b053b1ac10f663808f845abec9b5f30f34514",
+        "container_removed": true,
+        "ended": 1792970312.3059018
+      },
+      "source_archive_sha256": "7a5bdea15c9988b6348949deecb6c42bbeaa82dc1b81cfd7cc8f7a9124d413df",
+      "source_pins": {
+        "CMakeLists.txt": "39be172731423baa3aac58869f781616f413bdb0c673f7a3bad396fe5ae97d3b",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "e5b98e7de6e66840d780e9f3a4be3e9c5cf3a66f73744dde4d4f0907f69f9236",
+        "src/backends/vulkan/vulkan_backend.cpp": "3e045e7d58b336e20be06432141f0f952f0aab9d10fa8ce2eb6139290de9dcc1",
+        "src/backends/vulkan/vulkan_device.hpp": "47efdd05c15e6429768e8fcfdf3f30b588306557d44d740fb336dd3352dabce6",
+        "src/backends/vulkan/vulkan_dispatch.hpp": "0ec2c9ef366cee565ca01827cccd70140ec42a7626dd0e67118816b8d5aaa826",
+        "src/backends/vulkan/vulkan_kernels.hpp": "fd9e55f841afe6fc1d9b8bcdbd5a1ab1e6e3f48a1c1a74a440bbe92bab53dbc6",
+        "src/backends/vulkan/vulkan_matmul.hpp": "13f781e8ba1fabcfb0a586cf10247c9fef213966087b916828097edccedf03eb",
+        "tests/nvfp4.cpp": "2d4cbc099334e2b4f9860b74e48ebcf5bb3d4ea9a1e387dee6f31315e298fae2"
+      }
+    },
+    "v4": {
+      "disposition": "Same shader with complete module controls: MI50 and Radeon native checks pass, early timing near baseline. Model gains and final gates remain open.",
+      "remote": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v4/screen-20261025T232817Z",
+      "summary": {
+        "128-ordinary": {
+          "baseline": {
+            "mean_ms": 0.240089669,
+            "samples": [
+              0.241964228,
+              0.23821511
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.2418266385,
+            "samples": [
+              0.240663447,
+              0.24298983
+            ]
+          },
+          "change_percent": 0.723466989327215
+        },
+        "128-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.30432000000000003,
+            "samples": [
+              0.31136,
+              0.30112,
+              0.29808,
+              0.30672
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.30047999999999997,
+            "samples": [
+              0.30976,
+              0.29392,
+              0.29728,
+              0.30096
+            ]
+          },
+          "change_percent": -1.2618296529968709
+        },
+        "512-ordinary": {
+          "baseline": {
+            "mean_ms": 0.356327008,
+            "samples": [
+              0.356467187,
+              0.356186829
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.36225523049999997,
+            "samples": [
+              0.361737504,
+              0.362772957
+            ]
+          },
+          "change_percent": 1.66370282546755
+        },
+        "512-diagnostic": {
+          "baseline": {
+            "mean_ms": 0.5070399999999999,
+            "samples": [
+              0.5,
+              0.50096,
+              0.51904,
+              0.50816
+            ]
+          },
+          "candidate": {
+            "mean_ms": 0.51824,
+            "samples": [
+              0.52432,
+              0.52656,
+              0.50752,
+              0.51456
+            ]
+          },
+          "change_percent": 2.2088987062165
+        }
+      },
+      "calls": [
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "00-c128-warmup-baseline",
+          "started": 1792970903.8674204,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/00-c128-warmup-baseline"
+          ],
+          "ended": 1792970904.0518909,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.3267398,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "01-c128-warmup-candidate",
+          "started": 1792970904.0527084,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/01-c128-warmup-candidate"
+          ],
+          "ended": 1792970904.2197666,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.31918366,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "02-c128-diagnostic-baseline",
+          "started": 1792970904.2203,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/02-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970904.3660207,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.31136
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "03-c128-diagnostic-candidate",
+          "started": 1792970904.3665895,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/03-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970904.5120118,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.30976
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "04-c128-diagnostic-candidate",
+          "started": 1792970904.5125632,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/04-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970904.660939,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.29392
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "05-c128-diagnostic-baseline",
+          "started": 1792970904.6614692,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/05-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970904.8074462,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30112
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "06-c128-diagnostic-baseline",
+          "started": 1792970904.8080053,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/06-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970904.9573066,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.29808
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "07-c128-diagnostic-candidate",
+          "started": 1792970904.9578953,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/07-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970905.1090648,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.29728
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "08-c128-diagnostic-candidate",
+          "started": 1792970905.1096332,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/08-c128-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970905.2573822,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16_small": 0.30096
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "09-c128-diagnostic-baseline",
+          "started": 1792970905.2580059,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/09-c128-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970905.4017599,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_small": 0.30672
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "10-c128-ordinary-baseline",
+          "started": 1792970905.4023144,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/10-c128-ordinary-baseline"
+          ],
+          "ended": 1792970905.778836,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.241964228,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "11-c128-ordinary-candidate",
+          "started": 1792970905.7794287,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/11-c128-ordinary-candidate"
+          ],
+          "ended": 1792970906.156443,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.240663447,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "12-c128-ordinary-candidate",
+          "started": 1792970906.1570787,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/12-c128-ordinary-candidate"
+          ],
+          "ended": 1792970906.5380437,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.24298983,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 128,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "13-c128-ordinary-baseline",
+          "started": 1792970906.5387177,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "128",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/13-c128-ordinary-baseline"
+          ],
+          "ended": 1792970906.915871,
+          "output_sha256": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+          "kernel_ms": {},
+          "mean_ms": 0.23821511,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "14-c512-warmup-baseline",
+          "started": 1792970906.9165213,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/14-c512-warmup-baseline"
+          ],
+          "ended": 1792970907.1039276,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.42761119,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "warmup",
+          "iterations": 100,
+          "tag": "15-c512-warmup-candidate",
+          "started": 1792970907.1056066,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "100",
+            "--output",
+            "/results/15-c512-warmup-candidate"
+          ],
+          "ended": 1792970907.2916143,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.42146719,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "16-c512-diagnostic-baseline",
+          "started": 1792970907.2932568,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/16-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970907.4470866,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.5
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "17-c512-diagnostic-candidate",
+          "started": 1792970907.448864,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/17-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970907.6088428,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.52432
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "18-c512-diagnostic-candidate",
+          "started": 1792970907.6104784,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/18-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970907.7705088,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.52656
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "19-c512-diagnostic-baseline",
+          "started": 1792970907.7722113,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/19-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970907.9276783,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.50096
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "20-c512-diagnostic-baseline",
+          "started": 1792970907.9294198,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/20-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970908.0838654,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.51904
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 2
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "21-c512-diagnostic-candidate",
+          "started": 1792970908.085608,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/21-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970908.2430093,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.50752
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "22-c512-diagnostic-candidate",
+          "started": 1792970908.2448287,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/22-c512-diagnostic-candidate",
+            "--diagnostic"
+          ],
+          "ended": 1792970908.4043717,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4_f16": 0.51456
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "diagnostic",
+          "iterations": 1,
+          "tag": "23-c512-diagnostic-baseline",
+          "started": 1792970908.4062035,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1",
+            "--output",
+            "/results/23-c512-diagnostic-baseline",
+            "--diagnostic"
+          ],
+          "ended": 1792970908.5642426,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {
+            "matmul_tile_nvfp4": 0.50816
+          },
+          "mean_ms": null,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "24-c512-ordinary-baseline",
+          "started": 1792970908.5659564,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/24-c512-ordinary-baseline"
+          ],
+          "ended": 1792970909.0669112,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.356467187,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "25-c512-ordinary-candidate",
+          "started": 1792970909.068685,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/25-c512-ordinary-candidate"
+          ],
+          "ended": 1792970909.5805645,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.361737504,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "candidate",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "26-c512-ordinary-candidate",
+          "started": 1792970909.5823321,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-candidate/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/26-c512-ordinary-candidate"
+          ],
+          "ended": 1792970910.1124325,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.362772957,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 2,
+          "missed_process_intervals": 1
+        },
+        {
+          "columns": 512,
+          "arm": "baseline",
+          "phase": "ordinary",
+          "iterations": 1000,
+          "tag": "27-c512-ordinary-baseline",
+          "started": 1792970910.114271,
+          "argv": [
+            "docker",
+            "exec",
+            "cf1b5a55dee3d48d7a4080597953bc990f16a90950f522b176ac1929dd70cce6",
+            "/b/probe-baseline/nvfp4-tile-probe",
+            "--case",
+            "1024x896",
+            "--columns",
+            "512",
+            "--iterations",
+            "1000",
+            "--output",
+            "/results/27-c512-ordinary-baseline"
+          ],
+          "ended": 1792970910.6158178,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+          "kernel_ms": {},
+          "mean_ms": 0.356186829,
+          "passed": true,
+          "activity_covered": true,
+          "activity_flags": {
+            "other_gpu": false,
+            "unrelated_cpu": true,
+            "disk": false,
+            "gap": false
+          },
+          "unknown_process_cpu_intervals": 1,
+          "missed_process_intervals": 0
+        }
+      ],
+      "activity": {
+        "samples": 8,
+        "intervals": 7,
+        "all_calls_covered": true,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 28,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_intervals": 7,
+        "missed_process_intervals": 3
+      },
+      "evidence": {
+        "execution.json": "7a81e30ccc6a10f5e5b64a0afde55f224935eee24b0fc3d58c1f8006b9975753",
+        "activity.jsonl": "0923c1c9e4300cc3a40f7f934cb32574fcdd93acff5c899e49737a1c4abd3607",
+        "plan.json": "4df64ac209cf032400616000e9f1b0593992ea2711d52bb5f460d9e5c9fa8846",
+        "build.json": "4c795234b054ed0ecfcbb997d3be75135504bb5a8831e3b13e998ac19c7e2d54",
+        "bundle.json": "20653e76cd03b76fb3614ef20d252c8717ae55162a1e0c8239d905962a899c31"
+      },
+      "raw_logs_verified": 60,
+      "all_outputs_identical_by_width": true,
+      "build": {
+        "passed": true,
+        "started": 1792970817.0365448,
+        "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "command": [
+          "docker",
+          "run",
+          "-d",
+          "--init",
+          "--name",
+          "llmx-xdev-nv-f16-v4-build-1792970817036500521",
+          "--label",
+          "llmx.xdev.nv.f16.build",
+          "--network",
+          "none",
+          "--read-only",
+          "--cpuset-cpus",
+          "3",
+          "--cpus",
+          "1",
+          "--memory",
+          "2g",
+          "--memory-swap",
+          "2g",
+          "--ulimit",
+          "core=0",
+          "--tmpfs",
+          "/tmp:rw,exec,nosuid,nodev,size=512m",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v4/source:/source:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v4/out:/out:rw",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-decoder-prefetch-v1/out/cmake:/baseline:ro",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-f16-input-v4/probe:/probe:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "sleep",
+          "900"
+        ],
+        "calls": [
+          {
+            "tag": "library-native",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/cmake",
+              "--config",
+              "Release",
+              "--target",
+              "llmx-vulkan",
+              "llmx-nvfp4-test",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "121656246dd24e898d92018ce3a1ce0c371bb7a57f78c18dbfe68966b6d093e1"
+          },
+          {
+            "tag": "baseline-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-baseline",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/baseline/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/baseline/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "57094aa3047cf9c021e0d61e03cb5ea34f5c9c6bac5a230e83d4b6fef03c0d58"
+          },
+          {
+            "tag": "baseline-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-baseline",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          },
+          {
+            "tag": "candidate-configure",
+            "args": [
+              "cmake",
+              "-S",
+              "/probe",
+              "-B",
+              "/out/probe-candidate",
+              "-DCMAKE_BUILD_TYPE=Release",
+              "-DLLMX_SOURCE_ROOT=/source",
+              "-DLLMX_GENERATED_DIR=/out/cmake/generated",
+              "-DLLMX_FROZEN_VULKAN_LIBRARY=/out/cmake/libllmx-vulkan.a"
+            ],
+            "exit_code": 0,
+            "log_sha256": "2442820e4951896549e7efaa11c2ef78cb3ee0a5966be8b235b3712423b2b541"
+          },
+          {
+            "tag": "candidate-build",
+            "args": [
+              "cmake",
+              "--build",
+              "/out/probe-candidate",
+              "--target",
+              "nvfp4-tile-probe",
+              "--parallel",
+              "1"
+            ],
+            "exit_code": 0,
+            "log_sha256": "17d2a327cdd178488f46a79f4537e2f45c79c80f45176cc7eaa2a5ac7b61aa51"
+          }
+        ],
+        "scope": "F16-input NVFP4 shader experiment, explicit F32 unchanged; current integrated source, frozen prefetch+decoder baseline library",
+        "container_id": "fc5deed58b10e1d666be7fe629224790b62127ccf0e4b1008308fe05f9361521",
+        "binaries": {
+          "out/cmake/libllmx-vulkan.a": "d44d95b6bd7f60b31d21d9dbceeb8acb4f8434ba08d2887e4b2aaa4769be2480",
+          "out/cmake/llmx-nvfp4-test": "8afa96b72454e0d99620a2a0b1003a114a71738cb427b838c9cd56c598bf2469",
+          "out/probe-baseline/nvfp4-tile-probe": "e73ffcef893d70554358a204ba1ebb9cd174edfad71e29d745d4b9e1bc9aa694",
+          "out/probe-candidate/nvfp4-tile-probe": "cd475fba8ad765203768e668a7745dc26e48cb87b5f911f3f0a98c3df00f7db5"
+        },
+        "changed_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_bf16.inc",
+          "generated/vulkan/matmul_tile_nvfp4.inc",
+          "generated/vulkan/matmul_tile_nvfp4_preserve.inc",
+          "generated/vulkan/matmul_tile_nvfp4_bf16_preserve.inc"
+        ],
+        "new_modules": [
+          "generated/vulkan/matmul_tile_nvfp4_f16.inc"
+        ],
+        "probe_sha256": "e03dcfcddadd5943f7224308073b053b1ac10f663808f845abec9b5f30f34514",
+        "container_removed": true,
+        "ended": 1792970852.796216
+      },
+      "source_archive_sha256": "cb6511b5a2855ec8c5004746eac74a3ffaa94d8f7b84ab8641113adcc4cadc38",
+      "source_pins": {
+        "CMakeLists.txt": "39be172731423baa3aac58869f781616f413bdb0c673f7a3bad396fe5ae97d3b",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "e5b98e7de6e66840d780e9f3a4be3e9c5cf3a66f73744dde4d4f0907f69f9236",
+        "src/backends/vulkan/vulkan_backend.cpp": "4c70e2be574131f993a7d7b084015b4b86c3a13185e26e6f22d73ce6e525be5b",
+        "src/backends/vulkan/vulkan_device.hpp": "47efdd05c15e6429768e8fcfdf3f30b588306557d44d740fb336dd3352dabce6",
+        "src/backends/vulkan/vulkan_dispatch.hpp": "4677dc7ac063c6641beec3f76d2bd517775f112fe1d97d2d1d0addd541cc54e3",
+        "src/backends/vulkan/vulkan_kernels.hpp": "fd9e55f841afe6fc1d9b8bcdbd5a1ab1e6e3f48a1c1a74a440bbe92bab53dbc6",
+        "src/backends/vulkan/vulkan_matmul.hpp": "13f781e8ba1fabcfb0a586cf10247c9fef213966087b916828097edccedf03eb",
+        "tests/nvfp4.cpp": "20133e16535df5f72425557a4f9aa5df7c2b51a7fc72f3ca4d313a1eb295096c"
+      }
+    }
+  },
+  "native_checks": {
+    "integrated-f16-checks": {
+      "passed": true,
+      "scope": "Focused integrated CPU and Radeon NVFP4 F16 native checks, no performance claim",
+      "binaries": {
+        "llmx-nvfp4-test.exe": "f8089a68d366c5f19b2ed24fbf238b32acc17877e16448909494f5e5c8fdb480"
+      },
+      "sources": {
+        "matmul_tile.comp": "e942f90d0c7eda2c2e291d3e3ede8192b67c7235fc13dbef620a6e7f7c55a343",
+        "qdecode.glsl": "cb5c2db727317804d25234705b0393fd8184fda80dfb9572460945e9b9ddd0d7"
+      },
+      "admission_max_engine_percent": 2.4509178273583245,
+      "started": 1792969344.990753,
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build-main5-vulkan",
+        "-C",
+        "Release",
+        "--parallel",
+        "1",
+        "-R",
+        "^(nvfp4|nvfp4-vulkan)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "ended": 1792969352.0016444,
+      "log_sha256": "d63bb5418cffb442fd469889488ca51b7edce508f15116a71df8fed2f2629564"
+    },
+    "integrated-f16-v3-checks": {
+      "passed": false,
+      "scope": "Focused integrated CPU and Radeon NVFP4 F16 native checks, no performance claim",
+      "binaries": {
+        "llmx-nvfp4-test.exe": "64389316ac28948a6e1baa48b0966828609e29a59d5716dec2b7d0ce0eb26b54"
+      },
+      "sources": {
+        "matmul_tile.comp": "e5b98e7de6e66840d780e9f3a4be3e9c5cf3a66f73744dde4d4f0907f69f9236",
+        "qdecode.glsl": "cb5c2db727317804d25234705b0393fd8184fda80dfb9572460945e9b9ddd0d7"
+      },
+      "admission_max_engine_percent": 2.4678918178925184,
+      "started": 1792970410.4505875,
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build-main5-vulkan",
+        "-C",
+        "Release",
+        "--parallel",
+        "1",
+        "-R",
+        "^(nvfp4|nvfp4-vulkan)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "ended": 1792970414.7301722,
+      "log_sha256": "9858bf4a4d8f4bc39e8d0a70fe7facaf72a48d90320c85b452b082da9d898074"
+    },
+    "integrated-f16-v3-diagnostic-checks": {
+      "passed": false,
+      "scope": "Focused integrated CPU and Radeon NVFP4 F16 native checks, no performance claim",
+      "binaries": {
+        "llmx-nvfp4-test.exe": "b5eb619794f52268bafa1002630bcaf605ef2d9a96870baee4784b255fcc57e9"
+      },
+      "sources": {
+        "matmul_tile.comp": "e5b98e7de6e66840d780e9f3a4be3e9c5cf3a66f73744dde4d4f0907f69f9236",
+        "qdecode.glsl": "cb5c2db727317804d25234705b0393fd8184fda80dfb9572460945e9b9ddd0d7"
+      },
+      "admission_max_engine_percent": 2.5036330901829857,
+      "started": 1792970489.9599395,
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build-main5-vulkan",
+        "-C",
+        "Release",
+        "--parallel",
+        "1",
+        "-R",
+        "^(nvfp4|nvfp4-vulkan)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 8,
+      "ended": 1792970493.7506154,
+      "log_sha256": "10032c1f4e86f324139705dfdfef91da2b7192a794fb5b1d7bbc7dcbfa8aae0f"
+    },
+    "integrated-f16-v4-checks": {
+      "passed": true,
+      "scope": "Focused integrated CPU and Radeon NVFP4 F16 native checks, no performance claim",
+      "binaries": {
+        "llmx-nvfp4-test.exe": "bda23daa1f2c92d123cab9c650c251ab1d9b925da25c2027aa4d976d4eda0bfa"
+      },
+      "sources": {
+        "matmul_tile.comp": "e5b98e7de6e66840d780e9f3a4be3e9c5cf3a66f73744dde4d4f0907f69f9236",
+        "qdecode.glsl": "cb5c2db727317804d25234705b0393fd8184fda80dfb9572460945e9b9ddd0d7"
+      },
+      "admission_max_engine_percent": 2.4629638506809517,
+      "started": 1792970757.8805084,
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build-main5-vulkan",
+        "-C",
+        "Release",
+        "--parallel",
+        "1",
+        "-R",
+        "^(nvfp4|nvfp4-vulkan)$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "ended": 1792970762.2284334,
+      "log_sha256": "8ebb3db1bc1da105be7d33aa6acbc5e479014918932f65bed631fb1377ea17de"
+    }
+  },
+  "compiler_finding": {
+    "unfixed_modes": [
+      "DenormPreserve64",
+      "SignedZeroInfNanPreserve16",
+      "RoundingModeRTE64"
+    ],
+    "source_requested": "Preservation and RTE at multiple widths; glslc retains only the last width per repeated mode.",
+    "radeon_failure": {
+      "input": "1 + 3 * 2^-11",
+      "output_bits": 1065361408,
+      "expected_bits": 1065369600,
+      "meaning": "RNE tie must round to the even upper half value. The shader omitted RTE16; observed result is consistent with truncation."
+    },
+    "fix": "Only NVFP4 F16 module creation expands/deduplicates each of the three control modes to16/32/64 and refuses missing modes. Device capability checks cover all requested modes. No double arithmetic added, and no other module rewritten.",
+    "verification": "Unchanged shader bytes fail before and pass after the module-creation repair on Radeon. Independently reconstructed repaired SPIR-V passes spirv-val --target-env vulkan1.2 with all nine modes present.",
+    "separate_existing_finding": "The older MXFP4 module also loses source-declared SignedZeroInfNanPreserve64. Reported to F2DEV, unchanged here. Missing metadata alone does not demonstrate a numerical failure.",
+    "specifications": [
+      "https://docs.vulkan.org/refpages/latest/refpages/source/RuntimeSpirv.html",
+      "https://github.khronos.org/Vulkan-Site/glslext/latest/glslext/ext/GLSL_EXT_spirv_intrinsics.html"
+    ]
+  },
+  "docs_review": "Prior full tracked Markdown review carried forward for unchanged behavior. New review covered every affected NVFP4/F16/capability/witness claim and updated STATUS, PRECISION, USAGE and both Vulkan/NVFP4 source-owner pages. No CLI flag or tolerance changed.",
+  "local_artifacts": {
+    "f16-v3.spv": "bc099e7c48b067ff73fec240e7456b5efa5620cf231546e415d962dbf26e2f7a",
+    "f16-v3.spvasm": "05955fc0603c9e9782575c9d5e65e81406b26473fd8510136cff82b40add37f8",
+    "f16-v4-controlled.spv": "da4dc8fa9c9dfc3e4e9d1786de36f36d1fd308b4f1508990def414693d14d9e6",
+    "f16-v4-controlled.spvasm": "b44bf61e5b68dd8ff0b7ebecf4616c36c49bf1d8d58c29ae317eee6c90af47fc",
+    "f16-statistics.txt": "c12e54239eae834e0201feb1f32a6660d732469b66692cd3c0c93c0f294c0a8e",
+    "f16-v2-statistics.txt": "bce84f036c82133cf3714ce212500b24a6e3abcd42d0134fd43b9d438736dca7",
+    "f16-v4-statistics.txt": "6f92f41718810a84fb32c56a566e2cec155c7cad601948b2b7873faed1f14f89",
+    "f16-baseline-statistics.txt": "c1ce6c94516300ec2a3fa95a5c682efc6097b6de5bf39518363e34407a7e0b10",
+    "f16-library-build.log": "f55bb966464fe3558752a3272a497392a19c6b2cb79c7f426a540da647a8736f",
+    "f16-native-build.log": "efcd2e0850d78c1636833b9973ace6dfb0af66a5385831d8dad2f182883fe298",
+    "f16-v3-native-build.log": "5384b8511c69bbfea6a6e3a82ca90a2712d72fa49b362c4bdfa5b75d476f566a",
+    "f16-v3-diagnostic-build.log": "efcd2e0850d78c1636833b9973ace6dfb0af66a5385831d8dad2f182883fe298",
+    "f16-v4-native-build.log": "2ef46ff24fe4d90977a481af4bd6e7b5c91956e1fea0da97a3b42b05fe21e4bf",
+    "f16-v4-catalog-build.log": "803fd4119510039bc68750290c1d3eb0dec805621416d842740a0cee627a83e4"
+  },
+  "statistics": {
+    "v1": "matmul_tile_nvfp4_f16: Driver pipeline hash=4643986178500036517 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=11288 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=2235758603 Instructions=2055 Copies=414 Branches=193 Latency=334416 Inverse Throughput=136252 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=40 VALU=996 SALU=563 VMEM=78 SMEM=62 VOPD=0",
+    "v2": "matmul_tile_nvfp4_f16: Driver pipeline hash=11439950996841855974 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=12376 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=483048024 Instructions=2214 Copies=374 Branches=169 Latency=315216 Inverse Throughput=160828 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=51 VALU=1216 SALU=510 VMEM=78 SMEM=62 VOPD=0",
+    "v4": "matmul_tile_nvfp4_f16: Driver pipeline hash=4559058557037800169 SGPRs=32 VGPRs=64 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7904 LDS size=13312 Scratch size=0 Subgroups per SIMD=4 Combined inputs=0 Combined outputs=0 Hash=908375304 Instructions=1469 Copies=276 Branches=121 Latency=185600 Inverse Throughput=77604 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=51 VALU=679 SALU=353 VMEM=78 SMEM=62 VOPD=0",
+    "baseline": "matmul_tile_nvfp4: Driver pipeline hash=1278201132088113946 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7576 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=2311882866 Instructions=1408 Copies=273 Branches=120 Latency=173536 Inverse Throughput=67044 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=631 SALU=351 VMEM=78 SMEM=62 VOPD=0"
+  },
+  "checkpoint_source_audit": {
+    "all_source_and_test_files_match_v4_bundle": true,
+    "files_checked": 880,
+    "bundle_sha256": "20653e76cd03b76fb3614ef20d252c8717ae55162a1e0c8239d905962a899c31"
+  },
+  "focused_static_checks": {
+    "docs": "PASS, zero findings, 21 planted faults",
+    "dead_code": "PASS, 21 listed findings, 19 planted faults",
+    "log_sha256": "55a5d692708ad24a6a607d9c8efd84aa2364a3bcd280a123f3eed2e377483133",
+    "catalog_test_build": "PASS; catalog test binary compiled, full backend-vulkan suite not run for this checkpoint",
+    "catalog_build_log_sha256": "803fd4119510039bc68750290c1d3eb0dec805621416d842740a0cee627a83e4"
+  }
+}

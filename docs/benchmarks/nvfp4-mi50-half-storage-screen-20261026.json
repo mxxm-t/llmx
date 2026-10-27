@@ -1,0 +1,788 @@
+{
+  "schema": "nvfp4-mi50-half-storage-diagnostic-analysis-v1",
+  "status": "all 8 calls passed exact probe checks; all 37 root-recorded artifacts independently hash-verified",
+  "calls": [
+    {
+      "label": "1024-2048-128-baseline-1",
+      "shape": {
+        "width": 1024,
+        "rows": 2048,
+        "columns": 128
+      },
+      "arm": "baseline",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.69397025,
+          "min": 0.64947,
+          "max": 0.784275
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.565536,
+          "min": 0.54016,
+          "max": 0.68272
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "6419145438659096590",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7640",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "876927195",
+        "Instructions": "1427",
+        "Copies": "269",
+        "Branches": "120",
+        "Latency": "175232",
+        "Inverse Throughput": "69028",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "648",
+        "SALU": "351",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+      "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+      "exact_oracle_result": {
+        "output_count": 262144,
+        "nonzero_count": 262144,
+        "pass": true
+      }
+    },
+    {
+      "label": "1024-2048-128-half_storage-1",
+      "shape": {
+        "width": 1024,
+        "rows": 2048,
+        "columns": 128
+      },
+      "arm": "half_storage",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.72734225,
+          "min": 0.691301,
+          "max": 0.770885
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.594936,
+          "min": 0.584,
+          "max": 0.61264
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "955629570990437866",
+        "SGPRs": "32",
+        "VGPRs": "64",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "12492",
+        "LDS size": "13312",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "4",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "2245965577",
+        "Instructions": "2125",
+        "Copies": "277",
+        "Branches": "119",
+        "Latency": "247296",
+        "Inverse Throughput": "133540",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "24",
+        "Sched VGPRs": "48",
+        "VALU": "1296",
+        "SALU": "349",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "c0152e6131290de27870089863a0e85468e72fb1dc0dd91ff1bd7307916cf19c",
+      "isa_sha256": "ca20ba70d43911058b7cb3f6d13434986f2c208461942fcd3fbfe9bbf7102cf4",
+      "exact_oracle_result": {
+        "output_count": 262144,
+        "nonzero_count": 262144,
+        "pass": true
+      }
+    },
+    {
+      "label": "1024-2048-128-half_storage-2",
+      "shape": {
+        "width": 1024,
+        "rows": 2048,
+        "columns": 128
+      },
+      "arm": "half_storage",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.7253422,
+          "min": 0.690391,
+          "max": 0.764664
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.594456,
+          "min": 0.58256,
+          "max": 0.61584
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "955629570990437866",
+        "SGPRs": "32",
+        "VGPRs": "64",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "12492",
+        "LDS size": "13312",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "4",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "2245965577",
+        "Instructions": "2125",
+        "Copies": "277",
+        "Branches": "119",
+        "Latency": "247296",
+        "Inverse Throughput": "133540",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "24",
+        "Sched VGPRs": "48",
+        "VALU": "1296",
+        "SALU": "349",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "c0152e6131290de27870089863a0e85468e72fb1dc0dd91ff1bd7307916cf19c",
+      "isa_sha256": "ca20ba70d43911058b7cb3f6d13434986f2c208461942fcd3fbfe9bbf7102cf4",
+      "exact_oracle_result": {
+        "output_count": 262144,
+        "nonzero_count": 262144,
+        "pass": true
+      }
+    },
+    {
+      "label": "1024-2048-128-baseline-2",
+      "shape": {
+        "width": 1024,
+        "rows": 2048,
+        "columns": 128
+      },
+      "arm": "baseline",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.7158084,
+          "min": 0.650581,
+          "max": 0.913738
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.572024,
+          "min": 0.54048,
+          "max": 0.80528
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "6419145438659096590",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7640",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "876927195",
+        "Instructions": "1427",
+        "Copies": "269",
+        "Branches": "120",
+        "Latency": "175232",
+        "Inverse Throughput": "69028",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "648",
+        "SALU": "351",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+      "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+      "exact_oracle_result": {
+        "output_count": 262144,
+        "nonzero_count": 262144,
+        "pass": true
+      }
+    },
+    {
+      "label": "2048-1024-128-baseline-1",
+      "shape": {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128
+      },
+      "arm": "baseline",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.99363195,
+          "min": 0.633489,
+          "max": 1.20128
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.858832,
+          "min": 0.53184,
+          "max": 1.0912
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "6419145438659096590",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7640",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "876927195",
+        "Instructions": "1427",
+        "Copies": "269",
+        "Branches": "120",
+        "Latency": "175232",
+        "Inverse Throughput": "69028",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "648",
+        "SALU": "351",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+      "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+      "exact_oracle_result": {
+        "output_count": 131072,
+        "nonzero_count": 131072,
+        "pass": true
+      }
+    },
+    {
+      "label": "2048-1024-128-half_storage-1",
+      "shape": {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128
+      },
+      "arm": "half_storage",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.98732605,
+          "min": 0.609709,
+          "max": 1.168
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.851432,
+          "min": 0.51104,
+          "max": 0.98176
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "955629570990437866",
+        "SGPRs": "32",
+        "VGPRs": "64",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "12492",
+        "LDS size": "13312",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "4",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "2245965577",
+        "Instructions": "2125",
+        "Copies": "277",
+        "Branches": "119",
+        "Latency": "247296",
+        "Inverse Throughput": "133540",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "24",
+        "Sched VGPRs": "48",
+        "VALU": "1296",
+        "SALU": "349",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "c0152e6131290de27870089863a0e85468e72fb1dc0dd91ff1bd7307916cf19c",
+      "isa_sha256": "ca20ba70d43911058b7cb3f6d13434986f2c208461942fcd3fbfe9bbf7102cf4",
+      "exact_oracle_result": {
+        "output_count": 131072,
+        "nonzero_count": 131072,
+        "pass": true
+      }
+    },
+    {
+      "label": "2048-1024-128-half_storage-2",
+      "shape": {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128
+      },
+      "arm": "half_storage",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.98760575,
+          "min": 0.62524,
+          "max": 1.18163
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.8571840000000001,
+          "min": 0.53248,
+          "max": 1.0336
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "955629570990437866",
+        "SGPRs": "32",
+        "VGPRs": "64",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "12492",
+        "LDS size": "13312",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "4",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "2245965577",
+        "Instructions": "2125",
+        "Copies": "277",
+        "Branches": "119",
+        "Latency": "247296",
+        "Inverse Throughput": "133540",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "24",
+        "Sched VGPRs": "48",
+        "VALU": "1296",
+        "SALU": "349",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "c0152e6131290de27870089863a0e85468e72fb1dc0dd91ff1bd7307916cf19c",
+      "isa_sha256": "ca20ba70d43911058b7cb3f6d13434986f2c208461942fcd3fbfe9bbf7102cf4",
+      "exact_oracle_result": {
+        "output_count": 131072,
+        "nonzero_count": 131072,
+        "pass": true
+      }
+    },
+    {
+      "label": "2048-1024-128-baseline-2",
+      "shape": {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128
+      },
+      "arm": "baseline",
+      "exit_code": 0,
+      "warmups": 2,
+      "sample_count": 20,
+      "sample_metrics": {
+        "host_ms": {
+          "mean": 0.95304245,
+          "min": 0.573588,
+          "max": 1.18447
+        },
+        "matmul_tile_nvfp4_f16": {
+          "mean": 0.828944,
+          "min": 0.47408,
+          "max": 1.02608
+        }
+      },
+      "kernel_stats": {
+        "Driver pipeline hash": "6419145438659096590",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7640",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "876927195",
+        "Instructions": "1427",
+        "Copies": "269",
+        "Branches": "120",
+        "Latency": "175232",
+        "Inverse Throughput": "69028",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "648",
+        "SALU": "351",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+      "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+      "exact_oracle_result": {
+        "output_count": 131072,
+        "nonzero_count": 131072,
+        "pass": true
+      }
+    }
+  ],
+  "descriptive_comparisons": [
+    {
+      "shape": {
+        "width": 1024,
+        "rows": 2048,
+        "columns": 128
+      },
+      "pooled_40_sample_comparison": {
+        "host_ms": {
+          "baseline_mean": 0.704889325,
+          "half_storage_mean": 0.726342225,
+          "change_percent": 3.043442316281353,
+          "baseline_range": [
+            0.64947,
+            0.913738
+          ],
+          "half_storage_range": [
+            0.690391,
+            0.770885
+          ]
+        },
+        "matmul_tile_nvfp4_f16": {
+          "baseline_mean": 0.56878,
+          "half_storage_mean": 0.594696,
+          "change_percent": 4.556419002074619,
+          "baseline_range": [
+            0.54016,
+            0.80528
+          ],
+          "half_storage_range": [
+            0.58256,
+            0.61584
+          ]
+        }
+      }
+    },
+    {
+      "shape": {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128
+      },
+      "pooled_40_sample_comparison": {
+        "host_ms": {
+          "baseline_mean": 0.9733372,
+          "half_storage_mean": 0.9874659,
+          "change_percent": 1.4515730006004146,
+          "baseline_range": [
+            0.573588,
+            1.20128
+          ],
+          "half_storage_range": [
+            0.609709,
+            1.18163
+          ]
+        },
+        "matmul_tile_nvfp4_f16": {
+          "baseline_mean": 0.843888,
+          "half_storage_mean": 0.854308,
+          "change_percent": 1.2347610109398444,
+          "baseline_range": [
+            0.47408,
+            1.0912
+          ],
+          "half_storage_range": [
+            0.51104,
+            1.0336
+          ]
+        }
+      }
+    }
+  ],
+  "kernel_stats": {
+    "baseline": {
+      "Driver pipeline hash": "6419145438659096590",
+      "SGPRs": "32",
+      "VGPRs": "84",
+      "Spilled SGPRs": "0",
+      "Spilled VGPRs": "0",
+      "Code size": "7640",
+      "LDS size": "17408",
+      "Scratch size": "0",
+      "Subgroups per SIMD": "3",
+      "Combined inputs": "0",
+      "Combined outputs": "0",
+      "Hash": "876927195",
+      "Instructions": "1427",
+      "Copies": "269",
+      "Branches": "120",
+      "Latency": "175232",
+      "Inverse Throughput": "69028",
+      "VMEM Clause": "74",
+      "SMEM Clause": "62",
+      "Sched SGPRs": "27",
+      "Sched VGPRs": "55",
+      "VALU": "648",
+      "SALU": "351",
+      "VMEM": "78",
+      "SMEM": "62",
+      "VOPD": "0"
+    },
+    "half_storage": {
+      "Driver pipeline hash": "955629570990437866",
+      "SGPRs": "32",
+      "VGPRs": "64",
+      "Spilled SGPRs": "0",
+      "Spilled VGPRs": "0",
+      "Code size": "12492",
+      "LDS size": "13312",
+      "Scratch size": "0",
+      "Subgroups per SIMD": "4",
+      "Combined inputs": "0",
+      "Combined outputs": "0",
+      "Hash": "2245965577",
+      "Instructions": "2125",
+      "Copies": "277",
+      "Branches": "119",
+      "Latency": "247296",
+      "Inverse Throughput": "133540",
+      "VMEM Clause": "74",
+      "SMEM Clause": "62",
+      "Sched SGPRs": "24",
+      "Sched VGPRs": "48",
+      "VALU": "1296",
+      "SALU": "349",
+      "VMEM": "78",
+      "SMEM": "62",
+      "VOPD": "0"
+    },
+    "comparison": {
+      "vgprs": "84 to 64",
+      "lds_bytes": "17408 to 13312",
+      "subgroups_per_simd": "3 to 4",
+      "instructions": "1427 to 2125",
+      "spilled_vgpr": 0,
+      "spilled_sgpr": 0,
+      "scratch_bytes": 0
+    }
+  },
+  "monitor": {
+    "samples": 13,
+    "from": "2026-10-26T13:09:46.729305+00:00",
+    "to": "2026-10-26T13:09:58.686536+00:00",
+    "selected_gpu_card": "card2",
+    "selected_gpu_busy_samples": 0,
+    "all_gpu_busy_samples": {
+      "card0": 13,
+      "card1": 0,
+      "card2": 0,
+      "card3": 0,
+      "card4": 13,
+      "card5": 13,
+      "card6": 0,
+      "card7": 0,
+      "card8": 13,
+      "card9": 13
+    },
+    "selected_gpu_vram_bytes": [
+      10932224
+    ],
+    "unrelated_process_cpu_activity_intervals": 12,
+    "intervals_with_missed_process_records": 9,
+    "appeared_process_records": 47,
+    "disappeared_process_records": 61,
+    "disk_activity_intervals": 12,
+    "disk_counter_deltas": {
+      "sda": {
+        "read_ops": 308973,
+        "read_sectors": 2487992,
+        "write_ops": 393,
+        "write_sectors": 18168
+      },
+      "sdb": {
+        "read_ops": 176474,
+        "read_sectors": 1420168,
+        "write_ops": 386,
+        "write_sectors": 18104
+      },
+      "sdc": {
+        "read_ops": 298991,
+        "read_sectors": 2418480,
+        "write_ops": 409,
+        "write_sectors": 18320
+      },
+      "sdd": {
+        "read_ops": 182974,
+        "read_sectors": 1480304,
+        "write_ops": 400,
+        "write_sectors": 18264
+      },
+      "sde": {
+        "read_ops": 307766,
+        "read_sectors": 2486936,
+        "write_ops": 371,
+        "write_sectors": 18040
+      },
+      "sdf": {
+        "read_ops": 192146,
+        "read_sectors": 1548864,
+        "write_ops": 328,
+        "write_sectors": 17928
+      },
+      "nvme0n1": {
+        "read_ops": 4,
+        "read_sectors": 352,
+        "write_ops": 214,
+        "write_sectors": 3832
+      }
+    },
+    "limitation": "One-second samples may miss short GPU activity. Process gaps and unrelated activity remain in activity.jsonl; do not treat unsampled activity as zero.",
+    "system_cpu_busy_percent_by_interval": [
+      28.069011280690113,
+      27.766599597585515,
+      27.93629727936297,
+      27.90073775989269,
+      30.54253181513731,
+      29.693741677762983,
+      31.62450066577896,
+      29.67914438502674,
+      28.580946035976016,
+      30.738522954091817,
+      31.287525016677787,
+      30.408970976253297
+    ],
+    "intervals_over_75_percent_system_cpu": 0,
+    "monitor_interval_count": 12
+  },
+  "interpretation": "Exact-oracle synthetic results: half-storage reduced recorded VGPR and LDS use and increased subgroups per SIMD, with no spills. It also raised reported instructions and VALU use. Across the pooled 40 samples per arm and shape, measured kernel time was +4.56% for width 1024/rows 2048/columns 128 and +1.23% for width 2048/rows 1024/columns 128. Host time was +3.04% and +1.45%. This is a short isolated probe, not a model/HF performance result; activity gaps and unrelated work limit interpretation.",
+  "limitations": [
+    "Synthetic probe only, columns=128 in both cases.",
+    "No model/HF timing or correctness result.",
+    "Do not generalize the short isolated timings to full prefill or decode.",
+    "All raw outputs and activity remain in attempt-01.",
+    "The diagnostic container was intentionally stopped after all calls passed. Its docker exit code 137 is cleanup, not a probe-call failure."
+  ],
+  "scope": "Unadopted native-F16 NVFP4 exact-half shared-weight storage experiment. Runtime remains 3a6a7b19d.",
+  "execution": {
+    "path": "build-integration\\half-storage-mi50-v1\\attempt-01\\execution.json",
+    "sha256": "ce8e939fc4d92ed6d2f2b32fa4f445c741a8dbfc5ca4638b4b390ea6814f9744",
+    "plan_sha256": "b5018ca97d7dfb97711479d761516d053f2d2d95e5e2b4b6742f7190308e1fd5",
+    "runner_sha256": "886419659da2aa0dbfa608f388f22f920a9c2f191ef38967fed0aec3b7029aab",
+    "baseline_probe_sha256": "0a0956009c296d570519a0ce689303488f4c912a0d0274014ba7b16886205e47",
+    "candidate_probe_sha256": "f13a497d137efcaf712b2d1bd49292a5888cf14a760f95167c44db04705725ba",
+    "candidate_build_result_sha256": "2ec986ee9b7043933bc964a7f17f7a509fba524f35c519100b1def0b0787bf5d",
+    "baseline_library_sha256": "88e0ecbeeef471c5851d618156df572842efcab6c977227c7ed225d952d83552",
+    "candidate_library_sha256": "e3ee41f85d6c4d36ab180eb592776f42d5e4dbfbadbf899ffca300e61a28a2e5",
+    "probe_source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+    "calls": 8,
+    "samples_per_call": 20,
+    "warmups_per_call": 2,
+    "verified_artifacts": 37,
+    "all_artifact_hashes_match": true
+  },
+  "source": {
+    "scope": "Isolated native-F16 NVFP4 shared weight storage experiment. No tracked source change.",
+    "base_shader_windows_sha256": "e68a3eb5c9938252fa5243601d822b274775543b0e678a6452f674806eda9d6c",
+    "base_shader_sha256": "25a9be4b417eb5e768563476bc1191950162e596ae5b080ce8e5b7459ab35592",
+    "candidate_shader_sha256": "e65f90f975e4089b3e7d4ba99087d5e895f160cf1da683ac10c6f662a12c6e69"
+  },
+  "build": {
+    "scope": "Exact half shared-weight storage in native-F16 NVFP4 tile, current MI50 source. Build only.",
+    "passed": true,
+    "started_unix": 1793020088.948799,
+    "steps": [
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx-vulkan"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-Wall",
+          "-Wextra",
+          "-Werror",
+          "-I/work/candidate/build/generated",
+          "-I/work/candidate/source/src",
+          "/work/probe.cpp",
+          "/work/candidate/build/libllmx-vulkan.a",
+          "-ldl",
+          "-pthread",
+          "-o",
+          "/work/probe"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "changed_generated_files": [
+      "matmul_tile_nvfp4_f16.inc"
+    ],
+    "shader_sha256": "e65f90f975e4089b3e7d4ba99087d5e895f160cf1da683ac10c6f662a12c6e69",
+    "probe_source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+    "library_sha256": "e3ee41f85d6c4d36ab180eb592776f42d5e4dbfbadbf899ffca300e61a28a2e5",
+    "binary_sha256": "f13a497d137efcaf712b2d1bd49292a5888cf14a760f95167c44db04705725ba",
+    "binary_bytes": 9297264,
+    "ended_unix": 1793020115.07691
+  },
+  "raw_rig_results": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/half-storage-main7ac-v1/diagnostic-v1/attempt-01",
+  "source_patch_sha256": "8abac7a6afc1ff3d5d13d09ca83fbf20e170391477987eac48d050763df8ce57",
+  "decision": "Do not adopt: this screen gives no speed benefit. No full-model gate was run for this experiment. Profile the current P128 kernel before another change."
+}

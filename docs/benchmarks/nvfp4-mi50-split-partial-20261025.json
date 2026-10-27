@@ -1,0 +1,29 @@
+{
+  "scope": "Partial MI50 TP2 auto HF qualification; timeout retained, no full gate pass",
+  "revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "run": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/correctness-v2",
+  "original_fixtures": {
+    "full_logit_checks": 150,
+    "nll_checks": 12,
+    "max_logit_error": 4.05e-06,
+    "logit_limit": 2e-05,
+    "max_nll_error": 2.7e-07,
+    "nll_limit": 1e-05
+  },
+  "scaled_fixtures": "Incomplete, no claimed pass",
+  "remaining": "Scaled TP2 auto, layer auto, TP2 F32, layer F32; no depth captures from this run",
+  "timeout_seconds": 1200,
+  "cleanup_exit": 0,
+  "source_binary_model_pins_unchanged": true,
+  "artifacts": {
+    "execution.json": {
+      "sha256": "92d06f948773650cfe0de80c407d16659ae7f2ad0552e6958e5230cb67136481"
+    },
+    "tp2-auto.stdout": {
+      "sha256": "17861ae63a43e8cbd7ae1780dc778b2f6da9e3144a3be2155ce7c8aafd749675"
+    },
+    "tp2-auto.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

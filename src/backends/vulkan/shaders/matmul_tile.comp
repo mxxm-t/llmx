@@ -13,6 +13,12 @@
 #extension GL_ARB_gpu_shader_fp64 : require
 #endif
 #include "float_controls.glsl"
+#ifdef LLMX_INPUT_F16
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_spirv_intrinsics : require
+// The kernel table supplies both widths; this declaration keeps the rounding capability in the source module.
+spirv_execution_mode(capabilities = [4467], 4462, 32);
+#endif
 #if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
 #include "f16.glsl"
 #ifdef LLMX_WEIGHT_F16
@@ -23,6 +29,7 @@
 #endif
 layout(local_size_x = 256) in;
 layout(constant_id = 0) const uint TILE_ROWS = 64;
+layout(constant_id = 15) const uint WEIGHT_TYPE = 0xffffffffu;
 #define TILE_COLS 64u
 // `wstride` is an F32 row's stride in floats: nin, or more for the padded copy the backend keeps of a matrix whose rows are a power of two wide.
 layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; } p;
@@ -98,9 +105,16 @@ float matrix_input(float value) {
 #endif
 #define WVALS (STAGE_K / WPR)
 
+#ifdef LLMX_NVFP4
+// Adjacent K values share a vec2. Each output row/column has one unused pair after the stage.
+shared vec2 ws_pairs[TILE_ROWS][STAGE_K / 2u + 1u];
+shared vec2 xs_pairs[TILE_COLS][STAGE_K / 2u + 1u];
+vec2 input_pair(uint col, uint pair) { return xs_pairs[col][pair]; }
+#else
 // k-major tiles, [k][row] and [k][column], so a thread's rows and four columns for one k are adjacent and load as wide reads.
 shared float ws[STAGE_K][TILE_ROWS];
 shared float xs[STAGE_K][TILE_COLS];
+#endif
 #ifdef LLMX_MXFP4
 shared uint wrange[TILE_ROWS];
 shared uint xrange[XPR][TILE_COLS];
@@ -148,7 +162,7 @@ void main() {
 #elif defined(LLMX_TQ)
     const uint type = TQ_TYPE;
 #else
-    uint type = p.type;
+    uint type = WEIGHT_TYPE == 0xffffffffu ? p.type : WEIGHT_TYPE;
 #endif
     uint tid = gl_LocalInvocationID.x;
     uint row_base = gl_WorkGroupID.x * TILE_ROWS;
@@ -165,7 +179,7 @@ void main() {
         if (ncols == 0u) return;
         col_base = 0u;
     }
-    uint tr = tid / THREAD_COLS, tc = tid - tr * THREAD_COLS;   // micro-tile at rows tr*MROWS.., cols tc*4..
+    uint tr = tid / THREAD_COLS, tc = tid - tr * THREAD_COLS;   // Each thread holds MROWS rows and four output columns.
     uint wrow = tid / WPR, wseg = tid - wrow * WPR;   // W loader: row wrow, k segment wseg*WVALS
     uint xcol = tid / XPR, xseg = tid - xcol * XPR;     // X loader: XPR segments per column
     // The X column this thread loads.
@@ -210,14 +224,52 @@ void main() {
     barrier();
 #endif
     for (uint k0 = kbeg; k0 < kend; k0 += STAGE_K) {
-        // Both tiles are read before either is stored, each load from a clamped index rather than in a branch, so the loads are issued together instead of each waiting for the last.
+#if defined(LLMX_NVFP4) && defined(LLMX_INPUT_F16)
+        vec2 early_x[STAGE_K / (2u * XPR)];
+        // NVFP4 rows contain whole 64-value blocks and K stages contain 32 values.
+        if (xin) {
+            for (uint i = 0u; i < STAGE_K / XPR; i += 2u) {
+                uint k = k0 + xseg * (STAGE_K / XPR) + i;
+                uint at = xc * p.nin + k;
+                early_x[i / 2u] = vec2(x[at], x[at + 1u]);
+            }
+        } else {
+            for (uint i = 0u; i < STAGE_K / XPR; i += 2u)
+                early_x[i / 2u] = vec2(0.0);
+        }
+#endif
+        // Read both tiles before storing either, with clamped loads outside the branch.
         uint row = row_base + wrow, wr = expert * p.nout + row;
+#ifndef LLMX_NVFP4
         float xv[STAGE_K / XPR];
         for (uint i = 0u; i < STAGE_K / XPR; ++i) {
             uint k = k0 + xseg * (STAGE_K / XPR) + i;
             xv[i] = matrix_input(x[xin && k < p.nin ? xc * p.nin + k : 0u]);
         }
-#ifdef LLMX_MXFP4
+#endif
+#ifdef LLMX_NVFP4
+        if (row < p.nout) {
+            uint o = (wr * (p.nin / NVFP4_BLOCK) + k0 / NVFP4_BLOCK) * NVFP4_BYTES;
+            uint group = wseg * (WVALS / 2u) / 8u, lane = wseg * (WVALS / 2u) % 8u;
+            uint block_group = k0 % NVFP4_BLOCK / 16u + group;
+            float scale = nvfp4_scale(QBYTE(o + block_group));
+            float global = wf[min(expert, uint(wf.length()) - 1u)];
+            for (uint i = 0u; i < WVALS / 2u; i += 2u) {
+                uint first = QBYTE(o + 4u + block_group * 8u + lane + i);
+                uint second = QBYTE(o + 4u + block_group * 8u + lane + i + 1u);
+                precise float low0 = nvfp4_value(scale, first & 15u) * global;
+                precise float low1 = nvfp4_value(scale, second & 15u) * global;
+                precise float high0 = nvfp4_value(scale, first >> 4u) * global;
+                precise float high1 = nvfp4_value(scale, second >> 4u) * global;
+                uint pair = (group * 16u + lane + i) / 2u;
+                ws_pairs[wrow][pair] = vec2(low0, low1);
+                ws_pairs[wrow][pair + 4u] = vec2(high0, high1);
+            }
+        } else {
+            for (uint i = 0u; i < WVALS / 2u; ++i)
+                ws_pairs[wrow][wseg * (WVALS / 2u) + i] = vec2(0.0);
+        }
+#elif defined(LLMX_MXFP4)
         uint o = ((row < p.nout ? wr : 0u) * nblocks + k0 / MXFP4_BLOCK) * MXFP4_BYTES;
         uint e = QBYTE(o);
         float wv[WVALS];
@@ -430,6 +482,27 @@ void main() {
         }
 #endif
         // X tile: one stage of TILE_COLS columns, XPR threads to a column.
+#ifdef LLMX_NVFP4
+#ifndef LLMX_INPUT_F16
+        vec2 next_x[STAGE_K / (2u * XPR)];
+        for (uint i = 0u; i < STAGE_K / XPR; i += 2u) {
+            uint pair = (xseg * (STAGE_K / XPR) + i) / 2u;
+            uint k = k0 + 2u * pair;
+            float low = xin && k < p.nin ? matrix_input(x[xc * p.nin + k]) : 0.0;
+            float high = xin && k + 1u < p.nin ? matrix_input(x[xc * p.nin + k + 1u]) : 0.0;
+            next_x[i / 2u] = vec2(low, high);
+        }
+#endif
+        for (uint i = 0u; i < STAGE_K / XPR; i += 2u) {
+            uint pair = (xseg * (STAGE_K / XPR) + i) / 2u;
+            // Widen the rounded pair once, before the tile's consumers share it.
+#ifdef LLMX_INPUT_F16
+            xs_pairs[xcol][pair] = vec2(f16vec2(early_x[i / 2u]));
+#else
+            xs_pairs[xcol][pair] = vec2(next_x[i / 2u]);
+#endif
+        }
+#else
 #ifdef LLMX_MXFP4
         uint xr = 0u;
 #endif
@@ -444,6 +517,7 @@ void main() {
 #ifdef LLMX_MXFP4
         xrange[xseg][xcol] = xr;
 #endif
+#endif
         barrier();
 #ifdef LLMX_MXFP4
         // Each output needs a wide sum if any block flagged its weight row or activation column.
@@ -453,6 +527,27 @@ void main() {
             for (uint segment = 0u; segment < XPR; ++segment) wide_cols[j] |= xrange[segment][c];
         }
 #endif
+#ifdef LLMX_NVFP4
+        // Consume adjacent K values in ascending order for every original output accumulator.
+        for (uint kb = 0u; kb < STAGE_K / 2u; kb += 4u) {
+            for (uint u = 0u; u < 4u; ++u) {
+                uint pair = kb + u;
+                vec2 b0 = input_pair(tc, pair), b1 = input_pair(tc + THREAD_COLS, pair);
+                vec2 b2 = input_pair(tc + 2u * THREAD_COLS, pair), b3 = input_pair(tc + 3u * THREAD_COLS, pair);
+                for (uint i = 0u; i < MROWS; ++i) {
+                    vec2 a = ws_pairs[tr * MROWS + i][pair];
+                    acc[i][0] = fma(a.x, b0.x, acc[i][0]);
+                    acc[i][1] = fma(a.x, b1.x, acc[i][1]);
+                    acc[i][2] = fma(a.x, b2.x, acc[i][2]);
+                    acc[i][3] = fma(a.x, b3.x, acc[i][3]);
+                    acc[i][0] = fma(a.y, b0.y, acc[i][0]);
+                    acc[i][1] = fma(a.y, b1.y, acc[i][1]);
+                    acc[i][2] = fma(a.y, b2.y, acc[i][2]);
+                    acc[i][3] = fma(a.y, b3.y, acc[i][3]);
+                }
+            }
+        }
+#else
         // Unrolled by eight so the steps' shared-memory reads carry immediate offsets rather than recomputed addresses.
         for (uint kb = 0u; kb < STAGE_K; kb += 8u) {
             for (uint u = 0u; u < 8u; ++u) {
@@ -475,18 +570,29 @@ void main() {
                 }
             }
         }
+#endif
         barrier();
     }
     for (uint i = 0u; i < MROWS; ++i) {
         uint row = row_base + tr * MROWS + i;
         if (row >= p.nout) continue;
         for (uint j = 0u; j < 4u; ++j) {
+#ifdef LLMX_NVFP4
+            uint tile_col = tc + j * THREAD_COLS;
+            uint col = col_base + tile_col;
+            bool cv = col < p.nbatch;
+            if (p.per != 0u) {
+                cv = tile_col < ncols;
+                col = cv ? tab[p.order0 + first + tile_col] : 0u;
+            }
+#else
             uint col = col_base + tc * 4u + j;
             bool cv = col < p.nbatch;
             if (p.per != 0u) {
                 cv = tc * 4u + j < ncols;
                 col = cv ? tab[p.order0 + first + tc * 4u + j] : 0u;
             }
+#endif
             if (cv) {
 #ifdef LLMX_MXFP4
                 bool recompute = (wide_rows[i] | wide_cols[j]) != 0u || isnan(acc[i][j]) || isinf(acc[i][j]);

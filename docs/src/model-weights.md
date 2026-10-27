@@ -56,3 +56,7 @@ span unless given a shared owner. The GGUF loader supplies that owner for
 host-backed sources. Without an owner, the caller must retain the allocation
 or mapping through every read; keeping `row_source` alive alone does not retain
 those borrowed bytes.
+
+`TensorView.scale` optionally names a companion by its index in the same `ModelWeights` tensor array. `weight_scale_count` accepts only an NVFP4 weight with an ordinary F32 companion holding one value or one per expert, with consistent byte size, no row source and no nested scale. `Weight` retains the adopted scale buffer and count; `Weight.operand()` returns the shared backend `WeightView`, keeping scale association out of callers. Tensor shards retain the whole expert-scale vector. Independent operator/model checks cover scalar and expert scales, tied use, layer/tensor splits and loading modes. Qualification of scaled released models remains separate.
+
+The model-weight-scales test also loads tied and untied files over two copying backends in layer and tensor splits, in each supported loading mode. It compares with independently constructed F32 weights and requires both backends to execute scaled matrix products using their own companion-scale storage.

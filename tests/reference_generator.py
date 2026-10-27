@@ -52,6 +52,225 @@ def write_routed_layer(path):
     return state
 
 
+
+class NVFP4Companions(unittest.TestCase):
+    @staticmethod
+    def payload(blocks):
+        return b"".join(bytes([56] * 4) + bytes(((j + b) % 16) | (((15 - j + b) % 16) << 4)
+                                                for j in range(32)) for b in range(blocks))
+
+    @staticmethod
+    def expected(payload, scales, stride):
+        import spec_decode as sd
+        values = []
+        for i in range(len(payload) // 36 * 64):
+            block, lane = i // 64, i % 16
+            packed = payload[block * 36 + 4 + ((i % 64) // 16) * 8 + lane % 8]
+            code = (packed >> (4 * (lane // 8))) & 15
+            exponent, mantissa = (code >> 1) & 3, code & 1
+            magnitude = math.ldexp(2 + mantissa, exponent - 2) if exponent else mantissa * 0.5
+            value = -magnitude if code & 8 and magnitude else magnitude
+            values.append(sd.to_f32(value * scales[0 if len(scales) == 1 else i // stride]))
+        return sd.pack_f32(values)
+
+    def test_scalar_signed_zero_and_input_scale_is_unused(self):
+        import spec_decode as sd
+        payload = self.payload(2)
+        with tempfile.TemporaryDirectory(prefix="nvfp4_reference_scales_") as directory:
+            path = Path(directory) / "weights.gguf"
+            for value in (0.0, -0.0, 0.0001, -0.0001, 2.0 ** -100, -(2.0 ** 60)):
+                scale = struct.unpack("<f", struct.pack("<f", value))[0]
+                tensors = [("token_embd.weight", [64, 2], sd.NVFP4, payload),
+                           ("token_embd.scale", [1], sd.F32, struct.pack("<f", scale)),
+                           ("token_embd.input_scale", [1], sd.F32, struct.pack("<f", 12345.0))]
+                sd.write_gguf(path, {"general.architecture": (sd.STRING, "qwen3")}, tensors)
+                model = sd.GGUF(path)
+                self.assertEqual(len(model.tensors), 3)
+                self.assertEqual(model.raw(model.tensors[0]), payload)
+                self.assertEqual([t.name for t in model.weight_tensors()], ["token_embd.weight"])
+                want = self.expected(payload, [scale], 128)
+                self.assertEqual(sd.pack_f32(model.decode(model.tensors[0], numpy=False)), want)
+                if sd.np is not None:
+                    self.assertEqual(model.decode(model.tensors[0]).tobytes(), want)
+                state, kinds = generator.gguf_state(path, numpy=False)
+                self.assertEqual(sd.pack_f32(state["model.embed_tokens.weight"][1]), want)
+                self.assertEqual(kinds, {"NVFP4": 1})
+            self.assertEqual(sd.pack_f32(sd.decode(sd.NVFP4, payload, 128)), self.expected(payload, [1.0], 128))
+
+    def test_expert_scales_and_partial_span_crossing_experts(self):
+        import spec_decode as sd
+        payload, scales = self.payload(6), [0.125, -0.25, -0.0]
+        with tempfile.TemporaryDirectory(prefix="nvfp4_reference_experts_") as directory:
+            path = Path(directory) / "experts.gguf"
+            sd.write_gguf(path, {}, [("blk.0.ffn_down_exps.weight", [64, 2, 3], sd.NVFP4, payload),
+                                      ("blk.0.ffn_down_exps.scale", [3], sd.F32, struct.pack("<3f", *scales))])
+            model = sd.GGUF(path)
+            expected = self.expected(payload, scales, 128)
+            parameters = list(generator.qwen3moe_tensors(model, False))
+            self.assertEqual(len(parameters), 3)
+            for expert, (name, shape, values, kind) in enumerate(parameters):
+                self.assertEqual(name, "model.layers.0.mlp.experts.%d.down_proj.weight" % expert)
+                self.assertEqual((shape, kind), ([2, 64], "NVFP4"))
+                self.assertEqual(sd.pack_f32(values), expected[expert * 512:(expert + 1) * 512])
+            for first, count in ((0, 384), (64, 256), (128, 128), (320, 64), (384, 0)):
+                want = expected[first * 4:(first + count) * 4]
+                self.assertEqual(sd.pack_f32(model.decode_span(model.tensors[0], first, count, numpy=False)), want)
+                if sd.np is not None:
+                    self.assertEqual(model.decode_span(model.tensors[0], first, count).tobytes(), want)
+
+    def test_companion_in_another_shard(self):
+        import spec_decode as sd
+        import qwen4exp_file_reference as reference
+        if sd.np is None:
+            self.skipTest("numpy required by the bounded shard reader")
+        payload = self.payload(2)
+        with tempfile.TemporaryDirectory(prefix="nvfp4_reference_shards_") as directory:
+            first, second = Path(directory) / "first.gguf", Path(directory) / "second.gguf"
+            metadata = {"general.architecture": (sd.STRING, "qwen4exp"), "split.no": (4, 0),
+                        "split.count": (4, 2), "split.tensors.count": (10, 2)}
+            sd.write_gguf(first, metadata, [("token_embd.weight", [64, 2], sd.NVFP4, payload)])
+            sd.write_gguf(second, {"split.no": (4, 1), "split.count": (4, 2), "split.tensors.count": (10, 2)},
+                          [("token_embd.scale", [1], sd.F32, struct.pack("<f", -0.25))])
+            source = reference.Shards([second, first], 512)
+            self.assertEqual(source.read("token_embd.weight").tobytes(), self.expected(payload, [-0.25], 128))
+
+    def test_qwen35_expert_halves_are_scaled_before_assembly(self):
+        import spec_decode as sd
+        payload = self.payload(6)
+        gains = ([0.125, -0.25, -0.0], [-0.5, 0.25, 0.0])
+        tensors = []
+        for part, scales in zip(("gate", "up"), gains):
+            prefix = "blk.0.ffn_" + part + "_exps"
+            tensors += [(prefix + ".weight", [64, 2, 3], sd.NVFP4, payload),
+                        (prefix + ".scale", [3], sd.F32, struct.pack("<3f", *scales)),
+                        (prefix + ".input_scale", [3], sd.F32, struct.pack("<3f", 11, 12, 13))]
+        metadata = {"general.architecture": (sd.STRING, "qwen35moe"), "qwen35moe.block_count": (4, 1),
+                    "qwen35moe.ssm.group_count": (4, 2), "qwen35moe.ssm.time_step_rank": (4, 2),
+                    "qwen35moe.ssm.state_size": (4, 2), "qwen35moe.ssm.inner_size": (4, 4)}
+        halves = [self.expected(payload, scale, 128) for scale in gains]
+        want = b"".join(half[e * 512:(e + 1) * 512] for e in range(3) for half in halves)
+        with tempfile.TemporaryDirectory(prefix="nvfp4_reference_halves_") as directory:
+            path = Path(directory) / "halves.gguf"
+            sd.write_gguf(path, metadata, tensors)
+            for numpy in ((False, True) if sd.np is not None else (False,)):
+                values, kinds = generator.gguf_state(path, numpy=numpy)
+                shape, have = values["model.layers.0.mlp.experts.gate_up_proj"]
+                self.assertEqual(shape, [3, 4, 64])
+                self.assertEqual(sd.pack_f32(have), want)
+                self.assertEqual(kinds, {"NVFP4": 1})
+
+    @staticmethod
+    def repack_fixture(tied, moe, split=False):
+        import nvfp4
+        import spec_decode as sd
+        width, state = (128 if split else 64), nvfp4.NVFP4_SEED
+        weights, packed = [], []
+        def next_value():
+            nonlocal state
+            state = (1664525 * state + 1013904223) & 0xffffffff
+            return state
+        def matrix(name, shape):
+            data = b"".join(nvfp4.raw_block(next_value, block) for block in range(math.prod(shape) // 64))
+            packed.append((name, shape, sd.NVFP4, data))
+            weights.append((name, "hf." + name, shape, sd.decode(sd.NVFP4, data, math.prod(shape))))
+        matrix("token_embd.weight", [width, 257])
+        matrix("blk.0.attn_q.weight", [width, 2])
+        if moe:
+            matrix("blk.0.ffn_down_exps.weight", [width, 2, 4])
+        if not tied:
+            matrix("output.weight", [width, 257])
+        weights.append(("output_norm.weight", "model.norm.weight", [width], [1.0] * width))
+        return {"embedding_length": width, "context_length": 16}, weights, packed
+
+    def test_equivalent_repack_matches_effective_f32_bytes_with_and_without_numpy(self):
+        import nvfp4
+        import spec_decode as sd
+        from block_fixture import VARIANTS, packed_hash, write_fixture
+        from f32 import weight_hash
+        with tempfile.TemporaryDirectory(prefix="nvfp4_equivalent_repack_") as directory:
+            for split in (False, True):
+                for name, tied, moe in VARIANTS:
+                    config, weights, packed = self.repack_fixture(tied, moe, split)
+                    original = packed_hash(packed), weight_hash(weights)
+                    for numpy in ((sd.np, None) if sd.np is not None else (None,)):
+                        with patch.object(sd, "np", numpy):
+                            repacked = nvfp4.repack(weights, packed)
+                        self.assertNotEqual(packed_hash(repacked), original[0])
+                        self.assertEqual((packed_hash(packed), weight_hash(weights)), original)
+                        path = Path(directory) / (name + ".gguf")
+                        write_fixture(path, config, weights, repacked, moe)
+                        model = sd.GGUF(path)
+                        by_name = {tensor.name: tensor for tensor in model.tensors}
+                        for tensor_name, _, shape, values in weights:
+                            self.assertEqual(sd.pack_f32(model.decode(by_name[tensor_name], numpy=False)), sd.pack_f32(values))
+                        companions = [tensor for tensor in model.tensors if tensor.name.endswith(".scale")]
+                        self.assertTrue(any(tensor.count == 1 for tensor in companions))
+                        self.assertEqual(any(tensor.count == 4 for tensor in companions), moe)
+                    print("NVFP4 equivalent control %s split=%s original=%s repacked=%s effective=%s"
+                          % (name, split, original[0], packed_hash(repacked), original[1]))
+
+    def test_equivalent_repack_harness_preserves_original_golden_identity_checks(self):
+        import block_fixture as bf
+        import common
+        import nvfp4
+        import spec_decode as sd
+        from f32 import weight_hash, TEXTS
+        for split in (False, True):
+            fixtures = {name: self.repack_fixture(tied, moe, split) for name, tied, moe in bf.VARIANTS}
+            doc = {"transformers_version": "4.55.2", "fixtures": [
+                {"name": name, "config": config, "weights_sha256": weight_hash(weights), "packed_sha256": bf.packed_hash(packed),
+                 "cases": [{"text": text} for text in TEXTS], "perplexity": [{"context": context} for context in (4, 16)]}
+                for name, (config, weights, packed) in fixtures.items()]}
+            def fixture(tied, moe, split=False):
+                name = "moe" if moe else "dense-tied" if tied else "dense-untied"
+                return fixtures[name]
+            def compare(label, path, *args, **kwargs):
+                self.assertEqual(kwargs["family"], "nvfp4")
+                _, weights, _ = fixtures[Path(path).stem]
+                model = sd.GGUF(path)
+                by_name = {tensor.name: tensor for tensor in model.tensors}
+                actual = [(name, hf, shape, model.decode(by_name[name], numpy=False)) for name, hf, shape, _ in weights]
+                self.assertEqual(weight_hash(actual), weight_hash(weights))
+                return 0.0, 50
+            with patch.object(common, "f32_cache_skip", return_value=False), patch.object(common, "tensor_width", return_value=2 if split else 1), \
+                 patch.object(bf, "device_skip", return_value=False), patch.object(common, "check_hf_fixture", side_effect=compare) as checks:
+                with patch.object(bf, "open", return_value=io.StringIO(json.dumps(doc)), create=True):
+                    self.assertTrue(bf.run_family("nvfp4-scaled", "NVFP4", fixture, family="nvfp4", repack=nvfp4.repack))
+                self.assertEqual(checks.call_count, 3)
+                for field, bad in (("config", {}), ("weights_sha256", "wrong"), ("packed_sha256", "wrong")):
+                    changed = json.loads(json.dumps(doc))
+                    changed["fixtures"][0][field] = bad
+                    with patch.object(bf, "open", return_value=io.StringIO(json.dumps(changed)), create=True), \
+                         patch.object(nvfp4, "repack") as repack:
+                        with self.assertRaises(AssertionError):
+                            bf.run_family("nvfp4-scaled", "NVFP4", fixture, family="nvfp4", repack=repack)
+                        repack.assert_not_called()
+
+    def test_invalid_companions_and_unrelated_suffixes(self):
+        import spec_decode as sd
+        with tempfile.TemporaryDirectory(prefix="nvfp4_reference_invalid_") as directory:
+            path = Path(directory) / "invalid.gguf"
+            weight = ("w.weight", [64, 2], sd.NVFP4, self.payload(2))
+            malformed = [(sd.F16, [1], struct.pack("<e", 1)),
+                         (sd.F32, [2], struct.pack("<2f", 1, 2)),
+                         (sd.F32, [0], b""), (sd.F32, [1] * 5, struct.pack("<f", 1))]
+            for kind, shape, payload in malformed:
+                for suffix in (".scale", ".input_scale"):
+                    sd.write_gguf(path, {}, [weight, ("w" + suffix, shape, kind, payload)])
+                    model = sd.GGUF(path)
+                    with self.assertRaisesRegex(ValueError, "incompatible NVFP4"):
+                        list(model.weight_tensors())
+                    if suffix == ".scale":
+                        with self.assertRaisesRegex(ValueError, "incompatible NVFP4"):
+                            model.decode(model.tensors[0], numpy=False)
+            unrelated = [("ordinary.weight", [64, 2], sd.F32, bytes(512)),
+                         ("ordinary.scale", [1], sd.F32, struct.pack("<f", 2)),
+                         ("orphan.input_scale", [1], sd.F32, struct.pack("<f", 3))]
+            sd.write_gguf(path, {}, unrelated)
+            model = sd.GGUF(path)
+            self.assertEqual(list(model.weight_tensors()), model.tensors)
+
+
 class ReferenceGenerator(unittest.TestCase):
     def test_small_k_uses_shared_raw_block_reference(self):
         import q2_k
@@ -1702,7 +1921,7 @@ class DtypeCalibration(unittest.TestCase):
 def run():
     import reference_qwen4exp
     import reference_qwen4exp_file
-    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (ReferenceGenerator, LayeredReference, DtypeCalibration))
+    suite = unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (NVFP4Companions, ReferenceGenerator, LayeredReference, DtypeCalibration))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(reference_qwen4exp))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(reference_qwen4exp_file.ShardStorage))
     result = unittest.TextTestRunner(stream=sys.stdout).run(suite)

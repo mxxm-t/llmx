@@ -1,0 +1,1485 @@
+{
+  "schema": "nvfp4-main7ac-mi50-qualification-checkpoint-v1",
+  "date": "2026-10-26",
+  "runtime_revision": "3a6a7b19d3206f52c7ba8b9faa0cf2f821b5b666",
+  "public_base": "7acff9b3311afd2ce6061bece823be4319ae3b01",
+  "scope": "Current MI50 operator/tiny-HF coverage, actual 16K precision-path witness and matched mx Vulkan screen. Released native-F16 depth, split, existing-format and final landing gates remain incomplete.",
+  "correctness": {
+    "component_log_sha256": "5c875889e2b1647f956705a1bf5d9c77c11ef8e35a3193ab29ec6b96f6283a20",
+    "component_counts": {
+      "short_full_logits": 300,
+      "prompt_full_logits": 216,
+      "nll": 48
+    },
+    "native_wide": {
+      "started_unix": 1793016752.7922814,
+      "binary_sha256": "13fb8af9de81343db18b33738f7a2e24d5839edf0ed6c6d880b521f5bed579d3",
+      "golden_sha256": "ee718c2282b7e3e12477d783cd17ac17e583f802c95fc5ffbae64afd985ceb3a",
+      "budget_sha256": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+      "scope": "Single MI50 with existing wide split-fixture weights, no tensor split. Six 129-token logit and six window-NLL checks, ordinary/scaled dense tied/untied and MoE. Requires native f16 path in every completed measurement. No depth or speed claim.",
+      "cases": [
+        {
+          "name": "dense-untied",
+          "packed_sha256": "dc39fa1c14a1cf796239e40c7fcc77dd432bfcf3aacc9f00b08c4c373f7ef8fe",
+          "logits": {
+            "max_error": 0.0015800351600646634,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 2.6046400346757537e-05,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f16"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "name": "dense-untied-scaled",
+          "packed_sha256": "7d11917a089af3237be44bea73d2a2948d44f30bf4613289396018e5d12618d8",
+          "logits": {
+            "max_error": 0.0015800351600646634,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 2.6046400346757537e-05,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f16"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "name": "dense-tied",
+          "packed_sha256": "448d4b6d8f7c86d9190f33c4d9b26fd0273702fbd3c4984c1abd703f93421dc1",
+          "logits": {
+            "max_error": 0.001357870040893605,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 0.0001090777508681029,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f16"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "name": "dense-tied-scaled",
+          "packed_sha256": "8a8f6dfad2368593eff413ee59c841f1d518cad03008b3a5e9be1d12b0de46be",
+          "logits": {
+            "max_error": 0.001357870040893605,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 0.0001090777508681029,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f16"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "name": "moe",
+          "packed_sha256": "907f1a931f604d306c5ea30b9dbee476a8045988d0765669b4e9b75d0d0e5ada",
+          "logits": {
+            "max_error": 0.0011574641075134395,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 3.406210727430192e-05,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "name": "moe-scaled",
+          "packed_sha256": "d5e1ef5916846efc8f372ee8a4809daadafa7f4953bf2d540fbc689fb67bf320",
+          "logits": {
+            "max_error": 0.0011574641075134395,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          },
+          "perplexity": {
+            "max_error": 3.406210727430192e-05,
+            "bounds": {
+              "logit": 0.005869746208190918,
+              "nll": 0.0006043278951057829
+            },
+            "witness": {
+              "dtype": "f16",
+              "devices": [
+                [
+                  "f32",
+                  "f16"
+                ]
+              ]
+            }
+          }
+        }
+      ],
+      "passed": true,
+      "ended_unix": 1793016851.679514,
+      "binary_unchanged": true,
+      "artifacts": {
+        "dense-untied-scaled-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "moe-logits.stdout": "6b71ff19e66fd06e4133cc46da95214f9ea2f28c561aae7148269a9ace1a86d4",
+        "dense-tied-scaled-perplexity.stdout": "f3c338675fb52870a0e6156405e034ae8af833a8df9d9600063b71984a4d7480",
+        "moe-scaled-perplexity.stdout": "71276604953b10c659072b2cc755c50b695a75b308bcbdd9ee4c48c7b70d6148",
+        "dense-untied-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "dense-untied-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "dense-tied-logits.stdout": "98d257af18bc446c4456541b9a79b3b1f107e4a68fd4a5b55e90b40a1e0a4c28",
+        "dense-untied-scaled-logits.stdout": "0f5948c370e7359203225461a5699cceb12ba572fdf6cb1a7d2db206b48bd623",
+        "dense-tied-scaled-logits.stdout": "98d257af18bc446c4456541b9a79b3b1f107e4a68fd4a5b55e90b40a1e0a4c28",
+        "moe-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "moe-perplexity.stdout": "71276604953b10c659072b2cc755c50b695a75b308bcbdd9ee4c48c7b70d6148",
+        "dense-tied-perplexity.stdout": "f3c338675fb52870a0e6156405e034ae8af833a8df9d9600063b71984a4d7480",
+        "dense-untied-perplexity.stdout": "e9bb6a81830e23a3f69383fd2f68cc869a7b60d5ab8c764a1d831e5c3f3959ae",
+        "dense-untied-logits.stdout": "0f5948c370e7359203225461a5699cceb12ba572fdf6cb1a7d2db206b48bd623",
+        "dense-tied-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "dense-untied-scaled-perplexity.stdout": "e9bb6a81830e23a3f69383fd2f68cc869a7b60d5ab8c764a1d831e5c3f3959ae",
+        "dense-tied-scaled-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "moe-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "moe-scaled-perplexity.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "moe-perplexity.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "dense-tied-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "dense-tied-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "dense-untied-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "moe-scaled-logits.stdout": "6b71ff19e66fd06e4133cc46da95214f9ea2f28c561aae7148269a9ace1a86d4"
+      }
+    },
+    "reference_method_admission": {
+      "accepted": true,
+      "runtime_revision": "3a6a7b19d3206f52c7ba8b9faa0cf2f821b5b666",
+      "policy_map_sha256": "67ea70a4aa91c2934b3d8e1327c50fcc5f8309184c1192c2dcd0cb8eaf313513",
+      "checks": {
+        "current_mi50_completed_path_witness": true,
+        "current_nvfp4_component": true,
+        "native_wide_f16": true
+      },
+      "scope": "Admission to the reviewed HF reference method, not a released-model correctness pass.",
+      "method": "The frozen source map enumerates 108 dense NVFP4 projections. Current source binding was reviewed in F2DEV 90b7ddaf1818 and corrected scope f4b9d8908517. The actual 16K workload witnesses its profile, native-F16 prompt class, F32 NVFP4 decode class, one-row block-int16 head and F16 KV writes. Timestamps aggregate kernel classes; they are not a separate per-module trace.",
+      "approvals": [
+        "a07421678575",
+        "90b7ddaf1818",
+        "f4b9d8908517"
+      ],
+      "operator_receipt_sha256": "0ded0e1c49bc2f6b8fa229124a4f3f25263b9edd0d00fde18238c4e16bbdbf93",
+      "outer_receipt_sha256": "7ec85a0e6c5d3c2c0e5af48bbbbd7edfa10380520436171ae8d211d4e6bc82be",
+      "inner_receipt_sha256": "88baaa2d187f9e0ae856f50056569674645b9d4448de0365d38606400642f269",
+      "source_reconciliation_sha256": "45508f3f4d82aee00a44e8b19d87a5bc6038ee80ec20da90baf0047eba9797e7",
+      "native_logit_error": 0.0015800351600646634,
+      "native_nll_error": 0.0001090777508681029,
+      "native_logit_bound": 0.005869746208190918,
+      "native_nll_bound": 0.0006043278951057829,
+      "phase_records": {
+        "raw": [
+          {
+            "kind": "setup",
+            "version": "0.1.0+unknown",
+            "device": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "requested_dtype": "auto",
+            "effective_dtype": "f16",
+            "cache_k": "f16",
+            "cache_v": "f16",
+            "prompt_tokens": 16384,
+            "forced_steps": 1,
+            "forced_token": 6426,
+            "profile": {
+              "prefer_integer_dot": true,
+              "lookup_integer_dot": true,
+              "q8_decode_cols": 32,
+              "q8_decode_forms": 3,
+              "row_decode_cols": 16,
+              "k45_row_lanes": 32,
+              "tile_from_8bit": 16,
+              "tile_from_8bit_narrow": 32,
+              "tile_from_other": 24,
+              "tile_from_other_narrow": 40,
+              "tile_narrow_nin": 4096,
+              "tile_tall_per_cu": 4,
+              "tile_tall_per_cu_narrow": 8,
+              "dispatch_chunk": 64
+            }
+          },
+          {
+            "kind": "phase",
+            "phase": "prefill",
+            "timed_dispatches": 11459,
+            "matrix_paths": [
+              [
+                "f32",
+                "f16",
+                "block-int16"
+              ]
+            ],
+            "kernels": [
+              {
+                "name": "silu_mul",
+                "milliseconds": 54.83072
+              },
+              {
+                "name": "gather_rows",
+                "milliseconds": 0.00864
+              },
+              {
+                "name": "rms_norm_rows",
+                "milliseconds": 33.37696
+              },
+              {
+                "name": "norm_rope_partial",
+                "milliseconds": 9.75328
+              },
+              {
+                "name": "embed",
+                "milliseconds": 0.70944
+              },
+              {
+                "name": "matmul_tile_nvfp4_f16",
+                "milliseconds": 3046.3936
+              },
+              {
+                "name": "kv_write_kv16",
+                "milliseconds": 3.02032
+              },
+              {
+                "name": "matmul_tile_q",
+                "milliseconds": 344.1728
+              },
+              {
+                "name": "matmul_tile_q8_small",
+                "milliseconds": 12.41296
+              },
+              {
+                "name": "matmul_reduce",
+                "milliseconds": 10.25072
+              },
+              {
+                "name": "sigmoid_mul",
+                "milliseconds": 15.41216
+              },
+              {
+                "name": "gated_rms_norm",
+                "milliseconds": 58.45792
+              },
+              {
+                "name": "causal_conv_silu",
+                "milliseconds": 48.30528
+              },
+              {
+                "name": "delta_rule",
+                "milliseconds": 397.28368
+              },
+              {
+                "name": "attention_tile_d256_kv16",
+                "milliseconds": 1990.49152
+              },
+              {
+                "name": "matmul_tile_wbf16",
+                "milliseconds": 108.5872
+              },
+              {
+                "name": "matmul_tile_wbf16_small",
+                "milliseconds": 16.46
+              },
+              {
+                "name": "matmul_vec_q8_1col head",
+                "milliseconds": 0.98448
+              }
+            ]
+          },
+          {
+            "kind": "phase",
+            "phase": "forced-step",
+            "timed_dispatches": 306,
+            "matrix_paths": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "kernels": [
+              {
+                "name": "silu_mul",
+                "milliseconds": 0.2368
+              },
+              {
+                "name": "gather_rows",
+                "milliseconds": 0.00864
+              },
+              {
+                "name": "rms_norm_rows",
+                "milliseconds": 0.6624
+              },
+              {
+                "name": "norm_rope_partial",
+                "milliseconds": 0.1432
+              },
+              {
+                "name": "embed",
+                "milliseconds": 0.01664
+              },
+              {
+                "name": "attention_merge",
+                "milliseconds": 0.2416
+              },
+              {
+                "name": "kv_write_kv16",
+                "milliseconds": 0.076
+              },
+              {
+                "name": "matmul_row_k4_dot_1col",
+                "milliseconds": 0.20736
+              },
+              {
+                "name": "matmul_row_k5_dot_1col",
+                "milliseconds": 0.35088
+              },
+              {
+                "name": "matmul_vec_q8_1col_1row",
+                "milliseconds": 0.13072
+              },
+              {
+                "name": "sigmoid_mul",
+                "milliseconds": 0.05728
+              },
+              {
+                "name": "gated_rms_norm",
+                "milliseconds": 0.22928
+              },
+              {
+                "name": "causal_conv_silu",
+                "milliseconds": 0.22352
+              },
+              {
+                "name": "attention_vec_d256_kv16_g4",
+                "milliseconds": 1.54208
+              },
+              {
+                "name": "matmul_row_nvfp4_1col",
+                "milliseconds": 3.5192
+              },
+              {
+                "name": "delta_rule_short",
+                "milliseconds": 0.68224
+              },
+              {
+                "name": "matmul_row_wbf16_1col",
+                "milliseconds": 0.14752
+              },
+              {
+                "name": "matmul_vec_q8_1col head",
+                "milliseconds": 0.46272
+              }
+            ]
+          }
+        ],
+        "chat": [
+          {
+            "kind": "setup",
+            "version": "0.1.0+unknown",
+            "device": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+            "requested_dtype": "auto",
+            "effective_dtype": "f16",
+            "cache_k": "f16",
+            "cache_v": "f16",
+            "prompt_tokens": 16384,
+            "forced_steps": 1,
+            "forced_token": 279,
+            "profile": {
+              "prefer_integer_dot": true,
+              "lookup_integer_dot": true,
+              "q8_decode_cols": 32,
+              "q8_decode_forms": 3,
+              "row_decode_cols": 16,
+              "k45_row_lanes": 32,
+              "tile_from_8bit": 16,
+              "tile_from_8bit_narrow": 32,
+              "tile_from_other": 24,
+              "tile_from_other_narrow": 40,
+              "tile_narrow_nin": 4096,
+              "tile_tall_per_cu": 4,
+              "tile_tall_per_cu_narrow": 8,
+              "dispatch_chunk": 64
+            }
+          },
+          {
+            "kind": "phase",
+            "phase": "prefill",
+            "timed_dispatches": 11459,
+            "matrix_paths": [
+              [
+                "f32",
+                "f16",
+                "block-int16"
+              ]
+            ],
+            "kernels": [
+              {
+                "name": "silu_mul",
+                "milliseconds": 56.20896
+              },
+              {
+                "name": "gather_rows",
+                "milliseconds": 0.00864
+              },
+              {
+                "name": "rms_norm_rows",
+                "milliseconds": 34.10336
+              },
+              {
+                "name": "norm_rope_partial",
+                "milliseconds": 10.14448
+              },
+              {
+                "name": "embed",
+                "milliseconds": 0.72528
+              },
+              {
+                "name": "matmul_tile_nvfp4_f16",
+                "milliseconds": 3048.58704
+              },
+              {
+                "name": "kv_write_kv16",
+                "milliseconds": 3.14064
+              },
+              {
+                "name": "matmul_tile_q",
+                "milliseconds": 344.54896
+              },
+              {
+                "name": "matmul_tile_q8_small",
+                "milliseconds": 12.43536
+              },
+              {
+                "name": "matmul_reduce",
+                "milliseconds": 10.7592
+              },
+              {
+                "name": "sigmoid_mul",
+                "milliseconds": 15.79888
+              },
+              {
+                "name": "gated_rms_norm",
+                "milliseconds": 58.72784
+              },
+              {
+                "name": "causal_conv_silu",
+                "milliseconds": 49.41296
+              },
+              {
+                "name": "delta_rule",
+                "milliseconds": 399.45328
+              },
+              {
+                "name": "attention_tile_d256_kv16",
+                "milliseconds": 1991.9288
+              },
+              {
+                "name": "matmul_tile_wbf16",
+                "milliseconds": 108.45008
+              },
+              {
+                "name": "matmul_tile_wbf16_small",
+                "milliseconds": 16.7072
+              },
+              {
+                "name": "matmul_vec_q8_1col head",
+                "milliseconds": 0.98192
+              }
+            ]
+          },
+          {
+            "kind": "phase",
+            "phase": "forced-step",
+            "timed_dispatches": 306,
+            "matrix_paths": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "kernels": [
+              {
+                "name": "silu_mul",
+                "milliseconds": 0.2416
+              },
+              {
+                "name": "gather_rows",
+                "milliseconds": 0.0088
+              },
+              {
+                "name": "rms_norm_rows",
+                "milliseconds": 0.67664
+              },
+              {
+                "name": "norm_rope_partial",
+                "milliseconds": 0.14544
+              },
+              {
+                "name": "embed",
+                "milliseconds": 0.01568
+              },
+              {
+                "name": "attention_merge",
+                "milliseconds": 0.24528
+              },
+              {
+                "name": "kv_write_kv16",
+                "milliseconds": 0.07888
+              },
+              {
+                "name": "matmul_row_k4_dot_1col",
+                "milliseconds": 0.20832
+              },
+              {
+                "name": "matmul_row_k5_dot_1col",
+                "milliseconds": 0.3728
+              },
+              {
+                "name": "matmul_vec_q8_1col_1row",
+                "milliseconds": 0.13472
+              },
+              {
+                "name": "sigmoid_mul",
+                "milliseconds": 0.05936
+              },
+              {
+                "name": "gated_rms_norm",
+                "milliseconds": 0.23168
+              },
+              {
+                "name": "causal_conv_silu",
+                "milliseconds": 0.22656
+              },
+              {
+                "name": "attention_vec_d256_kv16_g4",
+                "milliseconds": 1.54368
+              },
+              {
+                "name": "matmul_row_nvfp4_1col",
+                "milliseconds": 3.5288
+              },
+              {
+                "name": "delta_rule_short",
+                "milliseconds": 0.68624
+              },
+              {
+                "name": "matmul_row_wbf16_1col",
+                "milliseconds": 0.14992
+              },
+              {
+                "name": "matmul_vec_q8_1col head",
+                "milliseconds": 0.46304
+              }
+            ]
+          }
+        ]
+      },
+      "artifact_sha256": {
+        "component.stdout": "5c875889e2b1647f956705a1bf5d9c77c11ef8e35a3193ab29ec6b96f6283a20",
+        "chat.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "native.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "raw.stdout": "f15ddb83721c0d47865783724e75de6ddd3c45a34c1c95dea872abba623cc6fe",
+        "chat.stdout": "e649b5ff077a5a87c5bfde70569667e476cead7cc3a2ab8c06d21423a930d494",
+        "component.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "raw.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "native.stdout": "2adc9f807c9aa970b737422d590cb764b98cc359761c0db4bde33afac008d330",
+        "native-f16/dense-untied-scaled-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "native-f16/moe-logits.stdout": "6b71ff19e66fd06e4133cc46da95214f9ea2f28c561aae7148269a9ace1a86d4",
+        "native-f16/dense-tied-scaled-perplexity.stdout": "f3c338675fb52870a0e6156405e034ae8af833a8df9d9600063b71984a4d7480",
+        "native-f16/moe-scaled-perplexity.stdout": "71276604953b10c659072b2cc755c50b695a75b308bcbdd9ee4c48c7b70d6148",
+        "native-f16/dense-untied-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "native-f16/dense-untied-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/dense-tied-logits.stdout": "98d257af18bc446c4456541b9a79b3b1f107e4a68fd4a5b55e90b40a1e0a4c28",
+        "native-f16/dense-untied-scaled-logits.stdout": "0f5948c370e7359203225461a5699cceb12ba572fdf6cb1a7d2db206b48bd623",
+        "native-f16/dense-tied-scaled-logits.stdout": "98d257af18bc446c4456541b9a79b3b1f107e4a68fd4a5b55e90b40a1e0a4c28",
+        "native-f16/moe-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/moe-perplexity.stdout": "71276604953b10c659072b2cc755c50b695a75b308bcbdd9ee4c48c7b70d6148",
+        "native-f16/dense-tied-perplexity.stdout": "f3c338675fb52870a0e6156405e034ae8af833a8df9d9600063b71984a4d7480",
+        "native-f16/dense-untied-perplexity.stdout": "e9bb6a81830e23a3f69383fd2f68cc869a7b60d5ab8c764a1d831e5c3f3959ae",
+        "native-f16/dense-untied-logits.stdout": "0f5948c370e7359203225461a5699cceb12ba572fdf6cb1a7d2db206b48bd623",
+        "native-f16/dense-tied-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/dense-untied-scaled-perplexity.stdout": "e9bb6a81830e23a3f69383fd2f68cc869a7b60d5ab8c764a1d831e5c3f3959ae",
+        "native-f16/result.json": "5f8193cbec7b3cea60db8f997effbfd7d6696e80e94712573595fd5f7cd1a132",
+        "native-f16/dense-tied-scaled-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "native-f16/moe-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/moe-scaled-perplexity.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/moe-perplexity.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/dense-tied-perplexity.stderr": "82a5d5e1aa752d2759899c3475327f6ddb9f2aa6721ad81b64481708b26fd655",
+        "native-f16/dense-tied-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/dense-untied-scaled-logits.stderr": "8dee93c41fe7fef19ea8ae787ca9e540e4df5767faa79e26a008d4dc68c0d1fc",
+        "native-f16/moe-scaled-logits.stdout": "6b71ff19e66fd06e4133cc46da95214f9ea2f28c561aae7148269a9ace1a86d4"
+      },
+      "unchanged_candidate_rule": "512 exact/top-two positions with 0.1 tie margin. No new full-depth logit tolerance."
+    },
+    "receipt_sha256": "7ec85a0e6c5d3c2c0e5af48bbbbd7edfa10380520436171ae8d211d4e6bc82be"
+  },
+  "performance": {
+    "passed_execution": true,
+    "gate_pass": false,
+    "matrix": [
+      {
+        "p": 128,
+        "g": 256,
+        "phase": "pp",
+        "arms": {
+          "llmx": {
+            "n": 4,
+            "mean": 2366.7675,
+            "min": 2353.85,
+            "max": 2372.4,
+            "sd": 8.67382412779971
+          },
+          "mx": {
+            "n": 4,
+            "mean": 3044.30624,
+            "min": 3030.171106,
+            "max": 3052.925395,
+            "sd": 10.104987293197295
+          }
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              0,
+              1
+            ],
+            "ratio": 0.7824475638703421
+          },
+          {
+            "block": 1,
+            "indices": [
+              2,
+              3
+            ],
+            "ratio": 0.7778406413169792
+          },
+          {
+            "block": 2,
+            "indices": [
+              4,
+              5
+            ],
+            "ratio": 0.7785006658094694
+          },
+          {
+            "block": 3,
+            "indices": [
+              6,
+              7
+            ],
+            "ratio": 0.7710145828833789
+          }
+        ],
+        "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+        "ratio": 0.7774399674731057,
+        "paired_ratio_95pct_descriptive": [
+          0.769910468685095,
+          0.785043102553003
+        ]
+      },
+      {
+        "p": 128,
+        "g": 256,
+        "phase": "tg",
+        "arms": {
+          "llmx": {
+            "n": 4,
+            "mean": 252.9275,
+            "min": 252.26,
+            "max": 253.27,
+            "sd": 0.4548534562545068
+          },
+          "mx": {
+            "n": 4,
+            "mean": 136.99827925,
+            "min": 136.343643,
+            "max": 137.619953,
+            "sd": 0.5233181104162111
+          }
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              0,
+              1
+            ],
+            "ratio": 1.8501779360552952
+          },
+          {
+            "block": 1,
+            "indices": [
+              2,
+              3
+            ],
+            "ratio": 1.846069401689301
+          },
+          {
+            "block": 2,
+            "indices": [
+              4,
+              5
+            ],
+            "ratio": 1.8482779757505405
+          },
+          {
+            "block": 3,
+            "indices": [
+              6,
+              7
+            ],
+            "ratio": 1.8403581346957734
+          }
+        ],
+        "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+        "ratio": 1.8462171834473016,
+        "paired_ratio_95pct_descriptive": [
+          1.839456409259948,
+          1.8530028063167887
+        ]
+      },
+      {
+        "p": 4096,
+        "g": 256,
+        "phase": "pp",
+        "arms": {
+          "llmx": {
+            "n": 4,
+            "mean": 3557.5025,
+            "min": 3549.14,
+            "max": 3562.4,
+            "sd": 6.239606691664735
+          },
+          "mx": {
+            "n": 4,
+            "mean": 3606.0736515,
+            "min": 3604.112093,
+            "max": 3607.284056,
+            "sd": 1.3656460917470965
+          }
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              8,
+              9
+            ],
+            "ratio": 0.987712381221312
+          },
+          {
+            "block": 1,
+            "indices": [
+              10,
+              11
+            ],
+            "ratio": 0.9875573824231157
+          },
+          {
+            "block": 2,
+            "indices": [
+              12,
+              13
+            ],
+            "ratio": 0.9861043953694132
+          },
+          {
+            "block": 3,
+            "indices": [
+              14,
+              15
+            ],
+            "ratio": 0.9847473964234441
+          }
+        ],
+        "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+        "ratio": 0.98652965213676,
+        "paired_ratio_95pct_descriptive": [
+          0.9843166950202293,
+          0.9887475844601773
+        ]
+      },
+      {
+        "p": 4096,
+        "g": 256,
+        "phase": "tg",
+        "arms": {
+          "llmx": {
+            "n": 4,
+            "mean": 252.8825,
+            "min": 251.81,
+            "max": 253.6,
+            "sd": 0.8168792240390651
+          },
+          "mx": {
+            "n": 4,
+            "mean": 137.24667925,
+            "min": 136.427468,
+            "max": 137.673749,
+            "sd": 0.56274569036251
+          }
+        },
+        "matched_pairs": [
+          {
+            "block": 0,
+            "indices": [
+              8,
+              9
+            ],
+            "ratio": 1.8438016590274313
+          },
+          {
+            "block": 1,
+            "indices": [
+              10,
+              11
+            ],
+            "ratio": 1.8354261566596841
+          },
+          {
+            "block": 2,
+            "indices": [
+              12,
+              13
+            ],
+            "ratio": 1.8576171185702868
+          },
+          {
+            "block": 3,
+            "indices": [
+              14,
+              15
+            ],
+            "ratio": 1.8334310189981853
+          }
+        ],
+        "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+        "ratio": 1.8425444526598267,
+        "paired_ratio_95pct_descriptive": [
+          1.8251656198800157,
+          1.860088762931378
+        ]
+      }
+    ],
+    "calls": [
+      {
+        "index": 0,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 2370.95,
+          "tg": 252.26
+        },
+        "activity": {
+          "intervals": 6,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 2,
+            "disk": 2,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 6,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 1,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3030.171106,
+          "tg": 136.343643
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 19,
+            "disk": 19,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 2,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3049.982058,
+          "tg": 137.069603
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 6,
+            "disk": 5,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 3,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 3,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 2372.4,
+          "tg": 253.04
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 3,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 4,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3044.146401,
+          "tg": 136.959918
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 14,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 5,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 2369.87,
+          "tg": 253.14
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 2,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 6,
+        "p": 128,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 2353.85,
+          "tg": 253.27
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 1,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 7,
+        "p": 128,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3052.925395,
+          "tg": 137.619953
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 16,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 19,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 8,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 3562.14,
+          "tg": 253.6
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 4,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 2,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 9,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3606.454741,
+          "tg": 137.541909
+        },
+        "activity": {
+          "intervals": 21,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 21,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 6,
+          "unknown_process_cpu_intervals": 21,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 10,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3607.284056,
+          "tg": 137.673749
+        },
+        "activity": {
+          "intervals": 21,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 21,
+            "disk": 4,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 3,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 11,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 3562.4,
+          "tg": 252.69
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 3,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 12,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3606.443716,
+          "tg": 136.427468
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 2,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 4,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 13,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 3556.33,
+          "tg": 253.43
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 14,
+        "p": 4096,
+        "g": 256,
+        "arm": "llmx",
+        "status": "passed",
+        "rates": {
+          "pp": 3549.14,
+          "tg": 251.81
+        },
+        "activity": {
+          "intervals": 4,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 0,
+            "disk": 1,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 0,
+          "unknown_process_cpu_intervals": 4,
+          "coverage_complete": true
+        }
+      },
+      {
+        "index": 15,
+        "p": 4096,
+        "g": 256,
+        "arm": "mx",
+        "status": "passed",
+        "rates": {
+          "pp": 3604.112093,
+          "tg": 137.343591
+        },
+        "activity": {
+          "intervals": 20,
+          "flags": {
+            "other_gpu": 0,
+            "unrelated_cpu": 17,
+            "disk": 13,
+            "gap": 0
+          },
+          "unknown_gpu_intervals": 0,
+          "missed_process_intervals": 4,
+          "unknown_process_cpu_intervals": 20,
+          "coverage_complete": true
+        }
+      }
+    ],
+    "device": {
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "physical": 8,
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "slot": {
+      "status": "assigned",
+      "scope": "nvfp4-main7ac-mx-20261026",
+      "plan_sha256": "cc371926cdd21997f978ba9b2bb06fc9f0f6c9002ca1f615c6c92531ff459cf6",
+      "coordination_reference": "LDEV TUI 50fae684da3a plus standing owner free-device authority; rfd2 finished, CPUs4,5,12,13 verified free; xdev-g8b-GO  UTC",
+      "prior_reservations_released": true,
+      "release_sentinels": [
+        "/zpool1/llmx-ldev-scratch/slots/xdev-g8b-GO"
+      ],
+      "not_before_utc": "2026-10-26T12:05:19.881871+00:00",
+      "not_after_utc": "2026-10-26T12:35:19.881871+00:00",
+      "device": {
+        "node": "/dev/dri/renderD130",
+        "pci": "0000:c9:00.0",
+        "physical": 8,
+        "uuid": "00000000-c900-0000-0000-000000000000"
+      },
+      "cpuset": "4,5,12,13"
+    },
+    "plan_sha256": "cc371926cdd21997f978ba9b2bb06fc9f0f6c9002ca1f615c6c92531ff459cf6",
+    "execution_sha256": "3184e750aef116a68194dc07092d5ab024f124113542c8d31699b8551cf919a5",
+    "summary_sha256": "9f64beb494827e412de76d50bae602a989a51bd968a723a07b25d99a87182bdb",
+    "artifacts": {
+      "15-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "11-llmx.stderr": "81a61d29549be5b4b15ba1263bae55bf888fe12d3a5b3c8e88bf1c3418be9165",
+      "06-llmx.stdout": "ec6fea585ccd67fd5ce90f2ab5af3b184ea46fe57896514d9cf4eebf2a2258d3",
+      "configured-mx.stdout": "e518fa1d2bc20f5c2f3ee388ee1d0512a23a80d2072ccd65285b5b791f4a27af",
+      "mx-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "03-llmx.stderr": "b03351f507be4d2ce98cfb0c7539484b10ae97e32d34cf0211e4a6842d9325a4",
+      "09-mx.stdout": "7aaf902670182a02382a413a1efde7655f234b66777ba03fde7bf71c2d41cc7f",
+      "10-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "13-llmx.stderr": "b7d842b5736652520d95a596215bb73b6fa2f38b02d7e608f83263f67cda27a3",
+      "14-llmx.stdout": "81ca8464fe46fdcafe035a6f021f122b1ff3490caa87e6b75d6f2bb3c1b222a3",
+      "mx-wrapper-ldd.stdout": "f26f2cb60d4951f9ec2559be93dc24aaa3671a7b8588ed479f11925d63fb7be5",
+      "compiler.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "vulkan-device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+      "activity.jsonl": "2f661e6eba490e1f94bf1f8d6679b93744145d8f700b7f09dae4e85b9469ef9d",
+      "12-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "llmx-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "llmx-ldd.stdout": "d24ddb5c95ae238e02beb666d001042a018d7fd0b676df4a690fc86909c610eb",
+      "04-mx.stdout": "3138e18fbc0be6a8ec77acaf30fa2afe9b278fbfc141c6873ecb03a83317776c",
+      "configured-llmx.stdout": "42674c5a332cc2b312fe509652a3274c69260519aba0831d171ab2fcd05df442",
+      "05-llmx.stderr": "9e1acca2072c5cccbdfc6ec207fc3173fcdb601190326d13c8e96a4b3ea0bbdf",
+      "model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "07-mx.stdout": "81508090df720e62c85624b5d2008c5cf56f285499f31caddd32c73ba1774eee",
+      "mx-impl-ldd.stdout": "53e75d37323534507fa0004d3c1134f889f3d52d21558a1c9728a0f37f44822a",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "01-mx.stdout": "0427374942601f70c569888ecc25e4be2c3e8a8b53566f424e1e9520d4f07489",
+      "00-llmx.stdout": "8e9953b6a54d1226779c2641147ccdc2202375749f89b868c258a4d167e5f74e",
+      "02-mx.stdout": "1b75b9df51e7639320b58c1eec323c2b16d69ae01ca4bd0c547d559649644add",
+      "08-llmx.stderr": "a16cdd2e1ca4e81cf438ebce878113491b1dbd62612dd933e9e5b31cc97cacbc",
+      "containers.jsonl": "0c6d3841e0f1fa919b01f408162695134abd7050b5e25086a9aa2eaeee4ec615",
+      "09-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "03-llmx.stdout": "19b09a5addb76d68f69cda9b16e6bb4246d4a4b07c2dc33d7c2e4ee7b0a73075",
+      "mx-version.stderr": "9d14b1456729dfea87fd0034212d9c6fa5b8ce765ea44be6290e16e9e33be86f",
+      "compiler.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b",
+      "mx-wrapper-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "14-llmx.stderr": "7da0862caf0215b347a370a92e900b02d5c073a57d301d2fa8ae5b9413747815",
+      "13-llmx.stdout": "c7573e093f6ba02d930f4733dd6861133cfca08791ff8d7a84e304743ffff74e",
+      "10-mx.stdout": "84b98a11e546ace0320c31c7c122f7be5585b110648d7f5bd17b503724c4d115",
+      "vulkan-device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+      "12-mx.stdout": "7830caac54fba36b5de51d21d9f663ef44a2e79d916fb48d9754296d8c16b13d",
+      "11-llmx.stdout": "1968880450da4600d1041459f48dfa5d078ac9603e3e0873d5ebe2f46dca8572",
+      "15-mx.stdout": "2105610fe836d0d577dbe79def7381b181e5436f042ddf4a8e59bbb2d0b8c228",
+      "configured-mx.stderr": "886f8381d28efc3fa6b0d5ea4a31b8d6872b1c3bcc554ce89f32a4a562257209",
+      "06-llmx.stderr": "9e1acca2072c5cccbdfc6ec207fc3173fcdb601190326d13c8e96a4b3ea0bbdf",
+      "mx-impl-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "01-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "02-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "08-llmx.stdout": "8340faf57c4eea42f38c0250d76e8444d10f96bb160efb58125efb336b88e6b9",
+      "00-llmx.stderr": "f789790f4834c4a7572d527852e1c34c7db3a92d3c97e202c6105e42481d029f",
+      "04-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "llmx-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "llmx-version.stdout": "da9a6b712f214be11091b4a9a5d5e5efdc61a02fc881968ab69a52a67b6f9c83",
+      "configured-llmx.stderr": "66088266a2db8a8dd720d91ce74135f0ea672c5b75b1f19259fc25fc678b9f39",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "07-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "05-llmx.stdout": "1f48e56d825e9732bbc4f59035180c5b1b0a3521c105d6ff9f5bc4042a5924fa"
+    },
+    "llmx_version": "llmx 0.1.0+unknown numerics bb0bbc8b3f27dd6a",
+    "monitor_samples": 215,
+    "activity": {
+      "complete_calls": 16,
+      "flagged_calls": {
+        "other_gpu": 0,
+        "unrelated_cpu": 11,
+        "disk": 16,
+        "gap": 0
+      }
+    },
+    "limitations": "All planned calls retained. Ratio intervals describe four adjacent matched log-ratios with Student t(df=3); they are not an acceptance policy. PP and TG reset independently; neither describes request latency. Unknown activity is not zero. Disk counters are aggregate physical-device traffic and cannot distinguish model loading from unrelated I/O; the disk flag conservatively reports that limitation.",
+    "preflight_history": "v3 refused an unrelated background HF upload before creating a benchmark container; all16 calls remain not-run. v4 admits only that observed sleep/hf process set while retaining idle/VRAM/fuser checks on GPU8 and all monitor evidence. Both arms use CPUs4,5,12,13 after the earlier lane stayed occupied."
+  },
+  "profiling": {
+    "source": "mx-comparison-v4/results/configured-llmx.stdout",
+    "sha256": "42674c5a332cc2b312fe509652a3274c69260519aba0831d171ab2fcd05df442",
+    "phase": "P128 prefill, separately instrumented",
+    "device_ms": 63.8378,
+    "nvfp4_tile_ms": 47.9909,
+    "nvfp4_tile_percent": 75.1763,
+    "reduction_ms": 0.79984,
+    "reduction_percent": 1.25293,
+    "nvfp4_tile": {
+      "vgpr": 84,
+      "sgpr": 32,
+      "lds_bytes": 17408,
+      "scratch_bytes": 0,
+      "subgroups_per_simd": 3
+    },
+    "limitation": "Instrumented time is diagnostic and does not replace the uninstrumented paired throughput."
+  },
+  "next": "Investigate the short-prompt NVFP4 tile, which accounts for75% of profiled prefill device time. Preserve the decode gain and evaluate workload tradeoffs. No merge or performance waiver."
+}

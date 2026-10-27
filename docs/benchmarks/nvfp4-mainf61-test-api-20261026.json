@@ -1,0 +1,34 @@
+{
+  "scope": "Windows full build and the two adapted Vulkan quantization test calls. Other integration gates remain separate.",
+  "base_commit": "8e929215b7fd3957fc6fedc16c627ff0874ae6ec",
+  "change": "Two matmul_experts_add calls now use WeightView, matching the shared backend API. No runtime source or arithmetic changed.",
+  "test_source_sha256": "93bd6c46a36f430f116bd52c86f014d520f3c403b2e2d06f9ca480516ce085f0",
+  "build": {
+    "command": "cmake --build build-integration/cmake --config Release --parallel 2",
+    "exit": 0,
+    "log": "build-integration/full-native-build-fixed.log",
+    "sha256": "30401bf5e71d3ceba3f526baf3fa8451d8cd9e64ad3c7c7fb322418e32a9ea67"
+  },
+  "focused_test": {
+    "command": "ctest --test-dir build-integration/cmake -C Release -R '^vulkan-quantization$' --output-on-failure",
+    "exit": 0,
+    "passed": 1,
+    "seconds": 38.43,
+    "log_sha256": "7ec4e1cf4113ffd378839f5cddc01be04c2072b57008f27735358c2890c198a7"
+  },
+  "binary": {
+    "version": "llmx 0.1.0+g8e929215b7fd.dirty numerics c84fd0a57ab1f80c",
+    "sha256": "d2927418c46cad6cb2439f3907d8e3accc8f78d1cacae8b9d3c4d798bf7f2d54"
+  },
+  "original_failure_log_sha256": "ed516aebf8ff48f1df2e4e8c10a7820c14088f0c2e51e1724b32290c81acf7cc",
+  "remaining": "Full Vulkan Python suite is running. Integrated Linux identity/split checks, existing-main timing and hosted CI remain.",
+  "native_suite": {
+    "command": "ctest --test-dir build-integration/cmake -C Release --output-on-failure -E ^vulkan-quantization$",
+    "passed": 93,
+    "failed": 0,
+    "exit_code": 0,
+    "seconds": 1362.44,
+    "log_sha256": "a38ae2ab94d70bd3505ac8754440a1b17b8d29718107ab38e6a5bdeae1f0ae53",
+    "excluded": "vulkan-quantization was already rerun separately and passed, recorded above"
+  }
+}

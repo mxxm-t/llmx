@@ -1,0 +1,1130 @@
+{
+  "scope": "Windows Radeon focused development screen, not a final merge or mx gate.",
+  "passed": true,
+  "activity_flags": {
+    "unrelated_cpu": "sum of known unrelated process deltas over100 percent ofone logicalCPU",
+    "system_cpu": "over75 percent",
+    "disk": "physical total over100MiB/s, includes benchmark loading",
+    "gpu": "unrelated engine instance over5 percent; engine values not additive",
+    "missing": "unknown counters/deltas reported as gaps, not zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "before": "b12c5974d42b2d7d107cf491b291b4ccf5f1ce75c5ebc5fb1e0c322b8340d751",
+    "after": "2934c91212edf09ac08a6145c1392ed66968e390c0d73956ee423b458cc68eab"
+  },
+  "versions": {
+    "before": "llmx 0.1.0+g60c3696a408b.dirty numerics 7d577b9e8f5f625a",
+    "after": "llmx 0.1.0+g72e163024da2.dirty numerics 39a601fc41766b2a"
+  },
+  "calls": [
+    {
+      "arm": "before",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-row-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884734.079545,
+      "log": "00-before.log",
+      "pid": 68932,
+      "exit_code": 0,
+      "end": 1792884740.7406387,
+      "rates": {
+        "pp512": 2846.81,
+        "tg128": 76.06
+      },
+      "sha256": "a0be3e1595e0e3a53a7787d63e96743c64b5281ef79b6a3ad92974e0e458d289",
+      "activity": {
+        "samples": 7,
+        "flags": {
+          "unrelated_cpu": 7,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 7,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884740.747673,
+      "log": "01-after.log",
+      "pid": 41900,
+      "exit_code": 0,
+      "end": 1792884746.5551877,
+      "rates": {
+        "pp512": 2854.58,
+        "tg128": 106.61
+      },
+      "sha256": "0645bb1f7dd48b1229e9c63c913cb75566631c041a621285bcdbc16ae51f7ddc",
+      "activity": {
+        "samples": 6,
+        "flags": {
+          "unrelated_cpu": 6,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 2
+        },
+        "process_gap_samples": 6,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-row-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884746.560699,
+      "log": "02-before.log",
+      "pid": 57208,
+      "exit_code": 0,
+      "end": 1792884751.3240201,
+      "rates": {
+        "pp512": 2838.35,
+        "tg128": 76.59
+      },
+      "sha256": "5b0407bf4e3aacffe0640781bbe7aa3eaba92b678a3f665a8787ddb85a2deec1",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 5,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884751.3340118,
+      "log": "03-after.log",
+      "pid": 87556,
+      "exit_code": 0,
+      "end": 1792884755.2926161,
+      "rates": {
+        "pp512": 2847.78,
+        "tg128": 105.77
+      },
+      "sha256": "3fc0520463150ba93fe63bb6772f06bebf954cc2d8d5c532edbcee4f244757c9",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884755.2996264,
+      "log": "04-after.log",
+      "pid": 42728,
+      "exit_code": 0,
+      "end": 1792884759.1748836,
+      "rates": {
+        "pp512": 2843.68,
+        "tg128": 106.47
+      },
+      "sha256": "c04852b89ce00fa507fb133e7862bb4002f884864d31a014aacbd6fa488e7713",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-row-baseline\\llmx.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884759.1837025,
+      "log": "05-before.log",
+      "pid": 88800,
+      "exit_code": 0,
+      "end": 1792884763.859022,
+      "rates": {
+        "pp512": 2843.22,
+        "tg128": 76.62
+      },
+      "sha256": "b6920e08b43179d10b9e11d1524e933ab1c9702723152cbf08192507cf2714de",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_samples": 4,
+        "counter_gap_samples": 0
+      }
+    }
+  ],
+  "monitor": {
+    "pid": 38536,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-row-screen\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-row-screen\\monitor.stop",
+      "--seconds",
+      "1800",
+      "--interval",
+      "1"
+    ],
+    "source_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "profile_exit": 0,
+  "monitor_exit": 0,
+  "finished": 1792884772.1800873,
+  "means": {
+    "before": {
+      "pp512": 2840.785,
+      "tg128": 76.605
+    },
+    "after": {
+      "pp512": 2845.73,
+      "tg128": 106.12
+    }
+  },
+  "change_percent": {
+    "pp512": 0.17407160344764527,
+    "tg128": 38.528816656876174
+  },
+  "monitor_metadata": {
+    "kind": "metadata",
+    "pid": 38536,
+    "logical_cpus": 16,
+    "interval_seconds": 1.0,
+    "initial_counter_collection_bracket": [
+      2380477.5339789,
+      2380477.5346114
+    ],
+    "counters": {
+      "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+      "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+      "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+      "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+    },
+    "unavailable": {},
+    "process_cpu_units": "100 percent equals one logical CPU",
+    "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "pid_classification": {
+    "benchmark": [
+      41900,
+      42728,
+      57208,
+      68932,
+      87556,
+      88800
+    ],
+    "monitor": 38536,
+    "other": "known remaining processes; inaccessible/new CPU deltas unknown"
+  },
+  "activity_scope": "GPU engines are tested individually, never summed. Whole-call samples include loading; process gaps retained.",
+  "profile": {
+    "scope": "Instrumented diagnostic only",
+    "row_lines": [
+      "profile:   matmul_row_nvfp4_1col 769.894 ms (63.8097%)",
+      "profile: kernel matmul_row_nvfp4_1col: numUsedVgprs=17 numUsedSgprs=39 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=0 scratchMemUsageInBytes=0"
+    ]
+  },
+  "artifact_hashes": {
+    "00-before.log": "a0be3e1595e0e3a53a7787d63e96743c64b5281ef79b6a3ad92974e0e458d289",
+    "01-after.log": "0645bb1f7dd48b1229e9c63c913cb75566631c041a621285bcdbc16ae51f7ddc",
+    "02-before.log": "5b0407bf4e3aacffe0640781bbe7aa3eaba92b678a3f665a8787ddb85a2deec1",
+    "03-after.log": "3fc0520463150ba93fe63bb6772f06bebf954cc2d8d5c532edbcee4f244757c9",
+    "04-after.log": "c04852b89ce00fa507fb133e7862bb4002f884864d31a014aacbd6fa488e7713",
+    "05-before.log": "b6920e08b43179d10b9e11d1524e933ab1c9702723152cbf08192507cf2714de",
+    "activity.jsonl": "d55abbda49080a6c12b41d119fc870b374a4a4c8132cc89ad7436ccce1775411",
+    "execution.json": "0c7518ade933f551f3a9edf78ddf2f5c48fa9377c09d995c1ccd92ced94bf250",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f",
+    "profile.log": "594241b6060d6ef412a54c9c07dfd6044e038b518fddc3f4dd691f0bf445dcf1"
+  },
+  "windows_checks": {
+    "nvfp4-fixed-row-native.log": "7db9dee870f405dcfef7d88b40dc22f24bc5337e2c17c67a9edf25c507d2dbf9",
+    "nvfp4-fixed-row-build.log": "abfbf486a53cd0ca14a6c8f8fe547dc5e54f30f9a4e803e45cce98ea5bc5d516"
+  },
+  "limitations": [
+    "Windows Radeon screen, not comparable in absolute rate to MI50 experiments.",
+    "Two measured calls per arm plus warmups; all six calls retained. No mx arm.",
+    "Both builds dirty with different revisions/identities; source-isolated experiment is developmental, not clean-build qualification.",
+    "Current default/F32 short HF passes21checks each. Native checks pass; no final correctness/performance gate."
+  ],
+  "released_short_hf": {
+    "passed": true,
+    "cases": [
+      {
+        "dtype": "default",
+        "exit_code": 0,
+        "check_count": 21,
+        "checks": [
+          {
+            "label": "prompt-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "prompt-00-logits",
+            "status": "pass",
+            "top1": 11751,
+            "top5_overlap": 5,
+            "top_ids": [
+              11751,
+              279,
+              7172,
+              198,
+              25,
+              31586,
+              303,
+              1076,
+              248046,
+              524
+            ],
+            "top_logits": [
+              15.139446,
+              14.583568,
+              14.375881,
+              14.33286,
+              14.234213,
+              13.970833,
+              13.508265,
+              13.477446,
+              13.374907,
+              13.149085
+            ]
+          },
+          {
+            "label": "prompt-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "prompt-01-logits",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              449,
+              279,
+              3428,
+              524,
+              799,
+              4364,
+              10141,
+              1429,
+              44265
+            ],
+            "top_logits": [
+              20.210945,
+              18.729414,
+              18.451443,
+              17.744585,
+              17.364361,
+              17.30698,
+              17.059296,
+              16.879539,
+              16.847462,
+              16.240253
+            ]
+          },
+          {
+            "label": "prompt-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "prompt-02-logits",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              460,
+              695,
+              317,
+              653,
+              271,
+              1133,
+              264,
+              220,
+              4673
+            ],
+            "top_logits": [
+              23.695053,
+              19.387293,
+              18.080004,
+              17.766747,
+              16.474293,
+              16.174742,
+              15.201108,
+              15.102094,
+              14.883348,
+              14.806339
+            ]
+          },
+          {
+            "label": "prompt-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "prompt-03-logits",
+            "status": "pass",
+            "top1": 6105,
+            "top5_overlap": 5,
+            "top_ids": [
+              6105,
+              5983,
+              13358,
+              18016,
+              4022,
+              321,
+              279,
+              55945,
+              1259,
+              864
+            ],
+            "top_logits": [
+              19.499065,
+              19.381897,
+              19.232738,
+              17.277752,
+              15.848873,
+              15.754174,
+              15.117804,
+              14.912228,
+              14.416279,
+              14.320843
+            ]
+          },
+          {
+            "label": "prompt-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "prompt-04-logits",
+            "status": "pass",
+            "top1": 16820,
+            "top5_overlap": 5,
+            "top_ids": [
+              16820,
+              17257,
+              7099,
+              8964,
+              4751,
+              11247,
+              4128,
+              9561,
+              9114,
+              1259
+            ],
+            "top_logits": [
+              16.339607,
+              16.011833,
+              15.36973,
+              13.930101,
+              13.514524,
+              13.000726,
+              12.892897,
+              12.802856,
+              12.631251,
+              12.212998
+            ]
+          },
+          {
+            "label": "prompt-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "prompt-05-logits",
+            "status": "pass",
+            "top1": 6124,
+            "top5_overlap": 5,
+            "top_ids": [
+              6124,
+              17163,
+              9564,
+              279,
+              5440,
+              31868,
+              15477,
+              8100,
+              6650,
+              6535
+            ],
+            "top_logits": [
+              17.559212,
+              17.4055,
+              17.048306,
+              16.812653,
+              15.839732,
+              15.824348,
+              15.76781,
+              15.753323,
+              15.663866,
+              15.497085
+            ]
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 243
+          },
+          {
+            "label": "ppl-00-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156186617,
+            "perplexity": 23.4809,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 3.825631858411782e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-00-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.15618131,
+            "perplexity": 23.4808,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 1.4813681414871382e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873245921,
+            "perplexity": 48.0983,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.6674426905005646e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-01-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873225502,
+            "perplexity": 48.0973,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 3.709342690516593e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539679656,
+            "perplexity": 34.4559,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.3585607606513292e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539656235,
+            "perplexity": 34.4551,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 4.70066076068143e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352701965,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.807999150267193e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352696744,
+            "perplexity": 28.5797,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 3.3300991502560606e-05,
+            "bound": 0.02
+          }
+        ],
+        "max_continuous_nll_delta": 3.825631858411782e-06,
+        "max_window_nll_delta": 4.70066076068143e-05,
+        "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+        "golden_hashes": {
+          "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+          "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+        }
+      },
+      {
+        "dtype": "f32",
+        "exit_code": 0,
+        "check_count": 21,
+        "checks": [
+          {
+            "label": "prompt-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "prompt-00-logits",
+            "status": "pass",
+            "top1": 11751,
+            "top5_overlap": 5,
+            "top_ids": [
+              11751,
+              279,
+              7172,
+              198,
+              25,
+              31586,
+              303,
+              1076,
+              248046,
+              524
+            ],
+            "top_logits": [
+              15.139443,
+              14.58362,
+              14.375753,
+              14.332682,
+              14.234166,
+              13.97093,
+              13.50806,
+              13.477351,
+              13.374928,
+              13.149195
+            ]
+          },
+          {
+            "label": "prompt-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "prompt-01-logits",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              449,
+              279,
+              3428,
+              524,
+              799,
+              4364,
+              10141,
+              1429,
+              44265
+            ],
+            "top_logits": [
+              20.211254,
+              18.729511,
+              18.45163,
+              17.744427,
+              17.364456,
+              17.307091,
+              17.059101,
+              16.879421,
+              16.847523,
+              16.240173
+            ]
+          },
+          {
+            "label": "prompt-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "prompt-02-logits",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              460,
+              695,
+              317,
+              653,
+              271,
+              1133,
+              264,
+              220,
+              4673
+            ],
+            "top_logits": [
+              23.694462,
+              19.386755,
+              18.079716,
+              17.766483,
+              16.473892,
+              16.173883,
+              15.200545,
+              15.101452,
+              14.883004,
+              14.805844
+            ]
+          },
+          {
+            "label": "prompt-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "prompt-03-logits",
+            "status": "pass",
+            "top1": 6105,
+            "top5_overlap": 5,
+            "top_ids": [
+              6105,
+              5983,
+              13358,
+              18016,
+              4022,
+              321,
+              279,
+              55945,
+              1259,
+              864
+            ],
+            "top_logits": [
+              19.499378,
+              19.382042,
+              19.232862,
+              17.277927,
+              15.848782,
+              15.754082,
+              15.117749,
+              14.912377,
+              14.416071,
+              14.320759
+            ]
+          },
+          {
+            "label": "prompt-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "prompt-04-logits",
+            "status": "pass",
+            "top1": 16820,
+            "top5_overlap": 5,
+            "top_ids": [
+              16820,
+              17257,
+              7099,
+              8964,
+              4751,
+              11247,
+              4128,
+              9561,
+              9114,
+              1259
+            ],
+            "top_logits": [
+              16.339426,
+              16.011566,
+              15.369408,
+              13.930025,
+              13.514599,
+              13.000623,
+              12.892887,
+              12.802385,
+              12.631248,
+              12.212851
+            ]
+          },
+          {
+            "label": "prompt-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "prompt-05-logits",
+            "status": "pass",
+            "top1": 6124,
+            "top5_overlap": 5,
+            "top_ids": [
+              6124,
+              17163,
+              9564,
+              279,
+              5440,
+              31868,
+              15477,
+              8100,
+              6650,
+              6535
+            ],
+            "top_logits": [
+              17.559273,
+              17.405594,
+              17.048439,
+              16.812798,
+              15.839903,
+              15.824357,
+              15.767891,
+              15.753511,
+              15.663963,
+              15.49717
+            ]
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 243
+          },
+          {
+            "label": "ppl-00-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156186617,
+            "perplexity": 23.4809,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 3.825631858411782e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-00-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156182022,
+            "perplexity": 23.4808,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 7.69368141639859e-07,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873248569,
+            "perplexity": 48.0984,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.4026426905289213e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-01-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873245771,
+            "perplexity": 48.0982,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.6824426904982204e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539679656,
+            "perplexity": 34.4559,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.3585607606513292e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539677964,
+            "perplexity": 34.4558,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.52776076066219e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352701965,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.807999150267193e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352704416,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.562899150282405e-05,
+            "bound": 0.02
+          }
+        ],
+        "max_continuous_nll_delta": 3.825631858411782e-06,
+        "max_window_nll_delta": 2.807999150267193e-05,
+        "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+        "golden_hashes": {
+          "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+          "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+        }
+      }
+    ],
+    "source_sha256": {
+      "src/backends/vulkan/vulkan_backend.cpp": "2986664f27b66a8adf3107985c7a8c15a33ef34b2d74682444257a96f5795549",
+      "src/backends/vulkan/shaders/matmul_row.comp": "47f13a58a2ac8a2a09c11c80ef3968e94e5289b1b175abe12c60b14fbb3ae461",
+      "src/backends/vulkan/shaders/matmul_tile.comp": "44951140adcba4e081cd6dc93849ff1c7a5a7836a50ec9768f7dc0fbe71a3f21",
+      "src/backends/vulkan/shaders/qdecode.glsl": "d5ae088a3c8a70a353dfff3a6e0d4e144ec6a0f136cbe33f9216364840a05411",
+      "tests/baseline.py": "5807bd6ff53842cf096028226c71bdcaea2a1479ab7ac94635bd70a3014a5321",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c"
+    },
+    "binary_sha256": "2934c91212edf09ac08a6145c1392ed66968e390c0d73956ee423b458cc68eab",
+    "driver_sha256": "f22a7edc30bfc3695e38953369da924899cac5499592106e0ebdd19508e39f1b",
+    "version": "llmx 0.1.0+g72e163024da2.dirty numerics 39a601fc41766b2a",
+    "execution_sha256": "3cc61318cbb661f60409530d9ec245ffcc6d3f7aba8c97c034c9ead6c8266902",
+    "scope": "Current Windows row specialization only; no old-Radeon baseline capture or byte-identity claim. Earlier short HF ran on MI50."
+  }
+}

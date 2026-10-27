@@ -1,0 +1,314 @@
+{
+  "passed": true,
+  "scope": "Fresh production candidate build on merged main07fac with paired-K/interleaved NV F32 tiles. Focused correctness only; no integrated performance or HF claim.",
+  "version": "llmx 0.1.0+g8384e80beff5.dirty numerics 9475af25d170898f",
+  "source_sha256": {
+    "CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+    "src/backends/vulkan/vulkan_backend.cpp": "5036684bae806951a8fe18c51d9d2f8aa0d4e8551c7771a993c083db2ad0f1ee",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "f63c3bd9a1a3bac1aa3cfbdbabd73d72f9202d1beb5d3c10160839328d50ba57",
+    "tests/backend_vulkan.cpp": "1fdcf9d550d35ce583d4dc58676f3108b6a33a1adcf100791d770de996be5a6e"
+  },
+  "frozen_binaries": {
+    "config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "llmx-backend-vulkan-test.exe": "1225ff86c25956a8739dfd9448ef5234b26169d4afd49e34a9ae6203ad3a92f0",
+    "llmx-nvfp4-test.exe": "dbede9b195b5afd502501b4c9874cff68fe96a4b3bae14e64da5ebf13fb66035",
+    "llmx-vulkan.lib": "916f2bdc71525ecb4f26b54a7cb057996ed953345a37f4b4d6d9f6953a2e7f82",
+    "llmx.exe": "48ef91252287749eef2051b54147502a0e025f6c69ba7674768ae415629c14fa"
+  },
+  "nv_spv_frozen_match": {
+    "matmul_tile_nvfp4": {
+      "integrated_spv_sha256": "ddacbd2581638a949e2b027bc5548e5d2d9f04a40fd6d9a3243df0c0a0ece857",
+      "frozen_spv_sha256": "ddacbd2581638a949e2b027bc5548e5d2d9f04a40fd6d9a3243df0c0a0ece857",
+      "byte_equal": true
+    },
+    "matmul_tile_nvfp4_bf16": {
+      "integrated_spv_sha256": "fd288b1f616f7b624bdc77d0b1d05ab91a73e00eec19b8ce21e5d547aa50b6cd",
+      "frozen_spv_sha256": "fd288b1f616f7b624bdc77d0b1d05ab91a73e00eec19b8ce21e5d547aa50b6cd",
+      "byte_equal": true
+    },
+    "matmul_tile_nvfp4_bf16_preserve": {
+      "integrated_spv_sha256": "2661295faee927efa846a1c84d5976cd303be3d0ceaada46af71c7031c8ed31f",
+      "frozen_spv_sha256": "2661295faee927efa846a1c84d5976cd303be3d0ceaada46af71c7031c8ed31f",
+      "byte_equal": true
+    },
+    "matmul_tile_nvfp4_preserve": {
+      "integrated_spv_sha256": "2abf8037ca0f324970c53d4fe80095e9399688eabffa9526c73c708e34298bb0",
+      "frozen_spv_sha256": "2abf8037ca0f324970c53d4fe80095e9399688eabffa9526c73c708e34298bb0",
+      "byte_equal": true
+    }
+  },
+  "preserved_main_fixes": [
+    "SiLU stale-twin invalidation",
+    "RMS norm rows stale-twin invalidation"
+  ],
+  "cleanup": "Removed old generic TYPE_NVFP4 tile loader and NV-only shared TILE_PAD. NV descriptor selects dedicated variants exclusively. Other-type geometry/arithmetic preserved, but generic SPIR-V changed from deleting the old branch/spec-dependent padding; broader backend test passed. Shared qdecode NV helpers remain needed by embedding/row users.",
+  "tests": {
+    "nvfp4": {
+      "pass": true,
+      "seconds": 0.05
+    },
+    "nvfp4-vulkan": {
+      "pass": true,
+      "seconds": 4.43
+    },
+    "backend-vulkan": {
+      "pass": true,
+      "seconds": 43.9
+    }
+  },
+  "retained_initial_failure": "build.log contains merged tests/backend_vulkan.cpp:1324 old 9-argument matmul call compile error. One mechanical WeightView adaptation authorized by root; rebuild-backend-vulkan.log passed.",
+  "logs_sha256": {
+    "build.log": "adbc8cf4574967b7155aa2ae9044ceb9f684bb5f974e16afdad2e25461c516aa",
+    "configure.log": "ab070e519c300323ba0dee0303f38ddf92e5331b5d1b4b7c4caf2b14a7a2f943",
+    "ctest-backend.log": "46bdeb8cf5c294bbb54977704eada0beab1d28c53d2f715bbbe6da7779aacafe",
+    "ctest-nv.log": "8ba955a5b25482191fd47af4f2ce6f834f1d3c405b984aa96c746d036a4394b4",
+    "rebuild-backend-vulkan.log": "31fa7bc5eb6fc79f9aaab74bf644aa0c2f6a931f4ce8c236779628b5bd32531e"
+  },
+  "completion_sha256": "76a71827d6a86fed7574dc2c6898446297de442882bd6ee85c3b2a59e3201258",
+  "receipt_path": "build-nvfp4-integrated-vulkan/completion.json",
+  "logs_verified": true,
+  "generic_tile_modules": {
+    "total": 88,
+    "changed": 54,
+    "limitation": "Cleanup removed unreachable NV loader/spec padding. Existing-format regression and timing still required; no broad carry from unchanged NV modules."
+  },
+  "cached_short_hf": {
+    "completion": {
+      "passed": true,
+      "seconds": 92.37103176116943,
+      "checks": {
+        "default": 21,
+        "f32": 21
+      },
+      "stdout_identity_vs_paired_k": {
+        "default": {
+          "stdout_count": 21,
+          "equal_count": 21,
+          "different": []
+        },
+        "f32": {
+          "stdout_count": 21,
+          "equal_count": 21,
+          "different": []
+        }
+      },
+      "matrix_path_groups": {
+        "default": {
+          "ppl-batched": {
+            "union": [
+              "block-int16",
+              "f32"
+            ],
+            "records": 4,
+            "reported_dtypes": [
+              "f16"
+            ]
+          },
+          "ppl-per-token": {
+            "union": [
+              "block-int16",
+              "f32"
+            ],
+            "records": 4,
+            "reported_dtypes": [
+              "f16"
+            ]
+          },
+          "prompt-logits": {
+            "union": [
+              "block-int16",
+              "f32"
+            ],
+            "records": 6,
+            "reported_dtypes": [
+              "f16"
+            ]
+          }
+        },
+        "f32": {
+          "ppl-batched": {
+            "union": [
+              "f32"
+            ],
+            "records": 4,
+            "reported_dtypes": [
+              "f32"
+            ]
+          },
+          "ppl-per-token": {
+            "union": [
+              "f32"
+            ],
+            "records": 4,
+            "reported_dtypes": [
+              "f32"
+            ]
+          },
+          "prompt-logits": {
+            "union": [
+              "f32"
+            ],
+            "records": 6,
+            "reported_dtypes": [
+              "f32"
+            ]
+          }
+        }
+      },
+      "binary_sha256": "48ef91252287749eef2051b54147502a0e025f6c69ba7674768ae415629c14fa",
+      "version": "llmx 0.1.0+g8384e80beff5.dirty numerics 9475af25d170898f",
+      "scope": "Integrated candidate cached short released HF consumer only. No producer, depth or performance run. Actual model-wide path unions cannot attribute each storage format independently.",
+      "artifact_sha256": {
+        "collect_witnesses.py": "5490282283a82e4f6c673dc947892b0509f08cfaddc86f99e80c030488a5d91d",
+        "matrix-path-witnesses.json": "98aa8c559ea37ba983ee3385aebae2469e37f76e4ae91c07ca98673ee7a5d62c",
+        "preflight.json": "75e897cad59996d7b45e0b5cf221d1d0ffe92eec4059095e1143781cd137e22d",
+        "prepare-receipt.json": "6223ca717910a5de849696334e2efd5619696eaffb74f9aef9c480adf3ec48ff",
+        "released-hf.py": "836dac750e6b34bc2d934efed00dc8ab89a9c0e2932ead563d66a41ec8011093",
+        "run-hf.py": "e006b587f0f89a254656ea6fe01fb9155c6ca1c4a48503b12691cc4f1a330944",
+        "run.log": "c2378e413fbfd228fc0d4dbacfee0e986b8c01cf19c0abb26f981489cc4edfeb",
+        "runner.patch": "deebd2e1bcf48c436f48d6862798c0cf61e3c52abfc987cc157273d73dff7028",
+        "results\\default.log": "ae8038690365b6ecb9c8ce8c7a98098d599c8f3597e6091b7b9bf49eb47e4293",
+        "results\\execution.json": "0b2536a895cf721a3127d2897accddd539ea46ff7b3e18325f3f4c0ebe2f47d2",
+        "results\\f32.log": "ae8038690365b6ecb9c8ce8c7a98098d599c8f3597e6091b7b9bf49eb47e4293",
+        "results\\stdout-comparison.json": "d3ea400023eb3d8b6f2c4fe71f7f7427520df197eecc836f2b8c72e1ac6a3846",
+        "results\\default\\excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+        "results\\default\\ppl-00-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+        "results\\default\\ppl-00-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-00-per-token.stdout": "06f3993be0500f8f45361abcfd3cd174aae5cf61ebc0256b31b1828c989ce229",
+        "results\\default\\ppl-01-batched.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-01-batched.stdout": "4b8c4cc70780bcb80d99a6d4d6acc506987cc095b1660d0f49e750ef3c0756a8",
+        "results\\default\\ppl-01-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-01-per-token.stdout": "2dfd846cf573d35d399a0d13319226b27e93528880216c227df4914841d901a6",
+        "results\\default\\ppl-02-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+        "results\\default\\ppl-02-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-02-per-token.stdout": "a982b60e32336da17a012f72d2227541597940b735363bf420672b74a403cb43",
+        "results\\default\\ppl-03-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+        "results\\default\\ppl-03-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-03-per-token.stdout": "70227dddcede6805ce26f9f2d9ba06b3e1759c5545db0ce14ef8a495b7c6be4f",
+        "results\\default\\ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+        "results\\default\\prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+        "results\\default\\prompt-00-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-00-logits.stdout": "c80a326a0229c56d3ca873c1808d6958ccecef64a4be2371fcddc730ac92ad2b",
+        "results\\default\\prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+        "results\\default\\prompt-01-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-01-logits.stdout": "60443bd57999c128ba47446772d15f0d8a03e200e121587abc5b82f5fe41b0d0",
+        "results\\default\\prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+        "results\\default\\prompt-02-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-02-logits.stdout": "c857c3732d2d4c0c907791c67dbc879ebc33e992a9a50262e659cc219d983e45",
+        "results\\default\\prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+        "results\\default\\prompt-03-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-03-logits.stdout": "d864e66ea3ed97e05ab6aae9df9318daf671ca87acf30ffe94b57d6ebfc1fec5",
+        "results\\default\\prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+        "results\\default\\prompt-04-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-04-logits.stdout": "d2f0ba8c290ce08921f85f3a93c8d8954af607506066736ff371b74b2cdc3d7b",
+        "results\\default\\prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+        "results\\default\\prompt-05-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-05-logits.stdout": "d0f38da09ec24eab9a9d316dc20ab7a8fdd19a8e99b440b782d25f8f954afa18",
+        "results\\default\\report.json": "96eb36205ccdcb5d46bf9b85e9b10107c0fc06df22922682dde3bb94509f3583",
+        "results\\f32\\excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+        "results\\f32\\ppl-00-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+        "results\\f32\\ppl-00-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-00-per-token.stdout": "1c5f1299981c84be4b37ffe1ec35413ac35019fa676f447e455aaad7346fdb24",
+        "results\\f32\\ppl-01-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-01-batched.stdout": "1d0e36404fa15d54b3a0b9cf973509a770b502b04249a10fab4c73c4f4efc777",
+        "results\\f32\\ppl-01-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-01-per-token.stdout": "39b4b74db144571c84a3fd9697dab320b461d5a83a35be9cc20bb1c757994971",
+        "results\\f32\\ppl-02-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+        "results\\f32\\ppl-02-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-02-per-token.stdout": "6e10225b0a4176904d3eda6dbe1665e23d22ec23c486a53e4e612d8838c80cd5",
+        "results\\f32\\ppl-03-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+        "results\\f32\\ppl-03-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-03-per-token.stdout": "994eede2429e1a5223fba033903464fb4f06d5695e141cd33533e711145dfcc3",
+        "results\\f32\\ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+        "results\\f32\\prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+        "results\\f32\\prompt-00-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-00-logits.stdout": "800c0a32a8f979c4df7ee21347a95e41257dcdfa3ba95aa2f51ce45ce4c2df37",
+        "results\\f32\\prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+        "results\\f32\\prompt-01-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-01-logits.stdout": "491b3dce440371b8de8e6c0fb098a18dd18d79177a6477e4de115d7906baa53b",
+        "results\\f32\\prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+        "results\\f32\\prompt-02-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-02-logits.stdout": "c4be9b21088237af6046d7354c2830ad943ef10b197fe0c524390c41dae192b0",
+        "results\\f32\\prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+        "results\\f32\\prompt-03-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-03-logits.stdout": "84d5232e20443b4de054914dabaa676db41e7ed61c9c1e8af59faf8ac9671893",
+        "results\\f32\\prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+        "results\\f32\\prompt-04-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-04-logits.stdout": "1aed167163f45e3f7396062abf91c01669649724eb7378897384919ed69d516b",
+        "results\\f32\\prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+        "results\\f32\\prompt-05-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-05-logits.stdout": "f68abf1b409348631c280ca76995a2ab8e6d8c957a972ed3f14201741754efaa",
+        "results\\f32\\report.json": "82d54ba5348978849214ef4ec4dae511ab31c76ee2ff81b0dc3e31348ce03f36"
+      }
+    },
+    "pins": {
+      "source_sha256": {
+        "src/backends/vulkan/vulkan_backend.cpp": "5036684bae806951a8fe18c51d9d2f8aa0d4e8551c7771a993c083db2ad0f1ee",
+        "src/backends/vulkan/shaders/matmul_row.comp": "47f13a58a2ac8a2a09c11c80ef3968e94e5289b1b175abe12c60b14fbb3ae461",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "f63c3bd9a1a3bac1aa3cfbdbabd73d72f9202d1beb5d3c10160839328d50ba57",
+        "src/backends/vulkan/shaders/qdecode.glsl": "d5ae088a3c8a70a353dfff3a6e0d4e144ec6a0f136cbe33f9216364840a05411",
+        "tests/baseline.py": "5807bd6ff53842cf096028226c71bdcaea2a1479ab7ac94635bd70a3014a5321",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c"
+      },
+      "binary_sha256": "48ef91252287749eef2051b54147502a0e025f6c69ba7674768ae415629c14fa",
+      "candidate_build_receipt_sha256": "76a71827d6a86fed7574dc2c6898446297de442882bd6ee85c3b2a59e3201258",
+      "driver_sha256": "836dac750e6b34bc2d934efed00dc8ab89a9c0e2932ead563d66a41ec8011093",
+      "version": "llmx 0.1.0+g8384e80beff5.dirty numerics 9475af25d170898f"
+    },
+    "receipt_sha256": {
+      "build-nvfp4-integrated-vulkan/hf/completion.json": "3bdfc0fb21139859cb3119cbb7df8333e6d43be7168a2177dac67094df8c5aa0",
+      "build-nvfp4-integrated-vulkan/hf/results/execution.json": "0b2536a895cf721a3127d2897accddd539ea46ff7b3e18325f3f4c0ebe2f47d2",
+      "build-nvfp4-integrated-vulkan/hf/matrix-path-witnesses.json": "98aa8c559ea37ba983ee3385aebae2469e37f76e4ae91c07ca98673ee7a5d62c",
+      "build-nvfp4-integrated-vulkan/hf/prepare-receipt.json": "6223ca717910a5de849696334e2efd5619696eaffb74f9aef9c480adf3ec48ff"
+    },
+    "scope": "42 actual short cases only; not depth, split, existing-format timing or full qualification."
+  },
+  "hosted_strict_f32_reference": {
+    "run": 40153030717,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40153030717",
+    "head": "cf3051c18f15330de8782b1955741f3cacf76419",
+    "branch": "gate/nvfp4-f32-depth-20261025",
+    "status": "queued",
+    "scope": "Separate temporary strict-F32 HF reference only. Source 57b/import provenance and frozen Linux producer unchanged; not runtime CI or candidate depth acceptance."
+  },
+  "root_audit": {
+    "passed": true,
+    "checked_artifacts": 173,
+    "native_tests": [
+      "nvfp4",
+      "nvfp4-vulkan",
+      "backend-vulkan"
+    ],
+    "hf_checks": {
+      "default": 21,
+      "f32": 21
+    },
+    "source_review": "Root reviewed shader/backend/CMake diff and mechanical merge-test adaptation. NV code keeps F32 scaled weights and ascending FMA; all four NV modules match measured candidate. Generic cleanup requires final regression evidence.",
+    "scope": "Focused integrated checkpoint only, no final merge, timing, split or depth pass."
+  },
+  "checkpoint_checks": {
+    "dead_code": "PASS, 5 listed findings, 18 planted faults",
+    "docs": "PASS, 0 findings, 21 planted faults"
+  }
+}

@@ -98,10 +98,10 @@ void run(backend::Backend& b, size_t width, size_t rows, size_t cols, bool decod
     if (routed) {
         std::vector<float> probabilities(count, .5f);
         auto ib = b.adopt(ids.data(), ids.size() * sizeof(uint32_t)), pb = b.adopt(probabilities.data(), probabilities.size() * sizeof(float));
-        if (add) b.matmul_experts_add(type, input(wb), input(xb), out, width, rows, cols, {input(ib), input(pb), 2, experts}, {&run, 1}, policy);
-        else b.matmul_experts({{type, input(wb), out, rows}}, input(xb), width, cols, {input(ib), input(pb), 2, experts}, {&run, 1}, policy);
-    } else if (add) b.matmul_add(type, input(wb), input(xb), out, width, rows, cols, {&run, 1}, policy);
-    else b.matmul(type, input(wb), input(xb), out, width, rows, cols, {&run, 1}, policy);
+        if (add) b.matmul_experts_add({type, input(wb)}, input(xb), out, width, rows, cols, {input(ib), input(pb), 2, experts}, {&run, 1}, policy);
+        else b.matmul_experts({{{type, input(wb)}, out, rows}}, input(xb), width, cols, {input(ib), input(pb), 2, experts}, {&run, 1}, policy);
+    } else if (add) b.matmul_add({type, input(wb)}, input(xb), out, width, rows, cols, {&run, 1}, policy);
+    else b.matmul({type, input(wb)}, input(xb), out, width, rows, cols, {&run, 1}, policy);
     b.read(*yb, 0, y.data(), y.size() * sizeof(float));
     const bool integer = record_dispatches(b);
     for (size_t i = 0; i < guard; ++i) require(y[i] == 71 && y[y.size() - 1 - i] == 71, "output guard overwritten");
@@ -154,7 +154,7 @@ void split_range(backend::Backend& b) {
         auto wb = b.adopt(w.data(), w.size()), xb = b.adopt(x.data(), x.size() * 4), yb = b.alloc(y.size() * 4);
         record_dispatches(b);
         const backend::RowRun run{columns, columns};
-        b.matmul(type, input(wb), input(xb), {yb.get(), 0}, width, 1, columns, {&run, 1}, policy);
+        b.matmul({type, input(wb)}, input(xb), {yb.get(), 0}, width, 1, columns, {&run, 1}, policy);
         b.read(*yb, 0, y.data(), y.size() * 4);
         bool tile = false, reduce = false;
         for (const auto& item : backend::vulkan_kernel_times(b)) {
@@ -193,9 +193,9 @@ void grouped(backend::Backend& b, size_t cols, bool decode) {
         yb[i] = b.adopt(out.data(), out.size() * sizeof(float));
     }
     const backend::RowRun run{cols, decode ? 1 : cols};
-    b.matmul_group({{type, input(wb), {yb[0].get(), guard}, rows[0]},
-                    {type, input(wb2), {yb[1].get(), guard}, rows[1]},
-                    {0, input(fb), {yb[2].get(), guard}, rows[2]}}, input(xb), width, cols, {&run, 1}, policy);
+    b.matmul_group({{{type, input(wb)}, {yb[0].get(), guard}, rows[0]},
+                    {{type, input(wb2)}, {yb[1].get(), guard}, rows[1]},
+                    {{0, input(fb)}, {yb[2].get(), guard}, rows[2]}}, input(xb), width, cols, {&run, 1}, policy);
     for (size_t i = 0; i < 3; ++i) {
         std::vector<float> out(guard * 2 + rows[i] * cols);
         b.read(*yb[i], 0, out.data(), out.size() * sizeof(float));
@@ -232,10 +232,10 @@ void batch_invariance(backend::Backend& b, size_t width, size_t extent) {
                 if (first + count > decoding) runs[nr++] = {count, extent};
                 const backend::CSlice in{xb.get(), first * width};
                 const backend::Slice out{yb.get(), first * rows};
-                if (operation == 0) b.matmul(type, input(wb), in, out, width, rows, count, {runs, nr}, policy);
-                else if (operation == 1) b.matmul_logits(type, input(wb), in, out, width, rows, count, {runs, nr}, policy);
-                else if (operation == 2) b.matmul_add(type, input(wb), in, out, width, rows, count, {runs, nr}, policy);
-                else b.matmul_group({{type, input(wb), out, rows}}, in, width, count, {runs, nr}, policy);
+                if (operation == 0) b.matmul({type, input(wb)}, in, out, width, rows, count, {runs, nr}, policy);
+                else if (operation == 1) b.matmul_logits({type, input(wb)}, in, out, width, rows, count, {runs, nr}, policy);
+                else if (operation == 2) b.matmul_add({type, input(wb)}, in, out, width, rows, count, {runs, nr}, policy);
+                else b.matmul_group({{{type, input(wb)}, out, rows}}, in, width, count, {runs, nr}, policy);
                 first += count;
             }
             b.read(*yb, 0, y.data(), y.size() * 4);
@@ -261,7 +261,7 @@ void scale_products(backend::Backend& b) {
     for (size_t c = 0; c < columns; ++c) x[c * width] = c % 3 == 0 ? -1.006111f : c % 3 == 1 ? 1.0f : std::ldexp(1.0f, -24);
     auto wb = b.adopt(w.data(), w.size()), xb = b.adopt(x.data(), x.size() * 4), yb = b.alloc(y.size() * 4);
     const backend::RowRun run{columns, columns};
-    b.matmul_logits(type, input(wb), input(xb), {yb.get(), 0}, width, rows, columns, {&run, 1}, policy);
+    b.matmul_logits({type, input(wb)}, input(xb), {yb.get(), 0}, width, rows, columns, {&run, 1}, policy);
     b.read(*yb, 0, y.data(), y.size() * 4);
     for (size_t c = 0; c < columns; ++c) for (size_t row = 0; row < rows; ++row) {
         const float expected = float(double(weight(w, row, width, 0)) * double(rounded(x[c * width])));
@@ -280,7 +280,7 @@ void embedding(backend::Backend& b) {
     for (unsigned i = 0; i < 256; ++i) ids[i] = 255 - i;
     std::vector<float> out(ids.size() * 32);
     auto wb = b.adopt(w.data(), w.size()), yb = b.alloc(out.size() * sizeof(float));
-    b.embed({yb.get(), 0}, type, input(wb), 32, 256, ids.data(), ids.size());
+    b.embed({yb.get(), 0}, {type, input(wb)}, 32, 256, ids.data(), ids.size());
     b.read(*yb, 0, out.data(), out.size() * sizeof(float));
     for (size_t i = 0; i < ids.size(); ++i)
         for (size_t j = 0; j < 32; ++j) require(bits(out[i * 32 + j]) == bits(weight(w, ids[i], 32, j)), "embedding differs from fields");

@@ -1,0 +1,202 @@
+{
+  "schema": "llmx-tiny-moe-hf-headroom-v1",
+  "scope": "Existing tiny MoE HF component results on Radeon and MI50. Records aggregate maxima, bounds and conservative headroom, plus the code-derived comparison count. It does not claim individual per-case deltas were retained.",
+  "source": {
+    "runtime_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+    "test_files": [
+      {
+        "path": "tests/moe.py",
+        "sha256": "d71f3b48aa70e0479185575c87b31de2933784cad933f5cdbf43bd7c2df71dd2",
+        "bytes": 14724
+      },
+      {
+        "path": "tests/common.py",
+        "sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "bytes": 43291
+      },
+      {
+        "path": "tests/data/baseline_moe.json",
+        "sha256": "04b846514dd3cf6e78300c1b7f37cc05df4c941b2c07a47eeb57aa9ffecde040",
+        "bytes": 34960
+      },
+      {
+        "path": "tests/data/baseline_moe_q8.json",
+        "sha256": "9b3d1ede47d832c8bfe3da7fc41fb8d4d30cdf50a9f962041650088fb802ed3c",
+        "bytes": 303368
+      },
+      {
+        "path": "tests/data/dtype_budget.json",
+        "sha256": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+        "bytes": 915219
+      }
+    ],
+    "fixture": {
+      "config": {
+        "block_count": 3,
+        "embedding_length": 37,
+        "feed_forward_length": 19,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 42,
+        "context_length": 16,
+        "expert_count": 8,
+        "expert_used_count": 3,
+        "expert_feed_forward_length": 11
+      },
+      "dense_layers": [
+        1
+      ],
+      "weights_sha256": "2874a2b3f161d48583baf66c650b13fce17e1661beaf8f498953184cdd79f574",
+      "prompt_cases": 5,
+      "vocabulary": 257,
+      "perplexity_cases": 2
+    },
+    "coverage": {
+      "logits": "2 thread counts (1,4) x 5 ubatches (1,2,3,5,16) x 5 prompts = 50 full-vocabulary comparisons",
+      "nll": "2 thread counts x 2 frozen perplexity cases (contexts 4 and 16) = 4 checks",
+      "additional": "Draft checks run after HF comparisons. Each HF CLI call emits an actual matrix-path record consumed by common.hf_bounds; only the selected bound set, not per-call paths, is retained in suite logs."
+    }
+  },
+  "runs": {
+    "radeon": {
+      "device": "Radeon Vulkan device 0",
+      "runtime_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "binary_sha256": "0badf1d0719bb73f4a2af134dcf6392bc52c305f1eb43a66d49c6fa16c99af62",
+      "version": "llmx 0.1.0+g044cc1db2f68.dirty numerics a3570786a0d68218",
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-u",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\image-integration-cmake\\Release\\llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--require-tools",
+        "--require-baseline",
+        "--require-device-types",
+        "NVFP4",
+        "--no-perf-floor"
+      ],
+      "moe_component": "passed",
+      "whole_suite_status": "failed",
+      "whole_suite_exit_code": 1,
+      "hf": {
+        "fixture": "tests/moe.py base HF MoE fixture",
+        "status": "passed",
+        "full_vocab_logit_comparisons": 50,
+        "nll_comparisons": 4,
+        "max_logit_error_printed": 7.2e-07,
+        "logit_bound": 2e-05,
+        "logit_remaining_headroom_conservative": 1.9275e-05,
+        "max_nll_error_printed": 4e-08,
+        "nll_bound": 1e-05,
+        "nll_remaining_headroom_conservative": 9.955e-06,
+        "rounding_note": "Max errors are printed to 8 decimal places; conservative headroom subtracts 5e-9 for display rounding.",
+        "per_case_detail": "Per-case values are not retained by check_hf_fixture. It checks every case and retains only the maximum."
+      },
+      "q8_reported_lines": [
+        "moe: Q8_0 gated, batched: 'a' max 0.000126 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000154 (row 16), NLL error -0.000010, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000189 (row 7), NLL error -0.000001, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [ok]",
+        "moe: Q8_0 gated, batched by 3: 'a' max 0.000126 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000154 (row 16), NLL error -0.000010, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000189 (row 7), NLL error -0.000001, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [ok]",
+        "moe: Q8_0 gated, decode: 'a' max 0.000126 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000154 (row 16), NLL error -0.000010, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000189 (row 7), NLL error -0.000001, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [ok]",
+        "moe: Q8_0 near-tie, batched: 'a' max 0.000104 (row 0), NLL error -0.000010, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error +0.000003, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000116 (row 4), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]",
+        "moe: Q8_0 near-tie, batched by 3: 'a' max 0.000104 (row 0), NLL error -0.000010, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error +0.000003, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000116 (row 4), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]",
+        "moe: Q8_0 near-tie, decode: 'a' max 0.000104 (row 0), NLL error -0.000010, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error +0.000003, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000116 (row 4), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]"
+      ],
+      "artifacts": [
+        {
+          "path": "build-integration/current-device-suite-v1/execution.json",
+          "sha256": "146a6a36cb72ecb78de789773a311b0718157eaf0e19023256779e951152fa74",
+          "bytes": 1128
+        },
+        {
+          "path": "build-integration/current-device-suite-v1/suite.log",
+          "sha256": "133c7f1f6baa9996e94b1ecddd0025fa02372b5a3f593b4e54c554f8238034ac",
+          "bytes": 43092
+        }
+      ]
+    },
+    "mi50": {
+      "device": "MI50 physical 8 / renderD130; runner Vulkan device 0",
+      "runtime_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "binary_sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+      "version": "llmx 0.1.0+unknown numerics a3570786a0d68218",
+      "argv": [
+        "docker",
+        "exec",
+        "ba1bc4a4c37ed5a21ad59081e514f14c66536c3db4ef3f3989ae20bd0c332ad9",
+        "python3",
+        "-B",
+        "-u",
+        "-X",
+        "utf8",
+        "/work/candidate/source/tests/run_tests.py",
+        "--exe",
+        "/work/candidate/build/llmx",
+        "--device",
+        "vulkan:0",
+        "--only",
+        "moe",
+        "--no-perf-floor"
+      ],
+      "component_status": "passed",
+      "controller_exit_code": 0,
+      "container_removed": true,
+      "hf": {
+        "fixture": "tests/moe.py base HF MoE fixture",
+        "status": "passed",
+        "full_vocab_logit_comparisons": 50,
+        "nll_comparisons": 4,
+        "max_logit_error_printed": 6.8e-07,
+        "logit_bound": 2e-05,
+        "logit_remaining_headroom_conservative": 1.9315e-05,
+        "max_nll_error_printed": 5e-08,
+        "nll_bound": 1e-05,
+        "nll_remaining_headroom_conservative": 9.945e-06,
+        "rounding_note": "Max errors are printed to 8 decimal places; conservative headroom subtracts 5e-9 for display rounding.",
+        "per_case_detail": "Per-case values are not retained by check_hf_fixture. It checks every case and retains only the maximum."
+      },
+      "q8_reported_lines": [
+        "moe: Q8_0 gated, batched: 'a' max 0.000126 (row 1), NLL error -0.000007, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000188 (row 12), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000153 (row 7), NLL error -0.000006, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000004  [ok]",
+        "moe: Q8_0 gated, batched by 3: 'a' max 0.000126 (row 1), NLL error -0.000007, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000188 (row 12), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000153 (row 7), NLL error -0.000006, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000004  [ok]",
+        "moe: Q8_0 gated, decode: 'a' max 0.000126 (row 1), NLL error -0.000007, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefg' max 0.000188 (row 12), NLL error +0.000002, HF's id 17 of 17 rows, 16 of 16 beyond 2E; 'abcdefghijklm' max 0.000153 (row 7), NLL error -0.000006, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000004  [ok]",
+        "moe: Q8_0 near-tie, batched: 'a' max 0.000109 (row 1), NLL error -0.000008, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error -0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000107 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]",
+        "moe: Q8_0 near-tie, batched by 3: 'a' max 0.000109 (row 1), NLL error -0.000008, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error -0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000107 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]",
+        "moe: Q8_0 near-tie, decode: 'a' max 0.000109 (row 1), NLL error -0.000008, HF's id 17 of 17 rows, 14 of 14 beyond 2E; 'abcdefg' max 0.000122 (row 3), NLL error -0.000004, HF's id 17 of 17 rows, 17 of 17 beyond 2E; 'abcdefghijklm' max 0.000107 (row 10), NLL error +0.000004, HF's id 17 of 17 rows, 16 of 16 beyond 2E; aggregate NLL error -0.000002  [sensitivity, no bound]"
+      ],
+      "artifacts": [
+        {
+          "path": "build-integration/mi50-moe-hf-v1/controller.json",
+          "sha256": "bb70e01765c57b6f119d11ebd3fcf0b17f3a6bb902b80b3d2fef6090f063ae0f",
+          "bytes": 1641
+        },
+        {
+          "path": "build-integration/mi50-moe-hf-v1/worker.stdout",
+          "sha256": "eccb576ef5a634b2bd082204fbdee362844080b5886a2b49e5171b9bc7a2c7a7",
+          "bytes": 2424
+        },
+        {
+          "path": "build-integration/mi50-moe-hf-v1/worker.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0
+        }
+      ]
+    }
+  },
+  "q8_notes": {
+    "gated": "Per-prompt/mode maxima, signed NLL deltas and top-ID counts are preserved from logs. The test checks the dynamically selected bounds for every gated prompt/mode; numeric bound and actual per-call path are not present in summary logs, so no numeric headroom is asserted here.",
+    "near_tie": "Sensitivity-only; tests/moe.py applies no numerical bound, so no headroom or pass claim.",
+    "frozen_model_sha256": {
+      "gated": "d547bb5bf6f06f156998e459eb93ceb688390584f33b0ae24c0aabe1874fc751",
+      "near-tie": "93491ced5b64b1948540f8b3e1ce9d71f48a378213353e075e22fdc955589285"
+    }
+  },
+  "limitations": [
+    "Per-case logit/NLL errors are not retained; the receipt gives the aggregate maximum across each complete fixture loop.",
+    "Actual matrix-path records are consumed by common.hf_bounds but not preserved per invocation.",
+    "Radeon whole device suite exited 1 for unrelated missing-component/tool failures; its moe component itself passed.",
+    "MI50 receipt covers the isolated moe component only.",
+    "Q8 near-tie is diagnostic with no bound."
+  ]
+}

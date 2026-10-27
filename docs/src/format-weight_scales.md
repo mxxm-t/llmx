@@ -1,0 +1,5 @@
+# `src/format/weight_scales.hpp` - GGUF weight scale association
+
+`gguf::weight_scales` returns an optional companion tensor index for each tensor. It associates an NVFP4 name ending in `.weight` with the same stem ending in `.scale`, without owning duplicate-name validation; `TensorIndex` retains that existing error ownership. It does not interpret `.input_scale`, which belongs to activation quantization. The decoder GGUF adapter stores these indices in `TensorView.scale`; model validation owns scale shape/type checks rather than this format lookup.
+
+Callers that cannot consume scales pass `supported = false`. If an NVFP4 weight has an associated `.scale` tensor, the format owner refuses it with the weight's name before the caller loads or adopts its tensors. The vision mmproj loader uses this check because its encoder does not yet consume scaled weights. An NVFP4 tensor without a companion is not refused by this check alone; its eventual reader still determines whether that type is supported.

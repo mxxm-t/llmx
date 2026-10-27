@@ -71,18 +71,18 @@ inline void shard_swiglu(std::vector<Role>& roles, uint16_t gate, uint16_t up, u
 
 // A weight's product into `out`, the buffer passed by raw pointer, not by handle, so building one copies no shared pointer on the per-token path.
 inline backend::Projection projection(const Weight& w, backend::Slice out) {
-    return {w.type, {w.data.get(), 0}, out, w.nout};
+    return {w.operand(), out, w.nout};
 }
 
 // A part's last projection, whose output joins the residual: added to it on one device, and on a tensor group written as the member's partial rows, which the runtime sums into every member's residual (Step::partial).
 inline void join(const Step& s, const Weight& w, backend::CSlice in) {
-    if (s.width > 1) s.b.matmul(w.type, w.slice(), in, s.partial, w.nin, w.nout, s.rows, s.runs, s.dtype);
-    else s.b.matmul_add(w.type, w.slice(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
+    if (s.width > 1) s.b.matmul(w.operand(), in, s.partial, w.nin, w.nout, s.rows, s.runs, s.dtype);
+    else s.b.matmul_add(w.operand(), in, s.x, w.nin, w.nout, s.rows, s.runs, s.dtype);
 }
 
 // The rows of `table` the ids name, into the residual.
 inline void embed(const Step& s, const Weight& table, const uint32_t* ids) {
-    s.b.embed(s.x, table.type, table.slice(), table.nin, table.nout, ids, s.rows);
+    s.b.embed(s.x, table.operand(), table.nin, table.nout, ids, s.rows);
 }
 
 // The SwiGLU feed-forward block over the normed rows `h`: the residual gains down(silu(gate h) * up h), through the slots `g`, `u` and `act`, each as wide as the block.
@@ -108,9 +108,9 @@ inline void moe_step(const Step& s, const Weight& router, const Weight& gate, co
     const auto past = [&](backend::Slice slot) { return backend::Slice{slot.buffer, slot.offset + routed}; };
     backend::MoeShared sh{};
     if (shared)
-        sh = {projection(shared->gate, past(g)), projection(shared->up, past(u)), shared->down.type, shared->down.slice(), past(act),
-              shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{0, {}, {}, 0}};
-    const backend::MoeStep m{projection(router, scores), k, norm, ids, weights, projection(gate, g), projection(up, u), down.type, down.slice(), act,
+        sh = {projection(shared->gate, past(g)), projection(shared->up, past(u)), shared->down.operand(), past(act),
+              shared->row_gate ? projection(*shared->row_gate, row_gate) : backend::Projection{}};
+    const backend::MoeStep m{projection(router, scores), k, norm, ids, weights, projection(gate, g), projection(up, u), down.operand(), act,
                              shared ? &sh : nullptr, zero, s.scratch};
     s.b.moe_step(m, h, s.width > 1 ? s.partial : s.x, router.nin, s.rows, s.runs, s.dtype);
 }
@@ -132,7 +132,7 @@ inline void nextn_input(const Step& s, const Weight& enorm, const Weight& hnorm,
         s.b.gather_rows(side, pair, E, order.data(), 2 * n);
         in = side;
     }
-    s.b.matmul(eh_proj.type, eh_proj.slice(), in, out, eh_proj.nin, eh_proj.nout, n, s.runs, s.dtype);
+    s.b.matmul(eh_proj.operand(), in, out, eh_proj.nin, eh_proj.nout, n, s.runs, s.dtype);
 }
 
 // The head: the rows that want logits are not contiguous once entries mix, so they are compacted into `rows` first, then normed and projected once over exactly those rows.
@@ -140,7 +140,7 @@ inline void head(const HeadStep& s, const Weight& norm, const Weight& out, float
     const size_t E = out.nin;
     s.b.gather_rows(rows, s.x, E, s.pick, s.want);
     s.b.rms_norm_rows(rows, rows, norm.slice(), s.want, E, E, eps);
-    s.b.matmul_logits(out.type, out.slice(), rows, s.logits, out.nin, out.nout, s.want, s.head_runs, s.dtype);
+    s.b.matmul_logits(out.operand(), rows, s.logits, out.nin, out.nout, s.want, s.head_runs, s.dtype);
 }
 
 } // namespace infer::blocks

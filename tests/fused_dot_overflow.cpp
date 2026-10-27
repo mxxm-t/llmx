@@ -108,7 +108,7 @@ int run_type(uint32_t type, const char* tname, bool quantized) {
         const auto w_buf = cpu.adopt(w.data(), w.size());
         const auto x_buf = cpu.adopt(x.data(), x.size() * sizeof(float));
         const auto y_buf = cpu.adopt(y.data(), y.size() * sizeof(float));
-        cpu.matmul(type, {w_buf.get(), 0}, {x_buf.get(), 0}, {y_buf.get(), 0}, nin, 1, 1, {}, dtype);
+        cpu.matmul({type, {w_buf.get(), 0}}, {x_buf.get(), 0}, {y_buf.get(), 0}, nin, 1, 1, {}, dtype);
 
         require(std::isfinite(y[0]),
                 std::string(tname) + " / " + c.name + ": produced a nonfinite result");

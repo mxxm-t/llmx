@@ -139,7 +139,7 @@ size_t embeddings(backend::Backend& b) {
     const auto w = b.adopt(packed.data(), packed.size());
     const auto out = b.alloc(initial.size() * sizeof(float));
     b.write(*out, 0, initial.data(), initial.size() * sizeof(float));
-    b.embed({out.get(), 1}, 21, {w.get(), 0}, width, rows, ids.data(), rows);
+    b.embed({out.get(), 1}, {21, {w.get(), 0}}, width, rows, ids.data(), rows);
     auto got = read(b, *out, initial.size());
     require(got.front() == initial.front() && got.back() == initial.back(), "embedding crossed output guards");
     for (size_t row = 0; row < rows; ++row)
@@ -149,7 +149,7 @@ size_t embeddings(backend::Backend& b) {
     const uint32_t selected[] = {513, 513, 0, uint32_t(rows), UINT32_MAX};
     const auto idb = b.adopt(selected, sizeof selected);
     b.write(*out, 0, initial.data(), initial.size() * sizeof(float));
-    b.embed_ids({out.get(), 1}, 21, {w.get(), 0}, width, rows, {idb.get(), 0}, 5);
+    b.embed_ids({out.get(), 1}, {21, {w.get(), 0}}, width, rows, {idb.get(), 0}, 5);
     got = read(b, *out, initial.size());
     for (size_t i = 0; i < got.size(); ++i) {
         uint32_t want = bits(initial[i]);
@@ -235,13 +235,13 @@ size_t products(backend::Backend& b, size_t width, size_t rows, size_t cols, boo
                 const auto request = type == 0 ? backend::Dtype::f32 : dtype;
                 const backend::RowRuns runs{&run, 1};
                 switch (op) {
-                case 0: b.matmul(type, weight, in, {out.get(), 1}, width, rows, cols, runs, request); break;
-                case 1: b.matmul_logits(type, weight, in, {out.get(), 1}, width, rows, cols, runs, request); break;
-                case 2: b.matmul_group({{type, weight, {out.get(), 1}, rows}, {type, weight, {out.get(), count + 1}, rows}},
+                case 0: b.matmul({type, weight}, in, {out.get(), 1}, width, rows, cols, runs, request); break;
+                case 1: b.matmul_logits({type, weight}, in, {out.get(), 1}, width, rows, cols, runs, request); break;
+                case 2: b.matmul_group({{{type, weight}, {out.get(), 1}, rows}, {{type, weight}, {out.get(), count + 1}, rows}},
                                        in, width, cols, runs, request); break;
-                case 3: b.matmul_add(type, weight, in, {out.get(), 1}, width, rows, cols, runs, request); break;
-                case 4: b.matmul_experts({{type, weight, {out.get(), 1}, rows}}, in, width, cols, routing, runs, request); break;
-                case 5: b.matmul_experts_add(type, weight, in, {out.get(), 1}, width, rows, cols, routing, runs, request); break;
+                case 3: b.matmul_add({type, weight}, in, {out.get(), 1}, width, rows, cols, runs, request); break;
+                case 4: b.matmul_experts({{{type, weight}, {out.get(), 1}, rows}}, in, width, cols, routing, runs, request); break;
+                case 5: b.matmul_experts_add({type, weight}, in, {out.get(), 1}, width, rows, cols, routing, runs, request); break;
                 }
                 const auto& oracle_inputs = type == 21 ? activations : dtype == backend::Dtype::bf16 ? rounded : input;
                 const auto got = read(b, *out, initial.size());
@@ -337,8 +337,8 @@ size_t routed_products(backend::Backend& b) {
             const auto out = b.adopt(initial.data(), initial.size() * sizeof(float));
             const backend::RowRun run{cols, extent};
             paths(b);
-            if (additive) b.matmul_experts_add(21, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, routing, {&run, 1}, dtype);
-            else b.matmul_experts({{21, {w.get(), 0}, {out.get(), 1}, rows}}, {x.get(), 0}, width, cols, routing, {&run, 1}, dtype);
+            if (additive) b.matmul_experts_add({21, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, routing, {&run, 1}, dtype);
+            else b.matmul_experts({{{21, {w.get(), 0}}, {out.get(), 1}, rows}}, {x.get(), 0}, width, cols, routing, {&run, 1}, dtype);
             const auto got = read(b, *out, initial.size());
             require(paths(b) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"},
                     "IQ3_S multi-expert matrix witness differs");
@@ -382,7 +382,7 @@ size_t precision_products(backend::Backend& b) {
             const bool integer = integer_path(b, dtype, extent);
             const backend::RowRun run{1, extent};
             paths(b);
-            b.matmul(21, {w.get(), 0}, {x.get(), 0}, {out.get(), 0}, 256, 1, 1, {&run, 1}, dtype);
+            b.matmul({21, {w.get(), 0}}, {x.get(), 0}, {out.get(), 0}, 256, 1, 1, {&run, 1}, dtype);
             const auto got = read(b, *out, 1);
             require(paths(b) == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"},
                     "IQ3_S precision path witness");
@@ -418,7 +418,7 @@ size_t range_products(backend::Backend& b) {
                 const bool integer = integer_path(b, dtype, extent);
                 const backend::RowRun run{1, extent};
                 paths(b);
-                b.matmul(21, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, width, 1, 1, {&run, 1}, dtype);
+                b.matmul({21, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, width, 1, 1, {&run, 1}, dtype);
                 const auto got = read(b, *out, 3);
                 require(paths(b) == std::vector<std::string>{integer ? "block-int16" : "f32"}, "IQ3_S range witness");
                 if (integer) ++integer_calls;
@@ -454,11 +454,11 @@ size_t batch_controls(backend::Backend& b) {
 #endif
     size_t values = 0;
     auto call = [&](size_t first, size_t count, backend::RowRuns runs, backend::Dtype dtype) {
-        b.matmul(21, {w.get(), 0}, {x.get(), first * width}, {out.get(), 1 + first * nout}, width, nout, count, runs, dtype);
+        b.matmul({21, {w.get(), 0}}, {x.get(), first * width}, {out.get(), 1 + first * nout}, width, nout, count, runs, dtype);
     };
     auto routed_call = [&](size_t extent, backend::Dtype dtype) {
         const backend::RowRun run{rows, extent};
-        b.matmul_experts({{21, {w.get(), 0}, {out.get(), 1}, nout}}, {x.get(), 0}, width, rows, routing, {&run, 1}, dtype);
+        b.matmul_experts({{{21, {w.get(), 0}}, {out.get(), 1}, nout}}, {x.get(), 0}, width, rows, routing, {&run, 1}, dtype);
     };
     auto finish = [&] {
         const auto got = read(b, *out, initial.size());
@@ -528,7 +528,7 @@ size_t tall_tile_control(backend::Backend& b) {
     std::vector<float> initial(nout * cols + 2, 12345.0f);
     const auto out = b.adopt(initial.data(), initial.size() * sizeof(float));
     const backend::RowRun run{cols, 16384};
-    paths(b); b.matmul(21, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, width, nout, cols, {&run, 1}, backend::Dtype::f16);
+    paths(b); b.matmul({21, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, width, nout, cols, {&run, 1}, backend::Dtype::f16);
     const auto got = read(b, *out, initial.size());
     const bool integer = integer_path(b, backend::Dtype::f16, 16384);
     require(paths(b) == std::vector<std::string>{integer ? "block-int16" : "f32"}, "IQ3_S tall tile arithmetic witness");

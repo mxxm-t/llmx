@@ -484,6 +484,48 @@ def check_mxfp4(rng):
           % (len(expected), overflow))
 
 
+def check_nvfp4():
+    payload, expected = bytearray(), []
+    # Exact fraction arithmetic independently combines E4M3 and E2M1 fields.
+    # All 256 bytes pin reader behavior; conforming producers emit 0..126.
+    for s in range(256):
+        for shift in range(16):
+            scales = [(s + 37 * g) % 256 for g in range(4)]
+            codes = [(i + shift) % 16 for i in range(64)]
+            payload.extend(scales)
+            for g in range(4):
+                payload.extend(codes[g * 16 + j] | codes[g * 16 + j + 8] << 4 for j in range(8))
+            for i, code in enumerate(codes):
+                scale = scales[i // 16]
+                exponent, mantissa = scale // 8 % 16, scale % 8
+                exact_scale = Fraction(0) if scale in (0, 127) else (
+                    Fraction(8 + mantissa) * Fraction(2) ** (exponent - 10) if exponent
+                    else Fraction(mantissa, 512))
+                value = e2m1(code) * exact_scale
+                # The integer codebook folds both signed zero codes to +0;
+                # a negative nonzero code times a zero scale retains -0.
+                ordered = -0.0 if value == 0 and code > 8 else float(value)
+                expected.append((value, ordered))
+    guarded = b"x" + payload + b"y"
+    view = memoryview(guarded)[1:-1]
+    assert_values("NVFP4", expected, sd.decode(sd.NVFP4, view, len(expected)))
+    assert_numpy_matches("NVFP4", sd.NVFP4, view, len(expected))
+    for count in (1, 63, 65):
+        try:
+            sd.payload_bytes(sd.NVFP4, count)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("NVFP4 accepted a partial block")
+    # Pinned numbers independently expose the 127/255 distinction and half-code scale.
+    for scale, code, want in ((1, 1, 2 ** -10), (56, 7, 6.0), (126, 15, -2688.0),
+                              (127, 9, -0.0), (255, 7, 2880.0), (255, 8, 0.0)):
+        block = bytes([scale] * 4 + [code] * 32)
+        have = sd.decode(sd.NVFP4, block, 64)[0]
+        assert struct.pack("<f", have) == struct.pack("<f", want), (scale, code, have, want)
+    print("raw-blocks: NVFP4 all scale bytes, codes, groups and positions, %d values and signed zeros  [ok]" % len(expected))
+
+
 def q3_k_block(d, scales, q):
     """A Q3_K block of 6-bit stored scales and 256 codes from -4 to 3."""
     hmask, qs = bytearray(32), bytearray(64)
@@ -912,6 +954,7 @@ def run(require=False):
     check_iq1()
     check_tq()
     check_mxfp4(rng)
+    check_nvfp4()
     check_q3_k(rng)
     check_q2_k(rng)
     check_q4_0_q8_0(rng)

@@ -1,0 +1,50 @@
+{
+  "passed": true,
+  "scope": "Independent selected-policy HF reference verification only. No runtime acceptance inferred.",
+  "run": 40205496392,
+  "head": "a41425038203eab0183dde67e4fbd4662e6c6a6e",
+  "device_policy": "mi50",
+  "artifact_digest": "sha256:9e4b231b48ed2257e45c0c6a87431806f532dbec1d415891419ec827f5987b96",
+  "execution_sha256": "30fa0cbbd50b5ee154d4d53ca7338d7e79c32999374f2244955909ff869c9b1f",
+  "control": {
+    "max_abs_limit": 0.0030144155025482178,
+    "max_abs_logit_delta": 0.0015072077512741089,
+    "top1_exact": 80,
+    "logit_sha256": [
+      "6560648e16c1edc110673c11c1113d97f6b1862137f9d389703a7cead009b69f",
+      "141b6a862b6df5aff5f08e4cb5539865e7596516f8186096949ce8514e527905"
+    ]
+  },
+  "original_control_hashes_reproduced": true,
+  "cross_run_hash_note": "The diagnostic reproduced the original failed arms. New hosted runs must meet the frozen self-control bound and 80 exact choices; cross-run bit identity was an extra collector assertion, not the approved self-control contract. A hash difference is retained without attribution.",
+  "cells": [
+    {
+      "variant": "raw",
+      "shape": [
+        512,
+        248320
+      ],
+      "logits_sha256": "1d0a373f14ffcd0358b5277a549b5427c540c3bef25d673e50f85713c221b752"
+    },
+    {
+      "variant": "chat",
+      "shape": [
+        512,
+        248320
+      ],
+      "logits_sha256": "41d534067303503492965e743195971ae504ac69e206e64d125803e4791f28fe"
+    }
+  ],
+  "branch_cleanup": {
+    "deleted": "refs/heads/gate/nvfp4-mi50-depth-20261025",
+    "before": {
+      "refs/heads/gate/nvfp4-mi50-depth-20261025": "a41425038203eab0183dde67e4fbd4662e6c6a6e"
+    },
+    "after": {},
+    "bundle_sha256": "7bc770d6153d9254cf228c2def947bdfecd875c0d2f27c68777958ba86bcfd19",
+    "bundle_prerequisite": "0c7d0c42f9767102fb67bd17d9c2a0bd0262b592",
+    "local_bundle": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\mi50-depth-ci\\branch-cleanup\\reference-workflow.bundle",
+    "scope": "Completed independent HF reference workflow only. Main and other branches untouched; runtime qualification remains open."
+  },
+  "verification_script_sha256": "74e3278010bb9beffd96b0ca748c4051bd75cc610087fba76e5b5f942ea8a6c6"
+}

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "format/gguf.hpp"
+#include "format/weight_scales.hpp"
 #include "model/weights.hpp"
 #include "model/architecture.hpp"
 #include "model/arch/qwen3.hpp"
@@ -54,6 +55,7 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
     if (m.offsets.size() != m.tensors.size())
         throw std::runtime_error("inference: tensor storage count mismatch");
     w.tensors.reserve(m.tensors.size());
+    const auto scales = gguf::weight_scales(m);
     for (size_t i = 0; i < m.tensors.size(); i++) {
         const auto& t = m.tensors[i];
         if (t.ne.size() > 4)
@@ -63,6 +65,7 @@ inline ModelWeights gguf_weights(const gguf::GGUFModel& m) {
             bytes > m.payload_size() - m.offsets[i])
             throw std::runtime_error("inference: invalid tensor storage " + t.name);
         w.tensors.push_back({t.name, t.ne, t.type, m.tensor_data(i), (size_t)bytes});
+        w.tensors.back().scale = scales[i];
     }
     return w;
 }
@@ -103,6 +106,7 @@ struct VisionWeights {
 
 inline VisionWeights vision_weights(const gguf::GGUFModel& m) {
     const VisionEntry& entry = vision_of(m);
+    gguf::weight_scales(m, false);
     VisionWeights w;
     w.arch = entry.read(m);
     w.declared_dtype = entry.dtype;

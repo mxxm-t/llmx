@@ -1,0 +1,80 @@
+{
+  "schema": "nvfp4-startup-trial-v1",
+  "date": "2026-10-27",
+  "scope": "Local startup integration development checks. Not final landing qualification.",
+  "nvfp4_parent": "a33fdd8e2f2c85d424b4e040e4b18e5949babdd2",
+  "startup_parent": "5673d3c25c9e4a1504b9d4865ebd763768df9adb",
+  "source_manifest": "build-integration\\startup-source-pins.json",
+  "source_manifest_sha256": "427af160fd180c59203a4931ec073159a083a140b2fbeed49719377960376176",
+  "source_files": 872,
+  "version": "llmx 0.1.0+ga33fdd8e2f2c.dirty numerics 0a82006ec5283643",
+  "configuration": {
+    "fresh_directory": true,
+    "vulkan": false,
+    "build_testing": true,
+    "configuration": "Release",
+    "workers": 1
+  },
+  "binary_sha256": {
+    "llmx.exe": "2448dd13e6f82398bb950265e6ef790ad959b6b4c1607f6ee58eb36525369d64",
+    "llmx-load-progress-test.exe": "d8993e1abdab6e5a47644819e340b8684f487d9197cd4bfc3fe845688bdd7bf8",
+    "llmx-shard-test.exe": "bef5f4da8cce02b8da58bc4b3754d04d88bf76eb3fcf6310c9c38e998e79eddf",
+    "llmx-model-validation-test.exe": "8c61775bc572bd85aa886f88d9522433e3718a186941b84bee058e266d03c0b8",
+    "llmx-model-weight-scales-test.exe": "8664c7c90076080c757f15e7dda71303560e8986a7ef2ac98e4f7b77fa623046"
+  },
+  "logs": {
+    "startup-configure.log": {
+      "path": "build-integration/startup-configure.log",
+      "sha256": "731edbc0ef3d7c74aa3b6281e416d8c78e415fe69eeb2dd7c99eb0bf489cc7b6"
+    },
+    "startup-build.log": {
+      "path": "build-integration/startup-build.log",
+      "sha256": "76881b30d6f288a06a06f35683404c9d0c92953f6d468456de288b29262c12f6"
+    },
+    "startup-ctest.log": {
+      "path": "build-integration/startup-ctest.log",
+      "sha256": "31e2f12d75e2566df6de99b627113446121166c5d44a31a7c3f80048086bbb1b"
+    },
+    "startup-static.log": {
+      "path": "build-integration/startup-static.log",
+      "sha256": "0cc85dd0ac6fdb81aa73f627b4e39a92812398e9f78a8835f86fd6fcdb6177fe"
+    },
+    "startup-docs-final.log": {
+      "path": "build-integration/startup-docs-final.log",
+      "sha256": "8b206fcf2069386109434dd8dc50c87a5fa896af0cdd2e56b6c5f01bf3d9c29c"
+    }
+  },
+  "focused_checks": {
+    "model-validation": "pass",
+    "shard": "pass",
+    "load-progress": "pass",
+    "model-weight-scales": "pass"
+  },
+  "ctest_seconds": 118.57,
+  "unchanged_from_nvfp4_parent": [
+    "src/backends",
+    "src/quant",
+    "src/format/weight_scales.hpp",
+    "tests/model_weight_scales.cpp"
+  ],
+  "integration": [
+    "Keep per-device full companion adoption with a null Held pointer and drain before releasing pending uploads on failure.",
+    "Use startup Held and packing for split weights while retaining companion storage and count.",
+    "Count companion bytes beside Held.bytes in placement.",
+    "Keep startup LoadReport and phase reporting."
+  ],
+  "not_covered": [
+    "Final hosted qualification",
+    "Final-base GPU identities and performance",
+    "Linux signal-based server startup checks"
+  ],
+  "startup_ci": {
+    "run": 40482205074,
+    "first_attempt": "Windows disk-store failure, six other jobs passed",
+    "latest_observation": "Windows rerun in progress at 11:23 UTC; original failure retained"
+  },
+  "static_checks": {
+    "dead-code": "pass",
+    "docs": "pass after LoadReport documentation correction"
+  }
+}

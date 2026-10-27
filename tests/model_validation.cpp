@@ -807,9 +807,9 @@ struct TypeBackend : backend::CpuBackend {
     bool implements(backend::Op op) const override { return op != backend::Op::mixed_experts || mixed_experts; }
     void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin,
                         size_t rows, const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
-        for (const auto& p : projections) require(supports_type(p.type), "a routed product reached an unsupported backend");
+        for (const auto& p : projections) require(supports_type(p.weight.type), "a routed product reached an unsupported backend");
         for (const auto& p : projections)
-            require(mixed_experts || p.type == projections.begin()->type, "mixed routed products reached an unsupported backend");
+            require(mixed_experts || p.weight.type == projections.begin()->weight.type, "mixed routed products reached an unsupported backend");
         ++routed_calls;
         backend::CpuBackend::matmul_experts(projections, x, nin, rows, routing, runs, dtype);
     }

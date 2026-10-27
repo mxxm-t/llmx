@@ -1,0 +1,929 @@
+{
+  "runtime_revision": "3a6a7b19d3206f52c7ba8b9faa0cf2f821b5b666",
+  "execution_sha256": "4275994bb97333eec130cc307df1797a11201a3869d5565f7892ba6850fa88f9",
+  "analysis_sha256": "1ee8a551b0a81f9e3c1b712b9da412efaedcdd76655ee8f980e40296212a5379",
+  "verified_artifacts": 37,
+  "analysis": {
+    "schema": "nvfp4-mi50-shader-module-diagnostic-audit-v1",
+    "status": "all eight planned calls passed and all receipt-listed raw artifact hashes verified",
+    "execution": {
+      "path": "build-integration\\module-control-mi50-diagnostic-v1\\attempt-01\\execution.json",
+      "sha256": "4275994bb97333eec130cc307df1797a11201a3869d5565f7892ba6850fa88f9",
+      "plan_sha256": "1bfbab0f63712ba2bb94836bf1d4bc247ca7fe645f199551405921da2d63b0d5",
+      "runner_sha256": "31b2910716a398d2c46a393e7313d6b6ba9a5b0589c800f177751fc026fb8f04",
+      "binary_sha256": {
+        "baseline": "0a0956009c296d570519a0ce689303488f4c912a0d0274014ba7b16886205e47",
+        "control": "2ab4d2747347087a453adbba9a0382d5d7ca6146982864dc4db0f210951bf756"
+      },
+      "library_sha256": {
+        "baseline_sha256": "88e0ecbeeef471c5851d618156df572842efcab6c977227c7ed225d952d83552",
+        "control_sha256": "6ae982d8010dbfea68f8e23223f7eea38ac8218b6cb6ad6cd48f521682086bb3"
+      },
+      "source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+      "call_count": 8,
+      "samples_per_call": 20,
+      "warmups_per_call": 2,
+      "artifact_count_verified": 37,
+      "all_artifacts_match": true
+    },
+    "calls": [
+      {
+        "label": "1024-2048-128-baseline-1",
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.6716945,
+            "min": 0.62416,
+            "max": 0.712982
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.552832,
+            "min": 0.53136,
+            "max": 0.57888
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "6419145438659096590",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "isa_file": "attempt-01\\calls\\1024-2048-128-baseline-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "label": "1024-2048-128-control-1",
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "control",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.67308255,
+            "min": 0.608809,
+            "max": 0.762434
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.559872,
+            "min": 0.5184,
+            "max": 0.6376
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "11256069112858574823",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "958f0eb8acf48e1d4e75ce8c77825522e49913721e8de66e5dd36c1bf48a5556",
+        "isa_file": "attempt-01\\calls\\1024-2048-128-control-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "label": "1024-2048-128-control-2",
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "control",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.67130155,
+            "min": 0.64214,
+            "max": 0.724783
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.558248,
+            "min": 0.53968,
+            "max": 0.59376
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "11256069112858574823",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "958f0eb8acf48e1d4e75ce8c77825522e49913721e8de66e5dd36c1bf48a5556",
+        "isa_file": "attempt-01\\calls\\1024-2048-128-control-2\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "label": "1024-2048-128-baseline-2",
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.66835695,
+            "min": 0.63233,
+            "max": 0.688132
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.555936,
+            "min": 0.5304,
+            "max": 0.59616
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "6419145438659096590",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "isa_file": "attempt-01\\calls\\1024-2048-128-baseline-2\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "label": "2048-1024-128-baseline-1",
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.96133115,
+            "min": 0.588988,
+            "max": 1.16115
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.84808,
+            "min": 0.49968,
+            "max": 1.04144
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "6419145438659096590",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "isa_file": "attempt-01\\calls\\2048-1024-128-baseline-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      },
+      {
+        "label": "2048-1024-128-control-1",
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "control",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.94363465,
+            "min": 0.548308,
+            "max": 1.15
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.832288,
+            "min": 0.46368,
+            "max": 1.02192
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "11256069112858574823",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "958f0eb8acf48e1d4e75ce8c77825522e49913721e8de66e5dd36c1bf48a5556",
+        "isa_file": "attempt-01\\calls\\2048-1024-128-control-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      },
+      {
+        "label": "2048-1024-128-control-2",
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "control",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.92795125,
+            "min": 0.557177,
+            "max": 1.15919
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.81588,
+            "min": 0.47312,
+            "max": 1.06048
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "11256069112858574823",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "958f0eb8acf48e1d4e75ce8c77825522e49913721e8de66e5dd36c1bf48a5556",
+        "isa_file": "attempt-01\\calls\\2048-1024-128-control-2\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      },
+      {
+        "label": "2048-1024-128-baseline-2",
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "warmups": 2,
+        "measured_sample_count": 20,
+        "sample_metrics": {
+          "host_ms": {
+            "mean": 0.9599396,
+            "min": 0.549977,
+            "max": 1.21254
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.845984,
+            "min": 0.46448,
+            "max": 1.08144
+          }
+        },
+        "kernel_stats": {
+          "Driver pipeline hash": "6419145438659096590",
+          " SGPRs": "32",
+          " VGPRs": "84",
+          " Spilled SGPRs": "0",
+          " Spilled VGPRs": "0",
+          " Code size": "7640",
+          " LDS size": "17408",
+          " Scratch size": "0",
+          " Subgroups per SIMD": "3",
+          " Combined inputs": "0",
+          " Combined outputs": "0",
+          " Hash": "876927195",
+          " Instructions": "1427",
+          " Copies": "269",
+          " Branches": "120",
+          " Latency": "175232",
+          " Inverse Throughput": "69028",
+          " VMEM Clause": "74",
+          " SMEM Clause": "62",
+          "Sched SGPRs": "27",
+          "Sched VGPRs": "55",
+          " VALU": "648",
+          " SALU": "351",
+          " VMEM": "78",
+          " SMEM": "62",
+          " VOPD": "0"
+        },
+        "stats_sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "isa_file": "attempt-01\\calls\\2048-1024-128-baseline-2\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "isa_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      }
+    ],
+    "pooled_40_sample_summaries": [
+      {
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "sample_count": 40,
+        "metrics": {
+          "host_ms": {
+            "mean": 0.670025725,
+            "min": 0.62416,
+            "max": 0.712982
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.554384,
+            "min": 0.5304,
+            "max": 0.59616
+          }
+        },
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arm": "control",
+        "sample_count": 40,
+        "metrics": {
+          "host_ms": {
+            "mean": 0.67219205,
+            "min": 0.608809,
+            "max": 0.762434
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.55906,
+            "min": 0.5184,
+            "max": 0.6376
+          }
+        },
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "baseline",
+        "sample_count": 40,
+        "metrics": {
+          "host_ms": {
+            "mean": 0.960635375,
+            "min": 0.549977,
+            "max": 1.21254
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.847032,
+            "min": 0.46448,
+            "max": 1.08144
+          }
+        },
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      },
+      {
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arm": "control",
+        "sample_count": 40,
+        "metrics": {
+          "host_ms": {
+            "mean": 0.93579295,
+            "min": 0.548308,
+            "max": 1.15919
+          },
+          "matmul_tile_nvfp4_f16": {
+            "mean": 0.824084,
+            "min": 0.46368,
+            "max": 1.06048
+          }
+        },
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      }
+    ],
+    "stats_comparison": {
+      "all_calls_equal_after_normalizing_only_driver_pipeline_hash": true,
+      "fields": {
+        "Driver pipeline hash": "6419145438659096590",
+        " SGPRs": "32",
+        " VGPRs": "84",
+        " Spilled SGPRs": "0",
+        " Spilled VGPRs": "0",
+        " Code size": "7640",
+        " LDS size": "17408",
+        " Scratch size": "0",
+        " Subgroups per SIMD": "3",
+        " Combined inputs": "0",
+        " Combined outputs": "0",
+        " Hash": "876927195",
+        " Instructions": "1427",
+        " Copies": "269",
+        " Branches": "120",
+        " Latency": "175232",
+        " Inverse Throughput": "69028",
+        " VMEM Clause": "74",
+        " SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        " VALU": "648",
+        " SALU": "351",
+        " VMEM": "78",
+        " SMEM": "62",
+        " VOPD": "0"
+      }
+    },
+    "isa_comparisons": [
+      {
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "baseline_file": "attempt-01\\calls\\1024-2048-128-baseline-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "control_file": "attempt-01\\calls\\1024-2048-128-control-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "baseline_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "control_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "line_counts": [
+          6741,
+          6741
+        ],
+        "raw_text_equal": false,
+        "diff_count": 2,
+        "differences": [
+          {
+            "line": 3,
+            "baseline": "source_blake3: {0x65d6ff3f, 0x64e8ec4e, 0xda2cd0d7, 0xde3762ac, 0x0b0eaabd, 0x8cef15a4, 0xd840a5db, 0xcf8cfb19}",
+            "control": "source_blake3: {0x41dc5494, 0xa1156ee5, 0x41bce776, 0xa6fb9508, 0x839dd955, 0x0aa6593d, 0xe0c594dd, 0xdd11b881}"
+          },
+          {
+            "line": 232,
+            "baseline": "                div 32     %302 = iand %284 (0x7), %299",
+            "control": "                div 32     %302 = iand %299, %284 (0x7)"
+          }
+        ],
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128",
+        "normalized_dump_equal": true,
+        "normalized_dump_equal_scope": "Optimized NIR text only, after ignoring its source digest and normalizing the commutative iand operand order.",
+        "aco_ir": {
+          "baseline_control_equal": true,
+          "sha256": "d40d61cff86671cb2dd70ad48e09bf0c1e36ed943bb0dd362ec7dcb3b29c7c7d",
+          "characters_each": 116529
+        },
+        "final_assembly": {
+          "baseline_control_equal": true,
+          "sha256": "a8cec8935abea58ad5364bac6cb11c2bf231ee9bf8ef1bfa759f2d61260dc231",
+          "characters_each": 108649
+        },
+        "optimized_nir": {
+          "baseline_control_raw_equal": false,
+          "baseline_sha256": "76996278f40ff469d11a3439151f3dc2bd19ad034aaa7811b7e750da7873e445",
+          "control_sha256": "586f4fac2a0bd4e1e0642a16d16c0cbb78e9172939f98b12c348fb7bd971d7ea",
+          "characters_each": 126514,
+          "differences": [
+            {
+              "line": 3,
+              "baseline": "source_blake3: {0x65d6ff3f, 0x64e8ec4e, 0xda2cd0d7, 0xde3762ac, 0x0b0eaabd, 0x8cef15a4, 0xd840a5db, 0xcf8cfb19}",
+              "control": "source_blake3: {0x41dc5494, 0xa1156ee5, 0x41bce776, 0xa6fb9508, 0x839dd955, 0x0aa6593d, 0xe0c594dd, 0xdd11b881}"
+            },
+            {
+              "line": 232,
+              "baseline": "                div 32     %302 = iand %284 (0x7), %299",
+              "control": "                div 32     %302 = iand %299, %284 (0x7)"
+            }
+          ]
+        }
+      },
+      {
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "baseline_file": "attempt-01\\calls\\2048-1024-128-baseline-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "control_file": "attempt-01\\calls\\2048-1024-128-control-1\\probe.matmul_tile_nvfp4_f16.isa.txt",
+        "baseline_sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "control_sha256": "14a66f1b94ddd56da8babc56fd3b96f7b0384a6c9a0ce898862ec41176746a26",
+        "line_counts": [
+          6741,
+          6741
+        ],
+        "raw_text_equal": false,
+        "diff_count": 2,
+        "differences": [
+          {
+            "line": 3,
+            "baseline": "source_blake3: {0x65d6ff3f, 0x64e8ec4e, 0xda2cd0d7, 0xde3762ac, 0x0b0eaabd, 0x8cef15a4, 0xd840a5db, 0xcf8cfb19}",
+            "control": "source_blake3: {0x41dc5494, 0xa1156ee5, 0x41bce776, 0xa6fb9508, 0x839dd955, 0x0aa6593d, 0xe0c594dd, 0xdd11b881}"
+          },
+          {
+            "line": 232,
+            "baseline": "                div 32     %302 = iand %284 (0x7), %299",
+            "control": "                div 32     %302 = iand %299, %284 (0x7)"
+          }
+        ],
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128",
+        "normalized_dump_equal": true,
+        "normalized_dump_equal_scope": "Optimized NIR text only, after ignoring its source digest and normalizing the commutative iand operand order.",
+        "aco_ir": {
+          "baseline_control_equal": true,
+          "sha256": "d40d61cff86671cb2dd70ad48e09bf0c1e36ed943bb0dd362ec7dcb3b29c7c7d",
+          "characters_each": 116529
+        },
+        "final_assembly": {
+          "baseline_control_equal": true,
+          "sha256": "a8cec8935abea58ad5364bac6cb11c2bf231ee9bf8ef1bfa759f2d61260dc231",
+          "characters_each": 108649
+        },
+        "optimized_nir": {
+          "baseline_control_raw_equal": false,
+          "baseline_sha256": "76996278f40ff469d11a3439151f3dc2bd19ad034aaa7811b7e750da7873e445",
+          "control_sha256": "586f4fac2a0bd4e1e0642a16d16c0cbb78e9172939f98b12c348fb7bd971d7ea",
+          "characters_each": 126514,
+          "differences": [
+            {
+              "line": 3,
+              "baseline": "source_blake3: {0x65d6ff3f, 0x64e8ec4e, 0xda2cd0d7, 0xde3762ac, 0x0b0eaabd, 0x8cef15a4, 0xd840a5db, 0xcf8cfb19}",
+              "control": "source_blake3: {0x41dc5494, 0xa1156ee5, 0x41bce776, 0xa6fb9508, 0x839dd955, 0x0aa6593d, 0xe0c594dd, 0xdd11b881}"
+            },
+            {
+              "line": 232,
+              "baseline": "                div 32     %302 = iand %284 (0x7), %299",
+              "control": "                div 32     %302 = iand %299, %284 (0x7)"
+            }
+          ]
+        }
+      }
+    ],
+    "monitor": {
+      "sample_count": 13,
+      "start": "2026-10-26T12:31:28.508982+00:00",
+      "end": "2026-10-26T12:31:40.487682+00:00",
+      "selected_gpu_card": "card2",
+      "selected_gpu_busy_samples": 0,
+      "selected_gpu_vram_bytes_min": 10932224,
+      "selected_gpu_vram_bytes_max": 10932224,
+      "all_gpu_busy_sample_counts": {
+        "card0": 0,
+        "card1": 0,
+        "card2": 0,
+        "card3": 0,
+        "card4": 0,
+        "card5": 0,
+        "card6": 0,
+        "card7": 0,
+        "card8": 0,
+        "card9": 0
+      },
+      "intervals_with_unrelated_process_cpu_ticks": 12,
+      "intervals_with_monitor_reported_missed_processes": 9,
+      "appeared_process_records": 50,
+      "disappeared_process_records": 126,
+      "disk_intervals_with_counter_increases": 7,
+      "disk_counter_increases_by_device": {
+        "nvme0n1": {
+          "read_ops": 12,
+          "read_sectors": 1752,
+          "write_ops": 180,
+          "write_sectors": 3672
+        },
+        "sda": {
+          "read_ops": 77,
+          "read_sectors": 1976,
+          "write_ops": 182,
+          "write_sectors": 2296
+        },
+        "sdb": {
+          "read_ops": 62,
+          "read_sectors": 1560,
+          "write_ops": 179,
+          "write_sectors": 2232
+        },
+        "sdc": {
+          "read_ops": 70,
+          "read_sectors": 1840,
+          "write_ops": 230,
+          "write_sectors": 2632
+        },
+        "sdd": {
+          "read_ops": 67,
+          "read_sectors": 1736,
+          "write_ops": 222,
+          "write_sectors": 2576
+        },
+        "sde": {
+          "read_ops": 76,
+          "read_sectors": 1960,
+          "write_ops": 223,
+          "write_sectors": 2576
+        },
+        "sdf": {
+          "read_ops": 73,
+          "read_sectors": 1840,
+          "write_ops": 206,
+          "write_sectors": 2496
+        }
+      },
+      "limitations": "One-second sampling can miss these sub-millisecond GPU kernels. Other processes and disk activity were present. Process coverage limitations and appeared/disappeared records remain in activity.jsonl.",
+      "vram_bytes_minmax_by_card": {
+        "card0": [
+          10919936,
+          10919936
+        ],
+        "card1": [
+          10919936,
+          10919936
+        ],
+        "card2": [
+          10932224,
+          10932224
+        ],
+        "card3": [
+          10919936,
+          10919936
+        ],
+        "card4": [
+          32213221376,
+          32213221376
+        ],
+        "card5": [
+          32214417408,
+          32214417408
+        ],
+        "card6": [
+          10932224,
+          10932224
+        ],
+        "card7": [
+          10932224,
+          10932224
+        ],
+        "card8": [
+          29287931904,
+          29287931904
+        ],
+        "card9": [
+          29287915520,
+          29287915520
+        ]
+      }
+    },
+    "separate_model_profile_context": {
+      "source": "build-integration/mx-comparison-v4/results/configured-llmx.stdout",
+      "reported_nvfp4_tile_ms": 47.9909,
+      "reported_nvfp4_tile_percent": 75.1763,
+      "reported_reduce_ms": 0.79984,
+      "reported_reduce_percent": 1.25293,
+      "interpretation": "Separate existing model-profile observation; not measured by this isolated probe."
+    },
+    "interpretation": "All eight calls use the synthetic shapes identified by WIDTH/ROWS/COLUMNS, each with COLUMNS=128. Baseline and one-module-control builds produced identical ACO IR and final machine assembly. The optimized NIR differs in its module source digest and a commutative iand operand order. Recorded kernel resource/instruction statistics are the same, while driver pipeline hashes differ. This diagnostic does not explain the separate Radeon/MI50 register-count difference. The short synthetic probe is not an end-to-end model result or performance qualification; no directional inference is warranted from these samples.",
+    "proposed_paragraph": "On MI50, changing only the generated native-F16 NVFP4 tile module left recorded kernel statistics unchanged (84 VGPRs, 17,408 bytes LDS, no spills, three subgroups per SIMD, and identical 1,427-instruction/code hash). Across both synthetic shapes (width 1,024, rows 2,048, columns 128; width 2,048, rows 1,024, columns 128), the ACO IR and final machine assembly were identical. The optimized NIR differed only in its source digest and a commutative iand operand order. Driver pipeline hashes differed, but this diagnostic does not establish that the earlier Radeon/MI50 register-count difference came from shader production. A separate model profile attributes 47.9909 ms (75.1763%) to the P128 NVFP4 tile and 0.79984 ms (1.25293%) to reduction. This isolated synthetic diagnostic is not a model timing qualification.",
+    "descriptive_arm_comparisons": [
+      {
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "pooled_40_sample_comparison": {
+          "host_ms": {
+            "baseline_mean": 0.670025725,
+            "control_mean": 0.67219205,
+            "control_minus_baseline_percent": 0.32331967552439167,
+            "baseline_range": [
+              0.62416,
+              0.712982
+            ],
+            "control_range": [
+              0.608809,
+              0.762434
+            ]
+          },
+          "matmul_tile_nvfp4_f16": {
+            "baseline_mean": 0.554384,
+            "control_mean": 0.55906,
+            "control_minus_baseline_percent": 0.843458685676346,
+            "baseline_range": [
+              0.5304,
+              0.59616
+            ],
+            "control_range": [
+              0.5184,
+              0.6376
+            ]
+          }
+        },
+        "shape_label": "WIDTH1024-ROWS2048-COLUMNS128"
+      },
+      {
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "pooled_40_sample_comparison": {
+          "host_ms": {
+            "baseline_mean": 0.960635375,
+            "control_mean": 0.93579295,
+            "control_minus_baseline_percent": -2.58604103560105,
+            "baseline_range": [
+              0.549977,
+              1.21254
+            ],
+            "control_range": [
+              0.548308,
+              1.15919
+            ]
+          },
+          "matmul_tile_nvfp4_f16": {
+            "baseline_mean": 0.847032,
+            "control_mean": 0.824084,
+            "control_minus_baseline_percent": -2.7092246810037857,
+            "baseline_range": [
+              0.46448,
+              1.08144
+            ],
+            "control_range": [
+              0.46368,
+              1.06048
+            ]
+          }
+        },
+        "shape_label": "WIDTH2048-ROWS1024-COLUMNS128"
+      }
+    ],
+    "cleanup": {
+      "container_removed": true,
+      "container_state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 137,
+        "Error": "",
+        "StartedAt": "2026-10-26T12:31:28.015261457Z",
+        "FinishedAt": "2026-10-26T12:31:40.480762037Z"
+      },
+      "note": "The runner intentionally killed and removed its sleep container during cleanup; state exit code 137 is the expected container-stop result, while all eight docker-exec probe calls exited 0."
+    }
+  }
+}

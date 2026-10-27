@@ -69,12 +69,12 @@ size_t exact_decode(backend::Backend& b, uint32_t type = 20) {
                            uint16_t(0x0400), uint16_t(0x3c00), uint16_t(0xbc00), uint16_t(0x7bff), uint16_t(0xfbff)})
             for (unsigned shift = 0; shift < 64; ++shift) append(h, shift);
     const auto w = b.adopt(packed.data(), packed.size()), y = b.alloc(expected.size() * 4);
-    b.embed({y.get(), 0}, type, {w.get(), 0}, bs, ids.size(), ids.data(), ids.size());
+    b.embed({y.get(), 0}, {type, {w.get(), 0}}, bs, ids.size(), ids.data(), ids.size());
     auto got = read(b, *y, expected.size());
     for (size_t i = 0; i < got.size(); ++i) require(bits(got[i]) == bits(expected[i]), "IQ4_NL/IQ4_XS embedding differs from independent finite-scale decode");
     const uint32_t chosen[] = {17, 17, uint32_t(ids.size()), UINT32_MAX};
     const auto ib = b.adopt(chosen, sizeof(chosen)), gathered = b.alloc(4 * bs * 4);
-    b.embed_ids({gathered.get(), 0}, type, {w.get(), 0}, bs, ids.size(), {ib.get(), 0}, 4);
+    b.embed_ids({gathered.get(), 0}, {type, {w.get(), 0}}, bs, ids.size(), {ib.get(), 0}, 4);
     got = read(b, *gathered, 4 * bs);
     for (size_t i = 0; i < got.size(); ++i) require(bits(got[i]) == (i < 2 * bs ? bits(expected[17 * bs + i % bs]) : 0), "IQ4_NL/IQ4_XS device-ID embedding or invalid-ID zeros differ");
     return expected.size() + got.size();
@@ -103,7 +103,7 @@ size_t ranges(backend::Backend& b, uint32_t type = 20) {
               const double expected = dtype == backend::Dtype::bf16 && exponent < -133 ? 0 : want;
               if (std::fabs(expected) > std::numeric_limits<float>::max()) continue;
               for (const auto* run : {&decode, &tile}) {
-                b.matmul(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, bs, 1, 1, {run, 1}, dtype);
+                b.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, bs, 1, 1, {run, 1}, dtype);
                 const float got = read(b, *y, 1)[0];
                 // XS sums 256 signed terms; gamma_n bounds FMA rounding against their absolute sum, including cancellation.
                 const double nu = double(bs) * 0x1p-24;
@@ -149,7 +149,7 @@ size_t cancellations(backend::Backend& b, uint32_t type = 20) {
             const auto xb = b.adopt(x.data(), x.size() * 4);
             for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::bf16, backend::Dtype::int8}) {
               for (const auto* run : {&decode, &tile}) {
-                b.matmul(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 0}, 4 * bs, 1, 1, {run, 1}, dtype);
+                b.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, 4 * bs, 1, 1, {run, 1}, dtype);
                 const float got = read(b, *y, 1)[0];
                 if (got != 0) std::cerr << "cancel: type=" << type << " half=" << h << " exponent=" << exponent
                     << " dtype=" << int(dtype) << " tile=" << (run == &tile) << " got=" << got << '\n';
@@ -190,12 +190,12 @@ size_t products(backend::Backend& b, size_t nin, size_t rows, size_t cols, backe
             const bool tile = runs.runs->extent >= crossover;
             const bool integer = dtype != backend::Dtype::f32 && dtype != backend::Dtype::bf16 && (tile ? profile.prefer_integer_dot : profile.lookup_integer_dot);
             clear(); testq::take_matrix_paths(b);
-            if (op == 0) b.matmul(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-            if (op == 1) b.matmul_logits(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-            if (op == 2) b.matmul_add(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
-            if (op == 3) b.matmul_group({{type, {w.get(), 0}, {y.get(), 1}, rows}, {type, {w.get(), 0}, {y.get(), n + 1}, rows}}, {xb.get(), 0}, nin, cols, runs, dtype);
-            if (op == 4) b.matmul_experts({{type, {w.get(), 0}, {y.get(), 1}, rows}}, {xb.get(), 0}, nin, cols, routing, runs, dtype);
-            if (op == 5) b.matmul_experts_add(type, {w.get(), 0}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, routing, runs, dtype);
+            if (op == 0) b.matmul({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+            if (op == 1) b.matmul_logits({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+            if (op == 2) b.matmul_add({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, runs, dtype);
+            if (op == 3) b.matmul_group({{{type, {w.get(), 0}}, {y.get(), 1}, rows}, {{type, {w.get(), 0}}, {y.get(), n + 1}, rows}}, {xb.get(), 0}, nin, cols, runs, dtype);
+            if (op == 4) b.matmul_experts({{{type, {w.get(), 0}}, {y.get(), 1}, rows}}, {xb.get(), 0}, nin, cols, routing, runs, dtype);
+            if (op == 5) b.matmul_experts_add({type, {w.get(), 0}}, {xb.get(), 0}, {y.get(), 1}, nin, rows, cols, routing, runs, dtype);
             auto got = read(b, *y, n * picks + 2);
             const auto paths = testq::take_matrix_paths(b);
             require(paths == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"}, "IQ4_NL/IQ4_XS wider matrix-path witness differs");

@@ -1,0 +1,537 @@
+{
+  "schema": "nvfp4-shared-operator-output-identity-v1",
+  "scope": "Standalone Windows Vulkan operator output diagnostic. No timing/performance conclusion or numerical tolerance is claimed.",
+  "environment": {
+    "device": "AMD Radeon VII",
+    "driver": "AMD proprietary driver",
+    "device_uuid": "00000000-2d00-0000-0000-000000000000",
+    "vulkaninfo_exit_code": 0,
+    "preflight_utc": "2026-10-27T00:37:49.204944+00:00"
+  },
+  "arms": {
+    "main": {
+      "runtime_revision": "e46e72e9047ab87488e008494509a4a9129ea5f2",
+      "source_archive_sha256": "316d43555d028b7e1c0f038f0b9ec88f4b60032206e2442921348bba330a9d21",
+      "source_manifest_sha256": "b09aac8b8cae67496bf38b2dcb5de3593143dc66a02e3006cef61eb95d96fe0a",
+      "artifact_receipt_sha256": "0CAC3804FEB63EA4D550387C1C7A0FC9068847C1160AFD208584EB2981BF5970",
+      "runtime_executable_sha256_pinned_not_directly_invoked": "e52489b1909c476835ad6aa146f443babe718749db37b336c8865f0707c78b6d",
+      "vulkan_library_sha256": "43e2f34e864fe4311687ec7dc22d354de12d06fb654e700d50f0606034fbb872",
+      "operator_harness_executable_sha256": "e52489b1909c476835ad6aa146f443babe718749db37b336c8865f0707c78b6d",
+      "observer_build_receipt": {
+        "path": "build-integration/shared-pipeline-operators-v1/bundle/observer-main-08/observer-build-receipt.json",
+        "sha256": "2c2aa1bad8be9e8f74e8815c67bac1d3662220736e51f9cf6213cfdf6dcb027b"
+      },
+      "compile_receipt": {
+        "path": "build-integration/shared-pipeline-operators-v1/bundle/build-main/compile-receipt.json",
+        "sha256": "8d217a71bbe5a83b76a7afb4d884267a26c305af8ab50f353228f5bc167e056a"
+      }
+    },
+    "candidate": {
+      "runtime_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "source_archive_sha256": "df5405608274252ff0920b32097bf346c687a8711d78f76d1ffd079e25de2759",
+      "source_manifest_sha256": "75500c7955650ca2102542ee3f150f9171636febb2365abbe257e799a915e365",
+      "artifact_receipt_sha256": "4E36331921D71DC991FEA9D1DF8A4DF92F3B030E719738F8822437BC5EA94981",
+      "runtime_executable_sha256_pinned_not_directly_invoked": "210219118a14cce2d4f23c5c6d45b19dc42fb2d0b2e4ad9efa5197633df2380d",
+      "vulkan_library_sha256": "5dcfec01acbfd2f07babf2889721a4696fc533a3624b0b3ae87e8573863d60b0",
+      "operator_harness_executable_sha256": "210219118a14cce2d4f23c5c6d45b19dc42fb2d0b2e4ad9efa5197633df2380d",
+      "observer_build_receipt": {
+        "path": "build-integration/shared-pipeline-operators-v1/bundle/observer-candidate-08/observer-build-receipt.json",
+        "sha256": "bbcabb8fba16c18f328d568bd56e844f8fe293bf1007cd47f86a880ec9856903"
+      },
+      "compile_receipt": {
+        "path": "build-integration/shared-pipeline-operators-v1/bundle/build-candidate/compile-receipt.json",
+        "sha256": "e6de30c9b94c81e8b0fd1ce9deb80e97e52785557bbd456a0fe190de0cce5527"
+      }
+    }
+  },
+  "harness": {
+    "source": "build-integration/shared-pipeline-operators-v1/operator-harness.cpp",
+    "source_sha256": "43c2e917fc7dc2cb582d66b32b59769b3ce86b5ec2b5bf1d12b000150ec35f8a",
+    "comparer": "build-integration/shared-pipeline-operators-v1/compare-outputs.py",
+    "comparer_sha256": "81378f54d51ca22d5dda82f70cd215cef98c8d0e471303416310f3bfec953b4b",
+    "plan": "build-integration/shared-pipeline-operators-v1/plan.json",
+    "plan_sha256": "492621a19f0bb836ae23fbfc09a7b12b46a3fd15a7420569d6ba4fa23031e440",
+    "toolchain": "VS 18.4.3; MSVC 19.50.35728 (MSVC tools 14.50.35717); x64 host/target",
+    "candidate_api_adapter": "DLLMX_DIAG_WEIGHT_VIEW=1",
+    "case_plan": "44 embedding + 20 row + 30 routed-expert projection outputs + 2 MXFP4 row + 41 tile = 137",
+    "groups": {
+      "expected_count": 137,
+      "embedding": {
+        "families": [
+          "embed",
+          "embed_ids"
+        ],
+        "storage_types": [
+          "F32",
+          "Q8_0",
+          "Q4_0",
+          "Q4_1",
+          "Q5_0",
+          "Q5_1",
+          "Q2_K",
+          "Q3_K",
+          "Q4_K",
+          "Q5_K",
+          "Q6_K",
+          "TQ1_0",
+          "TQ2_0",
+          "IQ1_S",
+          "IQ1_M",
+          "IQ2_S",
+          "IQ3_XXS",
+          "IQ2_XXS",
+          "IQ2_XS",
+          "IQ3_S",
+          "IQ4_NL",
+          "IQ4_XS"
+        ],
+        "cases": 44,
+        "shape": {
+          "width": 256,
+          "table_rows": 8,
+          "host_id_count": 4,
+          "device_id_count": 6
+        },
+        "fixture_check": "CPU embedding decode is checked finite, nonzero, and varied across selected rows; embed_ids also checks zero rows for out-of-range IDs. CPU and Vulkan embedding outputs are compared bitwise, with output guards."
+      },
+      "float_input_rows": {
+        "families": [
+          "matmul_row_float_x",
+          "matmul_row_float_x_1col",
+          "matmul_row_float_x_grouped"
+        ],
+        "weight_types": [
+          "Q8_0",
+          "Q4_0",
+          "Q4_1",
+          "Q5_0",
+          "Q5_1",
+          "Q4_K",
+          "Q5_K",
+          "Q6_K",
+          "IQ4_NL",
+          "IQ4_XS"
+        ],
+        "requested_dtype": "F32",
+        "cases": 20,
+        "shapes": {
+          "nin": 1024,
+          "nout": 128,
+          "batch": 8,
+          "row_run_extent": 8,
+          "one_column_extent": 1,
+          "grouped_projections": 3,
+          "routed_expert_group": {
+            "token_rows": 8,
+            "top_k": 2,
+            "experts": 4,
+            "entries": 16,
+            "entries_per_expert": 4,
+            "nin": 1024,
+            "nout_per_projection": 128,
+            "projection_count": 3,
+            "row_run_extent": 1
+          }
+        },
+        "grouped_output_count": 30,
+        "kernel_witness_mapping": {
+          "api_family": "matmul_row_float_x_grouped",
+          "observed_kernel_time_name": "matmul_row_float_x_grouped",
+          "observation": "The public matmul_experts witness must emit the exact grouped-expert row kernel name on each arm; no route is inferred from case labeling."
+        },
+        "grouped_case_semantics": "Three projections from one matmul_experts call over 8 input token rows, top-k 2, 4 experts, and 16 routed output entries. IDs are deterministic and give exactly 4 entries to each expert. RowRun extent 1 selects the grouped-expert row dispatch (variant 2), not the sparse one-column path."
+      },
+      "mxfp4_float_input_rows": {
+        "families": [
+          "matmul_row_mxfp4_float_x",
+          "matmul_row_mxfp4_float_x_1col"
+        ],
+        "weight_types": [
+          "MXFP4"
+        ],
+        "requested_dtype": "F32",
+        "cases": 2,
+        "shapes": {
+          "nin": 1024,
+          "nout": 128,
+          "batch": 8,
+          "row_run_extent": 8,
+          "one_column_extent": 1
+        }
+      },
+      "float_tiles": {
+        "families": [
+          "matmul_tile",
+          "matmul_tile_small",
+          "matmul_tile_bf16_small",
+          "matmul_tile_tall",
+          "matmul_tile_bf16_tall"
+        ],
+        "storage_types_for_small_standard_and_bf16_small": [
+          "F32",
+          "Q8_0",
+          "Q4_0",
+          "Q4_1",
+          "Q5_0",
+          "Q5_1",
+          "Q2_K",
+          "Q3_K",
+          "Q4_K",
+          "Q5_K",
+          "Q6_K",
+          "IQ4_NL",
+          "IQ4_XS"
+        ],
+        "requested_dtypes": {
+          "matmul_tile": "F32",
+          "matmul_tile_small": "F32",
+          "matmul_tile_bf16_small": "BF16",
+          "matmul_tile_tall": "F32",
+          "matmul_tile_bf16_tall": "BF16"
+        },
+        "cases": 41,
+        "small": {
+          "nin": 1024,
+          "nout": 512,
+          "batch": 128
+        },
+        "standard": {
+          "nin": 1024,
+          "nout": 2048,
+          "batch": 128
+        },
+        "bf16_small": {
+          "nin": 1024,
+          "nout": 512,
+          "batch": 128
+        },
+        "tall_representatives": {
+          "weight_type": "Q8_0",
+          "nin": 256,
+          "nout": 16384,
+          "batch": 256
+        },
+        "tall_shape_basis": "Provisional conservative fill shape using 128 output rows per tall tile: 128 row groups times four 64-row column groups gives 512 workgroups. Each arm/device must emit the exact tall kernel name in the harness witness. No route is inferred from shape alone and no alternate shape will be substituted after a failed witness."
+      },
+      "total": "44 embedding + 20 row + 30 routed-expert projection outputs + 2 MXFP4 row + 41 tile = 137",
+      "case_names": [
+        "embed_F32",
+        "embed_ids_F32",
+        "embed_Q8_0",
+        "embed_ids_Q8_0",
+        "embed_Q4_0",
+        "embed_ids_Q4_0",
+        "embed_Q4_1",
+        "embed_ids_Q4_1",
+        "embed_Q5_0",
+        "embed_ids_Q5_0",
+        "embed_Q5_1",
+        "embed_ids_Q5_1",
+        "embed_Q2_K",
+        "embed_ids_Q2_K",
+        "embed_Q3_K",
+        "embed_ids_Q3_K",
+        "embed_Q4_K",
+        "embed_ids_Q4_K",
+        "embed_Q5_K",
+        "embed_ids_Q5_K",
+        "embed_Q6_K",
+        "embed_ids_Q6_K",
+        "embed_TQ1_0",
+        "embed_ids_TQ1_0",
+        "embed_TQ2_0",
+        "embed_ids_TQ2_0",
+        "embed_IQ1_S",
+        "embed_ids_IQ1_S",
+        "embed_IQ1_M",
+        "embed_ids_IQ1_M",
+        "embed_IQ2_S",
+        "embed_ids_IQ2_S",
+        "embed_IQ3_XXS",
+        "embed_ids_IQ3_XXS",
+        "embed_IQ2_XXS",
+        "embed_ids_IQ2_XXS",
+        "embed_IQ2_XS",
+        "embed_ids_IQ2_XS",
+        "embed_IQ3_S",
+        "embed_ids_IQ3_S",
+        "embed_IQ4_NL",
+        "embed_ids_IQ4_NL",
+        "embed_IQ4_XS",
+        "embed_ids_IQ4_XS",
+        "row_f32_Q8_0",
+        "row_f32_1col_Q8_0",
+        "routed_group_Q8_0_0",
+        "routed_group_Q8_0_1",
+        "routed_group_Q8_0_2",
+        "row_f32_Q4_0",
+        "row_f32_1col_Q4_0",
+        "routed_group_Q4_0_0",
+        "routed_group_Q4_0_1",
+        "routed_group_Q4_0_2",
+        "row_f32_Q4_1",
+        "row_f32_1col_Q4_1",
+        "routed_group_Q4_1_0",
+        "routed_group_Q4_1_1",
+        "routed_group_Q4_1_2",
+        "row_f32_Q5_0",
+        "row_f32_1col_Q5_0",
+        "routed_group_Q5_0_0",
+        "routed_group_Q5_0_1",
+        "routed_group_Q5_0_2",
+        "row_f32_Q5_1",
+        "row_f32_1col_Q5_1",
+        "routed_group_Q5_1_0",
+        "routed_group_Q5_1_1",
+        "routed_group_Q5_1_2",
+        "row_f32_Q4_K",
+        "row_f32_1col_Q4_K",
+        "routed_group_Q4_K_0",
+        "routed_group_Q4_K_1",
+        "routed_group_Q4_K_2",
+        "row_f32_Q5_K",
+        "row_f32_1col_Q5_K",
+        "routed_group_Q5_K_0",
+        "routed_group_Q5_K_1",
+        "routed_group_Q5_K_2",
+        "row_f32_Q6_K",
+        "row_f32_1col_Q6_K",
+        "routed_group_Q6_K_0",
+        "routed_group_Q6_K_1",
+        "routed_group_Q6_K_2",
+        "row_f32_IQ4_NL",
+        "row_f32_1col_IQ4_NL",
+        "routed_group_IQ4_NL_0",
+        "routed_group_IQ4_NL_1",
+        "routed_group_IQ4_NL_2",
+        "row_f32_IQ4_XS",
+        "row_f32_1col_IQ4_XS",
+        "routed_group_IQ4_XS_0",
+        "routed_group_IQ4_XS_1",
+        "routed_group_IQ4_XS_2",
+        "row_mxfp4_f32",
+        "row_mxfp4_f32_1col",
+        "tile_tall_q8_f32",
+        "tile_bf16_tall_q8",
+        "tile_small_F32",
+        "tile_small_Q8_0",
+        "tile_small_Q4_0",
+        "tile_small_Q4_1",
+        "tile_small_Q5_0",
+        "tile_small_Q5_1",
+        "tile_small_Q2_K",
+        "tile_small_Q3_K",
+        "tile_small_Q4_K",
+        "tile_small_Q5_K",
+        "tile_small_Q6_K",
+        "tile_small_IQ4_NL",
+        "tile_small_IQ4_XS",
+        "tile_short_F32",
+        "tile_short_Q8_0",
+        "tile_short_Q4_0",
+        "tile_short_Q4_1",
+        "tile_short_Q5_0",
+        "tile_short_Q5_1",
+        "tile_short_Q2_K",
+        "tile_short_Q3_K",
+        "tile_short_Q4_K",
+        "tile_short_Q5_K",
+        "tile_short_Q6_K",
+        "tile_short_IQ4_NL",
+        "tile_short_IQ4_XS",
+        "tile_bf16_small_F32",
+        "tile_bf16_small_Q8_0",
+        "tile_bf16_small_Q4_0",
+        "tile_bf16_small_Q4_1",
+        "tile_bf16_small_Q5_0",
+        "tile_bf16_small_Q5_1",
+        "tile_bf16_small_Q2_K",
+        "tile_bf16_small_Q3_K",
+        "tile_bf16_small_Q4_K",
+        "tile_bf16_small_Q5_K",
+        "tile_bf16_small_Q6_K",
+        "tile_bf16_small_IQ4_NL",
+        "tile_bf16_small_IQ4_XS"
+      ]
+    }
+  },
+  "execution": {
+    "run_receipt": {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-06/run.json",
+      "sha256": "55369714c49647f58aec39f11f71fa700f4baad220c379f8ba05203b859522be"
+    },
+    "comparison": {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-06/comparison.json",
+      "sha256": "fc073d167112d3593068c4cd1fecd551f828e8e18c199ec940d53dfd886928c9"
+    },
+    "independent_root_audit": {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-06/root-audit.json",
+      "sha256": "e015ce4d7162cfa7fa9d363a656f80874e86c2bea427636eeba5dc6dde066fa0"
+    },
+    "preflight": {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-06/preflight.json",
+      "sha256": "11e61cee41d122fb91d16380684e89a068755a91c8cf69419e004221de08cf93"
+    },
+    "arms": [
+      {
+        "arm": "main",
+        "exit_code": 0,
+        "manifest_records": 137,
+        "stdout_sha256": "9b29d7f71b121ab26ee382962cd55bfa0044ed997973ba1180767c0d6665571b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "arm": "candidate",
+        "exit_code": 0,
+        "manifest_records": 137,
+        "stdout_sha256": "9b29d7f71b121ab26ee382962cd55bfa0044ed997973ba1180767c0d6665571b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "comparer_exit_code": 0,
+    "activity_monitor": {
+      "samples": 0,
+      "errors": 0,
+      "activity_file_present": false,
+      "limitation": "No activity samples were captured. This run cannot attribute GPU/CPU/disk background activity and is not timing evidence."
+    }
+  },
+  "results": {
+    "cases_per_arm": 137,
+    "case_count_matches_plan": true,
+    "raw_output_values_per_arm": 13630848,
+    "raw_output_bytes_verified_across_both_arms": 109046784,
+    "raw_artifacts_hashed": 274,
+    "main_candidate_raw_bytes_identical": true,
+    "different_cases": 0,
+    "witnessed_pipeline_families": [
+      "embed",
+      "embed_ids",
+      "matmul_row_float_x",
+      "matmul_row_float_x_1col",
+      "matmul_row_float_x_grouped",
+      "matmul_row_mxfp4_float_x",
+      "matmul_row_mxfp4_float_x_1col",
+      "matmul_tile",
+      "matmul_tile_bf16_small",
+      "matmul_tile_bf16_tall",
+      "matmul_tile_small",
+      "matmul_tile_tall"
+    ],
+    "family_case_counts": {
+      "embed": 22,
+      "embed_ids": 22,
+      "matmul_row_float_x_grouped": 30,
+      "matmul_row_float_x_1col": 10,
+      "matmul_row_float_x": 10,
+      "matmul_row_mxfp4_float_x": 1,
+      "matmul_row_mxfp4_float_x_1col": 1,
+      "matmul_tile_bf16_small": 13,
+      "matmul_tile_bf16_tall": 1,
+      "matmul_tile": 13,
+      "matmul_tile_small": 13,
+      "matmul_tile_tall": 1
+    },
+    "missing_kernel_witnesses": {
+      "main": [],
+      "candidate": []
+    },
+    "missing_matrix_path_witnesses": {
+      "main": [],
+      "candidate": []
+    },
+    "cpu_reference": {
+      "checked_cases": 44,
+      "all_bit_exact": false,
+      "nonexact_cases": [
+        {
+          "case": "embed_Q6_K",
+          "main_checked": true,
+          "candidate_checked": true,
+          "main_exact": false,
+          "candidate_exact": false,
+          "main_zero_sign_only": true,
+          "candidate_zero_sign_only": true,
+          "main_mismatch_count": 16,
+          "candidate_mismatch_count": 16
+        },
+        {
+          "case": "embed_Q8_0",
+          "main_checked": true,
+          "candidate_checked": true,
+          "main_exact": false,
+          "candidate_exact": false,
+          "main_zero_sign_only": true,
+          "candidate_zero_sign_only": true,
+          "main_mismatch_count": 3,
+          "candidate_mismatch_count": 3
+        },
+        {
+          "case": "embed_ids_Q6_K",
+          "main_checked": true,
+          "candidate_checked": true,
+          "main_exact": false,
+          "candidate_exact": false,
+          "main_zero_sign_only": true,
+          "candidate_zero_sign_only": true,
+          "main_mismatch_count": 16,
+          "candidate_mismatch_count": 16
+        },
+        {
+          "case": "embed_ids_Q8_0",
+          "main_checked": true,
+          "candidate_checked": true,
+          "main_exact": false,
+          "candidate_exact": false,
+          "main_zero_sign_only": true,
+          "candidate_zero_sign_only": true,
+          "main_mismatch_count": 3,
+          "candidate_mismatch_count": 3
+        }
+      ],
+      "nonzero_difference_cases": [],
+      "interpretation": "The four nonexact embedding cases differ only in the sign bit of zero on both arms. All other checked CPU references are bit exact. No tolerance was introduced."
+    },
+    "performance_claim": false
+  },
+  "retained_prior_attempts": [
+    {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/failed-build-main-01",
+      "outcome": "Compile failed on the earlier flat API harness calls; retained."
+    },
+    {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/failed-build-candidate-01",
+      "outcome": "Compile failed because the earlier harness used flat signatures against the candidate WeightView API; retained."
+    },
+    {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-02/run.json",
+      "sha256": "58bfd4906984058509c522797cae5edd4e6b683dcc136166c79681ae8b0aac69",
+      "outcome": "Stopped at 46 cases. Grouped case expected matmul_row_float_x_grouped but actually dispatched matmul_row_float_x; retained."
+    },
+    {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/policy-sweep-run-03/run.json",
+      "sha256": "4c7e39a7475e888e2a3c0f68be123c3306e23e647fd4197b3e3f9f05e3b7cfb1",
+      "outcome": "Same grouped-witness mismatch before completion; retained."
+    },
+    {
+      "path": "build-integration/shared-pipeline-operators-v1/bundle/failure-capture-run-01/failure-analysis.json",
+      "sha256": "81140e21605fe519e9b4370f1c167465f54dd29889bf0614d038f15335ccd810",
+      "outcome": "Initial Q8 embedding signed-zero CPU/Vulkan mismatch capture; later final sweep reports and preserves the same signed-zero-only class."
+    }
+  ],
+  "grouped_case_correction": {
+    "final_harness_source_sha256": "43c2e917fc7dc2cb582d66b32b59769b3ce86b5ec2b5bf1d12b000150ec35f8a",
+    "actual_call": "matmul_experts with three projections, 8 token rows, top-k 2, four experts and 16 routed entries (4 per expert)",
+    "witness": "Final run requires matmul_row_float_x_grouped on both arms; both witnesses are present in all 137-case comparison.",
+    "source_lines": [
+      522,
+      530
+    ],
+    "prior_failure": "Runs 02/03 expected the grouped kernel name while the old harness dispatched the ordinary row path. They are not passes."
+  },
+  "limitations": [
+    "Standalone operator outputs only; not released-model HF/depth/split or a model-level performance gate.",
+    "No activity samples were captured; no timing or attribution claim is made.",
+    "The four CPU-reference nonexact embedding cases are signed-zero-only, not byte-exact CPU reference passes; main and candidate are byte-identical to each other in every case."
+  ]
+}

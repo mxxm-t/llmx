@@ -78,7 +78,7 @@ class Shards:
         count = tensor.count - first if count is None else count
         if count * 4 > self.max_decoded_bytes:
             raise ValueError("decoded span exceeds reference memory limit: " + name)
-        values = file.decode_span(tensor, first, count, numpy=True)
+        values = file.decode_span(tensor, first, count, numpy=True, tensor_sources=self.tensors)
         self.largest_decode = max(self.largest_decode, values.nbytes)
         self.seen.add(name)
         return values

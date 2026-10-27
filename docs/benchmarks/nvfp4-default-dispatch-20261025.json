@@ -1,0 +1,242 @@
+{
+  "status": "dispatch-witness-pass-not-a-numerical-gate",
+  "runtime_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "helper_sha256": "f93984d8b441dc4e79a2a5af6e9f1e107e8708ac6b3d62903371b57dc101cd18",
+  "root_verified": {
+    "guards": 8,
+    "artifacts": 3,
+    "model_and_helper": true,
+    "source_map": true
+  },
+  "receipt_sha256": "78a5a42e147e724eb2b145cad52dcfd8f883cb4aecbcc7572d389e7150d8f3c1",
+  "stdout_sha256": "f3997ae8242d25b722f67a7746bbc3e1d33437eecc1c95336c7d0420c2bd73b0",
+  "projection_map_sha256": "7d967d2634cd487d619cb5f747d0ac2f13669bf4928da09e011b2c9545deee1d",
+  "preparation_source_sha256": "5224eb6647ed7b8046b7451b0d16fe1c5ec47b255bf70e4902d6e8d1a9950a5d",
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "5036684bae806951a8fe18c51d9d2f8aa0d4e8551c7771a993c083db2ad0f1ee",
+    "src/backends/device_profile.hpp": "804e3142cb3bb3faecf2b644d489064c224ceaf73b510581ff462b8fa93f0867",
+    "src/backends/cpu/cpu_backend.hpp": "2ece42cd143712a62fe43c6f8ad968c50e16074433c9de805ec63a0169e1bee2",
+    "src/backends/cpu/q8_dots.hpp": "d2861e8859a67ab6038e3c6362f1bbc00d86f6d2ed2cb0bff5391e2b45008e26",
+    "src/backends/vulkan/shaders/xquant.glsl": "a173ce0246599a9d1724bb92db08853eb3f8e861076d7cf3df67361953f4b37d",
+    "src/model/runtime.hpp": "ebe94be9d112d389400900a19254862310f2822fc7e9ac422f2014230f604ba2",
+    "src/model/passes.hpp": "cd1a298a5e95c3be7ba0b7367e1e33495a205baca030df997af61a55207c0503",
+    "src/model/arch/qwen35.hpp": "a6f80b4f8ae06ee51bb7546fd0a8bce9d9ad5f6c4fd92b46a2053378ea82adad",
+    "tests/qwen35.py": "942765dc4914c574718d88b85fc70982bfb515439ea9aa49b9d8fa57b352ff3e",
+    "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+    "tools/gen_baseline.py": "02a067ddb8f07a0eb80239305cead935e7f58e1b9a4b5f8dff45dde75984e8bb"
+  },
+  "storage_counts": {
+    "Q5_K": 21,
+    "Q4_K": 9,
+    "NVFP4": 108,
+    "BF16": 22,
+    "Q8_0": 26
+  },
+  "setup": {
+    "kind": "setup",
+    "version": "0.1.0+unknown",
+    "device": "AMD Radeon VII",
+    "requested_dtype": "auto",
+    "effective_dtype": "f16",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "prompt_tokens": 16384,
+    "forced_steps": 1,
+    "forced_token": 6426,
+    "profile": {
+      "prefer_integer_dot": false,
+      "lookup_integer_dot": true,
+      "q8_decode_cols": 8,
+      "q8_decode_forms": 0,
+      "row_decode_cols": 0,
+      "k45_row_lanes": 32,
+      "tile_from_8bit": 32,
+      "tile_from_8bit_narrow": 48,
+      "tile_from_other": 64,
+      "tile_from_other_narrow": 64,
+      "tile_narrow_nin": 4096,
+      "tile_tall_per_cu": 1,
+      "tile_tall_per_cu_narrow": 1,
+      "dispatch_chunk": 64
+    }
+  },
+  "phases": [
+    {
+      "kind": "phase",
+      "phase": "prefill",
+      "timed_dispatches": 12131,
+      "matrix_paths": [
+        [
+          "f32",
+          "block-int16"
+        ]
+      ],
+      "kernels": [
+        {
+          "name": "silu_mul",
+          "milliseconds": 37.35392
+        },
+        {
+          "name": "gather_rows",
+          "milliseconds": 0.0072
+        },
+        {
+          "name": "rms_norm_rows",
+          "milliseconds": 41.12368
+        },
+        {
+          "name": "norm_rope_partial",
+          "milliseconds": 10.10928
+        },
+        {
+          "name": "embed",
+          "milliseconds": 0.43056
+        },
+        {
+          "name": "matmul_tile_small",
+          "milliseconds": 35.27472
+        },
+        {
+          "name": "matmul_tile_nvfp4_tall",
+          "milliseconds": 3601.33856
+        },
+        {
+          "name": "kv_write_kv16",
+          "milliseconds": 3.36528
+        },
+        {
+          "name": "matmul_tile_tall",
+          "milliseconds": 1023.29936
+        },
+        {
+          "name": "matmul_reduce",
+          "milliseconds": 8.95696
+        },
+        {
+          "name": "sigmoid_mul",
+          "milliseconds": 8.02288
+        },
+        {
+          "name": "gated_rms_norm",
+          "milliseconds": 33.99808
+        },
+        {
+          "name": "causal_conv_silu",
+          "milliseconds": 30.55968
+        },
+        {
+          "name": "delta_rule",
+          "milliseconds": 318.44848
+        },
+        {
+          "name": "attention_tile_d256_kv16",
+          "milliseconds": 3618.0864
+        },
+        {
+          "name": "matmul_tile_wbf16",
+          "milliseconds": 103.16528
+        },
+        {
+          "name": "matmul_tile_wbf16_small",
+          "milliseconds": 14.55376
+        },
+        {
+          "name": "matmul_row_q8w head",
+          "milliseconds": 0.81728
+        }
+      ]
+    },
+    {
+      "kind": "phase",
+      "phase": "forced-step",
+      "timed_dispatches": 306,
+      "matrix_paths": [
+        [
+          "f32",
+          "block-int16"
+        ]
+      ],
+      "kernels": [
+        {
+          "name": "silu_mul",
+          "milliseconds": 0.17808
+        },
+        {
+          "name": "gather_rows",
+          "milliseconds": 0.00688
+        },
+        {
+          "name": "rms_norm_rows",
+          "milliseconds": 0.58704
+        },
+        {
+          "name": "norm_rope_partial",
+          "milliseconds": 0.12112
+        },
+        {
+          "name": "embed",
+          "milliseconds": 0.00784
+        },
+        {
+          "name": "attention_merge",
+          "milliseconds": 0.14768
+        },
+        {
+          "name": "matmul_row_k4_1col",
+          "milliseconds": 0.1776
+        },
+        {
+          "name": "matmul_row_k5_1col",
+          "milliseconds": 0.3504
+        },
+        {
+          "name": "kv_write_kv16",
+          "milliseconds": 0.0584
+        },
+        {
+          "name": "matmul_row_q8w",
+          "milliseconds": 0.1768
+        },
+        {
+          "name": "sigmoid_mul",
+          "milliseconds": 0.05184
+        },
+        {
+          "name": "gated_rms_norm",
+          "milliseconds": 0.168
+        },
+        {
+          "name": "causal_conv_silu",
+          "milliseconds": 0.16896
+        },
+        {
+          "name": "attention_vec_d256_kv16_g4",
+          "milliseconds": 0.97616
+        },
+        {
+          "name": "matmul_row_nvfp4_1col",
+          "milliseconds": 6.79104
+        },
+        {
+          "name": "delta_rule_short",
+          "milliseconds": 0.38
+        },
+        {
+          "name": "matmul_row_wbf16_1col",
+          "milliseconds": 0.12672
+        },
+        {
+          "name": "matmul_row_q8w head",
+          "milliseconds": 0.80736
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Only the observed Radeon profile is dynamically witnessed.",
+    "Kernel names and the source map establish dispatch classes, not independent numerical correctness.",
+    "No default-depth logits were compared and no precision limit changed.",
+    "MI50 and CPU policies are source-derived proposals pending their own execution evidence."
+  ]
+}

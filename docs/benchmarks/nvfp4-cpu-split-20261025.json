@@ -1,0 +1,196 @@
+{
+  "passed": true,
+  "seconds": 48.59357190132141,
+  "captures": 12,
+  "hf_full_vocabulary_cases": 120,
+  "hf_nll_checks": 24,
+  "max_hf_logit_error": 4.664063453674316e-06,
+  "max_hf_nll_error": 3.8066884222587305e-07,
+  "bounds": {
+    "logit": 2e-05,
+    "nll": 1e-05
+  },
+  "dtype": {
+    "requested": "auto",
+    "resolved": "f16",
+    "actual_all_phases_all_devices": [
+      "f32"
+    ],
+    "bf16_not_run": true
+  },
+  "widths": [
+    2,
+    4
+  ],
+  "variants": [
+    "dense-untied",
+    "dense-tied",
+    "moe"
+  ],
+  "encodings": [
+    "ordinary",
+    "scaled"
+  ],
+  "device_reference_pair_checks": 12,
+  "max_pair_logit_gap": 4.112720489501953e-06,
+  "equivalent_encoding_identity": [
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-untied",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "dense-tied",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 2,
+      "phase": "greedy",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "batched",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "decode",
+      "byte_equal": true
+    },
+    {
+      "fixture": "moe",
+      "width": 4,
+      "phase": "greedy",
+      "byte_equal": true
+    }
+  ],
+  "scope": "CPU NVFP4 split-compatible tiny fixtures, widths2/4, ordinary/equivalent-scaled, tied/untied/MoE. Existing unmodified helper auto request resolves f16 with actual F32 required everywhere; strict frozen F32 HF bounds. No single-device repetitions, new references, calibration, runtime API changes or GPU execution.",
+  "helper_sha256": "494e86ed760efac3eb416b000b5ac76c0eac70b8ef2956de253e9c94f7c9fc18",
+  "source_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+  "guard_files": {
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx-model-logits.exe": "494e86ed760efac3eb416b000b5ac76c0eac70b8ef2956de253e9c94f7c9fc18",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx.exe": "4c316b802b49b66a2b34ecc07aec528f70239359c1d8cdcfac7756a374394282",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx-vulkan.lib": "369e499f8582e1cfdc24a07f7a17a277b1ce1dd3d77da299e98ae2dfa3ce6d0f",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\generated\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\data\\baseline_nvfp4_split.json": "012eb2ad7f5fb2fc528f152229bfef0d3eeb857d2fad869948c49e754e1fbd2c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\data\\dtype_budget.json": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\nvfp4.py": "0bf570465aeedda56de5236cbd93b2851031018dbde0cff511fe0f342a4bb1e1",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\check_device.py": "31a9bca32aae1f0b7fb712fcaa6d935ef890d09afe363c4e0ce4b428bdd6be20",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\model_logits.cpp": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c"
+  },
+  "configuration": {
+    "threads_per_model": 6,
+    "ubatch": 3,
+    "cache": "f32"
+  },
+  "receipt_sha256": {
+    "build-nvfp4-cpu-tp-reference/completion.json": "752eceed83766df051f7e12ac4ee0d7d5a639760f16b938caf36d520f112ef12",
+    "build-nvfp4-cpu-tp-reference/execution.json": "76b65bfefc18cb676747fdfa3e0292b8af91201971705560d16bd33a93d8f21f",
+    "build-nvfp4-cpu-tp-reference/run.py": "0c2266c25bc129d3cde095a3ebfd80daf5a1dde986408931f4bd21a393b3e16a"
+  },
+  "artifact_verification": "Root independently verified 71 artifacts and 13 source, binary and reference guards; the verification receipt is recorded below.",
+  "limitations": [
+    "CPU only. Auto resolves F16, but every actual phase/device matrix path is F32 and uses strict 2e-5/1e-5 bounds.",
+    "No BF16 or GPU split claim.",
+    "18 equivalent-encoding phase byte identities include greedy encoding parity, not an independent 64-token HF pass.",
+    "Runtime dbfef2d36 unchanged; five remaining qualification groups stay open with CPU split subtask complete."
+  ],
+  "root_verification": {
+    "passed": true,
+    "completion_sha256": "752eceed83766df051f7e12ac4ee0d7d5a639760f16b938caf36d520f112ef12",
+    "execution_sha256": "76b65bfefc18cb676747fdfa3e0292b8af91201971705560d16bd33a93d8f21f",
+    "artifacts_verified": 71,
+    "guard_files_verified": 13,
+    "captures": 12,
+    "hf_logit_cases": 120,
+    "hf_nll_cases": 24,
+    "max_logit_error": 4.664063453674316e-06,
+    "max_nll_error": 3.8066884222587305e-07,
+    "equivalent_encoding_byte_pairs": 18,
+    "scope": "CPU split F32 execution only. No BF16 or GPU split qualification."
+  },
+  "root_verification_sha256": "a242ff7958e647ad648b6ac50c52e84212773639ad8bcfbd5fe67bbf04863844"
+}

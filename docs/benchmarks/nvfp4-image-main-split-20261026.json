@@ -1,0 +1,430 @@
+{
+  "candidate": {
+    "binary_bytes": 13156128,
+    "binary_sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+    "build_collection_receipt_sha256": "15f37beae9566c15fc5ac6f02cec4acabea46c25227624e1de15c6b4949df746",
+    "build_launch_receipt_sha256": "9eda8bf867e2c44256726f0dabd2c5b944f03e098a2c7678517ec6ff4188af60",
+    "build_receipt_sha256": "1d6246a2feada990b116a0f12a3ff1b6349dbecf9f869f0f473a45c134bd1d95",
+    "revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+    "source_file_count": 3070,
+    "source_manifest_sha256": "d548ca7a4a69af6fae8918577af3dd1ab80dffa29fbd3f1e9b9b6e7ff4ee1431",
+    "version": "llmx 0.1.0+unknown numerics a3570786a0d68218"
+  },
+  "cells": [
+    {
+      "calls_jsonl_sha256": "b6f69b382ecd346529be9d4a72df6ff7873bdac5241a2fbe6ee5c2e0b9e8add3",
+      "cell": "tp2-auto",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        2e-05,
+        0.005869746208190918
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"f16\"],[\"f16\"]],\"dtype\":\"f16\"}": 16,
+        "{\"devices\":[[\"f32\",\"f16\"],[\"f32\",\"f16\"]],\"dtype\":\"f16\"}": 224,
+        "{\"devices\":[[\"f32\"],[\"f32\"]],\"dtype\":\"f16\"}": 326
+      },
+      "max_logit_error": 0.0022914580917359206,
+      "max_nll_error": 0.00012095675086865043,
+      "minimum_logit_headroom": 1.5949607849099474e-05,
+      "minimum_nll_headroom": 9.728356605999125e-06,
+      "nll_bound_range": [
+        1e-05,
+        0.0006043278951057829
+      ],
+      "requested_dtype": "auto",
+      "result_sha256": "12e1c0358be9212fddd9791369b43a375f9db1e02d9ef7b9069114cc8644be4d",
+      "topology": "tensor-parallel-2"
+    },
+    {
+      "calls_jsonl_sha256": "c4429c64cb582106b71f1bff268d57a53ce5bfdfab55e1c900878aed2818f419",
+      "cell": "tp2-f32",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        2e-05,
+        2e-05
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"f32\"],[\"f32\"]],\"dtype\":\"f32\"}": 566
+      },
+      "max_logit_error": 8.296798706064479e-06,
+      "max_nll_error": 2.9910727405990656e-07,
+      "minimum_logit_headroom": 1.1703201293935523e-05,
+      "minimum_nll_headroom": 9.700892725940094e-06,
+      "nll_bound_range": [
+        1e-05,
+        1e-05
+      ],
+      "requested_dtype": "f32",
+      "result_sha256": "984014ba62c3005f7937d48cf262d6293e75232d219b5032a37431b17c1388f7",
+      "topology": "tensor-parallel-2"
+    },
+    {
+      "calls_jsonl_sha256": "125ed0b8aef6e7d2e209b6c876d6251cbf795c3caf697db4ebee2b8f575254d4",
+      "cell": "tp2-bf16",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        0.0439532995223999,
+        0.0439532995223999
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"bf16\"],[\"bf16\"]],\"dtype\":\"bf16\"}": 378,
+        "{\"devices\":[[\"f32\",\"bf16\"],[\"f32\",\"bf16\"]],\"dtype\":\"bf16\"}": 188
+      },
+      "max_logit_error": 0.024347194892883284,
+      "max_nll_error": 0.0012484564003472087,
+      "minimum_logit_headroom": 0.01960610462951662,
+      "minimum_nll_headroom": 0.003368348801176424,
+      "nll_bound_range": [
+        0.004616805201523633,
+        0.004616805201523633
+      ],
+      "requested_dtype": "bf16",
+      "result_sha256": "16a6fcc39b8ab34f0dfd7b32a6c9d8fe7e878c05cec86cebfb60e99b4ff49304",
+      "topology": "tensor-parallel-2"
+    },
+    {
+      "calls_jsonl_sha256": "4e598406b5d12ec8c9d016146ee2a2a1e58db147a16cd40ce6cf11b79b6ff6fc",
+      "cell": "layer2-auto",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        2e-05,
+        0.005869746208190918
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"f16\"],[\"f16\"]],\"dtype\":\"f16\"}": 16,
+        "{\"devices\":[[\"f16\"],[\"f32\",\"f16\"]],\"dtype\":\"f16\"}": 144,
+        "{\"devices\":[[\"f32\",\"f16\"],[\"f32\",\"f16\"]],\"dtype\":\"f16\"}": 80,
+        "{\"devices\":[[\"f32\"],[\"f32\"]],\"dtype\":\"f16\"}": 326
+      },
+      "max_logit_error": 0.001042341819763204,
+      "max_nll_error": 2.2427829590832005e-05,
+      "minimum_logit_headroom": 1.8625247955352792e-05,
+      "minimum_nll_headroom": 9.853075530964475e-06,
+      "nll_bound_range": [
+        1e-05,
+        0.0006043278951057829
+      ],
+      "requested_dtype": "auto",
+      "result_sha256": "502d124f2e65a91ff34b87cb5678b6c518e8e543846f2b9e7901847b94758ed7",
+      "topology": "layer-split-1-1"
+    },
+    {
+      "calls_jsonl_sha256": "2cc3d82ae0d8a4b2a7bfb044b118343bd5e21efbe7bec56ee8dafa123fb2dbf1",
+      "cell": "layer2-f32",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        2e-05,
+        2e-05
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"f32\"],[\"f32\"]],\"dtype\":\"f32\"}": 566
+      },
+      "max_logit_error": 2.0008964538575924e-06,
+      "max_nll_error": 1.4692446903552536e-07,
+      "minimum_logit_headroom": 1.799910354614241e-05,
+      "minimum_nll_headroom": 9.853075530964475e-06,
+      "nll_bound_range": [
+        1e-05,
+        1e-05
+      ],
+      "requested_dtype": "f32",
+      "result_sha256": "cd158adb76bcdc4aa5c3cd1923f60110eee91faaa5bc6462b7e130516a1611d8",
+      "topology": "layer-split-1-1"
+    },
+    {
+      "calls_jsonl_sha256": "60decb961c0e7ea6c0abd56b6b44a56aa90a58b3ecf518ab1fbd6587f74bf7a0",
+      "cell": "layer2-bf16",
+      "commands": {
+        "device_probes": 2,
+        "full_logit_checks": 516,
+        "nll_checks": 48,
+        "total_cli_calls": 566
+      },
+      "logit_bound_range": [
+        0.0439532995223999,
+        0.0439532995223999
+      ],
+      "matrix_path_call_counts_including_probes": {
+        "{\"devices\":[[\"bf16\"],[\"bf16\"]],\"dtype\":\"bf16\"}": 378,
+        "{\"devices\":[[\"f32\",\"bf16\"],[\"f32\",\"bf16\"]],\"dtype\":\"bf16\"}": 188
+      },
+      "max_logit_error": 0.017741214206695555,
+      "max_nll_error": 0.0006767752344387645,
+      "minimum_logit_headroom": 0.026212085315704348,
+      "minimum_nll_headroom": 0.003940029967084868,
+      "nll_bound_range": [
+        0.004616805201523633,
+        0.004616805201523633
+      ],
+      "requested_dtype": "bf16",
+      "result_sha256": "2cb10118a130c7796a8fec5c85768c94611f80ba5d89de94df32239d4f8b6ba8",
+      "topology": "layer-split-1-1"
+    }
+  ],
+  "cells_matrix": {
+    "layer_split": "--device vulkan:0,vulkan:1 --layer-shares 1,1",
+    "note": "The explicit shares are part of this run configuration; this receipt does not compare automatic fitting against explicit shares.",
+    "tensor_parallel": "--device vulkan:0,vulkan:1 --tensor-width 2 --layer-shares 1"
+  },
+  "environment": {
+    "cache_type": "f32",
+    "container_cpu_set": "8,9",
+    "device": "two MI50 Vulkan devices physical 8/9, renderD130/renderD131, PCI 0000:c9:00.0/0000:cc:00.0",
+    "device_uuids": [
+      "00000000-c900-0000-0000-000000000000",
+      "00000000-cc00-0000-0000-000000000000"
+    ],
+    "fixture_encoding": [
+      "ordinary",
+      "equivalent-scaled"
+    ],
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "requested_dtype_cases": [
+      "auto",
+      "f32",
+      "bf16"
+    ],
+    "tensor_parallel_width": 2
+  },
+  "fixtures_and_limits": {
+    "bounds_owner": "Unchanged tests.common.hf_bounds, selected for each call from its captured MatrixPaths witness.",
+    "fixture_count": 24,
+    "fixture_manifest_sha256": "91597dee7e28279136637e4b4e897f74bd8b4d420a69d5dd6641f850b18e464d",
+    "frozen_dtype_budget": {
+      "path": "tests/data/dtype_budget.json",
+      "sha256_git_archive": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+      "sha256_worktree": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c"
+    },
+    "references": {
+      "layer_split_prompt": {
+        "path": "tests/data/baseline_nvfp4_prompt.json",
+        "sha256_git_archive": "5fb70cea1534e187c40b3efe94f48bc7a716c1b2f4ae8259121ca7ce92592c2e",
+        "sha256_worktree": "f54bee49c8ffc71b28fe0c658c71297f2deaacdcff12bc7185043fef2f660f71"
+      },
+      "layer_split_short": {
+        "path": "tests/data/baseline_nvfp4.json",
+        "sha256_git_archive": "6a8a5aec90366901b51ed04be2405411b93bf9893b0e15f3a2cc07e13741f3bc",
+        "sha256_worktree": "4e01597c81228f8fb2f2265d6e053255d86062d387411ca9db4af06c318f7f0a"
+      },
+      "tensor_split_prompt": {
+        "path": "tests/data/baseline_nvfp4_prompt_split.json",
+        "sha256_git_archive": "d326b676feedbbe464220ba6e0c03197362d782f6fc1050bc63b1d1d43cf662f",
+        "sha256_worktree": "ee718c2282b7e3e12477d783cd17ac17e583f802c95fc5ffbae64afd985ceb3a"
+      },
+      "tensor_split_short": {
+        "path": "tests/data/baseline_nvfp4_split.json",
+        "sha256_git_archive": "012eb2ad7f5fb2fc528f152229bfef0d3eeb857d2fad869948c49e754e1fbd2c",
+        "sha256_worktree": "602374044bda1e850877af122496d7e591d1b22c5dca33b6161aa26c434f9d9b"
+      }
+    }
+  },
+  "independent_audit": {
+    "all_captured_errors_finite_and_strictly_below_witnessed_bound": true,
+    "limitations": "The GGUF fixture payloads were not recopied into the local collection. Their immutable 24-file manifest and source/reference hashes are pinned by the plan and successful execution receipts. This audit did not rerun inference.",
+    "logit_and_nll_comparisons_recomputed": 3384,
+    "method": "Rehashed all 6,819 artifacts in launch-result.json. For every cell, rehashed result.json, calls.jsonl, and each call stdout/stderr. Recomputed all full-vocabulary logit max errors from captured stdout mapped by token ID to the frozen reference arrays; recomputed every mean-NLL error from captured stdout and the frozen reference. Recalculated bounds with current tests.common.hf_bounds using the stderr MatrixPaths witness and nvfp4 frozen budget.",
+    "per_cell_comparison_counts": "516 logits + 48 NLL + 2 probes; prompt and short ordinary/scaled phases matched expected counts.",
+    "stderr_matrix_paths_matched_call_records": true,
+    "topology_dtype_cache_flags_and_counts_checked": true,
+    "root_recomputation": {
+      "script": "build-integration/audit-split-output.py",
+      "script_sha256": "cbb15fa48a65e7b3101948f58f3ab6ec66768f53e604ced05cf85cff181328a2",
+      "output": "build-integration/audit-split-output.json",
+      "output_sha256": "d03fe3fef3c972c4b4609ed2eb11852303c49db14aa309182e297e9a997b7eb9",
+      "result": {
+        "passed": true,
+        "cells": [
+          {
+            "cell": "layer2-auto",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 0.001042341819763204,
+              "perplexity": 2.2427829590832005e-05
+            }
+          },
+          {
+            "cell": "layer2-bf16",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 0.017741214206695555,
+              "perplexity": 0.0006767752344387645
+            }
+          },
+          {
+            "cell": "layer2-f32",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 2.0008964538575924e-06,
+              "perplexity": 1.4692446903552536e-07
+            }
+          },
+          {
+            "cell": "tp2-auto",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 0.0022914580917359206,
+              "perplexity": 0.00012095675086865043
+            }
+          },
+          {
+            "cell": "tp2-bf16",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 0.024347194892883284,
+              "perplexity": 0.0012484564003472087
+            }
+          },
+          {
+            "cell": "tp2-f32",
+            "counts": {
+              "logits": 516,
+              "perplexity": 48,
+              "probes": 2
+            },
+            "worst": {
+              "logits": 8.296798706064479e-06,
+              "perplexity": 2.9910727405990656e-07
+            }
+          }
+        ]
+      }
+    }
+  },
+  "not_established": [
+    "matched performance or a speed gate",
+    "final CI/landing qualification",
+    "results for other devices, images, source revisions, models, or placements"
+  ],
+  "placement_startup_control": {
+    "evidence_path": "build-integration/split-delay-finding-tui.md",
+    "evidence_sha256": "a3557cfd2742062fa8f9afe39747ed8ffa6255fd94a51297836f31b4b841df76",
+    "finding": "A separate same-device TP2 control recorded 5.126 s with automatic placement and 0.193 s with --layer-shares 1, with byte-identical full-vocabulary logits. This diagnoses placement startup delay, not throughput. The six qualification cells use explicit shares; no automatic-versus-explicit timing conclusion is drawn from them."
+  },
+  "retained_earlier_attempts": {
+    "attempts": [
+      {
+        "attempt": "launch-attempt-01",
+        "container_absent_verified": true,
+        "container_removed": true,
+        "interpretation": "Retained incomplete setup/partial attempts; these records do not establish a completed numeric-cell failure.",
+        "launch_receipt_sha256": "748a4807313e5bb101712613d076835d6335aa377b94b18b2a004e16b6694b2d",
+        "remote_cells": [],
+        "scp_exit": 0,
+        "ssh_exit": 1
+      },
+      {
+        "attempt": "launch-attempt-03",
+        "container_absent_verified": true,
+        "container_removed": true,
+        "interpretation": "Retained incomplete setup/partial attempts; these records do not establish a completed numeric-cell failure.",
+        "launch_receipt_sha256": "baaa820c03a64187ddf46eb884f3f445857ee7ab2a14cb1ea2dda2882e590398",
+        "remote_cells": [
+          {
+            "exit_code": 1,
+            "name": "tp2-auto",
+            "timed_out": false
+          }
+        ],
+        "scp_exit": 0,
+        "ssh_exit": 1
+      },
+      {
+        "attempt": "launch-attempt-04",
+        "container_absent_verified": true,
+        "container_removed": true,
+        "interpretation": "Retained incomplete setup/partial attempts; these records do not establish a completed numeric-cell failure.",
+        "launch_receipt_sha256": "8d4794afd151e6c6de6a6b76c8f6da193ef2b05969d46613f3a40e470ee936e9",
+        "remote_cells": [
+          {
+            "exit_code": 137,
+            "name": "tp2-auto",
+            "timed_out": false
+          }
+        ],
+        "scp_exit": 0,
+        "ssh_exit": 1
+      },
+      {
+        "attempt": "launch-attempt-05",
+        "container_absent_verified": true,
+        "container_removed": true,
+        "interpretation": "Retained incomplete setup/partial attempts; these records do not establish a completed numeric-cell failure.",
+        "launch_receipt_sha256": "b2dcd84d6ceed7e98e8f8024451abc5e20c304b269844b643edc213c3e9bac15",
+        "remote_cells": [
+          {
+            "exit_code": 137,
+            "name": "tp2-auto",
+            "timed_out": false
+          }
+        ],
+        "scp_exit": 0,
+        "ssh_exit": 1
+      }
+    ],
+    "note": "Earlier attempts are preserved in build-integration/nvfp4-split-runner-v1/launch-attempt-*/. They are incomplete setup/partial attempts and are not counted as numerical failures or passes. The successful v5 attempt is the only complete six-cell result here."
+  },
+  "run": {
+    "absolute_cleanup_verified": true,
+    "call_output_artifacts_collected": true,
+    "container_id": "b55c04b56ef53ff903ee41122fbc84c976f7717f94fa41ce3f91fd5f501cc089",
+    "container_name": "llmx-xdev-image-main-split-v5",
+    "ended_epoch": 1793050342.2210135,
+    "execution_result": "All six cells returned exit 0. Each ran 516 logit comparisons, 48 NLL comparisons, and 2 device probes, totaling 566 CLI calls.",
+    "local_collection_summary_sha256": "34b45caffbc4aeafe81971de608c616dad133e87cafbed59beb0aa35ee40311e",
+    "local_collector_sha256": "5074fa022e9e6a7a714a28b3596477f406e67b941a1ff5af28d71c9369ffcad2",
+    "outer_artifacts_hash_verified": 6819,
+    "plan_sha256": "f60485fe8978b1e7e9bed08860c9e030cf525cce767b7389f4d614e69cf978b2",
+    "raw_attempt": "build-integration/image-main-split-v5-collection-01/raw/attempt-01",
+    "raw_launch_receipt_sha256": "747b96b8e479a9cecacb356a03f9fbf24cad2de71ebd804549eed2db9866756b",
+    "runner_sha256": "93cd401eb0aaf68389dc730b5f9bc76cc7b93f7bb000d28210345fe15b9cbad5",
+    "started_epoch": 1793049789.5889792
+  },
+  "schema": "nvfp4-image-main-split-evidence-v1",
+  "scope": "Six completed split/dtype cells for the pinned image-main candidate. This is correctness evidence only, not performance or final landing qualification."
+}

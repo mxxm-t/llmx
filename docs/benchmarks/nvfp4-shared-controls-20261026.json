@@ -1,0 +1,335 @@
+{
+  "scope": "Private NVFP4 shared float-control integration, focused CPU and module checks only",
+  "parents": [
+    "79e9d5928fc91e17f2a512e28c3f3eefb8793921",
+    "e44e59efeaa8d4aef1cdc3cbe4b016f4606b9954"
+  ],
+  "sources": {
+    "src/backends/vulkan/vulkan_device.hpp": "b9e3d1896c29092956e20f780dc9347992f2005d4537afcec04b0eb3148739c3",
+    "src/backends/vulkan/vulkan_backend.cpp": "e75979a3ccb13f84531429015e1e11372203314c9e164060824ea97eed5fea75",
+    "src/backends/vulkan/vulkan_dispatch.hpp": "48632c8669587c1f3813d42bba8a3ec4200bc10f3d598ad106a6c3ace1a34e9b",
+    "src/backends/vulkan/vulkan_kernels.hpp": "561d362a28e43beb6462130eb9150da8955d56371eb0be3c00541230df4bfd6e",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "8cc8d27ffcb551349b124dd9bd3009395fa8ef81e5df96db2dedc79e51486228",
+    "tests/vulkan_buffer.cpp": "1fb1438121baa1da9ce3545db0b6e77d51a0055f7f2b4bb05c5b7163611396a0",
+    "tests/nvfp4.cpp": "20133e16535df5f72425557a4f9aa5df7c2b51a7fc72f3ca4d313a1eb295096c"
+  },
+  "binaries": {
+    "llmx-nvfp4-test.exe": "d7b42a903f3e53af774f109b835dd5c2f359d92a842cd69f85197ede1d978119",
+    "llmx-vulkan-lifetime-test.exe": "2afddcc7b4764a3869c6f29bb185df870078a57bc17a13c1d5fb1cd17ab99908",
+    "llmx.exe": "a09661c4f22bd691448b699f4b0e3367f822f715e3273087904378fb44bb54d8"
+  },
+  "version": "llmx 0.1.0+g79e9d5928fc9.dirty numerics 5ee1d1483c3656a8",
+  "build_log_sha256": "de4b073da18dc2b81fb51481d9750e7a1b718d421d5493c645e0f08014c42ab7",
+  "prepared_module_selections": 502,
+  "missing_property_refusals": 426,
+  "property_masks": 128,
+  "module_log": "float controls: 502 prepared modules, 426 missing-property refusals, 0 failures\n",
+  "cpu_log": "Test project C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-float-controls-20261026/build-integration/cmake\n    Start 93: nvfp4\n1/1 Test #93: nvfp4 ............................   Passed    0.08 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =   0.09 sec\n",
+  "focused": {
+    "started": 1792977180.5132947,
+    "passed": true,
+    "steps": [
+      {
+        "argv": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\cmake",
+          "-C",
+          "Release",
+          "-R",
+          "^nvfp4$",
+          "--output-on-failure"
+        ],
+        "log": "cpu.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\cmake\\Release\\llmx-vulkan-lifetime-test.exe",
+          "--float-controls",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules"
+        ],
+        "log": "modules.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_reduce_mxfp4-preserved.spv"
+        ],
+        "log": "validate-matmul_reduce_mxfp4-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_reduce_mxfp4.spv"
+        ],
+        "log": "validate-matmul_reduce_mxfp4.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4-preserved.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4_dot-preserved.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4_dot-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4_dot.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4_dot.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4_float_x-preserved.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4_float_x-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_row_mxfp4_float_x.spv"
+        ],
+        "log": "validate-matmul_row_mxfp4_float_x.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_bf16-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_bf16-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_bf16.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_bf16.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_bf16_tall-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_bf16_tall-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_bf16_tall.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_bf16_tall.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_tall-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_tall-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_mxfp4_tall.spv"
+        ],
+        "log": "validate-matmul_tile_mxfp4_tall.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_nvfp4_f16-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_nvfp4_f16-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_nvfp4_f16.spv"
+        ],
+        "log": "validate-matmul_tile_nvfp4_f16.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_nvfp4_f16_tall-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_nvfp4_f16_tall-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_nvfp4_f16_tall.spv"
+        ],
+        "log": "validate-matmul_tile_nvfp4_f16_tall.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_q8mx-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_q8mx-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_q8mx.spv"
+        ],
+        "log": "validate-matmul_tile_q8mx.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_q8mx_tall-preserved.spv"
+        ],
+        "log": "validate-matmul_tile_q8mx_tall-preserved.log",
+        "exit_code": 0
+      },
+      {
+        "argv": [
+          "C:\\VulkanSDK\\1.4.357.0\\Bin\\spirv-val.exe",
+          "--target-env",
+          "vulkan1.2",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-float-controls-20261026\\build-integration\\modules\\matmul_tile_q8mx_tall.spv"
+        ],
+        "log": "validate-matmul_tile_q8mx_tall.log",
+        "exit_code": 0
+      }
+    ],
+    "binaries": {
+      "llmx-nvfp4-test.exe": "d7b42a903f3e53af774f109b835dd5c2f359d92a842cd69f85197ede1d978119",
+      "llmx-vulkan-lifetime-test.exe": "2afddcc7b4764a3869c6f29bb185df870078a57bc17a13c1d5fb1cd17ab99908",
+      "llmx.exe": "a09661c4f22bd691448b699f4b0e3367f822f715e3273087904378fb44bb54d8"
+    },
+    "validator_sha256": "55b0bde93c20d427a95d6deb95181ab6621d9bb18e6f1519d30ceba8d3f1de17",
+    "modules": {
+      "matmul_reduce_mxfp4-preserved.spv": "383b6616b1211b02fcdd107ee4e46efbfc5d32177e5d90b763fca4684ed41b12",
+      "matmul_reduce_mxfp4.spv": "383b6616b1211b02fcdd107ee4e46efbfc5d32177e5d90b763fca4684ed41b12",
+      "matmul_row_mxfp4-preserved.spv": "898641561c0519685369d5537400d113ddfdb2ec72be59ca7bcb8fe09ae3d332",
+      "matmul_row_mxfp4.spv": "898641561c0519685369d5537400d113ddfdb2ec72be59ca7bcb8fe09ae3d332",
+      "matmul_row_mxfp4_dot-preserved.spv": "57e143b8727f811913a99adf50412627175415cfa0815c71cd85935c61c4f085",
+      "matmul_row_mxfp4_dot.spv": "57e143b8727f811913a99adf50412627175415cfa0815c71cd85935c61c4f085",
+      "matmul_row_mxfp4_float_x-preserved.spv": "aab174556847fbd948d866238b14dd14b3a1aca730fdfb157f2dfbbf682171e2",
+      "matmul_row_mxfp4_float_x.spv": "aab174556847fbd948d866238b14dd14b3a1aca730fdfb157f2dfbbf682171e2",
+      "matmul_tile_mxfp4-preserved.spv": "35dcbbccdab7f47e3f5032ce8ff2febba6b2423ccd1789c91702349fa20edf44",
+      "matmul_tile_mxfp4.spv": "35dcbbccdab7f47e3f5032ce8ff2febba6b2423ccd1789c91702349fa20edf44",
+      "matmul_tile_mxfp4_bf16-preserved.spv": "e02735a9c0e3fd0e5d4379c50c47a01a87d781fe1fca0f987b2ba671c1bcd6e7",
+      "matmul_tile_mxfp4_bf16.spv": "e02735a9c0e3fd0e5d4379c50c47a01a87d781fe1fca0f987b2ba671c1bcd6e7",
+      "matmul_tile_mxfp4_bf16_tall-preserved.spv": "e02735a9c0e3fd0e5d4379c50c47a01a87d781fe1fca0f987b2ba671c1bcd6e7",
+      "matmul_tile_mxfp4_bf16_tall.spv": "e02735a9c0e3fd0e5d4379c50c47a01a87d781fe1fca0f987b2ba671c1bcd6e7",
+      "matmul_tile_mxfp4_tall-preserved.spv": "35dcbbccdab7f47e3f5032ce8ff2febba6b2423ccd1789c91702349fa20edf44",
+      "matmul_tile_mxfp4_tall.spv": "35dcbbccdab7f47e3f5032ce8ff2febba6b2423ccd1789c91702349fa20edf44",
+      "matmul_tile_nvfp4_f16-preserved.spv": "a1542808581ab9e16bd59cb1c9561a7f7def23b7fc2bb9f3306536cd035b43c7",
+      "matmul_tile_nvfp4_f16.spv": "a1542808581ab9e16bd59cb1c9561a7f7def23b7fc2bb9f3306536cd035b43c7",
+      "matmul_tile_nvfp4_f16_tall-preserved.spv": "a1542808581ab9e16bd59cb1c9561a7f7def23b7fc2bb9f3306536cd035b43c7",
+      "matmul_tile_nvfp4_f16_tall.spv": "a1542808581ab9e16bd59cb1c9561a7f7def23b7fc2bb9f3306536cd035b43c7",
+      "matmul_tile_q8mx-preserved.spv": "a3ef35930addb28cdba5af497d176012157b693d8a7ccb848bfea07474f3f1d5",
+      "matmul_tile_q8mx.spv": "a3ef35930addb28cdba5af497d176012157b693d8a7ccb848bfea07474f3f1d5",
+      "matmul_tile_q8mx_tall-preserved.spv": "a3ef35930addb28cdba5af497d176012157b693d8a7ccb848bfea07474f3f1d5",
+      "matmul_tile_q8mx_tall.spv": "a3ef35930addb28cdba5af497d176012157b693d8a7ccb848bfea07474f3f1d5"
+    },
+    "ended": 1792977181.5405126
+  },
+  "limitations": [
+    "No GPU execution is claimed for this integration yet.",
+    "No model, HF, depth, split or performance qualification is claimed.",
+    "Main has since advanced to 0dee47685; integration of that delta is pending."
+  ]
+}

@@ -1,0 +1,756 @@
+{
+  "scope": "NVFP4 development reference and strict-F32 depth capture checkpoint. No runtime edit or merge gate claim.",
+  "runtime_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "performance": {
+    "passed": true,
+    "scope": [
+      "Development reference on one Windows Radeon VII/driver only, not a final correctness, MI50 or adoption gate.",
+      "Both are archive builds under identical compiler/linker/SDK and MSVC Release setup with external exact source pins; embedded Git identities are unknown.",
+      "Different generated benchmark IDs: llmx uses fixed LCG sequences below min(1000,vocab), mx uses std::rand modulo full vocabulary; no generation quality comparison is possible.",
+      "Source confirms independent cleared TG state and exactly 128 one-token forwards in both arms; no 512-token history is carried into the measured TG test. Context allocations can differ (mx rounds its 128 request to 256); this is not a claim of identical storage geometry.",
+      "NV arithmetic differs: llmx F32 staging and precise global scale before product; prior same-source mx dispatch/source witness uses FP16 operands/shared staging, F32 accumulation and global scale after dot. Current non-debug timing did not capture per-kernel selection.",
+      "Each benchmark retains its own internal warmup policy in addition to the two explicit whole-call warmups. Timing instrumentation is native to each program.",
+      "All planned samples are retained. Every measured call crosses predeclared unrelated CPU and GPU activity flags; disk flags include model loading, and inaccessible/new process deltas remain unknown.",
+      "Monitor intervals overlap full calls including model loading and internal warmups; exact PP/TG phase activity attribution is unavailable. Samples can miss short-lived processes and GPU engine values are not additive."
+    ],
+    "elapsed_seconds": 73.61223721504211,
+    "measured_matrix": [
+      {
+        "index": 2,
+        "arm": "llmx",
+        "pp512": 3001.56,
+        "tg128": 100.06
+      },
+      {
+        "index": 3,
+        "arm": "mx",
+        "pp512": 2640.831903,
+        "tg128": 42.745338
+      },
+      {
+        "index": 4,
+        "arm": "mx",
+        "pp512": 2623.659154,
+        "tg128": 42.714758
+      },
+      {
+        "index": 5,
+        "arm": "llmx",
+        "pp512": 2999.3,
+        "tg128": 105.49
+      },
+      {
+        "index": 6,
+        "arm": "llmx",
+        "pp512": 3010.45,
+        "tg128": 105.39
+      },
+      {
+        "index": 7,
+        "arm": "mx",
+        "pp512": 2622.617618,
+        "tg128": 42.50036
+      },
+      {
+        "index": 8,
+        "arm": "mx",
+        "pp512": 2642.797525,
+        "tg128": 42.530803
+      },
+      {
+        "index": 9,
+        "arm": "llmx",
+        "pp512": 3016.13,
+        "tg128": 106.17
+      }
+    ],
+    "warmups": [
+      {
+        "arm": "llmx",
+        "pp512": 3008.13,
+        "tg128": 104.81
+      },
+      {
+        "arm": "mx",
+        "pp512": 2641.718933,
+        "tg128": 42.657856
+      }
+    ],
+    "means": {
+      "llmx": {
+        "pp512": 3006.86,
+        "tg128": 104.2775
+      },
+      "mx": {
+        "pp512": 2632.47655,
+        "tg128": 42.62281475
+      }
+    },
+    "relative_mean_llmx_to_mx_percent": {
+      "pp512": 14.221720227669277,
+      "tg128": 144.65183871977857
+    },
+    "standard_deviation": {
+      "llmx": {
+        "pp512": 7.832934741632039,
+        "tg128": 2.832941639591844
+      },
+      "mx": {
+        "pp512": 10.820959001041544,
+        "tg128": 0.12506909549891462
+      }
+    },
+    "placement": {
+      "passed": true,
+      "seconds": 3.383793830871582,
+      "actual_witness_lines": [
+        "llama_model_loader: - type nvfp4:  108 tensors",
+        "llama_prepare_model_devices: using device Vulkan0 (AMD Radeon VII) (unknown id) - 15543 MiB free",
+        "load_tensors: offloading output layer to GPU",
+        "load_tensors: offloading 23 repeating layers to GPU",
+        "load_tensors: offloaded 25/25 layers to GPU",
+        "load_tensors:      Vulkan0 model buffer size =   540.80 MiB",
+        "load_tensors:  Vulkan_Host model buffer size =   257.66 MiB",
+        "llama_context: n_ctx                 = 256",
+        "llama_context: flash_attn            = enabled",
+        "llama_context: n_ctx                 = 256",
+        "llama_context: flash_attn            = enabled"
+      ],
+      "scale_companion_load_lines": 186,
+      "limits": "All-layer offload and FA are actual one-token verbose diagnostic witnesses, separate from timing. Normal timed logs suppress offload details. Input embedding is intentionally CPU-owned in the pinned model loader (src/llama-model.cpp:2118); Vulkan_Host model storage is retained, so this does not claim every graph node executes on GPU. No hidden trunk-layer CPU fallback is indicated by the offload witness. No per-kernel profiling was run."
+    },
+    "activity_matrix": [
+      {
+        "index": 0,
+        "arm": "llmx",
+        "warmup": true,
+        "rates": {
+          "pp512": 3008.13,
+          "tg128": 104.81
+        },
+        "overlapping_monitor_samples": 7,
+        "flagged_samples": {
+          "unrelated_cpu": 7,
+          "system_cpu": 0,
+          "disk": 1,
+          "gpu": 1
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 7,
+        "unknown_process_delta_count_max": 264,
+        "maxima": {
+          "known_unrelated_cpu_percent": 438.2954956407635,
+          "system_cpu_percent": 54.526699687607085,
+          "physical_total_bytes_per_second": 588133754.7709208,
+          "unrelated_gpu_engine_max_percent": 12.213471076817417
+        }
+      },
+      {
+        "index": 1,
+        "arm": "mx",
+        "warmup": true,
+        "rates": {
+          "pp512": 2641.718933,
+          "tg128": 42.657856
+        },
+        "overlapping_monitor_samples": 9,
+        "flagged_samples": {
+          "unrelated_cpu": 9,
+          "system_cpu": 0,
+          "disk": 2,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 9,
+        "unknown_process_delta_count_max": 269,
+        "maxima": {
+          "known_unrelated_cpu_percent": 458.6940890906014,
+          "system_cpu_percent": 72.8415485314081,
+          "physical_total_bytes_per_second": 520288873.7567975,
+          "unrelated_gpu_engine_max_percent": 5.180879081671806
+        }
+      },
+      {
+        "index": 2,
+        "arm": "llmx",
+        "warmup": false,
+        "rates": {
+          "pp512": 3001.56,
+          "tg128": 100.06
+        },
+        "overlapping_monitor_samples": 7,
+        "flagged_samples": {
+          "unrelated_cpu": 7,
+          "system_cpu": 0,
+          "disk": 1,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 7,
+        "unknown_process_delta_count_max": 268,
+        "maxima": {
+          "known_unrelated_cpu_percent": 458.6940890906014,
+          "system_cpu_percent": 72.8415485314081,
+          "physical_total_bytes_per_second": 583177432.4401668,
+          "unrelated_gpu_engine_max_percent": 13.046521846873379
+        }
+      },
+      {
+        "index": 3,
+        "arm": "mx",
+        "warmup": false,
+        "rates": {
+          "pp512": 2640.831903,
+          "tg128": 42.745338
+        },
+        "overlapping_monitor_samples": 9,
+        "flagged_samples": {
+          "unrelated_cpu": 9,
+          "system_cpu": 0,
+          "disk": 1,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 9,
+        "unknown_process_delta_count_max": 268,
+        "maxima": {
+          "known_unrelated_cpu_percent": 291.9719485598023,
+          "system_cpu_percent": 63.67098357199916,
+          "physical_total_bytes_per_second": 586668806.9537446,
+          "unrelated_gpu_engine_max_percent": 5.677066569630832
+        }
+      },
+      {
+        "index": 4,
+        "arm": "mx",
+        "warmup": false,
+        "rates": {
+          "pp512": 2623.659154,
+          "tg128": 42.714758
+        },
+        "overlapping_monitor_samples": 8,
+        "flagged_samples": {
+          "unrelated_cpu": 8,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 8,
+        "unknown_process_delta_count_max": 270,
+        "maxima": {
+          "known_unrelated_cpu_percent": 365.2673457303722,
+          "system_cpu_percent": 43.48043475196921,
+          "physical_total_bytes_per_second": 37504953.58078263,
+          "unrelated_gpu_engine_max_percent": 9.36326371461993
+        }
+      },
+      {
+        "index": 5,
+        "arm": "llmx",
+        "warmup": false,
+        "rates": {
+          "pp512": 2999.3,
+          "tg128": 105.49
+        },
+        "overlapping_monitor_samples": 8,
+        "flagged_samples": {
+          "unrelated_cpu": 8,
+          "system_cpu": 0,
+          "disk": 2,
+          "gpu": 3
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 8,
+        "unknown_process_delta_count_max": 271,
+        "maxima": {
+          "known_unrelated_cpu_percent": 471.63374798552917,
+          "system_cpu_percent": 65.06541116036175,
+          "physical_total_bytes_per_second": 613981210.7235733,
+          "unrelated_gpu_engine_max_percent": 16.805706332776694
+        }
+      },
+      {
+        "index": 6,
+        "arm": "llmx",
+        "warmup": false,
+        "rates": {
+          "pp512": 3010.45,
+          "tg128": 105.39
+        },
+        "overlapping_monitor_samples": 7,
+        "flagged_samples": {
+          "unrelated_cpu": 7,
+          "system_cpu": 0,
+          "disk": 2,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 7,
+        "unknown_process_delta_count_max": 272,
+        "maxima": {
+          "known_unrelated_cpu_percent": 373.58530563047265,
+          "system_cpu_percent": 57.31965173880571,
+          "physical_total_bytes_per_second": 443267679.63834137,
+          "unrelated_gpu_engine_max_percent": 16.805706332776694
+        }
+      },
+      {
+        "index": 7,
+        "arm": "mx",
+        "warmup": false,
+        "rates": {
+          "pp512": 2622.617618,
+          "tg128": 42.50036
+        },
+        "overlapping_monitor_samples": 9,
+        "flagged_samples": {
+          "unrelated_cpu": 9,
+          "system_cpu": 0,
+          "disk": 2,
+          "gpu": 2
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 9,
+        "unknown_process_delta_count_max": 273,
+        "maxima": {
+          "known_unrelated_cpu_percent": 286.9412783557514,
+          "system_cpu_percent": 59.3661133689938,
+          "physical_total_bytes_per_second": 580503091.3281758,
+          "unrelated_gpu_engine_max_percent": 10.030272898154921
+        }
+      },
+      {
+        "index": 8,
+        "arm": "mx",
+        "warmup": false,
+        "rates": {
+          "pp512": 2642.797525,
+          "tg128": 42.530803
+        },
+        "overlapping_monitor_samples": 8,
+        "flagged_samples": {
+          "unrelated_cpu": 8,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 1
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 8,
+        "unknown_process_delta_count_max": 270,
+        "maxima": {
+          "known_unrelated_cpu_percent": 350.4563299022847,
+          "system_cpu_percent": 49.20792112878466,
+          "physical_total_bytes_per_second": 91743218.87849265,
+          "unrelated_gpu_engine_max_percent": 9.412962006009401
+        }
+      },
+      {
+        "index": 9,
+        "arm": "llmx",
+        "warmup": false,
+        "rates": {
+          "pp512": 3016.13,
+          "tg128": 106.17
+        },
+        "overlapping_monitor_samples": 8,
+        "flagged_samples": {
+          "unrelated_cpu": 8,
+          "system_cpu": 0,
+          "disk": 4,
+          "gpu": 1
+        },
+        "unknown_counter_samples": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "gpu": 0
+        },
+        "samples_with_unknown_process_cpu": 8,
+        "unknown_process_delta_count_max": 268,
+        "maxima": {
+          "known_unrelated_cpu_percent": 293.7132516835826,
+          "system_cpu_percent": 51.24347451277963,
+          "physical_total_bytes_per_second": 585964722.4030004,
+          "unrelated_gpu_engine_max_percent": 13.349347196689362
+        }
+      }
+    ],
+    "activity_summary": {
+      "all_measured_cpu_flagged": true,
+      "all_measured_gpu_flagged": true,
+      "system_cpu_over75_samples_across_calls": 0,
+      "max_known_unrelated_cpu_percent": 471.63374798552917,
+      "unknown_process_deltas_present": true,
+      "counter_unavailable_at_open": {}
+    },
+    "artifact_sha256": {
+      "00-llmx.stderr": "b83b0ebcef32af7aff59350589b43c475e889cab16630b54d460792e391e7c45",
+      "00-llmx.stdout": "e23f8f43c3026f050f3d7fd188e9d169fa9251a84031d61ee010daaa0220089c",
+      "01-mx.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "01-mx.stdout": "9f22d9b051517481a37ce4e8f7c9ac7eae90f53c576533d21c88f8b56c227b7f",
+      "02-llmx.stderr": "f8ab58b31d8666a24c19860db1f1d091347eb6e1d0b8db066b3845acebb73075",
+      "02-llmx.stdout": "263c19fd1796b058f6fe6e0761bdfda321089b785d151b126bff41d03c42db73",
+      "03-mx.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "03-mx.stdout": "a1cb6d605f507cca4c232cb38d01d263f4e30b81ae3cfb9a5e39138bd47e0176",
+      "04-mx.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "04-mx.stdout": "2a2b2ff03449b4d73184085abd64d4bf1259be0556bbb6660f1043ea09c25e6a",
+      "05-llmx.stderr": "d88977e3b960126dc611898a84032f0d0a4ba89929935259ebbce3ea4032d5f0",
+      "05-llmx.stdout": "6c1fbab522e4bd3cff222b85b892eff51f866469adbc632b435b6507c9f83ee1",
+      "06-llmx.stderr": "d2c1c0d48e2c2bb5ceba3e3c5634b79edb19decc1a38f909b029ab1028cefd28",
+      "06-llmx.stdout": "338a30090c37c1e7cc020e5602c8c02837e8b18a4b2bc9e59c31e581ba87a97b",
+      "07-mx.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "07-mx.stdout": "b38b08f69294c329d4feae3d347d78c1f97fdfc49ee3f2a739e4dcc1e3d31dd0",
+      "08-mx.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "08-mx.stdout": "66f6a1ad72c1760450f2ae521b39981415f90497a00eea0196628a2e77a283cf",
+      "09-llmx.stderr": "ac7e4cd356aeb8c351486af49c15c8ea8a9cfe53c926fb09834c2935b8aceba3",
+      "09-llmx.stdout": "e3a925bc2f33f78b14f07f201c8aa1ed76917b47d942b573743e41eb65ead723",
+      "activity-analysis.json": "e66f61f814af04f032becc9fc7f1ea2049f6f4aff83c88a62dca472329f2e390",
+      "activity.jsonl": "5a884ee0f18079c3b200af3489bcd199a88a565a351c5556b5002b3a4a97fccd",
+      "execution.json": "d2610f71938144cd64fea93bb9d8b69cbb8b3fb864e1a6948b586a267db5d7e8",
+      "frozen-plan.json": "6c57aab32907575dc1f1d64a52070c3a1519d79019ab802c28c398f1a68a66e4",
+      "llmx-help.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "llmx-help.stdout": "6daeefa240af93b499b826dba91d58dd97343b4b328cc42c8a096b19cde1d693",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f",
+      "mx-help.stderr": "3572cb673850d0619c4e8c56bc105e6ef72dc344efa0d627bac25567d9610455",
+      "mx-help.stdout": "69255f51f2bb06a932e3bef393ff4c875dda26609b66c12a99d0e13a88da5e19",
+      "placement-diagnostic-plan.json": "54874d24a09660bf3245a5ce40312bc8da53c19a32d71caf41ad5426691b5ad8",
+      "placement-diagnostic-result.json": "9f9a8b471bfd3819a4b856931d8dbae0167b72536023c2473ecd7c8a322c9cca",
+      "placement-diagnostic.stderr": "146777082ce29e2aa45979309353a3969140f56623351da4d68d64b2e290847f",
+      "placement-diagnostic.stdout": "081c665a6e730449b795dcf532c18a236d766def2a5a0979dacddc34365ef964",
+      "placement-preflight.json": "c6ba096f65e2740c830d61ba439c96599c69c2bb9736ecc48b8ed72aa45dee22"
+    }
+  },
+  "builds": {
+    "passed": true,
+    "scope": "Matched archive-build development screen preparation only. Same MSVC compiler/linker, VS18 x64 Release, Vulkan SDK and /MP2, max two build workers. No benchmark, model inference, GPU dispatch or numerical-policy change. Both programs have unknown embedded Git identity; exact archive revisions are external pins.",
+    "mx": {
+      "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "archive_sha256": "057e0720b5edfb49fa7a1bca482c9c3ada58a98d05db325a0bb6aad75ac3d2bd",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bmxnvr\\bin\\Release\\llama-bench.exe",
+      "exe_sha256": "7b5ad12c054c29bb710bb7315431ca73eb274195a96f379cda3bc52fff932fd9",
+      "version": "0.6.0-dev (build 0, commit unknown)",
+      "completion_receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-mx-local-witness\\nondebug-preparation\\completion.json",
+      "completion_sha256": "dc0799680d8693a67c922cca77686ec0b5d0ff811e87626cf587cc281b52a20d",
+      "debug": false
+    },
+    "llmx": {
+      "revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+      "archive_sha256": "bb8fefdaa0111e3917fb4d3aad29902ab4cc3f449a35f22d9159d9534198c3bc",
+      "exe": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx.exe",
+      "exe_sha256": "4c316b802b49b66a2b34ecc07aec528f70239359c1d8cdcfac7756a374394282",
+      "version": "llmx 0.1.0+unknown numerics 9475af25d170898f",
+      "execution_receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-archive-screen\\execution.json",
+      "execution_sha256": "beae7a89e12d5ec20245bfd76f18ab74c229b002b39161a9c9ad5780bdd43e69"
+    },
+    "compilers": {
+      "mx": {
+        "cmake_metadata": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bmxnvr\\CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake",
+        "cmake_metadata_sha256": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a",
+        "compiler_path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe",
+        "compiler_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782",
+        "linker_path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\link.exe",
+        "linker_sha256": "c988acb4ec7ef964ae4d4e414b693a6a3782dd85f1e200100b3f896db6b1a202"
+      },
+      "llmx": {
+        "cmake_metadata": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\CMakeFiles\\4.3.1\\CMakeCXXCompiler.cmake",
+        "cmake_metadata_sha256": "265b5199e868a8bec1db656b918f8d90ff303859996616b8161b6dd478d46d3a",
+        "compiler_path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\cl.exe",
+        "compiler_sha256": "194ddf4aafcb74452218a982309a97de30e0adb33edf4af02904ee107213e782",
+        "linker_path": "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.50.35717\\bin\\Hostx64\\x64\\link.exe",
+        "linker_sha256": "c988acb4ec7ef964ae4d4e414b693a6a3782dd85f1e200100b3f896db6b1a202"
+      }
+    },
+    "tools": {
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\cmake.EXE": "a2eff6b48d8e5a28c8f3070d2cec80c2563fe4f0ea10ba7ec420d37ae39b2ec2",
+      "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe": "f8c97ee2c8bfcd31da87b602622c6e742389f98a83693b504cf538de4c75d3fa"
+    },
+    "source_guards": "Both archive source trees unchanged before/after builds; mx also independently matches all 3783 tar members. llmx is freshly exported from the exact recorded commit.",
+    "version_query_note": "llama-bench enumerates backend devices before --version parsing. Only metadata ran; no model, dispatch or benchmark workload. PowerShell wrapped normal stderr as NativeCommandError; the process exit was zero."
+  },
+  "performance_receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-archive-screen\\reference-screen-v1\\completion.json",
+    "sha256": "516ac016ede661520c557182fa7139e245ad22dcd5f005bf41db573fb70ac4c3"
+  },
+  "capture": {
+    "capture_complete": true,
+    "comparison_complete": false,
+    "scope": "Strict-F32 raw/chat fixed-history captures only; HF comparison pending. Timings diagnostic only.",
+    "runtime_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+    "build_receipt_sha256": "0f9163f5e4656380f11676c2a63d230d457704970ef7fce246230b0f59180d4e",
+    "capture_source_sha256": "29f0519cd668601ccc2c29c328d953fcc00c11277c7d70ddcc5154e34cedaef1",
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "probe_sha256": "eff7c4c477da27fd84eaa8b444046d17847432f789c1bfe05fd70e540178e0cf",
+    "input_manifest_sha256": "69d8bc5e7d665042826546248d9488a8248b6557dd7346a782f874afa3c0580d",
+    "calls": [
+      {
+        "variant": "raw",
+        "fixture_sha256": "816ae49eb6ca4dc7b42e4ea5ef56dcff1b229e802602d236d739c787ac0c461c",
+        "started": 1792894945.059441,
+        "status": "captured",
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\build\\Release\\nvfp4-depth-capture.exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\raw.json",
+          "vulkan:0"
+        ],
+        "pid": 50576,
+        "exit_code": 0,
+        "seconds": 22.043978452682495,
+        "stdout_sha256": "7ae9f7902681d6a58870253c5554c8eeb12752edb2f165bcb9b9a670cc1c9fa5",
+        "stderr_sha256": "d7aa498ed2adf914262391ada091eb93237838a82cd6769590ac951067ac50c5",
+        "positions": 512,
+        "matrix_paths": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      {
+        "variant": "chat",
+        "fixture_sha256": "ea3387f76ebb91fc1603e07c9f521773389dae1d3345ead5acb3e757a8b79440",
+        "started": 1792894967.132432,
+        "status": "captured",
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\build\\Release\\nvfp4-depth-capture.exe",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\chat.json",
+          "vulkan:0"
+        ],
+        "pid": 41920,
+        "exit_code": 0,
+        "seconds": 20.016900300979614,
+        "stdout_sha256": "9ce60626fd634746830864c41943dc9de121b6b1097f064734b4cb6990e9312e",
+        "stderr_sha256": "3e1b375ae45813a30df6eed9c7e1bb5ae1f8b22ec3a58208154d98c54ba5587b",
+        "positions": 512,
+        "matrix_paths": {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      }
+    ],
+    "before": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\capture.cpp": "29f0519cd668601ccc2c29c328d953fcc00c11277c7d70ddcc5154e34cedaef1",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\CMakeLists.txt": "f9db70cc9b0afe41e86c097c9585673c0fd0f6201bdaae28bfe63ed8bb1bd3a5",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\fixture-pins.json": "ea2f515279212f92153ec1396575042c5ab9dab2f9ecbeca210b97029efa60da",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\raw.json": "816ae49eb6ca4dc7b42e4ea5ef56dcff1b229e802602d236d739c787ac0c461c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\chat.json": "ea3387f76ebb91fc1603e07c9f521773389dae1d3345ead5acb3e757a8b79440",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\Release\\llmx-vulkan.lib": "369e499f8582e1cfdc24a07f7a17a277b1ce1dd3d77da299e98ae2dfa3ce6d0f",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\generated\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bllnvr\\generated\\llmx-build-info.hpp": "2ad4f91fa884304368c1dc9b60620e05938d1c2263d0a832f1954430020762da",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-archive-screen\\execution.json": "beae7a89e12d5ec20245bfd76f18ab74c229b002b39161a9c9ad5780bdd43e69"
+    },
+    "initial_available_bytes": 3286962176,
+    "monitor": {
+      "pid": 42040,
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\captures-f32-v1\\activity.jsonl",
+        "--stop-file",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\captures-f32-v1\\monitor.stop",
+        "--seconds",
+        "750",
+        "--interval",
+        "2"
+      ]
+    },
+    "monitor_exit": 0
+  },
+  "capture_receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\captures-f32-v1\\execution.json",
+    "sha256": "b03d19895733ef93e56b98c88343c53f2581036655947e2b9f169f6396c3dcdb"
+  },
+  "capture_build_receipt": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\candidate\\build-receipt.json",
+    "sha256": "0f9163f5e4656380f11676c2a63d230d457704970ef7fce246230b0f59180d4e"
+  },
+  "hf_reference_job": {
+    "run": 40153030717,
+    "head": "cf3051c18f15330de8782b1955741f3cacf76419",
+    "status": "completed",
+    "conclusion": "success",
+    "updated_at": "2026-10-25T02:22:59Z",
+    "run_receipt_sha256": "211fae9a9316157610f7d92e5957784d478142a6ffbef68455ebad25946b1456",
+    "artifact_verification": "passed",
+    "candidate_comparison": "passed",
+    "temporary_remote_branch": "deleted after exact-head lease check"
+  },
+  "remaining": [
+    "Default mixed-policy agreement and depth qualification",
+    "Device-split HF",
+    "Matched MI50 mx Vulkan performance",
+    "Existing-format identity and regression timing",
+    "Applicable final CI and landing audit"
+  ],
+  "tracked_runtime_delta": "None since dbfef2d36; capture and transport tools are retained scratch evidence.",
+  "checkpoint_checks": {
+    "docs": {
+      "passed": true,
+      "findings": 0,
+      "planted_faults": 21,
+      "seconds": 11.4
+    },
+    "dead_code": {
+      "passed": true,
+      "listed_findings": 5,
+      "planted_faults": 18,
+      "seconds": 14.4
+    },
+    "runtime_source_delta": "none",
+    "markdown_review": {
+      "tracked": 138,
+      "changed": [
+        "docs/STATUS.md"
+      ],
+      "inspected": [
+        "docs/STATUS.md",
+        "README.md",
+        "docs/PRECISION.md"
+      ],
+      "unchanged_carry": 137,
+      "count_correction": "Earlier 140-file claim corrected after current and dbfef Git-tree inventory both count 138."
+    }
+  },
+  "strict_f32_depth": {
+    "passed": true,
+    "scope": "Explicit F32 matrices and F32 KV, single Radeon VII, frozen raw/chat histories. No default-policy or other-backend claim.",
+    "runtime_revision": "dbfef2d36d799373cfff44f8771129f5204c629b",
+    "probe_sha256": "eff7c4c477da27fd84eaa8b444046d17847432f789c1bfe05fd70e540178e0cf",
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "capture_receipt_sha256": "b03d19895733ef93e56b98c88343c53f2581036655947e2b9f169f6396c3dcdb",
+    "reference_verification_sha256": "ccd9e9a7c318a7b32e3f9d9d8515fac41b08938a14b10742ff15905a0880b9d2",
+    "common_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "margin": 0.1,
+    "variants": [
+      {
+        "variant": "raw",
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "candidate_mean_nll": 2.069176345392451,
+        "hf_mean_nll": 2.0691840648651123,
+        "nll_delta_diagnostic_only": -7.719472661094073e-06
+      },
+      {
+        "variant": "chat",
+        "counts": {
+          "exact": 512,
+          "accepted-tie": 0,
+          "miss": 0
+        },
+        "candidate_mean_nll": 2.1873393587143175,
+        "hf_mean_nll": 2.1873371601104736,
+        "nll_delta_diagnostic_only": 2.198603843872604e-06
+      }
+    ],
+    "all_positions_receipt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-depth-reference\\f32-depth-comparison.json",
+      "sha256": "90637f8b21ad342dde1a1e9e4db0934e595a0a895358e238e6282b11a279bfd9"
+    }
+  },
+  "hf_reference_verification": {
+    "passed": true,
+    "scope": "Independent strict-F32 HF references only; no llmx depth comparison or default-policy acceptance.",
+    "run": 40153030717,
+    "head": "cf3051c18f15330de8782b1955741f3cacf76419",
+    "artifact_digest": "sha256:0507a80bb2660516c310cb1a5ef2409e71ee947ed0e3e80e2a59aaf32bfe6de5",
+    "execution_sha256": "01e7e4a69e65e4bb1a16ba792e7edb62a875109074ad65004c737fcd7192f947",
+    "control": {
+      "tokens": 64,
+      "chunk": 17,
+      "max_abs_logit_delta": 1.3828277587890625e-05,
+      "max_abs_limit": 2e-05,
+      "top1_exact": 64,
+      "full_sha256": "a98c477320f20af128b772c9601c53dabfa74d94ee8eafc40b2e85a76682f726",
+      "chunked_sha256": "a9bccd43bd263225e7a3cc792ee75db074f0cf9bc6f1772051327e9d308045b8"
+    },
+    "cells": [
+      {
+        "variant": "raw",
+        "shape": [
+          512,
+          248320
+        ],
+        "logits_sha256": "38eb00b265bff52f3661fcdcb25c1c32fa5bd1415ec6798339d788737303b7dc"
+      },
+      {
+        "variant": "chat",
+        "shape": [
+          512,
+          248320
+        ],
+        "logits_sha256": "398f9d88e099f4f9eefba4b29b689efafacf847f17fec338f2fb4f5a92e33d61"
+      }
+    ]
+  },
+  "hf_reference_pins": {
+    "hosted-collected\\verification.json": "ccd9e9a7c318a7b32e3f9d9d8515fac41b08938a14b10742ff15905a0880b9d2",
+    "hosted-collected\\artifact-metadata.json": "d9fbd715fe36c480120e8a116408d248e1b5ad19e19d1e69b4da3b920dc015ed",
+    "hosted-collected\\range-transfer.json": "082e3e2d26fb43399b820b217f2648c4db7adf837a72e5293b74ee1f41cb1b4f",
+    "hosted-collected\\results\\reference\\report.json": "04c7a8d17cb0cfbb0e83ea89388134d21192e1d95649d1ffde94619e9deba7ed",
+    "hosted-collected\\results\\reference\\raw.json": "9125afd00cf53d34e0ed3edb598163fa52b2f5f1313019e0150ee52b3f8405dd",
+    "hosted-collected\\results\\reference\\chat.json": "1ab0eced4e82189bf3ebabaa33e9dd0afa7cd9d6584a41429185c86fdbbfd805",
+    "hosted-reference-cf3051c18.bundle": "e9c62461dc20ed75d051d46190242133a7ae6e7cc34bfa0382c093309e66b2de",
+    "collect-hosted.py": "2a3e2132b415b1d4626ea580acf8f487e673e5b72cad968a7970cfb220362db3",
+    "compare-hosted.py": "e4210100697678c07320472076394084b76c8e45d4fd3637880714bde617a633"
+  },
+  "reference_transfer": "Initial serial prefix and five successful ranges retained. Three HTTP 503 range failures were retried without rerunning HF or inference. Assembled archive matches GitHub SHA256 0507a80bb2660516c310cb1a5ef2409e71ee947ed0e3e80e2a59aaf32bfe6de5."
+}

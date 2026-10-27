@@ -179,6 +179,11 @@ void refusals() {
     refused(reads([](gguf::GGUFModel& m) { set(m, "general.architecture", str("siglip")); }), "unsupported vision encoder general.architecture", "another architecture");
     refused(reads([](gguf::GGUFModel& m) { set(m, "clip.projector_type", str("gemma3")); }), "unsupported vision encoder clip.projector_type", "another projector");
     refused(reads([](gguf::GGUFModel& m) { erase(m, "clip.projector_type"); }), "unsupported vision encoder clip.projector_type", "no projector");
+    refused(reads([](gguf::GGUFModel& m) {
+                for (auto& t : m.tensors) if (t.name == "mm.0.weight") t.type = quant::GGML_TYPE_NVFP4;
+                add_tensor(m, "mm.0.scale", {1});
+            }),
+            "weight scales are not supported for tensor mm.0.weight", "a vision matrix with a companion scale");
     for (const char* key : {"clip.vision.embedding_length", "clip.vision.feed_forward_length", "clip.vision.block_count", "clip.vision.attention.head_count",
                             "clip.vision.patch_size", "clip.vision.spatial_merge_size", "clip.vision.projection_dim"})
         refused(reads([key](gguf::GGUFModel& m) { erase(m, key); }), std::string("missing metadata ") + key, std::string("no ") + key);

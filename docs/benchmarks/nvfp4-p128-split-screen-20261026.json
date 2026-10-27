@@ -1,0 +1,399 @@
+{
+  "schema": "nvfp4-p128-split-screen-20261026-v1",
+  "scope": "Private three-way split-K diagnostic. Results are exploratory, not a performance gate, model correctness result, or adopted policy.",
+  "source": {
+    "base_runtime_revision": "0bc6f22cbd367d740379253cf6d4bb2d29d0930e",
+    "integration_source_revision": "7956764c64e0fbdd52b162cb471de7a1b0a5b484",
+    "changed_source": "src/backends/vulkan/vulkan_matmul.hpp",
+    "baseline_sha256": "f807d6a678cafffb8cb386b6fab8f5b90854fcf29cc1adbc7ec40cf18b18a218",
+    "candidate_sha256": "2a1619d29d891dd6800ed90b74d8b50984ef7e76443c37cd8d150e5423d1a198",
+    "baseline_normalized_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3",
+    "line_endings_note": "Baseline header uses CRLF, candidate LF. Normalized baseline exactly matches integrated source; no semantic baseline difference.",
+    "arithmetic_note": "F16 input conversion, globally scaled F32 weights and F32 accumulation preserved. Partial-sum association changes. Existing precision bounds stay fixed.",
+    "patch_path": "../../build-integration/p128-split-v1/source.patch",
+    "plan_sha256": "1c24e807f5e6089a7ac6c6ff1701f090ec6bd6113c5629851a30e811aa4969f8",
+    "source_pins_sha256": "a2ee837632ee617b4f2c8026c40b14319240e3421404c1725961fe8c115dcf21"
+  },
+  "build": {
+    "passed": true,
+    "candidate_probe_sha256": "357f9b828a6b55c2975a221131057f1f07fbacf5fae73659755ab7cc484187f9",
+    "candidate_library_sha256": "754f603fe62f9d8b11bbf5a44e5b57e3c6baf83ec70477ce8c0ddff4711aaba7",
+    "baseline_probe_sha256": "985d96f1083d96e5f5e23ab9d8de1433859769301407f55ac3a5f43768b976bf",
+    "baseline_library_sha256": "133985e754f102b332fd4967ae2be5441e7626365166530a0e4b2907d40fe27b",
+    "candidate_version": "llmx 0.1.0+unknown numerics c819e2715412f032",
+    "baseline_version": "llmx 0.1.0+unknown numerics 153417f7b2f6f5d2",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "focused_build_receipt_sha256": "0ae29abd45fe5ecaa7150de9f331983bd80fa0e495e487b8a81ae92984ee0ef6",
+    "container_removed": true,
+    "setup_attempts": [
+      {
+        "file": "../../build-integration/p128-split-v1/original-pin-failure.json",
+        "sha256": "ee05efe959fc14f03c44817595241e8928be3ee6ae38ef05d3bbb3857eea2c99",
+        "disposition": "Initial pre-build check compared CRLF raw bytes with an LF-normalized pin. The normalized content matches; no candidate build or performance call ran."
+      }
+    ]
+  },
+  "operator_screen": {
+    "execution": "../../build-integration/p128-split-v1/results/execution.json",
+    "execution_sha256": "a581f4937b653de8ec54bbbe8a69795895f775e0dfee4e612d23a1b3fb72a467",
+    "analysis": "../../build-integration/p128-split-v1/analysis.json",
+    "analysis_sha256": "57fd7b567e802fb2526385b47dd8283d65c9de032d84509595fc47ffb3d80a2e",
+    "artifacts_verified": {
+      "count": 85,
+      "all_match": true,
+      "mismatches": []
+    },
+    "result_passed": true,
+    "calls": 20,
+    "order": "For each of five shapes: baseline, candidate, candidate, baseline. Two warmups and twenty retained measured samples per call.",
+    "oracle": "Existing independent exact-dyadic F32 oracle and output guards passed for every call. Candidate reduction dispatch was checked on eligible shapes; controls retained their prior dispatch.",
+    "device": "MI50 physical 8, renderD130, PCI 0000:c9:00.0",
+    "matrix": [
+      {
+        "width": 1024,
+        "rows": 3584,
+        "columns": 128,
+        "baseline_total_device_ms": 0.540368,
+        "candidate_total_device_ms": 0.538628,
+        "change_percent": -0.322,
+        "baseline_host_ms": 0.655366,
+        "candidate_host_ms": 0.661736,
+        "host_change_percent": 0.97193
+      },
+      {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 128,
+        "baseline_total_device_ms": 0.569608,
+        "candidate_total_device_ms": 0.315036,
+        "change_percent": -44.69249,
+        "baseline_host_ms": 0.687035,
+        "candidate_host_ms": 0.435033,
+        "host_change_percent": -36.67963
+      },
+      {
+        "width": 2048,
+        "rows": 1024,
+        "columns": 512,
+        "baseline_total_device_ms": 0.966224,
+        "candidate_total_device_ms": 0.943292,
+        "change_percent": -2.37336,
+        "baseline_host_ms": 1.124622,
+        "candidate_host_ms": 1.08581,
+        "host_change_percent": -3.45111
+      },
+      {
+        "width": 3584,
+        "rows": 1024,
+        "columns": 128,
+        "baseline_total_device_ms": 0.8108,
+        "candidate_total_device_ms": 0.46022,
+        "change_percent": -43.23878,
+        "baseline_host_ms": 0.925382,
+        "candidate_host_ms": 0.586899,
+        "host_change_percent": -36.57766
+      },
+      {
+        "width": 3584,
+        "rows": 1024,
+        "columns": 512,
+        "baseline_total_device_ms": 1.231644,
+        "candidate_total_device_ms": 1.185484,
+        "change_percent": -3.74784,
+        "baseline_host_ms": 1.398917,
+        "candidate_host_ms": 1.30227,
+        "host_change_percent": -6.90867
+      }
+    ],
+    "activity": {
+      "analysis_samples": 25,
+      "all_calls_coverage_complete": true,
+      "all_calls_flag_other_gpu_and_unrelated_cpu": true,
+      "unknown_process_intervals_present": true,
+      "gaps_flagged": 0,
+      "all_calls_retained": true
+    }
+  },
+  "model_screen": {
+    "execution": "../../build-integration/p128-split-v1/model-results/execution.json",
+    "execution_sha256": "b6c5351b71adf9dd1f801174804b19143d0b915861e5d11ecb45f9f92a4ca56c",
+    "analysis": "../../build-integration/p128-split-v1/model-analysis.json",
+    "analysis_sha256": "8c3656c9953aa48823fef4987a8d09711737702df29010d1e5a56a8cc39ba2b7",
+    "artifacts_verified": {
+      "count": 23,
+      "all_match": true,
+      "mismatches": []
+    },
+    "result_passed": true,
+    "model_path": "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "baseline_cli_sha256": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+    "candidate_cli_sha256": "85dd648f0923f8c1e421227b9fd05291471c4508fb50500bf3bc0ba9314efc5a",
+    "device": "MI50 physical 8, renderD130, PCI 0000:c9:00.0",
+    "settings": {
+      "threads": 4,
+      "dtype": "auto",
+      "kv": "f16",
+      "ubatch": 512,
+      "load_mode": "direct",
+      "prompt_tokens": [
+        128,
+        4096
+      ],
+      "generation_tokens": 256,
+      "repeats_per_arm_workload": 2,
+      "tg_history": "empty at each process start"
+    },
+    "matrix": [
+      {
+        "prompt": 128,
+        "phase": "pp",
+        "baseline": 2890.37,
+        "candidate": 3562.435,
+        "change_percent": 23.25186740797891
+      },
+      {
+        "prompt": 128,
+        "phase": "tg",
+        "baseline": 252.76,
+        "candidate": 252.41,
+        "change_percent": -0.13847127710080454
+      },
+      {
+        "prompt": 4096,
+        "phase": "pp",
+        "baseline": 4160.9400000000005,
+        "candidate": 4164.115,
+        "change_percent": 0.0763048734180094
+      },
+      {
+        "prompt": 4096,
+        "phase": "tg",
+        "baseline": 252.0,
+        "candidate": 253.99,
+        "change_percent": 0.7896825396825458
+      }
+    ],
+    "calls": [
+      {
+        "label": "p128-0-baseline",
+        "prompt": 128,
+        "arm": "baseline",
+        "rates_tok_s": {
+          "pp": 2888.13,
+          "tg": 250.64
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 5,
+            "unrelated_cpu": 5,
+            "disk": 3,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 5
+        }
+      },
+      {
+        "label": "p128-1-candidate",
+        "prompt": 128,
+        "arm": "candidate",
+        "rates_tok_s": {
+          "pp": 3560.17,
+          "tg": 251.82
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 5,
+            "unrelated_cpu": 5,
+            "disk": 3,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 5
+        }
+      },
+      {
+        "label": "p128-2-candidate",
+        "prompt": 128,
+        "arm": "candidate",
+        "rates_tok_s": {
+          "pp": 3564.7,
+          "tg": 253.0
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 4,
+            "unrelated_cpu": 4,
+            "disk": 2,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 4
+        }
+      },
+      {
+        "label": "p128-3-baseline",
+        "prompt": 128,
+        "arm": "baseline",
+        "rates_tok_s": {
+          "pp": 2892.61,
+          "tg": 254.88
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 5,
+            "unrelated_cpu": 5,
+            "disk": 2,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 5
+        }
+      },
+      {
+        "label": "p4096-0-baseline",
+        "prompt": 4096,
+        "arm": "baseline",
+        "rates_tok_s": {
+          "pp": 4159.36,
+          "tg": 251.2
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 6,
+            "unrelated_cpu": 6,
+            "disk": 2,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 6
+        }
+      },
+      {
+        "label": "p4096-1-candidate",
+        "prompt": 4096,
+        "arm": "candidate",
+        "rates_tok_s": {
+          "pp": 4163.18,
+          "tg": 255.04
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 6,
+            "unrelated_cpu": 6,
+            "disk": 1,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 6
+        }
+      },
+      {
+        "label": "p4096-2-candidate",
+        "prompt": 4096,
+        "arm": "candidate",
+        "rates_tok_s": {
+          "pp": 4165.05,
+          "tg": 252.94
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 7,
+            "unrelated_cpu": 7,
+            "disk": 4,
+            "gap": 0
+          },
+          "coverage_complete": true,
+          "unknown_process_intervals": 7
+        }
+      },
+      {
+        "label": "p4096-3-baseline",
+        "prompt": 4096,
+        "arm": "baseline",
+        "rates_tok_s": {
+          "pp": 4162.52,
+          "tg": 252.8
+        },
+        "exit_code": 0,
+        "activity": {
+          "flags": {
+            "other_gpu": 5,
+            "unrelated_cpu": 5,
+            "disk": 2,
+            "gap": 0
+          },
+          "coverage_complete": false,
+          "unknown_process_intervals": 5
+        }
+      }
+    ],
+    "activity": {
+      "analysis_samples": 39,
+      "calls_with_other_gpu_flag": 8,
+      "calls_with_unrelated_cpu_flag": 8,
+      "calls_with_disk_flag": 8,
+      "calls_with_sampling_gap_flag": 0,
+      "calls_with_unknown_process_intervals": 8,
+      "coverage_complete_calls": 7,
+      "coverage_total_calls": 8,
+      "incomplete_call": {
+        "label": "p4096-3-baseline",
+        "call_start_utc": "2026-10-26T17:23:55.562+00:00",
+        "call_end_utc": "2026-10-26T17:24:00.936+00:00",
+        "last_sample_utc": "2026-10-26T17:24:00.311508+00:00",
+        "monitor_stop_utc": "2026-10-26T17:24:01.259782+00:00",
+        "observation": "The recorded last sample precedes the call end; the monitor stop follows shortly after. coverage_complete is false. No cause is assigned."
+      }
+    },
+    "setup_attempts": [
+      {
+        "file": "../../build-integration/p128-split-v1/model-preflight-failures.json",
+        "sha256": "ed0b579ab4dd7b4952e90830c15471f35ba36dd4c00e3c18e7194755992252a6",
+        "disposition": "Initial preflight failed before output-directory/container creation because Docker top output omitted the PID field expected by the parser. The later run used the corrected PID/command parsing."
+      }
+    ]
+  },
+  "decision_and_limits": {
+    "adoption": "Not adopted; this is a scratch-only experiment.",
+    "policy": "F2DEV decision 118c532d5831 requires a common policy, whole-prompt split and row_class coverage, followed by reopening the affected HF/depth checks before any adoption.",
+    "not_established": [
+      "MX performance comparison",
+      "Model/HF correctness",
+      "Released-depth or split qualification",
+      "Final performance acceptance",
+      "Causal explanation for all model-rate differences"
+    ],
+    "all_flagged_samples_retained": true
+  },
+  "markdown_review": {
+    "tracked_markdown_count": 150,
+    "changed_since_previous_inventory": [
+      "docs/STATUS.md"
+    ],
+    "review_disposition": "Rechecked the active split-screen/profile wording against the verified receipt; carried the prior inventory for the other 149 unchanged Markdown files."
+  },
+  "documentation_checks": {
+    "command": "python tests/run_tests.py --exe build-integration/cmake/Release/llmx.exe --only docs,dead-code",
+    "log": "../../build-integration/p128-split-v1/docs-dead-code-check.log",
+    "log_sha256": "4ef1675d9bb156cbe88ede4d06b72dbe3bc6ad8f72c816738e1972e2e28fd9a8",
+    "docs": {
+      "result": "pass",
+      "findings": 0,
+      "planted_faults": 21
+    },
+    "dead_code": {
+      "result": "pass",
+      "listed_findings": 7,
+      "planted_faults": 19
+    }
+  }
+}

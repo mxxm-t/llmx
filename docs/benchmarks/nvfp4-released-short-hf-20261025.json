@@ -1,0 +1,764 @@
+{
+  "scope": "Released short HF default/F32 on frozen source57; not current experimental tile qualification, depth, split or performance acceptance.",
+  "source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "passed": true,
+  "checks_per_policy": 21,
+  "check_composition": "6 prompt ID checks,6 exact top1/top5 checks,1 perplexity ID check,8 NLL checks",
+  "cases": [
+    {
+      "dtype": "default",
+      "exit_code": 0,
+      "seconds": 31.73768186569214,
+      "checks": [
+        {
+          "label": "prompt-00-ids",
+          "status": "pass",
+          "tokens": 5
+        },
+        {
+          "label": "prompt-00-logits",
+          "status": "pass",
+          "top1": 11751,
+          "top5_overlap": 5,
+          "top_ids": [
+            11751,
+            279,
+            7172,
+            198,
+            25,
+            31586,
+            303,
+            1076,
+            248046,
+            524
+          ],
+          "top_logits": [
+            15.139391,
+            14.583541,
+            14.375739,
+            14.33268,
+            14.234179,
+            13.970903,
+            13.508119,
+            13.477377,
+            13.374907,
+            13.149084
+          ]
+        },
+        {
+          "label": "prompt-01-ids",
+          "status": "pass",
+          "tokens": 3
+        },
+        {
+          "label": "prompt-01-logits",
+          "status": "pass",
+          "top1": 264,
+          "top5_overlap": 5,
+          "top_ids": [
+            264,
+            449,
+            279,
+            3428,
+            524,
+            799,
+            4364,
+            10141,
+            1429,
+            44265
+          ],
+          "top_logits": [
+            20.211082,
+            18.729521,
+            18.451546,
+            17.744432,
+            17.364582,
+            17.307051,
+            17.059258,
+            16.879459,
+            16.847385,
+            16.240229
+          ]
+        },
+        {
+          "label": "prompt-02-ids",
+          "status": "pass",
+          "tokens": 6
+        },
+        {
+          "label": "prompt-02-logits",
+          "status": "pass",
+          "top1": 198,
+          "top5_overlap": 5,
+          "top_ids": [
+            198,
+            460,
+            695,
+            317,
+            653,
+            271,
+            1133,
+            264,
+            220,
+            4673
+          ],
+          "top_logits": [
+            23.694899,
+            19.387173,
+            18.079912,
+            17.766594,
+            16.474243,
+            16.174204,
+            15.20112,
+            15.101852,
+            14.883271,
+            14.806227
+          ]
+        },
+        {
+          "label": "prompt-03-ids",
+          "status": "pass",
+          "tokens": 7
+        },
+        {
+          "label": "prompt-03-logits",
+          "status": "pass",
+          "top1": 6105,
+          "top5_overlap": 5,
+          "top_ids": [
+            6105,
+            5983,
+            13358,
+            18016,
+            4022,
+            321,
+            279,
+            55945,
+            1259,
+            864
+          ],
+          "top_logits": [
+            19.499264,
+            19.382023,
+            19.232967,
+            17.277985,
+            15.848874,
+            15.754051,
+            15.117811,
+            14.912457,
+            14.416389,
+            14.320861
+          ]
+        },
+        {
+          "label": "prompt-04-ids",
+          "status": "pass",
+          "tokens": 12
+        },
+        {
+          "label": "prompt-04-logits",
+          "status": "pass",
+          "top1": 16820,
+          "top5_overlap": 5,
+          "top_ids": [
+            16820,
+            17257,
+            7099,
+            8964,
+            4751,
+            11247,
+            4128,
+            9561,
+            9114,
+            1259
+          ],
+          "top_logits": [
+            16.339499,
+            16.011709,
+            15.369555,
+            13.930063,
+            13.514391,
+            13.000741,
+            12.893069,
+            12.802622,
+            12.631142,
+            12.212891
+          ]
+        },
+        {
+          "label": "prompt-05-ids",
+          "status": "pass",
+          "tokens": 17
+        },
+        {
+          "label": "prompt-05-logits",
+          "status": "pass",
+          "top1": 6124,
+          "top5_overlap": 5,
+          "top_ids": [
+            6124,
+            17163,
+            9564,
+            279,
+            5440,
+            31868,
+            15477,
+            8100,
+            6650,
+            6535
+          ],
+          "top_logits": [
+            17.559246,
+            17.405651,
+            17.048492,
+            16.812756,
+            15.83977,
+            15.824402,
+            15.767853,
+            15.753362,
+            15.663641,
+            15.496992
+          ]
+        },
+        {
+          "label": "ppl-ids",
+          "status": "pass",
+          "tokens": 243
+        },
+        {
+          "label": "ppl-00-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.15617733,
+          "perplexity": 23.4807,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 5.46136814172371e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-00-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156178799,
+          "perplexity": 23.4807,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 3.99236814141446e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-01-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873226306,
+          "perplexity": 48.0973,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 3.628942690525605e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-01-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.87322884,
+          "perplexity": 48.0974,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 3.375542690520206e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.53965166,
+          "perplexity": 34.4549,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 5.15816076065434e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539658237,
+          "perplexity": 34.4551,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 4.500460760681335e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352697905,
+          "perplexity": 28.5797,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 3.2139991502866394e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.35269784,
+          "perplexity": 28.5797,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 3.220499150291545e-05,
+          "bound": 0.02
+        }
+      ],
+      "bounds": {
+        "top5_overlap": 5,
+        "continuous_nll": 0.01,
+        "window_nll": 0.02,
+        "max_abs_logit": 100.0
+      },
+      "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+      "golden_hashes": {
+        "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+        "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+      },
+      "vocabulary": 248320
+    },
+    {
+      "dtype": "f32",
+      "exit_code": 0,
+      "seconds": 35.854856967926025,
+      "checks": [
+        {
+          "label": "prompt-00-ids",
+          "status": "pass",
+          "tokens": 5
+        },
+        {
+          "label": "prompt-00-logits",
+          "status": "pass",
+          "top1": 11751,
+          "top5_overlap": 5,
+          "top_ids": [
+            11751,
+            279,
+            7172,
+            198,
+            25,
+            31586,
+            303,
+            1076,
+            248046,
+            524
+          ],
+          "top_logits": [
+            15.139435,
+            14.583614,
+            14.375759,
+            14.332718,
+            14.234205,
+            13.970961,
+            13.508082,
+            13.477362,
+            13.374992,
+            13.149195
+          ]
+        },
+        {
+          "label": "prompt-01-ids",
+          "status": "pass",
+          "tokens": 3
+        },
+        {
+          "label": "prompt-01-logits",
+          "status": "pass",
+          "top1": 264,
+          "top5_overlap": 5,
+          "top_ids": [
+            264,
+            449,
+            279,
+            3428,
+            524,
+            799,
+            4364,
+            10141,
+            1429,
+            44265
+          ],
+          "top_logits": [
+            20.211262,
+            18.729523,
+            18.451656,
+            17.744457,
+            17.364468,
+            17.307098,
+            17.059124,
+            16.879425,
+            16.847548,
+            16.24017
+          ]
+        },
+        {
+          "label": "prompt-02-ids",
+          "status": "pass",
+          "tokens": 6
+        },
+        {
+          "label": "prompt-02-logits",
+          "status": "pass",
+          "top1": 198,
+          "top5_overlap": 5,
+          "top_ids": [
+            198,
+            460,
+            695,
+            317,
+            653,
+            271,
+            1133,
+            264,
+            220,
+            4673
+          ],
+          "top_logits": [
+            23.694969,
+            19.387182,
+            18.079844,
+            17.766632,
+            16.473982,
+            16.173967,
+            15.200774,
+            15.101754,
+            14.883057,
+            14.806089
+          ]
+        },
+        {
+          "label": "prompt-03-ids",
+          "status": "pass",
+          "tokens": 7
+        },
+        {
+          "label": "prompt-03-logits",
+          "status": "pass",
+          "top1": 6105,
+          "top5_overlap": 5,
+          "top_ids": [
+            6105,
+            5983,
+            13358,
+            18016,
+            4022,
+            321,
+            279,
+            55945,
+            1259,
+            864
+          ],
+          "top_logits": [
+            19.49942,
+            19.382034,
+            19.232895,
+            17.278069,
+            15.848824,
+            15.754124,
+            15.117826,
+            14.912289,
+            14.416205,
+            14.320889
+          ]
+        },
+        {
+          "label": "prompt-04-ids",
+          "status": "pass",
+          "tokens": 12
+        },
+        {
+          "label": "prompt-04-logits",
+          "status": "pass",
+          "top1": 16820,
+          "top5_overlap": 5,
+          "top_ids": [
+            16820,
+            17257,
+            7099,
+            8964,
+            4751,
+            11247,
+            4128,
+            9561,
+            9114,
+            1259
+          ],
+          "top_logits": [
+            16.339378,
+            16.01152,
+            15.369372,
+            13.929982,
+            13.514574,
+            13.000585,
+            12.892868,
+            12.802392,
+            12.631221,
+            12.212877
+          ]
+        },
+        {
+          "label": "prompt-05-ids",
+          "status": "pass",
+          "tokens": 17
+        },
+        {
+          "label": "prompt-05-logits",
+          "status": "pass",
+          "top1": 6124,
+          "top5_overlap": 5,
+          "top_ids": [
+            6124,
+            17163,
+            9564,
+            279,
+            5440,
+            31868,
+            15477,
+            8100,
+            6650,
+            6535
+          ],
+          "top_logits": [
+            17.559353,
+            17.405674,
+            17.048494,
+            16.81271,
+            15.839868,
+            15.824347,
+            15.767901,
+            15.753535,
+            15.663925,
+            15.497188
+          ]
+        },
+        {
+          "label": "ppl-ids",
+          "status": "pass",
+          "tokens": 243
+        },
+        {
+          "label": "ppl-00-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156186972,
+          "perplexity": 23.4809,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 4.180631858474726e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-00-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156186907,
+          "perplexity": 23.4809,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 4.115631858425672e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-01-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873246912,
+          "perplexity": 48.0983,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 1.5683426905166442e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-01-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873247888,
+          "perplexity": 48.0984,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 1.4707426905236076e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539680172,
+          "perplexity": 34.4559,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 2.3069607606451825e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539678332,
+          "perplexity": 34.4558,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 2.4909607606815598e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.35269871,
+          "perplexity": 28.5798,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 3.133499150287378e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352708659,
+          "perplexity": 28.58,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 2.138599150258713e-05,
+          "bound": 0.02
+        }
+      ],
+      "bounds": {
+        "top5_overlap": 5,
+        "continuous_nll": 0.01,
+        "window_nll": 0.02,
+        "max_abs_logit": 100.0
+      },
+      "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+      "golden_hashes": {
+        "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+        "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+      },
+      "vocabulary": 248320
+    }
+  ],
+  "hashes": {
+    "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-57b14db94/build/llmx": "6acfb113b5a9b929544760f6316a203025fcd148a467a61f10b87f2de7a8ed23",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-57b14db94/tests/baseline_qwen35.py": "be3b3554938716d8c05c4d32cd366986a2ad84b714df422b49aee16c41773c80",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-57b14db94/tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/goldens-file-exact/baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/goldens-file-exact/baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+  },
+  "driver_sha256": "e8886c2d94ed1ee89ba225ad54e14ddb3199e2583d4cd4baeb200adf7c408fdc",
+  "cleanup": "2f3e30a330bab2671c7ca3408aefab79d3d542b6f68ec73f982cdaf92e0b6ca1",
+  "terminal_container_state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 3566520,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-24T23:15:02.756077839Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "failures_retained": [
+    {
+      "attempt": "released-hf-consumer-direct-short-20261025",
+      "execution_sha256": "cc66a1d360f8f1d069f2a3142357e188452c0f212286ec946405ab12bcf2cd39",
+      "passed": false,
+      "summary": "Retained harness attempt; generic wrapper fixed-vocabulary refusal or family driver character/tuple-shape mismatch. Not a numerical failure on the corrected runner."
+    },
+    {
+      "attempt": "released-hf-consumer-family-short-20261025",
+      "execution_sha256": "42687920abc072d25a9d031fb401b53a3eb8c88f634794717a2a9ba5cf73d2c8",
+      "passed": false,
+      "summary": "Retained harness attempt; generic wrapper fixed-vocabulary refusal or family driver character/tuple-shape mismatch. Not a numerical failure on the corrected runner."
+    },
+    {
+      "attempt": "released-hf-consumer-family-short-v2-20261025",
+      "execution_sha256": "114a63ad0e68fb78e21e36666eec3cc20a4e8312f82cd41c8d8c1eecf9d0e537",
+      "passed": false,
+      "summary": "Retained harness attempt; generic wrapper fixed-vocabulary refusal or family driver character/tuple-shape mismatch. Not a numerical failure on the corrected runner."
+    },
+    {
+      "attempt": "released-hf-consumer-family-short-v3-d130-20261025",
+      "execution_sha256": "b851ec7aa53b92f393e01b8e158af478703d1ebe1226fc070ce8913f48381196",
+      "passed": false,
+      "summary": "Retained harness attempt; generic wrapper fixed-vocabulary refusal or family driver character/tuple-shape mismatch. Not a numerical failure on the corrected runner."
+    },
+    {
+      "attempt": "released-hf-consumer-short-20261025",
+      "execution_sha256": "b78fe0379b4635ba657ebea7714a4e87b3f2ab190ae00f30f033526c7f670b2f",
+      "passed": false,
+      "summary": "Retained harness attempt; generic wrapper fixed-vocabulary refusal or family driver character/tuple-shape mismatch. Not a numerical failure on the corrected runner."
+    }
+  ],
+  "harness_limits": "Initial generic wrapper assumed vocabulary151936 and rejected valid ID248046; family attempts had wrong document character count and tuple length. Correct runner has no numerical failure. Bounds unchanged.",
+  "receipt_hashes": {
+    "build-nvfp4-research/released-hf-consumer-validated-short-20261025/execution.json": "3b00617b661350851eee246f701bf07db435c44bafc48e5345952edd9b08630e",
+    "build-nvfp4-research/released-hf-run-20261025/execution.json": "de0733dcb4cdeba4ccdb6aacf409daed15e38ba66910a7916942fbf0e63df2ed",
+    "build-nvfp4-research/released-hf-goldens-20261025/baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+    "build-nvfp4-research/released-hf-goldens-20261025/baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+  }
+}

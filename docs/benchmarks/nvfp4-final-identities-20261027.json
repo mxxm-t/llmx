@@ -1,0 +1,358 @@
+{
+  "schema": "nvfp4-final-base-identity-checkpoint-v1",
+  "baseline": "5673d3c25c9e4a1504b9d4865ebd763768df9adb",
+  "candidate": "2570b4e1166e07ca340e310b2ebef434e201152e",
+  "candidate_tree": "27afb093295b7cf3806a658f13bc79a6003f74b6",
+  "build_receipts": {
+    "destination_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/separated-linux-startup-v1",
+    "build_result_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/separated-linux-startup-v1/build-result.json",
+    "launch_result_path_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/separated-linux-startup-v1/launch-result.json",
+    "build_result_container_path": "/work/build-result.json",
+    "launch_result_container_path": "/work/launch-result.json",
+    "build_result_sha256": "69e950fa892d3551f948716448243a395445e703da405ca6d4ed8789bd9bebe6",
+    "launch_result_sha256": "68175c97123ffdca81fd515659b0ff7473da9b1658db5afe4ee4bbc1c29a7366",
+    "build_result_schema": "linux-separated-startup-build-result-v1",
+    "launch_result_schema": "linux-separated-startup-build-launch-v1",
+    "arms": {
+      "main": {
+        "revision": "5673d3c25c9e4a1504b9d4865ebd763768df9adb",
+        "source_manifest_sha256": "59d6e7f0bd14d33d3180737f4128faf5fa98350c5ba04f98b33dd7fae2bcd469",
+        "llmx_sha256": "43f116884816960e2327e6cf37c647c522a624a2acd4c6bdcd5c36937ff9de33",
+        "helper_sha256": "47a2a7f6a48eb60192b5a154fc422487d13155e6078e012fc386950568121742",
+        "version": "llmx 0.1.0+unknown numerics 53c34c533f28015f",
+        "llmx_path_container": "/work/main/build/llmx",
+        "helper_path_container": "/work/main/build/llmx-model-logits"
+      },
+      "candidate": {
+        "revision": "2570b4e1166e07ca340e310b2ebef434e201152e",
+        "source_manifest_sha256": "9374c0fa2ba1d72c60afabf0f2e898b9c1618cce36bf7000278419d381966f31",
+        "llmx_sha256": "c1b8b31cd00fd669e5fe617a711b9eb5e4f9627d01924bf95979de361a126076",
+        "helper_sha256": "8c841e71167666d6ad27c693bb7ce452939da51e0072a0ecbc4ad40d735f895f",
+        "version": "llmx 0.1.0+unknown numerics 0a82006ec5283643",
+        "llmx_path_container": "/work/candidate/build/llmx",
+        "helper_path_container": "/work/candidate/build/llmx-model-logits"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "qwen3-06b-cpu",
+      "exact_identity": true,
+      "post_model_verification": "passed",
+      "comparisons": {
+        "greedy_ids": {
+          "exact_byte_equal": true
+        },
+        "batched": {
+          "exact_byte_equal": true
+        },
+        "decode": {
+          "exact_byte_equal": true
+        },
+        "greedy": {
+          "exact_byte_equal": true
+        }
+      },
+      "vocab": 151936,
+      "dtype": "f16",
+      "rows": {
+        "batched": 247,
+        "decode": 247,
+        "greedy": 64
+      },
+      "phases": {
+        "main": {
+          "batched": {
+            "path": "/out/qwen3-06b-cpu/main.batched.bin",
+            "bytes": 150112768,
+            "sha256": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3"
+          },
+          "decode": {
+            "path": "/out/qwen3-06b-cpu/main.decode.bin",
+            "bytes": 150112768,
+            "sha256": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d"
+          },
+          "greedy": {
+            "path": "/out/qwen3-06b-cpu/main.greedy.bin",
+            "bytes": 38895616,
+            "sha256": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+          }
+        },
+        "candidate": {
+          "batched": {
+            "path": "/out/qwen3-06b-cpu/candidate.batched.bin",
+            "bytes": 150112768,
+            "sha256": "609a050068fddd72e9a400779f92e4d5d959d195297e5f494cdbb8e5c554bff3"
+          },
+          "decode": {
+            "path": "/out/qwen3-06b-cpu/candidate.decode.bin",
+            "bytes": 150112768,
+            "sha256": "c3968f4ba875c11effb8836db6b95e325d3e931ceff9225265d23a5c9ed83e0d"
+          },
+          "greedy": {
+            "path": "/out/qwen3-06b-cpu/candidate.greedy.bin",
+            "bytes": 38895616,
+            "sha256": "60520800bde317e28660f0973681055bf67f006dd35c111d23fd936642e0d433"
+          }
+        }
+      },
+      "receipt": "final-cpu-identity-v2/output/execution.json"
+    },
+    {
+      "id": "qwen3-06b-mi50",
+      "exact_identity": true,
+      "post_model_verification": "passed",
+      "comparisons": {
+        "greedy_ids": {
+          "exact_byte_equal": true
+        },
+        "batched": {
+          "exact_byte_equal": true
+        },
+        "decode": {
+          "exact_byte_equal": true
+        },
+        "greedy": {
+          "exact_byte_equal": true
+        }
+      },
+      "vocab": 151936,
+      "dtype": "f16",
+      "rows": {
+        "batched": 247,
+        "decode": 247,
+        "greedy": 64
+      },
+      "phases": {
+        "main": {
+          "batched": {
+            "path": "/out/qwen3-06b-mi50/main.batched.bin",
+            "bytes": 150112768,
+            "sha256": "366c8efef60a62be716ee913f3cd9a39cc6041624db116999a3bc3b5b0bb13e9"
+          },
+          "decode": {
+            "path": "/out/qwen3-06b-mi50/main.decode.bin",
+            "bytes": 150112768,
+            "sha256": "51ca7b4cb034d09f6dba5dda396dc75332fc88d1b02325be099841f5a5ae177b"
+          },
+          "greedy": {
+            "path": "/out/qwen3-06b-mi50/main.greedy.bin",
+            "bytes": 38895616,
+            "sha256": "8e76e71490c4ea67bb84e976103912b5c038a59eff9184ce84d670be8e9ca95e"
+          }
+        },
+        "candidate": {
+          "batched": {
+            "path": "/out/qwen3-06b-mi50/candidate.batched.bin",
+            "bytes": 150112768,
+            "sha256": "366c8efef60a62be716ee913f3cd9a39cc6041624db116999a3bc3b5b0bb13e9"
+          },
+          "decode": {
+            "path": "/out/qwen3-06b-mi50/candidate.decode.bin",
+            "bytes": 150112768,
+            "sha256": "51ca7b4cb034d09f6dba5dda396dc75332fc88d1b02325be099841f5a5ae177b"
+          },
+          "greedy": {
+            "path": "/out/qwen3-06b-mi50/candidate.greedy.bin",
+            "bytes": 38895616,
+            "sha256": "8e76e71490c4ea67bb84e976103912b5c038a59eff9184ce84d670be8e9ca95e"
+          }
+        }
+      },
+      "receipt": "final-gpu-identity-v1/output/worker-output/execution.json"
+    },
+    {
+      "id": "qwen36-35b-q8-routed",
+      "exact_identity": true,
+      "post_model_verification": "passed",
+      "comparisons": {
+        "greedy_ids": {
+          "exact_byte_equal": true
+        },
+        "batched": {
+          "exact_byte_equal": true
+        },
+        "decode": {
+          "exact_byte_equal": true
+        },
+        "greedy": {
+          "exact_byte_equal": true
+        }
+      },
+      "vocab": 248320,
+      "dtype": "f16",
+      "rows": {
+        "batched": 128,
+        "decode": 128,
+        "greedy": 64
+      },
+      "phases": {
+        "main": {
+          "batched": {
+            "path": "/out/qwen36-35b-q8-routed/main.batched.bin",
+            "bytes": 127139840,
+            "sha256": "bf123ade43554ab53f02f2210228d20814d4205b54feed47676892b7bc2c04e3"
+          },
+          "decode": {
+            "path": "/out/qwen36-35b-q8-routed/main.decode.bin",
+            "bytes": 127139840,
+            "sha256": "b82c1f4a72e8ffbba514a75eba885efd0494d4799b4b27327ca77a007a855e80"
+          },
+          "greedy": {
+            "path": "/out/qwen36-35b-q8-routed/main.greedy.bin",
+            "bytes": 63569920,
+            "sha256": "232c086e7ab73f82267e878dad970cda67d07821ac936d74b9106945c4c57698"
+          }
+        },
+        "candidate": {
+          "batched": {
+            "path": "/out/qwen36-35b-q8-routed/candidate.batched.bin",
+            "bytes": 127139840,
+            "sha256": "bf123ade43554ab53f02f2210228d20814d4205b54feed47676892b7bc2c04e3"
+          },
+          "decode": {
+            "path": "/out/qwen36-35b-q8-routed/candidate.decode.bin",
+            "bytes": 127139840,
+            "sha256": "b82c1f4a72e8ffbba514a75eba885efd0494d4799b4b27327ca77a007a855e80"
+          },
+          "greedy": {
+            "path": "/out/qwen36-35b-q8-routed/candidate.greedy.bin",
+            "bytes": 63569920,
+            "sha256": "232c086e7ab73f82267e878dad970cda67d07821ac936d74b9106945c4c57698"
+          }
+        }
+      },
+      "receipt": "final-gpu-identity-v1/output/worker-output/execution.json"
+    },
+    {
+      "id": "qwen38-flash-final-2x2",
+      "exact_identity": true,
+      "post_model_verification": "passed",
+      "comparisons": {
+        "greedy_ids": {
+          "exact_byte_equal": true
+        },
+        "batched": {
+          "exact_byte_equal": true
+        },
+        "decode": {
+          "exact_byte_equal": true
+        },
+        "greedy": {
+          "exact_byte_equal": true
+        }
+      },
+      "vocab": 248320,
+      "dtype": "f16",
+      "rows": {
+        "batched": 128,
+        "decode": 128,
+        "greedy": 64
+      },
+      "phases": {
+        "main": {
+          "batched": {
+            "path": "/out/qwen38-flash-final-2x2/main.batched.bin",
+            "bytes": 127139840,
+            "sha256": "0929b7bb89c86c532cd9f89ba453dd5e7d18fd30f39a5755dab8a6ff870f3458"
+          },
+          "decode": {
+            "path": "/out/qwen38-flash-final-2x2/main.decode.bin",
+            "bytes": 127139840,
+            "sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b"
+          },
+          "greedy": {
+            "path": "/out/qwen38-flash-final-2x2/main.greedy.bin",
+            "bytes": 63569920,
+            "sha256": "abb25df2a5abd65bf332ee6b998274b4bf24c8e2b29ef435f7ea8f02474ff466"
+          }
+        },
+        "candidate": {
+          "batched": {
+            "path": "/out/qwen38-flash-final-2x2/candidate.batched.bin",
+            "bytes": 127139840,
+            "sha256": "0929b7bb89c86c532cd9f89ba453dd5e7d18fd30f39a5755dab8a6ff870f3458"
+          },
+          "decode": {
+            "path": "/out/qwen38-flash-final-2x2/candidate.decode.bin",
+            "bytes": 127139840,
+            "sha256": "e67e9da001599f488b3669a11b6e09fa866ee60e5b46328dfaf8cf9c3c89b12b"
+          },
+          "greedy": {
+            "path": "/out/qwen38-flash-final-2x2/candidate.greedy.bin",
+            "bytes": 63569920,
+            "sha256": "abb25df2a5abd65bf332ee6b998274b4bf24c8e2b29ef435f7ea8f02474ff466"
+          }
+        }
+      },
+      "receipt": "flash-final-template-v1/output/worker-output/execution.json"
+    }
+  ],
+  "raw_receipt_sha256": {
+    "flash-final-template-v1/output/controller.json": "06c6283292167323584b43c848faea551f8e1ca08a18282384056e31a265a71e",
+    "flash-final-template-v1/output/worker-output/execution.json": "c1b9bbd7bf29a5514b2b3e854d0f01e01c66220c0918a8e8976d3fb6a659add8",
+    "final-gpu-identity-v1/output/controller.json": "b4ff6c6b61015dd0ce7a6b0f077abd0c2fac3f4c80489013f96ccc9d5e73758b",
+    "final-gpu-identity-v1/output/worker-output/execution.json": "f242a52f5e25be6bcceb9d9fcbb0d40649ef4458c686443d455b2769cddef933",
+    "final-cpu-identity-v2/controller.json": "ea30c38ce98b50aeb63f846a81ec15e991702a3c118c9fd03018a745847d4cd0",
+    "final-cpu-identity-v2/output/execution.json": "c5a0357665c8de953eeeeeb1805c45a345a9225cd1087308fdf31562e248fa60"
+  },
+  "cleanup": "All three controllers verified their owned test containers removed after terminal workers.",
+  "activity_disclosure": "DDEV reported an overlapping ISA run on physical GPU 9 during the final other-model identity window. These byte comparisons are correctness evidence, not timing measurements.",
+  "hosted": {
+    "id": 40499953777,
+    "url": "https://github.com/mxxm-t/llmx/actions/runs/40499953777",
+    "attempt": 1,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "id": 122174851711,
+        "name": "CPU (Linux UBSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852006,
+        "name": "CPU (Linux TSan)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852025,
+        "name": "CPU (windows-2022)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852074,
+        "name": "Vulkan backend (build, Linux)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852118,
+        "name": "HF reference (CPU)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852155,
+        "name": "CPU (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 122174852205,
+        "name": "CPU (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "remaining": [
+    "Final Linux MI50 device/server suite, running at this checkpoint.",
+    "One planned MXFP4 0.6B and routed 35B timing round against the same main build.",
+    "Final documentation and merge audit."
+  ],
+  "qualification": "Partial checkpoint, not permission to merge. No numerical limits or test references changed."
+}

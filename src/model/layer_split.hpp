@@ -17,7 +17,7 @@
 
 namespace infer {
 
-// One weight matrix as a device would adopt it: its quant type, row width and row count, its bytes in the file, and whether a matrix product reads it as its weights (a projection or the head) and not a gather, norm or routed stack.
+// One matrix's storage type, row shape and bytes including companion scales, with `product` for a projection or head rather than a gather, norm or routed stack.
 struct Matrix {
     uint32_t type = 0;
     size_t nin = 0, rows = 0, bytes = 0;

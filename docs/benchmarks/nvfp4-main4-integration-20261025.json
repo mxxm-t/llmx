@@ -1,0 +1,231 @@
+{
+  "passed": true,
+  "scope": "Private integration build and focused native coverage, not final device or performance qualification.",
+  "prior_feature": "526122b77",
+  "main": "6d6f0897dbe3ba641679d4d9124d1f16bd8021e0",
+  "conflicts": [
+    "src/model/runtime.hpp",
+    "tools/gen_baseline.py"
+  ],
+  "resolution": [
+    "Use shared role_fits with retained decoder weight-scale ownership.",
+    "Keep NVFP4 and vision reference-generator modes.",
+    "Adapt imported vision calls to WeightView without changing their arithmetic.",
+    "Refuse associated vision companion scales in the format owner before construction."
+  ],
+  "source_pins_sha256": "3bde76eb84bb59f4186ce5d2f73345933ec534d12c86ed768a8e7e0932ebda5f",
+  "source_file_count": 866,
+  "build": {
+    "passed": true,
+    "scope": "Focused current-main integration build, no GPU execution or performance claim.",
+    "main_revision": "6d6f0897dbe3ba641679d4d9124d1f16bd8021e0",
+    "prior_feature": "526122b77",
+    "available_memory_bytes": 9614835712,
+    "calls": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan",
+          "-G",
+          "Visual Studio 18 2026",
+          "-A",
+          "x64",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "pid": 60588,
+        "started": 1792945667.5878317,
+        "minimum_available_bytes": 8539308032,
+        "exit_code": 0,
+        "seconds": 13.027520179748535
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan",
+          "--config",
+          "Release",
+          "--target",
+          "llmx",
+          "llmx-arch-qwen3vl-vision-test",
+          "llmx-vision-ops-test",
+          "llmx-nvfp4-test",
+          "llmx-model-validation-test",
+          "llmx-load-progress-test",
+          "llmx-model-weight-scales-test",
+          "llmx-weight-scales-test",
+          "llmx-backend-vulkan-test",
+          "llmx-backend-errors-test",
+          "llmx-cpu-f32-check",
+          "llmx-model-logits",
+          "llmx-split-check",
+          "llmx-decode-probe",
+          "llmx-drafter-pack",
+          "llmx-server-spec-test",
+          "llmx-encode-image",
+          "--parallel",
+          "1"
+        ],
+        "pid": 88272,
+        "started": 1792945680.616351,
+        "minimum_available_bytes": 5324029952,
+        "exit_code": 0,
+        "seconds": 371.62637543678284
+      }
+    ],
+    "targets": [
+      "llmx",
+      "llmx-arch-qwen3vl-vision-test",
+      "llmx-vision-ops-test",
+      "llmx-nvfp4-test",
+      "llmx-model-validation-test",
+      "llmx-load-progress-test",
+      "llmx-model-weight-scales-test",
+      "llmx-weight-scales-test",
+      "llmx-backend-vulkan-test",
+      "llmx-backend-errors-test",
+      "llmx-cpu-f32-check",
+      "llmx-model-logits",
+      "llmx-split-check",
+      "llmx-decode-probe",
+      "llmx-drafter-pack",
+      "llmx-server-spec-test",
+      "llmx-encode-image"
+    ],
+    "resource_policy": "Earlier two-worker admission refused at 2809634816 bytes free. Use one worker and /MP1, at least 2GiB initially, stop owned process tree if free memory falls below 512MiB; 2400s per-command deadline.",
+    "binary_sha256": {
+      "llmx-arch-qwen3vl-vision-test.exe": "8823dff93ee9a6baa8d9cd7fedef6a2c348d73b293bfa9bca291c3212669c96d",
+      "llmx-backend-errors-test.exe": "990746b0cb0f700e1b7819ac76afa96b84d39c26d692a399592d852a17dae19b",
+      "llmx-backend-vulkan-test.exe": "b7024b871292fdd11e9825293b49477d9fed8d63534edc34d57650dcb9a6a47b",
+      "llmx-cpu-f32-check.exe": "4c3c04328e85b38426297228e5029a9e603fa425a9c28df7026d1efb16be11e4",
+      "llmx-decode-probe.exe": "08be8b87cf094272c5141df753e1626a2e643934505846d3e070c868903a6535",
+      "llmx-drafter-pack.exe": "6766789d924c33126d07037e8bd9068521142bb8c56e5e4760a721f3e46df04b",
+      "llmx-encode-image.exe": "438261dee8816f269042dd725eeb43c07093e5fa8977e64eb0b15cd4b9acc731",
+      "llmx-load-progress-test.exe": "1bea87d0745f65da45b89343896474474a1818197c2588d7d14ca0c249881375",
+      "llmx-model-logits.exe": "c1583aa1578389bfe5c995855b3b60a1d523d572134386a5be7f6cd5ebf971bd",
+      "llmx-model-validation-test.exe": "9ce320c02fbbe6acf9f474a2a5d79680e10bcc27cc123ec4cf50121298906069",
+      "llmx-model-weight-scales-test.exe": "b8ba4c8af00ebc485781a83bb34e284b1fc54d12ba39753af74fa787b5b0713a",
+      "llmx-nvfp4-test.exe": "2b49ce55173159e525e38fef0012fca7af315ebe70f157a02283595496d8edc8",
+      "llmx-server-spec-test.exe": "f6edc9d1d8091fd826f0403e0e6254d586492424632bfee5f29d0cde1e7b44fc",
+      "llmx-split-check.exe": "5db58ecc15b835e2dcb0af31ec3e99bef0e409f6575e2a8a9abe602585816b4c",
+      "llmx-vision-ops-test.exe": "e6fdf48bd605d203f413a6f65d7f1b55040e890173a91ddaede2abc1cb882881",
+      "llmx-weight-scales-test.exe": "ea84bd0728e4b430d19ebb0e7f1dd7829b28adb9335a5871d5b6bc2c498f22d1",
+      "llmx.exe": "ff502118da025836295ad7bac3f788ebc475e76f847f70c302e5dceb5d6285e4"
+    },
+    "version": "llmx 0.1.0+g526122b7718d.dirty numerics 78afa6e9748102c1",
+    "source_pins_unchanged": true,
+    "log_sha256": {
+      "build-0.log": "95f4afee421879a7a13d871385947d5737b9d06c6898ae913659a899b9aa1ddc",
+      "build-1.log": "08d2284363e34db15fa6853a95cdac82689e8862fe44ec3b5d0710518dc06d49"
+    }
+  },
+  "focused": {
+    "command": [
+      "ctest",
+      "--test-dir",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan",
+      "-C",
+      "Release",
+      "--output-on-failure",
+      "-R",
+      "^(arch-qwen3vl-vision|vision-ops|nvfp4|model-validation|model-weight-scales|weight-scales|load-progress|backend-errors)$"
+    ],
+    "started": 1792946011.177351,
+    "seconds": 100.2859137058258,
+    "exit": 0,
+    "passed": true,
+    "log_sha256": "9538d5b1e39f7c19c0b7ddb58f0a61ff928966b76f75db0f8c9701984d1937ce"
+  },
+  "mutation": {
+    "purpose": "negative-control proving the vision mmproj scale-refusal regression catches removal of the format-owner check",
+    "source_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025",
+    "source_test": "tests\\arch_qwen3vl_vision.cpp",
+    "source_test_sha256": "1f39734dc4c0706fb175635f2a88e7a0b541539c4db1ee3cd01b0eafa8dcc506",
+    "overlay_header": "vision-scale-mutant-overlay\\model\\arch\\registry.hpp",
+    "original_registry_sha256": "728f20979e9d1a265051ecf44820265de2d01271b32517adfd85e0e9ddf39ce2",
+    "mutant_registry_sha256": "d476712b33fff222effbc6b59b25855a4379b5fcbd3a01427f2c56f4bb6a82f5",
+    "mutation": "remove only gguf::weight_scales(m, false); from copied registry.hpp",
+    "include_order": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-evidence\\vision-scale-mutant-overlay",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\src"
+    ],
+    "compile_policy": "C++17; MSVC /O2 /arch:AVX2 /bigobj and project warning errors; one CMake build worker; no Vulkan",
+    "configure": {
+      "argv": [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-evidence\\vision-scale-mutant-project",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-evidence\\vision-scale-mutant-build",
+        "-DBUILD_TESTING=OFF"
+      ],
+      "timeout_seconds": 180,
+      "timed_out": false,
+      "returncode": 0,
+      "elapsed_seconds": 6.136,
+      "stdout": "vision-scale-mutant-logs\\configure.stdout.log",
+      "stderr": "vision-scale-mutant-logs\\configure.stderr.log"
+    },
+    "build": {
+      "argv": [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-evidence\\vision-scale-mutant-build",
+        "--config",
+        "Release",
+        "--parallel",
+        "1"
+      ],
+      "timeout_seconds": 600,
+      "timed_out": false,
+      "returncode": 0,
+      "elapsed_seconds": 10.877,
+      "stdout": "vision-scale-mutant-logs\\build.stdout.log",
+      "stderr": "vision-scale-mutant-logs\\build.stderr.log"
+    },
+    "run": {
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-evidence\\vision-scale-mutant-build\\Release\\vision_scale_mutant.exe"
+      ],
+      "timeout_seconds": 90,
+      "timed_out": false,
+      "returncode": 1,
+      "elapsed_seconds": 0.19,
+      "stdout": "vision-scale-mutant-logs\\run.stdout.log",
+      "stderr": "vision-scale-mutant-logs\\run.stderr.log"
+    },
+    "expected_diagnostic": "a vision matrix with a companion scale: not refused",
+    "logs_directory": "vision-scale-mutant-logs",
+    "binary_sha256": "13063fce381ac951eaa0e1ef9786252fa7ac725fb1d517d635040bb7d8798eb7",
+    "result": "confirmed expected failure when scale-refusal check is removed"
+  },
+  "reference_generator": {
+    "tests": 92,
+    "seconds": 169.893,
+    "result": "OK",
+    "evidence": "Observed terminal unittest output in exec session 45237. The trailing no-conflict rg returned 1, not the test.",
+    "source_sha256": "0692f2727c7c569b268ccb0072bbdd1dc71fd734b93c06fe95283acbcc8a981e",
+    "generator_sha256": "567bc25d0b2cab7246dfa9ae0fe596508721e22a3a40831362e13d3066343365"
+  },
+  "documentation_review": {
+    "tracked_markdown": 147,
+    "import_changed_markdown": 10,
+    "review": "Cheap-agent delta review plus root owner/API review; unchanged pages carry the preceding full review.",
+    "corrections": [
+      "VISION introductory status",
+      "format association refusal",
+      "registry/encoder ownership",
+      "AGENTS coverage",
+      "STATUS"
+    ]
+  },
+  "limitations": [
+    "Full current device suite is running separately.",
+    "Frozen MI50 qualification still uses runtime4f026d941; it is not automatically a pass for this integration.",
+    "Hosted CI7/7 belongs to the earlier pinned tree. Final hosted qualification must follow the final integration.",
+    "Released vision mmproj fixture is absent locally; no released vision result claimed."
+  ]
+}

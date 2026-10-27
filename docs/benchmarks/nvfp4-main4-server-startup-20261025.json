@@ -1,0 +1,59 @@
+{
+  "scope": "Exact original server startup only; remaining released-server checks are still pending",
+  "runtime_revision": "d86fb838b3d50fb0651aa5c38a0b97423de8b315",
+  "binary_sha256": "ff502118da025836295ad7bac3f788ebc475e76f847f70c302e5dceb5d6285e4",
+  "version": {
+    "argv": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-main4-vulkan\\Release\\llmx.exe",
+      "--version"
+    ],
+    "exit_code": 0,
+    "stdout": "llmx 0.1.0+g526122b7718d.dirty numerics 78afa6e9748102c1",
+    "stderr": ""
+  },
+  "model": "Qwen3-0.6B-Q8_0.gguf",
+  "model_sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+  "model_size": 639446688,
+  "flags": [
+    "--max-seqs",
+    "8",
+    "--kv-tokens",
+    "40960",
+    "--device",
+    "vulkan:0",
+    "--cache-type-k",
+    "f32",
+    "--cache-type-v",
+    "f32",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "ephemeral"
+  ],
+  "started": "2026-10-25T17:52:17.904700+00:00",
+  "ended": "2026-10-25T17:52:38.043943+00:00",
+  "elapsed_seconds": 20.140999999828637,
+  "health_ready": true,
+  "timed_out": false,
+  "owned_server_pid": 88180,
+  "child_exit": 1,
+  "child_exit_reason": "Owned server terminated after health readiness; runner exit was 0",
+  "memory": {
+    "samples": 15,
+    "minimum_available_physical_bytes": 2874617856,
+    "minimum_available_commit_bytes": 64308613120,
+    "peak_child_private_bytes": 11036553216
+  },
+  "coordination": "LDEV 17:51 granted exclusive two-minute slot; XDEV claimed 17:52 and released 17:53",
+  "availability": "Launcher refused any pre-existing llmx.exe; no GPU counter series was recorded",
+  "original_failure_disposition": "F2DEV 17:53 classified as contention. No failure-time memory/GPU/process sample exists for the original failure, so its specific cause remains unproven by this reproduction.",
+  "artifact_directory": "build-nvfp4-research\\server-startup-repro",
+  "artifacts": {
+    "server-model-startup-20261025T175217Z-54620.json": "053f0bde32d5d152c8f1ec6f4abdef169e2f8443c6b20eabc68b73bf53bddd2e",
+    "server-model-startup-20261025T175217Z-54620.memory.jsonl": "9f010371095dcb66841d1956a9898c0f53b3d02c7433a864d4a28c934c454844",
+    "server-model-startup-20261025T175217Z-54620.stderr": "781f88e3b79801703de203a5fe3557f3fb17dd4b1bbad9e6636a45223da62545",
+    "server-model-startup-20261025T175217Z-54620.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "runner_sha256": "8454023fd6bd530e6636c10fb6c8021e8475209720ae6be268243acc5d019222",
+  "original_suite_receipt_sha256": "c6ca380e59250187096822298aed0ee9a219800ecdfc7e95eedc050e85640fb7"
+}

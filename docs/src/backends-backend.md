@@ -86,7 +86,7 @@ placement contracts in `docs/EXECUTION.md`.
 - `decode_columns()`: the generated tokens a decode pass's products read each weight once for, past which another row costs a weight read of its own, what a server's drafts ride on beside other requests' rows (`docs/SPECULATIVE.md`, section 3); 1 by default, the CPU's.
 - `identity()`: what makes the backend's arithmetic its own, as text, so a history one backend computed continues on another of the same identity and build (`docs/DISK-TIER.md`, The entry file); by default an identity no other backend shares.
 - `row_class(extent)`: a key for rows of that `RowRun` extent, equal for two extents only where every op of the backend takes the same arithmetic for both, so they give the same bits; by default every extent is a class of its own, and a backend claims more only where it proves it (`docs/SPECULATIVE.md`, section 1).
-- `matmul(type, data, X, Y, nin, nout, nbatch, runs)`: the type-generic
+- `matmul(weight, X, Y, nin, nout, nbatch, runs, dtype)`: the type-generic
   matmul. The quant type is resolved through `quant::Registry`, so every registered
   block decoder gets the generic CPU batched fallback; storage metadata alone
   does not enable it. Vendor backends require kernels
@@ -104,14 +104,15 @@ placement contracts in `docs/EXECUTION.md`.
   It checks that the runs are in row order and end at row `n` before any callback, so a malformed list reaches no rows.
   Then it calls `each(first, count, key)` over each stretch of adjacent runs whose `key(run)` is equal, which is how each backend groups the rows that take one kernel.
   A call without runs is left to the caller, which chooses by the call's width.
-- `matmul_group(projections, X, nin, nbatch, runs)`: independent projections sharing
-  activations. Each descriptor gives type, weights, output and row count.
+- `matmul_group(projections, X, nin, nbatch, runs, dtype)`: independent projections sharing
+  activations. Each `Projection` holds a `WeightView` (type, data, scales and scale count), output and row count.
+  Its three-argument constructor keeps the weight view grouped, so the old flat initializer cannot silently fill the scale fields.
   Outputs must be disjoint from one another, inputs and weights. The default
   calls `matmul` sequentially on the same stream; host observation of outputs
   follows the usual `wait`, `sync` or `read` completion contract.
-- `matmul_add(...)`: `matmul` whose product is added to what the output
+- `matmul_add(weight, X, Y, nin, nout, nbatch, runs, dtype)`: `matmul` whose product is added to what the output
   already holds.
-- `matmul_logits(...)`: the output head, by default `matmul`. Its values
+- `matmul_logits(weight, X, Y, nin, nout, nbatch, runs, dtype)`: the output head, by default `matmul`. Its values
   are the logits a caller reads directly, so a backend may keep more
   precise activations for it; the Vulkan backend keeps the 16-bit twin for
   a Q4_0, Q4_1 or Q6_K head.
@@ -183,11 +184,11 @@ placement contracts in `docs/EXECUTION.md`.
   block_tokens)`: the checks every backend makes, a byte range inside a
   buffer and size arithmetic that throws rather than wraps, and the whole
   KV blocks a number of positions needs.
-- `embed(dst, type, table, nin, nrows, ids, count)`: gather `count` embedding
+- `embed(dst, weight, nin, nrows, ids, count)`: gather `count` embedding
   rows into `dst`, row-major. An op rather than a model-side read because the
   table is a buffer the model cannot address on a device backend. Rejects a
   token id at or beyond `nrows`.
-- `embed_ids(dst, type, table, nin, nrows, ids, count)`: `embed` with the ids
+- `embed_ids(dst, weight, nin, nrows, ids, count)`: `embed` with the ids
   read on the device, 32-bit integers in float-sized slots, as an embedded
   drafter's chain feeds a draft back (docs/SPECULATIVE.md, section 7); an id
   of `nrows` or more writes a zero row and reads no row of the table.
@@ -235,17 +236,17 @@ placement contracts in `docs/EXECUTION.md`.
   A probability below FLT_MIN counts as 0, so such picks go by lower id on every
   device whatever its denormal mode, where HF orders them by value; their weights
   are below 1e-38, so no output changes.
-- `matmul_experts(projections, X, nin, nrows, routing, runs)`: up to three
+- `matmul_experts(projections, X, nin, nrows, routing, runs, dtype)`: up to three
   routed projections of one X, entry `e` of a projection being its expert
   `ids[e]`'s rows times X row `e / k`. A projection's data holds its
   `n_expert` matrices back to back, as a GGUF stacks them.
   Differing projection types require `implements(Op::mixed_experts)`, true on the CPU and false on Vulkan. Architecture plans declare this requirement for their grouped gate/up pair; a separately typed down projection does not need it.
-- `matmul_experts_add(type, data, X, Y, nin, nout, nrows, routing, runs)`:
+- `matmul_experts_add(weight, X, Y, nin, nout, nrows, routing, runs, dtype)`:
   the routed down projection joining the residual, row `r` of `Y` adding
   the weighted sum of its k slots, formed in slot order before the add.
 - `RopeStreams` gives `norm_rope_partial` several positions a row: row `r`'s stream `k` is `pos[r * count + k]` and frequency `j` of the rope's half turns by stream `of[j]`, as Qwen's three position components and a vision encoder's patch row and column do; one stream is the plain rope, and a `w` with no buffer takes the rope without the norm. `implements(Op::rope_streams)` says a backend reads more than one stream or no norm.
 - The vision encoder's ops (`docs/VISION.md`, section 3), each with a base refusal until a backend implements it and an `Op` that says it does: `layer_norm_rows(dst, src, w, b, rows, n, stride, eps)`, the mean and biased variance of each row then `(x - mean) / sqrt(var + eps) * w + b`; `gelu(dst, src, n, form)`, `GeluForm::erf` or `GeluForm::tanh`; `add_bias(dst, bias, rows, width)`, a bias row added to each row; and `mix_rows(dst, table, width, table_rows, idx, weight, rows, taps)`, each row adding the weighted sum of its taps' table rows, taken in order, a row past the table refused.
-- `moe_step(m, h, y, nin, rows, runs, dtype)`: a routed feed-forward step, `MoeStep` its operands: the F32 router into its scores, `route_experts`, `matmul_experts` for gate and up, the routed `silu_mul` over runs of `end * k` (built in `m.scratch`) and `matmul_experts_add` into `y`, then, with `m.shared` (`MoeShared`), the row gate's F32 product in the step's dtype where the expert has one, `matmul_group` for its gate and up, `silu_mul`, `sigmoid_mul` by the row gate, and `matmul_add` into `y`; `m.zero`, a row of zeros, clears `y` first through `repeat_row`.
+- `moe_step(m, h, y, nin, rows, runs, dtype)`: a routed feed-forward step, `MoeStep` its operands: the F32 router into its scores, `route_experts`, `matmul_experts` for gate and up, the routed `silu_mul` over runs of `end * k` (built in `m.scratch`) and `matmul_experts_add` into `y`, then, with `m.shared` (`MoeShared`), the row gate's F32 product in the step's dtype where the expert has one, `matmul_group` for its gate and up, `silu_mul`, `sigmoid_mul` by the row gate, and `matmul_add` into `y`; `m.zero`, a row of zeros, clears `y` first through `repeat_row`. Its projections and down weights carry `WeightView`s, including optional scale storage, through both the base operations and device override.
   The base runs exactly those calls in that order, so a backend that does not override it, the CPU among them, computes what the routed layers computed before the op; a device overrides it where it fuses the step with the same bits (`backends-vulkan.md`, the fused routed step), and calls the base otherwise.
 - `repeat_row(dst, row, rows, width)`: copies a row of `width` floats into each of `rows` rows of dst, then doubles the copied rows, so clearing rows takes no host buffer or per-token upload; the base `moe_step` and qwen4exp's injection into a tensor group's partial rows use it.
 - The ops of the qwen35 layers, whose math is in [QWEN35](../QWEN35.md), The forward pass, with `norm_rope_partial` above.
@@ -300,3 +301,5 @@ Backends may use this boundary to scope execution policy across all prompt
 microbatches without putting platform details in the model layer.
 
 `dot_q8_0` and `matvec_q8_0` left the device-neutral `Backend` interface for `matmul` (`docs/DEVICE-EXECUTION.md`, step 3), and `CpuBackend` has no public `matvec_q8_0` either: the float reference path of a Q8_0 decode row is its private `row_dot` (`backends-cpu.md`), not a primitive another backend implements.
+
+`WeightView` groups the storage type, weight `CSlice`, optional F32 scale `CSlice` and scale count. `Projection` holds that view with its output and row count, so grouped and routed callers carry the same association as direct matrix and embedding calls. The base `moe_step` forwards scale-bearing views through the ordinary matrix owners. Vulkan checks scales before its fused routed dispatch and uses the base step when no compatible fused build is available. A scale is scalar or indexed by expert; it belongs to the weight operand rather than activation dtype selection. CPU scale controls pass. Radeon VII checks pass four sets of 262144 embedding values with global scales 1, -0.125, +0 and -0, plus all six matrix entry points scaled/unscaled, mixed grouping and per-expert residuals. F32/F16/BF16 scale checks pass all six matrix calls and mixed/routed cases, including F32 overflow-before-product/residual controls and grouped invalid-input refusal before writes. Broad HF, released-file and performance qualification remain pending.

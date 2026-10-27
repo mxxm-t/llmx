@@ -1,0 +1,51 @@
+{
+  "runtime_source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+  "scope": "Focused equivalent-scale HF and native expert integration checkpoint, not merge qualification",
+  "runtime_delta": "No runtime changes since the scale checkpoint. Test and documentation changes only.",
+  "reference_policy": "Original config, decoded and packed hashes checked first. Independently decode the repacked payload and apply global scales, requiring exact effective F32 bytes including zero signs. Original goldens/calibration unchanged.",
+  "cases_per_consumer": {
+    "full_logits": 300,
+    "nll": 24
+  },
+  "passed_consumers": [
+    "CPU F32",
+    "Vulkan F32",
+    "Vulkan F16 request with F32 fallback",
+    "Vulkan BF16"
+  ],
+  "native": "Two routed layers, independent F32 oracle, layer split, TP2 and streamed prompt/host decode/follow-up pass. Destination scale adoption and both layers streaming are witnessed.",
+  "retained_refusals": [
+    "CPU TP2 CLI request cpu,cpu refused as duplicate device before comparison. No CPU HF split result.",
+    "First native extension compile used backend::Routing rather than inherited Routing; corrected before passing rebuild."
+  ],
+  "pins": {
+    "tests/nvfp4.py": "0bf570465aeedda56de5236cbd93b2851031018dbde0cff511fe0f342a4bb1e1",
+    "tests/block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+    "tests/reference_generator.py": "51cdbe2f3540bda14b6d0e30dabe09ad8ad00dc8adb06eec318cbb8487936c4a",
+    "tests/model_weight_scales.cpp": "19d2ab6893b9d3efdf1c01e28601d5a45f54ca6db92fe7476682c3fdefea721c",
+    "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+    "tests/data/baseline_nvfp4.json": "6a8a5aec90366901b51ed04be2405411b93bf9893b0e15f3a2cc07e13741f3bc",
+    "tests/data/baseline_nvfp4_split.json": "012eb2ad7f5fb2fc528f152229bfef0d3eeb857d2fad869948c49e754e1fbd2c",
+    "tests/data/dtype_budget.json": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+    "build-nvfp4-vulkan/Release/llmx.exe": "6a93f7a8d01e23a48b82f63a3f0fe1cb97d48f106a653d28ca7b52e9c3d9b71b",
+    "build-nvfp4-vulkan/nvfp4-scaled-hf-f32.log": "c750563d3d9c2f3252d18544203cab70252b27ca9f0851530a521714be6ebf80",
+    "build-nvfp4-vulkan/nvfp4-scaled-hf-f16.log": "c750563d3d9c2f3252d18544203cab70252b27ca9f0851530a521714be6ebf80",
+    "build-nvfp4-vulkan/nvfp4-scaled-hf-bf16.log": "35321f7846499416fd7c818c51c484aa835a2dcb679b491d7e9e098eaaef20c1",
+    "build-nvfp4-scaled-cpu/cpu-f32-execution.json": "5eec041e33a102fe753c7788d164427200e455c2000eea33848ef37c4e60a686",
+    "build-nvfp4-scaled-split-equivalence/equivalence.json": "fdfe73e4b5ab514cafb57f82fd79198ae9b8d401eb93d7b08096cb3f0cf32bc4",
+    "build-nvfp4-cpu/nvfp4-equivalent-scaled-control-tests.log": "727109acffa43ac55f5f5f028d77a7229541e62c485250df39f435cae08f49f9",
+    "build-nvfp4-cpu/stream-scales-build-retry.log": "6cb1b8756f0353b690bbcf7aa99ddf82942ad6a6f2f40996b96318d1e9e9d6c6",
+    "build-nvfp4-cpu/stream-scales-tests.log": "44165c8f52ade635a13766a9aee32e18f9f8d9ab2eead3b48cfca99a6a347338",
+    "build-nvfp4-scaled-cpu-tp2/cpu-tp2-f32-execution.json": "86474be82ca4bc9d777488a6809f1b718f3ea5aaa43c9891b5cd88002679ae5a"
+  },
+  "markdown_review": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-scaled-hf-markdown-review-20261025.json",
+    "sha256": "94a9505ff3c122745711a7041ee1f99fea6f14b331f369f06a929d7d218626ca"
+  },
+  "open": [
+    "Released-file HF short/depth",
+    "Device split HF",
+    "Performance improvement and matched-build mx Vulkan qualification",
+    "Existing-format landing regressions and CI"
+  ]
+}

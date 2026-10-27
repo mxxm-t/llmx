@@ -1,0 +1,275 @@
+{
+  "schema": "nvfp4-main7ac-focused-integration-v1",
+  "date": "2026-10-26",
+  "scope": "Private combined NVFP4 row/tile candidate over public main 7acff9b33. Windows and Linux builds and focused CPU checks pass. Focused Radeon NVFP4 correctness passes. MI50, combined performance and full qualification remain pending.",
+  "public_base": "7acff9b3311afd2ce6061bece823be4319ae3b01",
+  "source_delta": {
+    "public_base": "7acff9b33",
+    "compared_with": "private combined row/tile worktree nvfp4-train-20261026",
+    "scope": "All non-documentation tracked files, with CRLF/LF normalized.",
+    "changes": {
+      "cmake/numerics-sources.txt": {
+        "before": "15e011bf16f8d8438976d071bcd03d800e67893aaa40ae79bd560b0599bd1e29",
+        "after": "5a7ea03cf7edc031231d00ac559bd5e1117ee549dad4b2b74a907193ee80820f"
+      },
+      "src/core/file_sync.hpp": {
+        "before": null,
+        "after": "26627fc6bbd73880cdfc736d3cf25f576ad5b758adbb5aa55351a8156b8c6afd"
+      },
+      "src/format/file_writer.hpp": {
+        "before": "e03d71ba2de92bb6dbe784958fb874aed93d3927165eec753eb1bf12c88e8ab3",
+        "after": "6296354fc3b34aecac9fd199853ea1a023498236a8c7396d136f15f49c38d5c4"
+      },
+      "src/server/disk_store.hpp": {
+        "before": "d168bcfbc08474d7041594cbdb4d66606d15f4cb7d5aa14f01da5562809d214d",
+        "after": "e9bf96fad6b1d80fc76ea90dbb5294118aaad81d43cbeb8fc2056a3ee81baeb4"
+      },
+      "tests/disk_store.cpp": {
+        "before": "a7174617f5b571dcc828f0ffe4fc01ac19261ec927cc450ad655cb37e6571004",
+        "after": "32c6e94888070cea99c1ee6ec04c1809ce708c01a8b1517e312707e5665cdee5"
+      }
+    },
+    "runtime_files_compared": 906,
+    "passed": true
+  },
+  "source_delta_sha256": "95fd49f46371c224b69404aec1ccc3cea80f7bdfa83b57ba0a6e6f1b22fbf437",
+  "build": {
+    "passed": true,
+    "steps": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-main7ac-20261026",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-main7ac-20261026\\build-integration\\cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "started_unix": 1793006578.8114524,
+        "ended_unix": 1793006585.859852,
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-main7ac-20261026\\build-integration\\cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-nvfp4-test",
+          "llmx-backend-vulkan-test",
+          "llmx-disk-store-test",
+          "llmx-format-output-test"
+        ],
+        "started_unix": 1793006585.859852,
+        "ended_unix": 1793006709.9163532,
+        "exit_code": 0
+      }
+    ],
+    "binaries": {
+      "llmx-backend-vulkan-test.exe": {
+        "sha256": "a02905118535cfc8301db23d5beea676051e540c9fb4ed563a028194fd186979",
+        "bytes": 9935360
+      },
+      "llmx-disk-store-test.exe": {
+        "sha256": "4d05396959dcf47cfa6433aeb77ec8372ec7f639326ee3c074926851041a508d",
+        "bytes": 594944
+      },
+      "llmx-format-output-test.exe": {
+        "sha256": "f68c9d732a36975df110053a6c80bbdca57362f056d31a8ae463bcd919ac2549",
+        "bytes": 89088
+      },
+      "llmx-nvfp4-test.exe": {
+        "sha256": "7cd90ef51c6ce199cf62ec72cc4242c5ee9db56354dc5ef2e6628c9fafc1bdf0",
+        "bytes": 9308672
+      },
+      "llmx.exe": {
+        "sha256": "e823afe97cd86efde41e94b50da0827721c5b1dd68f1f5f553b858a296b0bf78",
+        "bytes": 11638272
+      }
+    },
+    "version": "llmx 0.1.0+g7acff9b3311a.dirty numerics bb0bbc8b3f27dd6a",
+    "result_sha256": "77460fcc106ded9b58b02e2c126447c95700b4369097129b1a992c5954949c0f",
+    "configure_log_sha256": "e570ee4022ef3eae72b35467cd3e30c6cce3c5d18089fdaed978dbabf897da58",
+    "build_log_sha256": "788825fa6510ce0cc8a0a0ed6ae477e46247e167a84f610207ccded9a71d160d"
+  },
+  "focused_cpu_ctest": {
+    "passed": 3,
+    "components": [
+      "nvfp4",
+      "disk-store",
+      "format-output"
+    ],
+    "total": 3,
+    "elapsed_seconds": 24.14,
+    "log_sha256": "e2e4b65973d33c1d056fb2b54d762b7a64583cd6985208bd87720eb4906582e7"
+  },
+  "documentation": {
+    "inventory": "../build-integration/main7ac-markdown-review.json",
+    "inventory_sha256": "740ebe4abcf2ff34f6355b70fdd5aa279ab6f2253319899950fd1b75d2f13eab",
+    "tracked_pages": 150,
+    "differs_from_public_main": 29,
+    "prior_pages_carried_byte_identically": 143,
+    "prior_pages_rechecked": 6,
+    "new_owner_page": "docs/src/core-file_sync.md",
+    "main_file_sync_status_block_preserved": true,
+    "main_file_sync_status_block_sha256": "78a330872960c6e7bf2d46fc05a7217fc4e7488bda6ed90615eee53f9ef0423e"
+  },
+  "qualification_state": {
+    "gpu_tests": {
+      "radeon_vii_nvfp4_focused": {
+        "passed": true,
+        "passed_count": 1,
+        "total": 1,
+        "elapsed_seconds": 5.07,
+        "binary_sha256": "7cd90ef51c6ce199cf62ec72cc4242c5ee9db56354dc5ef2e6628c9fafc1bdf0",
+        "log": "../../build-integration/radeon-focused.log",
+        "log_sha256": "8f61d5b8c7066f1fa6c6cc3bbda1c81f6a72598fa2b5a41d8d007a43d1fd0a58",
+        "result": "../../build-integration/radeon-focused-result.json",
+        "result_sha256": "925ed2e5499a24f99b394db1eecd469a16280a1e42e43daea45df766bb47ca0b",
+        "device": "AMD Radeon VII",
+        "background_activity": "Two unrelated 3D-engine PIDs each measured about 2.4 percent before launch.",
+        "scope": "Correctness only; no timing or throughput claim."
+      },
+      "mi50_native_qualification": "pending"
+    },
+    "matched_performance": "not run on the combined candidate",
+    "full_hf_depth_split_and_existing_format_gates": "pending",
+    "coordinated_gpu8_admission": "pending",
+    "linux_focused_cpu_ctest": {
+      "passed": true,
+      "passed_count": 3,
+      "total": 3,
+      "components": [
+        "nvfp4",
+        "disk-store",
+        "format-output"
+      ],
+      "elapsed_seconds": 15.05,
+      "log": "../../build-integration/linux-focused-cpu-ctest.log",
+      "log_sha256": "d7bab78b293e03ed389370dab61140c35444955e8438dbd90f064572f1191cf8",
+      "observation": "../../build-integration/linux-cpu-observation.json",
+      "observation_sha256": "70f763f4050b6bf01aa0a8058dd7583f869501439d1c72efa18a1e03ba3be03e",
+      "launch": "../../build-integration/linux-cpu-launch.json",
+      "launch_sha256": "3a177ec2d2258a59ff24b5fef4fd5397f5b1b8829adce016cb9fec1920bf526a",
+      "container_id": "041173ef4448ce485dba6647e57ca61135e3e3cbd32f86d0a9bb22a7e0b8510e",
+      "exit_code": 0,
+      "scope": "Focused CPU checks only; no GPU or full Python suite."
+    }
+  },
+  "linux_build": {
+    "passed": true,
+    "steps": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "/work/candidate/source",
+          "-B",
+          "/work/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793007299.1752338,
+        "ended_unix": 1793007299.7434385
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-nvfp4-test",
+          "llmx-backend-vulkan-test",
+          "llmx-disk-store-test",
+          "llmx-format-output-test"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793007299.7436662,
+        "ended_unix": 1793007481.9185581
+      }
+    ],
+    "binaries": {
+      "llmx": {
+        "sha256": "13fb8af9de81343db18b33738f7a2e24d5839edf0ed6c6d880b521f5bed579d3",
+        "bytes": 12800144
+      },
+      "llmx-nvfp4-test": {
+        "sha256": "68a4dea41c1f7e705e8d915522b60f6353261912a0115fbab9dbe2dfd4a4d8ea",
+        "bytes": 9783952
+      },
+      "llmx-backend-vulkan-test": {
+        "sha256": "e007af65f3a7ef82de95716c188b5ccbf6dabd27b079ccb5b7ecf9133a084bcc",
+        "bytes": 10547544
+      },
+      "llmx-disk-store-test": {
+        "sha256": "40ea6a414f7ffef322c1cd24b0937a373802951313f2f60fd9e0ea8afcfb847c",
+        "bytes": 768056
+      },
+      "llmx-format-output-test": {
+        "sha256": "4c31c3a31a5ed73820f26e42a437ee050156d96b500ecf89d7143270abd9c8fc",
+        "bytes": 59416
+      }
+    },
+    "version": "llmx 0.1.0+unknown numerics bb0bbc8b3f27dd6a",
+    "launch_sha256": "5ec6fca7f24840baaec27c3d441a6e96f70e9621ee5115e05c4ec4a23e99af86",
+    "result_sha256": "4779cc938f1aec44fd787c39c4722c6755478c3bb2bdee9ca83d2c15a3be716b",
+    "raw_result_sha256": "4779cc938f1aec44fd787c39c4722c6755478c3bb2bdee9ca83d2c15a3be716b",
+    "configure_log_sha256": "e2c77a4f6df858c1a739f67605c637f042895afe54194a187b1fd5451626c6d7",
+    "build_log_sha256": "5650b43b0195e3828205fce226be47d1844b346a1e8ec9c663d63b4ba92c4698",
+    "container_state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-26T09:34:59.000079238Z",
+      "FinishedAt": "2026-10-26T09:38:01.986194249Z"
+    },
+    "source_manifest_sha256": "ff65dda7628400a123c4e32ed29ca4aa2d7cc83c2cf06f8a6332a133e8eef038",
+    "scope": "CMake Release build of llmx plus NVFP4, Vulkan backend, disk-store and format-output test binaries; followed by focused CPU CTests. No GPU tests."
+  },
+  "local_static_checks": {
+    "command": [
+      "python",
+      "tests/run_tests.py",
+      "--exe",
+      "build-integration/cmake/Release/llmx.exe",
+      "--only",
+      "dead-code,docs"
+    ],
+    "dead_code": {
+      "passed": true,
+      "known_findings": 7,
+      "planted_faults": 19,
+      "elapsed_seconds": 16.0
+    },
+    "docs": {
+      "passed": true,
+      "findings": 0,
+      "planted_faults": 21,
+      "elapsed_seconds": 13.6
+    },
+    "scope": "Local static documentation and dead-code checks only.",
+    "after_radeon_and_historical_doc_update": {
+      "docs_passed": true,
+      "findings": 0,
+      "planted_faults": 21,
+      "elapsed_seconds": 12.3
+    }
+  }
+}

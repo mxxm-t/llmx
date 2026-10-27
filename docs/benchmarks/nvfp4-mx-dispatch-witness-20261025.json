@@ -1,0 +1,141 @@
+{
+  "scope": "Actual Radeon dispatch diagnostic only; not timing, MI50 or candidate precision acceptance.",
+  "source_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "archive_sha256": "057e0720b5edfb49fa7a1bca482c9c3ada58a98d05db325a0bb6aad75ac3d2bd",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "command": [
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\bmxnv\\bin\\Release\\llama-bench.exe",
+    "-m",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "-p",
+    "512",
+    "-n",
+    "1",
+    "-r",
+    "1",
+    "-b",
+    "512",
+    "-ub",
+    "512",
+    "-t",
+    "4",
+    "-ngl",
+    "99",
+    "-dev",
+    "Vulkan0",
+    "-ctk",
+    "f16",
+    "-ctv",
+    "f16"
+  ],
+  "exit_code": 0,
+  "device": [
+    "ggml_vulkan: 0 = AMD Radeon VII (AMD proprietary driver) | uma: 0 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 32768 | int dot: 1 | matrix cores: none"
+  ],
+  "dispatch_counts_verified_from_raw": {
+    "matmul_nvfp4_f32_aligned_1": 212,
+    "mul_mat_vec_nvfp4_f32_f32": 220
+  },
+  "tile": {
+    "name": "matmul_nvfp4_f32_aligned_1",
+    "workgroup": 128,
+    "BM": 64,
+    "BN": 64,
+    "BK": 32,
+    "staging": "F16",
+    "sums": "F32 scalar FMA",
+    "dot2": false
+  },
+  "row": {
+    "name": "mul_mat_vec_nvfp4_f32_f32",
+    "arithmetic": "separate F32 row family"
+  },
+  "spirv": {
+    "path": "bmxnv/ggml/src/ggml-vulkan/vulkan-shaders.spv/matmul_nvfp4_f32.spv",
+    "sha256": "fdd3f0baeb84160bcc3edf94b086d607050f571649726eb93aa05722b03a146f",
+    "disassembly_sha256": "523b72de3c8e818249c5f098fe2d82db0ddd692d5ad780c0cd6f3226d23892f3",
+    "proof": {
+      "half_type": true,
+      "float_type": true,
+      "half_conversions": 7,
+      "float_fma": 4
+    }
+  },
+  "global_scale_anchors": {
+    "source": "src/llama-graph.cpp",
+    "dense_after_matmul": 1735,
+    "expert_up": 2021,
+    "expert_gate": 2045,
+    "expert_down": 2173
+  },
+  "source_anchors": {
+    "generator": "ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp:436,505-531,686-694,777-789",
+    "pipeline": "ggml/src/ggml-vulkan/ggml-vulkan.cpp:1806-1808,2212-2250,4790-4794,5161-5164,5966-5979",
+    "graph_precision": "src/llama-graph.cpp:1730"
+  },
+  "build": {
+    "passed": true,
+    "correction": "Short build path fixes FTK1011 nested MSBuild path; Git ceiling prevents parent llmx identity leakage.",
+    "build_info": "#include \"build-info.h\"\n\n#include <cstdio>\n#include <string>\n\nint LLAMA_BUILD_NUMBER = 0;\nchar const * LLAMA_COMMIT = \"unknown\";\nchar const * LLAMA_COMPILER = \"MSVC 19.50.35728.0\";\nchar const * LLAMA_BUILD_TARGET = \"x64\";\n\nint llama_build_number(void) {\n    return LLAMA_BUILD_NUMBER;\n}\n\nconst char * llama_commit(void) {\n    return LLAMA_COMMIT;\n}\n\nconst char * llama_compiler(void) {\n    return LLAMA_COMPILER;\n}\n\nconst char * llama_build_target(void) {\n    return LLAMA_BUILD_TARGET;\n}\n\nconst char * llama_build_info(void) {\n    static std::string s = \"b\" + std::to_string(LLAMA_BUILD_NUMBER) + \"-\" + LLAMA_COMMIT;\n    return s.c_str();\n}\n\nvoid llama_print_build_info(const char * llama_version, FILE * stream) {\n    fprintf(stream, \"version: %s (build %d, commit %s)\\n\", llama_version, llama_build_number(), llama_commit());\n    fprintf(stream, \"built with %s for %s\\n\", llama_compiler(), llama_build_target());\n}\n",
+    "binary_hashes_verified": {
+      "bin\\Release\\ggml-base.dll": "f5fc8450df6ae1b9d49443214d525f74784ba7165c59709de451c4da9721761a",
+      "bin\\Release\\ggml-cpu.dll": "092673b257400f31843f33cf34b860b0026fbdfcf2cacbbac3cbf85b23b6eab5",
+      "bin\\Release\\ggml-vulkan.dll": "b99a1fbb09e7b4caa68fcb85b0bcbd87adb38f22b9add686b57eee17460b5236",
+      "bin\\Release\\ggml.dll": "9027d11e2496c45240a3ad05cfe985493a778a5dfeb0fc7d3f6974da4781d981",
+      "bin\\Release\\llama-bench-impl.dll": "40bb3b9e093793b8a4eaee49d05f45536e086bd3e40abeb804c563c776520d4d",
+      "bin\\Release\\llama-bench.exe": "924f1fdc36cda4c7bd0c6efe003a12b3fd4457c515e782b3fd9fe7cf3d38fb00",
+      "bin\\Release\\llama-common.dll": "cbace8cdf119603b66e1c74e307cf967b148f6adf2c06718ab195d9b891d344f",
+      "bin\\Release\\llama.dll": "5f113b8173047fca23bd8b2949cb7e8a15ddd30370029024e94b3a56a3a48503"
+    },
+    "failed_initial_attempt_retained": true
+  },
+  "receipt_hashes": {
+    "build-nvfp4-mx-local-witness/execution.json": "140e3726f8357fa2d73b02d1f97bcf9d0ebf1eb9bdebee3ff7dd05792bcc769f",
+    "build-nvfp4-mx-local-witness/attempt2/execution.json": "be88bc03cbd9e7e0f4e88d3ae5247b923536feca8ea9bcb3249a2423b3bc40f9",
+    "build-nvfp4-mx-local-witness/dispatch-v1/execution.json": "4b92d54c665887da2810210846793e78e43e41a4e625434ba9f074196463c0b2"
+  },
+  "raw_log_sha256": "15e5baa70a3974b2c44690e04e380a12a303b5daf42bd8cf3ebca4b5976d18d8",
+  "limitations": [
+    "5MB debug log stays scratch; no timing comparison.",
+    "MI50 dispatch remains unwitnessed.",
+    "MX global scale after dot differs from llmx effective-weight-before-product; no llmx precision or scale placement policy change."
+  ],
+  "root_review": {
+    "path": "build-nvfp4-research/mx-witness-root-audit.json",
+    "checked": "3 receipts,8 binaries,archive,raw log,dispatch counts,SPIR-V and disassembly hash",
+    "hash_omitted": "Audit also hashes this evidence JSON; avoid circular pin."
+  },
+  "prospective_exact_storage_proof": {
+    "raw": {
+      "scope": "Independent spec decoder output for all raw scale/code encodings survives binary16 storage and widening bit for bit. GPU execution and global-scale relocation are not covered.",
+      "raw_combinations": 4096,
+      "decoded_values_checked": 262144,
+      "minimum_nonzero": 0.0009765625,
+      "maximum_magnitude": 2880.0,
+      "raw_contract": "Scale 127 decodes zero, other scales ignore bit 7. Both zero codes are positive zero. A negative nonzero code times zero scale retains negative zero.",
+      "enumeration_sha256": "ab5cf82de81d4feab8be58fe67f7faf4d1874947f5d2790e7f09f76bf89bb2a9",
+      "source_sha256": "081b1fa8b46f889da1ba9feb274a24c30fa18f3fad301bd8a6d86aeb534f9429",
+      "spec_decoder_sha256": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+      "passed": true
+    },
+    "finite_subset": {
+      "scope": "Independent UE4M3/E2M1 finite-value enumeration. Binary16 storage followed by F32 widening preserves the unscaled value and signed zero exactly. It does not validate a GPU kernel, nonfinite scales, or multiplication moved after a sum.",
+      "scale_bytes": "0..126, the unsigned E4M3 finite encodings",
+      "scale_127": "Reserved NaN encoding, excluded from the finite proof",
+      "values_checked": 2032,
+      "minimum_nonzero": 0.0009765625,
+      "maximum_magnitude": 2688.0,
+      "enumeration_sha256": "b0c0a3dcc54692f158aa88ef6fd6aa608f620ee7620dc399b111f8b83ba45c4d",
+      "source_sha256": "96511b9667b11ccd4878dc04baddbecca188e0951474ef698682ae9b4a56700c",
+      "passed": true
+    },
+    "raw_proof_source": "\"\"\"Check compact storage for every raw NVFP4 scale/code encoding.\"\"\"\nimport hashlib\nimport json\nfrom pathlib import Path\nimport struct\nimport sys\n\nroot = Path(__file__).resolve().parent.parent\nsys.path.insert(0, str(root / 'tests'))\nfrom spec_decode import nvfp4\n\ndigest = hashlib.sha256()\nminimum, maximum = float('inf'), 0.0\ncount = 0\nfor scale in range(256):\n    for code in range(16):\n        block = bytes((scale,)) * 4 + bytes((code | (code << 4),)) * 32\n        decoded = nvfp4(block)\n        assert len(decoded) == 64\n        for value in decoded:\n            half = struct.pack('<e', value)\n            widened = struct.unpack('<e', half)[0]\n            bits = struct.pack('<f', value)\n            assert struct.pack('<f', widened) == bits, (scale, code, value, widened)\n        digest.update(bytes((scale, code)) + bits + half)\n        if value:\n            minimum = min(minimum, abs(value))\n        maximum = max(maximum, abs(value))\n        count += 1\n\nresult = {\n    'scope': 'Independent spec decoder output for all raw scale/code encodings survives binary16 storage and widening bit for bit. GPU execution and global-scale relocation are not covered.',\n    'raw_combinations': count,\n    'decoded_values_checked': count * 64,\n    'minimum_nonzero': minimum,\n    'maximum_magnitude': maximum,\n    'raw_contract': 'Scale 127 decodes zero, other scales ignore bit 7. Both zero codes are positive zero. A negative nonzero code times zero scale retains negative zero.',\n    'enumeration_sha256': digest.hexdigest(),\n    'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),\n    'spec_decoder_sha256': hashlib.sha256((root / 'tests/spec_decode.py').read_bytes()).hexdigest(),\n    'passed': True,\n}\noutput = Path(__file__).with_suffix('.json')\nassert not output.exists(), output\noutput.write_text(json.dumps(result, indent=2) + '\\n', encoding='utf-8')\nprint(json.dumps(result))\n",
+    "artifact_sha256": {
+      "build-nvfp4-research/check-half-weight-raw.py": "081b1fa8b46f889da1ba9feb274a24c30fa18f3fad301bd8a6d86aeb534f9429",
+      "build-nvfp4-research/check-half-weight-raw.json": "f9321c93eefc67cd6dbdbf7834bdc3b33e9fab1868ffb10bb55de7e1af6ad1a3",
+      "build-nvfp4-research/check-half-weight-storage.py": "96511b9667b11ccd4878dc04baddbecca188e0951474ef698682ae9b4a56700c",
+      "build-nvfp4-research/check-half-weight-storage.json": "82795219a0c1b6149dbf08e9f16ae73f0fee06e9f8a509faa0c81c7bc562ad52"
+    },
+    "scope": "Decoded unscaled weight bits only; no GPU/speed proof. Prospective experiment retains global scale before dot and F32 activations/sums."
+  }
+}

@@ -63,7 +63,7 @@ inline size_t check_k23_cancellation(backend::Backend& b, uint32_t type, const s
     for (auto dtype : {backend::Dtype::f32, backend::Dtype::f16, backend::Dtype::int8}) {
         const float guard[] = {19, 19, 19};
         b.write(*output, 0, guard, sizeof guard); take_matrix_paths(b);
-        b.matmul(type, {w.get(), 0}, {input.get(), 0}, {output.get(), 1}, nin, 1, 1, {&row, 1}, dtype);
+        b.matmul({type, {w.get(), 0}}, {input.get(), 0}, {output.get(), 1}, nin, 1, 1, {&row, 1}, dtype);
         const bool integer = k23_integer(b, dtype);
         if (take_matrix_paths(b) != std::vector<std::string>{integer ? "block-int16" : "f32"})
             throw std::runtime_error("K23 cancellation arithmetic witness");
@@ -134,13 +134,13 @@ inline size_t check_matrix_precision(backend::Backend& device) {
                         y.front() = y.back() = 19.0f;
                         device.write(*out, 0, y.data(), y.size() * sizeof(float));
                         switch (op) {
-                        case 0: device.matmul(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
-                        case 1: device.matmul_logits(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
-                        case 2: device.matmul_group({{type, {w.get(), 0}, {out.get(), 1}, rows}, {type, {w.get(), 0}, {out.get(), count + 1}, rows}},
+                        case 0: device.matmul({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
+                        case 1: device.matmul_logits({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
+                        case 2: device.matmul_group({{{type, {w.get(), 0}}, {out.get(), 1}, rows}, {{type, {w.get(), 0}}, {out.get(), count + 1}, rows}},
                                                  {in.get(), 0}, width, cols, runs); break;
-                        case 3: device.matmul_add(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
-                        case 4: device.matmul_experts({{type, {w.get(), 0}, {out.get(), 1}, rows}}, {in.get(), 0}, width, cols, routing, runs); break;
-                        case 5: device.matmul_experts_add(type, {w.get(), 0}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, routing, runs); break;
+                        case 3: device.matmul_add({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, runs); break;
+                        case 4: device.matmul_experts({{{type, {w.get(), 0}}, {out.get(), 1}, rows}}, {in.get(), 0}, width, cols, routing, runs); break;
+                        case 5: device.matmul_experts_add({type, {w.get(), 0}}, {in.get(), 0}, {out.get(), 1}, width, rows, cols, routing, runs); break;
                         }
                         device.read(*out, 0, y.data(), y.size() * sizeof(float));
                         const size_t values = op == 2 ? 2 * count : count;

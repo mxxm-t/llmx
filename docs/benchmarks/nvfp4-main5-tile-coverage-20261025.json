@@ -1,0 +1,86 @@
+{
+  "scope": "NVFP4 intermediate-tile native coverage checkpoint, retained 256-thread runtime only",
+  "parent_revision": "e416ac344345b7826481d411079dcda31ea95cfa",
+  "test_source_sha256": "51bf48cd4aaf9ce4dea28194cf9e16e0e42bee0fefd425887cec0ace1879a95c",
+  "artifacts": {
+    "tests/nvfp4.cpp": "51bf48cd4aaf9ce4dea28194cf9e16e0e42bee0fefd425887cec0ace1879a95c",
+    "build-main5-vulkan/Release/llmx-nvfp4-test.exe": "c6819c0e7ad1413cceeed80e2f2a225ee49f8ece0de3df1ccab71dc9527c7588",
+    "build-main5-vulkan/Release/llmx-vulkan.lib": "62d6da11eb2e2a380b1440c57aa447090cf2b583bccf34e434e46980f23160f0",
+    "build-main5-vulkan/generated/config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07"
+  },
+  "native_run": {
+    "command": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-main5-vulkan\\Release\\llmx-nvfp4-test.exe",
+      "--vulkan"
+    ],
+    "started_epoch": 1792958049.6779284,
+    "elapsed_seconds": 5.975170612335205,
+    "exit_code": 0,
+    "timed_out": false,
+    "memory_available_before": 7595917312,
+    "binary_sha256": "c6819c0e7ad1413cceeed80e2f2a225ee49f8ece0de3df1ccab71dc9527c7588",
+    "source_sha256": "51bf48cd4aaf9ce4dea28194cf9e16e0e42bee0fefd425887cec0ace1879a95c",
+    "scope": "Native Vulkan correctness and selected-kernel witnesses only; no performance result; retained256-thread runtime, not scratch128 candidate"
+  },
+  "native_stdout": "NVFP4 Vulkan: AMD Radeon VII; row/tile timestamp witnesses present\nNVFP4 Vulkan 2049-row one-hot f32: matmul_tile_nvfp4 [ok]\nNVFP4 Vulkan 2049-row one-hot f16: matmul_tile_nvfp4 [ok]\nNVFP4 Vulkan 2049-row one-hot bf16: matmul_tile_nvfp4_bf16 [ok]\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]\n",
+  "native_stdout_sha256": "28d4c8e00c37134ffb4bce10ffd8b7a4600c60d251c653e9c88c36691c765b25",
+  "checks": [
+    {
+      "argv": [
+        "ctest",
+        "--test-dir",
+        "build-main5-vulkan",
+        "-C",
+        "Release",
+        "-R",
+        "^nvfp4$",
+        "--output-on-failure"
+      ],
+      "exit_code": 0
+    },
+    {
+      "argv": [
+        "python",
+        "-X",
+        "utf8",
+        "tests/run_tests.py",
+        "--exe",
+        "build-main5-vulkan/Release/llmx.exe",
+        "--only",
+        "docs,dead-code"
+      ],
+      "exit_code": 0
+    }
+  ],
+  "build": {
+    "argv": [
+      "cmake",
+      "--build",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-main5-vulkan",
+      "--config",
+      "Release",
+      "--target",
+      "llmx-nvfp4-test",
+      "--parallel",
+      "1"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 6.3046958446502686
+  },
+  "witness": {
+    "output_rows": 2049,
+    "input_width": 128,
+    "input_columns": 128,
+    "global_factors": [
+      1,
+      0.25
+    ],
+    "f32": "matmul_tile_nvfp4",
+    "f16": "matmul_tile_nvfp4",
+    "bf16": "matmul_tile_nvfp4_bf16",
+    "tile_height": 64,
+    "oracle": "Existing exact independent one-hot products and output guards"
+  },
+  "limits": "No model HF, split, timing, merge or 128-thread-candidate qualification. GPU coverage was read from actual timestamp names, not inferred only from the shape.",
+  "raw_evidence_directory": "build-main5-integration/tile-coverage"
+}

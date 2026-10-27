@@ -1,0 +1,96 @@
+{
+  "scope": "Focused Windows integration checkpoint for NVFP4 on the decode-stack train base. This records build and local checks only; it is not GPU, model, performance, or merge qualification.",
+  "decode_stack_base": "5eb59c0d3",
+  "shared_control_parent": "c6182eb70",
+  "nvfp4_parent": "59f7c9bd4",
+  "exact_integration_head": null,
+  "build": {
+    "passed": true,
+    "configuration": "MSVC Release, Vulkan enabled",
+    "targets": [
+      "llmx-model-weight-scales-test",
+      "llmx-backend-group-test",
+      "llmx-arch-qwen35-test",
+      "llmx-arch-qwen4exp-test",
+      "llmx",
+      "llmx-nvfp4-test",
+      "llmx-vulkan-lifetime-test",
+      "llmx-backend-vulkan-test"
+    ],
+    "receipt": "build-integration/retry3-build-state.json",
+    "receipt_sha256": "eaf8fbd6eb24521877cc8af86a121c732cd1ff5d09faab5e899b5149240c1959",
+    "logs": {
+      "build-integration/retry3-build-0.log": "83e451a91992e8add82ed5e806c4b188d45159fc19db8af5e0fa53d5fbdd4523",
+      "build-integration/retry3-build-1.log": "ea012ab12769556e95fe6c8bfbc33eeba7aa6da3223755c8973eed9db8848e30"
+    }
+  },
+  "focused_checks": {
+    "nvfp4_cpu_ctest": {
+      "passed": true,
+      "log": "build-integration/nvfp4-cpu.log",
+      "sha256": "d1b74cb4c34819fd5ec8cb5430fa0ddb4d58ab418069246740ad279bbe711d6a"
+    },
+    "float_controls_metadata": {
+      "passed": true,
+      "prepared_module_selections": 536,
+      "missing_property_refusals": 454,
+      "failures": 0,
+      "property_bits": 7,
+      "combinations": 128,
+      "log": "build-integration/modules.log",
+      "sha256": "cfd2f045de0c1dd33ed1c3613a9933f0d1cbbc6b84c9a4569cb0dad21a664c5d"
+    },
+    "spirv_val_vulkan_1_2": {
+      "passed": true,
+      "module_count": 24,
+      "logs": "build-integration/validate-*.log",
+      "commands_receipt": "build-integration/focused.json",
+      "receipt_sha256": "7f8e5f8dca128dd0c17a3b3cffcb70c691cc74c98031a93a92d0c402f9521021"
+    },
+    "focused_cpu_ctests": {
+      "passed": true,
+      "tests": [
+        "backend-group",
+        "arch-qwen35",
+        "arch-qwen4exp",
+        "model-weight-scales"
+      ],
+      "passed_count": 4,
+      "log": "build-integration/focused-cpu.log",
+      "sha256": "86b6408a6db9927c94499f9aac7a6286aec8e049df6e4ab06891285e1a4a9529"
+    },
+    "docs_and_dead_code": {
+      "passed": true,
+      "dead_code_listed_findings": 7,
+      "dead_code_planted_faults": 19,
+      "docs_findings": 0,
+      "docs_planted_faults": 21,
+      "log": "build-integration/checkpoint-review-docs.log",
+      "sha256": "85ab3ce53866f750f4ab30600ff3663040471a8fdf654b7373e812ab3eb8e959"
+    }
+  },
+  "binary_sha256": {
+    "llmx.exe": "0cff00fd5c1851578e119c720e9b41d83d8d14bc8fa70c5a128c662aaca52bfa",
+    "llmx-nvfp4-test.exe": "19086256bfdbf400fff20f5f101b8b6fda8a59d294e8a9e6ecf389fa61ed3447",
+    "llmx-vulkan-lifetime-test.exe": "a5a2110437eaea0422baeda12ed289b7a1d28a6167bd019be87297e67d6529e5"
+  },
+  "not_established": [
+    "GPU native execution or driver acceptance",
+    "released-model or HF correctness",
+    "depth, split, or model identity qualification",
+    "matched performance",
+    "hosted CI or merge readiness"
+  ],
+  "tested_source_trees": {
+    "src": "5525cbdebc73f50f313aab83a9f7f42351a7f531",
+    "tests": "d1836d03d66c66ff2a30792a8b8c9fd7b4a8e77e",
+    "cmake": "fa1800aaa4f23b0b3c1fffdbb3a84e17d89e852c"
+  },
+  "tested_build_version": "llmx 0.1.0+g59f7c9bd48a0.dirty numerics 1acbbbcbf924cb48",
+  "build_identity_note": "Working-tree integration build before checkpoint commit; source subtree pins identify tested inputs, not a detached final gate binary.",
+  "markdown_review": {
+    "inventory": "build-integration/markdown-review.json",
+    "sha256": "9fc734affef51ab43b96e645b30f84b16eefec6197b536e5b870220ec3a51005",
+    "tracked_pages": 149
+  }
+}

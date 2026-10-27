@@ -1,0 +1,418 @@
+{
+  "scope": "Preliminary performance screen, not final qualification. Reused mx libraries were built with a different image/toolchain.",
+  "source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+  "mx_commit": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "pci": "0000:c3:00.0",
+  "node": "/dev/dri/renderD128",
+  "preflight": {
+    "vram": 10919936,
+    "busy": 0
+  },
+  "activity_flags": {
+    "unrelated_cpu": "over 100 percent of one logical CPU",
+    "system_cpu": "over 75 percent busy",
+    "disk": "over 100 MiB/s summed physical device reads and writes",
+    "coverage": "unavailable counters or missing monitor samples are reported, never zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "llmx": "6acfb113b5a9b929544760f6316a203025fcd148a467a61f10b87f2de7a8ed23",
+    "mx_wrapper": "69d90973192d4958fbfcfd0f7833391e6b9b8c8f91f03a12233eb9644e839cdf",
+    "mx_receipt": "23fd9af6bb49099659b7bfd6ef0b4482c3eaef3efe7042186aa32487642bf442"
+  },
+  "calls": [
+    {
+      "arm": "llmx",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792882348.4860208,
+      "log": "00-llmx.log",
+      "end": 1792882353.410064,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1842.91,
+        "tg128": 87.01
+      },
+      "log_sha256": "9b25bfb0a0938779613cfd9bfe66554f5ba62b1f915949268ebeabba48efae73",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 20.990682275151677,
+          "system_busy_percent": 9.780564263322889,
+          "disk_mib_s": 6.829255390159922
+        }
+      }
+    },
+    {
+      "arm": "mx",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "/wrapper/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "start": 1792882353.4107196,
+      "log": "01-mx.log",
+      "end": 1792882388.8531756,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 3766.24,
+        "tg128": 135.96
+      },
+      "log_sha256": "78bc87a83b3efdf0e96a9b4ab82e12e16ca4c95e385abf825dd5f82887e6945e",
+      "activity": {
+        "samples": 36,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 25
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 102.95832392703817,
+          "system_busy_percent": 12.969924812030076,
+          "disk_mib_s": 8.543416745766061
+        }
+      }
+    },
+    {
+      "arm": "llmx",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792882388.8539996,
+      "log": "02-llmx.log",
+      "end": 1792882393.2260597,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1823.72,
+        "tg128": 86.87
+      },
+      "log_sha256": "114151d473e0b689cfbfbcaad7a406f74be80c2025e6474c256d7c1c286df67f",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 3
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 20.98853962767111,
+          "system_busy_percent": 9.484924623115576,
+          "disk_mib_s": 3.5098022926481267
+        }
+      }
+    },
+    {
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/wrapper/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "start": 1792882393.2265267,
+      "log": "03-mx.log",
+      "end": 1792882427.3638656,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 3744.42,
+        "tg128": 136.58
+      },
+      "log_sha256": "fff75eedbc13ac28295ec490ef431b817a408284a6d52e1deb35947798c0c005",
+      "activity": {
+        "samples": 34,
+        "flags": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 18
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 57.97292686893427,
+          "system_busy_percent": 6.838143036386446,
+          "disk_mib_s": 8.29333179906988
+        }
+      }
+    },
+    {
+      "arm": "mx",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/wrapper/mx-cli-bench-vulkan",
+        "/model.gguf",
+        "4",
+        "512",
+        "128",
+        "1"
+      ],
+      "start": 1792882427.3646827,
+      "log": "04-mx.log",
+      "end": 1792882461.6555843,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 3717.05,
+        "tg128": 136.24
+      },
+      "log_sha256": "e7496c30574ebc680c5046cc0bd5ffd19b260d272f8db9cc24dded505996cbd2",
+      "activity": {
+        "samples": 35,
+        "flags": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 21
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 57.97095023195169,
+          "system_busy_percent": 10.144020037570446,
+          "disk_mib_s": 10.459559486734298
+        }
+      }
+    },
+    {
+      "arm": "llmx",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792882461.6563005,
+      "log": "05-llmx.log",
+      "end": 1792882466.0791938,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1800.82,
+        "tg128": 86.16
+      },
+      "log_sha256": "992f1cc5e060d8cabee7357e5fc4238e072dfe1d81cac14c57b6ea6dad4722ae",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 0,
+          "system_cpu": 0,
+          "disk": 0,
+          "process_coverage_gaps": 3
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 17.99017502776187,
+          "system_busy_percent": 6.775407779171894,
+          "disk_mib_s": 3.259942599823852
+        }
+      }
+    }
+  ],
+  "passed": true,
+  "container_command": [
+    "docker",
+    "create",
+    "--init",
+    "--name",
+    "llmx-xdev-nvfp4-perf-screen-20261025",
+    "--network",
+    "none",
+    "--device",
+    "/dev/dri/renderD128",
+    "--cpuset-cpus",
+    "0-3",
+    "--cpus",
+    "4",
+    "--memory",
+    "8g",
+    "--ulimit",
+    "core=0",
+    "-e",
+    "LD_LIBRARY_PATH=/ref/bin",
+    "-e",
+    "XDG_CACHE_HOME=/tmp/cache",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-57b14db94:/llmx:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/tq-pair-20261024/tq-existing-path-v1/clean-build-40101812090/arms/mx-build:/ref:ro",
+    "-v",
+    "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/mx-screen-wrapper:/wrapper:ro",
+    "-v",
+    "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf:/model.gguf:ro",
+    "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "sleep",
+    "infinity"
+  ],
+  "version": "llmx 0.1.0+unknown numerics 4913f6ea64653cb0",
+  "device": "==========\nVULKANINFO\n==========\n\nVulkan Instance Version: 1.4.309\n\n\nInstance Extensions: count = 24\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_headless_surface                : extension revision 1\nVK_EXT_surface_maintenance1            : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_portability_enumeration         : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6\nVK_KHR_xcb_surface                     : extension revision 6\nVK_KHR_xlib_surface                    : extension revision 6\nVK_LUNARG_direct_driver_loading        : extension revision 1\n\nInstance Layers: count = 3\n--------------------------\nVK_LAYER_INTEL_nullhw       INTEL NULL HW                1.1.73   version 1\nVK_LAYER_MESA_device_select Linux device selection layer 1.4.303  version 1\nVK_LAYER_MESA_overlay       Mesa Overlay layer           1.4.303  version 1\n\nDevices:\n========\nGPU0:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 25.0.7\n\tvendorID           = 0x1002\n\tdeviceID           = 0x66a1\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName         = AMD Instinct MI60 / MI50 (RADV VEGA20)\n\tdriverID           = DRIVER_ID_MESA_RADV\n\tdriverName         = radv\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1\n\tconformanceVersion = 1.4.0.0\n\tdeviceUUID         = 00000000-c300-0000-0000-000000000000\n\tdriverUUID         = 414d442d-4d45-5341-2d44-525600000000\nGPU1:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 0.0.1\n\tvendorID           = 0x10005\n\tdeviceID           = 0x0000\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_CPU\n\tdeviceName         = llvmpipe (LLVM 19.1.7, 256 bits)\n\tdriverID           = DRIVER_ID_MESA_LLVMPIPE\n\tdriverName         = llvmpipe\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7)\n\tconformanceVersion = 1.3.1.1\n\tdeviceUUID         = 6d657361-3235-2e30-2e37-2d322b646500\n\tdriverUUID         = 6c6c766d-7069-7065-5555-494400000000",
+  "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+  "monitor_exit": 0,
+  "container_state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 3512862,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-24T22:52:26.152394615Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "end": 1792882466.8710039,
+  "means": {
+    "llmx": {
+      "pp512": 1812.27,
+      "tg128": 86.515
+    },
+    "mx": {
+      "pp512": 3730.735,
+      "tg128": 136.41000000000003
+    }
+  },
+  "rate_change_percent": {
+    "pp512": -51.42324501740274,
+    "tg128": -36.57723040832784
+  },
+  "limitations": [
+    "Two measured calls per arm, preceded by separate warmup calls. No samples discarded.",
+    "Call-level activity includes model loading and internal warmups, not only timed forwards.",
+    "Background work was present. Raw GPU, CPU, disk and process samples are retained.",
+    "Short-lived processes may escape the one-second monitor. New/disappeared/inaccessible processes are coverage gaps.",
+    "Physical disk counters may include storage-stack overlap. Counters are diagnostic flags, not exclusion rules.",
+    "Reused mx libraries have different build inputs from llmx. Final matched-build qualification remains open."
+  ],
+  "artifact_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/perf-screen-v1",
+  "artifact_hashes": {
+    "00-llmx.log": "9b25bfb0a0938779613cfd9bfe66554f5ba62b1f915949268ebeabba48efae73",
+    "01-mx.log": "78bc87a83b3efdf0e96a9b4ab82e12e16ca4c95e385abf825dd5f82887e6945e",
+    "02-llmx.log": "114151d473e0b689cfbfbcaad7a406f74be80c2025e6474c256d7c1c286df67f",
+    "03-mx.log": "fff75eedbc13ac28295ec490ef431b817a408284a6d52e1deb35947798c0c005",
+    "04-mx.log": "e7496c30574ebc680c5046cc0bd5ffd19b260d272f8db9cc24dded505996cbd2",
+    "05-llmx.log": "992f1cc5e060d8cabee7357e5fc4238e072dfe1d81cac14c57b6ea6dad4722ae",
+    "activity.jsonl": "ee2cce84aec5941cba15068c1fcaaf7a69e0fa539fdf1811cf47026fec150c68",
+    "execution.json": "8612df47ad20509ce60cd8be07bb921e70dbba348ebf18b998eb08f8eb980fc0",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+  },
+  "profile": {
+    "scope": "Separate timestamp-instrumented diagnostic; its throughput is not used in the comparison.",
+    "prefill_hotspot": {
+      "kernel": "matmul_tile",
+      "milliseconds": 238.172,
+      "percent_gpu_time": 82.4602,
+      "vgprs": 64,
+      "lds_bytes": 16384,
+      "scratch_bytes": 0,
+      "spilled_vgprs": 0,
+      "spilled_sgprs": 0,
+      "subgroups_per_simd_limit": 4
+    },
+    "decode_hotspot": {
+      "kernel": "matmul_row_float_x_1col",
+      "milliseconds": 1222.86,
+      "percent_gpu_time": 79.2085,
+      "vgprs": 24,
+      "scratch_bytes": 0,
+      "spilled_vgprs": 0,
+      "spilled_sgprs": 0,
+      "subgroups_per_simd_limit": 10
+    },
+    "qualification": "Kernel names aggregate their dispatched uses. Limits are compiler resource statistics, not measured occupancy. Zero spills does not exclude stalls.",
+    "artifact_hashes": {
+      "00-llmx.log": "083fbd58e65565f49705cf5ec51802ce1290f1f6c09bf3029cf0a672ce74fd94",
+      "activity.jsonl": "49153b1666e950423ede00e574d69c520ee01c72544a07b1fc5343885f04e0a7",
+      "execution.json": "65837bb056aa74944963c6efcb27f49c977fe4bb91fe415326b5be02bd44f441",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3"
+    }
+  }
+}

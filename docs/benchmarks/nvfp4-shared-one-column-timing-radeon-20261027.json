@@ -1,0 +1,520 @@
+{
+  "schema": "nvfp4-shared-one-column-timing-radeon-20261027-v1",
+  "scope": "Exploratory matched one-column operator timing on AMD Radeon VII. The diagnostic changed only the measurement harness, not runtime sources or libraries. It does not establish an end-to-end model result or performance gate.",
+  "arms": {
+    "main": "e46e72e9047ab87488e008494509a4a9129ea5f2",
+    "candidate": "5b2d75403c87d8f3036963e4d868668faff1bcce"
+  },
+  "environment": {
+    "device": "AMD Radeon VII",
+    "compiler": "Visual Studio 2026 Developer Command Prompt v18.4.3",
+    "operator_builds_exit_code": 0,
+    "runtime_library_unchanged_during_measurement": true
+  },
+  "method": {
+    "cases": {
+      "timing_row_f32_1col": {
+        "kernel": "matmul_row_float_x_1col",
+        "case": {
+          "name": "timing_row_f32_1col",
+          "kernel": "matmul_row_float_x_1col",
+          "storage": "Q8_0",
+          "requested_dtype": "f32",
+          "nin": 1024,
+          "nout": 128,
+          "batch": 1,
+          "row_run": [
+            1,
+            1
+          ],
+          "weight_seed": "71 + GGML_TYPE_Q8_0",
+          "input_seed": 1337,
+          "prior_candidate_over_main_ratio": 1.0507236927891512,
+          "ABBA_ratio": 1.0608672936259143,
+          "BAAB_ratio": 1.0406144233272585
+        },
+        "main": {
+          "n": 2048,
+          "mean_ms": 0.07584984375,
+          "median_ms": 0.07392,
+          "min_ms": 0.0728,
+          "max_ms": 0.31776
+        },
+        "candidate": {
+          "n": 2048,
+          "mean_ms": 0.078754296875,
+          "median_ms": 0.07728,
+          "min_ms": 0.07664,
+          "max_ms": 0.31616
+        },
+        "candidate_over_main_mean_cost_ratio": 1.0382921438120958,
+        "candidate_over_main_mean_cost_percent": 3.829214381209578,
+        "candidate_over_main_median_ratio": 1.0454545454545454,
+        "interpretation": "exploratory per-call operator cost only; not end-to-end throughput or a performance gate"
+      },
+      "timing_row_mxfp4_f32_1col": {
+        "kernel": "matmul_row_mxfp4_float_x_1col",
+        "case": {
+          "name": "timing_row_mxfp4_f32_1col",
+          "kernel": "matmul_row_mxfp4_float_x_1col",
+          "storage": "MXFP4",
+          "requested_dtype": "f32",
+          "nin": 1024,
+          "nout": 128,
+          "batch": 1,
+          "row_run": [
+            1,
+            1
+          ],
+          "weight_seed": "71 + GGML_TYPE_MXFP4",
+          "input_seed": 1337,
+          "prior_candidate_over_main_ratio": 1.094136632598171,
+          "ABBA_ratio": 1.1631409107206885,
+          "BAAB_ratio": 1.0251076040172167
+        },
+        "main": {
+          "n": 2048,
+          "mean_ms": 0.054811171875,
+          "median_ms": 0.05312,
+          "min_ms": 0.05248,
+          "max_ms": 0.2848
+        },
+        "candidate": {
+          "n": 2048,
+          "mean_ms": 0.056527656249999995,
+          "median_ms": 0.05456,
+          "min_ms": 0.05392,
+          "max_ms": 0.29056
+        },
+        "candidate_over_main_mean_cost_ratio": 1.0313163232290405,
+        "candidate_over_main_mean_cost_percent": 3.1316323229040544,
+        "candidate_over_main_median_ratio": 1.0271084337349397,
+        "interpretation": "exploratory per-call operator cost only; not end-to-end throughput or a performance gate"
+      }
+    },
+    "schedule": [
+      {
+        "arm": "main",
+        "block": "ABBA-1"
+      },
+      {
+        "arm": "candidate",
+        "block": "ABBA-2"
+      },
+      {
+        "arm": "candidate",
+        "block": "ABBA-3"
+      },
+      {
+        "arm": "main",
+        "block": "ABBA-4"
+      },
+      {
+        "arm": "candidate",
+        "block": "BAAB-1"
+      },
+      {
+        "arm": "main",
+        "block": "BAAB-2"
+      },
+      {
+        "arm": "main",
+        "block": "BAAB-3"
+      },
+      {
+        "arm": "candidate",
+        "block": "BAAB-4"
+      }
+    ],
+    "invocations": [
+      {
+        "index": 1,
+        "arm": "main",
+        "block": "ABBA-1",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:13.073780+00:00",
+        "finished_utc": "2026-10-27T00:50:13.823407+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0758340625,
+            "median_ms": 0.07392,
+            "min_ms": 0.07328,
+            "max_ms": 0.25328
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0545871875,
+            "median_ms": 0.05312,
+            "min_ms": 0.05248,
+            "max_ms": 0.25616
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-01/main/timings.jsonl",
+            "sha256": "38850eddf19df9acf1b1a40d0265eaeb49db818e1680c6af664f91dee2838926"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-01.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-01.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 2,
+        "arm": "candidate",
+        "block": "ABBA-2",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:13.831930+00:00",
+        "finished_utc": "2026-10-27T00:50:14.602820+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0785609375,
+            "median_ms": 0.07728,
+            "min_ms": 0.07664,
+            "max_ms": 0.2664
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.055897499999999996,
+            "median_ms": 0.0544,
+            "min_ms": 0.05392,
+            "max_ms": 0.26624
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-02/candidate/timings.jsonl",
+            "sha256": "58930742757a8489896f471868eed44880a9761b406b5eaf3f558405e8d5489a"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-02.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-02.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 3,
+        "arm": "candidate",
+        "block": "ABBA-3",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:14.605818+00:00",
+        "finished_utc": "2026-10-27T00:50:15.061038+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0789040625,
+            "median_ms": 0.07728,
+            "min_ms": 0.07664,
+            "max_ms": 0.3008
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0560653125,
+            "median_ms": 0.05456,
+            "min_ms": 0.05392,
+            "max_ms": 0.25456
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-03/candidate/timings.jsonl",
+            "sha256": "d501c984b41ffaad6cf1eb69f9624f084acd4ad3993cd0b9f609585848181d98"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-03.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-03.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 4,
+        "arm": "main",
+        "block": "ABBA-4",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:15.064040+00:00",
+        "finished_utc": "2026-10-27T00:50:15.522681+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0754565625,
+            "median_ms": 0.07392,
+            "min_ms": 0.07344,
+            "max_ms": 0.3048
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0544128125,
+            "median_ms": 0.05312,
+            "min_ms": 0.05264,
+            "max_ms": 0.27552
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-04/main/timings.jsonl",
+            "sha256": "5bec6ab77ab53fbf35376ae0457d1f4abc451c134af1a9cbacc54ab5eea7bff8"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-04.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-04.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 5,
+        "arm": "candidate",
+        "block": "BAAB-1",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:15.526205+00:00",
+        "finished_utc": "2026-10-27T00:50:15.982865+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0786609375,
+            "median_ms": 0.07728,
+            "min_ms": 0.07664,
+            "max_ms": 0.30928
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.057164062499999994,
+            "median_ms": 0.05456,
+            "min_ms": 0.05392,
+            "max_ms": 0.27872
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-05/candidate/timings.jsonl",
+            "sha256": "4556240e3159e9a8a9a1becb682691caa4e27acd9918f227c6da0d314418e623"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-05.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-05.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 6,
+        "arm": "main",
+        "block": "BAAB-2",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:15.986350+00:00",
+        "finished_utc": "2026-10-27T00:50:16.437759+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.076004375,
+            "median_ms": 0.07376,
+            "min_ms": 0.0728,
+            "max_ms": 0.31408
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.05427125,
+            "median_ms": 0.05296,
+            "min_ms": 0.05248,
+            "max_ms": 0.26912
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-06/main/timings.jsonl",
+            "sha256": "fb46e0e21ddf7e9c0566773308d761366a104b81fe7911b1840e733a84116187"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-06.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-06.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 7,
+        "arm": "main",
+        "block": "BAAB-3",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:16.440761+00:00",
+        "finished_utc": "2026-10-27T00:50:16.955166+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.076104375,
+            "median_ms": 0.07376,
+            "min_ms": 0.07312,
+            "max_ms": 0.31776
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.0559734375,
+            "median_ms": 0.05296,
+            "min_ms": 0.05248,
+            "max_ms": 0.2848
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-07/main/timings.jsonl",
+            "sha256": "49750ef600032378695ccb030c99f98a257d6722794749cec938f7e165b2925c"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-07.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-07.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      },
+      {
+        "index": 8,
+        "arm": "candidate",
+        "block": "BAAB-4",
+        "exit_code": 0,
+        "timing_rows": 1024,
+        "started_utc": "2026-10-27T00:50:16.959943+00:00",
+        "finished_utc": "2026-10-27T00:50:17.434064+00:00",
+        "families": {
+          "timing_row_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.07889125,
+            "median_ms": 0.07728,
+            "min_ms": 0.07664,
+            "max_ms": 0.31616
+          },
+          "timing_row_mxfp4_f32_1col": {
+            "n": 512,
+            "mean_ms": 0.05698375,
+            "median_ms": 0.05456,
+            "min_ms": 0.05392,
+            "max_ms": 0.29056
+          }
+        },
+        "artifacts": {
+          "timings_jsonl": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-08/candidate/timings.jsonl",
+            "sha256": "aaa7bbe9ab45a74fab292b997f06b872b396eb3df6ee206854135b0f8b04032f"
+          },
+          "stdout": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-08.stdout.log",
+            "sha256": "23bb660e2bd698e628a0f772f29c6a841b102ca42bf498fd11b7d182357459f7"
+          },
+          "stderr": {
+            "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/invocation-08.stderr.log",
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        }
+      }
+    ],
+    "warm_calls_per_case_per_arm": 4,
+    "timed_samples_per_case_per_arm": 2048,
+    "total_timed_samples_both_arms": 8192,
+    "all_samples_retained": true,
+    "discarded_samples": 0
+  },
+  "activity": {
+    "samples": 2,
+    "errors": 0,
+    "target_met_each_arm": false,
+    "first_sample_utc": [
+      "2026-10-27T00:50:07.7524198Z",
+      "2026-10-27T00:50:12.9735470Z"
+    ],
+    "second_sample_utc": [
+      "2026-10-27T00:50:14.0176341Z",
+      "2026-10-27T00:50:19.2967826Z"
+    ],
+    "interpretation": "The first collection ended before invocation 1. The second began during candidate invocation 2 and ended after invocation 8, spanning both arms; its candidate start tag cannot attribute the whole collection to that arm. There are no independent per-arm monitor samples and activity between collections is unknown. The preflight recorded two preserved RuneLite GPU background processes."
+  },
+  "lineage": {
+    "earlier_preflight_refusal": "A prior setup attempt was refused while another native test was active; it ran no timing calls. Its refusal artifact is not in this successful run bundle. The present receipt covers the completed timing-run-02 only.",
+    "earlier_eight_family_run": "Retained separately at build-integration/shared-pipeline-operators-v1/bundle/operator-timing-run-01; unchanged."
+  },
+  "artifact_pins": {
+    "plan": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/plan.json",
+      "sha256": "7cd5cf5968d434ef429ebfd9fa89e8a31e7b2d978199db7679d02cf8997afaaf"
+    },
+    "run_record": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/run.json",
+      "sha256": "cf7bad74308bce48f05ca7267d0b463cc79b3ba1f3a744a0f752e72113b0576a"
+    },
+    "analysis": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/timing-analysis.json",
+      "sha256": "6eafd052e07ef3a88a44c8aedc119cf6473b77f512b7f1b56de1eb35a47eaa37"
+    },
+    "preflight": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/preflight.json",
+      "sha256": "fc744a567c45bf19a526f220eb2da00f60c882708cf837f28c59ea75a0e13bf6"
+    },
+    "runner": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/timing-run-02.py",
+      "sha256": "407fa4ffcba6bb3bc9c1666647c8eba09ba62ca78f53d1cd9f04f78d39ea9869"
+    },
+    "analyzer": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/analyze-run-02.py",
+      "sha256": "ff2ec7c0d483e5fb7991774ee74a82c8c817506472141ecea242277bb7493dec"
+    },
+    "harness": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/operator-harness.cpp",
+      "sha256": "f2604df9613c0256cc58b46e4a911114a00fb3ad90197b08d58b2d81dd80ae21"
+    },
+    "monitor": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/monitor-activity.ps1",
+      "sha256": "fa36cfa8de7bcb3db5cb36959f212a57eeedae876acc33f6a695053bf35579b3"
+    },
+    "main_executable_sha256": "8141EF2BF7AC7798736536883F403034877BE039FF0B97398D5B1BA5454A31E6",
+    "candidate_executable_sha256": "1243FCA83FFCC94257309C48E3BF379078781D2FAF1B01767EB497DCE102297A",
+    "main_library_sha256": "43E2F34E864FE4311687EC7DC22D354DE12D06FB654E700D50F0606034FBB872",
+    "candidate_library_sha256": "5DCFEC01ACBFD2F07BABF2889721A4696FC533A3624B0B3AE87E8573863D60B0",
+    "source_tree_sha256": "F2604DF9613C0256CC58B46E4A911114A00FB3AD90197B08D58B2D81DD80AE21",
+    "activity_jsonl": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/activity.jsonl",
+      "sha256": "7d60a007f885d2f453c113778f5ad4f915058e24f40b55788293deeaf136059b"
+    },
+    "activity_state": {
+      "path": "build-integration/shared-pipeline-operators-v1/onecol-repeat-v1/bundle/timing-run-02/activity-state.json",
+      "sha256": "e7dd37034412927fbb209364d5f0978445fb93e30acc832a9e6afef0db3af990"
+    }
+  },
+  "limitations": [
+    "This isolates the two diagnostic one-column dispatches at nin=1024, nout=128, batch=1; it is not a model or end-to-end benchmark.",
+    "Means include every sample, including long-tail values; medians and ranges are also shown. No samples were removed.",
+    "Monitor sampling did not meet the per-arm target; cross-arm attribution is unavailable.",
+    "No numerical output comparison was performed by this timing-only mode."
+  ]
+}

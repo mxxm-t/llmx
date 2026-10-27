@@ -73,7 +73,7 @@ void arithmetic() {
     for (size_t n : {std::numeric_limits<size_t>::max(), size_t(64)}) {
         bool refused = false;
         try {
-            cpu.matmul(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, n, 1, 3, {}, backend::Dtype::bf16);
+            cpu.matmul({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, n, 1, 3, {}, backend::Dtype::bf16);
         } catch (const std::runtime_error&) { refused = true; }
         require(refused && y[0] == 0.0f, "BF16 conversion accepted an invalid input extent");
     }
@@ -93,25 +93,25 @@ void arithmetic() {
                         require(out[offset + r] == scale * expected, "matrix call did not apply requested arithmetic");
                     }
                 };
-                cpu.matmul(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, runs, dtype);
+                cpu.matmul({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, runs, dtype);
                 check(y, 0, 1);
-                cpu.matmul_logits(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, runs, dtype);
+                cpu.matmul_logits({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, runs, dtype);
                 check(y, 0, 1);
-                cpu.matmul_group({{quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {yb.get(), 0}, 1},
-                                  {quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {yb.get(), 3}, 1}}, {xb.get(), 0}, 32, 3, runs, dtype);
+                cpu.matmul_group({{{quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {yb.get(), 0}, 1},
+                                  {{quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {yb.get(), 3}, 1}}, {xb.get(), 0}, 32, 3, runs, dtype);
                 check(y, 0, 1); check(y, 3, 1);
                 std::fill(z.begin(), z.end(), 0.0f);
-                cpu.matmul_add(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {zb.get(), 0}, 32, 1, 3, runs, dtype);
+                cpu.matmul_add({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {zb.get(), 0}, 32, 1, 3, runs, dtype);
                 check(z, 0, 1);
-                cpu.matmul_experts({{quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {yb.get(), 0}, 1}}, {xb.get(), 0}, 32, 3, routing, runs, dtype);
+                cpu.matmul_experts({{{quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {yb.get(), 0}, 1}}, {xb.get(), 0}, 32, 3, routing, runs, dtype);
                 check(y, 0, 1);
                 std::fill(z.begin(), z.end(), 0.0f);
-                cpu.matmul_experts_add(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {zb.get(), 0}, 32, 1, 3, routing, runs, dtype);
+                cpu.matmul_experts_add({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {zb.get(), 0}, 32, 1, 3, routing, runs, dtype);
                 check(z, 0, 0.5f);
             }
         }
     }
-    cpu.matmul(quant::GGML_TYPE_Q4_0, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, {decode, 1}, backend::Dtype::f16);
+    cpu.matmul({quant::GGML_TYPE_Q4_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, 32, 1, 3, {decode, 1}, backend::Dtype::f16);
     require(testq::take_matrix_paths(cpu) == std::vector<std::string>{"block-int16"}, "integer path missing from witness");
     const float block = float(std::nearbyint(double(x[1]) * 32767.0 / 2.0) * (2.0 / 32767.0));
     require(std::fabs(y[0] - block) < 2e-7f && y[0] != x[1] && y[0] != 1.0078125f, "16-bit activation path was not witnessed");
@@ -294,9 +294,9 @@ void models(bool routed) {
 
 struct FailingHead : backend::CpuBackend {
     bool fail = false;
-    void matmul_logits(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y,
+    void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y,
                        size_t nin, size_t nout, size_t nbatch, backend::RowRuns runs, backend::Dtype dtype) override {
-        CpuBackend::matmul_logits(type, data, x, y, nin, nout, nbatch, runs, dtype);
+        CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype);
         if (fail) throw std::runtime_error("injected head failure");
     }
 };
@@ -312,7 +312,7 @@ void failed_witness() {
     // Direct backend evidence belongs to its caller, even across a model's failed stage.
     const float one = 1;
     const auto w = shared->adopt(&one, sizeof(one)), x = shared->adopt(&one, sizeof(one)), y = shared->alloc(sizeof(one), backend::Memory::device);
-    shared->matmul(quant::GGML_TYPE_F32, {w.get(), 0}, {x.get(), 0}, {y.get(), 0}, 1, 1, 1, {}, backend::Dtype::f32);
+    shared->matmul({quant::GGML_TYPE_F32, {w.get(), 0}}, {x.get(), 0}, {y.get(), 0}, 1, 1, 1, {}, backend::Dtype::f32);
     shared->fail = true;
     bool refused = false;
     try { a.prefill(prompt); } catch (const std::runtime_error& e) { refused = std::string(e.what()) == "injected head failure"; }

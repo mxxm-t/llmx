@@ -21,7 +21,7 @@ void main() {
     uint packed = 0u;
     for (uint b = 0u; b < 4u; ++b) {
         uint j = 4u * (word - 1u) + b;
-        packed |= (uint(mxfp4_value(QBYTE(o + 1u + (j & 15u)) >> (j < 16u ? 0u : 4u))) & 255u) << (8u * b);
+        packed |= (uint(fp4_value(QBYTE(o + 1u + (j & 15u)) >> (j < 16u ? 0u : 4u))) & 255u) << (8u * b);
     }
     words[index] = packed;
 }

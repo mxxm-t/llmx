@@ -240,9 +240,9 @@ class PinnedHFAdapters(unittest.TestCase):
             reads = []
             decode_span = spec_decode.GGUF.decode_span
 
-            def observed(file, tensor, start, count, numpy=True):
+            def observed(file, tensor, start, count, numpy=True, tensor_sources=None):
                 reads.append((tensor.name, start, count, tensor.count))
-                return decode_span(file, tensor, start, count, numpy)
+                return decode_span(file, tensor, start, count, numpy, tensor_sources)
 
             maximum = 0.0
             grouped_difference = 0.0

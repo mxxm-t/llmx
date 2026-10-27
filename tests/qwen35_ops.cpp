@@ -952,7 +952,7 @@ size_t check_drafter_ops(std::mt19937& g) {
     const std::vector<float> table = uniform(g, width * vocab, -1.0f, 1.0f);
     const BufferPtr t = upload(cpu, table), dst = zeros(cpu, 4 * width * sizeof(float));
     const BufferPtr ids = ids_of(cpu, {3, (uint32_t)vocab, 0, 0xffffffffu});
-    cpu.embed_ids({dst.get(), 0}, quant::GGML_TYPE_F32, {t.get(), 0}, width, vocab, {ids.get(), 0}, 4);
+    cpu.embed_ids({dst.get(), 0}, {quant::GGML_TYPE_F32, {t.get(), 0}}, width, vocab, {ids.get(), 0}, 4);
     const std::vector<float> got = download(cpu, *dst, 4 * width);
     for (size_t i = 0; i < width; ++i) {
         require(got[i] == table[3 * width + i] && got[2 * width + i] == table[i], "embed_ids gave other rows than the table's");

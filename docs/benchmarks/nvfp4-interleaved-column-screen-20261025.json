@@ -1,0 +1,1479 @@
+{
+  "passed": true,
+  "scope": "Paired-K contiguous versus interleaved output-column ownership, all F32 shared storage. Shared probe object/config, F32 inputs/sums and pre-dot global scaling retained. Local Radeon operator screen only, not final model or mx gate.",
+  "pins": {
+    "before": "946d12ce300f05db95c39ce9e98001baf6103bc7339b3aa4f88ac42597cd5269",
+    "after": "48829e71b31ac621da94cbf17f7c71f3fa1cb2fea8480ab9b602b9b70297c7c8"
+  },
+  "source_sha256": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b",
+  "calls": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\00-1024x896-before"
+      ],
+      "start": 1792892673.7881145,
+      "log": "00-1024x896-before.log",
+      "pid": 61128,
+      "exit_code": 0,
+      "end": 1792892674.436101,
+      "log_sha256": "816ddc68125644ba41df6749a80023e8bc2e1423e2e9cbd7f970bb56189447f5",
+      "mean_ms": 0.4836198,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\01-1024x896-after"
+      ],
+      "start": 1792892674.4441004,
+      "log": "01-1024x896-after.log",
+      "pid": 73444,
+      "exit_code": 0,
+      "end": 1792892675.6830626,
+      "log_sha256": "9289c67a37c160b83b6ca11c9142c719281ddb40e2a138c7fbfeea8bbc33961f",
+      "mean_ms": 0.4737364,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\02-1024x896-after"
+      ],
+      "start": 1792892675.6920624,
+      "log": "02-1024x896-after.log",
+      "pid": 40996,
+      "exit_code": 0,
+      "end": 1792892676.341071,
+      "log_sha256": "e344532ffb9dfb816ddc3b793d5238ee19ef97bb21b7fc7d3c267a4f37329ca3",
+      "mean_ms": 0.4754748,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\03-1024x896-before"
+      ],
+      "start": 1792892676.3490698,
+      "log": "03-1024x896-before.log",
+      "pid": 60896,
+      "exit_code": 0,
+      "end": 1792892676.9996352,
+      "log_sha256": "2280a25ca4a89592bcff48ab32948a65d2e764c7de68bdaea36a3b8c5ce460be",
+      "mean_ms": 0.4988975,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\04-1024x4096-before"
+      ],
+      "start": 1792892677.0106368,
+      "log": "04-1024x4096-before.log",
+      "pid": 65428,
+      "exit_code": 0,
+      "end": 1792892678.5234149,
+      "log_sha256": "e94ebbac768719458e68e1fdf42e5937a207da071f6ee880185261e30af6c32a",
+      "mean_ms": 1.3016449,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\05-1024x4096-after"
+      ],
+      "start": 1792892678.5364146,
+      "log": "05-1024x4096-after.log",
+      "pid": 55780,
+      "exit_code": 0,
+      "end": 1792892680.3056352,
+      "log_sha256": "b29a374544f7cbbf68b54148d033c9b58635fe1cae924144993b154201b3aab9",
+      "mean_ms": 1.2157996,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 2,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\06-1024x4096-after"
+      ],
+      "start": 1792892680.3176565,
+      "log": "06-1024x4096-after.log",
+      "pid": 81816,
+      "exit_code": 0,
+      "end": 1792892681.7194276,
+      "log_sha256": "520dbe0baa40678e15fe26a2559cd70bbf2e78b4e77dda8f48de1cb5fa7d2026",
+      "mean_ms": 1.215422,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\07-1024x4096-before"
+      ],
+      "start": 1792892681.7314315,
+      "log": "07-1024x4096-before.log",
+      "pid": 60120,
+      "exit_code": 0,
+      "end": 1792892683.8354917,
+      "log_sha256": "0ade19eac3cccaa48fb03237f6f8e46b8b9a15d756c7a1a1e15660de03df568c",
+      "mean_ms": 1.303002,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\08-3072x896-before"
+      ],
+      "start": 1792892683.8484943,
+      "log": "08-3072x896-before.log",
+      "pid": 66676,
+      "exit_code": 0,
+      "end": 1792892685.1095023,
+      "log_sha256": "e73dbd13a99d1f0f6711b8e6612ebc529ed091b4d0b13948c2f4e7bc8ebaa955",
+      "mean_ms": 1.061753,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\09-3072x896-after"
+      ],
+      "start": 1792892685.1180122,
+      "log": "09-3072x896-after.log",
+      "pid": 704,
+      "exit_code": 0,
+      "end": 1792892686.2630675,
+      "log_sha256": "24b51db6f8412bf12688822d157a86422741119cb25d9ad8db1eaa12f1f86796",
+      "mean_ms": 0.9532847,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\10-3072x896-after"
+      ],
+      "start": 1792892686.2760673,
+      "log": "10-3072x896-after.log",
+      "pid": 16568,
+      "exit_code": 0,
+      "end": 1792892687.4574366,
+      "log_sha256": "c5caed880c09f6c38b3aaacfe580977cd2ca06f51e2a648f363beb9dc14debd9",
+      "mean_ms": 0.9409007,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\11-3072x896-before"
+      ],
+      "start": 1792892687.4644368,
+      "log": "11-3072x896-before.log",
+      "pid": 42592,
+      "exit_code": 0,
+      "end": 1792892688.715408,
+      "log_sha256": "b752e0cbfef96c8793983c6402495c52f6e74b3279a397eb498c09d80964006e",
+      "mean_ms": 1.0636736,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\12-1024x896-scaled-before"
+      ],
+      "start": 1792892688.722926,
+      "log": "12-1024x896-scaled-before.log",
+      "pid": 84360,
+      "exit_code": 0,
+      "end": 1792892689.3991265,
+      "log_sha256": "d625e486eecbfe716a81d10d88fd4f45fde3176a29cbf2a0334723235ebee918",
+      "mean_ms": 0.4975419,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\13-1024x896-scaled-after"
+      ],
+      "start": 1792892689.408126,
+      "log": "13-1024x896-scaled-after.log",
+      "pid": 41032,
+      "exit_code": 0,
+      "end": 1792892690.0693858,
+      "log_sha256": "7f04e79c81519a6598369644f3399786d3789135bf4f80cf909abec5f1e3b94c",
+      "mean_ms": 0.4856876,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\14-1024x896-scaled-after"
+      ],
+      "start": 1792892690.0783858,
+      "log": "14-1024x896-scaled-after.log",
+      "pid": 82588,
+      "exit_code": 0,
+      "end": 1792892690.7399793,
+      "log_sha256": "87f7586e0fbfcceee49a17ceecc5247783d1fd43b869745d55432394d3154e93",
+      "mean_ms": 0.4771715,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 1,
+        "flags": {
+          "unrelated_cpu": 1,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 1,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\15-1024x896-scaled-before"
+      ],
+      "start": 1792892690.749979,
+      "log": "15-1024x896-scaled-before.log",
+      "pid": 38736,
+      "exit_code": 0,
+      "end": 1792892691.6760502,
+      "log_sha256": "b31518505fc230c5ed960bd2a62333670197c977cc83f9d3ef88281bb7e4cc94",
+      "mean_ms": 0.4873673,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\16-1024x4096-scaled-before"
+      ],
+      "start": 1792892691.6860497,
+      "log": "16-1024x4096-scaled-before.log",
+      "pid": 86924,
+      "exit_code": 0,
+      "end": 1792892693.1895223,
+      "log_sha256": "bccf5c8300252fba21891dc3f8dc475f41441191aab3a2ee26375866b5a87505",
+      "mean_ms": 1.3066598,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\17-1024x4096-scaled-after"
+      ],
+      "start": 1792892693.2045226,
+      "log": "17-1024x4096-scaled-after.log",
+      "pid": 66444,
+      "exit_code": 0,
+      "end": 1792892694.561941,
+      "log_sha256": "ee1d2784f6ec0aaa72750e44ec0430c175f1a6b0b5b9d18e8f2768258259a6f5",
+      "mean_ms": 1.2145052,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\18-1024x4096-scaled-after"
+      ],
+      "start": 1792892694.57494,
+      "log": "18-1024x4096-scaled-after.log",
+      "pid": 5828,
+      "exit_code": 0,
+      "end": 1792892696.0440383,
+      "log_sha256": "c1ba61c35e131bddc9cb346379f2a377766b2278282fcc83509a411c0ec1a1e5",
+      "mean_ms": 1.2099416,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "1024x4096-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\19-1024x4096-scaled-before"
+      ],
+      "start": 1792892696.0560386,
+      "log": "19-1024x4096-scaled-before.log",
+      "pid": 52728,
+      "exit_code": 0,
+      "end": 1792892697.5769112,
+      "log_sha256": "3ccac2ed4f448678fccf2235e49bb5b9181be13dd797461785a95a62239e2e07",
+      "mean_ms": 1.302745,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\20-3072x896-scaled-before"
+      ],
+      "start": 1792892697.5949109,
+      "log": "20-3072x896-scaled-before.log",
+      "pid": 51708,
+      "exit_code": 0,
+      "end": 1792892698.8653145,
+      "log_sha256": "308cd9a77dcd9effdf536cb75444103da8555636c4cb0401f59847c5e1e219fe",
+      "mean_ms": 1.0611606,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 3,
+        "flags": {
+          "unrelated_cpu": 3,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 3,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\21-3072x896-scaled-after"
+      ],
+      "start": 1792892698.8753157,
+      "log": "21-3072x896-scaled-after.log",
+      "pid": 87488,
+      "exit_code": 0,
+      "end": 1792892700.010543,
+      "log_sha256": "2fda789b7f055bf0f36cf9f6166ae1e11ba258cbe26d15321d4e4d212d803eae",
+      "mean_ms": 0.9415311,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\22-3072x896-scaled-after"
+      ],
+      "start": 1792892700.0222445,
+      "log": "22-3072x896-scaled-after.log",
+      "pid": 54860,
+      "exit_code": 0,
+      "end": 1792892701.1265917,
+      "log_sha256": "f3edb605b5543b7a92cb7b39603ffa6d179852439bc3fd4ae1b562b7879351b0",
+      "mean_ms": 0.9357407,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+        "--case",
+        "3072x896-scaled",
+        "--iterations",
+        "1000",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\23-3072x896-scaled-before"
+      ],
+      "start": 1792892701.1375918,
+      "log": "23-3072x896-scaled-before.log",
+      "pid": 30156,
+      "exit_code": 0,
+      "end": 1792892702.3800757,
+      "log_sha256": "5a8ada11162c4a20bc84af505875309ccb5ff32db8ac02ee9a13198244c3fe87",
+      "mean_ms": 1.0666663,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4",
+      "activity": {
+        "overlapping_intervals": 2,
+        "flags": {
+          "unrelated_cpu": 2,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 0
+        },
+        "process_gap_intervals": 2,
+        "counter_gap_intervals": 0
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "case": "1024x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "1024x4096",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+    },
+    {
+      "case": "3072x896",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    },
+    {
+      "case": "3072x896",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+    },
+    {
+      "case": "1024x896-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+    },
+    {
+      "case": "1024x4096-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "before",
+      "exit_code": 0,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+    },
+    {
+      "case": "3072x896-scaled",
+      "arm": "after",
+      "exit_code": 0,
+      "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+    }
+  ],
+  "activity_flags": {
+    "unrelated_cpu": "known unrelated deltas >100 percent of one CPU",
+    "system_cpu": ">75 percent",
+    "disk": ">100 MiB/s physical total",
+    "other_gpu_engine": ">5 percent individually; no engine summation",
+    "missing": "unknown, never zero"
+  },
+  "monitor": {
+    "pid": 61776,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\comparison-interleaved-columns-v1\\monitor.stop",
+      "--seconds",
+      "1200",
+      "--interval",
+      "1"
+    ]
+  },
+  "monitor_exit": 0,
+  "finished": 1792892705.9199414,
+  "cells": {
+    "1024x4096": {
+      "before": {
+        "samples_ms": [
+          1.3016449,
+          1.303002
+        ],
+        "mean_ms": 1.30232345,
+        "min_ms": 1.3016449,
+        "max_ms": 1.303002
+      },
+      "after": {
+        "samples_ms": [
+          1.2157996,
+          1.215422
+        ],
+        "mean_ms": 1.2156107999999999,
+        "min_ms": 1.215422,
+        "max_ms": 1.2157996
+      },
+      "wall_time_change_percent": -6.658303664884491,
+      "output_hashes": [
+        "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+      ]
+    },
+    "1024x4096-scaled": {
+      "before": {
+        "samples_ms": [
+          1.3066598,
+          1.302745
+        ],
+        "mean_ms": 1.3047024,
+        "min_ms": 1.302745,
+        "max_ms": 1.3066598
+      },
+      "after": {
+        "samples_ms": [
+          1.2145052,
+          1.2099416
+        ],
+        "mean_ms": 1.2122234,
+        "min_ms": 1.2099416,
+        "max_ms": 1.2145052
+      },
+      "wall_time_change_percent": -7.088129829453827,
+      "output_hashes": [
+        "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+      ]
+    },
+    "1024x896": {
+      "before": {
+        "samples_ms": [
+          0.4836198,
+          0.4988975
+        ],
+        "mean_ms": 0.49125865,
+        "min_ms": 0.4836198,
+        "max_ms": 0.4988975
+      },
+      "after": {
+        "samples_ms": [
+          0.4737364,
+          0.4754748
+        ],
+        "mean_ms": 0.47460559999999996,
+        "min_ms": 0.4737364,
+        "max_ms": 0.4754748
+      },
+      "wall_time_change_percent": -3.3898741528520793,
+      "output_hashes": [
+        "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+      ]
+    },
+    "1024x896-scaled": {
+      "before": {
+        "samples_ms": [
+          0.4975419,
+          0.4873673
+        ],
+        "mean_ms": 0.49245459999999996,
+        "min_ms": 0.4873673,
+        "max_ms": 0.4975419
+      },
+      "after": {
+        "samples_ms": [
+          0.4856876,
+          0.4771715
+        ],
+        "mean_ms": 0.48142955,
+        "min_ms": 0.4771715,
+        "max_ms": 0.4856876
+      },
+      "wall_time_change_percent": -2.238795210766631,
+      "output_hashes": [
+        "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+      ]
+    },
+    "3072x896": {
+      "before": {
+        "samples_ms": [
+          1.061753,
+          1.0636736
+        ],
+        "mean_ms": 1.0627133,
+        "min_ms": 1.061753,
+        "max_ms": 1.0636736
+      },
+      "after": {
+        "samples_ms": [
+          0.9532847,
+          0.9409007
+        ],
+        "mean_ms": 0.9470927,
+        "min_ms": 0.9409007,
+        "max_ms": 0.9532847
+      },
+      "wall_time_change_percent": -10.879754680777964,
+      "output_hashes": [
+        "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+      ]
+    },
+    "3072x896-scaled": {
+      "before": {
+        "samples_ms": [
+          1.0611606,
+          1.0666663
+        ],
+        "mean_ms": 1.06391345,
+        "min_ms": 1.0611606,
+        "max_ms": 1.0666663
+      },
+      "after": {
+        "samples_ms": [
+          0.9415311,
+          0.9357407
+        ],
+        "mean_ms": 0.9386359,
+        "min_ms": 0.9357407,
+        "max_ms": 0.9415311
+      },
+      "wall_time_change_percent": -11.775163665803834,
+      "output_hashes": [
+        "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+      ]
+    }
+  },
+  "candidate_receipts": {
+    "manifest.json": {
+      "scope": "Source-only NV paired-K F32 shared storage with interleaved output columns; 256 threads, K32, row ownership and ordered FMA unchanged.",
+      "baseline_shader_sha256": "f2a02fd4496751cf34d45e7a34fbffe1d841a6081c8adf39d7965c7019f54247",
+      "shared_control": {
+        "build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k.lib": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+        "build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe": "946d12ce300f05db95c39ce9e98001baf6103bc7339b3aa4f88ac42597cd5269",
+        "build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\probe.cpp": "622f15f95a01e7090c85bad1743a56bc444bb9d37637a772a029952591afb64b"
+      },
+      "hypothesis": "Changing tc*4+j to tc+j*16 gives 16 distinct modulo-32 bank starts for first words at stride 34 instead of four. This is static address arithmetic, not measured bank-conflict proof.",
+      "identity_risk": "Per-output K order unchanged, but lane ownership and compiler scheduling differ; require native and byte-output comparisons before timing.",
+      "files": {
+        "build.log": "b679cb2695fd3cecc224f557cdeca3589bfcce39e18fca770ca2ac8eabb0934b",
+        "candidate.patch": "41d8e2def6042b382c6ffa77db22d24d8ebe2a23693e6062cf28c23c8a92b2e9",
+        "CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+        "configure.log": "bdd63c8be8dc4d9e21d31f70ccf365cf044cbb18814bec7d8f89848a1eade171",
+        "freeze.py": "6ff97bf10c9acba85c030d8bdf1f42826623c55dcb3654a27e78711c07abc237",
+        "interleaved-probe.exe": "48829e71b31ac621da94cbf17f7c71f3fa1cb2fea8480ab9b602b9b70297c7c8",
+        "interleaved.lib": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+        "llmx-nvfp4-test.exe": "ee12eb833ab1ff3d69b6da0fd69e2c012f52ca64f2c33b7b368879842ce524cd",
+        "matmul_tile.comp": "f611e43ca52315a6d7f6929db8a4e119551a1a470e547a7332f802cba45737b6",
+        "matmul_tile_nvfp4.spv": "ddacbd2581638a949e2b027bc5548e5d2d9f04a40fd6d9a3243df0c0a0ece857",
+        "matmul_tile_nvfp4.spvasm": "2eed06fb2c9071f5e35a786a416b9a987eaba0b0d9691bd9e43deffdc7c91c11",
+        "matmul_tile_nvfp4_bf16.spv": "fd288b1f616f7b624bdc77d0b1d05ab91a73e00eec19b8ce21e5d547aa50b6cd",
+        "matmul_tile_nvfp4_bf16.spvasm": "01941ec28a05677cc9ffe221955df392d24122a34615181f541589a88df3847f",
+        "matmul_tile_nvfp4_bf16_preserve.spv": "2661295faee927efa846a1c84d5976cd303be3d0ceaada46af71c7031c8ed31f",
+        "matmul_tile_nvfp4_bf16_preserve.spvasm": "8898398fe374844d64f7a17156612d45a3d6855be5db9ad9d01ae3ec06623f60",
+        "matmul_tile_nvfp4_preserve.spv": "2abf8037ca0f324970c53d4fe80095e9399688eabffa9526c73c708e34298bb0",
+        "matmul_tile_nvfp4_preserve.spvasm": "0eeea6bf696c3f442d6de115fe412ecf82e97c6fd5b7c59825024cdadab59333",
+        "native-result.json": "29df31f11484597c49235a3395331550c9f36e1a6556feab1527452cd96f54f3",
+        "native.log": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec",
+        "preflight.json": "b706d58c8a9aebbcdb713bf5c5a0e91658b7437f3d2120c041cc6c32f36cf283",
+        "README.txt": "3174f9e0df592d22db535ffd707e0d4a6333eb1c057884e0f9fb4cdd315b63a9",
+        "relink-native.log": "9ee47c40846dc1e5f275abfb446b00053fe2484176a07e12b58b4126d4de6e19",
+        "relink-probe.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+        "smoke-interleaved-1024x4096-scaled.log": "985e06fc61e47e66af4cba0890fad23ee7869380627858842e5f60e304b65fbd",
+        "smoke-interleaved-1024x4096.log": "4740566e9ab1b09d653cbb74b76aec09e60081a3350b35417748e42e9e30bc99",
+        "smoke-interleaved-1024x896-scaled.log": "1acd19567ad362bee11262329aa75e795bf57d970996cd7c627e84c0e19f09b2",
+        "smoke-interleaved-1024x896.log": "025b7b9e487f9a9a8e2d2c1729385305c5909b81c57896cc88361f3ccf326a82",
+        "smoke-interleaved-3072x896-scaled.log": "57a207694e5ed43af203f0f21fed8132d8b75d75faae5d231619d8929ae383c3",
+        "smoke-interleaved-3072x896.log": "1c37d94bc81934a2642aeac3125becacde80da9decefd08b32e0ccf2f4bcd656",
+        "smoke-paired-k-1024x4096-scaled.log": "de31e76fb6b3daca6398c22d20cb6aac7610d8cadae87e4c9450e0454893b13b",
+        "smoke-paired-k-1024x4096.log": "70eac05d83d9defc39f0f106699754e9178a67701adefcce0fa280b92d53ba28",
+        "smoke-paired-k-1024x896-scaled.log": "25983ced5040212e6dc752461bedd8c843b3c5dbacf65bc154d456df383f10e7",
+        "smoke-paired-k-1024x896.log": "f5823cc1ae14f06df9baa4ed08ac012db3862401e34d7e1f03510f10f9d84b93",
+        "smoke-paired-k-3072x896-scaled.log": "c2f02646f1bde5807f1c96f5da7363108b20e1def95f0c8b955961968f305a95",
+        "smoke-paired-k-3072x896.log": "82159ef1eb438a409625cb0216c5e7d6de9148216d58f3f021be5183d2304313",
+        "smoke-result.json": "74c2dfe7d8543e81b9d612b59ed8115a8b6fa2e0378f913a578b639b9add2e1a",
+        "smoke.log": "6449bc21210df8ef3b24f37cc1ee8f5c829c242193913c55de4e0a01771be678",
+        "smoke.py": "e7c4566a8040de1243155f10dd4272086623e1fc5cf6e3ecc6461cc391afd77c",
+        "spirv-validation.json": "c930abf0405ff879286afd88f7dd4b892c13e964a2b6a0485bcde5df5d127fcc",
+        "static-coverage.json": "84b4a74467a1e1c44f4a3e08bee5db60d8ea368540967109b3d7f6f3c2ee72f8",
+        "vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9"
+      },
+      "build": {
+        "passed": true,
+        "isolated_source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\source",
+        "shader_sha256": "f611e43ca52315a6d7f6929db8a4e119551a1a470e547a7332f802cba45737b6",
+        "probe_object_sha256": "3bd9299768dc1fd9e7c1430492dd3abfd6b969135b8b937e8e1329558dc8fec9",
+        "config_sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+        "note": "Reused isolated source/build only; previous native-half shader, library and executable pins remain frozen. Main07fac is not integrated in this older source screen."
+      },
+      "gpu_execution": "Root authorized bounded native and six identity smoke controls; all PASS. No performance claim.",
+      "native_result": {
+        "exit_code": 0,
+        "seconds": 4.341145277023315
+      },
+      "smoke_passed": true
+    },
+    "native-result.json": {
+      "exit_code": 0,
+      "seconds": 4.341145277023315
+    },
+    "preflight.json": [
+      {
+        "ProcessName": "MSBuild",
+        "Id": 17200,
+        "CPU": 5.15625
+      },
+      {
+        "ProcessName": "MSBuild",
+        "Id": 29040,
+        "CPU": 1.171875
+      }
+    ],
+    "smoke-result.json": {
+      "runs": [
+        {
+          "case": "1024x896",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-1024x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.2190263271331787
+        },
+        {
+          "case": "1024x896",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "1024x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-1024x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.3617520332336426,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+        },
+        {
+          "case": "1024x4096",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x4096",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-1024x4096"
+          ],
+          "exit_code": 0,
+          "seconds": 0.20603442192077637
+        },
+        {
+          "case": "1024x4096",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "1024x4096",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-1024x4096"
+          ],
+          "exit_code": 0,
+          "seconds": 0.36661267280578613,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "44bc4599b455ac65e3e626d2d118ee7543b76fa6cdf80f445984029a0f0bc376"
+        },
+        {
+          "case": "3072x896",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "3072x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-3072x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.19326448440551758
+        },
+        {
+          "case": "3072x896",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "3072x896",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-3072x896"
+          ],
+          "exit_code": 0,
+          "seconds": 0.327970027923584,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "07f298e9eab33c8bc11c7917e7944b22603dc9d27459fdb0e13fab691b47aaca"
+        },
+        {
+          "case": "1024x896-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-1024x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.22406411170959473
+        },
+        {
+          "case": "1024x896-scaled",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "1024x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-1024x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.24355435371398926,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "9d8339d8a7c70159a73f3643ffd5659af9770b06e01d02edc5754594cce10dfa"
+        },
+        {
+          "case": "1024x4096-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "1024x4096-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-1024x4096-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.2001791000366211
+        },
+        {
+          "case": "1024x4096-scaled",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "1024x4096-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-1024x4096-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.40117335319519043,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "d5cc31e41039a0c5d230232b127e0c66332df1c2408ccc648463304dbadaf08b"
+        },
+        {
+          "case": "3072x896-scaled",
+          "arm": "paired-k",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\native-half-weight-candidate\\pins\\paired-k-probe.exe",
+            "--case",
+            "3072x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-paired-k-3072x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.21856164932250977
+        },
+        {
+          "case": "3072x896-scaled",
+          "arm": "interleaved",
+          "command": [
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-probe.exe",
+            "--case",
+            "3072x896-scaled",
+            "--iterations",
+            "1",
+            "--output",
+            "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\smoke-interleaved-3072x896-scaled"
+          ],
+          "exit_code": 0,
+          "seconds": 0.27902841567993164,
+          "byte_equal_to_paired_k": true,
+          "output_sha256": "3241beb2da85129928072e60b37da0401925c636011130cdae7b6024112a54e4"
+        }
+      ],
+      "comparison": "Bounded identity smoke only; no performance claim.",
+      "passed": true
+    },
+    "spirv-validation.json": {
+      "matmul_tile_nvfp4": {
+        "validated": true,
+        "f32_only": true,
+        "scalar_f32_fmas": 8
+      },
+      "matmul_tile_nvfp4_bf16": {
+        "validated": true,
+        "f32_only": true,
+        "scalar_f32_fmas": 8
+      },
+      "matmul_tile_nvfp4_bf16_preserve": {
+        "validated": true,
+        "f32_only": true,
+        "scalar_f32_fmas": 8
+      },
+      "matmul_tile_nvfp4_preserve": {
+        "validated": true,
+        "f32_only": true,
+        "scalar_f32_fmas": 8
+      }
+    },
+    "static-coverage.json": {
+      "32": {
+        "output_pairs": 2048,
+        "exact_once": true,
+        "column_tails_0_to_64": true
+      },
+      "64": {
+        "output_pairs": 4096,
+        "exact_once": true,
+        "column_tails_0_to_64": true
+      },
+      "128": {
+        "output_pairs": 8192,
+        "exact_once": true,
+        "column_tails_0_to_64": true
+      }
+    }
+  },
+  "diagnostic_stats": {
+    "diag-1024x4096-after.log": [],
+    "diag-1024x4096-before.log": [],
+    "diag-1024x4096-scaled-after.log": [],
+    "diag-1024x4096-scaled-before.log": [],
+    "diag-1024x896-after.log": [],
+    "diag-1024x896-before.log": [],
+    "diag-1024x896-scaled-after.log": [],
+    "diag-1024x896-scaled-before.log": [],
+    "diag-3072x896-after.log": [],
+    "diag-3072x896-before.log": [],
+    "diag-3072x896-scaled-after.log": [],
+    "diag-3072x896-scaled-before.log": []
+  },
+  "artifact_sha256": {
+    "build-nvfp4-tile-probe/interleaved-column-candidate/build.log": "b679cb2695fd3cecc224f557cdeca3589bfcce39e18fca770ca2ac8eabb0934b",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/candidate.patch": "41d8e2def6042b382c6ffa77db22d24d8ebe2a23693e6062cf28c23c8a92b2e9",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/configure.log": "bdd63c8be8dc4d9e21d31f70ccf365cf044cbb18814bec7d8f89848a1eade171",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/freeze.py": "6ff97bf10c9acba85c030d8bdf1f42826623c55dcb3654a27e78711c07abc237",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/interleaved-probe.exe": "48829e71b31ac621da94cbf17f7c71f3fa1cb2fea8480ab9b602b9b70297c7c8",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/interleaved.lib": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/llmx-nvfp4-test.exe": "ee12eb833ab1ff3d69b6da0fd69e2c012f52ca64f2c33b7b368879842ce524cd",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/manifest.json": "9cfe850d5e8f4818d7c619727f815bfedd628c496f64d88b99e54eb3937278f1",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile.comp": "f611e43ca52315a6d7f6929db8a4e119551a1a470e547a7332f802cba45737b6",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4.spv": "ddacbd2581638a949e2b027bc5548e5d2d9f04a40fd6d9a3243df0c0a0ece857",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4.spvasm": "2eed06fb2c9071f5e35a786a416b9a987eaba0b0d9691bd9e43deffdc7c91c11",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_bf16.spv": "fd288b1f616f7b624bdc77d0b1d05ab91a73e00eec19b8ce21e5d547aa50b6cd",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_bf16.spvasm": "01941ec28a05677cc9ffe221955df392d24122a34615181f541589a88df3847f",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_bf16_preserve.spv": "2661295faee927efa846a1c84d5976cd303be3d0ceaada46af71c7031c8ed31f",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_bf16_preserve.spvasm": "8898398fe374844d64f7a17156612d45a3d6855be5db9ad9d01ae3ec06623f60",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_preserve.spv": "2abf8037ca0f324970c53d4fe80095e9399688eabffa9526c73c708e34298bb0",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/matmul_tile_nvfp4_preserve.spvasm": "0eeea6bf696c3f442d6de115fe412ecf82e97c6fd5b7c59825024cdadab59333",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/native-result.json": "29df31f11484597c49235a3395331550c9f36e1a6556feab1527452cd96f54f3",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/native.log": "5527a82911d58a2bf15afe1ffda1914e0cd88055c1fffb645c7eae94d03008ec",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/preflight.json": "b706d58c8a9aebbcdb713bf5c5a0e91658b7437f3d2120c041cc6c32f36cf283",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/README.txt": "3174f9e0df592d22db535ffd707e0d4a6333eb1c057884e0f9fb4cdd315b63a9",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/relink-native.log": "9ee47c40846dc1e5f275abfb446b00053fe2484176a07e12b58b4126d4de6e19",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/relink-probe.log": "fbbc691e23311eadc5911c8588fd69e345233e3cd19ea2ea823becab3978bd61",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-1024x4096-scaled.log": "985e06fc61e47e66af4cba0890fad23ee7869380627858842e5f60e304b65fbd",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-1024x4096.log": "4740566e9ab1b09d653cbb74b76aec09e60081a3350b35417748e42e9e30bc99",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-1024x896-scaled.log": "1acd19567ad362bee11262329aa75e795bf57d970996cd7c627e84c0e19f09b2",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-1024x896.log": "025b7b9e487f9a9a8e2d2c1729385305c5909b81c57896cc88361f3ccf326a82",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-3072x896-scaled.log": "57a207694e5ed43af203f0f21fed8132d8b75d75faae5d231619d8929ae383c3",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-interleaved-3072x896.log": "1c37d94bc81934a2642aeac3125becacde80da9decefd08b32e0ccf2f4bcd656",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-1024x4096-scaled.log": "de31e76fb6b3daca6398c22d20cb6aac7610d8cadae87e4c9450e0454893b13b",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-1024x4096.log": "70eac05d83d9defc39f0f106699754e9178a67701adefcce0fa280b92d53ba28",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-1024x896-scaled.log": "25983ced5040212e6dc752461bedd8c843b3c5dbacf65bc154d456df383f10e7",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-1024x896.log": "f5823cc1ae14f06df9baa4ed08ac012db3862401e34d7e1f03510f10f9d84b93",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-3072x896-scaled.log": "c2f02646f1bde5807f1c96f5da7363108b20e1def95f0c8b955961968f305a95",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-paired-k-3072x896.log": "82159ef1eb438a409625cb0216c5e7d6de9148216d58f3f021be5183d2304313",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke-result.json": "74c2dfe7d8543e81b9d612b59ed8115a8b6fa2e0378f913a578b639b9add2e1a",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke.log": "6449bc21210df8ef3b24f37cc1ee8f5c829c242193913c55de4e0a01771be678",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/smoke.py": "e7c4566a8040de1243155f10dd4272086623e1fc5cf6e3ecc6461cc391afd77c",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/spirv-validation.json": "c930abf0405ff879286afd88f7dd4b892c13e964a2b6a0485bcde5df5d127fcc",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/static-coverage.json": "84b4a74467a1e1c44f4a3e08bee5db60d8ea368540967109b3d7f6f3c2ee72f8",
+    "build-nvfp4-tile-probe/interleaved-column-candidate/vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/00-1024x896-before.log": "816ddc68125644ba41df6749a80023e8bc2e1423e2e9cbd7f970bb56189447f5",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/01-1024x896-after.log": "9289c67a37c160b83b6ca11c9142c719281ddb40e2a138c7fbfeea8bbc33961f",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/02-1024x896-after.log": "e344532ffb9dfb816ddc3b793d5238ee19ef97bb21b7fc7d3c267a4f37329ca3",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/03-1024x896-before.log": "2280a25ca4a89592bcff48ab32948a65d2e764c7de68bdaea36a3b8c5ce460be",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/04-1024x4096-before.log": "e94ebbac768719458e68e1fdf42e5937a207da071f6ee880185261e30af6c32a",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/05-1024x4096-after.log": "b29a374544f7cbbf68b54148d033c9b58635fe1cae924144993b154201b3aab9",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/06-1024x4096-after.log": "520dbe0baa40678e15fe26a2559cd70bbf2e78b4e77dda8f48de1cb5fa7d2026",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/07-1024x4096-before.log": "0ade19eac3cccaa48fb03237f6f8e46b8b9a15d756c7a1a1e15660de03df568c",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/08-3072x896-before.log": "e73dbd13a99d1f0f6711b8e6612ebc529ed091b4d0b13948c2f4e7bc8ebaa955",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/09-3072x896-after.log": "24b51db6f8412bf12688822d157a86422741119cb25d9ad8db1eaa12f1f86796",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/10-3072x896-after.log": "c5caed880c09f6c38b3aaacfe580977cd2ca06f51e2a648f363beb9dc14debd9",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/11-3072x896-before.log": "b752e0cbfef96c8793983c6402495c52f6e74b3279a397eb498c09d80964006e",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/12-1024x896-scaled-before.log": "d625e486eecbfe716a81d10d88fd4f45fde3176a29cbf2a0334723235ebee918",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/13-1024x896-scaled-after.log": "7f04e79c81519a6598369644f3399786d3789135bf4f80cf909abec5f1e3b94c",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/14-1024x896-scaled-after.log": "87f7586e0fbfcceee49a17ceecc5247783d1fd43b869745d55432394d3154e93",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/15-1024x896-scaled-before.log": "b31518505fc230c5ed960bd2a62333670197c977cc83f9d3ef88281bb7e4cc94",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/16-1024x4096-scaled-before.log": "bccf5c8300252fba21891dc3f8dc475f41441191aab3a2ee26375866b5a87505",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/17-1024x4096-scaled-after.log": "ee1d2784f6ec0aaa72750e44ec0430c175f1a6b0b5b9d18e8f2768258259a6f5",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/18-1024x4096-scaled-after.log": "c1ba61c35e131bddc9cb346379f2a377766b2278282fcc83509a411c0ec1a1e5",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/19-1024x4096-scaled-before.log": "3ccac2ed4f448678fccf2235e49bb5b9181be13dd797461785a95a62239e2e07",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/20-3072x896-scaled-before.log": "308cd9a77dcd9effdf536cb75444103da8555636c4cb0401f59847c5e1e219fe",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/21-3072x896-scaled-after.log": "2fda789b7f055bf0f36cf9f6166ae1e11ba258cbe26d15321d4e4d212d803eae",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/22-3072x896-scaled-after.log": "f3edb605b5543b7a92cb7b39603ffa6d179852439bc3fd4ae1b562b7879351b0",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/23-3072x896-scaled-before.log": "5a8ada11162c4a20bc84af505875309ccb5ff32db8ac02ee9a13198244c3fe87",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/activity.jsonl": "1fb393d952a9bbb5677a1b7337403547af84d9379aadb05ec61c8025b00dfd76",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x4096-after.log": "e9fbedcbd65254d23f1ba6fa7742e09a414208a148ff6ce617fd02c51ff56512",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x4096-before.log": "84956a3ece86b50d7b988dd2cab4b5b42a9b816bf47e6cc3eb9807ec91f252b9",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x4096-scaled-after.log": "2d2703683374a57e1cf7870451945ca1d013cdb54959dd46ac2ee176a76f43af",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x4096-scaled-before.log": "dca7cff5b524bb85b38d558a63fa649b47a31740401aa526245f53d9b84bb7dc",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x896-after.log": "5dde08d6e0a3778ed833f89e43a435934edd008493f6130690f4483564105c7b",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x896-before.log": "6a4bef646fce96162da8c59740340c8023a81fb84c465adc2d93d5d75415adad",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x896-scaled-after.log": "9ab38f0e43248d1714dc9e7e02ce6b289268aefe68d41eea8a5ad2468a37a769",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-1024x896-scaled-before.log": "f4f54fe06bc59492c8a9dd56e55278f2f469aa9dbdf85bfdb337985ee849a5aa",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-3072x896-after.log": "d17942a61791ab84b37fccbb1ca3cc6eae370f9e0439cd804516b485a78e9175",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-3072x896-before.log": "57e198b06d61b46d9aa7be7e0a50a18e12111ea3460c2104e6b612976325a375",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-3072x896-scaled-after.log": "94cb57b507abe328b496236135cf4aed7f7cdb3129915745c830e6c5ee8f7718",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/diag-3072x896-scaled-before.log": "76ad5efbb4757032f8af2039e2e357bfe06e8ca979ceb1d0aca2af300968369f",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/execution.json": "828f9b42bfda5f73446cf101d4273f3bca6f2cf9404de5a3589f95fc8d3c9859",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-tile-probe/comparison-interleaved-columns-v1/monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f"
+  },
+  "limits": [
+    "The before arm uses the same paired-K candidate. Main and mx were not measured. All 24 timings and 12 diagnostics are retained, with two observations per arm and cell.",
+    "Operator evidence only. No model, HF or adoption claim.",
+    "Interval overlap uses the same PDH thresholds. GPU engines are never summed. Benchmark and monitor PIDs are excluded from unrelated CPU. Unknown gaps are retained."
+  ],
+  "raw_verification": {
+    "timed_logs_sha256_verified": 24,
+    "timed_output_sha256_verified": 24,
+    "unique_output_hash_per_cell": true
+  }
+}

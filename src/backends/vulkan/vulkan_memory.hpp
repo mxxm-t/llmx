@@ -207,6 +207,36 @@ inline void VulkanBackend::grow(std::shared_ptr<VulkanBuffer>& buffer, size_t by
     buffer = std::make_shared<VulkanBuffer>(dev_, bytes, false);
 }
 
+inline void VulkanBackend::check_weight_scales(WeightView weight, size_t experts) {
+    if (!weight.scales.buffer) {
+        if (weight.scale_count || weight.scales.offset) throw std::runtime_error("vulkan: weight scale count without storage");
+        return;
+    }
+    if (weight.type != quant::GGML_TYPE_NVFP4) throw std::runtime_error("vulkan: weight scales require NVFP4 storage");
+    if (!weight.scale_count || (weight.scale_count != 1 && weight.scale_count != experts))
+        throw std::runtime_error("vulkan: weight scale count differs from its matrices");
+    const size_t offset = size_mul(weight.scales.offset, sizeof(float)), bytes = size_mul(weight.scale_count, sizeof(float));
+    if (offset > weight.scales.buffer->size() || bytes > weight.scales.buffer->size() - offset)
+        throw std::runtime_error("vulkan: weight scales outside the allocation");
+}
+
+// NVFP4 uses its spare F32 binding for scales, with an exact range so the shader distinguishes one scale from an expert vector.
+inline VkDescriptorBufferInfo VulkanBackend::weight_floats(WeightView weight, VkDescriptorBufferInfo otherwise) {
+    if (weight.type != quant::GGML_TYPE_NVFP4) return otherwise;
+    if (!weight.scales.buffer) {
+        if (!unit_scale_) {
+            const float one = 1;
+            unit_scale_ = adopt(&one, sizeof(one));
+        }
+        VkDescriptorBufferInfo info = bind(CSlice{unit_scale_.get(), 0});
+        info.range = sizeof(float);
+        return info;
+    }
+    VkDescriptorBufferInfo info = bind(weight.scales);
+    info.range = size_mul(weight.scale_count, sizeof(float));
+    return info;
+}
+
 // Immutable format dictionaries alias storage views unused by these weight formats.
 inline VkDescriptorBufferInfo VulkanBackend::lookup_grid(uint32_t type, VkDescriptorBufferInfo otherwise) {
     const WeightKernels* format = weight_kernels(type);

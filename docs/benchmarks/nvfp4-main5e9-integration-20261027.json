@@ -1,0 +1,156 @@
+{
+  "schema": "nvfp4-main5e9-integration-v1",
+  "previous_head": "051bb83b2b0b8e7c3868df80966609b7a414fab1",
+  "integrated_main": "5e90171a842480f26c056b14bf1167e7300b6385",
+  "runtime_source_conflicts": [],
+  "documentation_conflicts": [
+    "docs/STATUS.md"
+  ],
+  "build": {
+    "passed": true,
+    "started_unix": 1793089164.3997715,
+    "commands": [
+      {
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\main5e9-cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DLLMX_GLSLC=C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+          "-DLLMX_VULKAN_INCLUDE_DIR=C:/VulkanSDK/1.4.357.0/Include"
+        ],
+        "exit_code": 0
+      },
+      {
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\main5e9-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx",
+          "llmx-backend-vulkan-test",
+          "llmx-vulkan-lifetime-test",
+          "llmx-server-passes-cpu-test",
+          "llmx-nvfp4-test"
+        ],
+        "exit_code": 0
+      }
+    ],
+    "tests_run": false,
+    "binaries": {
+      "llmx.exe": "99129ce962846920dbb17be34e3b26eae9a3d44018887b70f6052a6103182ae5",
+      "llmx-backend-vulkan-test.exe": "009b49c92eadfb1aa08f64ed61be0630498ce5051b487476a7b2ab725a079bf4",
+      "llmx-vulkan-lifetime-test.exe": "7831eb92b6cb9349587aada2bff32937425063bbfb8095bf8158e9d1ab6fa51f",
+      "llmx-server-passes-cpu-test.exe": "144b4e3325cbfc3b7a25b983991c633eb1bdf1cdc8f1d74cca4cfa3e26f1975c",
+      "llmx-nvfp4-test.exe": "2d5abbd21297c4ec3f0f0f988328ae2ef260e07d3dc40f786276fe84f5395567"
+    },
+    "version": "llmx 0.1.0+g051bb83b2b0b.dirty numerics ba61f539e42d669c",
+    "ended_unix": 1793089412.9783866
+  },
+  "shader_modules": {
+    "prior_count": 313,
+    "current_count": 314,
+    "unchanged_prior_count": 313,
+    "added": {
+      "hold.inc": "6cea45d930562339cd0694b439144b972795d57ffb728106f663a6e6864679a4"
+    },
+    "nvfp4": {
+      "matmul_row_nvfp4.inc": "cee69a88adb005cfb5d3c2775d7cb6ddf3bd34b8614ca1999e6075d72fd1df6b",
+      "matmul_row_nvfp4_preserve.inc": "c2711a6e07f2b60d28a8f6220dffb8c09942e32be11292affe24716e60c7a017",
+      "matmul_tile_nvfp4.inc": "f4c2efe44c92035c14150ea2734a8d9ab7c6d79928139bca7baf6b88797700bb",
+      "matmul_tile_nvfp4_bf16.inc": "1d8cf0718ff28327695bc96ea8ceb27344584860e199864192613c84eec22bc4",
+      "matmul_tile_nvfp4_bf16_preserve.inc": "76d6b0776488291d4cbf27a8da913feaacf2088d183a86fc5bd2b11d3d04d52e",
+      "matmul_tile_nvfp4_f16.inc": "c3754a6529bb0c77c048e8e8daa54a9cb8827807ec8384b8d63039ac56b6bc27",
+      "matmul_tile_nvfp4_preserve.inc": "3014adcf96e4b62f313754b94d265d4ee5667775a3e9f473e0d0f6d8812714ae"
+    }
+  },
+  "static_checks": {
+    "docs": "pass",
+    "dead-code": "pass",
+    "command": "python -X utf8 tests/run_tests.py --exe ../nvfp4-mainf61-20261026/build-integration/separated-policy-cmake/Release/llmx.exe --only docs,dead-code",
+    "exit_code": 0
+  },
+  "previous_tree_ci": [
+    {
+      "id": 40465726299,
+      "url": "https://github.com/mxxm-t/llmx/actions/runs/40465726299",
+      "name": "CI",
+      "status": "completed",
+      "conclusion": "success",
+      "head": "224bd14b3869e8393320f77b368a379910b1368b",
+      "jobs": [
+        {
+          "id": 122060535485,
+          "name": "HF reference (CPU)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:15:51Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535550,
+          "name": "CPU (windows-2022)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:13:38Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535565,
+          "name": "Vulkan backend (build, Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:12:48Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535569,
+          "name": "CPU (Linux UBSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:18:03Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535575,
+          "name": "CPU (macos-15-intel)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:17:14Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535618,
+          "name": "CPU (Linux TSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:19:59Z",
+          "active_steps": [],
+          "failed_steps": []
+        },
+        {
+          "id": 122060535635,
+          "name": "CPU (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-27T07:20:47Z",
+          "active_steps": [],
+          "failed_steps": []
+        }
+      ]
+    }
+  ],
+  "new_tree_tests": "pending",
+  "limitations": "Build and static checks only for the integrated tree. Prior CI belongs to 224bd14b3, not this combined tree. No new performance or model-identity result."
+}

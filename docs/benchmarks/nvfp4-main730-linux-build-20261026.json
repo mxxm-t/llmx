@@ -1,0 +1,246 @@
+{
+  "scope": "Verified same-image Linux build of the integrated NVFP4 candidate and selector-disabled control. Build-only evidence, no GPU execution or performance claim.",
+  "revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+  "public_base": "7300e94ac2e881ee1486b9807b518b63c991a6ee",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "archive_sha256": "4b76767fac3d86d03941c89fc086e65ec40548c8a6026c51db053335bdfc6e16",
+  "build_state_sha256": "c0426ba18eec47cf6462c8fb880cbf78aea72a0fd45059f071691fc284865dcd",
+  "container_state": {
+    "Status": "exited",
+    "Running": false,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 0,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-26T04:44:28.594752498Z",
+    "FinishedAt": "2026-10-26T04:52:57.683533531Z"
+  },
+  "container_removed_after_verification": true,
+  "verified_binary_count": 7,
+  "arms": {
+    "candidate": {
+      "binaries": {
+        "llmx": {
+          "bytes": 12779456,
+          "path": "candidate/build/llmx",
+          "sha256": "f363fd8e588edf7f09bc9adf5d8962d1f80f7371cc800047ac43b984bfb0f732"
+        },
+        "llmx-backend-vulkan-test": {
+          "bytes": 10526912,
+          "path": "candidate/build/llmx-backend-vulkan-test",
+          "sha256": "c213ff9865cad7b3cd741faf3ba7225e0f535f72dd8c1623fe4fdb4d20e5cca3"
+        },
+        "llmx-model-logits": {
+          "bytes": 10943432,
+          "path": "candidate/build/llmx-model-logits",
+          "sha256": "343d85b721b1fa8a2983fca22c5ae8a95157ed29836e6c166c371bdc7488a923"
+        },
+        "llmx-nvfp4-test": {
+          "bytes": 9763320,
+          "path": "candidate/build/llmx-nvfp4-test",
+          "sha256": "d00d61b2fdd789af66d5d2450be3af48cde008bae347e4f8cbac05227f5b8104"
+        },
+        "llmx-vulkan-lifetime-test": {
+          "bytes": 9433656,
+          "path": "candidate/build/llmx-vulkan-lifetime-test",
+          "sha256": "1ce53ffc8de1a0568d49a612fee74bea9b530b499af9344d29e091e5122973ba"
+        }
+      },
+      "selector_sha256": "3f1a3ee7e4f81dace50f72d76f6ffda999f0630e005c51e427bdfebc21be35e3",
+      "source_files": 3018,
+      "source_manifest_sha256": "26e7dacf1d72809a32baae7204d5bb1b3fb0ba66c6a50d07063128af18f5c76d",
+      "version": "llmx 0.1.0+unknown numerics 07241fd541e398c5",
+      "version_stdout": "llmx 0.1.0+unknown numerics 07241fd541e398c5\n",
+      "version_step": {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "--version"
+        ],
+        "ended_unix": 1792990377.667591,
+        "exit_code": 0,
+        "label": "candidate-version",
+        "log": "candidate-version.log",
+        "log_bytes": 45,
+        "log_sha256": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+        "pid": 2823,
+        "started_unix": 1792990377.6622972,
+        "timeout_seconds": 20
+      }
+    },
+    "control": {
+      "binaries": {
+        "llmx": {
+          "bytes": 12779456,
+          "path": "control/build/llmx",
+          "sha256": "1ee9cbce552d565da83380c61929aa69fb74bcbe90803bd7e1853b906c0ad473"
+        },
+        "llmx-model-logits": {
+          "bytes": 10943432,
+          "path": "control/build/llmx-model-logits",
+          "sha256": "7973394e6be14564614edfdbd456b625acf61877f14fe83cadb433a6a9b53c55"
+        }
+      },
+      "selector_sha256": "7fa462e07991cd9176046b5ae8148a5cc7588f921b4f1868a1063aa356c616ea",
+      "source_files": 3018,
+      "source_manifest_sha256": "2e4650d39367f259b924c5660686919d8742b4d699c859e4928be66f3f6901e4",
+      "version": "llmx 0.1.0+unknown numerics 92cdf60699ec0031",
+      "version_stdout": "llmx 0.1.0+unknown numerics 92cdf60699ec0031\n",
+      "version_step": {
+        "argv": [
+          "/work/control/build/llmx",
+          "--version"
+        ],
+        "ended_unix": 1792990085.0416718,
+        "exit_code": 0,
+        "label": "control-version",
+        "log": "control-version.log",
+        "log_bytes": 45,
+        "log_sha256": "8d6d4026ff2b42f090650e69a005745c811fc7a837ef7430887977fab4bd3abe",
+        "pid": 1367,
+        "started_unix": 1792990085.0354116,
+        "timeout_seconds": 20
+      }
+    }
+  },
+  "source_tree_differences": [
+    "src/backends/vulkan/vulkan_kernels.hpp"
+  ],
+  "steps": [
+    {
+      "argv": [
+        "cmake",
+        "-S",
+        "/work/control/source",
+        "-B",
+        "/work/control/build",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON"
+      ],
+      "ended_unix": 1792989871.6033294,
+      "exit_code": 0,
+      "label": "control-configure",
+      "log": "control-configure.log",
+      "log_bytes": 488,
+      "log_sha256": "b4ea3c505cf1acd0220116e22ff135ee87a83e12b9c7f32e03c13cb243a4f850",
+      "pid": 8,
+      "started_unix": 1792989870.530413,
+      "timeout_seconds": 180
+    },
+    {
+      "argv": [
+        "cmake",
+        "--build",
+        "/work/control/build",
+        "--parallel",
+        "2",
+        "--target",
+        "llmx",
+        "llmx-model-logits"
+      ],
+      "ended_unix": 1792990085.0007849,
+      "exit_code": 0,
+      "label": "control-build",
+      "log": "control-build.log",
+      "log_bytes": 14809,
+      "log_sha256": "7f2d2bbcc8255b492c2b7a4e4f899734845b590357c6f8daa53f9b37d57412cd",
+      "pid": 53,
+      "started_unix": 1792989871.612528,
+      "timeout_seconds": 2400
+    },
+    {
+      "argv": [
+        "/work/control/build/llmx",
+        "--version"
+      ],
+      "ended_unix": 1792990085.0416718,
+      "exit_code": 0,
+      "label": "control-version",
+      "log": "control-version.log",
+      "log_bytes": 45,
+      "log_sha256": "8d6d4026ff2b42f090650e69a005745c811fc7a837ef7430887977fab4bd3abe",
+      "pid": 1367,
+      "started_unix": 1792990085.0354116,
+      "timeout_seconds": 20
+    },
+    {
+      "argv": [
+        "cmake",
+        "-S",
+        "/work/candidate/source",
+        "-B",
+        "/work/candidate/build",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DLLMX_HAS_BACKEND_VULKAN=ON"
+      ],
+      "ended_unix": 1792990086.0638921,
+      "exit_code": 0,
+      "label": "candidate-configure",
+      "log": "candidate-configure.log",
+      "log_bytes": 490,
+      "log_sha256": "5ffa475be285cd8ffda694a8e0865df5617a3aa2a624e34fb1f2e928b23bb9a9",
+      "pid": 1368,
+      "started_unix": 1792990085.044234,
+      "timeout_seconds": 180
+    },
+    {
+      "argv": [
+        "cmake",
+        "--build",
+        "/work/candidate/build",
+        "--parallel",
+        "2",
+        "--target",
+        "llmx",
+        "llmx-model-logits",
+        "llmx-nvfp4-test",
+        "llmx-vulkan-lifetime-test",
+        "llmx-backend-vulkan-test"
+      ],
+      "ended_unix": 1792990377.5936062,
+      "exit_code": 0,
+      "label": "candidate-build",
+      "log": "candidate-build.log",
+      "log_bytes": 16015,
+      "log_sha256": "6eb72ea70cb022d4d4e3c848e987c2ff7bc76c5b237247e29c470a852b0a5894",
+      "pid": 1413,
+      "started_unix": 1792990086.077796,
+      "timeout_seconds": 2400
+    },
+    {
+      "argv": [
+        "/work/candidate/build/llmx",
+        "--version"
+      ],
+      "ended_unix": 1792990377.667591,
+      "exit_code": 0,
+      "label": "candidate-version",
+      "log": "candidate-version.log",
+      "log_bytes": 45,
+      "log_sha256": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+      "pid": 2823,
+      "started_unix": 1792990377.6622972,
+      "timeout_seconds": 20
+    }
+  ],
+  "elapsed_seconds": 508.7999029159546,
+  "deadline_reached": false,
+  "passed": true,
+  "identity_note": "Both arms are archived trees built identically and report version 0.1.0+unknown. The archive and file manifests pin the revision. Numerics identifiers intentionally differ with the selector change.",
+  "limits": {
+    "cmake_workers": 2,
+    "core_dumps": 0,
+    "cores": 2,
+    "memory_bytes": 8589934592,
+    "network": "none",
+    "no_gpu_devices": true,
+    "swap_bytes": 0
+  },
+  "local_artifacts": {
+    "build-integration/main730-rig-build-complete.json": "ed232d52896443871a9d94e4ebb8e02e72ce1c1d858f3f1af14f067093627e06",
+    "build-integration/main730-rig-build-launch.json": "4351e8f063a1432214c84fb2cdc6bad8f14e4636c120f51ca598be196a4b03df",
+    "build-integration/main730-rig-arms/pins.json": "19bf61219f01bcb4dc01b70a3bb661648d2ebac8237f5cf3906ed61d4766a7ce"
+  }
+}

@@ -3,12 +3,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include "quant/fp4.hpp"
 #include "quant/types.hpp"
 
 namespace quant {
 
 // E2M1 values doubled to signed integers; both zero codes give +0 on decode.
-inline constexpr int8_t MXFP4_VALUES[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+inline constexpr const auto& MXFP4_VALUES = FP4_VALUES;
 
 // At e = 253 the largest doubled code, 12 * 2^(e - 128), is 3 * 2^127, beyond finite f32; at 252 it is finite.
 inline constexpr uint8_t MXFP4_FIRST_OVERFLOW_EXPONENT = 253;

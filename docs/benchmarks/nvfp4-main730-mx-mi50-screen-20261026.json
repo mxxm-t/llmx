@@ -1,0 +1,839 @@
+{
+  "schema": "nvfp4-main730-mx-mi50-screen-v1",
+  "scope": "Complete16-call MI50 timing matrix; separate debug collection incomplete, no merge qualification.",
+  "source_revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "configuration": {
+    "device": {
+      "physical": 8,
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "cpus": "2,3,10,11",
+    "threads": 4,
+    "ubatch": 512,
+    "context": 262144,
+    "cache": "f16 K/V",
+    "llmx_dtype": "auto resolves f16",
+    "generation": 256,
+    "mtp": false,
+    "input_ids": "Same source-proven LCG seeds12345/777, vocabulary248320; prompt and decode reset independently.",
+    "warmup": "Both arms run one prompt warmup and256-token decode warmup per invocation."
+  },
+  "matrix": [
+    {
+      "p": 128,
+      "g": 256,
+      "phase": "pp",
+      "arms": {
+        "llmx": {
+          "n": 4,
+          "mean": 2210.7275,
+          "min": 2193.02,
+          "max": 2220.01,
+          "sd": 12.066906190072167
+        },
+        "mx": {
+          "n": 4,
+          "mean": 3047.588684,
+          "min": 3037.54366,
+          "max": 3060.647861,
+          "sd": 11.24763483661901
+        }
+      },
+      "matched_pairs": [
+        {
+          "block": 0,
+          "indices": [
+            0,
+            1
+          ],
+          "ratio": 0.7305340424687919
+        },
+        {
+          "block": 1,
+          "indices": [
+            2,
+            3
+          ],
+          "ratio": 0.7288915807715501
+        },
+        {
+          "block": 2,
+          "indices": [
+            4,
+            5
+          ],
+          "ratio": 0.7257252347698978
+        },
+        {
+          "block": 3,
+          "indices": [
+            6,
+            7
+          ],
+          "ratio": 0.7165215011972917
+        }
+      ],
+      "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+      "ratio": 0.7253977614532637,
+      "paired_ratio_95pct_descriptive": [
+        0.7154776010895025,
+        0.7354554657198569
+      ]
+    },
+    {
+      "p": 128,
+      "g": 256,
+      "phase": "tg",
+      "arms": {
+        "llmx": {
+          "n": 4,
+          "mean": 122.5225,
+          "min": 121.69,
+          "max": 123.38,
+          "sd": 0.8102417334762926
+        },
+        "mx": {
+          "n": 4,
+          "mean": 136.30584825,
+          "min": 135.43626,
+          "max": 137.087395,
+          "sd": 0.798688686285781
+        }
+      },
+      "matched_pairs": [
+        {
+          "block": 0,
+          "indices": [
+            0,
+            1
+          ],
+          "ratio": 0.9083487253091097
+        },
+        {
+          "block": 1,
+          "indices": [
+            2,
+            3
+          ],
+          "ratio": 0.8912781843163431
+        },
+        {
+          "block": 2,
+          "indices": [
+            4,
+            5
+          ],
+          "ratio": 0.8876819054005659
+        },
+        {
+          "block": 3,
+          "indices": [
+            6,
+            7
+          ],
+          "ratio": 0.9083977953909832
+        }
+      ],
+      "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+      "ratio": 0.8988760966208368,
+      "paired_ratio_95pct_descriptive": [
+        0.8815274423008654,
+        0.9165661762808159
+      ]
+    },
+    {
+      "p": 4096,
+      "g": 256,
+      "phase": "pp",
+      "arms": {
+        "llmx": {
+          "n": 4,
+          "mean": 3462.605,
+          "min": 3459.24,
+          "max": 3464.43,
+          "sd": 2.3899581586295846
+        },
+        "mx": {
+          "n": 4,
+          "mean": 3605.68812525,
+          "min": 3601.34772,
+          "max": 3608.701746,
+          "sd": 3.483592083554926
+        }
+      },
+      "matched_pairs": [
+        {
+          "block": 0,
+          "indices": [
+            8,
+            9
+          ],
+          "ratio": 0.9619815328468199
+        },
+        {
+          "block": 1,
+          "indices": [
+            10,
+            11
+          ],
+          "ratio": 0.959951872952595
+        },
+        {
+          "block": 2,
+          "indices": [
+            12,
+            13
+          ],
+          "ratio": 0.9596121551617935
+        },
+        {
+          "block": 3,
+          "indices": [
+            14,
+            15
+          ],
+          "ratio": 0.9597265974735485
+        }
+      ],
+      "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+      "ratio": 0.9603175519324817,
+      "paired_ratio_95pct_descriptive": [
+        0.9585412924131136,
+        0.962097103013627
+      ]
+    },
+    {
+      "p": 4096,
+      "g": 256,
+      "phase": "tg",
+      "arms": {
+        "llmx": {
+          "n": 4,
+          "mean": 122.77499999999999,
+          "min": 121.6,
+          "max": 123.3,
+          "sd": 0.7940822795319561
+        },
+        "mx": {
+          "n": 4,
+          "mean": 137.12554175,
+          "min": 136.90232,
+          "max": 137.370369,
+          "sd": 0.25518766934600806
+        }
+      },
+      "matched_pairs": [
+        {
+          "block": 0,
+          "indices": [
+            8,
+            9
+          ],
+          "ratio": 0.8999464436546641
+        },
+        {
+          "block": 1,
+          "indices": [
+            10,
+            11
+          ],
+          "ratio": 0.8956365271466821
+        },
+        {
+          "block": 2,
+          "indices": [
+            12,
+            13
+          ],
+          "ratio": 0.8882245384884638
+        },
+        {
+          "block": 3,
+          "indices": [
+            14,
+            15
+          ],
+          "ratio": 0.8975734788919435
+        }
+      ],
+      "reference_floor": "llmx/mx >= 1.0; report gains and deficits together; no automatic acceptance",
+      "ratio": 0.8953344809674681,
+      "paired_ratio_95pct_descriptive": [
+        0.8872983502891291,
+        0.9034433936996207
+      ]
+    }
+  ],
+  "calls": [
+    {
+      "index": 0,
+      "p": 128,
+      "arm": "llmx",
+      "start": 1792998237.7444718,
+      "end": 1792998246.6719918,
+      "rates": {
+        "pp": 2220.01,
+        "tg": 123.38
+      },
+      "reported_cpu_overlap": true,
+      "activity": {
+        "intervals": 6,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 4,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 4,
+        "unknown_process_cpu_intervals": 6,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 1,
+      "p": 128,
+      "arm": "mx",
+      "start": 1792998246.6727002,
+      "end": 1792998285.767495,
+      "rates": {
+        "pp": 3038.886446,
+        "tg": 135.828891
+      },
+      "reported_cpu_overlap": true,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 19,
+          "disk": 6,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 4,
+        "unknown_process_cpu_intervals": 18,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 2,
+      "p": 128,
+      "arm": "mx",
+      "start": 1792998285.7682407,
+      "end": 1792998324.4824076,
+      "rates": {
+        "pp": 3037.54366,
+        "tg": 136.870847
+      },
+      "reported_cpu_overlap": true,
+      "activity": {
+        "intervals": 21,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 20,
+          "disk": 7,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 6,
+        "unknown_process_cpu_intervals": 19,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 3,
+      "p": 128,
+      "arm": "llmx",
+      "start": 1792998324.4830046,
+      "end": 1792998330.394859,
+      "rates": {
+        "pp": 2214.04,
+        "tg": 121.99
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 4,
+      "p": 128,
+      "arm": "mx",
+      "start": 1792998330.3952844,
+      "end": 1792998368.7276514,
+      "rates": {
+        "pp": 3053.276769,
+        "tg": 137.087395
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 20,
+          "disk": 5,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 3,
+        "unknown_process_cpu_intervals": 18,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 5,
+      "p": 128,
+      "arm": "llmx",
+      "start": 1792998368.7284687,
+      "end": 1792998374.628746,
+      "rates": {
+        "pp": 2215.84,
+        "tg": 121.69
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 3,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 6,
+      "p": 128,
+      "arm": "llmx",
+      "start": 1792998374.6295252,
+      "end": 1792998380.4565227,
+      "rates": {
+        "pp": 2193.02,
+        "tg": 123.03
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 7,
+      "p": 128,
+      "arm": "mx",
+      "start": 1792998380.4572735,
+      "end": 1792998418.7284036,
+      "rates": {
+        "pp": 3060.647861,
+        "tg": 135.43626
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 19,
+          "disk": 6,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 18,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 8,
+      "p": 4096,
+      "arm": "llmx",
+      "start": 1792998418.7288516,
+      "end": 1792998427.5921316,
+      "rates": {
+        "pp": 3464.43,
+        "tg": 123.21
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 4,
+          "disk": 3,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 9,
+      "p": 4096,
+      "arm": "mx",
+      "start": 1792998427.5928922,
+      "end": 1792998466.2412212,
+      "rates": {
+        "pp": 3601.34772,
+        "tg": 136.908147
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 21,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 19,
+          "disk": 7,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 5,
+        "unknown_process_cpu_intervals": 21,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 10,
+      "p": 4096,
+      "arm": "mx",
+      "start": 1792998466.2418158,
+      "end": 1792998504.4745872,
+      "rates": {
+        "pp": 3608.701746,
+        "tg": 137.321331
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 18,
+          "disk": 9,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 4,
+        "unknown_process_cpu_intervals": 19,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 11,
+      "p": 4096,
+      "arm": "llmx",
+      "start": 1792998504.47526,
+      "end": 1792998513.3155093,
+      "rates": {
+        "pp": 3464.18,
+        "tg": 122.99
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 3,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 12,
+      "p": 4096,
+      "arm": "mx",
+      "start": 1792998513.316016,
+      "end": 1792998551.4853544,
+      "rates": {
+        "pp": 3608.301522,
+        "tg": 136.90232
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 17,
+          "disk": 8,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 4,
+        "unknown_process_cpu_intervals": 20,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 13,
+      "p": 4096,
+      "arm": "llmx",
+      "start": 1792998551.4861217,
+      "end": 1792998560.3018208,
+      "rates": {
+        "pp": 3462.57,
+        "tg": 121.6
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 6,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 6,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 14,
+      "p": 4096,
+      "arm": "llmx",
+      "start": 1792998560.3024976,
+      "end": 1792998569.0515127,
+      "rates": {
+        "pp": 3459.24,
+        "tg": 123.3
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 5,
+          "disk": 3,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 15,
+      "p": 4096,
+      "arm": "mx",
+      "start": 1792998569.0519936,
+      "end": 1792998607.230805,
+      "rates": {
+        "pp": 3604.401513,
+        "tg": 137.370369
+      },
+      "reported_cpu_overlap": false,
+      "activity": {
+        "intervals": 20,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 16,
+          "disk": 8,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 20,
+        "coverage_complete": true
+      }
+    }
+  ],
+  "reported_cpu_overlap": {
+    "source_entry": "13f50340ceec",
+    "container": "llmx-ldev-rfb-t",
+    "window_utc": [
+      "2026-10-26T07:03:00Z",
+      "2026-10-26T07:05:07Z"
+    ],
+    "start_is_approximate": true,
+    "affected_calls": [
+      0,
+      1,
+      2
+    ],
+    "policy": "All16 calls retained; report this subset alongside all data, do not substitute it."
+  },
+  "monitoring": {
+    "samples": 269,
+    "intervals": 268,
+    "flags": {
+      "other_gpu": 0,
+      "unrelated_cpu": 218,
+      "disk": 94,
+      "gap": 0
+    },
+    "all_calls_covered": true,
+    "unknown_process_intervals": 256,
+    "missed_process_intervals": 73,
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "execution": {
+    "path": "build-integration\\main730-mx-results\\main730-performance-v2",
+    "sha256": "b67140be265cbe7d3e89b754d4e5a4b5666d540adbe500f19b47d3e60696b98b",
+    "overall_passed": false,
+    "timing_calls_complete": true,
+    "container_removed": true,
+    "original_error": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/mx-comparison/run-mx-performance.py\", line 391, in main\n    assert re.search(r'\\bn_ctx\\s*=\\s*262144\\b', stderr), 'MX debug witness context differs from timing preflight'\n           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: MX debug witness context differs from timing preflight\n",
+    "artifacts": {
+      "14-llmx.stderr": "391268868520ea6aa62a88848387ac605e6dcc16f7ecc59a44df2b1bb6ef20d2",
+      "13-llmx.stdout": "bf35a9ed9fb2929494865a8e6683db407d57f14553417afa74b8467e175d93fc",
+      "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+      "07-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "03-llmx.stdout": "df8ac87060eb920c16f2d6212608544a1c51ea4cdceb7e0ac968d7f2185650a3",
+      "04-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "configured-mx.stderr": "8d895a4d3a7a8974be32033a1f6f13301184d3616a4833b257becf8680289ae7",
+      "vulkan-device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+      "06-llmx.stderr": "b4ad7781fd6205d686f99a3d7dab3277ce26880100b19a0ac574e0aeff4b62bf",
+      "11-llmx.stdout": "d2b5f45857969324a246726f4879e1af7248cbf87d5907450d007b8ffc243593",
+      "containers.jsonl": "6d12d2923f2e2c8111974ececa6ce2e3da2a3bc01c3276fb41e34e11a07bd38d",
+      "02-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "mx-version.stderr": "9d14b1456729dfea87fd0034212d9c6fa5b8ce765ea44be6290e16e9e33be86f",
+      "01-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "llmx-ldd.stdout": "7289af81a40f8d16500f57ecb67e3ea6e164b715422719349ef23d3b2f85c4ea",
+      "llmx-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "model-info.stdout": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+      "compiler.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "15-mx.stdout": "3e240299483406e63b326d054601784ce28e2f86f6a5886939c9e9258c360dd2",
+      "mx-impl-ldd.stdout": "9a4725b64d13b2a8453c6774589b0c28ab2ed0b817cdee8a71f6846e5a614669",
+      "00-llmx.stderr": "86e4f3c68f47f370c77a6c7514f64ac2c4e8d8c9c3a59991f7848ee5e0fc6abc",
+      "08-llmx.stdout": "88c903dad21efc55367f7393e6d0e40521f4545e0f78065a2d81d5817eaccea2",
+      "configured-llmx.stderr": "7aef4e7f159e55c91b14cbac25c746d75439cea18d8218df2d49db48d01b4c32",
+      "mx-wrapper-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "12-mx.stdout": "8a2cfbb76de9b6e13ca97c87c6930ae48433d408b6f1fcc9e714b2833fa2072a",
+      "10-mx.stdout": "f3ee328cb5e30131286df5155821ea0cbdbe4b89cd386bdb1824b7f10761fff6",
+      "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "05-llmx.stdout": "fb226329504f2228f17a39775ee123e3b8cc6257321f37dc7c8e7f2d979cf2de",
+      "09-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "mx-debug-p128.stdout": "80fe462520614a386fe574c7c931ca31ec00e73304f10915fb9a3ab9924d22ce",
+      "06-llmx.stdout": "00d1ef0f2706c5ecffc758a0afcbaf9e8e21c9ba0e6f5f592b41ae6b21c1b2b8",
+      "vulkan-device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+      "mx-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "02-mx.stdout": "691c0b7e89253bf66c19d743403b57ba05fe8516972c5bae4ac4f43a20aa1059",
+      "11-llmx.stderr": "4ef2ef79fb533b8a69892ca75a78eed308223f5f183431e840807f267540c659",
+      "llmx-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "01-mx.stdout": "16fc8a6edca0c148ff7e89c67693e64290bce68a0b7ee1d3ed428843373d7748",
+      "llmx-version.stdout": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+      "07-mx.stdout": "b2028f4a18b493f80c8911e304ce6ff3bb57b8fd2e46648c0dfbd7ac0d389459",
+      "13-llmx.stderr": "40918d4a66deb4fafa063e6c3a88ae179789742198beef75c38a0817afb4d1f9",
+      "14-llmx.stdout": "288d9b7e98587869779cae8863978e77ae2779e82fddad46c7b354087863fc2f",
+      "03-llmx.stderr": "c1eed7743d7f57e22a6b603733b3d918355aa42fe063eceb9a21389e9fc9c4ad",
+      "activity.jsonl": "69bdce53c348701f12a848872c3ba74e67c2471ecdf33a136df731cc8cb5d9a9",
+      "configured-mx.stdout": "aaa49b616d6ba7dc936e2a405613b35c4e6c492a8ed7c413d0ffd65f33d79264",
+      "04-mx.stdout": "3f7eb4ca154ab0d1c840a337f043f65580cdeb17d5a9b38ee745fc1449bebe67",
+      "12-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "mx-wrapper-ldd.stdout": "63d8238d5075e7c6b5651518946f0ef4991f048097ead1260001ea48177a56cc",
+      "05-llmx.stderr": "81a61d29549be5b4b15ba1263bae55bf888fe12d3a5b3c8e88bf1c3418be9165",
+      "10-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "mx-debug-p128.stderr": "6bc5773b9b9207c453eb2c75bf8e3994c1443bbc946921ab422913e5e2f074ae",
+      "09-mx.stdout": "309e420c7411f9d93fe15a3689945ddd075e248dd447ed167809fa331b4d167a",
+      "model-info.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "configured-llmx.stdout": "ba43d6155b57c3d85311962cdf1daec88b08b4cfc224899379982be9da56742f",
+      "08-llmx.stderr": "bee49b01d48936cf97be19418bfc1230c60b14603c7388ce2ac2cabd94d9a03a",
+      "00-llmx.stdout": "1798b9bd9c098afdadad32fe0580f3d70d990973557856ac1cd13ba9c420d9bf",
+      "15-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+      "mx-impl-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "compiler.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b"
+    },
+    "retention": "57 small artifacts rehashed locally, large mx-debug-p128.stderr retained on rig and independently stream-hashed."
+  },
+  "diagnostic_recovery": {
+    "stderr_sha256": "6bc5773b9b9207c453eb2c75bf8e3994c1443bbc946921ab422913e5e2f074ae",
+    "dispatch_pipeline_counts": {
+      "rms_norm_mul_f32": 18586,
+      "scale_f32": 18648,
+      "quantize_q8_1_x4": 2610,
+      "matmul_q4_k_q8_1_1": 16,
+      "get_rows_f32_f32": 19532,
+      "concat_i32": 9252,
+      "cpy_f32_f32": 12336,
+      "ssm_conv_silu_f32": 9252,
+      "contig_cpy_f32_bf16": 22,
+      "matmul_bf16_aligned_0": 20,
+      "rms_norm_f32": 18504,
+      "add_f32_f32_f32": 36,
+      "softplus_mul_f32": 36,
+      "sigmoid_f32": 9252,
+      "gated_delta_net_f32_d128": 9252,
+      "matmul_q5_k_q8_1_1": 42,
+      "contig_cpy_f32_f32": 9252,
+      "silu_mul_f32_norepeat": 9252,
+      "split_k_reduce": 94,
+      "add_f32_f32_f32_norepeat": 11356,
+      "matmul_nvfp4_f32_aligned_1": 212,
+      "mul_f32_f32_f32": 55512,
+      "swiglu_f32": 12336,
+      "matmul_q8_0_q8_1_0": 52,
+      "matmul_bf16_aligned_1": 24,
+      "set_rows_f32_f16_i64": 3084,
+      "rope_multi_f32": 3084,
+      "rope_multi_f32_f16": 3084,
+      "flash_attn_f32_f16_aligned": 3084,
+      "sigmoid_mul_f32_norepeat": 3084,
+      "add_rms_f32_f32_f32_norepeat": 22020,
+      "rms_norm_mul_partials_f32": 22020,
+      "mul_mat_vec_q4_k_f32_f32": 4610,
+      "mul_mat_vec_nvfp4_f32_f32": 55300,
+      "mul_mat_vec_q8_0_f32_f32": 13826,
+      "mul_mat_vec_bf16_f32_f32": 11264,
+      "softplus_mul_f32_norepeat": 9216,
+      "mul_mat_vec_q5_k_f32_f32": 8192,
+      "mul_mat_vec_q5_k_q8_1_f32": 2560,
+      "fa_split_k_reduce": 3072
+    },
+    "nvfp4_dispatch_examples": {
+      "matmul_nvfp4_f32_aligned_1": "ggml_vk_dispatch_pipeline(matmul_nvfp4_f32_aligned_1, {(0x59c17a365360, 276771456, 2064384), (0x59c175ca8fc0, 73728, 524288), (0x59c175ca8fc0, 276846596, 508559360), }, (56,2,1))",
+      "mul_mat_vec_nvfp4_f32_f32": "ggml_vk_dispatch_pipeline(mul_mat_vec_nvfp4_f32_f32, {(0x59c17a365360, 565007616, 2064384), (0x59c175ca8fc0, 0, 4096), (0x59c175ca8fc0, 13631488, 14336), (0x59c175ca8fc0, 13631488, 14336), (0x59c175ca8fc0, 13631488, 14336), }, (448,1,1))"
+    },
+    "loaded_library_paths": [
+      "/mxdebug/bin/libggml-base.so.0",
+      "/mxdebug/bin/libggml-cpu.so",
+      "/mxdebug/bin/libggml-cpu.so.0",
+      "/mxdebug/bin/libggml-vulkan.so.0",
+      "/mxdebug/bin/libggml.so.0",
+      "/mxdebug/bin/libllama-bench-impl.so",
+      "/mxdebug/bin/libllama-common.so.0",
+      "/mxdebug/bin/libllama.so.0"
+    ],
+    "context_log_present": false,
+    "original_error_retained": "Traceback (most recent call last):\n  File \"/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/mx-comparison/run-mx-performance.py\", line 391, in main\n    assert re.search(r'\\bn_ctx\\s*=\\s*262144\\b', stderr), 'MX debug witness context differs from timing preflight'\n           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: MX debug witness context differs from timing preflight\n",
+    "slot_released": "2026-10-26T07:15:58.139936+00:00 XDEV timing complete; container removed\n"
+  },
+  "limitations": [
+    "The P128 debug command exited0 but quiet mode emitted no n_ctx line; the post-run assertion failed. Original failure remains; P4096 debug was not run.",
+    "Configured quiet-runtime preflight logged context262144. Debug wrapper/model libraries are pinned equal to the timing build, but the debug log itself does not witness context.",
+    "Actual operand precision needs the selected shader definitions; pipeline suffix f32 alone is not that proof.",
+    "All timings retained, including early overlapping build activity. Small P4096 difference is not isolated from all background activity.",
+    "These measurements do not establish correctness, split coverage or merge readiness."
+  ]
+}

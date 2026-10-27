@@ -1,0 +1,400 @@
+{
+  "title": "NVFP4 MI50 RGP operator trace and isolated RHS prefetch screen",
+  "date": "2026-10-26",
+  "scope": "Diagnostic instruction trace and direct kernel screen for an unadopted scratch RHS prefetch schedule. Not a whole-model performance or qualification gate.",
+  "profile": {
+    "execution_receipt": "../../build-nv-profile-retry/decoded/profile-execution.json",
+    "execution_receipt_sha256": "53ada5cfaa58de3f2aca8217f3af7f5e40d61f0bcc59bfc1a358c351889bfc7d",
+    "execution_status": true,
+    "device": {
+      "physical_index": 8,
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0"
+    },
+    "capture_and_viewer": {
+      "capture": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v3-results/run-20261025T215543Z-3101281/raw-rgp/10-c512-sqtt/03-nvfp4-tile-probe_2026.10.25_21.56.21.rgp",
+      "event": 1,
+      "dispatch_dimensions": "14x8x1",
+      "pipeline_hash": "69929318fdf8b2ae",
+      "application_driver_pipeline_hash": 7607304456131621550,
+      "pipeline_match": true,
+      "sampled_waves": 28,
+      "viewer_instruction_hits": 994336,
+      "exported_hits": 994336,
+      "hit_sum_matches_viewer": true,
+      "capture_time_receipt_decoded_trace_field": false,
+      "note": "Capture-time receipt predates offline viewer analysis; its decoded_trace=false field does not mean the retained capture was not later opened and decoded."
+    },
+    "tile": {
+      "rows": 1484,
+      "instruction_hits": 994336,
+      "rounded_sampled_cost_percent": 99.44,
+      "groups": {
+        "wait: vmcnt(0)": {
+          "hits": 5292,
+          "instructions": 67,
+          "sampled_cost_percent": 48.45
+        },
+        "FMA": {
+          "hits": 458752,
+          "instructions": 128,
+          "sampled_cost_percent": 15.51
+        },
+        "other vector ALU": {
+          "hits": 310156,
+          "instructions": 568,
+          "sampled_cost_percent": 11.22
+        },
+        "wait: lgkmcnt(0)": {
+          "hits": 18368,
+          "instructions": 65,
+          "sampled_cost_percent": 5.68
+        },
+        "wait: lgkmcnt(3)": {
+          "hits": 7168,
+          "instructions": 2,
+          "sampled_cost_percent": 4.68
+        },
+        "wait: vmcnt(4)": {
+          "hits": 896,
+          "instructions": 1,
+          "sampled_cost_percent": 4.38
+        },
+        "LDS reads": {
+          "hits": 57344,
+          "instructions": 16,
+          "sampled_cost_percent": 3.03
+        },
+        "other scalar ALU/control": {
+          "hits": 90664,
+          "instructions": 477,
+          "sampled_cost_percent": 3.03
+        },
+        "barrier": {
+          "hits": 1792,
+          "instructions": 2,
+          "sampled_cost_percent": 0.93
+        },
+        "global memory": {
+          "hits": 12096,
+          "instructions": 78,
+          "sampled_cost_percent": 0.72
+        },
+        "wait: lgkmcnt(2)": {
+          "hits": 7168,
+          "instructions": 2,
+          "sampled_cost_percent": 0.56
+        },
+        "scalar memory": {
+          "hits": 9408,
+          "instructions": 60,
+          "sampled_cost_percent": 0.41
+        },
+        "wait: lgkmcnt(1)": {
+          "hits": 7168,
+          "instructions": 2,
+          "sampled_cost_percent": 0.38
+        },
+        "LDS writes": {
+          "hits": 5376,
+          "instructions": 8,
+          "sampled_cost_percent": 0.19
+        },
+        "wait: vmcnt(3)": {
+          "hits": 896,
+          "instructions": 1,
+          "sampled_cost_percent": 0.16
+        },
+        "wait: vmcnt(1)": {
+          "hits": 896,
+          "instructions": 1,
+          "sampled_cost_percent": 0.06
+        },
+        "wait: vmcnt(2)": {
+          "hits": 896,
+          "instructions": 1,
+          "sampled_cost_percent": 0.05
+        },
+        "other": {
+          "hits": 0,
+          "instructions": 5,
+          "sampled_cost_percent": 0.0
+        }
+      },
+      "rhs_waits": {
+        "opcode": "s_waitcnt vmcnt(0)",
+        "isa_lines": [
+          426,
+          464,
+          502,
+          540
+        ],
+        "individual_sampled_cost_percent": [
+          15.75,
+          11.36,
+          10.98,
+          8.54
+        ],
+        "combined_sampled_cost_percent": 46.63,
+        "relationship": "Each sampled wait follows an RHS buffer_load_dword and precedes the corresponding ds_write_b64."
+      }
+    },
+    "row": {
+      "sampled_waves": 60,
+      "rows": 272,
+      "instruction_hits": 116760,
+      "rounded_sampled_cost_percent": 100.1,
+      "groups": {
+        "other vector ALU": {
+          "hits": 78000,
+          "instructions": 126,
+          "sampled_cost_percent": 49.0
+        },
+        "other scalar ALU/control": {
+          "hits": 24420,
+          "instructions": 114,
+          "sampled_cost_percent": 16.32
+        },
+        "wait: vmcnt(3)": {
+          "hits": 960,
+          "instructions": 1,
+          "sampled_cost_percent": 12.25
+        },
+        "wait: lgkmcnt(0)": {
+          "hits": 2340,
+          "instructions": 7,
+          "sampled_cost_percent": 7.49
+        },
+        "wait: vmcnt(1)": {
+          "hits": 960,
+          "instructions": 1,
+          "sampled_cost_percent": 5.98
+        },
+        "wait: vmcnt(0)": {
+          "hits": 960,
+          "instructions": 2,
+          "sampled_cost_percent": 3.25
+        },
+        "global memory": {
+          "hits": 3900,
+          "instructions": 7,
+          "sampled_cost_percent": 2.67
+        },
+        "scalar memory": {
+          "hits": 2940,
+          "instructions": 6,
+          "sampled_cost_percent": 1.85
+        },
+        "wait: vmcnt(2)": {
+          "hits": 960,
+          "instructions": 1,
+          "sampled_cost_percent": 0.88
+        },
+        "FMA": {
+          "hits": 960,
+          "instructions": 1,
+          "sampled_cost_percent": 0.21
+        },
+        "other": {
+          "hits": 360,
+          "instructions": 6,
+          "sampled_cost_percent": 0.2
+        }
+      }
+    },
+    "shared_static_pipeline_resources": {
+      "sgpr": 32,
+      "vgpr": 84,
+      "lds_bytes": 17408,
+      "spilled_sgpr": 0,
+      "spilled_vgpr": 0,
+      "scratch_bytes": 0,
+      "source": "successful RGP viewer / ISA report finding.md"
+    },
+    "interpretation_limit": "Instruction-cost percentages are sampled instruction-cost shares, not GPU wall-time percentages; waits do not prove cache misses or bandwidth saturation.",
+    "attempt_history": [
+      {
+        "version": "v1",
+        "run": "operator-profile-v1-results/run-20261025T213255Z-3018470",
+        "outcome": "Probe invocation exited 126 before Vulkan work because execution under private /tmp was denied.",
+        "preserved_in": "nvfp4-mi50-profile-harness-20261025.json"
+      },
+      {
+        "version": "v2",
+        "run": "operator-profile-v2-results/run-20261025T215427Z-3097528",
+        "outcome": "GPU calls ran; docker cp failed while exporting private-/tmp artifacts, so this attempt did not provide an exported profile.",
+        "evidence_source": "Root-provided remote run identification; remote receipt is not in this local worktree.",
+        "remote_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v2-results/run-20261025T215427Z-3097528"
+      },
+      {
+        "version": "v3",
+        "run": "operator-profile-v3-results/run-20261025T215543Z-3101281",
+        "outcome": "Capture completed and was decoded in RGP 1.16; selected 512-column tile trace and row trace are summarized in this report."
+      }
+    ]
+  },
+  "prefetch_screen": {
+    "screen_result": "../../build-nv-profile-retry/prefetch/screen-result.json",
+    "screen_result_sha256": "1367441fa510b5efb525e0302f6f7bb651377c42be4e175c125a68b07b35c6dc",
+    "build_sha256": "c55d5cc0af55ac318db1d2e84d54dd8fab1de919df75ede143261b7463ef6f3d",
+    "passed": true,
+    "native_nvfp4_test_passed": true,
+    "native_output_sha256": "6674678090a447214ec8a7f12b4a06769f8f945df52f36363369912f2b365342",
+    "calls": {
+      "planned": 28,
+      "passed": 28,
+      "output_hashes_match_within_width": true,
+      "output_sha256_by_width": {
+        "128": "3cc0da4b7e06dbc3628bc97af63638dde27f289d06590cf1ce5ba9ac6a0cc03c",
+        "512": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c"
+      }
+    },
+    "ordinary_host_kernel_call_means": {
+      "128": {
+        "baseline": {
+          "samples_ms": [
+            0.331214745,
+            0.357735947
+          ],
+          "mean_ms": 0.34447534599999996
+        },
+        "candidate": {
+          "samples_ms": [
+            0.358107158,
+            0.343645115
+          ],
+          "mean_ms": 0.3508761365
+        },
+        "candidate_vs_baseline_percent": 1.8581273157354028
+      },
+      "512": {
+        "baseline": {
+          "samples_ms": [
+            0.521631675,
+            0.558613334
+          ],
+          "mean_ms": 0.5401225045
+        },
+        "candidate": {
+          "samples_ms": [
+            0.405222816,
+            0.404330367
+          ],
+          "mean_ms": 0.4047765915
+        },
+        "candidate_vs_baseline_percent": -25.058373215774786
+      }
+    },
+    "diagnostic_gpu_event_means": {
+      "128": {
+        "baseline": {
+          "samples_ms": [
+            0.30608,
+            0.30448,
+            0.3,
+            0.30256
+          ],
+          "mean_ms": 0.30328
+        },
+        "candidate": {
+          "samples_ms": [
+            0.30288,
+            0.30688,
+            0.31584,
+            0.3
+          ],
+          "mean_ms": 0.3064
+        },
+        "candidate_vs_baseline_percent": 1.0287523080981353
+      },
+      "512": {
+        "baseline": {
+          "samples_ms": [
+            0.70512,
+            0.71984,
+            0.74704,
+            0.71648
+          ],
+          "mean_ms": 0.72212
+        },
+        "candidate": {
+          "samples_ms": [
+            0.51392,
+            0.51184,
+            0.51088,
+            0.51424
+          ],
+          "mean_ms": 0.5127200000000001
+        },
+        "candidate_vs_baseline_percent": -28.99795047914473
+      }
+    },
+    "activity_audit": "../../build-nv-profile-retry/prefetch/activity-audit.json",
+    "activity_audit_sha256": "6a9a0a7eb24c05e850fb68742de68e2864a9be80336d9baa810eb6248fb2cc99",
+    "activity_jsonl_sha256": "b7a32d046e80547a76949a1524e360521f63d9b970dfc63caa7a1bbdb21519c1",
+    "retained_activity_flagged_calls": {
+      "system_cpu_busy_percent": 0,
+      "unrelated_process_cpu_percent_per_process": 28,
+      "aggregate_disk_mib_s": 28,
+      "other_gpu_busy_percent": 23
+    },
+    "activity_limitations": [
+      "Selected GPU8 at PCI 0000:c9:00.0 was sampled idle; other production GPUs were active in some intervals.",
+      "Unrelated-process CPU, host aggregate disk and other-GPU flags are retained per call; monitor sampling and process attribution have gaps.",
+      "Probe container had a 0.25 CPU quota on CPU3 and shared host CPU with peer builds; host-side timing is CPU-limited/shared."
+    ],
+    "scope_limit": "Direct 1024x896 tile probe only. No model-level speed result, correctness gate, or whole-model parity is claimed.",
+    "compiled_change": {
+      "arms": {
+        "baseline": {
+          "sha256": "0d7a89b84bd49c611cc4d73e984ede52ecbff9632c01daf76c791d0b2ce2db9e",
+          "vmcnt_zero_instructions": 67
+        },
+        "candidate": {
+          "sha256": "883bbef08e5ab010f151e41d396e2e65cfac3bfca97677a1c3fb9316e4effba2",
+          "vmcnt_zero_instructions": 64
+        }
+      },
+      "finding": "Three serialized vmcnt(0) waits before RHS LDS writes removed. Full-tile VGPR84, SGPR32, LDS17408 and zero scratch unchanged. Other instructions are rescheduled and registers renamed.",
+      "diff_sha256": "cb4574704155b05d0059ff05987b2a6e11bb01f7be63d836281de0ba7596d03f"
+    }
+  },
+  "disposition": {
+    "source_change": "scratch-only NVFP4 RHS prefetch scheduling change; unadopted",
+    "next_gate": "24-call baseline/prefetch/mx Vulkan model screen started, not yet complete",
+    "vulkan_first_speed_gate": "unmet"
+  },
+  "artifact_sha256": {
+    "build-nv-profile-retry/finding.md": "73c033d579d7eae990c6e026491f0d02fa74e6be8c47cfc1b963a69e0bf85c73",
+    "build-nv-profile-retry/decoded/tile-instructions.txt": "f96cb96a20bed87b2a491e8a64d09e86271ec9e5ef12b4d218f0f5b0f339095a",
+    "build-nv-profile-retry/decoded/tile-summary.json": "5d94588955895d5d14c8ae83cb8a0a4c62ffdd49869c5d376765fb85f6d5b772",
+    "build-nv-profile-retry/decoded/row-instructions.txt": "4b013a166548a5658a19834444bff4df6530b8d0966d8b863c1eba5bd029e10b",
+    "build-nv-profile-retry/decoded/row-summary.json": "44d6633dce46ddadd7edd931c49cb34bef5ff4394f94861df12d032dc4880c93",
+    "build-nv-profile-retry/prefetch/run-screen.py": "4491639ecfda5f1e940956c4c360ef11819d7178bb65272baa593ffdb63d4c5b",
+    "build-nv-profile-retry/prefetch/change.patch": "85982a2c5cb71bedc12fcb67a4bd32a6fb38f6d0d3ef20d5281a6668628dadec",
+    "build-nv-profile-retry/prefetch/preparation.json": "f0e2826b0643d251f29cdbeea2c1f07a8fa17fe943e17f22ea01ee48dc8b7904"
+  },
+  "remote_evidence": {
+    "capture": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-profile-v3-results/run-20261025T215543Z-3101281",
+    "decoded": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/operator-analysis-v3/runs/llmx-xdev-nvfp4-rgp-1792965444200340578/session",
+    "operator_screen": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-rhs-prefetch-v1/screen-20261025T221044Z",
+    "model_screen": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main4-qualification/nv-rhs-prefetch-v1/model-screen-v1",
+    "tile_capture": "raw-rgp/10-c512-sqtt/03-nvfp4-tile-probe_2026.10.25_21.56.21.rgp",
+    "row_capture": "raw-rgp/02-c1-sqtt/00-nvfp4-tile-probe_2026.10.25_21.56.03.rgp"
+  },
+  "candidate_cli": {
+    "passed": true,
+    "sha256": "591a5ddc0e4fbbda5007f87afda3eb2ed0495537a0a808702cbd8bd2685b7a3b",
+    "version": "llmx 0.1.0+unknown numerics 54f8e170b4234edb",
+    "container_removed": true,
+    "scope": "Scratch candidate, not final integrated build"
+  },
+  "documentation_check": {
+    "markdown_inventory": 147,
+    "review": "Unchanged pages carry the previous checkpoint review. Updated NVFP4 status, failed-attempt disposition and scratch evidence. Runtime/CLI/build/policy docs remain unchanged because the experiment is unadopted.",
+    "docs_findings": 0,
+    "docs_planted_faults": 21,
+    "dead_code_listed_findings": 21,
+    "dead_code_planted_faults": 19
+  }
+}

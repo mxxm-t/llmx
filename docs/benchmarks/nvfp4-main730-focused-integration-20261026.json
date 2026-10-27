@@ -1,0 +1,59 @@
+{
+  "scope": "Focused private NVFP4 integration onto main 7300e94ac; not final qualification or merge readiness",
+  "private_parent": "b6a00e046e94",
+  "main_parent": "7300e94ac2e881ee1486b9807b518b63c991a6ee",
+  "build_directory": "build-integration/main730",
+  "build_mode": "Fresh MSVC Release Vulkan configure, then clean-first rebuild after header fix",
+  "version": "llmx 0.1.0+gb6a00e046e94.dirty numerics 07241fd541e398c5",
+  "binary_sha256": {
+    "llmx.exe": "2e144716e4d8061b77b01ecb49d8d707f5d7ee1e053dc1b12d58a12330b4a0c2",
+    "llmx-nvfp4-test.exe": "44e1f50bbade71691e020b184e6c09807d577e9d7bd82b5803ad28f695e2fb73",
+    "llmx-backend-vulkan-test.exe": "d0aa2bdfd57675fae8b2e24a90decf054c82abec3c4dc902207f49e136622bd4",
+    "llmx-vulkan-lifetime-test.exe": "d49aabccd0acefa51c6997660f54454e46924cfd42c2b0387ddcf3c759896143",
+    "llmx-model-logits.exe": "37829fab293693f733f40e52d9cb2b5961b7be43562d66bb02464a2fb972baf3"
+  },
+  "runtime_source_manifest_sha256": "f96f42b8f2e7209af7c1d249816fa88746cd3b43098840686f68a2be75e309d1",
+  "runtime_source_files": 193,
+  "logs_sha256": {
+    "main730-configure.log": "e508c0b08c1e8264b4ea0a71a271fcf060dff53d116b7996a03264b15cc3bbd1",
+    "main730-build.log": "8a524400aace8389ab6a486b50d5d8ecdc30303e7c6bf9e1a7b286d06989b40c",
+    "main730-model-logits-build.log": "1d0035697ecd0a3faefa8a63292b1f7d793d2bd90e7a7f85996e90cc9a6bd337",
+    "main730-focused-ctest.log": "d90a50e00af0038ac380aec2759725c64ec8b96e32c58e8e0bd19276b07ad5ff",
+    "main730-rebuild.log": "2c4013b67249a6a70416c4dd48be216f99ae28428837a6a5152b0cfde26d4d47",
+    "main730-focused-ctest-fixed.log": "e2c56b74f7500210a334813a8c3dfc2704b9d65fbc361a8faacc34cfa7d2015c",
+    "main730-docs.log": "3c0839d35b9695c0560b37abdbc02121144795faea9dc424151e56b6fab065cc",
+    "main730-docs-final.log": "50be7a1420bf97ec65ed70251c94f8e8a5f0af25af7dc4ab9a480294a3861917"
+  },
+  "focused_tests": [
+    "backend-vulkan",
+    "vulkan-float-controls",
+    "vulkan-float-controls-device",
+    "vulkan-lifetime",
+    "nvfp4-vulkan",
+    "nvfp4"
+  ],
+  "focused_result": "6/6 pass, 77.97 seconds",
+  "docs_dead_code": "pass",
+  "retained_attempts": [
+    "Initial build completed runtime and test targets then rejected a nonexistent llmx-vulkan-float-controls-test target; float-control tests are owned by llmx-vulkan-lifetime-test. Remaining model-logits target built separately.",
+    "Initial focused run: 5/6 pass, backend-vulkan refused non-NVFP4 weight scales due to two old-layout Projection initializers in newly merged tests."
+  ],
+  "fix": "Both test callers explicitly group WeightView. Projection has three-argument and default constructors so old four-field initializers are not accepted through aggregate brace elision.",
+  "merge_resolution": "Keep NVFP4 WeightView scale binding while adopting main narrow-tile height and variant selection. Retain main argument arena lifetime changes.",
+  "limitations": [
+    "Radeon profile skips the new narrow integer tile; MI50 execution remains required.",
+    "Prior runtime008 HF and timing artifacts remain scoped to that source.",
+    "Fresh MI50, matched mx, released HF/depth, GPU split and final applicable regression/hosted gates remain pending."
+  ],
+  "markdown_review": {
+    "files": 149,
+    "parent_delta_pages": 27,
+    "sha256": "e985b9bfad675297a7c646fc53a5dde32c3a2e6681f91b5688bacd9d00985dab"
+  },
+  "test_sources_sha256": {
+    "tests/backend_vulkan.cpp": "aa46856ff4e8091cc4fced62d80a424185170a3f1fd53514f934f8eb2e0e32d0",
+    "tests/vulkan_buffer.cpp": "c0b0606f33730b90187781760e4389dd97d13491a33c56dfa142e3c1847a12f7",
+    "tests/nvfp4.cpp": "20133e16535df5f72425557a4f9aa5df7c2b51a7fc72f3ca4d313a1eb295096c",
+    "tests/moe_step.hpp": "3c69bd05724957eb803a3f50a68edecebb08725f57589703311339e9167efef9"
+  }
+}

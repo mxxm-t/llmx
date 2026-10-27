@@ -185,7 +185,7 @@ size_t range_repair_products(backend::Backend& b) {
                     const bool integer = integer_path(b, dtype, extent);
                     const backend::RowRun run{1, extent};
                     paths(b);
-                    b.matmul(quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}, {x.get(), 0}, {out.get(), 1},
+                    b.matmul({quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1},
                              width, 1, 1, {&run, 1}, dtype);
                     const auto got = read(b, *out, 3);
                     require(paths(b) == std::vector<std::string>{integer ? "block-int16" : "f32"},
@@ -218,7 +218,7 @@ void backend_checks(backend::Backend& b) {
     std::vector<float> guards(2 * 256 + 2, 99.0f);
     b.write(*eo, 0, guards.data(), guards.size() * sizeof(float));
     const uint32_t ids[] = {1, 0};
-    b.embed({eo.get(), 1}, quant::GGML_TYPE_IQ3_XXS, {ew.get(), 0}, 256, 2, ids, 2);
+    b.embed({eo.get(), 1}, {quant::GGML_TYPE_IQ3_XXS, {ew.get(), 0}}, 256, 2, ids, 2);
     auto got = read(b, *eo, guards.size());
     require(got.front() == 99.0f && got.back() == 99.0f, "IQ3_XXS embedding guards");
     for (size_t r = 0; r < 2; ++r) for (size_t i = 0; i < 256; ++i)
@@ -229,7 +229,7 @@ void backend_checks(backend::Backend& b) {
     auto indexed = b.alloc((4 * 256 + 2) * sizeof(float));
     std::vector<float> indexed_guard(4 * 256 + 2, 99.0f);
     b.write(*indexed, 0, indexed_guard.data(), indexed_guard.size() * sizeof(float));
-    b.embed_ids({indexed.get(), 1}, quant::GGML_TYPE_IQ3_XXS, {ew.get(), 0}, 256, 2,
+    b.embed_ids({indexed.get(), 1}, {quant::GGML_TYPE_IQ3_XXS, {ew.get(), 0}}, 256, 2,
                 {selected_buffer.get(), 0}, 4);
     got = read(b, *indexed, indexed_guard.size());
     require(got.front() == 99.0f && got.back() == 99.0f, "IQ3_XXS embed_ids guards");
@@ -254,7 +254,7 @@ void backend_checks(backend::Backend& b) {
             const float initial[] = {77.0f, -0.25f, 77.0f, 77.0f, 77.0f, 77.0f, 77.0f, 77.0f};
             b.write(*out, 0, initial, sizeof initial); paths(b);
             const backend::RowRun run{cols, extent};
-            b.matmul(quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, {&run, 1}, dtype);
+            b.matmul({quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}}, {x.get(), 0}, {out.get(), 1}, width, rows, cols, {&run, 1}, dtype);
             got = read(b, *out, count + 2);
             const auto actual_paths = paths(b);
             require(actual_paths == std::vector<std::string>{dtype == backend::Dtype::bf16 ? "bf16" : integer ? "block-int16" : "f32"},
@@ -309,7 +309,7 @@ void backend_checks(backend::Backend& b) {
         std::vector<float> tile_guard(tile_count + 2, 77.0f);
         b.write(*tile_out, 0, tile_guard.data(), tile_guard.size() * sizeof(float));
         paths(b);
-        b.matmul(quant::GGML_TYPE_IQ3_XXS, {tw.get(), 0}, {tx.get(), 0}, {tile_out.get(), 1},
+        b.matmul({quant::GGML_TYPE_IQ3_XXS, {tw.get(), 0}}, {tx.get(), 0}, {tile_out.get(), 1},
                  width, tile_rows, tile_cols, {&tile_run, 1}, dtype);
         got = read(b, *tile_out, tile_count + 2);
         const auto actual_paths = paths(b);
@@ -330,8 +330,8 @@ void backend_checks(backend::Backend& b) {
     auto grouped = b.alloc((2 * count + 2) * sizeof(float));
     std::vector<float> initial_group(2 * count + 2, 0); initial_group.front() = initial_group.back() = 91;
     b.write(*grouped, 0, initial_group.data(), initial_group.size() * sizeof(float));
-    b.matmul_group({{quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}, {grouped.get(), 1}, rows},
-                    {quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}, {grouped.get(), count + 1}, rows}},
+    b.matmul_group({{{quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}}, {grouped.get(), 1}, rows},
+                    {{quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}}, {grouped.get(), count + 1}, rows}},
                    {x.get(), 0}, width, cols, {&run, 1}, backend::Dtype::f32);
     got = read(b, *grouped, 2 * count + 2);
     require(got.front() == 91 && got.back() == 91, "IQ3_XXS grouped guards");
@@ -344,7 +344,7 @@ void backend_checks(backend::Backend& b) {
     auto residual = b.alloc((count + 2) * sizeof(float));
     std::vector<float> prior(count + 2, 0.25f); prior.front() = prior.back() = 91;
     b.write(*residual, 0, prior.data(), prior.size() * sizeof(float));
-    b.matmul_add(quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}, {x.get(), 0}, {residual.get(), 1}, width, rows, cols, {&run, 1}, backend::Dtype::f32);
+    b.matmul_add({quant::GGML_TYPE_IQ3_XXS, {w.get(), 0}}, {x.get(), 0}, {residual.get(), 1}, width, rows, cols, {&run, 1}, backend::Dtype::f32);
     got = read(b, *residual, count + 2);
     require(got.front() == 91 && got.back() == 91, "IQ3_XXS residual guards");
     for (size_t i = 0; i < count; ++i) {
@@ -363,7 +363,7 @@ void backend_checks(backend::Backend& b) {
     auto routed = b.alloc((count + 2) * sizeof(float));
     std::vector<float> route_guard(count + 2, 0); route_guard.front() = route_guard.back() = 91;
     b.write(*routed, 0, route_guard.data(), route_guard.size() * sizeof(float));
-    b.matmul_experts({{quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}, {routed.get(), 1}, rows}},
+    b.matmul_experts({{{quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}}, {routed.get(), 1}, rows}},
                      {x.get(), 0}, width, cols, routing, {&run, 1}, backend::Dtype::f32);
     got = read(b, *routed, count + 2);
     require(got.front() == 91 && got.back() == 91, "IQ3_XXS routed guards");
@@ -373,7 +373,7 @@ void backend_checks(backend::Backend& b) {
     }
     std::fill(route_guard.begin(), route_guard.end(), 0.25f); route_guard.front() = route_guard.back() = 91;
     b.write(*routed, 0, route_guard.data(), route_guard.size() * sizeof(float));
-    b.matmul_experts_add(quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}, {x.get(), 0}, {routed.get(), 1}, width, rows, cols, routing, {&run, 1}, backend::Dtype::f32);
+    b.matmul_experts_add({quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}}, {x.get(), 0}, {routed.get(), 1}, width, rows, cols, routing, {&run, 1}, backend::Dtype::f32);
     got = read(b, *routed, count + 2);
     require(got.front() == 91 && got.back() == 91, "IQ3_XXS routed residual guards");
     for (size_t c = 0; c < cols; ++c) for (size_t r = 0; r < rows; ++r) {
@@ -396,7 +396,7 @@ void backend_checks(backend::Backend& b) {
     route_guard.front() = route_guard.back() = 91;
     b.write(*routed, 0, route_guard.data(), route_guard.size() * sizeof(float));
     paths(b);
-    b.matmul_experts_add(quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}, {two_x.get(), 0},
+    b.matmul_experts_add({quant::GGML_TYPE_IQ3_XXS, {ew2.get(), 0}}, {two_x.get(), 0},
                         {routed.get(), 1}, width, rows, cols, two_routing, {&run, 1}, backend::Dtype::f32);
     got = read(b, *routed, count + 2);
     require(got.front() == 91 && got.back() == 91, "IQ3_XXS two-pick routed-add guards");

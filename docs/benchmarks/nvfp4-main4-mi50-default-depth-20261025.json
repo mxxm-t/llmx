@@ -1,0 +1,252 @@
+{
+  "scope": "Current d86fb838b MI50 auto/F16 and F16 KV, raw/chat fixed16K histories and512forced positions each; no split, F32-matrix, speed or full qualification pass",
+  "runtime_revision": "d86fb838b3d50fb0651aa5c38a0b97423de8b315",
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "capture_execution_sha256": "8bb855ea2e9eee1320d9f5b2580de7ab14bed6dd19b85ac222604056708fe7ab",
+  "reporting_disposition_sha256": "4df375fe4496c019782052b9a08a8ddf50022d8e0946bdb091e93bfeecaaba82",
+  "helper_sha256": {
+    "nvfp4-default-witness": "417ca5ab3fda76dfa4f21a1386c864878bfa8116d4dacb1a571a6fb00f5e6edd",
+    "nvfp4-depth-capture": "4a145cb53693cf320be9b8ae2ac0fa1ebe0186308e35cc88a94cf4850dca7cb0"
+  },
+  "reference_verification_sha256": "74891db47bc9d4e8c3017805e0646fc62342e9941c0e26a499691d9ded6ed380",
+  "source_delta_audit_sha256": "399c8ab5062e247544bcb440cf462060c871dc9c7f2e2424c76eec0378b9b30f",
+  "dispatch_families_match": true,
+  "margin": 0.1,
+  "default_depth_pass": true,
+  "variants": [
+    {
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.0691786579678775,
+      "hf_mean_nll": 2.0692038536071777,
+      "nll_delta_diagnostic_only": -2.5195639300257255e-05
+    },
+    {
+      "variant": "chat",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "candidate_mean_nll": 2.1874364173061864,
+      "hf_mean_nll": 2.1874308586120605,
+      "nll_delta_diagnostic_only": 5.5586941258845e-06
+    }
+  ],
+  "native_and_capture_audit": {
+    "at": 1792948587.608392,
+    "original_execution_sha256": "8bb855ea2e9eee1320d9f5b2580de7ab14bed6dd19b85ac222604056708fe7ab",
+    "original_status": "failed",
+    "disposition": "Capture/native collection passes independent artifact audit. Original runner failed because new helper outputs were included in immutable-input equality.",
+    "inputs_unchanged": true,
+    "helper_outputs_verified": {
+      "nvfp4-default-witness": "417ca5ab3fda76dfa4f21a1386c864878bfa8116d4dacb1a571a6fb00f5e6edd",
+      "nvfp4-depth-capture": "4a145cb53693cf320be9b8ae2ac0fa1ebe0186308e35cc88a94cf4850dca7cb0"
+    },
+    "artifacts_verified": 58,
+    "isa_files_verified": 229,
+    "capture_native_collection_passed": true,
+    "hf_depth_acceptance": false,
+    "full_qualification_passed": false,
+    "reran_gpu": false,
+    "original_execution_preserved": true,
+    "required_calls": {
+      "compile-nvfp4-default-witness": {
+        "index": 19,
+        "name": "compile-nvfp4-default-witness",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror=unused-function",
+          "-Werror=unused-variable",
+          "-I/b/generated",
+          "-I/source/src",
+          "/fixtures/witness.cpp",
+          "/b/libllmx-vulkan.a",
+          "-ldl",
+          "-pthread",
+          "-o",
+          "/results/helpers/nvfp4-default-witness"
+        ],
+        "started": 1792948337.9380774,
+        "stdout_file": "019-compile-nvfp4-default-witness.stdout",
+        "stderr_file": "019-compile-nvfp4-default-witness.stderr",
+        "exit": 0,
+        "ended": 1792948379.308502,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "compile-nvfp4-depth-capture": {
+        "index": 20,
+        "name": "compile-nvfp4-depth-capture",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "c++",
+          "-std=c++17",
+          "-O3",
+          "-DNDEBUG",
+          "-mavx2",
+          "-mfma",
+          "-mf16c",
+          "-Wall",
+          "-Wextra",
+          "-Werror=unused-function",
+          "-Werror=unused-variable",
+          "-I/b/generated",
+          "-I/source/src",
+          "/fixtures/capture.cpp",
+          "/b/libllmx-vulkan.a",
+          "-ldl",
+          "-pthread",
+          "-o",
+          "/results/helpers/nvfp4-depth-capture"
+        ],
+        "started": 1792948379.3194613,
+        "stdout_file": "020-compile-nvfp4-depth-capture.stdout",
+        "stderr_file": "020-compile-nvfp4-depth-capture.stderr",
+        "exit": 0,
+        "ended": 1792948420.6038766,
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "capture-raw": {
+        "index": 21,
+        "name": "capture-raw",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/results/helpers/nvfp4-depth-capture",
+          "/model.gguf",
+          "/fixtures/raw.json",
+          "vulkan:0"
+        ],
+        "started": 1792948420.62369,
+        "stdout_file": "021-capture-raw.stdout",
+        "stderr_file": "021-capture-raw.stderr",
+        "exit": 0,
+        "ended": 1792948435.0758545,
+        "stdout_sha256": "69b95b584fa4359ff21de7277f2c3c789cbcc1228521dd0127c153b75108261a",
+        "stderr_sha256": "b8907f2a9f9f8a8c18bd3e2f0aa5a67a7610de1661e61767eedd4d756e1bf411"
+      },
+      "capture-chat": {
+        "index": 22,
+        "name": "capture-chat",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/results/helpers/nvfp4-depth-capture",
+          "/model.gguf",
+          "/fixtures/chat.json",
+          "vulkan:0"
+        ],
+        "started": 1792948435.0828662,
+        "stdout_file": "022-capture-chat.stdout",
+        "stderr_file": "022-capture-chat.stderr",
+        "exit": 0,
+        "ended": 1792948448.9646842,
+        "stdout_sha256": "4d82899ec9efcc4b0e455c27dd35be4c64f409b7fec1478ab328c80e1c183bda",
+        "stderr_sha256": "72ace75ed606c88c2857ff4ab06a37535ef37c496b43b9d6618f5cac4acb06f8"
+      },
+      "default-witness-gpu4": {
+        "index": 23,
+        "name": "default-witness-gpu4",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/results/helpers/nvfp4-default-witness",
+          "/model.gguf",
+          "/fixtures/raw.json",
+          "vulkan:0"
+        ],
+        "started": 1792948448.976279,
+        "stdout_file": "023-default-witness-gpu4.stdout",
+        "stderr_file": "023-default-witness-gpu4.stderr",
+        "exit": 0,
+        "ended": 1792948457.5599308,
+        "stdout_sha256": "d2fb5288b0d003298e0ca5b39a3483745f1ec750bd835dd715a2a4d029406542",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "backend-vulkan-isa": {
+        "index": 24,
+        "name": "backend-vulkan-isa",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/b/llmx-backend-vulkan-test",
+          "--isa",
+          "/results/native/isa"
+        ],
+        "started": 1792948457.567015,
+        "stdout_file": "024-backend-vulkan-isa.stdout",
+        "stderr_file": "024-backend-vulkan-isa.stderr",
+        "exit": 0,
+        "ended": 1792948495.9661632,
+        "stdout_sha256": "1d16e13f7478ee5f72230fdc389155ff069fb9a40173aff75554f3c670eed30e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "nvfp4-cpu-native": {
+        "index": 25,
+        "name": "nvfp4-cpu-native",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/b/llmx-nvfp4-test"
+        ],
+        "started": 1792948495.969738,
+        "stdout_file": "025-nvfp4-cpu-native.stdout",
+        "stderr_file": "025-nvfp4-cpu-native.stderr",
+        "exit": 0,
+        "ended": 1792948496.0535054,
+        "stdout_sha256": "d9ad7983492875b6c2110445fb6ef5051a84c68318c4aa2a909aabb386d9cc4e",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "nvfp4-vulkan-native": {
+        "index": 26,
+        "name": "nvfp4-vulkan-native",
+        "argv": [
+          "docker",
+          "exec",
+          "3c15bcc647a981449de7ca4736da1d01ab708741105b444e2af942c3211b0120",
+          "/b/llmx-nvfp4-test",
+          "--vulkan"
+        ],
+        "started": 1792948496.0570066,
+        "stdout_file": "026-nvfp4-vulkan-native.stdout",
+        "stderr_file": "026-nvfp4-vulkan-native.stderr",
+        "exit": 0,
+        "ended": 1792948497.7039082,
+        "stdout_sha256": "6674678090a447214ec8a7f12b4a06769f8f945df52f36363369912f2b365342",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  },
+  "artifacts": {
+    "build-nvfp4-rig-main4\\compare-depth.py": "a1b82cc3565873023d89cdb1d186f7a54d7219607763b7083b52175a5f3a154a",
+    "build-nvfp4-rig-main4\\mi50-current-default-depth-comparison.json": "a4f81786b318fc810c7d6bfea77857e3b73ef37a24918256ec6da27e095d84f2",
+    "build-nvfp4-rig-main4\\capture-reporting-disposition.json": "b6dfd075ed3b9ed90d1096466b4e2655b1b569dcdbdab8334c863675b5ce04c9",
+    "build-nvfp4-rig-main4\\capture-snapshot\\collection.json": "7607e61437a55bb7254e89caf5b902286fb9bc26f0b0fbe3b154285e4448bfb9",
+    "build-nvfp4-research\\main4-evidence-delta-audit.json": "399c8ab5062e247544bcb440cf462060c871dc9c7f2e2424c76eec0378b9b30f"
+  },
+  "remaining": "Speed gate, full GPU split matrix, remaining current-head regression/precision checks and final CI. No merge acceptance."
+}

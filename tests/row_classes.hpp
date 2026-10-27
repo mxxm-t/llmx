@@ -69,7 +69,7 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
             std::vector<std::vector<float>> out;
             for (size_t e : kExtents) {
                 const backend::RowRun run[1] = {{rows, e}};
-                b.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {run, 1}, dtype);
+                b.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {y.get(), 0}, nin, nout, rows, {run, 1}, dtype);
                 out.push_back(read(b, *y, rows * nout));
             }
             pairs += same_within_classes(b, out, std::string(backend::dtype_name(dtype)) + " matmul of type " + std::to_string(type) + ", rows " + std::to_string(nin) + " wide");
@@ -90,10 +90,10 @@ inline size_t check(backend::Backend& b, const std::vector<uint32_t>& types, con
         std::vector<std::vector<float>> gate, down;
         for (size_t e : kExtents) {
             const backend::RowRun run[1] = {{rows, e}};
-            b.matmul_experts({{type, {gb.get(), 0}, {go.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {run, 1}, dtype);
+            b.matmul_experts({{{type, {gb.get(), 0}}, {go.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {run, 1}, dtype);
             gate.push_back(read(b, *go, rows * k * nout));
             b.write(*yo, 0, base.data(), base.size() * sizeof(float));
-            b.matmul_experts_add(type, {db.get(), 0}, {x2b.get(), 0}, {yo.get(), 0}, nin, nout, rows, routing, {run, 1}, dtype);
+            b.matmul_experts_add({type, {db.get(), 0}}, {x2b.get(), 0}, {yo.get(), 0}, nin, nout, rows, routing, {run, 1}, dtype);
             down.push_back(read(b, *yo, rows * nout));
         }
         pairs += same_within_classes(b, gate, std::string(backend::dtype_name(dtype)) + " a routed projection of type " + std::to_string(type));

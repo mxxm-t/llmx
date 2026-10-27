@@ -206,7 +206,7 @@ size_t embeddings(backend::Backend& b, bool medium) {
     std::vector<float> guards(rows * width + 2, 99);
     auto y = b.alloc(guards.size() * sizeof(float));
     b.write(*y, 0, guards.data(), guards.size() * sizeof(float));
-    b.embed({y.get(), 1}, type, {w.get(), 1}, width, rows, ids.data(), rows);
+    b.embed({y.get(), 1}, {type, {w.get(), 1}}, width, rows, ids.data(), rows);
     auto got = read(b, *y, guards.size());
     require(got.front() == 99 && got.back() == 99, "IQ1 embedding output guards");
     for (size_t r = 0; r < rows; ++r) for (size_t i = 0; i < width; ++i)
@@ -214,7 +214,7 @@ size_t embeddings(backend::Backend& b, bool medium) {
     const uint32_t picks[] = {0, 1, 3, 2047, 2047, uint32_t(rows), UINT32_MAX};
     auto selected = b.adopt(picks, sizeof picks);
     b.write(*y, 0, guards.data(), guards.size() * sizeof(float));
-    b.embed_ids({y.get(), 1}, type, {w.get(), 1}, width, rows, {selected.get(), 0}, 7);
+    b.embed_ids({y.get(), 1}, {type, {w.get(), 1}}, width, rows, {selected.get(), 0}, 7);
     got = read(b, *y, guards.size());
     for (size_t i = 0; i < got.size(); ++i) {
         float want = 99;
@@ -269,12 +269,12 @@ size_t products(backend::Backend& b, bool medium, size_t rows, size_t cols, size
             const backend::CSlice w{weights.get(), 1}, in{x.get(), 0};
             const backend::Slice out{output.get(), 1};
             switch (op) {
-            case 0: b.matmul(type, w, in, out, width, rows, cols, runs, dtype); break;
-            case 1: b.matmul_logits(type, w, in, out, width, rows, cols, runs, dtype); break;
-            case 2: b.matmul_group({{type, w, out, rows}, {type, w, {output.get(), count + 1}, rows}}, in, width, cols, runs, dtype); break;
-            case 3: b.matmul_add(type, w, in, out, width, rows, cols, runs, dtype); break;
-            case 4: b.matmul_experts({{type, w, out, rows}}, in, width, cols, routing, runs, dtype); break;
-            case 5: b.matmul_experts_add(type, w, in, out, width, rows, cols, routing, runs, dtype); break;
+            case 0: b.matmul({type, w}, in, out, width, rows, cols, runs, dtype); break;
+            case 1: b.matmul_logits({type, w}, in, out, width, rows, cols, runs, dtype); break;
+            case 2: b.matmul_group({{{type, w}, out, rows}, {{type, w}, {output.get(), count + 1}, rows}}, in, width, cols, runs, dtype); break;
+            case 3: b.matmul_add({type, w}, in, out, width, rows, cols, runs, dtype); break;
+            case 4: b.matmul_experts({{{type, w}, out, rows}}, in, width, cols, routing, runs, dtype); break;
+            case 5: b.matmul_experts_add({type, w}, in, out, width, rows, cols, routing, runs, dtype); break;
             }
             const auto got = read(b, *output, initial.size());
             witness(b, dtype, integer);
@@ -332,7 +332,7 @@ size_t ranges(backend::Backend& b, bool medium) {
                         const float guards[] = {19, 0, 19}; b.write(*y, 0, guards, sizeof guards);
                         const backend::RowRun run{1, extent};
                         testq::take_matrix_paths(b);
-                        b.matmul(type, {w.get(), 1}, {x.get(), 0}, {y.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
+                        b.matmul({type, {w.get(), 1}}, {x.get(), 0}, {y.get(), 1}, 256, 1, 1, {&run, 1}, dtype);
                         const auto got = read(b, *y, 3);
                         const bool integer = integer_path(b, dtype, extent >= crossover(b, 256));
                         witness(b, dtype, integer);

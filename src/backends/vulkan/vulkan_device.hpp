@@ -27,15 +27,21 @@ namespace {
 
 enum : uint32_t {
     kDenorm32 = 1u, kSpecial32 = 2u, kSpecial64 = 4u,
+    kDenorm16 = 8u, kSpecial16 = 16u, kRte16 = 32u, kRte32 = 64u,
     kPreserve32 = kDenorm32 | kSpecial32,
-    kMxfp4Controls = kPreserve32 | kSpecial64
+    kMxfp4Controls = kPreserve32 | kSpecial64,
+    kF16InputControls = kPreserve32 | kDenorm16 | kSpecial16 | kRte16 | kRte32
 };
 
 // Map only properties used by declared kernel controls.
 inline uint32_t float_control_support(const VkPhysicalDeviceFloatControlsProperties& p) {
     return (p.shaderDenormPreserveFloat32 ? kDenorm32 : 0u) |
            (p.shaderSignedZeroInfNanPreserveFloat32 ? kSpecial32 : 0u) |
-           (p.shaderSignedZeroInfNanPreserveFloat64 ? kSpecial64 : 0u);
+           (p.shaderSignedZeroInfNanPreserveFloat64 ? kSpecial64 : 0u) |
+           (p.shaderDenormPreserveFloat16 ? kDenorm16 : 0u) |
+           (p.shaderSignedZeroInfNanPreserveFloat16 ? kSpecial16 : 0u) |
+           (p.shaderRoundingModeRTEFloat16 ? kRte16 : 0u) |
+           (p.shaderRoundingModeRTEFloat32 ? kRte32 : 0u);
 }
 
 // Every entry point the backend uses, fetched through the loader at run time so nothing links against vulkan-1.
@@ -209,6 +215,7 @@ struct Device {
     DeviceCaps caps{};            // what this device says of itself
     DeviceProfile profile{};      // what measuring its kernels said (backends/device_profile.hpp)
     bool mxfp4 = false; // MXFP4 range repair and partials require F64 and the declared float controls
+    bool f16_inputs = false; // native half conversion preserves range and rounds ties to even
     bool preserve_float32 = false; // optional matrix modules retain subnormal values
     bool workgroup_counter = false; // the fused routed step's routing by the last workgroup (missing_counter_need)
     uint32_t float_controls = 0; // properties available to the kernel table

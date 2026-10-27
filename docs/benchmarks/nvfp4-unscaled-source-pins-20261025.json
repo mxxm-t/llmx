@@ -1,0 +1,43 @@
+{
+  "scope": "Unscaled NVFP4 CPU/Vulkan development checkpoint, not released-file or performance qualification",
+  "source_sha256": {
+    "src/quant/fp4.hpp": "7525ee2e55e70094a5211002a007a0ac6065f17374799c818b8c63ce29611887",
+    "src/quant/nvfp4.hpp": "e7a57c14d2863e3bb6a971a40c6b0d07a972a0035548b8f248276d8ce545ac43",
+    "src/quant/mxfp4.hpp": "879a53b87d506b013da1d90861bd28ff8616c1a852a634601a27ec0c00ed15d2",
+    "src/quant/types.hpp": "0573cd81ba86b7630400b637447b3fdb20acf612b7415fe9e83d6f9e949e85bd",
+    "src/quant/quant.hpp": "7db71682698293e4c2a752dba0e0afdc12cf24c0d5964e2a91983dff615c3b61",
+    "src/backends/vulkan/vulkan_backend.cpp": "7b0954136dd6df352a70a42fe94620a977d71b1bccd31a87659912e8c1b89e02",
+    "src/backends/vulkan/shaders/q.glsl": "1060f318ab30cdeba14778ab1faa1a49a0a927342ddf293befd3ddd335dd7bb7",
+    "src/backends/vulkan/shaders/qdecode.glsl": "10da80e6bcb9a6577c69265e72ab00fe72c281d09bb3e45801ca2aad108df23d",
+    "src/backends/vulkan/shaders/embed.comp": "7cf480867cc0836bc278cae4e80fccc3192d0d45cbd46878a0d29266e3404650",
+    "src/backends/vulkan/shaders/matmul_row.comp": "babbad66eed96d780bb7bc46d5f0dce63dafa74ea33de90a9bf38b34ae0d70c8",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "97a7fad97adcec149eca67680d8a7ac9b7b337eb54e5cc8053c0717d63d9ed0f",
+    "src/backends/vulkan/shaders/copy_mxfp4.comp": "cf5a5eac0af53bb4ed3989ad497460cf051f44d04b40b16ffd568baef8eae8c1",
+    "tests/nvfp4.cpp": "b404dad1f26ad2ca7fae4644763c50360f9920f591d8bfb01816f245ca7b2834",
+    "tests/nvfp4.py": "2f445557afa1606e1b5282e24d31a60ee11312a3795a391440667d9b0b62745e",
+    "tests/spec_decode.py": "9f377d3a2bd1b30388969aeb28b840bef79183b5d257c0a11d17c2e83a076740",
+    "tests/block_fixture.py": "c9dc106056d42d89fa47e81c70fee2fd131adf7de2cf499b370d3d66f00a012f",
+    "tools/gen_baseline.py": "1c61466caa13bc4221e09a9ca0fd04283d85782f97503899ad2228a08f8d930c",
+    "tools/calibrate_dtype.py": "d911cc414d18341a1e0a941bce76eedc60a2dd5464e9970a1405e1fda6260f33",
+    "tests/data/dtype_budget.json": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+    "tests/data/baseline_nvfp4.json": "6a8a5aec90366901b51ed04be2405411b93bf9893b0e15f3a2cc07e13741f3bc",
+    "tests/data/baseline_nvfp4_split.json": "012eb2ad7f5fb2fc528f152229bfef0d3eeb857d2fad869948c49e754e1fbd2c"
+  },
+  "binaries": {
+    "cpu": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-cpu\\Release\\llmx.exe",
+      "sha256": "540453b216dab2737af6555ecebbbc2cd4366a8381edd358feb171a6c2a5a0fc",
+      "version": "llmx 0.1.0+g55a115a0515a.dirty numerics 4db901dc01e440e2",
+      "hf_f32_log_sha256": "cf4f94e432945eadc6f13ed9a3375a88578aece87257a89c312617f2db98dad1"
+    },
+    "vulkan": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-vulkan\\Release\\llmx.exe",
+      "sha256": "36ff1db263373d85baf26770498b6f2be6043af493bd572c01048d09012c5446",
+      "version": "llmx 0.1.0+g55a115a0515a.dirty numerics 87f3c14728c3524e",
+      "hf_f32_log_sha256": "5569c29040b27c1b12de4fe76bdff25fd47296f6c86876bf704413c6536631a5"
+    }
+  },
+  "vulkan_bf16_log_sha256": "1ca3ed779a2233b456419710ecbebb11b9d1578056c9ae34c03540dca43ccb56",
+  "vulkan_projection_log_sha256": "caa7d28b57d54b5199a29e9fcfc37f0b53f0b8711b82d7c83fe79c88aef418ea",
+  "mx_regression_log_sha256": "35e8e2620673fbc173df836a520f69e8d8c277b299f102907e5bf3f5fe834bb8"
+}

@@ -1,0 +1,317 @@
+{
+  "schema": "nvfp4-lookup-main-linux-build-20261027-v1",
+  "scope": "Matched Linux no-GPU build evidence only for public main 8ccc10162 and private candidate af6a4df. No tests or inference were run. This build predates the current four-line edit in src/backends/vulkan/shaders/matmul_row_one.glsl, so it does not validate that working-tree edit.",
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cmake_flags": [
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DLLMX_HAS_BACKEND_VULKAN=ON",
+      "-DBUILD_TESTING=ON"
+    ],
+    "main_targets": [
+      "llmx",
+      "llmx-model-logits"
+    ],
+    "candidate_targets": [
+      "llmx",
+      "llmx-model-logits"
+    ],
+    "network": "none",
+    "gpu": "none",
+    "cpuset": "8,9",
+    "cpus": 2,
+    "memory": "8g",
+    "memory_swap": "8g",
+    "core_limit": "0",
+    "build_result_passed": true,
+    "tests_run": false,
+    "phases": [
+      {
+        "arm": "main",
+        "phase": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/work/main/source",
+          "-B",
+          "/work/main/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793062349.2597861,
+        "ended_unix": 1793062350.1033032,
+        "timeout_seconds": 180,
+        "stdout": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/main-configure.stdout.log",
+          "sha256": "9e00a8289f2c86c6d4c4525057c68e037b1c9c3f70e57b34bf55992f968cc9fb"
+        },
+        "stderr": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/main-configure.stderr.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "arm": "main",
+        "phase": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "/work/main/build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-model-logits"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793062350.1035895,
+        "ended_unix": 1793062538.6367989,
+        "timeout_seconds": 1618,
+        "stdout": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/main-build.stdout.log",
+          "sha256": "fab8d2437d1696703ec8b790740d34d2d5fccddbb05797cfb59348aa02f41e5d"
+        },
+        "stderr": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/main-build.stderr.log",
+          "sha256": "4ba7c26763b7ed3593c88c1b42b753c08f888260692eed042106d635da9b9c05"
+        }
+      },
+      {
+        "arm": "candidate",
+        "phase": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "/work/candidate/source",
+          "-B",
+          "/work/candidate/build",
+          "-DCMAKE_BUILD_TYPE=Release",
+          "-DLLMX_HAS_BACKEND_VULKAN=ON",
+          "-DBUILD_TESTING=ON"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793062539.063205,
+        "ended_unix": 1793062539.7810204,
+        "timeout_seconds": 180,
+        "stdout": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/candidate-configure.stdout.log",
+          "sha256": "0db147a6eb86a53a3014b98e7ffe7bbb94bac76967cf395ab585fa73e3cc346c"
+        },
+        "stderr": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/candidate-configure.stderr.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "arm": "candidate",
+        "phase": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "/work/candidate/build",
+          "--config",
+          "Release",
+          "--parallel",
+          "2",
+          "--target",
+          "llmx",
+          "llmx-model-logits"
+        ],
+        "exit_code": 0,
+        "started_unix": 1793062539.7813487,
+        "ended_unix": 1793062722.4927614,
+        "timeout_seconds": 1429,
+        "stdout": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/candidate-build.stdout.log",
+          "sha256": "d02c39a0330d0fc3204c4259c1bb7dc5757b6f4ec0a0ad90c21b14b268947fe5"
+        },
+        "stderr": {
+          "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/candidate-build.stderr.log",
+          "sha256": "4e29379ca74c333047e7710ed49364cd437990bc10dd7fb900b137ff9424a416"
+        }
+      }
+    ]
+  },
+  "arms": {
+    "main": {
+      "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+      "source_file_count": 2942,
+      "source_archive_sha256": "b82acdd839afae2d44503ce0648f630f6a612525d574d23cb8a1b5a294b85639",
+      "source_archive_bytes": 23354305,
+      "source_manifest_sha256": "365b0749295f2f6278debf4089db3127982ba7aa8970a4cc342634d35cfdd4c9",
+      "binaries": {
+        "llmx": {
+          "path": "main/build/llmx",
+          "bytes": 13024936,
+          "sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87"
+        },
+        "llmx-model-logits": {
+          "path": "main/build/llmx-model-logits",
+          "bytes": 11126152,
+          "sha256": "4b7e126d554237fc02cab7307eb9b7443e542b3f8104fd836fdcd00463ba6964"
+        }
+      },
+      "version": "llmx 0.1.0+unknown numerics 97d1d871087d6246",
+      "build_identity": {
+        "generated/llmx-build-info.hpp": {
+          "sha256": "0f0edc1ae047d5808e146de604f353ab3e87dd52381b6096fa6241d1cdbbb6ee",
+          "bytes": 338
+        },
+        "generated/config.hpp": {
+          "sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "bytes": 879
+        },
+        "CMakeCache.txt": {
+          "sha256": "8ea5a15621162a04ddf9fb94c488dd6c937540736654ac4e3215ecc9249ae4ed",
+          "bytes": 15068
+        },
+        "libllmx-vulkan.a": {
+          "sha256": "119b6f48d89bc9778a76346ed7d7959004d2e682fbee28fe5782b46e093edbc9",
+          "bytes": 9648178
+        }
+      }
+    },
+    "candidate": {
+      "revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+      "source_file_count": 3088,
+      "source_archive_sha256": "f78e20e18f3a5b917fe27c26a57c366c29e75aa5e2b73d71c06e5e982ba5f5f2",
+      "source_archive_bytes": 24473126,
+      "source_manifest_sha256": "78c3dfbd1ea583d4b51732a0adfbfc112242dda76e33a1c105c7f2f847736deb",
+      "binaries": {
+        "llmx": {
+          "path": "candidate/build/llmx",
+          "bytes": 13160392,
+          "sha256": "641c3d289adaca0405012ea745d446d8eff5122c9aadaf00bba910d1759f3e42"
+        },
+        "llmx-model-logits": {
+          "path": "candidate/build/llmx-model-logits",
+          "bytes": 11257648,
+          "sha256": "413ebae3a24ca27c8c53f243e11da5d453007525f89e73be6846a0f5d8b9958a"
+        }
+      },
+      "version": "llmx 0.1.0+unknown numerics 761b7ea58433bf01",
+      "build_identity": {
+        "generated/llmx-build-info.hpp": {
+          "sha256": "6178b95ba1f617926c2287bb60eff75e899820c5a9893b93921920d7a077be80",
+          "bytes": 338
+        },
+        "generated/config.hpp": {
+          "sha256": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+          "bytes": 879
+        },
+        "CMakeCache.txt": {
+          "sha256": "288943a8cf21c381ce342660999637916430a997eb350c3148215b4c409112f8",
+          "bytes": 15098
+        },
+        "libllmx-vulkan.a": {
+          "sha256": "9f9b2892fb2ad01dcfd48a92316a76d6d961083e607d27471f8b4b32a095cb46",
+          "bytes": 9773314
+        }
+      }
+    }
+  },
+  "generated_modules": {
+    "main_count": 306,
+    "candidate_count": 313,
+    "candidate_only_vs_main": [
+      "matmul_row_nvfp4.inc",
+      "matmul_row_nvfp4_preserve.inc",
+      "matmul_tile_nvfp4.inc",
+      "matmul_tile_nvfp4_bf16.inc",
+      "matmul_tile_nvfp4_bf16_preserve.inc",
+      "matmul_tile_nvfp4_f16.inc",
+      "matmul_tile_nvfp4_preserve.inc"
+    ],
+    "main_only_vs_candidate": [],
+    "common_name_count": 306,
+    "different_common_names": 206,
+    "candidate_exact_vs_prior_corrected_candidate": {
+      "prior_revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "prior_build_result_sha256": "02ccdf720c9ca76decdc331f43b13996d827c76959db12c142b23e52c76203a2",
+      "prior_module_manifest_sha256": "1aa1880b69f71bf03dd561eba0b995c50eea4f089d1f615e9673662b889abdcf",
+      "module_count": 313,
+      "missing": [],
+      "extra": [],
+      "different": [],
+      "all_byte_identical": true,
+      "independent_dictionary_equality_checked": true
+    },
+    "caution": "The 313-module exact match is against the prior corrected candidate, not public main. Public main has 306 module names, and 206 common names differ in this build."
+  },
+  "launch_and_cleanup": {
+    "initial_launch_snapshot": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/build-launch.json",
+      "sha256": "7b6cbf06ab93cc6e44a560a45e81f7e6a1d1f8337805822d8e4071463937e0bd",
+      "passed_at_snapshot": false,
+      "note": "This is the initial launch snapshot, not terminal outcome."
+    },
+    "terminal_launch_result": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/launch-result.json",
+      "sha256": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743",
+      "passed": true,
+      "docker_exit_code": 0,
+      "container_state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-27T00:52:28.780469521Z",
+        "FinishedAt": "2026-10-27T00:58:42.7780138Z"
+      },
+      "owned_container_cleanup_verified": true
+    },
+    "docker_stdout": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/docker.stdout.log",
+      "sha256": "0651fd764f107f521cf9ca6b84823584da6da4ee91ab3a3ca90c68b4a46f6ae2",
+      "text": "{\"passed\": true, \"tests_run\": false, \"steps\": 4, \"output\": \"/work/build-result.json\"}"
+    },
+    "docker_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "independent_readonly_container_absence_check": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/cleanup-readonly-check.txt",
+      "sha256": "29e1b75c372300dbe231b8ebc76165be03908c8c75cc5bd0d774e5491493983a",
+      "result": "exact container name absent from docker ps -a; docker inspect returned no such object"
+    }
+  },
+  "artifact_pins": {
+    "build_result": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/build-result.json",
+      "sha256": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31"
+    },
+    "terminal_launch_result_sha256": "b70b5f758fd11897d5d83341c928744053a3f60cde48d13dc0a5fb9e01c60743",
+    "build_plan": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/build-plan.json",
+      "sha256": "c64b51911df7199db439f159b83cbf12c6ee9e7cca4ff9f7b30c86ea29194786"
+    },
+    "source_pins": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/source-pins.json",
+      "sha256": "0a2915a0e661f9b471859c22d6aede6ed7da5b5dd6fbb9a96fbcd97707a30c82"
+    },
+    "module_baseline": {
+      "path": "build-integration/lookup-linux-build-20261027/remote-artifacts/module-baseline.json",
+      "sha256": "2fd3b5e9f086d3fca33f3dc1719720b0c164c3f445eb1c696dcb476d77935183"
+    },
+    "package_bundle_sha256": "08bbda46d24170d282e4e26a31f8006e28e611be30ce716a4914523b4cfa8a15",
+    "package_members": {
+      "main.tar.gz": "b82acdd839afae2d44503ce0648f630f6a612525d574d23cb8a1b5a294b85639",
+      "candidate.tar.gz": "f78e20e18f3a5b917fe27c26a57c366c29e75aa5e2b73d71c06e5e982ba5f5f2",
+      "source-pins.json": "0a2915a0e661f9b471859c22d6aede6ed7da5b5dd6fbb9a96fbcd97707a30c82",
+      "build-plan.json": "c64b51911df7199db439f159b83cbf12c6ee9e7cca4ff9f7b30c86ea29194786",
+      "build-rig.py": "307d71d9adf4794aa036e00dbdff2bc99c2ef36beb9a36866ba82f337b8dc476",
+      "launch-build.py": "a2535543ab3390815f8b30fe0d9a384c5c7f7fc8346a0b5366024bf372eb3e16",
+      "module-baseline.json": "2fd3b5e9f086d3fca33f3dc1719720b0c164c3f445eb1c696dcb476d77935183"
+    }
+  },
+  "limitations": [
+    "Build-only receipt. It does not establish native CTest, Python suite, HF or model-identity results.",
+    "Candidate commit build is af6a4df; current working tree removes four lines from matmul_row_one.glsl after that revision."
+  ]
+}

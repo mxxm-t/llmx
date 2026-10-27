@@ -298,7 +298,7 @@ public:
         const size_t base = draft_slot();
         const backend::Slice hn = s.slot(base), pair = s.slot(base + 1), u = s.slot(base + 3), h = s.slot(1), k = s.slot(3), v = s.slot(4);
         b.rms_norm_rows(hn, s.x, w[output_norm].slice(), s.rows, E, E, cfg_.rms_eps);
-        b.embed(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.ids, s.rows);
+        b.embed(pair, w[token_embd].operand(), w[token_embd].nin, w[token_embd].nout, s.ids, s.rows);
         const size_t prev = pair.offset + s.rows * E;
         for (size_t e = 0, r0 = 0; e < s.runs.n; r0 = s.runs.runs[e++].end) {
             const size_t r1 = s.runs.runs[e].end;
@@ -325,7 +325,7 @@ public:
         layer.x = x;
         layer.kind = full;
         if (s.phase <= 0) {
-            b.embed_ids(pair, w[token_embd].type, w[token_embd].slice(), w[token_embd].nin, w[token_embd].nout, s.id, n);
+            b.embed_ids(pair, w[token_embd].operand(), w[token_embd].nin, w[token_embd].nout, s.id, n);
             const backend::Slice prev{pair.buffer, pair.offset + n * E};
             if (s.prev_rows) b.gather_rows(prev, s.prev, E, s.prev_rows, n);
             else b.copy(*pair.buffer, prev.offset * sizeof(float), *s.prev.buffer, s.prev.offset * sizeof(float), n * E * sizeof(float));
@@ -335,7 +335,7 @@ public:
         if (s.phase < 0 || s.phase == 1) ffn(layer);
         if (s.phase < 0 || s.phase == 2) {
             b.rms_norm_rows(s.out, x, w[nextn_shared_head_norm].slice(), n, E, E, cfg_.rms_eps);
-            b.matmul_logits(w[output].type, w[output].slice(), s.out, s.logits, E, V, n, s.runs, s.dtype);
+            b.matmul_logits(w[output].operand(), s.out, s.logits, E, V, n, s.runs, s.dtype);
             b.argmax_rows(s.next, s.logits, n, V, s.id);
         }
     }
@@ -452,7 +452,7 @@ private:
         const size_t E = (size_t)cfg_.n_embd, Hv = (size_t)cfg_.v_heads / s.width;
         const backend::Slice raw = s.slot(2), z = s.slot(4), alpha = s.slot(5), o = s.slot(6);
         const backend::Slice beta{alpha.buffer, alpha.offset + s.rows * Hv};
-        b.matmul(w[attn_qkv].type, w[attn_qkv].slice(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
+        b.matmul(w[attn_qkv].operand(), h, raw, E, w[attn_qkv].nout, s.rows, s.runs, s.dtype);
         b.matmul_group({blocks::projection(w[attn_gate], z), blocks::projection(w[ssm_alpha], alpha), blocks::projection(w[ssm_beta], beta)},
                        h, E, s.rows, s.runs, s.dtype);
         recur(s);

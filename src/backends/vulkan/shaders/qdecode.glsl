@@ -4,11 +4,30 @@
 #define LLMX_QDECODE_GLSL
 #include "tq.glsl"
 
-int mxfp4_value(uint code) {
+int fp4_value(uint code) {
     int magnitude = int(code & 7u);
     int value = (2 | (magnitude & 1)) << max((magnitude >> 1) - 1, 0);
     value = magnitude < 2 ? magnitude : value;
     return (code & 8u) != 0u ? -value : value;
+}
+// Half the unsigned E4M3 scale, for the doubled E2M1 values. Byte 127 is zero.
+float nvfp4_scale(uint code) {
+    uint exponent = (code >> 3u) & 15u, fraction = code & 7u;
+    if (code == 127u) return 0.0;
+    return exponent == 0u ? float(fraction) * (1.0 / 1024.0)
+                         : uintBitsToFloat(((exponent + 119u) << 23u) | (fraction << 20u));
+}
+float nvfp4_value(float scale, uint code) {
+    // Doubled E2M1 magnitudes packed in nibbles, low nibble first.
+    uint value = (0xc8643210u >> ((code & 7u) * 4u)) & 15u;
+    float magnitude = scale * float(value);
+    uint sign = value == 0u ? 0u : ((code & 8u) << 28u);
+    return uintBitsToFloat(floatBitsToUint(magnitude) | sign);
+}
+float nvfp4_at(uint o, uint j) {
+    uint group = j / 16u;
+    uint packed = QBYTE(o + 4u + group * 8u + (j & 7u));
+    return nvfp4_value(nvfp4_scale(QBYTE(o + group)), (j & 8u) == 0u ? packed & 15u : packed >> 4u);
 }
 float mxfp4_scale(uint e) {
     return uintBitsToFloat(e <= 1u ? 0x00200000u << e : (e - 1u) << 23u);
@@ -211,6 +230,9 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     }
     uint block = block_values(type), j = column % block;
     uint o = (row * (width / block) + column / block) * block_bytes(type);
+#if !defined(LLMX_FLOAT_X) || defined(LLMX_NVFP4)
+    if (type == TYPE_NVFP4) return nvfp4_at(o, j);
+#endif
     if (type == TYPE_TQ1_0 || type == TYPE_TQ2_0) return tq_at(type, o, j, tq_scale(type, o));
     if (type == TYPE_Q2_K) return q2_k_at(o, j);
     if (type == TYPE_Q3_K) return q3_k_at(o, j);

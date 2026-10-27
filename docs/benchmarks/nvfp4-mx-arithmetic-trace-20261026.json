@@ -1,0 +1,157 @@
+{
+  "scope": "Read-only pinned MX NVFP4 scale and arithmetic source trace; no runtime/build/test changes.",
+  "mx_source": {
+    "base_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "source_archive": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-rig-main3\\matched-mx\\source.tar.gz",
+    "source_archive_sha256": "78cbb63d6dbacc81057fd0cf9c672d159be378adfebaeeb0301478724c98c14f",
+    "source_pins_sha256": "f5ee43557b4a36ee7f4697ba8d1c197f27b4d42a911093e77864a036da9fd7df",
+    "source_pins_recorded_archive_sha256": "78cbb63d6dbacc81057fd0cf9c672d159be378adfebaeeb0301478724c98c14f",
+    "benchmark_only_change": {
+      "file": "tools/llama-bench/llama-bench.cpp",
+      "base_manifest_sha256": "f5ee43557b4a36ee7f4697ba8d1c197f27b4d42a911093e77864a036da9fd7df",
+      "patched_file_sha256": "f19e088bab61e9f322193cdf691542eaf0fd6ecab5b465adfc8cc055a0cd08e1",
+      "context": 262144,
+      "decode_warmup_tokens": 256,
+      "scope": "Benchmark context constant and decode warmup length only. Same input IDs, measured timing boundaries and immutable model/kernel libraries."
+    }
+  },
+  "model": {
+    "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+    "bytes": 578052704,
+    "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "expected_sha256_from_matched_plan": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "gguf_scale_parser_note": "Installed gguf-py lacks type 40. Reader enum 40 was locally aliased to Q4_K solely because both GGUF types have the exact 64/36 block byte ratio. Only independently typed F32 sidecars were read; NVFP4 weight payloads were not interpreted.",
+    "weight_scale2_sidecars": {
+      "tensor_count": 108,
+      "value_count": 108,
+      "tensor_types": [
+        "F32"
+      ],
+      "minimum": 2.3768498067511246e-05,
+      "maximum": 0.0001751127711031586,
+      "finite_positive_non_power_of_two_count": 108,
+      "examples": [
+        {
+          "name": "blk.0.ffn_down.scale",
+          "values": [
+            0.00010299681161995977
+          ]
+        },
+        {
+          "name": "blk.0.ffn_gate.scale",
+          "values": [
+            6.757463415851817e-05
+          ]
+        },
+        {
+          "name": "blk.0.ffn_up.scale",
+          "values": [
+            3.106253643636592e-05
+          ]
+        }
+      ]
+    },
+    "input_scale_sidecars": {
+      "tensor_count": 108,
+      "value_count": 108,
+      "tensor_types": [
+        "F32"
+      ],
+      "minimum": 0.0401378758251667,
+      "maximum": 1.4264912605285645,
+      "finite_positive_non_power_of_two_count": 108,
+      "examples": [
+        {
+          "name": "blk.0.ffn_down.input_scale",
+          "values": [
+            0.0401378758251667
+          ]
+        },
+        {
+          "name": "blk.0.ffn_gate.input_scale",
+          "values": [
+            0.9173868298530579
+          ]
+        },
+        {
+          "name": "blk.0.ffn_up.input_scale",
+          "values": [
+            0.9173868298530579
+          ]
+        }
+      ]
+    }
+  },
+  "actual_p128_debug_dispatch": {
+    "summary_file": "build-integration/main730-mx-debug-p128-offline.json",
+    "stderr_sha256": "6bc5773b9b9207c453eb2c75bf8e3994c1443bbc946921ab422913e5e2f074ae",
+    "context_log_present": false,
+    "dispatch_counts": {
+      "matmul_nvfp4_f32_aligned_1": 212,
+      "mul_mat_vec_nvfp4_f32_f32": 55300
+    },
+    "loaded_libraries": [
+      "/mxdebug/bin/libggml-base.so.0",
+      "/mxdebug/bin/libggml-cpu.so",
+      "/mxdebug/bin/libggml-cpu.so.0",
+      "/mxdebug/bin/libggml-vulkan.so.0",
+      "/mxdebug/bin/libggml.so.0",
+      "/mxdebug/bin/libllama-bench-impl.so",
+      "/mxdebug/bin/libllama-common.so.0",
+      "/mxdebug/bin/libllama.so.0"
+    ],
+    "limitations": "The capture failed its post-run n_ctx assertion. Dispatch and loaded-library evidence only; no timing/context claim."
+  },
+  "mx_scale_semantics": {
+    "converter": "conversion/base.py:831-865 preserves per-block E4M3 scale bytes; exports ModelOpt weight_scale_2 as .scale and input_scale separately.",
+    "dense": "src/llama-graph.cpp:1720-1736 computes ggml_mul_mat, then applies w_s with ggml_mul to the output. The scalar global scale is after the dot; it is not folded into packed weights or matrix input.",
+    "moe": "src/llama-graph.cpp:1759-1785 computes ggml_mul_mat_id, selects per-expert scale rows using ids, then multiplies the output. Per-expert scale is post-dot.",
+    "accumulator_request": "src/llama-graph.cpp requests GGML_PREC_BF16 at lines 1731/1775; ggml/include/ggml.h:1443-1448 defines this as permitting BF16 or F32 accumulation. The witnessed scalar path's generated ACC_TYPE is F32 (see witnessed_shader_precision). This does not establish the separate CM1 variant's accumulator.",
+    "input_scale": "conversion writes input_scale sidecars and src/llama-model.cpp loads *_in_s fields (lines 2225-2299). Pinned source search found no use of those fields in graph arithmetic; they are loaded but not multiplied into the NVFP4 matmul input in this path."
+  },
+  "witnessed_shader_precision": {
+    "pipeline": "matmul_nvfp4_f32_aligned_1",
+    "registration": "ggml-vulkan.cpp:2581-2589 and 2615-2636 select the scalar subgroup NVFP4 F32-key/F32-accum variant. Configured runtime reports fp16: 1 and matrix cores: none; lines 5157-5162 tie these to no cooperative-matrix and no dot2 selection. The CM1 branch reuses the pipeline name but is not active here.",
+    "generator": "vulkan-shaders-gen.cpp:689 generates fp16=true, coopmat=false, coopmat2=false, f16acc=false; :483-485 makes ACC_TYPE float and :505-530 makes FLOAT_TYPE half.",
+    "operand_casts": "mul_mm_funcs.glsl:326-347 decodes NVFP4 into FLOAT_TYPEV2 half pairs; :653-663 converts F32 B to FLOAT_TYPE before shared storage. Scalar mul_mm.comp consumes these pairs through dot_product_funcs.glsl with F32 accumulation. Neither cooperative-matrix instructions nor dot2 is selected by the recorded device.",
+    "tile": "AMD_GCN tuning in ggml-vulkan.cpp:1852-1855 selects medium warptile {256,64,64,32,16,16,2,2,2,1,16}: 256 workitems, BM64 x BN64, BK32.",
+    "decode": "Name lacks _ocp; actual variant uses codebook and UE4M3 LUT fallback, not OCP FP4 shader. Source: ggml-vulkan.cpp:2471-2488; mul_mm_funcs.glsl:326-347; types.glsl:1913-1954.",
+    "vector_pipeline": "mul_mat_vec_nvfp4_f32_f32 uses generated mul_mat_vec.comp with FLOAT_TYPE float, B_TYPE float, D_TYPE float (vulkan-shaders-gen.cpp:780-788); dequant_funcs.glsl:514-529 decodes F32 weights via codebook/UE4M3. This is a separate witnessed vector path, not the aligned matmul tile."
+  },
+  "independent_block_and_companion_control": {
+    "scope": "Exhaustive stored block scale/code values before the F32 global companion scale. Does not prove post-scaling a dot is equivalent to scaling each weight.",
+    "decoder_sha256": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+    "script_sha256": "cf8965c5e40c0c068a3a086223024cb9571aab226039072f47db43f875c73070",
+    "scale_bytes": 256,
+    "codes": 16,
+    "decoded_elements": 262144,
+    "f16_roundtrip_failures": [],
+    "smallest_nonzero_magnitude": 0.0009765625,
+    "largest_magnitude": 2880.0,
+    "signed_zero_checked": true,
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "companion_control": {
+      ".scale": {
+        "tensors": 108,
+        "minimum": 2.3768498067511246e-05,
+        "maximum": 0.0001751127711031586,
+        "non_power_of_two": 108,
+        "folded_half_inexact": 327924,
+        "folded_half_comparisons": 442368
+      },
+      ".input_scale": {
+        "tensors": 108,
+        "minimum": 0.0401378758251667,
+        "maximum": 1.4264912605285645,
+        "non_power_of_two": 108
+      }
+    }
+  },
+  "interpretation": "Mx uses unscaled F16-exact block weights in its scalar subgroup tile and applies the F32 global scale after the dot. Llmx currently folds that global scale into each F32 weight. Moving it changes rounding and extreme-range behavior; this finding does not authorize a new arithmetic contract or numerical allowance.",
+  "device_path_evidence": {
+    "file": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\main730-mx-results\\main730-performance-v2\\configured-mx.stderr",
+    "sha256": "8d895a4d3a7a8974be32033a1f6f13301184d3616a4833b257becf8680289ae7",
+    "line": "ggml_vulkan: 0 = AMD Instinct MI60 / MI50 (RADV VEGA20) (radv) | uma: 0 | fp16: 1 | bf16: 0 | fp4: 0 | warp size: 64 | shared memory: 65536 | int dot: 1 | matrix cores: none"
+  },
+  "correction": "The earlier CM1 attribution was incorrect: the pipeline name is shared by scalar and cooperative registrations. Device capability output resolves the ambiguity. F16 operands, F32 accumulation, global post-dot scale and the AMD_GCN 256-thread medium tile remain supported by the pinned source."
+}

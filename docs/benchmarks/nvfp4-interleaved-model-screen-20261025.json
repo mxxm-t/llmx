@@ -1,0 +1,1598 @@
+{
+  "scope": "Windows Radeon contiguous paired-K versus interleaved-column development screen. Two explicit warmups then two ABBA blocks, all retained. One shared CLI object and config, unknown embedded identities, external binary/library hashes identify arms. Not a final merge or mx gate.",
+  "passed": true,
+  "activity_flags": {
+    "unrelated_cpu": "sum of known unrelated process deltas over100 percent ofone logicalCPU",
+    "system_cpu": "over75 percent",
+    "disk": "physical total over100MiB/s, includes benchmark loading",
+    "gpu": "unrelated engine instance over5 percent; engine values not additive",
+    "missing": "unknown counters/deltas reported as gaps, not zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "before": "3e504feebcfe6873bb1797fe9d3601cc9e49b512963060cdde0f3b4492d41956",
+    "after": "ff34255fa272f3d1c54593a7ceb80f46a1c8c849b64010c355c2f62d20ed293a"
+  },
+  "versions": {
+    "before": "llmx 0.1.0+unknown numerics unknown",
+    "after": "llmx 0.1.0+unknown numerics unknown"
+  },
+  "calls": [
+    {
+      "arm": "before",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892841.4640758,
+      "log": "00-before.log",
+      "pid": 79388,
+      "exit_code": 0,
+      "end": 1792892845.214518,
+      "rates": {
+        "pp512": 2837.68,
+        "tg128": 105.83
+      },
+      "sha256": "5e4027ea15c8ffd256376d2d18e01c23ba30f96a545dade9b030e7bac5c272a2",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 1
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892845.2225173,
+      "log": "01-after.log",
+      "pid": 69736,
+      "exit_code": 0,
+      "end": 1792892850.8050811,
+      "rates": {
+        "pp512": 3008.72,
+        "tg128": 106.74
+      },
+      "sha256": "91e7296ec0b92a1db0b021da3a938b708fb123566a47f8eb3f90f17bc598bbce",
+      "activity": {
+        "overlapping_intervals": 7,
+        "flags": {
+          "unrelated_cpu": 7,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 2
+        },
+        "process_gap_intervals": 7,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892850.8110802,
+      "log": "02-before.log",
+      "pid": 32232,
+      "exit_code": 0,
+      "end": 1792892854.467551,
+      "rates": {
+        "pp512": 2834.93,
+        "tg128": 107.02
+      },
+      "sha256": "248755ec7f6496373de25cf58c6b61e3dfbccf52bcc44eaa8ff5088d2be32b6a",
+      "activity": {
+        "overlapping_intervals": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_intervals": 4,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892854.475565,
+      "log": "03-after.log",
+      "pid": 70820,
+      "exit_code": 0,
+      "end": 1792892858.199678,
+      "rates": {
+        "pp512": 3005.83,
+        "tg128": 105.9
+      },
+      "sha256": "a7d320bfeed9cf1e42698dc2b14c4eb946afe5f3dfe5e664f7a16e0b6d215c7b",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 2
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892858.2066774,
+      "log": "04-after.log",
+      "pid": 30764,
+      "exit_code": 0,
+      "end": 1792892861.9034314,
+      "rates": {
+        "pp512": 3014.24,
+        "tg128": 106.17
+      },
+      "sha256": "31905f11b4e2e0a362a0f4e90e3898fb0b530626aa868ce2b96be9b1fc2e2815",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 3
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892861.9094331,
+      "log": "05-before.log",
+      "pid": 69152,
+      "exit_code": 0,
+      "end": 1792892865.631199,
+      "rates": {
+        "pp512": 2833.11,
+        "tg128": 107.07
+      },
+      "sha256": "ca263ea5f39da8d5c8dea0a388250fd33f579235203da0bd8764b6109027132f",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 1,
+          "other_gpu_engine": 2
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892865.6392019,
+      "log": "06-before.log",
+      "pid": 42872,
+      "exit_code": 0,
+      "end": 1792892869.3277664,
+      "rates": {
+        "pp512": 2841.69,
+        "tg128": 106.85
+      },
+      "sha256": "024743f5b1d3837df6bd02a31c42913a08f94c6c3653bfa63f2efeb5217f4bda",
+      "activity": {
+        "overlapping_intervals": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_intervals": 4,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892869.3357668,
+      "log": "07-after.log",
+      "pid": 26992,
+      "exit_code": 0,
+      "end": 1792892873.026384,
+      "rates": {
+        "pp512": 3018.16,
+        "tg128": 106.03
+      },
+      "sha256": "3886bb094809ff5f3379cd347baa78fbe3fa259ada61184979e31b731cb04617",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 2
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892873.03441,
+      "log": "08-after.log",
+      "pid": 32376,
+      "exit_code": 0,
+      "end": 1792892876.8297243,
+      "rates": {
+        "pp512": 3014.69,
+        "tg128": 104.49
+      },
+      "sha256": "cc5bab944af9c40f44d578b12f24d8e52a38e298cd39ec33de619f9b89c3c864",
+      "activity": {
+        "overlapping_intervals": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 3
+        },
+        "process_gap_intervals": 5,
+        "counter_gap_intervals": 0
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "bench",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\build-quant-resume-20261020\\nvfp4-local-model\\Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792892876.8367262,
+      "log": "09-before.log",
+      "pid": 8364,
+      "exit_code": 0,
+      "end": 1792892880.521671,
+      "rates": {
+        "pp512": 2835.99,
+        "tg128": 106.66
+      },
+      "sha256": "4fc648fd37bd0ec0200437c328ff8f1aab0fc6409ce43ae734629f1500407e44",
+      "activity": {
+        "overlapping_intervals": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 0,
+          "other_gpu_engine": 1
+        },
+        "process_gap_intervals": 4,
+        "counter_gap_intervals": 0
+      }
+    }
+  ],
+  "build_receipt_sha256": "af518706b64a3bc0fa22651599a4c6f74670bca6eb6b66dc59d22fed48b77afc",
+  "libraries": {
+    "before": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+    "after": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff"
+  },
+  "monitor": {
+    "pid": 26556,
+    "command": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tools\\monitor_windows.py",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\comparison-interleaved-v1\\activity.jsonl",
+      "--stop-file",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\comparison-interleaved-v1\\monitor.stop",
+      "--seconds",
+      "1800",
+      "--interval",
+      "1"
+    ],
+    "source_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6"
+  },
+  "profile_exit": 0,
+  "monitor_exit": 0,
+  "finished": 1792892889.593111,
+  "means": {
+    "before": {
+      "pp512": 2836.43,
+      "tg128": 106.89999999999999
+    },
+    "after": {
+      "pp512": 3013.23,
+      "tg128": 105.64750000000001
+    }
+  },
+  "change_percent": {
+    "pp512": 6.2331874927285424,
+    "tg128": -1.1716557530402127
+  },
+  "activity_by_arm": {
+    "before": {
+      "calls": 5,
+      "flagged_calls": 5,
+      "process_gap_calls": 5
+    },
+    "after": {
+      "calls": 5,
+      "flagged_calls": 5,
+      "process_gap_calls": 5
+    }
+  },
+  "monitor_metadata": {
+    "kind": "metadata",
+    "pid": 26556,
+    "logical_cpus": 16,
+    "interval_seconds": 1.0,
+    "initial_counter_collection_bracket": [
+      2388584.9515891,
+      2388584.9521121
+    ],
+    "counters": {
+      "cpu_percent": "\\Processor(_Total)\\% Processor Time",
+      "disk_idle_percent": "\\PhysicalDisk(*)\\% Idle Time",
+      "disk_bytes_per_second": "\\PhysicalDisk(*)\\Disk Bytes/sec",
+      "gpu_engine_percent": "\\GPU Engine(*)\\Utilization Percentage"
+    },
+    "unavailable": {},
+    "process_cpu_units": "100 percent equals one logical CPU",
+    "limitations": "Sampled intervals may miss short-lived processes; inaccessible/new processes have unknown CPU deltas; GPU engine values are not additive."
+  },
+  "link_receipt": {
+    "passed": true,
+    "start": 1792892787.0605056,
+    "scope": "Experimental model CLI link only, not a product build. Original frozen MSVC CLI object/config shared with paired-K; no CLI rebuild or llmx configuration regeneration.",
+    "commands": [
+      [
+        "cmake",
+        "-S",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model",
+        "-B",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\build",
+        "-G",
+        "Visual Studio 18 2026",
+        "-A",
+        "x64"
+      ],
+      [
+        "cmake",
+        "--build",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\build",
+        "--config",
+        "Release",
+        "--parallel",
+        "2"
+      ]
+    ],
+    "guards_before": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\screen_cli.dir\\Release\\main.obj": "12e56bf8e76e49745ea8af62eb9381f916e2804e80fe758ef7136921137f4dc9",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe": "3e504feebcfe6873bb1797fe9d3601cc9e49b512963060cdde0f3b4492d41956",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-paired-k\\Release\\llmx-vulkan.lib": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved.lib": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe-pins\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build-receipt.json": "af20bade0114e6b47b53e66fbdda1e78e84edf6bbb69f0d6791dbb6f65bb38e3",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-before.exe": "3505f1390bbc2f29047daa29cd02e259c75dace20071338813156b2931d45408"
+    },
+    "before_library_sha256": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+    "after_library_sha256": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+    "main_object_sha256": "12e56bf8e76e49745ea8af62eb9381f916e2804e80fe758ef7136921137f4dc9",
+    "config_sha256": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+    "main_object_sha256_after": "12e56bf8e76e49745ea8af62eb9381f916e2804e80fe758ef7136921137f4dc9",
+    "executables": {
+      "before": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\build\\Release\\llmx-screen-after.exe",
+        "sha256": "3e504feebcfe6873bb1797fe9d3601cc9e49b512963060cdde0f3b4492d41956",
+        "version": "llmx 0.1.0+unknown numerics unknown"
+      },
+      "after": {
+        "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe",
+        "sha256": "ff34255fa272f3d1c54593a7ceb80f46a1c8c849b64010c355c2f62d20ed293a",
+        "version": "llmx 0.1.0+unknown numerics unknown"
+      }
+    },
+    "pins": {
+      "config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+      "interleaved.lib": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+      "llmx-screen-paired-k.exe": "3e504feebcfe6873bb1797fe9d3601cc9e49b512963060cdde0f3b4492d41956",
+      "main.obj": "12e56bf8e76e49745ea8af62eb9381f916e2804e80fe758ef7136921137f4dc9",
+      "paired-k.lib": "b1f1f2c3c55d55c42e05a0dc0bc77a5acf5e72e67697e76d0a5d9104fdb5baf2",
+      "windows.manifest": "8a52498255bd0435c5d4036ffb4ba6f83834be45b4cf6e18bfef2705cb9db7e4"
+    },
+    "seconds": 4.481004953384399
+  },
+  "link_receipt_sha256": "af518706b64a3bc0fa22651599a4c6f74670bca6eb6b66dc59d22fed48b77afc",
+  "artifact_sha256": {
+    "build-nvfp4-model-screen/comparison-interleaved-v1/00-before.log": "5e4027ea15c8ffd256376d2d18e01c23ba30f96a545dade9b030e7bac5c272a2",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/01-after.log": "91e7296ec0b92a1db0b021da3a938b708fb123566a47f8eb3f90f17bc598bbce",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/02-before.log": "248755ec7f6496373de25cf58c6b61e3dfbccf52bcc44eaa8ff5088d2be32b6a",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/03-after.log": "a7d320bfeed9cf1e42698dc2b14c4eb946afe5f3dfe5e664f7a16e0b6d215c7b",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/04-after.log": "31905f11b4e2e0a362a0f4e90e3898fb0b530626aa868ce2b96be9b1fc2e2815",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/05-before.log": "ca263ea5f39da8d5c8dea0a388250fd33f579235203da0bd8764b6109027132f",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/06-before.log": "024743f5b1d3837df6bd02a31c42913a08f94c6c3653bfa63f2efeb5217f4bda",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/07-after.log": "3886bb094809ff5f3379cd347baa78fbe3fa259ada61184979e31b731cb04617",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/08-after.log": "cc5bab944af9c40f44d578b12f24d8e52a38e298cd39ec33de619f9b89c3c864",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/09-before.log": "4fc648fd37bd0ec0200437c328ff8f1aab0fc6409ce43ae734629f1500407e44",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/activity.jsonl": "c7aee5a92944a6bf0facb96b68ab3f86176b24ce7f4a0862eb0fc80933da35af",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/execution.json": "51c6892b6bceb16ae25bdcf863e4d44569e8c32dd17906160c75798d3ff7ed8c",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/monitor.stop": "a0b28cdf92e250a1a93294d91144a0f893d27197d56b39991cc421768794005f",
+    "build-nvfp4-model-screen/comparison-interleaved-v1/profile.log": "cfa554505baff1e8cba5a224f8d9885d84b84fea45f8e62f915dae4ae5857f9b"
+  },
+  "profile": {
+    "scope": "Separate after-only instrumented diagnostic, not timed-arm throughput.",
+    "nv_lines": [
+      "profile:   matmul_tile_nvfp4_tall 112.487 ms (65.8367%)",
+      "profile: kernel matmul_tile_nvfp4_tall: numUsedVgprs=92 numUsedSgprs=64 ldsSizePerLocalWorkGroup=65536 ldsUsageSizeInBytes=26112 scratchMemUsageInBytes=0"
+    ]
+  },
+  "hf": {
+    "status": "passed 42/42",
+    "seconds": 69.75156807899475,
+    "completion": {
+      "passed": true,
+      "checks": {
+        "default": 21,
+        "f32": 21
+      },
+      "stdout_identity": {
+        "default": 20,
+        "f32": 21
+      },
+      "difference": {
+        "path": "default/ppl-01-batched.stdout",
+        "context": 64,
+        "before_nll": 3.873247589,
+        "after_nll": 3.873245921,
+        "delta": -1.6679999998991946e-06,
+        "diff": [
+          "--- \n",
+          "+++ \n",
+          "@@ -3,5 +3,5 @@\n",
+          " scored tokens: 239",
+          " chunks: 4",
+          " context size: 64",
+          "-mean NLL: 3.873247589",
+          "+mean NLL: 3.873245921",
+          " perplexity: 48.0983"
+        ],
+        "interpretation": "Only mean NLL text differs; counts and displayed perplexity match. Delta -1.668e-6 is within unchanged 0.02 file-exact window NLL bound. This is diagnostic drift under default mixed arithmetic, not proof of a bank-conflict mechanism. All F32 stdout remain exact."
+      },
+      "artifact_sha256": {
+        "preflight.json": "b706d58c8a9aebbcdb713bf5c5a0e91658b7437f3d2120c041cc6c32f36cf283",
+        "prepare-receipt.json": "5b44c72abee0b132540845e0e84a248c080f42e6a7403e177f7cae1d12d15917",
+        "released-hf.py": "6920787f8acbba89c0728e188561c8b63a68c84444deaf7014f487ab4487c1ce",
+        "run-hf.py": "f2fe01e0df8bbc882135d361a969a4b6349343d6a644f55e8387a898958a6b2c",
+        "run.log": "c8ad38d90eb8c781b44c197ba4c880f92c3c3daece736381713313838995bdb7",
+        "runner.patch": "8536060a3a3226feec961c54eeb277c0656511ff1f935a2081538528a9585538",
+        "results\\default.log": "ae8038690365b6ecb9c8ce8c7a98098d599c8f3597e6091b7b9bf49eb47e4293",
+        "results\\execution.json": "56a7edb606ab564d06b03a24251e86dfb2eb7084e99e041d245972c64c1150a7",
+        "results\\f32.log": "ae8038690365b6ecb9c8ce8c7a98098d599c8f3597e6091b7b9bf49eb47e4293",
+        "results\\stdout-comparison.json": "a2f75b34301652d7cd9acbf8de324e36d3b4b694285bbd8ba446ebf3bcc87556",
+        "results\\default\\excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+        "results\\default\\ppl-00-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+        "results\\default\\ppl-00-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-00-per-token.stdout": "06f3993be0500f8f45361abcfd3cd174aae5cf61ebc0256b31b1828c989ce229",
+        "results\\default\\ppl-01-batched.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-01-batched.stdout": "bd588bcc4e747b28b0db8d99bf7e9fcb1680fd6c404c199ed216ef37c65fdbd1",
+        "results\\default\\ppl-01-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-01-per-token.stdout": "2dfd846cf573d35d399a0d13319226b27e93528880216c227df4914841d901a6",
+        "results\\default\\ppl-02-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+        "results\\default\\ppl-02-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-02-per-token.stdout": "a982b60e32336da17a012f72d2227541597940b735363bf420672b74a403cb43",
+        "results\\default\\ppl-03-batched.stderr": "303e18d32a648c6b5bc1f967871dbd397c92754467e5422190c7f478384ae180",
+        "results\\default\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+        "results\\default\\ppl-03-per-token.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\ppl-03-per-token.stdout": "70227dddcede6805ce26f9f2d9ba06b3e1759c5545db0ce14ef8a495b7c6be4f",
+        "results\\default\\ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+        "results\\default\\prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+        "results\\default\\prompt-00-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-00-logits.stdout": "c80a326a0229c56d3ca873c1808d6958ccecef64a4be2371fcddc730ac92ad2b",
+        "results\\default\\prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+        "results\\default\\prompt-01-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-01-logits.stdout": "60443bd57999c128ba47446772d15f0d8a03e200e121587abc5b82f5fe41b0d0",
+        "results\\default\\prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+        "results\\default\\prompt-02-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-02-logits.stdout": "c857c3732d2d4c0c907791c67dbc879ebc33e992a9a50262e659cc219d983e45",
+        "results\\default\\prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+        "results\\default\\prompt-03-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-03-logits.stdout": "d864e66ea3ed97e05ab6aae9df9318daf671ca87acf30ffe94b57d6ebfc1fec5",
+        "results\\default\\prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+        "results\\default\\prompt-04-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-04-logits.stdout": "d2f0ba8c290ce08921f85f3a93c8d8954af607506066736ff371b74b2cdc3d7b",
+        "results\\default\\prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\default\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+        "results\\default\\prompt-05-logits.stderr": "5737c8055a7582078024f9c8026808df80b138faab6262c90403af47527525f3",
+        "results\\default\\prompt-05-logits.stdout": "d0f38da09ec24eab9a9d316dc20ab7a8fdd19a8e99b440b782d25f8f954afa18",
+        "results\\default\\report.json": "11d8c02bd16a8233a2f43bce6a781047f9f19275177a9d2bcc439ee8ecb58c70",
+        "results\\f32\\excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+        "results\\f32\\ppl-00-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+        "results\\f32\\ppl-00-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-00-per-token.stdout": "1c5f1299981c84be4b37ffe1ec35413ac35019fa676f447e455aaad7346fdb24",
+        "results\\f32\\ppl-01-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-01-batched.stdout": "1d0e36404fa15d54b3a0b9cf973509a770b502b04249a10fab4c73c4f4efc777",
+        "results\\f32\\ppl-01-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-01-per-token.stdout": "39b4b74db144571c84a3fd9697dab320b461d5a83a35be9cc20bb1c757994971",
+        "results\\f32\\ppl-02-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+        "results\\f32\\ppl-02-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-02-per-token.stdout": "6e10225b0a4176904d3eda6dbe1665e23d22ec23c486a53e4e612d8838c80cd5",
+        "results\\f32\\ppl-03-batched.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+        "results\\f32\\ppl-03-per-token.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\ppl-03-per-token.stdout": "994eede2429e1a5223fba033903464fb4f06d5695e141cd33533e711145dfcc3",
+        "results\\f32\\ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+        "results\\f32\\prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+        "results\\f32\\prompt-00-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-00-logits.stdout": "800c0a32a8f979c4df7ee21347a95e41257dcdfa3ba95aa2f51ce45ce4c2df37",
+        "results\\f32\\prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+        "results\\f32\\prompt-01-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-01-logits.stdout": "491b3dce440371b8de8e6c0fb098a18dd18d79177a6477e4de115d7906baa53b",
+        "results\\f32\\prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+        "results\\f32\\prompt-02-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-02-logits.stdout": "c4be9b21088237af6046d7354c2830ad943ef10b197fe0c524390c41dae192b0",
+        "results\\f32\\prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+        "results\\f32\\prompt-03-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-03-logits.stdout": "84d5232e20443b4de054914dabaa676db41e7ed61c9c1e8af59faf8ac9671893",
+        "results\\f32\\prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+        "results\\f32\\prompt-04-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-04-logits.stdout": "1aed167163f45e3f7396062abf91c01669649724eb7378897384919ed69d516b",
+        "results\\f32\\prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "results\\f32\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+        "results\\f32\\prompt-05-logits.stderr": "bca36ae6bf2c0b4a0d893c1f51a47075778ffe24307b5fc61d9867e7c0422ccd",
+        "results\\f32\\prompt-05-logits.stdout": "f68abf1b409348631c280ca76995a2ab8e6d8c957a972ed3f14201741754efaa",
+        "results\\f32\\report.json": "58af394419c2dea2f8c62561378f9ca2537c205c92b0139a5d0e3c81a04974c4"
+      }
+    },
+    "pins": {
+      "source_sha256": {
+        "src/backends/vulkan/vulkan_backend.cpp": "2986664f27b66a8adf3107985c7a8c15a33ef34b2d74682444257a96f5795549",
+        "src/backends/vulkan/shaders/matmul_row.comp": "47f13a58a2ac8a2a09c11c80ef3968e94e5289b1b175abe12c60b14fbb3ae461",
+        "src/backends/vulkan/shaders/matmul_tile.comp": "44951140adcba4e081cd6dc93849ff1c7a5a7836a50ec9768f7dc0fbe71a3f21",
+        "src/backends/vulkan/shaders/qdecode.glsl": "d5ae088a3c8a70a353dfff3a6e0d4e144ec6a0f136cbe33f9216364840a05411",
+        "tests/baseline.py": "5807bd6ff53842cf096028226c71bdcaea2a1479ab7ac94635bd70a3014a5321",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c"
+      },
+      "binary_sha256": "ff34255fa272f3d1c54593a7ceb80f46a1c8c849b64010c355c2f62d20ed293a",
+      "candidate_build_receipt_sha256": "af518706b64a3bc0fa22651599a4c6f74670bca6eb6b66dc59d22fed48b77afc",
+      "driver_sha256": "6920787f8acbba89c0728e188561c8b63a68c84444deaf7014f487ab4487c1ce",
+      "version": "llmx 0.1.0+unknown numerics unknown"
+    },
+    "prepare_guard_files": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\llmx-screen-interleaved.exe": "ff34255fa272f3d1c54593a7ceb80f46a1c8c849b64010c355c2f62d20ed293a",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved.lib": "7becdb09ba1938e6dbcf89ed3f3375fbff46a7cc80b79d333f55887dbfcd26ff",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\matmul_tile.comp": "f611e43ca52315a6d7f6929db8a4e119551a1a470e547a7332f802cba45737b6",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\CMakeLists.txt": "844acb36137273279f7f321e8a1a007998bcbff31e390aba23c7670bcceb5910",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\vulkan_backend.cpp": "28e9cb256376acc6917e765d54ef5f7c6bea1c563f1237b0cee81f60636407a9",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\model\\link-receipt.json": "af518706b64a3bc0fa22651599a4c6f74670bca6eb6b66dc59d22fed48b77afc",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\manifest.json": "9cfe850d5e8f4818d7c619727f815bfedd628c496f64d88b99e54eb3937278f1",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe-pins\\config.hpp": "475f1af77251431a7388c28cf42ab29e7a0b6537a982d6117b1838d0fa810e07",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\baseline.py": "5807bd6ff53842cf096028226c71bdcaea2a1479ab7ac94635bd70a3014a5321",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\tests\\spec_decode.py": "6c9911eddaa73ee61ecce96df0828d1499fe067bc86cda692649f02eec25f72c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\released-hf-goldens-20261025\\baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\released-hf-goldens-20261025\\baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\execution.json": "7dd3c8915abc052952ef54f2b072d03cdedbdddee190d6248edcef98d999cb7a",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-00-per-token.stdout": "06f3993be0500f8f45361abcfd3cd174aae5cf61ebc0256b31b1828c989ce229",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-01-batched.stdout": "4b8c4cc70780bcb80d99a6d4d6acc506987cc095b1660d0f49e750ef3c0756a8",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-01-per-token.stdout": "2dfd846cf573d35d399a0d13319226b27e93528880216c227df4914841d901a6",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-02-per-token.stdout": "a982b60e32336da17a012f72d2227541597940b735363bf420672b74a403cb43",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-03-per-token.stdout": "70227dddcede6805ce26f9f2d9ba06b3e1759c5545db0ce14ef8a495b7c6be4f",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-00-logits.stdout": "c80a326a0229c56d3ca873c1808d6958ccecef64a4be2371fcddc730ac92ad2b",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-01-logits.stdout": "60443bd57999c128ba47446772d15f0d8a03e200e121587abc5b82f5fe41b0d0",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-02-logits.stdout": "c857c3732d2d4c0c907791c67dbc879ebc33e992a9a50262e659cc219d983e45",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-03-logits.stdout": "d864e66ea3ed97e05ab6aae9df9318daf671ca87acf30ffe94b57d6ebfc1fec5",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-04-logits.stdout": "d2f0ba8c290ce08921f85f3a93c8d8954af607506066736ff371b74b2cdc3d7b",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\default\\prompt-05-logits.stdout": "d0f38da09ec24eab9a9d316dc20ab7a8fdd19a8e99b440b782d25f8f954afa18",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-00-batched.stdout": "0e902ec2fffd9cbf7a7d8958f2a710507a2f8f914d4138e73a579886f075dfa2",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-00-per-token.stdout": "1c5f1299981c84be4b37ffe1ec35413ac35019fa676f447e455aaad7346fdb24",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-01-batched.stdout": "1d0e36404fa15d54b3a0b9cf973509a770b502b04249a10fab4c73c4f4efc777",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-01-per-token.stdout": "39b4b74db144571c84a3fd9697dab320b461d5a83a35be9cc20bb1c757994971",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-02-batched.stdout": "d397919d6590ddfe55a306446d57fe7ca002a61f751743c6656acc6379e1a783",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-02-per-token.stdout": "6e10225b0a4176904d3eda6dbe1665e23d22ec23c486a53e4e612d8838c80cd5",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-03-batched.stdout": "0c155d5ea878713a7bbbb3071112f6993e64b81aa5f732f2935cebe957ed0244",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-03-per-token.stdout": "994eede2429e1a5223fba033903464fb4f06d5695e141cd33533e711145dfcc3",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\ppl-ids.stdout": "1295cd47c056206b070e76ac4181e4867a9b4129f6dd77fe514f25400dcefec0",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-00-ids.stdout": "5552ff3adc618e43cf48888ac5e1bd54e970aa380ba6df56b7ced922672f8e4e",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-00-logits.stdout": "800c0a32a8f979c4df7ee21347a95e41257dcdfa3ba95aa2f51ce45ce4c2df37",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-01-ids.stdout": "518e8723952c91535a449e6345922e940789f1a2f77d611cacd4140bcfc2a6db",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-01-logits.stdout": "491b3dce440371b8de8e6c0fb098a18dd18d79177a6477e4de115d7906baa53b",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-02-ids.stdout": "1e1ff64cc7203db639b3060b3e5bd83f16734da5d7416b9b6a475753e0dc7d26",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-02-logits.stdout": "c4be9b21088237af6046d7354c2830ad943ef10b197fe0c524390c41dae192b0",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-03-ids.stdout": "6a35fb7d0f4b98968f9dd9a5549e238f5182f181f34083008ef1b3ff92db9b2d",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-03-logits.stdout": "84d5232e20443b4de054914dabaa676db41e7ed61c9c1e8af59faf8ac9671893",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-04-ids.stdout": "bfa185dec2c6f9967fbfa790b4661480ddb640ea2a8501208a89f458f89b2632",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-04-logits.stdout": "1aed167163f45e3f7396062abf91c01669649724eb7378897384919ed69d516b",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-05-ids.stdout": "0f420b95b6bcb43c1c9170422e1f04a32a289992a62e7c32db00ba5351fd722a",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-model-screen\\hf\\f32\\prompt-05-logits.stdout": "f68abf1b409348631c280ca76995a2ab8e6d8c957a972ed3f14201741754efaa",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-hf\\run-hf.py": "f2fe01e0df8bbc882135d361a969a4b6349343d6a644f55e8387a898958a6b2c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-hf\\released-hf.py": "6920787f8acbba89c0728e188561c8b63a68c84444deaf7014f487ab4487c1ce",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-tile-probe\\interleaved-column-candidate\\interleaved-hf\\runner.patch": "8536060a3a3226feec961c54eeb277c0656511ff1f935a2081538528a9585538"
+    },
+    "cases": [
+      {
+        "dtype": "default",
+        "exit_code": 0,
+        "checks": [
+          {
+            "label": "prompt-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "prompt-00-logits",
+            "status": "pass",
+            "top1": 11751,
+            "top5_overlap": 5,
+            "top_ids": [
+              11751,
+              279,
+              7172,
+              198,
+              25,
+              31586,
+              303,
+              1076,
+              248046,
+              524
+            ],
+            "top_logits": [
+              15.139446,
+              14.583568,
+              14.375881,
+              14.33286,
+              14.234213,
+              13.970833,
+              13.508265,
+              13.477446,
+              13.374907,
+              13.149085
+            ]
+          },
+          {
+            "label": "prompt-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "prompt-01-logits",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              449,
+              279,
+              3428,
+              524,
+              799,
+              4364,
+              10141,
+              1429,
+              44265
+            ],
+            "top_logits": [
+              20.210945,
+              18.729414,
+              18.451443,
+              17.744585,
+              17.364361,
+              17.30698,
+              17.059296,
+              16.879539,
+              16.847462,
+              16.240253
+            ]
+          },
+          {
+            "label": "prompt-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "prompt-02-logits",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              460,
+              695,
+              317,
+              653,
+              271,
+              1133,
+              264,
+              220,
+              4673
+            ],
+            "top_logits": [
+              23.695053,
+              19.387293,
+              18.080004,
+              17.766747,
+              16.474293,
+              16.174742,
+              15.201108,
+              15.102094,
+              14.883348,
+              14.806339
+            ]
+          },
+          {
+            "label": "prompt-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "prompt-03-logits",
+            "status": "pass",
+            "top1": 6105,
+            "top5_overlap": 5,
+            "top_ids": [
+              6105,
+              5983,
+              13358,
+              18016,
+              4022,
+              321,
+              279,
+              55945,
+              1259,
+              864
+            ],
+            "top_logits": [
+              19.499065,
+              19.381897,
+              19.232738,
+              17.277752,
+              15.848873,
+              15.754174,
+              15.117804,
+              14.912228,
+              14.416279,
+              14.320843
+            ]
+          },
+          {
+            "label": "prompt-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "prompt-04-logits",
+            "status": "pass",
+            "top1": 16820,
+            "top5_overlap": 5,
+            "top_ids": [
+              16820,
+              17257,
+              7099,
+              8964,
+              4751,
+              11247,
+              4128,
+              9561,
+              9114,
+              1259
+            ],
+            "top_logits": [
+              16.339607,
+              16.011833,
+              15.36973,
+              13.930101,
+              13.514524,
+              13.000726,
+              12.892897,
+              12.802856,
+              12.631251,
+              12.212998
+            ]
+          },
+          {
+            "label": "prompt-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "prompt-05-logits",
+            "status": "pass",
+            "top1": 6124,
+            "top5_overlap": 5,
+            "top_ids": [
+              6124,
+              17163,
+              9564,
+              279,
+              5440,
+              31868,
+              15477,
+              8100,
+              6650,
+              6535
+            ],
+            "top_logits": [
+              17.559212,
+              17.4055,
+              17.048306,
+              16.812653,
+              15.839732,
+              15.824348,
+              15.76781,
+              15.753323,
+              15.663866,
+              15.497085
+            ]
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 243
+          },
+          {
+            "label": "ppl-00-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156186617,
+            "perplexity": 23.4809,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 3.825631858411782e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-00-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.15618131,
+            "perplexity": 23.4808,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 1.4813681414871382e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873245921,
+            "perplexity": 48.0983,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.6674426905005646e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-01-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873225502,
+            "perplexity": 48.0973,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 3.709342690516593e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539679656,
+            "perplexity": 34.4559,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.3585607606513292e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539656235,
+            "perplexity": 34.4551,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 4.70066076068143e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352701965,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.807999150267193e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352696744,
+            "perplexity": 28.5797,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 3.3300991502560606e-05,
+            "bound": 0.02
+          }
+        ],
+        "golden_hashes": {
+          "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+          "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+        },
+        "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+      },
+      {
+        "dtype": "f32",
+        "exit_code": 0,
+        "checks": [
+          {
+            "label": "prompt-00-ids",
+            "status": "pass",
+            "tokens": 5
+          },
+          {
+            "label": "prompt-00-logits",
+            "status": "pass",
+            "top1": 11751,
+            "top5_overlap": 5,
+            "top_ids": [
+              11751,
+              279,
+              7172,
+              198,
+              25,
+              31586,
+              303,
+              1076,
+              248046,
+              524
+            ],
+            "top_logits": [
+              15.139443,
+              14.58362,
+              14.375753,
+              14.332682,
+              14.234166,
+              13.97093,
+              13.50806,
+              13.477351,
+              13.374928,
+              13.149195
+            ]
+          },
+          {
+            "label": "prompt-01-ids",
+            "status": "pass",
+            "tokens": 3
+          },
+          {
+            "label": "prompt-01-logits",
+            "status": "pass",
+            "top1": 264,
+            "top5_overlap": 5,
+            "top_ids": [
+              264,
+              449,
+              279,
+              3428,
+              524,
+              799,
+              4364,
+              10141,
+              1429,
+              44265
+            ],
+            "top_logits": [
+              20.211254,
+              18.729511,
+              18.45163,
+              17.744427,
+              17.364456,
+              17.307091,
+              17.059101,
+              16.879421,
+              16.847523,
+              16.240173
+            ]
+          },
+          {
+            "label": "prompt-02-ids",
+            "status": "pass",
+            "tokens": 6
+          },
+          {
+            "label": "prompt-02-logits",
+            "status": "pass",
+            "top1": 198,
+            "top5_overlap": 5,
+            "top_ids": [
+              198,
+              460,
+              695,
+              317,
+              653,
+              271,
+              1133,
+              264,
+              220,
+              4673
+            ],
+            "top_logits": [
+              23.694462,
+              19.386755,
+              18.079716,
+              17.766483,
+              16.473892,
+              16.173883,
+              15.200545,
+              15.101452,
+              14.883004,
+              14.805844
+            ]
+          },
+          {
+            "label": "prompt-03-ids",
+            "status": "pass",
+            "tokens": 7
+          },
+          {
+            "label": "prompt-03-logits",
+            "status": "pass",
+            "top1": 6105,
+            "top5_overlap": 5,
+            "top_ids": [
+              6105,
+              5983,
+              13358,
+              18016,
+              4022,
+              321,
+              279,
+              55945,
+              1259,
+              864
+            ],
+            "top_logits": [
+              19.499378,
+              19.382042,
+              19.232862,
+              17.277927,
+              15.848782,
+              15.754082,
+              15.117749,
+              14.912377,
+              14.416071,
+              14.320759
+            ]
+          },
+          {
+            "label": "prompt-04-ids",
+            "status": "pass",
+            "tokens": 12
+          },
+          {
+            "label": "prompt-04-logits",
+            "status": "pass",
+            "top1": 16820,
+            "top5_overlap": 5,
+            "top_ids": [
+              16820,
+              17257,
+              7099,
+              8964,
+              4751,
+              11247,
+              4128,
+              9561,
+              9114,
+              1259
+            ],
+            "top_logits": [
+              16.339426,
+              16.011566,
+              15.369408,
+              13.930025,
+              13.514599,
+              13.000623,
+              12.892887,
+              12.802385,
+              12.631248,
+              12.212851
+            ]
+          },
+          {
+            "label": "prompt-05-ids",
+            "status": "pass",
+            "tokens": 17
+          },
+          {
+            "label": "prompt-05-logits",
+            "status": "pass",
+            "top1": 6124,
+            "top5_overlap": 5,
+            "top_ids": [
+              6124,
+              17163,
+              9564,
+              279,
+              5440,
+              31868,
+              15477,
+              8100,
+              6650,
+              6535
+            ],
+            "top_logits": [
+              17.559273,
+              17.405594,
+              17.048439,
+              16.812798,
+              15.839903,
+              15.824357,
+              15.767891,
+              15.753511,
+              15.663963,
+              15.49717
+            ]
+          },
+          {
+            "label": "ppl-ids",
+            "status": "pass",
+            "tokens": 243
+          },
+          {
+            "label": "ppl-00-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156186617,
+            "perplexity": 23.4809,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 3.825631858411782e-06,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-00-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 242,
+            "chunks": 1,
+            "context size": 262144,
+            "mean_nll": 3.156182022,
+            "perplexity": 23.4808,
+            "hf_mean_nll": 3.1561827913681415,
+            "absolute_nll_delta": 7.69368141639859e-07,
+            "bound": 0.01
+          },
+          {
+            "label": "ppl-01-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873248569,
+            "perplexity": 48.0984,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.4026426905289213e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-01-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 239,
+            "chunks": 4,
+            "context size": 64,
+            "mean_nll": 3.873245771,
+            "perplexity": 48.0982,
+            "hf_mean_nll": 3.873262595426905,
+            "absolute_nll_delta": 1.6824426904982204e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539679656,
+            "perplexity": 34.4559,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.3585607606513292e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-02-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 128,
+            "scored tokens": 126,
+            "chunks": 2,
+            "context size": 64,
+            "mean_nll": 3.539677964,
+            "perplexity": 34.4558,
+            "hf_mean_nll": 3.5397032416076066,
+            "absolute_nll_delta": 2.52776076066219e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-batched",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352701965,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.807999150267193e-05,
+            "bound": 0.02
+          },
+          {
+            "label": "ppl-03-per-token",
+            "status": "pass",
+            "tokens": 243,
+            "used tokens": 243,
+            "scored tokens": 241,
+            "chunks": 2,
+            "context size": 123,
+            "mean_nll": 3.352704416,
+            "perplexity": 28.5799,
+            "hf_mean_nll": 3.3527300449915027,
+            "absolute_nll_delta": 2.562899150282405e-05,
+            "bound": 0.02
+          }
+        ],
+        "golden_hashes": {
+          "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+          "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+        },
+        "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+      }
+    ],
+    "receipt_sha256": {
+      "build-nvfp4-tile-probe/interleaved-column-candidate/interleaved-hf/completion.json": "c6ac5b10ca0dd447cd3274a3d995124fb1b939528acf6dbe4d6b3719ea7c0cf6",
+      "build-nvfp4-tile-probe/interleaved-column-candidate/interleaved-hf/results/execution.json": "56a7edb606ab564d06b03a24251e86dfb2eb7084e99e041d245972c64c1150a7",
+      "build-nvfp4-tile-probe/interleaved-column-candidate/interleaved-hf/prepare-receipt.json": "5b44c72abee0b132540845e0e84a248c080f42e6a7403e177f7cae1d12d15917"
+    },
+    "identity_scope": "All 21 F32 stdout files match paired-K. Default matches 20/21. Context-64 batched NLL changes from 3.873247589 to 3.873245921, a delta of -1.668e-6 within the unchanged 0.02 bound. Not universal model bit identity."
+  },
+  "limits": [
+    "All ten calls are retained: two explicit warmups and eight measured calls in full ABBA order.",
+    "The CLI object and configuration match. Embedded identities are unknown. Vulkan libraries differ and the code layout band is not controlled.",
+    "PP gain and TG loss are assessed together without automatic rejection. No main or mx measurement or final acceptance.",
+    "Interval-overlap PDH flags preserve unknown process and counter gaps. GPU engines are never summed. Benchmark and monitor PIDs are excluded from unrelated CPU."
+  ]
+}

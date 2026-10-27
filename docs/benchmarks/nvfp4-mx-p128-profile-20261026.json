@@ -1,0 +1,1189 @@
+{
+  "schema": "nvfp4-mx-p128-profile-evidence-v1",
+  "scope": "Diagnostic profile comparison only. No speed acceptance, causal attribution, new current-grid claim, or final integrated-tree qualification.",
+  "runtime_scope": {
+    "candidate_revision": "0bc6f22cb",
+    "candidate_version": "llmx 0.1.0+unknown numerics 153417f7b2f6f5d2",
+    "candidate_cli_sha256": "9021fe322d52d4d5e811a8af10b3896893283bd7f159f976199aaa46a55cfde0",
+    "candidate_vulkan_library_sha256": "133985e754f102b332fd4967ae2be5441e7626365166530a0e4b2907d40fe27b",
+    "candidate_source_shader_sha256": "1d9249f14f6e309c8da4411e8f3ffe814e1232dafb42cce2a9b7602393165b64",
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "mx_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "device": {
+      "physical": 8,
+      "render_node": "renderD130",
+      "pci": "0000:c9:00.0",
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "workload": {
+      "prompt": 128,
+      "generation": 256,
+      "context": 262144,
+      "threads": 4,
+      "ubatch": 512,
+      "kv_k": "f16",
+      "kv_v": "f16"
+    }
+  },
+  "analysis_sources": {
+    "profile_analysis": {
+      "path": "build-integration/mx-p128-study/profile-analysis.json",
+      "sha256": "7953a209b1437895232ea5e4796a944887a1b9380451dac1b858bea5aa0d1551"
+    },
+    "execution": {
+      "path": "build-integration/mx-p128-profile-v1/results/execution.json",
+      "sha256": "a94a7749e35b35192b9387641711ea69d9e901ec7f4638e3e66afccc56dd70ea"
+    },
+    "plan": {
+      "path": "build-integration/mx-p128-profile-v1/plan.json",
+      "sha256": "c92ddffedcbdef0732be1f18a7742ebe50c1a2d2544fa6964f9fadefd8d9b1dc"
+    },
+    "prior_debug_dispatch": {
+      "path": "build-integration/mx-p128-study/prior-debug-dispatch.json",
+      "sha256": "bc4f0b1d5f11317e599f0fed2ac85b92ce36ee94d489828ca6508cf43604289a"
+    },
+    "mx_debug_build_receipt": {
+      "path": "docs/benchmarks/nvfp4-mx-dispatch-build-20261026.json",
+      "sha256": "70b282bb82097684c0e052677a85beba71f0375608a92c4d5c66edff078d6040"
+    }
+  },
+  "profile": {
+    "llmx": {
+      "stdout": "build-integration/mx-p128-profile-v1/results/02-p128-candidate.stdout",
+      "stdout_sha256": "b3b5c2819493be8c079cec10e1ff5e129bfb42456d71e1cb7b0f754d7ed70628",
+      "pp_profile_lines": [
+        "profile pp: 53.3763 ms of device time over 386 dispatches sampled",
+        "profile:   matmul_tile_nvfp4_f16 37.9605 ms (71.1186%)",
+        "profile:   delta_rule 3.7528 ms (7.03083%)",
+        "profile:   matmul_tile_q 3.43872 ms (6.44241%)",
+        "profile:   matmul_tile_wbf16_small 2.74032 ms (5.13396%)",
+        "profile:   matmul_tile_q_small 0.80448 ms (1.50719%)",
+        "profile:   matmul_reduce 0.78208 ms (1.46522%)",
+        "profile:   gated_rms_norm 0.6568 ms (1.23051%)",
+        "profile:   rms_norm_rows 0.62272 ms (1.16666%)",
+        "profile:   attention_tile_d256_kv16 0.5584 ms (1.04616%)",
+        "profile:   causal_conv_silu 0.5016 ms (0.939743%)",
+        "profile:   silu_mul 0.47152 ms (0.883388%)",
+        "profile:   matmul_vec_q8_1col head 0.41776 ms (0.782669%)",
+        "profile:   matmul_tile_q8_small 0.33872 ms (0.634589%)",
+        "profile:   norm_rope_partial 0.15168 ms (0.284171%)",
+        "profile:   sigmoid_mul 0.08944 ms (0.167565%)",
+        "profile:   kv_write_kv16 0.06416 ms (0.120203%)",
+        "profile:   embed 0.01824 ms (0.0341725%)",
+        "profile:   gather_rows 0.0064 ms (0.0119903%)"
+      ],
+      "compiled_stats_lines": [
+        {
+          "line_id": 47,
+          "raw": "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=7088718968349424480 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7132 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=221812129 Instructions=1337 Copies=249 Branches=114 Latency=160192 Inverse Throughput=63588 VMEM Clause=67 SMEM Clause=55 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=618 SALU=316 VMEM=72 SMEM=55 VOPD=0"
+        }
+      ]
+    },
+    "mx": [
+      {
+        "call_index": 3,
+        "mode": "serial-profile",
+        "status": "passed",
+        "path": "build-integration/mx-p128-profile-v1/results/03-p128-mx.stderr",
+        "sha256": "f149d7358b9d444e69f81ee6b419938ad4ced71d624e82171b3a2fcb60037213",
+        "pipeline_stats": [
+          {
+            "name": "matmul_nvfp4_f32_aligned_1",
+            "source_line_start": 3,
+            "fields": {
+              "Driver pipeline hash": "17676304982663492602",
+              "SGPRs": "64",
+              "VGPRs": "64",
+              "Spilled SGPRs": "0",
+              "Spilled VGPRs": "0",
+              "Code size": "7180",
+              "LDS size": "9728",
+              "Scratch size": "0",
+              "Subgroups per SIMD": "4",
+              "Combined inputs": "0",
+              "Combined outputs": "0",
+              "Hash": "3215073164",
+              "Instructions": "1433",
+              "Copies": "96",
+              "Branches": "29",
+              "Latency": "38527",
+              "Inverse Throughput": "29742",
+              "VMEM Clause": "18",
+              "SMEM Clause": "19",
+              "Pre-Sched SGPRs": "25",
+              "Pre-Sched VGPRs": "54",
+              "VALU": "1032",
+              "SALU": "180",
+              "VMEM": "22",
+              "SMEM": "23",
+              "VOPD": "0"
+            },
+            "raw_lines": [
+              "ggml_vulkan: pipeline stats for matmul_nvfp4_f32_aligned_1:",
+              "ggml_vulkan:   Driver pipeline hash: 17676304982663492602",
+              "ggml_vulkan:   SGPRs: 64",
+              "ggml_vulkan:   VGPRs: 64",
+              "ggml_vulkan:   Spilled SGPRs: 0",
+              "ggml_vulkan:   Spilled VGPRs: 0",
+              "ggml_vulkan:   Code size: 7180",
+              "ggml_vulkan:   LDS size: 9728",
+              "ggml_vulkan:   Scratch size: 0",
+              "ggml_vulkan:   Subgroups per SIMD: 4",
+              "ggml_vulkan:   Combined inputs: 0",
+              "ggml_vulkan:   Combined outputs: 0",
+              "ggml_vulkan:   Hash: 3215073164",
+              "ggml_vulkan:   Instructions: 1433",
+              "ggml_vulkan:   Copies: 96",
+              "ggml_vulkan:   Branches: 29",
+              "ggml_vulkan:   Latency: 38527",
+              "ggml_vulkan:   Inverse Throughput: 29742",
+              "ggml_vulkan:   VMEM Clause: 18",
+              "ggml_vulkan:   SMEM Clause: 19",
+              "ggml_vulkan:   Pre-Sched SGPRs: 25",
+              "ggml_vulkan:   Pre-Sched VGPRs: 54",
+              "ggml_vulkan:   VALU: 1032",
+              "ggml_vulkan:   SALU: 180",
+              "ggml_vulkan:   VMEM: 22",
+              "ggml_vulkan:   SMEM: 23",
+              "ggml_vulkan:   VOPD: 0"
+            ]
+          },
+          {
+            "name": "mul_mat_vec_nvfp4_f32_f32",
+            "source_line_start": 30,
+            "fields": {
+              "Driver pipeline hash": "208715726795437951",
+              "SGPRs": "48",
+              "VGPRs": "48",
+              "Spilled SGPRs": "0",
+              "Spilled VGPRs": "0",
+              "Code size": "80688",
+              "LDS size": "1024",
+              "Scratch size": "0",
+              "Subgroups per SIMD": "5",
+              "Combined inputs": "0",
+              "Combined outputs": "0",
+              "Hash": "3978743242",
+              "Instructions": "13862",
+              "Copies": "232",
+              "Branches": "167",
+              "Latency": "332581",
+              "Inverse Throughput": "67300",
+              "VMEM Clause": "523",
+              "SMEM Clause": "80",
+              "Pre-Sched SGPRs": "30",
+              "Pre-Sched VGPRs": "48",
+              "VALU": "7952",
+              "SALU": "559",
+              "VMEM": "1388",
+              "SMEM": "84",
+              "VOPD": "0"
+            },
+            "raw_lines": [
+              "ggml_vulkan: pipeline stats for mul_mat_vec_nvfp4_f32_f32:",
+              "ggml_vulkan:   Driver pipeline hash: 208715726795437951",
+              "ggml_vulkan:   SGPRs: 48",
+              "ggml_vulkan:   VGPRs: 48",
+              "ggml_vulkan:   Spilled SGPRs: 0",
+              "ggml_vulkan:   Spilled VGPRs: 0",
+              "ggml_vulkan:   Code size: 80688",
+              "ggml_vulkan:   LDS size: 1024",
+              "ggml_vulkan:   Scratch size: 0",
+              "ggml_vulkan:   Subgroups per SIMD: 5",
+              "ggml_vulkan:   Combined inputs: 0",
+              "ggml_vulkan:   Combined outputs: 0",
+              "ggml_vulkan:   Hash: 3978743242",
+              "ggml_vulkan:   Instructions: 13862",
+              "ggml_vulkan:   Copies: 232",
+              "ggml_vulkan:   Branches: 167",
+              "ggml_vulkan:   Latency: 332581",
+              "ggml_vulkan:   Inverse Throughput: 67300",
+              "ggml_vulkan:   VMEM Clause: 523",
+              "ggml_vulkan:   SMEM Clause: 80",
+              "ggml_vulkan:   Pre-Sched SGPRs: 30",
+              "ggml_vulkan:   Pre-Sched VGPRs: 48",
+              "ggml_vulkan:   VALU: 7952",
+              "ggml_vulkan:   SALU: 559",
+              "ggml_vulkan:   VMEM: 1388",
+              "ggml_vulkan:   SMEM: 84",
+              "ggml_vulkan:   VOPD: 0"
+            ],
+            "source_line_end": 56
+          }
+        ],
+        "prefill_graphs": [
+          {
+            "graph_index": 0,
+            "header_line_id": 58,
+            "nvfp4_n128_rows": [
+              {
+                "line_id": 70,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": "",
+                "dispatch_count": 19,
+                "mean_us": 164.143,
+                "total_us": 3118.72,
+                "rate_text": "3269.95 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048: 19 x 164.143 us = 3118.72 us (3269.95 GFLOPS/s)"
+              },
+              {
+                "line_id": 71,
+                "m": 1024,
+                "n": 128,
+                "k": 3584,
+                "fused_suffix": "",
+                "dispatch_count": 23,
+                "mean_us": 261.829,
+                "total_us": 6022.08,
+                "rate_text": "3587.8 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=3584: 23 x 261.829 us = 6022.08 us (3587.8 GFLOPS/s)"
+              },
+              {
+                "line_id": 72,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 2,
+                "mean_us": 192.0,
+                "total_us": 384.0,
+                "rate_text": "2794.84 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024: 2 x 192 us = 384 us (2794.84 GFLOPS/s)"
+              },
+              {
+                "line_id": 73,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 45,
+                "mean_us": 245.226,
+                "total_us": 11035.2,
+                "rate_text": "3829.38 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024: 45 x 245.226 us = 11035.2 us (3829.38 GFLOPS/s)"
+              },
+              {
+                "line_id": 74,
+                "m": 4096,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 6,
+                "mean_us": 306.106,
+                "total_us": 1836.64,
+                "rate_text": "3506.02 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=4096 n=128 k=1024: 6 x 306.106 us = 1836.64 us (3506.02 GFLOPS/s)"
+              },
+              {
+                "line_id": 75,
+                "m": 6144,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 11,
+                "mean_us": 417.178,
+                "total_us": 4588.96,
+                "rate_text": "3858.85 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=6144 n=128 k=1024: 11 x 417.178 us = 4588.96 us (3858.85 GFLOPS/s)"
+              }
+            ],
+            "total_us": 58721.0,
+            "total_line_id": 100,
+            "end_line_id": 100
+          },
+          {
+            "graph_index": 1,
+            "header_line_id": 102,
+            "nvfp4_n128_rows": [
+              {
+                "line_id": 114,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": "",
+                "dispatch_count": 19,
+                "mean_us": 147.553,
+                "total_us": 2803.52,
+                "rate_text": "3637.59 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048: 19 x 147.553 us = 2803.52 us (3637.59 GFLOPS/s)"
+              },
+              {
+                "line_id": 115,
+                "m": 1024,
+                "n": 128,
+                "k": 3584,
+                "fused_suffix": "",
+                "dispatch_count": 23,
+                "mean_us": 226.72,
+                "total_us": 5214.56,
+                "rate_text": "4143.41 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=3584: 23 x 226.72 us = 5214.56 us (4143.41 GFLOPS/s)"
+              },
+              {
+                "line_id": 116,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 2,
+                "mean_us": 187.28,
+                "total_us": 374.56,
+                "rate_text": "2865.28 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024: 2 x 187.28 us = 374.56 us (2865.28 GFLOPS/s)"
+              },
+              {
+                "line_id": 117,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 45,
+                "mean_us": 215.217,
+                "total_us": 9684.8,
+                "rate_text": "4363.33 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024: 45 x 215.217 us = 9684.8 us (4363.33 GFLOPS/s)"
+              },
+              {
+                "line_id": 118,
+                "m": 4096,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 6,
+                "mean_us": 268.773,
+                "total_us": 1612.64,
+                "rate_text": "3993.02 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=4096 n=128 k=1024: 6 x 268.773 us = 1612.64 us (3993.02 GFLOPS/s)"
+              },
+              {
+                "line_id": 119,
+                "m": 6144,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 11,
+                "mean_us": 353.949,
+                "total_us": 3893.44,
+                "rate_text": "4548.19 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=6144 n=128 k=1024: 11 x 353.949 us = 3893.44 us (4548.19 GFLOPS/s)"
+              }
+            ],
+            "total_us": 45022.2,
+            "total_line_id": 144,
+            "end_line_id": 144
+          }
+        ]
+      },
+      {
+        "call_index": 4,
+        "mode": "concurrent-profile",
+        "status": "passed",
+        "path": "build-integration/mx-p128-profile-v1/results/04-p128-mx.stderr",
+        "sha256": "cc4b78018ccdd7e69a77b165039b7f8d2eeaab96d23f0cd192ea3da01590b3e7",
+        "pipeline_stats": [],
+        "prefill_graphs": [
+          {
+            "graph_index": 0,
+            "header_line_id": 4,
+            "nvfp4_n128_rows": [
+              {
+                "line_id": 28,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": "",
+                "dispatch_count": 7,
+                "mean_us": 174.765,
+                "total_us": 1223.36,
+                "rate_text": "3071.2 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048: 7 x 174.765 us = 1223.36 us (3071.2 GFLOPS/s)"
+              },
+              {
+                "line_id": 29,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": ", SCALE",
+                "dispatch_count": 12,
+                "mean_us": 167.08,
+                "total_us": 2004.96,
+                "rate_text": "3212.47 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048, SCALE: 12 x 167.08 us = 2004.96 us (3212.47 GFLOPS/s)"
+              },
+              {
+                "line_id": 30,
+                "m": 1024,
+                "n": 128,
+                "k": 3584,
+                "fused_suffix": "",
+                "dispatch_count": 23,
+                "mean_us": 265.043,
+                "total_us": 6096.0,
+                "rate_text": "3544.3 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=3584: 23 x 265.043 us = 6096 us (3544.3 GFLOPS/s)"
+              },
+              {
+                "line_id": 31,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", CPY",
+                "dispatch_count": 1,
+                "mean_us": 197.6,
+                "total_us": 197.6,
+                "rate_text": "2715.63 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024, CPY: 1 x 197.6 us = 197.6 us (2715.63 GFLOPS/s)"
+              },
+              {
+                "line_id": 32,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", CPY, RMS_NORM_MUL RMS_NORM(128,16,128,1)",
+                "dispatch_count": 1,
+                "mean_us": 189.28,
+                "total_us": 189.28,
+                "rate_text": "2835 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024, CPY, RMS_NORM_MUL RMS_NORM(128,16,128,1): 1 x 189.28 us = 189.28 us (2835 GFLOPS/s)"
+              },
+              {
+                "line_id": 33,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT nvfp4 m=3584 n=128 k=1024",
+                "dispatch_count": 9,
+                "mean_us": 461.351,
+                "total_us": 4152.16,
+                "rate_text": "4070.94 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024: 9 x 461.351 us = 4152.16 us (4070.94 GFLOPS/s)"
+              },
+              {
+                "line_id": 34,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT nvfp4 m=3584 n=128 k=1024, CPY",
+                "dispatch_count": 13,
+                "mean_us": 385.156,
+                "total_us": 5007.04,
+                "rate_text": "4876.27 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024, CPY: 13 x 385.156 us = 5007.04 us (4876.27 GFLOPS/s)"
+              },
+              {
+                "line_id": 35,
+                "m": 4096,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT bf16 m=512 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024",
+                "dispatch_count": 6,
+                "mean_us": 511.146,
+                "total_us": 3066.88,
+                "rate_text": "2624.53 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=4096 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024: 6 x 511.146 us = 3066.88 us (2624.53 GFLOPS/s)"
+              },
+              {
+                "line_id": 36,
+                "m": 6144,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 11,
+                "mean_us": 442.036,
+                "total_us": 4862.4,
+                "rate_text": "3641.84 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=6144 n=128 k=1024: 11 x 442.036 us = 4862.4 us (3641.84 GFLOPS/s)"
+              },
+              {
+                "line_id": 37,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 1,
+                "mean_us": 320.16,
+                "total_us": 320.16,
+                "rate_text": "5866.23 GFLOPS/s",
+                "raw": "MUL_MAT q4_K m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024: 1 x 320.16 us = 320.16 us (5866.23 GFLOPS/s)"
+              }
+            ],
+            "total_us": 55383.8,
+            "total_line_id": 61,
+            "end_line_id": 61
+          },
+          {
+            "graph_index": 1,
+            "header_line_id": 63,
+            "nvfp4_n128_rows": [
+              {
+                "line_id": 87,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": "",
+                "dispatch_count": 7,
+                "mean_us": 148.16,
+                "total_us": 1037.12,
+                "rate_text": "3622.7 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048: 7 x 148.16 us = 1037.12 us (3622.7 GFLOPS/s)"
+              },
+              {
+                "line_id": 88,
+                "m": 1024,
+                "n": 128,
+                "k": 2048,
+                "fused_suffix": ", SCALE",
+                "dispatch_count": 12,
+                "mean_us": 152.613,
+                "total_us": 1831.36,
+                "rate_text": "3516.99 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=2048, SCALE: 12 x 152.613 us = 1831.36 us (3516.99 GFLOPS/s)"
+              },
+              {
+                "line_id": 89,
+                "m": 1024,
+                "n": 128,
+                "k": 3584,
+                "fused_suffix": "",
+                "dispatch_count": 23,
+                "mean_us": 226.504,
+                "total_us": 5209.6,
+                "rate_text": "4147.35 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=1024 n=128 k=3584: 23 x 226.504 us = 5209.6 us (4147.35 GFLOPS/s)"
+              },
+              {
+                "line_id": 90,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", CPY",
+                "dispatch_count": 1,
+                "mean_us": 189.92,
+                "total_us": 189.92,
+                "rate_text": "2825.45 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024, CPY: 1 x 189.92 us = 189.92 us (2825.45 GFLOPS/s)"
+              },
+              {
+                "line_id": 91,
+                "m": 2048,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", CPY, RMS_NORM_MUL RMS_NORM(128,16,128,1)",
+                "dispatch_count": 1,
+                "mean_us": 191.36,
+                "total_us": 191.36,
+                "rate_text": "2804.18 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=2048 n=128 k=1024, CPY, RMS_NORM_MUL RMS_NORM(128,16,128,1): 1 x 191.36 us = 191.36 us (2804.18 GFLOPS/s)"
+              },
+              {
+                "line_id": 92,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT nvfp4 m=3584 n=128 k=1024",
+                "dispatch_count": 9,
+                "mean_us": 362.524,
+                "total_us": 3262.72,
+                "rate_text": "5180.7 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024: 9 x 362.524 us = 3262.72 us (5180.7 GFLOPS/s)"
+              },
+              {
+                "line_id": 93,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT nvfp4 m=3584 n=128 k=1024, CPY",
+                "dispatch_count": 13,
+                "mean_us": 359.175,
+                "total_us": 4669.28,
+                "rate_text": "5229.01 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024, CPY: 13 x 359.175 us = 4669.28 us (5229.01 GFLOPS/s)"
+              },
+              {
+                "line_id": 94,
+                "m": 4096,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": ", MUL_MAT bf16 m=512 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024",
+                "dispatch_count": 6,
+                "mean_us": 451.226,
+                "total_us": 2707.36,
+                "rate_text": "2973.06 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=4096 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024, MUL_MAT bf16 m=512 n=128 k=1024: 6 x 451.226 us = 2707.36 us (2973.06 GFLOPS/s)"
+              },
+              {
+                "line_id": 95,
+                "m": 6144,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 11,
+                "mean_us": 354.385,
+                "total_us": 3898.24,
+                "rate_text": "4542.59 GFLOPS/s",
+                "raw": "MUL_MAT nvfp4 m=6144 n=128 k=1024: 11 x 354.385 us = 3898.24 us (4542.59 GFLOPS/s)"
+              },
+              {
+                "line_id": 96,
+                "m": 3584,
+                "n": 128,
+                "k": 1024,
+                "fused_suffix": "",
+                "dispatch_count": 1,
+                "mean_us": 319.84,
+                "total_us": 319.84,
+                "rate_text": "5872.09 GFLOPS/s",
+                "raw": "MUL_MAT q4_K m=3584 n=128 k=1024, MUL_MAT nvfp4 m=3584 n=128 k=1024: 1 x 319.84 us = 319.84 us (5872.09 GFLOPS/s)"
+              }
+            ],
+            "total_us": 41337.9,
+            "total_line_id": 120,
+            "end_line_id": 120
+          }
+        ]
+      }
+    ]
+  },
+  "prior_debug_dispatch": {
+    "scope": "Prior debug capture only; original context assertion failed. No timing or context claim.",
+    "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/mx-comparison/main730-performance-v2/mx-debug-p128.stderr",
+    "bytes": 278929923,
+    "dispatch_record_count": 212,
+    "mapped_shape_split_groups": [
+      {
+        "m": 3584,
+        "n": 128,
+        "k": 1024,
+        "split_k": 1,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          29297,
+          30578,
+          30588,
+          30794,
+          30804,
+          33114,
+          33124,
+          33339,
+          33349,
+          33562,
+          33572,
+          33785,
+          33795,
+          33963,
+          33973,
+          34187,
+          34197,
+          34418,
+          34428,
+          34636,
+          34646,
+          34814,
+          34824,
+          35045,
+          35055,
+          35269,
+          35279,
+          35486,
+          35496,
+          35669,
+          35679,
+          35893,
+          35903,
+          36118,
+          36128,
+          36336,
+          36346,
+          36520,
+          36530,
+          36741,
+          36751,
+          36961,
+          36971,
+          37194,
+          39452,
+          39462,
+          39680,
+          39690,
+          39896,
+          39906,
+          40074,
+          40084,
+          40304,
+          40314,
+          40527,
+          40537,
+          40744,
+          40759,
+          40927,
+          40937,
+          41151,
+          41161,
+          41376,
+          41386,
+          41599,
+          41609,
+          41777,
+          41787,
+          42002,
+          42012,
+          42231,
+          42241,
+          42448,
+          42458,
+          42625,
+          42635,
+          42854,
+          42864,
+          43079,
+          43089,
+          43291,
+          43301,
+          43474,
+          43484,
+          43695,
+          43705,
+          43915,
+          43925,
+          44147
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              56,
+              2,
+              1
+            ],
+            "count": 89
+          }
+        ]
+      },
+      {
+        "m": 1024,
+        "n": 128,
+        "k": 3584,
+        "split_k": 3,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          30035,
+          30614,
+          30836,
+          33150,
+          33375,
+          33598,
+          33821,
+          33999,
+          34223,
+          34454,
+          34672,
+          34850,
+          35081,
+          35305,
+          35522,
+          35705,
+          35929,
+          36154,
+          36378,
+          36556,
+          36777,
+          36997,
+          37216,
+          39488,
+          39716,
+          39932,
+          40115,
+          40340,
+          40563,
+          40785,
+          40963,
+          41187,
+          41417,
+          41635,
+          41813,
+          42038,
+          42267,
+          42484,
+          42661,
+          42890,
+          43115,
+          43332,
+          43510,
+          43731,
+          43951,
+          44169
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              48,
+              2,
+              1
+            ],
+            "count": 46
+          }
+        ]
+      },
+      {
+        "m": 6144,
+        "n": 128,
+        "k": 1024,
+        "split_k": 1,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          30063,
+          30642,
+          33178,
+          33403,
+          33632,
+          34027,
+          34251,
+          34482,
+          34878,
+          35109,
+          35333,
+          39516,
+          39744,
+          40143,
+          40368,
+          40591,
+          40991,
+          41215,
+          41445,
+          41841,
+          42071,
+          42295
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              96,
+              2,
+              1
+            ],
+            "count": 22
+          }
+        ]
+      },
+      {
+        "m": 1024,
+        "n": 128,
+        "k": 2048,
+        "split_k": 3,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          30766,
+          33078,
+          33303,
+          33757,
+          33927,
+          34151,
+          34608,
+          34778,
+          35009,
+          35233,
+          35458,
+          35857,
+          36082,
+          36308,
+          36484,
+          36705,
+          36925,
+          37152,
+          37326,
+          39868,
+          40038,
+          40268,
+          40716,
+          40891,
+          41115,
+          41571,
+          41741,
+          41966,
+          42195,
+          42420,
+          42818,
+          43043,
+          43263,
+          43438,
+          43659,
+          43879,
+          44105,
+          44279
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              48,
+              2,
+              1
+            ],
+            "count": 38
+          }
+        ]
+      },
+      {
+        "m": 4096,
+        "n": 128,
+        "k": 1024,
+        "split_k": 1,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          30864,
+          33849,
+          34700,
+          35556,
+          36406,
+          37244,
+          39960,
+          40813,
+          41663,
+          42512,
+          43360,
+          44197
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              64,
+              2,
+              1
+            ],
+            "count": 12
+          }
+        ]
+      },
+      {
+        "m": 2048,
+        "n": 128,
+        "k": 1024,
+        "split_k": 1,
+        "pipeline": "matmul_nvfp4_f32_aligned_1",
+        "raw_records_location": "hashed mx debug stderr at these original line IDs",
+        "dispatch_line_ids": [
+          34353,
+          34578,
+          41311,
+          41541
+        ],
+        "dispatch_grid_counts": [
+          {
+            "grid": [
+              32,
+              2,
+              1
+            ],
+            "count": 4
+          }
+        ]
+      }
+    ],
+    "first_unmapped_dispatch": {
+      "line_id": 29287,
+      "dispatch": "ggml_vk_dispatch_pipeline(matmul_nvfp4_f32_aligned_1, {(0x59c17a365360, 276771456, 2064384), (0x59c175ca8fc0, 73728, 524288), (0x59c175ca8fc0, 276846596, 508559360), }, (56,2,1))",
+      "preceding": [
+        "ggml_vk_matmul_int_shmem_support(warptile=(128,128,128), mul_mat_id=0, src0_type=q2_0, total=36864, supported=1",
+        "ggml_vk_matmul_int_shmem_support(warptile=(64,32,32), mul_mat_id=1, src0_type=q2_0, total=2448, supported=1",
+        "ggml_vk_matmul_int_shmem_support(warptile=(256,64,64), mul_mat_id=1, src0_type=q2_0, total=5120, supported=1",
+        "ggml_vk_matmul_int_shmem_support(warptile=(128,128,128), mul_mat_id=1, src0_type=q2_0, total=9760, supported=1",
+        "ggml_vk_create_pipeline(Vulkan0, matmul_nvfp4_f32_aligned_1, main, 3, (64,64,1), specialization_constants, 0, 0, 0)"
+      ],
+      "mapping": null,
+      "reason": "No preceding ggml_vk_matmul record in this retained context; pipeline-create identifies a pipeline but not the matrix shape."
+    },
+    "context_assertion_failure": {
+      "status": "failed",
+      "detail": "The captured debug run did not pass its post-run context assertion. The retained dispatch log establishes neither a validated context value nor a successful timing run."
+    },
+    "source_log_sha256": "6bc5773b9b9207c453eb2c75bf8e3994c1443bbc946921ab422913e5e2f074ae",
+    "raw_record_lookup": "Dispatch and preceding context lines are in the hashed raw stderr at the original line IDs. The full first unmapped record is retained below.",
+    "mx_source_revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "debug_build": {
+      "receipt": "docs/benchmarks/nvfp4-mx-dispatch-build-20261026.json",
+      "receipt_sha256": "70b282bb82097684c0e052677a85beba71f0375608a92c4d5c66edff078d6040",
+      "debug_vulkan_library_sha256": "28f26c37938f91704ff1831050bc0ffd01a3181ebc8f6afb8ce4d2d6817905ff",
+      "reference_build": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/mx-context-warmup-build/build",
+      "reference_benchmark_binary_sha256": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+      "reference_timed_vulkan_library_sha256": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+      "context_warmup": "same pinned MX context/warmup plan; debug capture itself failed its post-run context assertion",
+      "requested_context": 262144,
+      "decode_warmup_tokens": 256,
+      "context_validation": "The prior capture failed its post-run assertion; these are pinned request settings, not a validated actual context."
+    }
+  },
+  "unprofiled_controls": {
+    "candidate": {
+      "before": {
+        "pp": 2896.94,
+        "tg": 253.12
+      },
+      "after": {
+        "pp": 2890.62,
+        "tg": 255.15
+      }
+    },
+    "mx": {
+      "before": {
+        "pp": 2698.868383,
+        "tg": 137.143405
+      },
+      "after": {
+        "pp": 3046.830861,
+        "tg": 137.546139
+      }
+    },
+    "percent_drift": {
+      "candidate": {
+        "pp": -0.2181612321967341,
+        "tg": 0.8019911504424826
+      },
+      "mx": {
+        "pp": 12.892902825191221,
+        "tg": 0.2936590352266677
+      }
+    }
+  },
+  "activity": {
+    "helper": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-main7ac-20261026\\build-integration\\mx-comparison-v4\\performance_summary.py",
+    "helper_sha256": "aaf8ff34e4110e7c541e2eb26c3c14b11a62d94ae73a3567e2f9823a14cf6a0a",
+    "samples": 83,
+    "intervals": 82,
+    "thresholds": {
+      "other_gpu_percent": 0,
+      "unrelated_cpu_cores": 1,
+      "disk_bytes_per_second": 104857600,
+      "sample_gap_seconds": 3
+    },
+    "per_call": [
+      {
+        "index": 0,
+        "arm": "candidate",
+        "mode": "before",
+        "intervals": 2,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 2,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "missed_process_intervals": 2,
+        "coverage_complete": true
+      },
+      {
+        "index": 1,
+        "arm": "mx",
+        "mode": "before",
+        "intervals": 20,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 20,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 20,
+        "missed_process_intervals": 5,
+        "coverage_complete": true
+      },
+      {
+        "index": 2,
+        "arm": "candidate",
+        "mode": "profile",
+        "intervals": 3,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 3,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 0,
+        "coverage_complete": true
+      },
+      {
+        "index": 3,
+        "arm": "mx",
+        "mode": "serial-profile",
+        "intervals": 20,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 20,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 19,
+        "missed_process_intervals": 2,
+        "coverage_complete": true
+      },
+      {
+        "index": 4,
+        "arm": "mx",
+        "mode": "concurrent-profile",
+        "intervals": 19,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 19,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 19,
+        "missed_process_intervals": 0,
+        "coverage_complete": true
+      },
+      {
+        "index": 5,
+        "arm": "mx",
+        "mode": "after",
+        "intervals": 19,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 19,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 19,
+        "missed_process_intervals": 4,
+        "coverage_complete": true
+      },
+      {
+        "index": 6,
+        "arm": "candidate",
+        "mode": "after",
+        "intervals": 2,
+        "flags_true": {
+          "other_gpu": 0,
+          "unrelated_cpu": 2,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "missed_process_intervals": 1,
+        "coverage_complete": true
+      }
+    ],
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "limitations": [
+    "Serial and concurrent mx logger modes have different synchronization and grouping. They are separate diagnostics, not matched timing arms.",
+    "The mx log's two P128 NVFP4 graph blocks are retained in sequence; logs do not explicitly label them warmup versus measured.",
+    "llmx --profile reports its own aggregate prefill dispatch timing. Its instrumentation and aggregation differ from mx Vulkan timestamps.",
+    "The unprofiled MX control PP rate moved from 2698.868383 to 3046.830861 tok/s (+12.89%) during this short diagnostic. Candidate moved 2896.94 to 2890.62 (-0.22%). These controls show substantial drift, not a basis to subtract profiled totals or claim a cause.",
+    "Profile modes use different synchronization and aggregation; do not subtract profiled totals or use them to explain unprofiled throughput.",
+    "The debug dispatch capture belongs to pinned MX revision c4d12e2c and a separate debug Vulkan library; it is distinct from the llmx profile runtime 0bc6f22cb. It is a P128 witness only and has no accepted context assertion.",
+    "Prior debug dispatch line IDs refer to the retained raw stderr hash. The receipt summarizes them as shape/split groups and grid-counts without copying the long descriptor lines."
+  ],
+  "decision": "Performance acceptance remains HELD. The next profiling experiment is pending. No causal conclusion is established."
+}

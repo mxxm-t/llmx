@@ -1,0 +1,167 @@
+{
+  "schema": "nvfp4-flash-isolated-control-build-receipt-v1",
+  "date": "2026-10-27",
+  "scope": {
+    "purpose": "Diagnostic build control reversing only the two shared float split policy headers, to support interpretation of the separately running Flash capture.",
+    "qualification": false,
+    "capture_status": "Build-only record; completed capture is recorded in nvfp4-flash-isolated-control-capture-20261027.json.",
+    "source_of_truth": "build-integration/control-build-only-v2-result.json",
+    "source_receipt_sha256": "d2e138833eb0dac26954948079b240bc0e92e724422e56ad6628d097faedb2cb"
+  },
+  "source": {
+    "frozen_prior_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/lookup-row-dispatch-linux-v2",
+    "prior_build_result_sha256": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3",
+    "before_source_manifest_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea",
+    "after_source_manifest_sha256": "4e0396314b1867cb18dc2b5e0d49db39979923a4af93b95d66bbc19997b31cd8",
+    "source_file_count": 3088,
+    "changed_paths": [
+      "src/backends/device_profile.hpp",
+      "src/backends/vulkan/vulkan_matmul.hpp"
+    ],
+    "patches": [
+      {
+        "path": "src/backends/device_profile.hpp",
+        "replacement": "source/src/backends/device_profile.hpp",
+        "before_sha256": "1a6095d9bafedf2d7cfa97ba0e37db396d051276afd297a342bc74d08c087fed",
+        "after_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3"
+      },
+      {
+        "path": "src/backends/vulkan/vulkan_matmul.hpp",
+        "replacement": "source/src/backends/vulkan/vulkan_matmul.hpp",
+        "before_sha256": "b34124e051068c3c74686631becc56b83e9b8031fbaaba78386753b488224166",
+        "after_sha256": "bceb37fb4294800460c02a1d4d1eb78ea5c5a210b5adef9a7a11506b3e3d89a3"
+      }
+    ],
+    "pin_correction_history": {
+      "initial_pin_failure": {
+        "src/backends/device_profile.hpp": {
+          "actual": "1a6095d9bafedf2d7cfa97ba0e37db396d051276afd297a342bc74d08c087fed",
+          "expected": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888"
+        },
+        "src/backends/vulkan/vulkan_matmul.hpp": {
+          "actual": "b34124e051068c3c74686631becc56b83e9b8031fbaaba78386753b488224166",
+          "expected": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4"
+        }
+      },
+      "diagnosis": "Planned before hashes used Git LF blobs; frozen source manifest correctly pins CRLF files. No frozen source mutation.",
+      "text_identical_after_crlf_normalization": true,
+      "corrected_before_sha256": {
+        "src/backends/device_profile.hpp": "1a6095d9bafedf2d7cfa97ba0e37db396d051276afd297a342bc74d08c087fed",
+        "src/backends/vulkan/vulkan_matmul.hpp": "b34124e051068c3c74686631becc56b83e9b8031fbaaba78386753b488224166"
+      },
+      "no_frozen_source_mutation": true,
+      "normalization_evidence": [
+        {
+          "path": "src/backends/device_profile.hpp",
+          "git_blob_sha256": "0ff1aa1960048c7507b29b5189e4a5eb5680d7d78836b44cca2b3ba8992ba888",
+          "frozen_crlf_sha256": "1a6095d9bafedf2d7cfa97ba0e37db396d051276afd297a342bc74d08c087fed",
+          "text_identical_after_crlf_normalization": true
+        },
+        {
+          "path": "src/backends/vulkan/vulkan_matmul.hpp",
+          "git_blob_sha256": "5a61b2ddd84d025f57881ac0371ff244fb511eaef88eea95a3528780a0874eb4",
+          "frozen_crlf_sha256": "b34124e051068c3c74686631becc56b83e9b8031fbaaba78386753b488224166",
+          "text_identical_after_crlf_normalization": true
+        }
+      ]
+    }
+  },
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "command": [
+      "cmake",
+      "--build",
+      "/work/candidate/build",
+      "--config",
+      "Release",
+      "--parallel",
+      "1",
+      "--target",
+      "llmx",
+      "llmx-model-logits"
+    ],
+    "cpuset": "8",
+    "limits": {
+      "workers": 1,
+      "cpus": 1,
+      "memory": "8g",
+      "memory_swap": "8g",
+      "container_timeout_seconds": 1680,
+      "plan_max_seconds": 900,
+      "network": false,
+      "gpu": false,
+      "tests": false,
+      "configure": false,
+      "main_rebuilt": false
+    },
+    "binaries": {
+      "llmx": {
+        "path": "candidate/build/llmx",
+        "sha256": "58840832e00efea5970fce6c1b9b2581c89fe8136ee9e58cce80b14a0fd7b678",
+        "bytes": 13152200
+      },
+      "llmx-model-logits": {
+        "path": "candidate/build/llmx-model-logits",
+        "sha256": "6ee1510782b1a3e97ed4c05d2499768b696dd0594204042ba5e503d4c49a7b66",
+        "bytes": 11253552
+      }
+    },
+    "version": "llmx 0.1.0+unknown numerics 339e10857218f3d2",
+    "build_identity": {
+      "numerics_prior": "475be0c2b02b932531f4835bc8bb5f0a37549876d9e910edabea044468673c48",
+      "numerics_control": "339e10857218f3d2b2264139202d46cd5c63ece03f78c6810707bbf7fb09d71b",
+      "other_build_identity_unchanged": true,
+      "identity_sha256": {
+        "generated/llmx-build-info.hpp": "dadb7c71d855f3ea22ee705ac365576dc5f43fe6b14f926adeb808ec710fc81a",
+        "generated/config.hpp": "cffa6da5cbbeb9d258e8ed6d4505d16a512511ae681cc798d3afb30dea978749",
+        "CMakeCache.txt": "288943a8cf21c381ce342660999637916430a997eb350c3148215b4c409112f8",
+        "libllmx-vulkan.a": "520bb2e00d7335e78414a34ad73972cce881ee98a9c3cb3cef1b907811bd5764"
+      }
+    },
+    "generated_modules": {
+      "count": 313,
+      "all_byte_identical": true,
+      "changed": [],
+      "module_map_sha256_canonical_json": "e9ede62c171a695c03171e0f932a92d148c60329ade530833fac4790938f609c",
+      "nvfp4_modules": {
+        "matmul_row_nvfp4.inc": "0951473654a47cf25fb3b60bea28416b57f61ded558f0eb625eadf30fa27097b",
+        "matmul_row_nvfp4_preserve.inc": "c99918df23ce24a38810f704c8ff9816983ff7e71818701b1470871c58951574",
+        "matmul_tile_nvfp4.inc": "5a57581e60c0718bb5ea338387e2902bf351ee34050c677c60e57005fc79b961",
+        "matmul_tile_nvfp4_bf16.inc": "0efd3eb195e027270e1930cd0eef2978ce94cbf876b2cc0077a8375a17c37fec",
+        "matmul_tile_nvfp4_bf16_preserve.inc": "587d04b50d952c1fdce4e7bd22c7555db983b1c420ef5db179f6f8073587ccce",
+        "matmul_tile_nvfp4_f16.inc": "db159847fbc8c5d8b4b9f525b8518c21fc40e229c8b113c7c7a86802370d455a",
+        "matmul_tile_nvfp4_preserve.inc": "388b32e46a74fb088f784aa9255bda72f05ef5852754543ec8bdda2e91252dcd"
+      },
+      "complete_313_module_map_in": "control-build-only-v2-result.json records.build.generated_module_sha256"
+    },
+    "executed_plan": {
+      "reference": "control-build-only-v2-executed-plan.json",
+      "sha256": "5af55379b9735a582be42c889a489d1d1c1cc0d201b7b59b7c28c239a9dc5c54",
+      "max_seconds": 900,
+      "cpuset": "8"
+    }
+  },
+  "receipts": {
+    "state_sha256": "19560c819763593de6cbb81cb38e406f7bda9b8f2748044fc17503f2aa58fe38",
+    "build_result_sha256": "abb188996d25705cd9c46a7f8699929cd6d17cd905d77886f056abca7c482483",
+    "launch_result_sha256": "95c79be8e0c2483057023a229e7b6d785c8c63057abc37c8ffebe5248ba65ab0",
+    "launch_links_build_result_sha256": "abb188996d25705cd9c46a7f8699929cd6d17cd905d77886f056abca7c482483",
+    "passed": {
+      "state": true,
+      "build": true,
+      "launch": true
+    },
+    "docker_exit_code": 0,
+    "owned_container_cleanup_verified": true,
+    "owned_container_ids_after": [],
+    "original_plan_restored": true,
+    "log_sha256": {
+      "build.stderr.log": "4e29379ca74c333047e7710ed49364cd437990bc10dd7fb900b137ff9424a416",
+      "version.stdout.log": "8db87a13d1f143537efb89cc49cb55bad00edcf6175517b2577b70dd63596da0",
+      "build.stdout.log": "f92d8e1ea9965cecd2e9790c9a25378498a2d396820b0be24d1f9dc2999a7456",
+      "version.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "docker.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "docker.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

@@ -6,7 +6,7 @@ The one interface the runtime calls for image input ([VISION](../VISION.md), sec
 A member a later module needs comes with that module.
 
 `VisionEncoder` is the runner.
-It plans the module over an mmproj's tensors, refuses a backend without one of the plan's ops by name, checks each role with the runtime's `role_fits` (a convolution's kernel stored `[kw, kh, c, out]` read as the matrix `[kw * kh * c, out]`), adopts the weights and fills the tables.
+The GGUF registry rejects an mmproj with an associated NVFP4 `.scale` companion before constructing this encoder, because the encoder does not consume scaled weights. It plans the module over an mmproj's tensors, refuses a backend without one of the plan's ops by name, checks each role with the runtime's `role_fits` (a convolution's kernel stored `[kw, kh, c, out]` read as the matrix `[kw * kh * c, out]`), adopts the weights and fills the tables.
 `begin(prepared)` writes an image's patches into the arena's input slot, computes its inputs and its non-causal `KVView` over the image's rows, and returns its pieces; `piece(i)` runs them in order, refusing one out of order, and `rows()` returns the image's rows to the host after the last; `encode(prepared)` is the three in a row.
 One image encodes at a time, so an image's rows never depend on another image, and a `begin` abandons an encode not finished.
 Its arena and its one layer of K and V grow to the largest image encoded and never shrink; the K and V are scratch of one encode, F32 always, outside the model's cache types.

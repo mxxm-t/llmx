@@ -1,0 +1,84 @@
+{
+  "scope": "First development checkpoint; no HF/performance/merge qualification",
+  "base": "55a115a0515a53c485b8a30795e16ac9d0ac42b6",
+  "format": {
+    "id": 40,
+    "values": 64,
+    "bytes": 36
+  },
+  "passed": [
+    "Exhaustive CPU scale/code/position and one-hot/embedding checks",
+    "CLI and independent raw decoding: 262144 values, 4096 blocks",
+    "Radeon VII: 262144 exhaustive embedding values, signed zeros and high-bit scales; row/tile timestamp witnesses",
+    "Six GPU matrix entry points, mixed NV/F32 group and routed weighted residual: width192, columns1/65, three experts/two selected; independent exact one-hot oracle. MXFP4 CPU/GPU regression passed."
+  ],
+  "unverified": [
+    "Narrowed candidate HF",
+    "Global weight-scale metadata/model support and independent scaled fixtures",
+    "Released model/split/depth/performance/landing"
+  ],
+  "reference_failure": {
+    "seed": 12345,
+    "routing_gap": 1.97e-05,
+    "minimum": 0.0001,
+    "candidate_compared": false
+  },
+  "released_file_caveat": "Modern 0.8B Qwen3.5 current 36-byte blocks exist, but nonidentity F32 global scale sidecars must multiply dense/expert weights exactly once. Current synthetic fixtures are unscaled; generic owner and independent scaled fixtures required.",
+  "logs_sha256": {
+    "build-nvfp4-cpu/nvfp4-cli-roundtrip-unsandboxed.log": "1f30e87f0445157fceb78e3c717a945f0f26ebc196ad38ebca256d1804dbbe1e",
+    "build-nvfp4-reference/goldens.log": "a83fab2f1fc356042a311e08e4e7afcecbbe3adc78b72283f30c48f6026ad4a5",
+    "build-nvfp4-vulkan/nvfp4-gpu-projections.log": "caa7d28b57d54b5199a29e9fcfc37f0b53f0b8711b82d7c83fe79c88aef418ea",
+    "build-nvfp4-vulkan/nvfp4-focused-test.log": "a2c533021dfa9fa765c4772a7994babbbecb9341cb075e0167627377c13b300c",
+    "build-nvfp4-vulkan/nvfp4-mx-regression.log": "35e8e2620673fbc173df836a520f69e8d8c277b299f102907e5bf3f5fe834bb8",
+    "build-nvfp4-cpu/nvfp4-hf-f32.log": "cf4f94e432945eadc6f13ed9a3375a88578aece87257a89c312617f2db98dad1",
+    "build-nvfp4-vulkan/nvfp4-hf-f32.log": "5569c29040b27c1b12de4fe76bdff25fd47296f6c86876bf704413c6536631a5",
+    "build-nvfp4-reference-seed12346/audit.json": "0be5eaa55c36ee61e7468ba493fd0d74abe3dd17e7ea4a0acace75c242a53365",
+    "build-nvfp4-research/provenance.md": "020f55f8c22a4aa4e17957bb63bff9a434d232c781aa1b53f4eb3e7ba1926534",
+    "build-nvfp4-vulkan/nvfp4-hf-bf16.log": "1ca3ed779a2233b456419710ecbebb11b9d1578056c9ae34c03540dca43ccb56"
+  },
+  "markdown_review": {
+    "tracked_inventory": 134,
+    "changed_tracked": [
+      "docs/STATUS.md",
+      "docs/src/quant-mxfp4.md",
+      "docs/src/quant-types.md"
+    ],
+    "new_owner": "docs/src/quant-nvfp4.md",
+    "carry": "Unchanged tracked Markdown matches HEAD and carries prior TQ review; current NVFP4 claims checked against diff/logs. README supported labels unchanged.",
+    "followup_finding": "docs/CI.md TQ paragraph still says Vulkan split/released/MI50 qualification pending despite completed TQ landing. Deliberately unchanged here; root will correct on separate documentation branch. Unchanged-page carry is not a claim of perfect semantic freshness."
+  },
+  "stable_reference": {
+    "seed": 12346,
+    "routing_margin": 0.000899821240474268,
+    "minimum": 0.0001,
+    "ordinary_split_goldens": "complete",
+    "calibration": "complete:60 runs;30 accepted each f16/bf16",
+    "candidate_hf_compared": true
+  },
+  "f32_unscaled_synthetic_hf": {
+    "cases_per_backend": {
+      "full_logits": 150,
+      "nll": 12
+    },
+    "cpu_max": {
+      "logit": 1.8e-06,
+      "nll": 1.3e-07
+    },
+    "vulkan_max": {
+      "logit": 1.27e-06,
+      "nll": 6e-08
+    }
+  },
+  "frozen_new_family_budget_sha256": "deb663a2c42340d5f98f308c0ffde361dac00d4bfe630858086d0d1627ae629f",
+  "prior_budgets": "unchanged",
+  "vulkan_bf16_unscaled_synthetic_hf": {
+    "full_logits": 150,
+    "nll": 12,
+    "max_logit": 0.00811158,
+    "logit_bound": 0.0439532995223999,
+    "max_nll": 0.00038393,
+    "nll_bound": 0.004616805201523633,
+    "passed": true,
+    "scale_sidecars_present": false
+  }
+}

@@ -181,7 +181,7 @@ class FileWeights:
         self.moe = self.gguf.value("general.architecture") == "qwen3moe"
         if self.moe:
             from f32 import hf_name
-            self.outside = {hf_name(t.name): t.name for t in self.gguf.tensors if not t.name.startswith("blk.")}
+            self.outside = {hf_name(t.name): t.name for t in self.gguf.weight_tensors() if not t.name.startswith("blk.")}
         else:
             outside = generator.qwen35_names()[0]
             self.outside = {hf: gguf for gguf, (hf, _) in outside.items()}

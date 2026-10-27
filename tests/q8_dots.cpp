@@ -196,15 +196,15 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
     for (size_t c = 0; c < cols; ++c) {
         const auto xc = cpu.adopt(x.data() + c * nin, nin * sizeof(float));
         const auto yc = cpu.adopt(alone.data() + c * rows, rows * sizeof(float));
-        cpu.matmul(type, {wb.get(), 0}, {xc.get(), 0}, {yc.get(), 0}, nin, rows, 1);
+        cpu.matmul({type, {wb.get(), 0}}, {xc.get(), 0}, {yc.get(), 0}, nin, rows, 1);
     }
     // Three generated tokens in one call, as a server's decode pass has them.
     const backend::RowRun decode[3] = {{1, 1}, {2, 1}, {3, 1}};
     const auto yt = cpu.adopt(together.data(), together.size() * sizeof(float));
-    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, {decode, 3});
+    cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, {decode, 3});
     require(std::memcmp(alone.data(), together.data(), alone.size() * sizeof(float)) == 0, "a decode row differs beside others");
     const auto yg = cpu.adopt(grouped.data(), grouped.size() * sizeof(float));
-    cpu.matmul_group({{type, {wb.get(), 0}, {yg.get(), 0}, rows}, {type, {wb.get(), 0}, {yg.get(), rows * cols}, rows}},
+    cpu.matmul_group({{{type, {wb.get(), 0}}, {yg.get(), 0}, rows}, {{type, {wb.get(), 0}}, {yg.get(), rows * cols}, rows}},
                      {xb.get(), 0}, nin, cols, {decode, 3});
     for (size_t c = 0; c < cols; ++c)
         for (size_t o = 0; o < rows; ++o)
@@ -215,8 +215,8 @@ size_t check_type(uint32_t type, size_t nin, std::mt19937& rng) {
     std::vector<float> prompt(rows * cols), mixed(rows * cols);
     const backend::RowRun as_prompt[1] = {{cols, 512}}, beside[2] = {{1, 1}, {cols, 512}};
     const auto yp = cpu.adopt(prompt.data(), prompt.size() * sizeof(float)), ym = cpu.adopt(mixed.data(), mixed.size() * sizeof(float));
-    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {yp.get(), 0}, nin, rows, cols, {as_prompt, 1});
-    cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {ym.get(), 0}, nin, rows, cols, {beside, 2});
+    cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yp.get(), 0}, nin, rows, cols, {as_prompt, 1});
+    cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {ym.get(), 0}, nin, rows, cols, {beside, 2});
     require(std::memcmp(mixed.data(), alone.data(), rows * sizeof(float)) == 0, "a decode row differs beside a prompt");
     require(std::memcmp(mixed.data() + rows, prompt.data() + rows, (cols - 1) * rows * sizeof(float)) == 0,
             "a prompt's rows differ beside a generated token");
@@ -275,24 +275,24 @@ size_t check_prompt_tiles(std::mt19937& rng) {
             const backend::RowRun one{1, 512};
             for (size_t c = 0; c < cols; ++c) {
                 const auto xc = cpu.adopt(x + c * nin, nin * sizeof(float)), yc = cpu.adopt(expected.data() + c * rows, rows * sizeof(float));
-                cpu.matmul(type, {wb.get(), 0}, {xc.get(), 0}, {yc.get(), 0}, nin, rows, 1, {&one, 1});
+                cpu.matmul({type, {wb.get(), 0}}, {xc.get(), 0}, {yc.get(), 0}, nin, rows, 1, {&one, 1});
             }
             for (float v : expected) require(std::isfinite(v), "prompt tile reference is nonfinite");
             const auto first = cpu.adopt(x, nin * sizeof(float)), yd = cpu.adopt(decoded.data(), rows * sizeof(float));
-            cpu.matmul(type, {wb.get(), 0}, {first.get(), 0}, {yd.get(), 0}, nin, rows, 1);
+            cpu.matmul({type, {wb.get(), 0}}, {first.get(), 0}, {yd.get(), 0}, nin, rows, 1);
             const backend::RowRun prompt{cols, 512}, runs[2] = {{1, 1}, {cols, 512}};
             const auto yb = cpu.adopt(got.data(), got.size() * sizeof(float)), ym = cpu.adopt(mixed.data(), mixed.size() * sizeof(float)), yg = cpu.adopt(grouped.data(), grouped.size() * sizeof(float));
             for (int threads : {1, 3, 6}) {
                 cpu.set_threads(threads);
                 const std::string label = "prompt tile type " + std::to_string(type) + " width " + std::to_string(nin) + " rows " + std::to_string(rows) + " cols " + std::to_string(cols) + " threads " + std::to_string(threads);
-                cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, cols, {&prompt, 1});
+                cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, cols, {&prompt, 1});
                 require(got.front() == guard && got.back() == guard, label + ": output guard changed");
                 require(std::memcmp(got.data() + 1, expected.data(), count * sizeof(float)) == 0, label + ": prompt differs from its rows alone");
-                cpu.matmul(type, {wb.get(), 0}, {xb.get(), 0}, {ym.get(), 1}, nin, rows, cols, {runs, 2});
+                cpu.matmul({type, {wb.get(), 0}}, {xb.get(), 0}, {ym.get(), 1}, nin, rows, cols, {runs, 2});
                 require(mixed.front() == guard && mixed.back() == guard, label + ": mixed output guard changed");
                 require(std::memcmp(mixed.data() + 1, decoded.data(), rows * sizeof(float)) == 0, label + ": generated row differs beside prompt");
                 require(std::memcmp(mixed.data() + 1 + rows, expected.data() + rows, (count - rows) * sizeof(float)) == 0, label + ": prompt changes beside generated row");
-                cpu.matmul_group({{type, {wb.get(), 0}, {yg.get(), 1}, rows}, {type, {wb.get(), 0}, {yg.get(), 1 + count}, rows}},
+                cpu.matmul_group({{{type, {wb.get(), 0}}, {yg.get(), 1}, rows}, {{type, {wb.get(), 0}}, {yg.get(), 1 + count}, rows}},
                                  {xb.get(), 0}, nin, cols, {&prompt, 1});
                 require(grouped.front() == guard && grouped.back() == guard, label + ": grouped output guard changed");
                 require(std::memcmp(grouped.data() + 1, expected.data(), count * sizeof(float)) == 0 &&
@@ -300,7 +300,7 @@ size_t check_prompt_tiles(std::mt19937& rng) {
                 for (size_t i = 0; i < count; ++i) got[i + 1] = float(int(i % 17) - 8) / 8.0f;
                 std::vector<float> added(count);
                 for (size_t i = 0; i < count; ++i) added[i] = got[i + 1] + expected[i];
-                cpu.matmul_add(type, {wb.get(), 0}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, cols, {&prompt, 1});
+                cpu.matmul_add({type, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 1}, nin, rows, cols, {&prompt, 1});
                 require(got.front() == guard && got.back() == guard, label + ": residual output guard changed");
                 require(std::memcmp(got.data() + 1, added.data(), count * sizeof(float)) == 0, label + ": residual output differs");
                 checked += count * 5;
@@ -334,25 +334,25 @@ size_t check_experts(uint32_t type, std::mt19937& rng) {
     const backend::RowRuns runs{decode, 6};
     std::vector<float> up(entries * nout), down(rows * nout, 0.0f);
     const auto ub = cpu.adopt(up.data(), up.size() * sizeof(float));
-    cpu.matmul_experts({{type, {wb.get(), 0}, {ub.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
+    cpu.matmul_experts({{{type, {wb.get(), 0}}, {ub.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, runs);
     for (size_t e = 0; e < entries; ++e) {
         uint32_t id;
         std::memcpy(&id, &ids[e], sizeof(id));
         std::vector<float> y(nout), yd(nout);
         const auto xe = cpu.adopt(x.data() + (e / k) * nin, nin * sizeof(float)), ye = cpu.adopt(y.data(), nout * sizeof(float));
-        cpu.matmul(type, {wb.get(), id * stride / sizeof(float)}, {xe.get(), 0}, {ye.get(), 0}, nin, nout, 1);
+        cpu.matmul({type, {wb.get(), id * stride / sizeof(float)}}, {xe.get(), 0}, {ye.get(), 0}, nin, nout, 1);
         require(std::memcmp(y.data(), up.data() + e * nout, nout * sizeof(float)) == 0,
                 "type " + std::to_string(type) + ": a routed entry differs from its expert's matmul");
         const auto xd = cpu.adopt(x2.data() + e * nin, nin * sizeof(float)), yb = cpu.adopt(yd.data(), nout * sizeof(float));
-        cpu.matmul(type, {wb.get(), id * stride / sizeof(float)}, {xd.get(), 0}, {yb.get(), 0}, nin, nout, 1);
+        cpu.matmul({type, {wb.get(), id * stride / sizeof(float)}}, {xd.get(), 0}, {yb.get(), 0}, nin, nout, 1);
         for (size_t o = 0; o < nout; ++o) down[(e / k) * nout + o] += 0.5f * yd[o];
     }
     // The same rows as a prompt, whose entries go through their expert's rows several at a time: each prompt row computes the same beside generated tokens as in a call of its own, and each generated token as alone.
     const backend::RowRun prompt[1] = {{rows, 512}}, mixed[3] = {{2, 1}, {5, 512}, {6, 1}};
     std::vector<float> ups(entries * nout), upm(entries * nout);
     const auto usb = cpu.adopt(ups.data(), ups.size() * sizeof(float)), umb = cpu.adopt(upm.data(), upm.size() * sizeof(float));
-    cpu.matmul_experts({{type, {wb.get(), 0}, {usb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {prompt, 1});
-    cpu.matmul_experts({{type, {wb.get(), 0}, {umb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {mixed, 3});
+    cpu.matmul_experts({{{type, {wb.get(), 0}}, {usb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {prompt, 1});
+    cpu.matmul_experts({{{type, {wb.get(), 0}}, {umb.get(), 0}, nout}}, {xb.get(), 0}, nin, rows, routing, {mixed, 3});
     for (size_t e = 0; e < entries; ++e) {
         const size_t token = e / k;
         const std::vector<float>& want = token >= 2 && token < 5 ? ups : up;
@@ -365,7 +365,7 @@ size_t check_experts(uint32_t type, std::mt19937& rng) {
                 "type " + std::to_string(type) + ": a prompt's routed entry strays from a generated token's");
     std::vector<float> y(rows * nout, 0.0f);
     const auto yb = cpu.adopt(y.data(), y.size() * sizeof(float));
-    cpu.matmul_experts_add(type, {wb.get(), 0}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
+    cpu.matmul_experts_add({type, {wb.get(), 0}}, {x2b.get(), 0}, {yb.get(), 0}, nin, nout, rows, routing, runs);
     for (size_t i = 0; i < rows * nout; ++i)
         require(std::fabs(y[i] - down[i]) <= 1e-6f * (1.0f + std::fabs(down[i])),
                 "type " + std::to_string(type) + ": a routed down projection differs from its experts' matmuls");

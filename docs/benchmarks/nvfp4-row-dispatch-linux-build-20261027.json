@@ -1,0 +1,155 @@
+{
+  "schema": "nvfp4-row-dispatch-linux-build-20261027-v1",
+  "scope": "Successful bounded Linux Release rebuild for the v2 shared-row dispatch cleanup, with the prior public-main and candidate build trees retained. Build-only evidence; no tests, inference or GPU execution.",
+  "arms": {
+    "public_main": {
+      "revision": "8ccc1016233c59b3f65d0870b1d56e2602225333",
+      "reused": true,
+      "rebuilt": false,
+      "binaries": {
+        "llmx": {
+          "path": "main/build/llmx",
+          "bytes": 13024936,
+          "sha256": "a5fd15b54f2a1de0948be3752c8e38c0384c1b4252addbb41f277a9719d3da87"
+        },
+        "llmx-model-logits": {
+          "path": "main/build/llmx-model-logits",
+          "bytes": 11126152,
+          "sha256": "4b7e126d554237fc02cab7307eb9b7443e542b3f8104fd836fdcd00463ba6964"
+        }
+      }
+    },
+    "candidate": {
+      "base_revision": "af6a4dfdbbc43a2c7e8e3063948266db7e9a0b66",
+      "runtime_overlay": "Three shader-source replacements listed below, applied to the retained candidate source tree.",
+      "binaries": {
+        "llmx": {
+          "path": "candidate/build/llmx",
+          "sha256": "7db81c08ec0d294ebd49ead1a579a1040dc5d8d8b90fca268ee82cc629abef0e",
+          "bytes": 13152200
+        },
+        "llmx-model-logits": {
+          "path": "candidate/build/llmx-model-logits",
+          "sha256": "47db66d145709165be2776888c7b85f701f6a5a6f7b76c25b93a59c76ae465da",
+          "bytes": 11253552
+        }
+      },
+      "version": "llmx 0.1.0+unknown numerics 475be0c2b02b9325",
+      "prior_candidate_binary_sha256": {
+        "llmx": "641c3d289adaca0405012ea745d446d8eff5122c9aadaf00bba910d1759f3e42",
+        "llmx-model-logits": "413ebae3a24ca27c8c53f243e11da5d453007525f89e73be6846a0f5d8b9958a"
+      }
+    }
+  },
+  "build": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "cpuset": "8,9",
+    "targets": [
+      "llmx",
+      "llmx-model-logits"
+    ],
+    "exit_code": 0,
+    "passed": true,
+    "tests_run": false,
+    "gpu_devices": false,
+    "main_rebuilt": false,
+    "module_gate_bound": true,
+    "modules": {
+      "module_count": 313,
+      "same_module_name_set": true,
+      "unchanged_count": 310,
+      "changed_modules": [
+        "matmul_row_float_x.inc",
+        "matmul_row_float_x_preserve.inc",
+        "matmul_row_mxfp4_float_x.inc"
+      ],
+      "dedicated_nvfp4_count": 7,
+      "dedicated_nvfp4_all_exact": true,
+      "module_sha256_map_aggregate": "e9ede62c171a695c03171e0f932a92d148c60329ade530833fac4790938f609c"
+    }
+  },
+  "source_overlay": {
+    "patches": [
+      {
+        "path": "src/backends/vulkan/shaders/matmul_row_one.glsl",
+        "replacement": "matmul_row_one.glsl",
+        "before_sha256": "2d8f418fba32ecbba041352a31e1db6ad60a590083a1d4e5a8cff8190fdd09dd",
+        "after_sha256": "14e13d9cfd779d0ab9151a64ccdfa3c06224606bc37eb1a5b6daf67d4a12adcf"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/q.glsl",
+        "replacement": "q.glsl",
+        "before_sha256": "1060f318ab30cdeba14778ab1faa1a49a0a927342ddf293befd3ddd335dd7bb7",
+        "after_sha256": "a09260039e65db0086efb408904aaa77f9420d35614ee2c6e883b1d764bf5f64"
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "replacement": "qdecode.glsl",
+        "before_sha256": "cb5c2db727317804d25234705b0393fd8184fda80dfb9572460945e9b9ddd0d7",
+        "after_sha256": "29b88559ae9420025eab4dc4850475aa09289e08c607b3f7bdb6806bc27afca5"
+      }
+    ],
+    "manifest_before_sha256": "78c3dfbd1ea583d4b51732a0adfbfc112242dda76e33a1c105c7f2f847736deb",
+    "manifest_after_sha256": "d6f70e91fc3dd01f56e05ce018ee344a8e199b6fa3ec477b1af86ff48981dfea"
+  },
+  "post_build_whitespace_cleanup": {
+    "receipt": "build-integration/shared-row-scale-removal-v2/root-whitespace-cleanup.json",
+    "sha256": "f04f879415ee4d6426a0f14ee5512912e8ed79a49b1da67f438f2c8284fd6769",
+    "numerical_or_dispatch_delta": false,
+    "files": [
+      {
+        "path": "src/backends/vulkan/shaders/q.glsl",
+        "tested_sha256": "a09260039e65db0086efb408904aaa77f9420d35614ee2c6e883b1d764bf5f64",
+        "cleaned_sha256": "a2aad53687ce5ae8bfb4aacddc3349e99f8f0b40f63e46a3f407dec6742d5ce3",
+        "only_delta": "Remove one trailing empty line after final preprocessor directive."
+      },
+      {
+        "path": "src/backends/vulkan/shaders/qdecode.glsl",
+        "tested_sha256": "29b88559ae9420025eab4dc4850475aa09289e08c607b3f7bdb6806bc27afca5",
+        "cleaned_sha256": "ca1e84da19c44dd7697e5d25eeeb90821c43009fc1ca1a23f6b26214f527401a",
+        "only_delta": "Remove one trailing empty line after final preprocessor directive."
+      }
+    ],
+    "note": "The build used the tested q.glsl/qdecode.glsl bytes before removal of one trailing empty line in each. This is whitespace-only and does not change shader behavior; no rebuild was performed for it."
+  },
+  "terminal": {
+    "launch_result_passed": true,
+    "docker_exit_code": 0,
+    "owned_container_cleanup_verified": true,
+    "launch_result_sha256": "09a1f7d8b8456bd5d3ab473b5d649f2f6bd4c0c43a79d90d481d0934f7c63e7d",
+    "build_result_sha256": "774a5e748b24141bf75b556c5f58069a4c287ac29f2788795b7615d149e6d1d3",
+    "stdout_sha256": "d02c39a0330d0fc3204c4259c1bb7dc5757b6f4ec0a0ad90c21b14b268947fe5",
+    "stderr_sha256": "4e29379ca74c333047e7710ed49364cd437990bc10dd7fb900b137ff9424a416",
+    "embedded_log_hashes": {
+      "version.stdout.log": "a86696e448e8524ac26ff334f318b6bbab7e096dce2f1ecd55cbd5edd658c510",
+      "version.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "build.stderr.log": "4e29379ca74c333047e7710ed49364cd437990bc10dd7fb900b137ff9424a416",
+      "docker.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "docker.stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "build.stdout.log": "d02c39a0330d0fc3204c4259c1bb7dc5757b6f4ec0a0ad90c21b14b268947fe5"
+    },
+    "build_result_log_hashes_verified": true
+  },
+  "plan": {
+    "path": "build-integration/lookup-row-dispatch-linux-v2/plan.json",
+    "sha256": "517389c245a034f3656b141da963e9f776de70dfe165e0dfbf2d93bf5999a9cf",
+    "prior_build_result_sha256": "353e8ac2d702b4d784c325b264cdc408377d9c77552f3eb6f29ec2bfbfe94d31",
+    "prior_source_pins_sha256": "0a2915a0e661f9b471859c22d6aede6ed7da5b5dd6fbb9a96fbcd97707a30c82",
+    "windows_module_receipt": {
+      "source": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-mainf61-20261026\\build-integration\\shared-row-scale-removal-v2\\module-comparison-02.json",
+      "sha256": "33d418c74e5cbef88c9722a65018526dbba2eb54176f5be895b35517f313aa6c",
+      "source_delta_sha256": "3e488f9b74c97507dc0b0c3cfd72c24fd933c0b7f5b1f58a064ab485bc9b46d4",
+      "changed_modules": [
+        "matmul_row_float_x.inc",
+        "matmul_row_float_x_preserve.inc",
+        "matmul_row_mxfp4_float_x.inc"
+      ],
+      "nvfp4_all_exact": true
+    }
+  },
+  "limitations": [
+    "Only llmx and llmx-model-logits were built.",
+    "No native tests, numerical tests, model inference, device execution or performance run is included.",
+    "The hosted run cited in STATUS uses a pre-cleanup candidate tree and does not validate these shader changes."
+  ]
+}

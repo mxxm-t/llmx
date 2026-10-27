@@ -1,0 +1,1987 @@
+{
+  "schema": "nvfp4-image-main-mapped-mx-vulkan-v1",
+  "scope": "Vulkan-first speed comparison for pinned NVFP4 model, PP128/PP4096 and independent history-zero TG256. Remaining integration/routed/ISA checks are not granted by this result.",
+  "plan": {
+    "candidate": {
+      "binary": "candidate/build/llmx",
+      "build_image_same_as_timing_image": true,
+      "build_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/linux-image-integration-v1",
+      "bytes": 13156128,
+      "launch_receipt": "launch-result.json",
+      "receipt": "build-result.json",
+      "revision": "5b2d75403c87d8f3036963e4d868668faff1bcce",
+      "sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+      "version": "llmx 0.1.0+unknown numerics a3570786a0d68218"
+    },
+    "cells": [
+      {
+        "id": "nvfp4-p128",
+        "p": 128
+      },
+      {
+        "id": "nvfp4-p4096",
+        "p": 4096
+      }
+    ],
+    "device": {
+      "clocks": "default; no mutation",
+      "cpus": "0,1,8,9",
+      "pci": "0000:c9:00.0",
+      "physical_gpu": 8,
+      "render_node": "renderD130",
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "guard": {
+      "cpus": "0,1,8,9",
+      "gpu_guard": "fresh gpu_free check for renderD130/0000:c9:00.0 immediately before create",
+      "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/common-float-split-v1/diagnostic-v1/run-common-float-split.py",
+      "requirement": "Explicit root --run authorization, fresh guards, no active owned build/correctness process, bounded one-hour deadline; no assumed external reservation."
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "input_provenance": {
+      "G256_u32le_sha256": "e38861d6cbcb15a3793abd95ed5219736afa377153cea0aa95599ea7da4e28ac",
+      "P128_u32le_sha256": "8e281f15d84d25c6eb5856564e4981c800b7ae5dc5e31e85f6c19b97388d6251",
+      "P4096_u32le_sha256": "629081636aa47bdb8ea6f6cd59591edf6c89ce32601014cccc4830ed79f5e143",
+      "note": "bench generators reproduce their deterministic sequences internally; hashes are provenance pins, not external prompt files."
+    },
+    "limitations": [
+      "MX retains the separately qualified context-warmup/runtime receipt; verify all source, binary and sibling library pins at launch.",
+      "This timing screen does not assert numerical identity, a speed threshold, or final qualification.",
+      "Existing candidate correctness gates and path witnesses remain separate evidence.",
+      "The original direct-I/O comparison is preserved but not accepted because mx faults during loading. This fresh fixed schedule uses mapped loading in both arms after a clean diagnostic control. Acceptance additionally requires no benchmark-GPU kernel faults over the complete schedule."
+    ],
+    "llmx_args": [
+      "bench",
+      "--model",
+      "/model.gguf",
+      "--p",
+      "P",
+      "--n",
+      "256",
+      "--r",
+      "1",
+      "--threads",
+      "4",
+      "--device",
+      "vulkan:0",
+      "--dtype",
+      "auto",
+      "--ubatch",
+      "512",
+      "--cache-type-k",
+      "f16",
+      "--cache-type-v",
+      "f16",
+      "--load-mode",
+      "mapped"
+    ],
+    "model": {
+      "mtp": "disabled",
+      "path": "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+      "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+    },
+    "monitor": {
+      "classification": "Retain raw samples. Offline attribution must identify benchmark processes by exact container ID/cgroup from execution.json/container membership, monitor by its recorded PID, and leave remaining processes unrelated or unknown; do not trust empty benchmark_cgroups in monitor samples.",
+      "interval_seconds": 2,
+      "output_policy": "Do not create or touch activity.jsonl before launching the pinned monitor; its output path is exclusive-opened. Preserve the established read-only-root shader-cache behavior for both arms (warnings are captured), with no per-arm cache environment difference.",
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+      "sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+      "thresholds": {
+        "disk_bytes_per_second_above": 104857600,
+        "other_gpu_percent_above": 0,
+        "sample_gap_seconds": 3,
+        "unrelated_cpu_cores_above": 1
+      }
+    },
+    "mx": {
+      "assets_root": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification",
+      "binary_sha256": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+      "context": 262144,
+      "context_change_sha256": "0dd4be3f19f7413f92fd1882287c59e9a37c01305cc40f21f09ef32b51ee569c",
+      "decode_warmup_tokens": 256,
+      "executable": "bin/llama-bench",
+      "resolved_libraries_prior": [
+        [
+          "libllama-common.so.0",
+          "/mx/bin/libllama-common.so.0"
+        ],
+        [
+          "libllama.so.0",
+          "/mx/bin/libllama.so.0"
+        ],
+        [
+          "libggml.so.0",
+          "/mx/bin/libggml.so.0"
+        ],
+        [
+          "libggml-base.so.0",
+          "/mx/bin/libggml-base.so.0"
+        ],
+        [
+          "libggml-cpu.so.0",
+          "/mx/bin/libggml-cpu.so.0"
+        ],
+        [
+          "libggml-vulkan.so.0",
+          "/mx/bin/libggml-vulkan.so.0"
+        ]
+      ],
+      "revision": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+      "runtime_build": "mx-context-warmup-build/build",
+      "runtime_receipt": "mx-context-warmup-build/execution.json",
+      "runtime_receipt_sha256": "1a35182479d83a40f18a4aa943632b5853365492a86e48c425416bc73a4aec91",
+      "sibling_libraries": {
+        "bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+        "bin/libggml-base.so.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+        "bin/libggml-base.so.0.26.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+        "bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+        "bin/libggml-cpu.so.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+        "bin/libggml-cpu.so.0.26.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+        "bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+        "bin/libggml-vulkan.so.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+        "bin/libggml-vulkan.so.0.26.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+        "bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+        "bin/libggml.so.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+        "bin/libggml.so.0.26.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+        "bin/libllama-bench-impl.so": "89a4611ee7602ab715368ec17f622e2835b06614005e34a9e5a1888202e8f1a0",
+        "bin/libllama-common.so": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+        "bin/libllama-common.so.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+        "bin/libllama-common.so.0.6.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+        "bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+        "bin/libllama.so.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+        "bin/libllama.so.0.6.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+        "bin/llama-bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa"
+      },
+      "source_manifest_sha256": "f5ee43557b4a36ee7f4697ba8d1c197f27b4d42a911093e77864a036da9fd7df",
+      "version_observation": "The prior proven `llama-bench --version` exited zero with empty stdout on this binary; identify it by SHA-256 and the pinned successful receipt, not a version string.",
+      "vulkan_debug": "OFF"
+    },
+    "mx_args": [
+      "-m",
+      "/model.gguf",
+      "-p",
+      "P",
+      "-n",
+      "256",
+      "-r",
+      "1",
+      "-t",
+      "4",
+      "-ngl",
+      "99",
+      "-b",
+      "4096",
+      "-ub",
+      "512",
+      "-ctk",
+      "f16",
+      "-ctv",
+      "f16",
+      "-fa",
+      "1",
+      "-lm",
+      "mmap",
+      "-o",
+      "json"
+    ],
+    "path_witness": {
+      "candidate": "separate unmeasured P128 --profile preflight must show dtype auto -> f16, MatrixPaths, and matmul_tile_nvfp4_f16",
+      "mx": "separate successful configured -v P128 preflight must report n_ctx=262144; ldd must resolve all llama/ggml libraries under /mx/bin"
+    },
+    "retained_attempt": "image-main-mx-v1/attempt-01: mx-version failed with missing libllama-bench-impl.so before any benchmark; loader search path corrected for metadata/configuration calls to match timed calls.",
+    "runner_sha256": "99c5a2ed85b47d0ad75a3a9713367eebd8163f22ca1fe14b3349abcdb1b2e53c",
+    "schedule": {
+      "A": "candidate",
+      "B": "mx",
+      "blocks": [
+        "ABBA",
+        "BAAB"
+      ],
+      "calls_per_arm_cell": 4,
+      "order": [
+        "candidate",
+        "mx",
+        "mx",
+        "candidate",
+        "mx",
+        "candidate",
+        "candidate",
+        "mx"
+      ],
+      "retain_all": true,
+      "total_timed_calls": 16
+    },
+    "schema": "image-main-integrated-nvfp4-vs-mx-timing-v1",
+    "scope": "Integrated NVFP4/shared-float candidate 5b2d75403c87d8f3036963e4d868668faff1bcce versus the previously qualified pinned MX Vulkan runtime. Matched MI50 Vulkan screen; not a correctness gate or merge verdict.",
+    "settings": {
+      "cache_k": "f16",
+      "cache_v": "f16",
+      "context": 262144,
+      "generation": 256,
+      "load_mode": "mapped",
+      "mx_batch": 4096,
+      "mx_ubatch": 512,
+      "repetitions_per_invocation": 1,
+      "threads": 4,
+      "ubatch": 512
+    },
+    "status": "prepared locally only; no transfer, launch, build, or timing",
+    "validation_note": "Every MX JSON row must match PP-only or empty-history TG, thread/batch/cache/offload values, and all16 timing calls must complete. Both arms retain the same default shader-cache configuration as the preceding comparison; loading and pipeline creation are outside reported bench phases."
+  },
+  "checks": {
+    "terminal_complete": true,
+    "container_removed": true,
+    "monitor_exit_zero": true,
+    "local_plan_hash": true,
+    "bundle_plan_hash": true,
+    "runner_hash": true,
+    "execution_plan_hash": true,
+    "execution_runner_hash": true,
+    "model_hash": true,
+    "candidate_binary_hash": true,
+    "mx_receipt_hash": true,
+    "monitor_hash": true,
+    "mx_change_hash": true,
+    "mx_file_hashes": true,
+    "image_id": true,
+    "cgroup_pin": true,
+    "mx_source_manifest": true,
+    "build_receipt_hash": true,
+    "launch_receipt_hash": true,
+    "candidate_revision": true,
+    "launch_receipt_pins_build": true,
+    "local_build_receipt_match": true,
+    "candidate_source_manifest": true,
+    "source_pins_match": true,
+    "exact_16_schedule": true,
+    "unique_labels": true,
+    "call_log_hashes": true,
+    "exact_timed_arguments": true,
+    "monitor_start_cgroup": true,
+    "activity_samples_present": true,
+    "all_16_metrics_valid": true,
+    "deadline_respected": true
+  },
+  "matrix": [
+    {
+      "cell": "nvfp4-p128",
+      "p": 128,
+      "g": 256,
+      "phases": {
+        "pp": {
+          "candidate": {
+            "samples": [
+              3665.72,
+              3665.62,
+              3659.15,
+              3665.23
+            ],
+            "n": 4,
+            "mean": 3663.93,
+            "min": 3659.15,
+            "max": 3665.72,
+            "stdev": 3.193670824197869
+          },
+          "mx": {
+            "samples": [
+              2704.451117,
+              2727.443192,
+              2708.629546,
+              2738.731068
+            ],
+            "n": 4,
+            "mean": 2719.81373075,
+            "min": 2704.451117,
+            "max": 2738.731068,
+            "stdev": 16.095239641472784
+          },
+          "candidate_over_mx_of_means": 1.3471253411863817,
+          "reference_floor_1_0_met": true,
+          "abba_baab_block_ratios": [
+            {
+              "block": "ABBA",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.3496838456250604
+            },
+            {
+              "block": "BAAB",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.3445741009280645
+            }
+          ]
+        },
+        "tg": {
+          "candidate": {
+            "samples": [
+              255.68,
+              254.51,
+              251.73,
+              251.05
+            ],
+            "n": 4,
+            "mean": 253.2425,
+            "min": 251.05,
+            "max": 255.68,
+            "stdev": 2.209274013486481
+          },
+          "mx": {
+            "samples": [
+              137.824145,
+              137.637494,
+              135.773228,
+              137.285622
+            ],
+            "n": 4,
+            "mean": 137.13012225,
+            "min": 135.773228,
+            "max": 137.824145,
+            "stdev": 0.9317431420280239
+          },
+          "candidate_over_mx_of_means": 1.8467313807123804,
+          "reference_floor_1_0_met": true,
+          "abba_baab_block_ratios": [
+            {
+              "block": "ABBA",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.852127221242592
+            },
+            {
+              "block": "BAAB",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.8412880593322647
+            }
+          ]
+        }
+      }
+    },
+    {
+      "cell": "nvfp4-p4096",
+      "p": 4096,
+      "g": 256,
+      "phases": {
+        "pp": {
+          "candidate": {
+            "samples": [
+              4180.28,
+              4179.41,
+              4179.18,
+              4172.95
+            ],
+            "n": 4,
+            "mean": 4177.955,
+            "min": 4172.95,
+            "max": 4180.28,
+            "stdev": 3.37012858310584
+          },
+          "mx": {
+            "samples": [
+              3595.823115,
+              3599.22968,
+              3599.774523,
+              3597.181724
+            ],
+            "n": 4,
+            "mean": 3598.0022605,
+            "min": 3595.823115,
+            "max": 3599.774523,
+            "stdev": 1.832068799280227
+          },
+          "candidate_over_mx_of_means": 1.1611874305547008,
+          "reference_floor_1_0_met": true,
+          "abba_baab_block_ratios": [
+            {
+              "block": "ABBA",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.1618663876669997
+            },
+            {
+              "block": "BAAB",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.1605086530130744
+            }
+          ]
+        },
+        "tg": {
+          "candidate": {
+            "samples": [
+              250.47,
+              252.15,
+              247.6,
+              244.23
+            ],
+            "n": 4,
+            "mean": 248.6125,
+            "min": 244.23,
+            "max": 252.15,
+            "stdev": 3.4735032747933383
+          },
+          "mx": {
+            "samples": [
+              137.536585,
+              137.217855,
+              137.241501,
+              134.726024
+            ],
+            "n": 4,
+            "mean": 136.68049125,
+            "min": 134.726024,
+            "max": 137.536585,
+            "stdev": 1.311021291401066
+          },
+          "candidate_over_mx_of_means": 1.8189318587190844,
+          "reference_floor_1_0_met": true,
+          "abba_baab_block_ratios": [
+            {
+              "block": "ABBA",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.8293425940632662
+            },
+            {
+              "block": "BAAB",
+              "candidate_n": 2,
+              "mx_n": 2,
+              "candidate_over_mx": 1.808414442128706
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "label": "nvfp4-p128-1-candidate",
+      "cell": "nvfp4-p128",
+      "arm": "candidate",
+      "position": 1,
+      "replicate": 1,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3665.72,
+        "tg": 255.68
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-2-mx",
+      "cell": "nvfp4-p128",
+      "arm": "mx",
+      "position": 2,
+      "replicate": 1,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 2704.451117,
+        "tg": 137.824145
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-3-mx",
+      "cell": "nvfp4-p128",
+      "arm": "mx",
+      "position": 3,
+      "replicate": 2,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 2727.443192,
+        "tg": 137.637494
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 0,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-4-candidate",
+      "cell": "nvfp4-p128",
+      "arm": "candidate",
+      "position": 4,
+      "replicate": 2,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3665.62,
+        "tg": 254.51
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 1,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 1,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-5-mx",
+      "cell": "nvfp4-p128",
+      "arm": "mx",
+      "position": 5,
+      "replicate": 3,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 2708.629546,
+        "tg": 135.773228
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-6-candidate",
+      "cell": "nvfp4-p128",
+      "arm": "candidate",
+      "position": 6,
+      "replicate": 3,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3659.15,
+        "tg": 251.73
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 1,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p128-7-candidate",
+      "cell": "nvfp4-p128",
+      "arm": "candidate",
+      "position": 7,
+      "replicate": 4,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3665.23,
+        "tg": 251.05
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 2,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "label": "nvfp4-p128-8-mx",
+      "cell": "nvfp4-p128",
+      "arm": "mx",
+      "position": 8,
+      "replicate": 4,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 2738.731068,
+        "tg": 137.285622
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "label": "nvfp4-p4096-1-candidate",
+      "cell": "nvfp4-p4096",
+      "arm": "candidate",
+      "position": 1,
+      "replicate": 1,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 4180.28,
+        "tg": 250.47
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 0
+      }
+    },
+    {
+      "label": "nvfp4-p4096-2-mx",
+      "cell": "nvfp4-p4096",
+      "arm": "mx",
+      "position": 2,
+      "replicate": 1,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3595.823115,
+        "tg": 137.536585
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 5,
+        "missed_process_intervals": 3
+      }
+    },
+    {
+      "label": "nvfp4-p4096-3-mx",
+      "cell": "nvfp4-p4096",
+      "arm": "mx",
+      "position": 3,
+      "replicate": 2,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3599.22968,
+        "tg": 137.217855
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 5,
+        "missed_process_intervals": 3
+      }
+    },
+    {
+      "label": "nvfp4-p4096-4-candidate",
+      "cell": "nvfp4-p4096",
+      "arm": "candidate",
+      "position": 4,
+      "replicate": 2,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 4179.41,
+        "tg": 252.15
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p4096-5-mx",
+      "cell": "nvfp4-p4096",
+      "arm": "mx",
+      "position": 5,
+      "replicate": 3,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3599.774523,
+        "tg": 137.241501
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 5,
+        "missed_process_intervals": 2
+      }
+    },
+    {
+      "label": "nvfp4-p4096-6-candidate",
+      "cell": "nvfp4-p4096",
+      "arm": "candidate",
+      "position": 6,
+      "replicate": 3,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 4179.18,
+        "tg": 247.6
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 4,
+        "missed_process_intervals": 1
+      }
+    },
+    {
+      "label": "nvfp4-p4096-7-candidate",
+      "cell": "nvfp4-p4096",
+      "arm": "candidate",
+      "position": 7,
+      "replicate": 4,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 4172.95,
+        "tg": 244.23
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": {
+            "flagged": 1,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 3,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 3,
+        "missed_process_intervals": 0
+      }
+    },
+    {
+      "label": "nvfp4-p4096-8-mx",
+      "cell": "nvfp4-p4096",
+      "arm": "mx",
+      "position": 8,
+      "replicate": 4,
+      "status": "sample",
+      "metrics_tok_s": {
+        "pp": 3597.181724,
+        "tg": 134.726024
+      },
+      "metric_error": null,
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": {
+            "flagged": 4,
+            "unknown": 0
+          },
+          "unrelated_cpu": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "disk": {
+            "flagged": 5,
+            "unknown": 0
+          },
+          "gap": {
+            "flagged": 0,
+            "unknown": 0
+          }
+        },
+        "coverage_complete": true,
+        "unknown_gpu_devices": [],
+        "unknown_process_cpu_intervals": 5,
+        "missed_process_intervals": 3
+      }
+    }
+  ],
+  "activity": {
+    "available": true,
+    "error": null,
+    "samples": 52,
+    "thresholds": {
+      "other_gpu_percent": 0,
+      "unrelated_cpu_cores": 1,
+      "disk_bytes_per_second": 104857600,
+      "sample_gap_seconds": 3
+    },
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "attribution": {
+      "source_sha256": "d42e2e594b5eefaf585f1deec73a38bc769320fd8d33918bf4337016842aeb3f",
+      "derived_sha256": "bf01d5bf14e0dc00b246cc62428e164b2914ca9f11994e10f2fecbe291bd60c7",
+      "container_id": "41c5990c5bfaf35478df750868b9a7485cc8bf35a59e4042f9b8c2ce2ba42755",
+      "monitor_pid": 3384234,
+      "benchmark_process_samples": 69,
+      "benchmark_deltas_unavailable": 38,
+      "method": "Exact container ID substring in process cgroup; recompute CPU deltas for matching PID/start_ticks. Start-event PID is monitor. Other accessible cgroups are unrelated; inaccessible remain unknown."
+    }
+  },
+  "execution": {
+    "calls": [
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "--version"
+        ],
+        "ended_unix": 1793053402.880108,
+        "exit_code": 0,
+        "label": "candidate-version",
+        "started_unix": 1793053402.815293,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "cd3dc2b9ed589d657798623916fb003a7c3b832df9752408dbcfd166c784ca8f"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "--version"
+        ],
+        "ended_unix": 1793053402.9926565,
+        "exit_code": 0,
+        "label": "mx-version",
+        "started_unix": 1793053402.8805363,
+        "stderr_sha256": "0b4b88976883a0893d4597116ec671c5dc019de197f43522058e3d1762abda17",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "ldd",
+          "/mx/bin/libllama-bench-impl.so"
+        ],
+        "ended_unix": 1793053403.0605745,
+        "exit_code": 0,
+        "label": "mx-ldd",
+        "started_unix": 1793053402.9930325,
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "79ca8a45009d4cd03026ff3c708a93b15f8096811525ee0ec2ce6b714e34550f"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped",
+          "--profile"
+        ],
+        "ended_unix": 1793053408.3499875,
+        "exit_code": 0,
+        "label": "configured-candidate-profile",
+        "started_unix": 1793053403.0614824,
+        "stderr_sha256": "c5fea2c30860f1ca2a9a19f91631a29bb2fb2c6af9f30fb7b974ccaf1cd6152f",
+        "stdout_sha256": "f6723f55120da9608a76873f8ff030b3c04f782c15c3ded39ff73aa1211dceb9"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "128",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json",
+          "-v"
+        ],
+        "ended_unix": 1793053414.0190082,
+        "exit_code": 0,
+        "label": "configured-mx",
+        "started_unix": 1793053408.3506248,
+        "stderr_sha256": "17c25193eebecabddecbf13452ef9cbfd2df098edf602bdfbcce98137c829bfe",
+        "stdout_sha256": "b3c76df6f4f03e858604fbf782832bd589f3839cb58ebbbd1c90312d8571d707"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053417.3683813,
+        "exit_code": 0,
+        "label": "nvfp4-p128-1-candidate",
+        "metrics": {
+          "pp128": 3665.72,
+          "tg256": 255.68
+        },
+        "started_unix": 1793053414.0215144,
+        "stderr_sha256": "c5fea2c30860f1ca2a9a19f91631a29bb2fb2c6af9f30fb7b974ccaf1cd6152f",
+        "stdout_sha256": "efdfb8b9c4cef3ea129664b4abc375e5901c0cc439926fcfe9ac338929137e50"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "128",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053423.0507119,
+        "exit_code": 0,
+        "label": "nvfp4-p128-2-mx",
+        "metrics": {
+          "pp": 2704.451117,
+          "tg": 137.824145
+        },
+        "started_unix": 1793053417.3694007,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "365e3605c55bc6011b2c08e04ffe23affe6d2f3a4c9a950166f919dc3a593016"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "128",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053428.722544,
+        "exit_code": 0,
+        "label": "nvfp4-p128-3-mx",
+        "metrics": {
+          "pp": 2727.443192,
+          "tg": 137.637494
+        },
+        "started_unix": 1793053423.0517676,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "2dfe970039e671dde2849e67c6dd3d101e2e8da1ab57b8abea7a315b2a518715"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053432.0404706,
+        "exit_code": 0,
+        "label": "nvfp4-p128-4-candidate",
+        "metrics": {
+          "pp128": 3665.62,
+          "tg256": 254.51
+        },
+        "started_unix": 1793053428.7236495,
+        "stderr_sha256": "c5fea2c30860f1ca2a9a19f91631a29bb2fb2c6af9f30fb7b974ccaf1cd6152f",
+        "stdout_sha256": "7e5733c78e62788d4de163f19a59c82dda7c55a979edd6c5e70cc1755176d285"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "128",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053438.1821444,
+        "exit_code": 0,
+        "label": "nvfp4-p128-5-mx",
+        "metrics": {
+          "pp": 2708.629546,
+          "tg": 135.773228
+        },
+        "started_unix": 1793053432.0414155,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "f2cba50a118593868a4c6dd7d1910767a455919e9d3db2bb24b9717377f2d148"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053441.6270506,
+        "exit_code": 0,
+        "label": "nvfp4-p128-6-candidate",
+        "metrics": {
+          "pp128": 3659.15,
+          "tg256": 251.73
+        },
+        "started_unix": 1793053438.1831796,
+        "stderr_sha256": "2b5650ad91e3c7b0895f52836117123c819cfec236250b149e5af9a4c9f943d1",
+        "stdout_sha256": "3d22580df260cf99104a2a798e55d17233671c2d135cd960449c71c3a2da3b83"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "128",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053445.0970907,
+        "exit_code": 0,
+        "label": "nvfp4-p128-7-candidate",
+        "metrics": {
+          "pp128": 3665.23,
+          "tg256": 251.05
+        },
+        "started_unix": 1793053441.6284227,
+        "stderr_sha256": "b206063b94165705b6d85e7315dd579bf9b0ef04903f82f7b9d78afcc1913555",
+        "stdout_sha256": "8572b7ccf021a2299f24828b112a76a26459bbed80b0220a6cf90519d4939909"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "128",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053450.9633672,
+        "exit_code": 0,
+        "label": "nvfp4-p128-8-mx",
+        "metrics": {
+          "pp": 2738.731068,
+          "tg": 137.285622
+        },
+        "started_unix": 1793053445.0980484,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "279de285c300efe53054f28ecb4025f6ef19f05047369988a1cd1b297e0362c0"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053456.2960203,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-1-candidate",
+        "metrics": {
+          "pp4096": 4180.28,
+          "tg256": 250.47
+        },
+        "started_unix": 1793053450.9643822,
+        "stderr_sha256": "2b5650ad91e3c7b0895f52836117123c819cfec236250b149e5af9a4c9f943d1",
+        "stdout_sha256": "b56eff4bdfb913d7a9b47f3c2d05d7bf2a084ca9fe5ee85c99d8d1c3b80e04d9"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "4096",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053464.3281415,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-2-mx",
+        "metrics": {
+          "pp": 3595.823115,
+          "tg": 137.536585
+        },
+        "started_unix": 1793053456.2970104,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "670b8080f2b1e1023d94a4a292b08ce0968afedb287477a759e656d9b982b98f"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "4096",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053472.3606546,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-3-mx",
+        "metrics": {
+          "pp": 3599.22968,
+          "tg": 137.217855
+        },
+        "started_unix": 1793053464.3291886,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "095ce2a81a69867c881041fdee86fb209797b0d1ccba298714a15e5197c197ce"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053477.7527618,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-4-candidate",
+        "metrics": {
+          "pp4096": 4179.41,
+          "tg256": 252.15
+        },
+        "started_unix": 1793053472.3618698,
+        "stderr_sha256": "331871d67bec71c56399ad2dc67615223e349d6b43355f412be5414cbac1e0b1",
+        "stdout_sha256": "3c7725b4b16b43c36747f59eb2843996907b2270c478d9838d22ea923c12f823"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "4096",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053485.7551548,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-5-mx",
+        "metrics": {
+          "pp": 3599.774523,
+          "tg": 137.241501
+        },
+        "started_unix": 1793053477.7539496,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "3c147a439e097bf2707dc43caa153cb9c31fe92dc1c75cf01717dc947b3da49a"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053491.1483216,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-6-candidate",
+        "metrics": {
+          "pp4096": 4179.18,
+          "tg256": 247.6
+        },
+        "started_unix": 1793053485.7563868,
+        "stderr_sha256": "b206063b94165705b6d85e7315dd579bf9b0ef04903f82f7b9d78afcc1913555",
+        "stdout_sha256": "5ea40914b0a258e75eb63448a575d79d12c944dc8e038807efa9f332ba82f86c"
+      },
+      {
+        "argv": [
+          "/work/candidate/build/llmx",
+          "bench",
+          "--model",
+          "/model.gguf",
+          "--p",
+          "4096",
+          "--n",
+          "256",
+          "--r",
+          "1",
+          "--threads",
+          "4",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--ubatch",
+          "512",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--load-mode",
+          "mapped"
+        ],
+        "ended_unix": 1793053496.543475,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-7-candidate",
+        "metrics": {
+          "pp4096": 4172.95,
+          "tg256": 244.23
+        },
+        "started_unix": 1793053491.1496723,
+        "stderr_sha256": "2b5650ad91e3c7b0895f52836117123c819cfec236250b149e5af9a4c9f943d1",
+        "stdout_sha256": "f45949ecb194c6a6c89946a00b2c978bf530fcee3ff2da1a8febcc022f77c330"
+      },
+      {
+        "argv": [
+          "env",
+          "LD_LIBRARY_PATH=/mx/bin",
+          "/mx/bin/llama-bench",
+          "-m",
+          "/model.gguf",
+          "-p",
+          "4096",
+          "-n",
+          "256",
+          "-r",
+          "1",
+          "-t",
+          "4",
+          "-ngl",
+          "99",
+          "-b",
+          "4096",
+          "-ub",
+          "512",
+          "-ctk",
+          "f16",
+          "-ctv",
+          "f16",
+          "-fa",
+          "1",
+          "-lm",
+          "mmap",
+          "-o",
+          "json"
+        ],
+        "ended_unix": 1793053504.6058924,
+        "exit_code": 0,
+        "label": "nvfp4-p4096-8-mx",
+        "metrics": {
+          "pp": 3597.181724,
+          "tg": 134.726024
+        },
+        "started_unix": 1793053496.545291,
+        "stderr_sha256": "54422160a4084ae98f4da66b08a4f98cf742e62be086eda00c70017839269064",
+        "stdout_sha256": "2350ded4b2f48f4fa06cbb0767a2cc1f99b3be6d0e1d28c53b3ce9f9f3a452d6"
+      }
+    ],
+    "candidate_f16_path_witness": "matmul_tile_nvfp4_f16",
+    "candidate_receipt_pins": {
+      "binary_sha256": "d6ab6f5b6a4ed343c8e00656d2200bdaca16c59aafd198eac03a15b411f158b4",
+      "build_receipt_sha256": "1d6246a2feada990b116a0f12a3ff1b6349dbecf9f869f0f473a45c134bd1d95",
+      "launch_receipt_sha256": "9eda8bf867e2c44256726f0dabd2c5b944f03e098a2c7678517ec6ff4188af60",
+      "version": "llmx 0.1.0+unknown numerics a3570786a0d68218"
+    },
+    "configured_mx_json_rows": 2,
+    "container_create_argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-image-main-mx-mapped-v3",
+      "--network",
+      "none",
+      "--read-only",
+      "--cpuset-cpus",
+      "0,1,8,9",
+      "--cpus",
+      "4",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "256",
+      "--ulimit",
+      "core=0",
+      "--tmpfs",
+      "/tmp:rw,size=512m",
+      "--device",
+      "/dev/dri/renderD130",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/linux-image-integration-v1:/work:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/main3-qualification/mx-context-warmup-build/build:/mx:ro",
+      "-v",
+      "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf:/model.gguf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/image-main-mx-mapped-v3/attempt-01:/out:rw",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "sleep",
+      "infinity"
+    ],
+    "container_id": "41c5990c5bfaf35478df750868b9a7485cc8bf35a59e4042f9b8c2ce2ba42755",
+    "container_removed": true,
+    "cpus": [
+      0,
+      1,
+      8,
+      9
+    ],
+    "deadline_unix": 1793056864.3155258,
+    "ended_unix": 1793053507.153567,
+    "gpu_initial": {
+      "gpu_busy_percent": "0",
+      "mem_info_vram_used": "10932224",
+      "power_dpm_force_performance_level": "auto"
+    },
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "monitor": {
+      "benchmark_cgroup": "41c5990c5bfaf35478df750868b9a7485cc8bf35a59e4042f9b8c2ce2ba42755",
+      "interval_seconds": 2,
+      "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+      "pid": 3384234,
+      "sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf"
+    },
+    "monitor_exit": 0,
+    "mx_receipt_sha256": "1a35182479d83a40f18a4aa943632b5853365492a86e48c425416bc73a4aec91",
+    "mx_resolved_libraries": [
+      [
+        "libllama-common.so.0",
+        "/mx/bin/libllama-common.so.0"
+      ],
+      [
+        "libllama.so.0",
+        "/mx/bin/libllama.so.0"
+      ],
+      [
+        "libggml.so.0",
+        "/mx/bin/libggml.so.0"
+      ],
+      [
+        "libggml-base.so.0",
+        "/mx/bin/libggml-base.so.0"
+      ],
+      [
+        "libggml-cpu.so.0",
+        "/mx/bin/libggml-cpu.so.0"
+      ],
+      [
+        "libggml-vulkan.so.0",
+        "/mx/bin/libggml-vulkan.so.0"
+      ]
+    ],
+    "passed": true,
+    "plan_sha256": "ad5e096339835b5b071dda53f8621b19e96d893f7fd59366fd0a788e04d38e2a",
+    "runner_sha256": "99c5a2ed85b47d0ad75a3a9713367eebd8163f22ca1fe14b3349abcdb1b2e53c",
+    "schema": "image-main-mx-execution-v1",
+    "started_unix": 1793053384.3155258,
+    "status": "complete",
+    "terminal_processes": "PID                 COMMAND\n3384292             docker-init\n3384305             sleep\n",
+    "versions": {
+      "candidate": "llmx 0.1.0+unknown numerics a3570786a0d68218",
+      "mx_sha256": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+      "mx_version_stdout": ""
+    }
+  },
+  "kernel_audit": {
+    "started_unix": 1793053384.3155258,
+    "ended_unix": 1793053507.153567,
+    "kernel_window_start": "2026-10-26 22:23:03 UTC",
+    "kernel_window_end": "2026-10-26 22:25:08 UTC",
+    "gpu8_kernel_events": [],
+    "kernel_log_sha256": "19c4e28b2f54ea8f217db4e622b0a5c758efa7b77ce2dc0394b6d159568c0b2e",
+    "zero_gpu8_events": true
+  },
+  "speed_gate_pass": true,
+  "retained_previous_run": "nvfp4-image-main-mx-vulkan-20261026.json",
+  "artifacts": {
+    "plan.json": "ad5e096339835b5b071dda53f8621b19e96d893f7fd59366fd0a788e04d38e2a",
+    "run.py": "99c5a2ed85b47d0ad75a3a9713367eebd8163f22ca1fe14b3349abcdb1b2e53c",
+    "collect.py": "46174286a0c12731cd4433d06976b9ba651048a17736caed55ee4004f5c91abb",
+    "collection-01\\analysis.json": "1363050ef25256ac17ba10bada5e7c55c5564e4c5c30f54d19b0211406b6b3d9",
+    "collection-01\\attempt-01\\activity.jsonl": "d42e2e594b5eefaf585f1deec73a38bc769320fd8d33918bf4337016842aeb3f",
+    "kernel-window.txt": "19c4e28b2f54ea8f217db4e622b0a5c758efa7b77ce2dc0394b6d159568c0b2e"
+  },
+  "limitations": [
+    "All fixed samples are retained, with background activity and sampling limitations in each call. No idle-machine claim.",
+    "The reference direct-I/O run faulted during loading and remains documented; this run changes both arms to mapped loading and has no benchmark-GPU kernel events.",
+    "This is not a ROCm comparison. PP and TG benchmark histories reset independently."
+  ]
+}

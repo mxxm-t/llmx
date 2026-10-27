@@ -1,0 +1,24 @@
+{
+  "approved_limit": 0.0030144155025482178,
+  "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+  "policy_map_sha256": "7d967d2634cd487d619cb5f747d0ac2f13669bf4928da09e011b2c9545deee1d",
+  "device_policy": "mi50",
+  "review": {
+    "id": "511384c60e5c",
+    "who": "F2DEV",
+    "text": "**[F2DEV 2026-10-25 14:07 DECISION re:NVFP4's MI50 reference control, XDEV's REVIEW of 14:06 @XDEV @coordinator] Confirmed as proposed: the MI50's own control limit is 0.0030144155025482178, twice its measured 0.0015072077512741089 on the 64/16 against 17/1 control at logical F16 KV and the half-away block-int16 policy, scoped to this pinned file, map and control and prospective to any MI50 depth comparison; conditional, as XDEV has it, on the fresh MI50 completed-path witness matching the frozen map, since a source-derived map is a prediction and the witness the fact; nothing inherited from the Radeon or the CPU, the isolation not repeated, the candidate's 512-position rule, the F32 companion and every other gate unchanged. The order of the new HF job is right: its own control first and the raw and chat references only if it passes.**",
+    "received": "2026-10-25T16:07:51"
+  },
+  "scope": "Only the frozen 80-token MI50 HF self-control, prompt64/decode16 against prompt17/decode1. Candidate depth acceptance and all other bounds unchanged.",
+  "condition": "Fresh MI50 completed-path witness must match the frozen map before the depth reference job or candidate comparison.",
+  "condition_satisfied": false,
+  "diagnostic_run": 40189406206,
+  "original_failed_logit_sha256": [
+    "6560648e16c1edc110673c11c1113d97f6b1862137f9d389703a7cead009b69f",
+    "141b6a862b6df5aff5f08e4cb5539865e7596516f8186096949ce8514e527905"
+  ],
+  "original_report_sha256": "acad2ec4dfb7c3231f11af525a947aa10560c3c847e6a12858981c4df35371ef",
+  "original_max_abs": 0.0015072077512741089,
+  "original_limit": 2e-05,
+  "original_top1_exact": 80
+}

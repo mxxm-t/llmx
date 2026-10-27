@@ -15,7 +15,23 @@
 #endif
     for (uint c = 0u; c < MAX_COLS; ++c) acc[c] = 0.0;
     if (row < nout) {
-#ifdef LLMX_FLOAT_X
+#ifdef LLMX_NVFP4
+        const float factor = wfs[pi].wf[min(wrow / nout, uint(wfs[pi].wf.length()) - 1u)];
+        for (uint first = 8u * l; first < p.nin; first += 8u * p.cluster) {
+            uint o = (wrow * (p.nin / 64u) + first / 64u) * NVFP4_BYTES;
+            uint group = (first & 63u) / 16u;
+            float scale = nvfp4_scale(QBYTE(o + group));
+            uint word = (o + 4u + group * 8u) / 4u;
+            uvec2 packed = uvec2(w32s[pi].w32[word], w32s[pi].w32[word + 1u]);
+            uint shift = (first & 8u) >> 1u;
+            [[unroll]] for (uint k = 0u; k < 8u; ++k) {
+                uint code = (packed[k / 4u] >> (8u * (k & 3u) + shift)) & 15u;
+                precise float weight = nvfp4_value(scale, code) * factor;
+                for (uint c = 0u; c < ncols; ++c)
+                    acc[c] = fma(weight, x[XCOL(c) * p.nin + first + k], acc[c]);
+            }
+        }
+#elif defined(LLMX_FLOAT_X)
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
         // These 256-value rows use a whole subgroup; unrolling within a block reuses its metadata without changing any lane's FMA order.
         for (uint b = 0u; b < p.nin / 256u; ++b) {
@@ -132,8 +148,8 @@
             int weights[32];
             for (uint j = 0u; j < 16u; ++j) {
                 uint packed = (quants[j / 4u] >> ((j & 3u) * 8u)) & 255u;
-                weights[j] = mxfp4_value(packed & 15u);
-                weights[j + 16u] = mxfp4_value(packed >> 4u);
+                weights[j] = fp4_value(packed & 15u);
+                weights[j + 16u] = fp4_value(packed >> 4u);
             }
 #endif
             for (uint c = 0u; c < ncols; ++c) {

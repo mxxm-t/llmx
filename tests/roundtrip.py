@@ -238,7 +238,7 @@ def check_output_failures(d):
 
 
 # The types this checks and their GGUF ids, whose values per block and bytes per block are in sd.TYPES.
-TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q2_k": sd.Q2_K, "q3_k": sd.Q3_K, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4, "tq1_0": sd.TQ1_0, "tq2_0": sd.TQ2_0}
+TYPES = {"q8_0": sd.Q8_0, "q4_0": sd.Q4_0, "q4_1": sd.Q4_1, "q5_0": sd.Q5_0, "q5_1": sd.Q5_1, "q2_k": sd.Q2_K, "q3_k": sd.Q3_K, "q4_k": sd.Q4_K, "q5_k": sd.Q5_K, "q6_k": sd.Q6_K, "iq4_nl": sd.IQ4_NL, "iq4_xs": sd.IQ4_XS, "mxfp4": sd.MXFP4, "nvfp4": sd.NVFP4, "tq1_0": sd.TQ1_0, "tq2_0": sd.TQ2_0}
 
 
 # The decoders of tests/spec_decode.py are written from the format descriptions, so the check compares llmx against the spec rather than against itself.
@@ -386,6 +386,14 @@ def mxfp4_blocks():
                     for e in range(256) for shift in range(16))
 
 
+# Every scale byte and code at every subblock position; group-specific scales
+# distinguish the four groups and their low-eight/high-eight packed halves.
+def nvfp4_blocks():
+    return b"".join(bytes((scale + 37 * g) % 256 for g in range(4))
+                    + bytes(((j + shift) % 16) | (((15 - j + shift) % 16) << 4) for j in range(32))
+                    for scale in range(256) for shift in range(16))
+
+
 def tq_blocks(packed_bytes):
     # Each byte position takes all 256 patterns under every finite scale edge, including both zero signs.
     return b"".join(bytes((shift + 73 * i) & 255 for i in range(packed_bytes)) + struct.pack("<H", d)
@@ -398,17 +406,64 @@ def check_raw_decode(d):
     iq4 = b"".join(struct.pack("<H", h) + nibble_bytes(shift, 16)
                    for h in HALVES + (0, 0x8000) for shift in range(16))
     xs = b"".join(iq4_xs_block(*case) for case in iq4_xs_cases(random.Random(731)))
-    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64))):
+    for qtype, payload in (("q8_0", q8_0_blocks()), ("q4_0", q4_0_blocks()), ("q4_1", q4_1_blocks()), ("q5_0", q5_0_blocks()), ("q5_1", q5_1_blocks()), ("q2_k", q2_k_blocks()), ("q3_k", q3_k_blocks()), ("q4_k", q4_k_blocks()), ("q5_k", q5_k_blocks()), ("q6_k", q6_k_blocks()), ("iq4_nl", iq4), ("iq4_xs", xs), ("mxfp4", mxfp4_blocks()), ("nvfp4", nvfp4_blocks()), ("tq1_0", tq_blocks(52)), ("tq2_0", tq_blocks(64))):
         type_id = TYPES[qtype]
         _, block, typesize = sd.TYPES[type_id]
         count = len(payload) // typesize * block
         mg, oj, ob = (os.path.join(d, "raw_%s.%s" % (qtype, ext)) for ext in ("gguf", "json", "bin"))
-        sd.write_gguf(mg, {}, [("w", [count], type_id, payload)])
+        shape = [128, count // 128] if qtype == "nvfp4" else [count]
+        sd.write_gguf(mg, {}, [("w", shape, type_id, payload)])
         rc, out = cli(["dequantize", mg, oj, ob])
         assert rc == 0, "raw decode: dequantize (%s) failed: %s" % (qtype, out)
         assert_decode_matches(qtype, decode_blocks(payload, qtype, count), read_bin_floats(ob))
         print("roundtrip: %s decode matches the format description on %d values "
               "from %d raw blocks  [ok]" % (qtype, count, len(payload) // typesize))
+
+
+def check_nvfp4_companions(directory):
+    """Independent field arithmetic checks full GGUF weights and preserved companion inventory."""
+    def blocks(count):
+        return b"".join(bytes((0, 1, 56, 126) if b % 2 else (127, 255, 63, 7))
+                        + bytes(((j + b) % 16) | (((15 - j + b) % 16) << 4) for j in range(32))
+                        for b in range(count))
+
+    def expected(payload, gains, stride):
+        out = []
+        for i in range(len(payload) // 36 * 64):
+            block, local = i // 64, i % 64
+            scale = payload[36 * block + local // 16]
+            exponent, mantissa = (scale >> 3) & 15, scale & 7
+            factor = (0.0 if scale in (0, 127) else math.ldexp(8 + mantissa, exponent - 10)
+                      if exponent else math.ldexp(mantissa, -9))
+            packed = payload[36 * block + 4 + local // 16 * 8 + local % 8]
+            code = (packed >> (4 * (local % 16 // 8))) & 15
+            e, m = (code >> 1) & 3, code & 1
+            magnitude = math.ldexp(2 + m, e - 2) if e else m * 0.5
+            value = -magnitude if code & 8 and magnitude else magnitude
+            decoded = sd.to_f32(value * factor)
+            out.append(sd.to_f32(decoded * gains[0 if len(gains) == 1 else i // stride]))
+        return sd.pack_f32(out)
+
+    dense, experts, identity = blocks(2), blocks(6), blocks(1)
+    scalar = struct.unpack("<f", struct.pack("<f", -0.0001))[0]
+    gains = (0.0, -0.0, -0.25)
+    tensors = [("dense.weight", [64, 2], sd.NVFP4, dense),
+               ("dense.scale", [1], sd.F32, struct.pack("<f", scalar)),
+               ("dense.input_scale", [1], sd.F32, struct.pack("<f", 12345)),
+               ("expert.weight", [64, 2, 3], sd.NVFP4, experts),
+               ("expert.scale", [3], sd.F32, struct.pack("<3f", *gains)),
+               ("expert.input_scale", [3], sd.F32, struct.pack("<3f", 11, 12, 13)),
+               ("identity.weight", [64, 1], sd.NVFP4, identity)]
+    want = b"".join((expected(dense, [scalar], 128), tensors[1][3], tensors[2][3],
+                     expected(experts, gains, 128), tensors[4][3], tensors[5][3], expected(identity, [1.0], 64)))
+    source, metadata, output = (os.path.join(directory, "nvfp4_companions." + ext) for ext in ("gguf", "json", "bin"))
+    sd.write_gguf(source, {}, tensors)
+    rc, diagnostic = cli(["dequantize", source, metadata, output])
+    assert rc == 0, "NVFP4 companion dequantization failed: " + diagnostic
+    assert Path(output).read_bytes() == want, "NVFP4 companion conversion changed F32 values or zero signs"
+    restored = json.loads(Path(metadata).read_text(encoding="utf-8"))
+    assert restored["tensors"] == [{"name": name, "shape": shape} for name, shape, _, _ in tensors], "NVFP4 raw inventory changed"
+    print("roundtrip: NVFP4 scalar/expert companions, signed zeros, identity fallback and raw inventory  [ok]")
 
 
 # Paths reach the converter as UTF-8, and Windows reads a narrow path in the system code page, so a directory named outside it is where a narrow open fails.
@@ -437,7 +492,7 @@ def check_non_ascii_directory(d):
 # quantize takes only the names of the types it writes, and Q4_1 is one llmx reads but never writes.
 def check_type_names(d):
     mj, mb, mg = (os.path.join(d, n) for n in ("model.json", "model.bin", "names.gguf"))
-    for name in ("q4_1", "iq4_nl", "iq4_xs", "tq1_0", "tq2_0", "Q8_0"):
+    for name in ("q4_1", "iq4_nl", "iq4_xs", "nvfp4", "tq1_0", "tq2_0", "Q8_0"):
         result = run_process(["quantize", mj, mb, mg, name], text=True, timeout=30)
         assert result.returncode == 2 and "unknown quant type" in result.stderr, (
             "quantize did not refuse type %a with status 2: %d %a" % (name, result.returncode, result.stderr))
@@ -477,10 +532,11 @@ def check_windows_long_paths(d):
 def check_empty_tensors(directory):
     source, metadata, output = (os.path.join(directory, "empty." + ext) for ext in ("gguf", "json", "bin"))
     values = struct.pack("<4f", 1.0, -0.0, -2.0, 3.0)
-    for kind in (sd.F32, sd.Q8_0):
-        empty = [("empty_first", [32, 0], kind, b""),
-                 ("empty_middle", [32, 0], kind, b""),
-                 ("empty_last", [32, 0], kind, b"")]
+    for kind in (sd.F32, sd.Q8_0, sd.NVFP4):
+        width = max(32, sd.TYPES[kind][1])
+        empty = [("empty_first", [width, 0], kind, b""),
+                 ("empty_middle", [width, 0], kind, b""),
+                 ("empty_last", [width, 0], kind, b"")]
         mixed = [empty[0], ("first", [4], sd.F32, values), empty[1],
                  ("second", [4], sd.F32, values), empty[2]]
         for tensors, expected in ((empty, b""), (mixed, values * 2)):
@@ -490,7 +546,7 @@ def check_empty_tensors(directory):
             assert Path(output).read_bytes() == expected, "empty tensors changed decoded bytes"
             restored = json.loads(Path(metadata).read_text(encoding="utf-8"))
             assert restored["tensors"] == [{"name": name, "shape": shape} for name, shape, _, _ in tensors]
-    print("roundtrip: empty F32 and Q8_0 tensors alone and around payload preserve shapes and bytes  [ok]")
+    print("roundtrip: empty F32, Q8_0 and NVFP4 tensors alone and around payload preserve shapes and bytes  [ok]")
 
 
 def run():
@@ -533,6 +589,7 @@ def run():
         check_windows_long_paths(d)
         check_independent_decode(d)
         check_raw_decode(d)
+        check_nvfp4_companions(d)
         check_non_ascii_directory(d)
         check_type_names(d)
         check_tensor_extents(d)

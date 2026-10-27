@@ -1,0 +1,121 @@
+{
+  "passed": true,
+  "scope": "Hosted integration CI only. Device correctness, performance and later main integration remain separate.",
+  "run_url": "https://github.com/mxxm-t/llmx/actions/runs/40201966143",
+  "head": "84665f6fdfedb3a1fe9a70a1f383b15b58e6f633",
+  "tree": "acb6d2a289d032b8ebae781a73d323c223016419",
+  "source_checkpoint": "ceb6ed2a31ed2ab3b2ece3b52620a3eb04590887",
+  "parent": "9df63df36d512fa3239834934df66ffc382c110a",
+  "jobs": [
+    {
+      "id": 121194840223,
+      "name": "CPU (Linux UBSan)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840311,
+      "name": "CPU (windows-2022)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840369,
+      "name": "HF reference (CPU)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840375,
+      "name": "CPU (Linux TSan)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840465,
+      "name": "Vulkan backend (build, Linux)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840484,
+      "name": "CPU (macos-15-intel)",
+      "conclusion": "success"
+    },
+    {
+      "id": 121194840630,
+      "name": "CPU (ubuntu-24.04)",
+      "conclusion": "success"
+    }
+  ],
+  "evidence": {
+    "run_id": 40201966143,
+    "run_status": "completed",
+    "run_conclusion": "success",
+    "successful_jobs": 7,
+    "jobs": [
+      {
+        "job_id": 121194840223,
+        "name": "CPU (Linux UBSan)",
+        "file": "CPU_Linux_UBSan-121194840223.log",
+        "format": "utf-8-text",
+        "bytes": 200331,
+        "sha256": "da6bbb12afeb5608928928b2b34aaab531531fa675bafa622d5266350ff140f8"
+      },
+      {
+        "job_id": 121194840311,
+        "name": "CPU (windows-2022)",
+        "file": "CPU_windows-2022-121194840311.log",
+        "format": "utf-8-text",
+        "bytes": 159856,
+        "sha256": "34dd18a391454bc1939f457ce926357a2972d70ab0768a4a5778435d7cd0f7d4"
+      },
+      {
+        "job_id": 121194840369,
+        "name": "HF reference (CPU)",
+        "file": "HF_reference_CPU-121194840369.log",
+        "format": "utf-8-text",
+        "bytes": 137664,
+        "sha256": "7a3d44fbbe1ab05de38aa63ec487c43ed072556ae6197c956938d7a394fd2bc6"
+      },
+      {
+        "job_id": 121194840375,
+        "name": "CPU (Linux TSan)",
+        "file": "CPU_Linux_TSan-121194840375.log",
+        "format": "utf-8-text",
+        "bytes": 240117,
+        "sha256": "755eff226124bcb54fb13354d4588bc12abcb1aaf43e78a2d21386221c218027"
+      },
+      {
+        "job_id": 121194840465,
+        "name": "Vulkan backend (build, Linux)",
+        "file": "Vulkan_backend_build_Linux-121194840465.log",
+        "format": "utf-8-text",
+        "bytes": 181498,
+        "sha256": "86fb2e603b9a954b625b18f55c1970bea7d0c19af835b3a93f748c64b87586ea"
+      },
+      {
+        "job_id": 121194840484,
+        "name": "CPU (macos-15-intel)",
+        "file": "CPU_macos-15-intel-121194840484.log",
+        "format": "utf-8-text",
+        "bytes": 103970,
+        "sha256": "5f9ba6df3d7a86a9bfb94ca88523960f941aa1a13c0e64ff287be6ed8ccf4f81"
+      },
+      {
+        "job_id": 121194840630,
+        "name": "CPU (ubuntu-24.04)",
+        "file": "CPU_ubuntu-24.log",
+        "format": "utf-8-text",
+        "bytes": 127992,
+        "sha256": "773cbe6f1ae833f4f81547e01bb1d3dfba3a9ef2568cd56455d5e8270ace501d"
+      }
+    ],
+    "total_job_log_bytes": 1151428,
+    "deleted_ref": "refs/heads/gate/nvfp4-integration-20261025",
+    "before": {
+      "refs/heads/gate/nvfp4-integration-20261025": "84665f6fdfedb3a1fe9a70a1f383b15b58e6f633"
+    },
+    "after": {},
+    "local_bundle": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-20261025\\build-nvfp4-research\\runtime-ci-main3\\final-40201966143\\nvfp4-integration-gate.bundle",
+    "bundle_sha256": "fbbbbdcf433e5d0ad447197bebc31c975947239eb85e3ae82b012d37ed6da308",
+    "bundle_prerequisite": "9df63df36d512fa3239834934df66ffc382c110a",
+    "branch_delete_log_sha256": "03df8e991b77fe53245da62aaa8dfb7137c3c26cd8bf02f5471d1160fa164243",
+    "scope": "Only the temporary runtime integration CI branch; local commit retained in verified bundle."
+  }
+}

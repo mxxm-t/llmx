@@ -1,0 +1,353 @@
+{
+  "scope": "Preliminary Radeon VII isolated-operator screen, not a MI50/model/HF/mx gate",
+  "decision": "Keep the retained 256-thread runtime. The corrected 128-thread candidate is not adopted. Its MI50 behavior remains unmeasured.",
+  "source_base": "d86fb838b3d50fb0651aa5c38a0b97423de8b315",
+  "build_control": "Both fresh VS 18 2026 Release builds use the same frozen source and native-test overlay; only four NVFP4 shader modules differ. No version command in probe; external source and binary hashes identify each arm.",
+  "receipt": {
+    "passed": true,
+    "scope": "Preliminary Radeon operator screen only, not a MI50, model or mx gate",
+    "pins": {
+      "baseline": "0c8d88023ef0ac6626e0288a6746e08e314e5e491efc192e9dda47d833dc99b9",
+      "experimental": "4d12d859cc96e168f6b7a845ac68f0616a8a20eadcd77056b9966bbbabf65079"
+    },
+    "source_sha256": "56243a0ef84429d493cda3effdcb65c4ac3ede51aae3fa28bacdc59891d0b877",
+    "libraries": {
+      "baseline": "d165d8985f0ed48bd30ce627735b8772ad34b233661f4045b3117ace97ff4e76",
+      "experimental": "509aedca633be9c8d2ab399ecfc9dc59c5ebcae11a4bccbee51cda631f056c3f"
+    },
+    "identity": "Instrumented probes have no version command; frozen d86 source plus recorded overlay and artifact hashes identify each arm",
+    "case": "1024x896",
+    "columns": 512,
+    "iterations": 1000,
+    "calls": [
+      {
+        "arm": "baseline",
+        "warmup": true,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\baseline\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\warmup-baseline"
+        ],
+        "start": 1792960844.7616155,
+        "monotonic_start": 2456592.3663475,
+        "log": "warmup-baseline.log",
+        "pid": 77284,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960845.9290457,
+        "monotonic_end": 2456593.5343264,
+        "log_sha256": "efa68f172a7743aeb5cc8a33dc33c3f6009551a0eab82cf950eaf47403c87d14",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.5063487
+      },
+      {
+        "arm": "experimental",
+        "warmup": true,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\warmup-experimental"
+        ],
+        "start": 1792960845.9415941,
+        "monotonic_start": 2456593.546711,
+        "log": "warmup-experimental.log",
+        "pid": 83880,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960847.2751837,
+        "monotonic_end": 2456594.8802502,
+        "log_sha256": "79561e2ba395cc752b6240a0c50e122582220810eaa90d9005cdca3097c516eb",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.8053882
+      },
+      {
+        "arm": "baseline",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\baseline\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\measured-0-baseline"
+        ],
+        "start": 1792960847.2891827,
+        "monotonic_start": 2456594.894169,
+        "log": "measured-0-baseline.log",
+        "pid": 27944,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960848.024508,
+        "monotonic_end": 2456595.6293906,
+        "log_sha256": "e9b409089fa081dd82e66d09d24fe271350d60457ac9bb2558a4baf0c1b26d32",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.5052134
+      },
+      {
+        "arm": "experimental",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\measured-1-experimental"
+        ],
+        "start": 1792960848.039539,
+        "monotonic_start": 2456595.6443797,
+        "log": "measured-1-experimental.log",
+        "pid": 65304,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960849.05761,
+        "monotonic_end": 2456596.6626208,
+        "log_sha256": "8b6baa38a10ea514555d802fc7d24a62c26599e0743c5422f01d9c3dd631b1dc",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.8313091
+      },
+      {
+        "arm": "experimental",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\measured-2-experimental"
+        ],
+        "start": 1792960849.0681212,
+        "monotonic_start": 2456596.6729454,
+        "log": "measured-2-experimental.log",
+        "pid": 44124,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960850.058175,
+        "monotonic_end": 2456597.6632415,
+        "log_sha256": "5cfd3db847a3221c05c32ff100f3f1eb0fa080d502c648fb238fae8d6e225d8b",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.7945907
+      },
+      {
+        "arm": "baseline",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\baseline\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\measured-3-baseline"
+        ],
+        "start": 1792960850.0711741,
+        "monotonic_start": 2456597.6757935,
+        "log": "measured-3-baseline.log",
+        "pid": 30084,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960850.7564816,
+        "monotonic_end": 2456598.3618598,
+        "log_sha256": "a8935f9b1c2b7ce89f2f815f42355be9f95f333c47bef77ec4a4d62adc3246ef",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "mean_ms": 0.503495
+      }
+    ],
+    "diagnostics": [
+      {
+        "arm": "baseline",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\baseline\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\diagnostic-baseline",
+          "--diagnostic"
+        ],
+        "start": 1792960850.7674809,
+        "monotonic_start": 2456598.3725155,
+        "log": "diagnostic-baseline.log",
+        "pid": 88520,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960851.080397,
+        "monotonic_end": 2456598.6850581,
+        "log_sha256": "a8713cad878f23fa3d132e3c4ea224f656901e0b14b6b2bb91b6f4e5e552998e",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "kernel_ms": {
+          "matmul_tile_nvfp4": 0.44768
+        }
+      },
+      {
+        "arm": "experimental",
+        "warmup": false,
+        "command": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\experimental\\windows-probe-build\\Release\\nvfp4-tile-probe.exe",
+          "--case",
+          "1024x896",
+          "--columns",
+          "512",
+          "--iterations",
+          "1000",
+          "--output",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\diagnostic-experimental",
+          "--diagnostic"
+        ],
+        "start": 1792960851.0927331,
+        "monotonic_start": 2456598.6978719,
+        "log": "diagnostic-experimental.log",
+        "pid": 67024,
+        "exit_code": 0,
+        "reaped": true,
+        "end": 1792960851.5522726,
+        "monotonic_end": 2456599.1568016,
+        "log_sha256": "16487d7933387c56be5ed426b4b68f6194d5c2fa5c64d4991286dacbd24d018c",
+        "output_sha256": "d7897061874f72ffbfecf877102e886b656f4c173983053fba8ec3728974804c",
+        "kernel_ms": {
+          "matmul_tile_nvfp4": 0.8296
+        }
+      }
+    ],
+    "monitor_source_sha256": "7747fce1381c1aba1688322023b8729fe0bbb549869b6b1bd1326490b0dc04e6",
+    "activity_flags": {
+      "unrelated_cpu": "known unrelated deltas >100 percent of one CPU",
+      "system_cpu": ">75 percent",
+      "disk": ">100 MiB/s physical total",
+      "other_gpu_engine": ">5 percent individually, no engine summation",
+      "missing": "unknown, never zero"
+    },
+    "runner_pid": 68436,
+    "monitor": {
+      "pid": 55228,
+      "command": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\tools\\monitor_windows.py",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\activity.jsonl",
+        "--stop-file",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5-20261025\\build-nv128-preparation\\paired-source-v1\\radeon-screen-v1\\monitor.stop",
+        "--seconds",
+        "120",
+        "--interval",
+        "1"
+      ]
+    },
+    "monitor_exit": 0,
+    "finished": 1792960853.8874593
+  },
+  "mean_ms": {
+    "baseline": 0.5043542000000001,
+    "experimental": 0.8129499
+  },
+  "latency_change_percent": 61.186305179970724,
+  "throughput_ratio": 0.620400100916428,
+  "isa": {
+    "baseline": {
+      "sha256": "828cf002ad3a4812613c0ca7d733dbc63c5425966dc99de298e2de84539a8cd5",
+      "static_opcodes": {
+        "v_fma_f32": 0,
+        "ds_read2_b64": 64,
+        "ds_read_b64": 0,
+        "ds_read_b128": 0,
+        "ds_write2_b64": 4,
+        "ds_write_b64": 4,
+        "s_waitcnt": 142,
+        "v_fmac_f32": 512
+      },
+      "resources": {
+        "numUsedVgprs": 60,
+        "numUsedSgprs": 44,
+        "ldsUsageSizeInBytes": 17408,
+        "scratchMemUsageInBytes": 0
+      }
+    },
+    "experimental": {
+      "sha256": "88b0bdd14ed380e027c6191691f9a050d85d0a298b084f92533310d30fd78954",
+      "static_opcodes": {
+        "v_fma_f32": 0,
+        "ds_read2_b64": 96,
+        "ds_read_b64": 0,
+        "ds_read_b128": 0,
+        "ds_write2_b64": 5,
+        "ds_write_b64": 8,
+        "s_waitcnt": 253,
+        "v_fmac_f32": 1024
+      },
+      "resources": {
+        "numUsedVgprs": 77,
+        "numUsedSgprs": 42,
+        "ldsUsageSizeInBytes": 17408,
+        "scratchMemUsageInBytes": 0
+      }
+    }
+  },
+  "interpretation": [
+    "Both diagnostics select the 64-row matmul_tile_nvfp4 kernel. Diagnostic milliseconds are separate from ordinary-call means.",
+    "Static FMAs per thread double while workgroup threads halve. This does not show duplicate total arithmetic.",
+    "Both shaders issue ds_read2_b64. Paired 64-bit LDS reads are present; absence of ds_read_b64 or ds_read_b128 does not disprove paired-K storage.",
+    "VGPR usage rises, LDS bytes are unchanged and scratch remains zero. These are compiler resource counts, not measured occupancy or a proven stall cause.",
+    "The ABBA screen has only two measured samples per arm and recorded background activity. No inference about MI50 or a model-wide regression follows."
+  ],
+  "activity_audit": {
+    "samples": 12,
+    "covered_calls": 8,
+    "system_cpu_above_75_percent_samples": 0,
+    "disk_above_100_MiB_s_samples": 0,
+    "unrelated_cpu_above_one_cpu_samples": 10,
+    "other_gpu_engine_above_5_percent_observations": 30,
+    "observed_background": "cpptools CPU; Chrome/Firefox video decode; system Copy engine. Engine observations are not summed into utilization.",
+    "unknowns": "1488 process access-denied records and 6 error-87 records. Short-lived/new/inaccessible process deltas remain unknown. Probe engine counters were not observed.",
+    "counter_unavailable": "Empty in saved samples; process attribution limitations still apply.",
+    "all_calls_retained": true
+  },
+  "artifacts": {
+    "execution.json": "8ea9cdb53f04b86e26431f1c9b384ecab348ac68316b255c66615f9b4960242e",
+    "activity.jsonl": "d48fb8dd9345834d2eb16261c2753a72f66c5c6838de460dca47f2009cf6adba",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "raw_directory": "worktrees/nvfp4-main5-20261025/build-nv128-preparation/paired-source-v1/radeon-screen-v1",
+  "cleanup": "All eight probe calls reaped; monitor exited 0. Fresh CIM check found neither runner68436 nor monitor55228. Radeon release posted20:45 UTC.",
+  "next": "Decode the retained-runtime MI50 SQTT profile after its existing timing dependency completes; use actual waits and ISA to choose the next change. Do not spend full HF gates on this Radeon screen.",
+  "documentation_check": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-main5-vulkan/Release/llmx.exe --only docs,dead-code",
+    "exit_code": 0,
+    "docs": {
+      "findings": 0,
+      "planted_faults": 21
+    },
+    "dead_code": {
+      "listed_findings": 21,
+      "planted_faults": 19
+    },
+    "earlier_invocation": "The first invocation named the receipt directory build-main5-integration instead of build-main5-vulkan and exited before running tests because no executable was present."
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scope": "Focused test-only integration coverage for existing NVFP4 scale loading. No runtime edit or newly found runtime bug.",
+  "runtime_revision": "4f026d9418cea33ad7def3b847e234c62a881422",
+  "unchanged_runtime_source_files": 165,
+  "coverage": [
+    "single-file mapped streamed MoE",
+    "single-file automatic streamed MoE",
+    "cross-shard mapped streamed MoE",
+    "cross-shard automatic streamed MoE"
+  ],
+  "oracle": "Existing independent F32 model fixture, prompt then CPU decode then follow-up. Destination scale storage and expert-call counts checked. Automatic loads witness reads from all 1/2 files; every weight/companion pair in the sharded fixture crosses files.",
+  "result": "PASS, 1/1 model-weight-scales CTest, 0.19 seconds test time, 0.22 seconds total.",
+  "binary_sha256": "96c584212e78db1c34d609121188110fae282ebf3c23f7bc686c045b06c0a939",
+  "test_source_current_sha256": "e9befb3f9d769bc1f7235e00604be9c6e681be4b73e4bd926cd3def1e7140b58",
+  "post_build_delta": "One comment joined onto one line to follow AGENTS sentence formatting. No executed code changed after the passing build/test. The pre-formatting source hash was not separately saved; the exact binary and UTF-16 compile/test logs are retained.",
+  "build": "Fresh CPU-only build-nvfp4-file-scale-test, Vulkan OFF, BUILD_TESTING ON, Release, one compiler worker, only llmx-model-weight-scales-test target.",
+  "commands": [
+    "cmake -S . -B build-nvfp4-file-scale-test -DLLMX_HAS_BACKEND_VULKAN=OFF -DBUILD_TESTING=ON",
+    "cmake --build build-nvfp4-file-scale-test --config Release --target llmx-model-weight-scales-test --parallel 1",
+    "ctest --test-dir build-nvfp4-file-scale-test -C Release -R '^model-weight-scales$' -V --output-on-failure"
+  ],
+  "artifacts": {
+    "build-nvfp4-file-scale-configure.log": "4b368ec3486d3f4dc8b92fb32542fad8b54b106c05538f2a48a9022f0da5c4bd",
+    "build-nvfp4-file-scale-build.log": "22366624085b633ffbe901e4d79ca10e6bfad0794669f86fbe9016bc74e56177",
+    "build-nvfp4-file-scale-ctest.log": "3a992bb4e8d771b6f4e1a1ef64ab1125dbe8263ae93923e2a6e371e73b322118"
+  }
+}

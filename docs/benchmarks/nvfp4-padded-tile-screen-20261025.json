@@ -1,0 +1,1365 @@
+{
+  "scope": "Focused before/after NVFP4 shared-memory pitch experiment. Same build image/options and archive layout, default clocks. Not final qualification.",
+  "source_commit": "57b14db944267fa9c8a703f4a020221794048db3",
+  "change": "NVFP4-only shared-memory pitch padding by one F32 element; fixed-type baseline",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "pci": "0000:cc:00.0",
+  "node": "/dev/dri/renderD131",
+  "preflight": {
+    "vram": 10919936,
+    "busy": 0
+  },
+  "activity_flags": {
+    "unrelated_cpu": "over 100 percent of one logical CPU",
+    "system_cpu": "over 75 percent busy",
+    "disk": "over 100 MiB/s summed physical device reads and writes",
+    "coverage": "unavailable counters or missing monitor samples are reported, never zero"
+  },
+  "pins": {
+    "model": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "llmx": "63dde3587566682b0ef8f9ecd58f5e6ed83dae9d43bf4d58e9a8333b7ce922e1",
+    "after": "6c9feea68d4db5b6dc1ab2a1afa9b4ff0978b559a537a52990fe787503777f1d",
+    "build_receipt": "1b9bb827b551b7fa3cf92cb782ba53f6edc817c3bd3c568828b0ea4e6c0b0ab1"
+  },
+  "calls": [
+    {
+      "arm": "before",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884100.6673367,
+      "log": "00-before.log",
+      "end": 1792884105.6924157,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1876.76,
+        "tg128": 85.45
+      },
+      "log_sha256": "f45ed59976361eb4869d938d2815815d3f71b66e2b9b68a96dec6e1d52f97a9d",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 5,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 915.4655200899647,
+          "system_busy_percent": 64.2812303829253,
+          "disk_mib_s": 387.62845184712717
+        }
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": true,
+      "status": "passed",
+      "command": [
+        "/candidate/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884105.693051,
+      "log": "01-after.log",
+      "end": 1792884110.2660065,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 2361.39,
+        "tg128": 84.61
+      },
+      "log_sha256": "000aeb5d7680e65583f468e8d6b119e39c1fe15e568863bf161a8d567d35d2da",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 5,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 988.3328980578108,
+          "system_busy_percent": 64.61731493099121,
+          "disk_mib_s": 400.5579757771363
+        }
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884110.266472,
+      "log": "02-before.log",
+      "end": 1792884114.8428671,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1875.55,
+        "tg128": 85.28
+      },
+      "log_sha256": "43179597ee6d6673741af929d56582d8390b0902dfef6ab6424ff1b022e7079f",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 5,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 1002.5203131356479,
+          "system_busy_percent": 69.30320150659134,
+          "disk_mib_s": 378.6477888835091
+        }
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/candidate/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884114.8434367,
+      "log": "03-after.log",
+      "end": 1792884119.2173333,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 2362.1,
+        "tg128": 87.12
+      },
+      "log_sha256": "7f282239ae193047905a3b25c920f6687ecee102d53b7bc80cfc0b960580eb46",
+      "activity": {
+        "samples": 4,
+        "flags": {
+          "unrelated_cpu": 4,
+          "system_cpu": 0,
+          "disk": 4,
+          "process_coverage_gaps": 4
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 1007.4589915748783,
+          "system_busy_percent": 69.79949874686717,
+          "disk_mib_s": 379.892804556237
+        }
+      }
+    },
+    {
+      "arm": "after",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/candidate/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884119.217816,
+      "log": "04-after.log",
+      "end": 1792884124.3524513,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 2360.6,
+        "tg128": 84.21
+      },
+      "log_sha256": "fb14c87bbaacdc6b9d62cd71d4ab87691bd850239a7fd224bdaf75b2ef1eb6b9",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 5,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 1052.4538901377343,
+          "system_busy_percent": 70.38196618659988,
+          "disk_mib_s": 374.28039554424754
+        }
+      }
+    },
+    {
+      "arm": "before",
+      "warmup": false,
+      "status": "passed",
+      "command": [
+        "/llmx/build/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--p",
+        "512",
+        "--n",
+        "128",
+        "--r",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--dtype",
+        "auto",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "auto"
+      ],
+      "start": 1792884124.353047,
+      "log": "05-before.log",
+      "end": 1792884129.5280962,
+      "exit_code": 0,
+      "rates": {
+        "pp512": 1894.51,
+        "tg128": 85.92
+      },
+      "log_sha256": "8e84863ab5074f63f3d9ef20fa6d58802ace987df986a294edc11a55f8b4d355",
+      "activity": {
+        "samples": 5,
+        "flags": {
+          "unrelated_cpu": 5,
+          "system_cpu": 0,
+          "disk": 5,
+          "process_coverage_gaps": 5
+        },
+        "maximum": {
+          "unrelated_cpu_percent": 1073.2504012282957,
+          "system_busy_percent": 73.69742623979911,
+          "disk_mib_s": 370.2614062418408
+        }
+      }
+    }
+  ],
+  "passed": true,
+  "version": "llmx 0.1.0+unknown numerics 83a838a39d8b406b",
+  "device": "==========\nVULKANINFO\n==========\n\nVulkan Instance Version: 1.4.309\n\n\nInstance Extensions: count = 24\n-------------------------------\nVK_EXT_acquire_drm_display             : extension revision 1\nVK_EXT_acquire_xlib_display            : extension revision 1\nVK_EXT_debug_report                    : extension revision 10\nVK_EXT_debug_utils                     : extension revision 2\nVK_EXT_direct_mode_display             : extension revision 1\nVK_EXT_display_surface_counter         : extension revision 1\nVK_EXT_headless_surface                : extension revision 1\nVK_EXT_surface_maintenance1            : extension revision 1\nVK_EXT_swapchain_colorspace            : extension revision 5\nVK_KHR_device_group_creation           : extension revision 1\nVK_KHR_display                         : extension revision 23\nVK_KHR_external_fence_capabilities     : extension revision 1\nVK_KHR_external_memory_capabilities    : extension revision 1\nVK_KHR_external_semaphore_capabilities : extension revision 1\nVK_KHR_get_display_properties2         : extension revision 1\nVK_KHR_get_physical_device_properties2 : extension revision 2\nVK_KHR_get_surface_capabilities2       : extension revision 1\nVK_KHR_portability_enumeration         : extension revision 1\nVK_KHR_surface                         : extension revision 25\nVK_KHR_surface_protected_capabilities  : extension revision 1\nVK_KHR_wayland_surface                 : extension revision 6\nVK_KHR_xcb_surface                     : extension revision 6\nVK_KHR_xlib_surface                    : extension revision 6\nVK_LUNARG_direct_driver_loading        : extension revision 1\n\nInstance Layers: count = 3\n--------------------------\nVK_LAYER_INTEL_nullhw       INTEL NULL HW                1.1.73   version 1\nVK_LAYER_MESA_device_select Linux device selection layer 1.4.303  version 1\nVK_LAYER_MESA_overlay       Mesa Overlay layer           1.4.303  version 1\n\nDevices:\n========\nGPU0:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 25.0.7\n\tvendorID           = 0x1002\n\tdeviceID           = 0x66a1\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_DISCRETE_GPU\n\tdeviceName         = AMD Instinct MI60 / MI50 (RADV VEGA20)\n\tdriverID           = DRIVER_ID_MESA_RADV\n\tdriverName         = radv\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1\n\tconformanceVersion = 1.4.0.0\n\tdeviceUUID         = 00000000-cc00-0000-0000-000000000000\n\tdriverUUID         = 414d442d-4d45-5341-2d44-525600000000\nGPU1:\n\tapiVersion         = 1.4.305\n\tdriverVersion      = 0.0.1\n\tvendorID           = 0x10005\n\tdeviceID           = 0x0000\n\tdeviceType         = PHYSICAL_DEVICE_TYPE_CPU\n\tdeviceName         = llvmpipe (LLVM 19.1.7, 256 bits)\n\tdriverID           = DRIVER_ID_MESA_LLVMPIPE\n\tdriverName         = llvmpipe\n\tdriverInfo         = Mesa 25.0.7-2+deb13u1 (LLVM 19.1.7)\n\tconformanceVersion = 1.3.1.1\n\tdeviceUUID         = 6d657361-3235-2e30-2e37-2d322b646500\n\tdriverUUID         = 6c6c766d-7069-7065-5555-494400000000",
+  "native_exit": 0,
+  "candidate_version": "llmx 0.1.0+unknown numerics 79f73d7382b1b062",
+  "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+  "profile_exit": 0,
+  "monitor_exit": 0,
+  "container_state": {
+    "Status": "running",
+    "Running": true,
+    "Paused": false,
+    "Restarting": false,
+    "OOMKilled": false,
+    "Dead": false,
+    "Pid": 3589446,
+    "ExitCode": 0,
+    "Error": "",
+    "StartedAt": "2026-10-24T23:21:37.287947793Z",
+    "FinishedAt": "0001-01-01T00:00:00Z"
+  },
+  "end": 1792884137.1831958,
+  "means": {
+    "before": {
+      "pp512": 1885.03,
+      "tg128": 85.6
+    },
+    "after": {
+      "pp512": 2361.35,
+      "tg128": 85.66499999999999
+    }
+  },
+  "change_percent": {
+    "pp512": 25.268563365039288,
+    "tg128": 0.07593457943924076
+  },
+  "source_delta": {
+    "matmul_tile.comp": {
+      "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+      "before": "49d781d9ed8b2742a34643f0d25d1d9b25d5c3742e7d1bb7f0b51f4d2b54b131",
+      "after": "fa6b8d7d0c07ac0efe8aedf560e0bdcb97f11a57ef474355659af825694de43b"
+    }
+  },
+  "profile": {
+    "instrumented_only": true,
+    "tile_lines": [
+      "profile:   matmul_tile_nvfp4 177.687 ms (81.699%)",
+      "profile: kernel matmul_tile_nvfp4: Driver pipeline hash=5063482742793934135 SGPRs=48 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=8556 LDS size=16896 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1940081336 Instructions=1584 Copies=292 Branches=121 Latency=257539 Inverse Throughput=85846 VMEM Clause=75 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=35 VALU=712 SALU=394 VMEM=78 SMEM=62 VOPD=0"
+    ]
+  },
+  "native_result": "NVFP4 Vulkan: AMD Instinct MI60 / MI50 (RADV VEGA20); row/tile timestamp witnesses present\nNVFP4 Vulkan scale 1: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0.125: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale 0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan scale -0: 262144 exhaustive embedding values, signed zeros and high-bit scales [ok]\nNVFP4 Vulkan unscaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f32: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled f16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan unscaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan scaled bf16: six matrix entry points, mixed group, routed choices and weighted residual [ok]\nNVFP4 Vulkan: scale before overflowing product and residual, invalid grouped scale before writes [ok]",
+  "artifact_hashes": {
+    "00-before.log": "f45ed59976361eb4869d938d2815815d3f71b66e2b9b68a96dec6e1d52f97a9d",
+    "01-after.log": "000aeb5d7680e65583f468e8d6b119e39c1fe15e568863bf161a8d567d35d2da",
+    "02-before.log": "43179597ee6d6673741af929d56582d8390b0902dfef6ab6424ff1b022e7079f",
+    "03-after.log": "7f282239ae193047905a3b25c920f6687ecee102d53b7bc80cfc0b960580eb46",
+    "04-after.log": "fb14c87bbaacdc6b9d62cd71d4ab87691bd850239a7fd224bdaf75b2ef1eb6b9",
+    "05-before.log": "8e84863ab5074f63f3d9ef20fa6d58802ace987df986a294edc11a55f8b4d355",
+    "activity.jsonl": "6a6393f4a1db606395f7cec98d9f4d06bf8db4b47d0dd697320180fcb48e5c92",
+    "execution.json": "145c6a924872e6e793c81f321d3692115e5bd40f1e59c9c5b7256e05ad19e86c",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "native.log": "6674678090a447214ec8a7f12b4a06769f8f945df52f36363369912f2b365342",
+    "profile.log": "ea3916956e42223636c49604446acd8d899df728c281cbad51e747a00832767c"
+  },
+  "build_artifact_hashes": {
+    "build-result.json": "1b9bb827b551b7fa3cf92cb782ba53f6edc817c3bd3c568828b0ea4e6c0b0ab1",
+    "build.log": "ee1d03f6314cad73ef952bf4817e1cf282506e9cb95ae64749201ae34f5ebbe9",
+    "configure.log": "883aa1d1b34b801572db7a3c23f8c9dc78b3a1e74bdf9cea9a5e78c5c5ea43b3",
+    "matmul_tile.comp": "fa6b8d7d0c07ac0efe8aedf560e0bdcb97f11a57ef474355659af825694de43b",
+    "pins.json": "e24be6d805e70ed9f49434b87161021f950e8c4d6afadc49e6684bfd4a9bc52a"
+  },
+  "limitations": [
+    "Six calls retained:two warmups,four measured;two measured per arm.",
+    "Both arms PCI cc; do not compare absolute rates to earlier experiments on other devices.",
+    "Candidate isolated to NV shared pitches+1; current-source short HF and Windows native checks pass; depth/device-split/final performance/existing-format/CI remain open.",
+    "Source bank-alias hypothesis is rationale only; no measured bank-conflict counter or occupancy claim.",
+    "All activity flags/process-coverage gaps retained; no idle or final performance qualification claim."
+  ],
+  "rationale": {
+    "source_note": "build-nvfp4-research/mi50-nvfp4-tile-hypothesis-20261025.md",
+    "sha256": "bbbc1bfe4fe00226061662652f70b465c78021a8c3c208f03924d694baa208a4",
+    "summary": "Pitch64 maps different K planes of a fixed row/column to the same modulo32 bank; pitch65 changes that source-level pattern. Timing improvement does not alone prove a hardware bank-conflict cause."
+  },
+  "current_candidate_checks": {
+    "released_short_hf": {
+      "passed": true,
+      "cases": [
+        {
+          "dtype": "default",
+          "exit_code": 0,
+          "checks": [
+            {
+              "label": "prompt-00-ids",
+              "status": "pass",
+              "tokens": 5
+            },
+            {
+              "label": "prompt-00-logits",
+              "status": "pass",
+              "top1": 11751,
+              "top5_overlap": 5,
+              "top_ids": [
+                11751,
+                279,
+                7172,
+                198,
+                25,
+                31586,
+                303,
+                1076,
+                248046,
+                524
+              ],
+              "top_logits": [
+                15.139391,
+                14.583541,
+                14.375739,
+                14.33268,
+                14.234179,
+                13.970903,
+                13.508119,
+                13.477377,
+                13.374907,
+                13.149084
+              ]
+            },
+            {
+              "label": "prompt-01-ids",
+              "status": "pass",
+              "tokens": 3
+            },
+            {
+              "label": "prompt-01-logits",
+              "status": "pass",
+              "top1": 264,
+              "top5_overlap": 5,
+              "top_ids": [
+                264,
+                449,
+                279,
+                3428,
+                524,
+                799,
+                4364,
+                10141,
+                1429,
+                44265
+              ],
+              "top_logits": [
+                20.211082,
+                18.729521,
+                18.451546,
+                17.744432,
+                17.364582,
+                17.307051,
+                17.059258,
+                16.879459,
+                16.847385,
+                16.240229
+              ]
+            },
+            {
+              "label": "prompt-02-ids",
+              "status": "pass",
+              "tokens": 6
+            },
+            {
+              "label": "prompt-02-logits",
+              "status": "pass",
+              "top1": 198,
+              "top5_overlap": 5,
+              "top_ids": [
+                198,
+                460,
+                695,
+                317,
+                653,
+                271,
+                1133,
+                264,
+                220,
+                4673
+              ],
+              "top_logits": [
+                23.694899,
+                19.387173,
+                18.079912,
+                17.766594,
+                16.474243,
+                16.174204,
+                15.20112,
+                15.101852,
+                14.883271,
+                14.806227
+              ]
+            },
+            {
+              "label": "prompt-03-ids",
+              "status": "pass",
+              "tokens": 7
+            },
+            {
+              "label": "prompt-03-logits",
+              "status": "pass",
+              "top1": 6105,
+              "top5_overlap": 5,
+              "top_ids": [
+                6105,
+                5983,
+                13358,
+                18016,
+                4022,
+                321,
+                279,
+                55945,
+                1259,
+                864
+              ],
+              "top_logits": [
+                19.499264,
+                19.382023,
+                19.232967,
+                17.277985,
+                15.848874,
+                15.754051,
+                15.117811,
+                14.912457,
+                14.416389,
+                14.320861
+              ]
+            },
+            {
+              "label": "prompt-04-ids",
+              "status": "pass",
+              "tokens": 12
+            },
+            {
+              "label": "prompt-04-logits",
+              "status": "pass",
+              "top1": 16820,
+              "top5_overlap": 5,
+              "top_ids": [
+                16820,
+                17257,
+                7099,
+                8964,
+                4751,
+                11247,
+                4128,
+                9561,
+                9114,
+                1259
+              ],
+              "top_logits": [
+                16.339499,
+                16.011709,
+                15.369555,
+                13.930063,
+                13.514391,
+                13.000741,
+                12.893069,
+                12.802622,
+                12.631142,
+                12.212891
+              ]
+            },
+            {
+              "label": "prompt-05-ids",
+              "status": "pass",
+              "tokens": 17
+            },
+            {
+              "label": "prompt-05-logits",
+              "status": "pass",
+              "top1": 6124,
+              "top5_overlap": 5,
+              "top_ids": [
+                6124,
+                17163,
+                9564,
+                279,
+                5440,
+                31868,
+                15477,
+                8100,
+                6650,
+                6535
+              ],
+              "top_logits": [
+                17.559246,
+                17.405651,
+                17.048492,
+                16.812756,
+                15.83977,
+                15.824402,
+                15.767853,
+                15.753362,
+                15.663641,
+                15.496992
+              ]
+            },
+            {
+              "label": "ppl-ids",
+              "status": "pass",
+              "tokens": 243
+            },
+            {
+              "label": "ppl-00-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 242,
+              "chunks": 1,
+              "context size": 262144,
+              "mean_nll": 3.15617733,
+              "perplexity": 23.4807,
+              "hf_mean_nll": 3.1561827913681415,
+              "absolute_nll_delta": 5.46136814172371e-06,
+              "bound": 0.01
+            },
+            {
+              "label": "ppl-00-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 242,
+              "chunks": 1,
+              "context size": 262144,
+              "mean_nll": 3.156178799,
+              "perplexity": 23.4807,
+              "hf_mean_nll": 3.1561827913681415,
+              "absolute_nll_delta": 3.99236814141446e-06,
+              "bound": 0.01
+            },
+            {
+              "label": "ppl-01-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 239,
+              "chunks": 4,
+              "context size": 64,
+              "mean_nll": 3.873226306,
+              "perplexity": 48.0973,
+              "hf_mean_nll": 3.873262595426905,
+              "absolute_nll_delta": 3.628942690525605e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-01-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 239,
+              "chunks": 4,
+              "context size": 64,
+              "mean_nll": 3.87322884,
+              "perplexity": 48.0974,
+              "hf_mean_nll": 3.873262595426905,
+              "absolute_nll_delta": 3.375542690520206e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-02-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 128,
+              "scored tokens": 126,
+              "chunks": 2,
+              "context size": 64,
+              "mean_nll": 3.53965166,
+              "perplexity": 34.4549,
+              "hf_mean_nll": 3.5397032416076066,
+              "absolute_nll_delta": 5.15816076065434e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-02-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 128,
+              "scored tokens": 126,
+              "chunks": 2,
+              "context size": 64,
+              "mean_nll": 3.539658237,
+              "perplexity": 34.4551,
+              "hf_mean_nll": 3.5397032416076066,
+              "absolute_nll_delta": 4.500460760681335e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-03-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 241,
+              "chunks": 2,
+              "context size": 123,
+              "mean_nll": 3.352697905,
+              "perplexity": 28.5797,
+              "hf_mean_nll": 3.3527300449915027,
+              "absolute_nll_delta": 3.2139991502866394e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-03-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 241,
+              "chunks": 2,
+              "context size": 123,
+              "mean_nll": 3.35269784,
+              "perplexity": 28.5797,
+              "hf_mean_nll": 3.3527300449915027,
+              "absolute_nll_delta": 3.220499150291545e-05,
+              "bound": 0.02
+            }
+          ],
+          "bounds": {
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "max_abs_logit": 100.0
+          }
+        },
+        {
+          "dtype": "f32",
+          "exit_code": 0,
+          "checks": [
+            {
+              "label": "prompt-00-ids",
+              "status": "pass",
+              "tokens": 5
+            },
+            {
+              "label": "prompt-00-logits",
+              "status": "pass",
+              "top1": 11751,
+              "top5_overlap": 5,
+              "top_ids": [
+                11751,
+                279,
+                7172,
+                198,
+                25,
+                31586,
+                303,
+                1076,
+                248046,
+                524
+              ],
+              "top_logits": [
+                15.139435,
+                14.583614,
+                14.375759,
+                14.332718,
+                14.234205,
+                13.970961,
+                13.508082,
+                13.477362,
+                13.374992,
+                13.149195
+              ]
+            },
+            {
+              "label": "prompt-01-ids",
+              "status": "pass",
+              "tokens": 3
+            },
+            {
+              "label": "prompt-01-logits",
+              "status": "pass",
+              "top1": 264,
+              "top5_overlap": 5,
+              "top_ids": [
+                264,
+                449,
+                279,
+                3428,
+                524,
+                799,
+                4364,
+                10141,
+                1429,
+                44265
+              ],
+              "top_logits": [
+                20.211262,
+                18.729523,
+                18.451656,
+                17.744457,
+                17.364468,
+                17.307098,
+                17.059124,
+                16.879425,
+                16.847548,
+                16.24017
+              ]
+            },
+            {
+              "label": "prompt-02-ids",
+              "status": "pass",
+              "tokens": 6
+            },
+            {
+              "label": "prompt-02-logits",
+              "status": "pass",
+              "top1": 198,
+              "top5_overlap": 5,
+              "top_ids": [
+                198,
+                460,
+                695,
+                317,
+                653,
+                271,
+                1133,
+                264,
+                220,
+                4673
+              ],
+              "top_logits": [
+                23.694969,
+                19.387182,
+                18.079844,
+                17.766632,
+                16.473982,
+                16.173967,
+                15.200774,
+                15.101754,
+                14.883057,
+                14.806089
+              ]
+            },
+            {
+              "label": "prompt-03-ids",
+              "status": "pass",
+              "tokens": 7
+            },
+            {
+              "label": "prompt-03-logits",
+              "status": "pass",
+              "top1": 6105,
+              "top5_overlap": 5,
+              "top_ids": [
+                6105,
+                5983,
+                13358,
+                18016,
+                4022,
+                321,
+                279,
+                55945,
+                1259,
+                864
+              ],
+              "top_logits": [
+                19.49942,
+                19.382034,
+                19.232895,
+                17.278069,
+                15.848824,
+                15.754124,
+                15.117826,
+                14.912289,
+                14.416205,
+                14.320889
+              ]
+            },
+            {
+              "label": "prompt-04-ids",
+              "status": "pass",
+              "tokens": 12
+            },
+            {
+              "label": "prompt-04-logits",
+              "status": "pass",
+              "top1": 16820,
+              "top5_overlap": 5,
+              "top_ids": [
+                16820,
+                17257,
+                7099,
+                8964,
+                4751,
+                11247,
+                4128,
+                9561,
+                9114,
+                1259
+              ],
+              "top_logits": [
+                16.339378,
+                16.01152,
+                15.369372,
+                13.929982,
+                13.514574,
+                13.000585,
+                12.892868,
+                12.802392,
+                12.631221,
+                12.212877
+              ]
+            },
+            {
+              "label": "prompt-05-ids",
+              "status": "pass",
+              "tokens": 17
+            },
+            {
+              "label": "prompt-05-logits",
+              "status": "pass",
+              "top1": 6124,
+              "top5_overlap": 5,
+              "top_ids": [
+                6124,
+                17163,
+                9564,
+                279,
+                5440,
+                31868,
+                15477,
+                8100,
+                6650,
+                6535
+              ],
+              "top_logits": [
+                17.559353,
+                17.405674,
+                17.048494,
+                16.81271,
+                15.839868,
+                15.824347,
+                15.767901,
+                15.753535,
+                15.663925,
+                15.497188
+              ]
+            },
+            {
+              "label": "ppl-ids",
+              "status": "pass",
+              "tokens": 243
+            },
+            {
+              "label": "ppl-00-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 242,
+              "chunks": 1,
+              "context size": 262144,
+              "mean_nll": 3.156186972,
+              "perplexity": 23.4809,
+              "hf_mean_nll": 3.1561827913681415,
+              "absolute_nll_delta": 4.180631858474726e-06,
+              "bound": 0.01
+            },
+            {
+              "label": "ppl-00-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 242,
+              "chunks": 1,
+              "context size": 262144,
+              "mean_nll": 3.156186907,
+              "perplexity": 23.4809,
+              "hf_mean_nll": 3.1561827913681415,
+              "absolute_nll_delta": 4.115631858425672e-06,
+              "bound": 0.01
+            },
+            {
+              "label": "ppl-01-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 239,
+              "chunks": 4,
+              "context size": 64,
+              "mean_nll": 3.873246912,
+              "perplexity": 48.0983,
+              "hf_mean_nll": 3.873262595426905,
+              "absolute_nll_delta": 1.5683426905166442e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-01-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 239,
+              "chunks": 4,
+              "context size": 64,
+              "mean_nll": 3.873247888,
+              "perplexity": 48.0984,
+              "hf_mean_nll": 3.873262595426905,
+              "absolute_nll_delta": 1.4707426905236076e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-02-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 128,
+              "scored tokens": 126,
+              "chunks": 2,
+              "context size": 64,
+              "mean_nll": 3.539680172,
+              "perplexity": 34.4559,
+              "hf_mean_nll": 3.5397032416076066,
+              "absolute_nll_delta": 2.3069607606451825e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-02-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 128,
+              "scored tokens": 126,
+              "chunks": 2,
+              "context size": 64,
+              "mean_nll": 3.539678332,
+              "perplexity": 34.4558,
+              "hf_mean_nll": 3.5397032416076066,
+              "absolute_nll_delta": 2.4909607606815598e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-03-batched",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 241,
+              "chunks": 2,
+              "context size": 123,
+              "mean_nll": 3.35269871,
+              "perplexity": 28.5798,
+              "hf_mean_nll": 3.3527300449915027,
+              "absolute_nll_delta": 3.133499150287378e-05,
+              "bound": 0.02
+            },
+            {
+              "label": "ppl-03-per-token",
+              "status": "pass",
+              "tokens": 243,
+              "used tokens": 243,
+              "scored tokens": 241,
+              "chunks": 2,
+              "context size": 123,
+              "mean_nll": 3.352708659,
+              "perplexity": 28.58,
+              "hf_mean_nll": 3.3527300449915027,
+              "absolute_nll_delta": 2.138599150258713e-05,
+              "bound": 0.02
+            }
+          ],
+          "bounds": {
+            "top5_overlap": 5,
+            "continuous_nll": 0.01,
+            "window_nll": 0.02,
+            "max_abs_logit": 100.0
+          }
+        }
+      ],
+      "input_hashes": {
+        "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-padded-tile-v1/build/llmx": "6c9feea68d4db5b6dc1ab2a1afa9b4ff0978b559a537a52990fe787503777f1d",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-padded-tile-v1/tests/baseline_qwen35.py": "be3b3554938716d8c05c4d32cd366986a2ad84b714df422b49aee16c41773c80",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/source-padded-tile-v1/tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/goldens-file-exact/baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+        "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/goldens-file-exact/baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+      },
+      "driver_sha256": "e8886c2d94ed1ee89ba225ad54e14ddb3199e2583d4cd4baeb200adf7c408fdc",
+      "cleanup": "5abfd9d2cc38a574f9dc7fca066a68199c09662faff3f6eb862aab8a6626c412",
+      "execution_sha256": "e43ea7f1641c2653ba67f7ef4b7aa98268eebad48de2ba4ee9220f8ac07ee4e7",
+      "source_delta": "pair-loader, fixed-type and padded-tile pinned bundles"
+    },
+    "printed_cli_comparison_to_frozen57": {
+      "pairs": [
+        {
+          "path": "default/ppl-00-batched.stdout",
+          "equal": true,
+          "sha256": "b8c04eab6a6303a2e80462a26f24e8df7e6d67d5ca750392e16a932faa876810"
+        },
+        {
+          "path": "default/ppl-00-per-token.stdout",
+          "equal": true,
+          "sha256": "a3fab5f7ba80a5cf9d726a32fe383b2c95fff88b3e13f860916a5c0a11d7b656"
+        },
+        {
+          "path": "default/ppl-01-batched.stdout",
+          "equal": true,
+          "sha256": "5565866b07ca0d75080ec8975e10dceaa95650378aeb614345ccaf3309f14b50"
+        },
+        {
+          "path": "default/ppl-01-per-token.stdout",
+          "equal": true,
+          "sha256": "bad992a843a9b6a91ed7f775587ff868e404ea5ecb77d96cd6190b283b6a6c84"
+        },
+        {
+          "path": "default/ppl-02-batched.stdout",
+          "equal": true,
+          "sha256": "7148227aa4c90d58dcfdd7edeb7561d4c7e84206964e1e00bc3925acde927d8b"
+        },
+        {
+          "path": "default/ppl-02-per-token.stdout",
+          "equal": true,
+          "sha256": "a1f781f9a09c7c958942fa5d8b3cf2c3d53b95e26e1eb3e33031990eba834825"
+        },
+        {
+          "path": "default/ppl-03-batched.stdout",
+          "equal": true,
+          "sha256": "2c0d858b2cec135d73a8d90acf16fa47c45228f1434a2c8ea5d9a8e798b5be30"
+        },
+        {
+          "path": "default/ppl-03-per-token.stdout",
+          "equal": true,
+          "sha256": "9369753c61d942fcbbad50db13864b9511235ac263dd088ecb97609d091834c1"
+        },
+        {
+          "path": "default/ppl-ids.stdout",
+          "equal": true,
+          "sha256": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2"
+        },
+        {
+          "path": "default/prompt-00-ids.stdout",
+          "equal": true,
+          "sha256": "484f4aa22ec928e2bec637d9ed35bfabb9e62ab0ff79ca38453068048ad8c864"
+        },
+        {
+          "path": "default/prompt-00-logits.stdout",
+          "equal": true,
+          "sha256": "954503b06b5cc7fddd58e18afb502f302536d13a882ba549a860c8879bc62623"
+        },
+        {
+          "path": "default/prompt-01-ids.stdout",
+          "equal": true,
+          "sha256": "da1673b0d2742eee80d9e36a15b728e8829396b8e85e1901c8404f298eb729ce"
+        },
+        {
+          "path": "default/prompt-01-logits.stdout",
+          "equal": true,
+          "sha256": "05e525f6c5976e5e0cd17f16bd3f95c89999099d2ba8e65acbbeb59198bd3941"
+        },
+        {
+          "path": "default/prompt-02-ids.stdout",
+          "equal": true,
+          "sha256": "cf2542a799589489b8cb1ecd6326645577d8acba3a49cd29d719141720952fd1"
+        },
+        {
+          "path": "default/prompt-02-logits.stdout",
+          "equal": true,
+          "sha256": "70247fb80eb0ff0b1bcf5942f5c35271d750d8b781a9564b24a5bab2e45f038c"
+        },
+        {
+          "path": "default/prompt-03-ids.stdout",
+          "equal": true,
+          "sha256": "16150f8e5583ed592d0a6a1b6fa1e105815ba7f0f5e7a1b81898b2c761088d3b"
+        },
+        {
+          "path": "default/prompt-03-logits.stdout",
+          "equal": true,
+          "sha256": "d4ae4e9911278cc39470f027b20225f1c24745e6a91572b23effad6e4f0ed74d"
+        },
+        {
+          "path": "default/prompt-04-ids.stdout",
+          "equal": true,
+          "sha256": "9ed0b6abdb6680b3b48e2b38bd3830ba8c6a31d5c789613d7bcbda835eb761fd"
+        },
+        {
+          "path": "default/prompt-04-logits.stdout",
+          "equal": true,
+          "sha256": "daab0c5a6bf87a0b4beda0fe2f75d8fb793f2c8043465b552922e0caddf399bf"
+        },
+        {
+          "path": "default/prompt-05-ids.stdout",
+          "equal": true,
+          "sha256": "6626e157a965d48c6fce35f663927ae3681b742495221009caeaef3d199b684e"
+        },
+        {
+          "path": "default/prompt-05-logits.stdout",
+          "equal": true,
+          "sha256": "25e7275bcf45b4bdd4212b258e88adadcde9240a303323549e1ea726c91facc0"
+        },
+        {
+          "path": "f32/ppl-00-batched.stdout",
+          "equal": true,
+          "sha256": "65baf674573a9095f8779c3d511f905de7e90c40c025df40f2ee7f8e9c6406d7"
+        },
+        {
+          "path": "f32/ppl-00-per-token.stdout",
+          "equal": true,
+          "sha256": "97d622765719823d3c58a599ea56e8b80a975d701d763d65b4838dd45a90ac78"
+        },
+        {
+          "path": "f32/ppl-01-batched.stdout",
+          "equal": true,
+          "sha256": "f990b39ecb1627ab5045300893155aad5ff18eef07d43ace736b460704be9078"
+        },
+        {
+          "path": "f32/ppl-01-per-token.stdout",
+          "equal": true,
+          "sha256": "4715f7c38687f11960bf04f9e18987cf8379abb97e540742dba1e168497fd08a"
+        },
+        {
+          "path": "f32/ppl-02-batched.stdout",
+          "equal": true,
+          "sha256": "6d9be3ca8ea4325f59d3de8fcd70db882ed43375994223ff32540cafc7a1d64b"
+        },
+        {
+          "path": "f32/ppl-02-per-token.stdout",
+          "equal": true,
+          "sha256": "df8ebbe5a91a9325e349fae9453f5573be2deb94e04c637d68ea4c138e6eabca"
+        },
+        {
+          "path": "f32/ppl-03-batched.stdout",
+          "equal": true,
+          "sha256": "255c3712594fba9c46b3399ece368e692864973552a4f475a43e9f8f758302ca"
+        },
+        {
+          "path": "f32/ppl-03-per-token.stdout",
+          "equal": true,
+          "sha256": "0f4ca983b5a35c04f9f17236316c8e25719d0dd8d730d638a43c50d14b7c0bd4"
+        },
+        {
+          "path": "f32/ppl-ids.stdout",
+          "equal": true,
+          "sha256": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2"
+        },
+        {
+          "path": "f32/prompt-00-ids.stdout",
+          "equal": true,
+          "sha256": "484f4aa22ec928e2bec637d9ed35bfabb9e62ab0ff79ca38453068048ad8c864"
+        },
+        {
+          "path": "f32/prompt-00-logits.stdout",
+          "equal": true,
+          "sha256": "02639f366f22ceb06b34396a2a30298ddb79c3b9bc1d4b2b7a9e517ef9eb992e"
+        },
+        {
+          "path": "f32/prompt-01-ids.stdout",
+          "equal": true,
+          "sha256": "da1673b0d2742eee80d9e36a15b728e8829396b8e85e1901c8404f298eb729ce"
+        },
+        {
+          "path": "f32/prompt-01-logits.stdout",
+          "equal": true,
+          "sha256": "e87ef257a0f6dd23aef5ae2083d756599c6aa2257462695f2bbfbd89f2d9b820"
+        },
+        {
+          "path": "f32/prompt-02-ids.stdout",
+          "equal": true,
+          "sha256": "cf2542a799589489b8cb1ecd6326645577d8acba3a49cd29d719141720952fd1"
+        },
+        {
+          "path": "f32/prompt-02-logits.stdout",
+          "equal": true,
+          "sha256": "d403c43baca163318de08f0322f27167511e23f74ba039722a89c2a0bf76fa8a"
+        },
+        {
+          "path": "f32/prompt-03-ids.stdout",
+          "equal": true,
+          "sha256": "16150f8e5583ed592d0a6a1b6fa1e105815ba7f0f5e7a1b81898b2c761088d3b"
+        },
+        {
+          "path": "f32/prompt-03-logits.stdout",
+          "equal": true,
+          "sha256": "deae067e16a7e09875f82f705cf4487abed7085626347a77c8b86253fc9b79c9"
+        },
+        {
+          "path": "f32/prompt-04-ids.stdout",
+          "equal": true,
+          "sha256": "9ed0b6abdb6680b3b48e2b38bd3830ba8c6a31d5c789613d7bcbda835eb761fd"
+        },
+        {
+          "path": "f32/prompt-04-logits.stdout",
+          "equal": true,
+          "sha256": "d133ad32dfa69aecae5aa52dc8310bf35652be41f5c9ad28d9ca50fe2a1ee6cd"
+        },
+        {
+          "path": "f32/prompt-05-ids.stdout",
+          "equal": true,
+          "sha256": "6626e157a965d48c6fce35f663927ae3681b742495221009caeaef3d199b684e"
+        },
+        {
+          "path": "f32/prompt-05-logits.stdout",
+          "equal": true,
+          "sha256": "ab92caed9f776391cf268f6c4182a23a89d2d0b146d4d82d91708b08f8385a6f"
+        }
+      ],
+      "all_equal": true,
+      "scope": "Only saved stdout for these short cases; not full-depth equivalence."
+    },
+    "windows": {
+      "build": "passed",
+      "native": "passed",
+      "artifacts": {
+        "build-nvfp4-vulkan/nvfp4-padded-build.log": "1bad0f94c4a18f0ad8c5fa75984e026d38a01d750b503b07ad55f98c1e0fa886",
+        "build-nvfp4-vulkan/nvfp4-padded-native.log": "7db9dee870f405dcfef7d88b40dc22f24bc5337e2c17c67a9edf25c507d2dbf9",
+        "build-nvfp4-vulkan/Release/llmx-nvfp4-test.exe": "006849a717f1019863e737e17bf9442d9e4d630d48c31c0dd39e1b31aaa69979"
+      }
+    }
+  },
+  "checkpoint_review": {
+    "markdown": "Prior 137-page review carried for unchanged pages. STATUS and the Vulkan owner page inspected against the three-line shader padding change and captured results.",
+    "focused_checks": {
+      "docs": "pass",
+      "dead-code": "pass"
+    },
+    "remaining": "Depth, device-split HF, final matched performance, existing-format regressions and applicable hosted CI."
+  }
+}

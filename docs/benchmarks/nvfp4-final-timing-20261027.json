@@ -1,0 +1,1334 @@
+{
+  "schema": "nvfp4-final-timing-summary-v1",
+  "receipt_sha256": "46811576114c1dbb0b9c13236b852f3cee21ea1861e17fa7e269260131f7e3e5",
+  "receipt_path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/final-timing-startup-v1/attempt-01/execution.json",
+  "plan_sha256": "b8d88aa604a83044f877dfdf2e2d5e30ed23b6c1a460426c382d36618d95ca7a",
+  "build_pins": {
+    "candidate": {
+      "llmx_model_logits_sha256": "8c841e71167666d6ad27c693bb7ce452939da51e0072a0ecbc4ad40d735f895f",
+      "llmx_sha256": "c1b8b31cd00fd669e5fe617a711b9eb5e4f9627d01924bf95979de361a126076",
+      "revision": "2570b4e1166e07ca340e310b2ebef434e201152e",
+      "source_manifest_sha256": "9374c0fa2ba1d72c60afabf0f2e898b9c1618cce36bf7000278419d381966f31",
+      "version": "llmx 0.1.0+unknown numerics 0a82006ec5283643"
+    },
+    "main": {
+      "llmx_model_logits_sha256": "47a2a7f6a48eb60192b5a154fc422487d13155e6078e012fc386950568121742",
+      "llmx_sha256": "43f116884816960e2327e6cf37c647c522a624a2acd4c6bdcd5c36937ff9de33",
+      "revision": "5673d3c25c9e4a1504b9d4865ebd763768df9adb",
+      "source_manifest_sha256": "59d6e7f0bd14d33d3180737f4128faf5fa98350c5ba04f98b33dd7fae2bcd469",
+      "version": "llmx 0.1.0+unknown numerics 53c34c533f28015f"
+    }
+  },
+  "cells": [
+    {
+      "suite": "mxfp4",
+      "cell": "default",
+      "phases": {
+        "pp": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              4829.38,
+              4807.16,
+              4807.24,
+              4814.29
+            ],
+            "candidate": [
+              4808.57,
+              4798.16,
+              4821.77,
+              4796.14
+            ]
+          },
+          "means": {
+            "main": 4814.5175,
+            "candidate": 4806.16
+          },
+          "candidate_change_percent": -0.17358956530950653,
+          "block_change_percent": [
+            -0.30934339503598807,
+            -0.037623953778653796
+          ]
+        },
+        "tg": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              322.89,
+              321.87,
+              325.03,
+              322.06
+            ],
+            "candidate": [
+              325.45,
+              323.63,
+              323.92,
+              320.77
+            ]
+          },
+          "means": {
+            "main": 322.9625,
+            "candidate": 323.4425
+          },
+          "candidate_change_percent": 0.1486240662615712,
+          "block_change_percent": [
+            0.670016750418756,
+            -0.3708912206957127
+          ]
+        }
+      }
+    },
+    {
+      "suite": "mxfp4",
+      "cell": "f32",
+      "phases": {
+        "pp": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              1821.26,
+              1843.05,
+              1838.92,
+              1804.62
+            ],
+            "candidate": [
+              1832.99,
+              1833.4,
+              1836.44,
+              1841.03
+            ]
+          },
+          "means": {
+            "main": 1826.9625,
+            "candidate": 1835.9650000000001
+          },
+          "candidate_change_percent": 0.49275778785826674,
+          "block_change_percent": [
+            0.05676375634158237,
+            0.9312372033791316
+          ]
+        },
+        "tg": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              87.4,
+              87.74,
+              86.69,
+              86.83
+            ],
+            "candidate": [
+              87.39,
+              87.9,
+              87.78,
+              88.66
+            ]
+          },
+          "means": {
+            "main": 87.16499999999999,
+            "candidate": 87.9325
+          },
+          "candidate_change_percent": 0.8805139677622975,
+          "block_change_percent": [
+            0.08564576909901866,
+            1.682803135085309
+          ]
+        }
+      }
+    },
+    {
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "phases": {
+        "pp": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              819.77,
+              821.4,
+              816.39,
+              821.65
+            ],
+            "candidate": [
+              820.11,
+              820.87,
+              820.7,
+              820.62
+            ]
+          },
+          "means": {
+            "main": 819.8025,
+            "candidate": 820.575
+          },
+          "candidate_change_percent": 0.09423001271648968,
+          "block_change_percent": [
+            -0.011577106576410312,
+            0.20023931039536702
+          ]
+        },
+        "tg": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              116.41,
+              115.75,
+              116.68,
+              116.49
+            ],
+            "candidate": [
+              116.48,
+              116.55,
+              116.34,
+              116.67
+            ]
+          },
+          "means": {
+            "main": 116.3325,
+            "candidate": 116.51
+          },
+          "candidate_change_percent": 0.1525798895407604,
+          "block_change_percent": [
+            0.3747415575465318,
+            -0.06861946219497428
+          ]
+        }
+      }
+    },
+    {
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "phases": {
+        "pp": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              2026.88,
+              2025.21,
+              2024.87,
+              2024.32
+            ],
+            "candidate": [
+              2025.22,
+              2024.67,
+              2024.66,
+              2024.36
+            ]
+          },
+          "means": {
+            "main": 2025.32,
+            "candidate": 2024.7275
+          },
+          "candidate_change_percent": -0.029254636304387738,
+          "block_change_percent": [
+            -0.05429296980076215,
+            -0.004198370538299745
+          ]
+        },
+        "tg": {
+          "unit": "tokens/s",
+          "values": {
+            "main": [
+              116.93,
+              116.71,
+              116.44,
+              116.66
+            ],
+            "candidate": [
+              116.34,
+              115.95,
+              116.66,
+              116.42
+            ]
+          },
+          "means": {
+            "main": 116.685,
+            "candidate": 116.3425
+          },
+          "candidate_change_percent": -0.2935253031666418,
+          "block_change_percent": [
+            -0.5778120184899649,
+            -0.008580008580016951
+          ]
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "label": "mxfp4-default-1-main",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "main",
+      "metrics": {
+        "pp": 4829.38,
+        "tg": 322.89
+      },
+      "started_unix": 1793108352.9037569,
+      "ended_unix": 1793108355.5237825,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 1,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.742316496618196,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.02995147261022019,
+        "disk_bytes_per_second": 172465275.68055314
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 7,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-2-candidate",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 4808.57,
+        "tg": 325.45
+      },
+      "started_unix": 1793108355.5250273,
+      "ended_unix": 1793108357.9950557,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.517915343827848,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.02998616378646802,
+        "disk_bytes_per_second": 10288500.680757813
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 7,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-3-candidate",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 4798.16,
+        "tg": 323.63
+      },
+      "started_unix": 1793108357.9956899,
+      "ended_unix": 1793108360.5014768,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.5539437338144277,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.029991086361303185,
+        "disk_bytes_per_second": 13324423.85335372
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 6,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-4-main",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "main",
+      "metrics": {
+        "pp": 4807.16,
+        "tg": 321.87
+      },
+      "started_unix": 1793108360.5021517,
+      "ended_unix": 1793108363.0079806,
+      "activity_samples": 2,
+      "flags": {
+        "cpu_above_one": 2,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 2,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.951347628769506,
+        "benchmark_cpu_cores": 0.2474406729823866,
+        "monitor_cpu_cores": 0.02499415595479832,
+        "disk_bytes_per_second": 30200881.89350804
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 8,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-5-candidate",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 4821.77,
+        "tg": 323.92
+      },
+      "started_unix": 1793108363.0086813,
+      "ended_unix": 1793108365.4787078,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.658887369029436,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.03498936008634707,
+        "disk_bytes_per_second": 22906058.49723178
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 6,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-6-main",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "main",
+      "metrics": {
+        "pp": 4807.24,
+        "tg": 325.03
+      },
+      "started_unix": 1793108365.4793673,
+      "ended_unix": 1793108368.0491738,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 6
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.748840604030151,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.034991457082327426,
+        "disk_bytes_per_second": 46083085.13949657
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 7,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-7-main",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "main",
+      "metrics": {
+        "pp": 4814.29,
+        "tg": 322.06
+      },
+      "started_unix": 1793108368.049977,
+      "ended_unix": 1793108370.6197639,
+      "activity_samples": 1,
+      "flags": {
+        "cpu_above_one": 1,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 1,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.71370307645677,
+        "benchmark_cpu_cores": 0.0,
+        "monitor_cpu_cores": 0.029991748100467248,
+        "disk_bytes_per_second": 40266936.995286316
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 7,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-default-8-candidate",
+      "suite": "mxfp4",
+      "cell": "default",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 4796.14,
+        "tg": 320.77
+      },
+      "started_unix": 1793108370.6204982,
+      "ended_unix": 1793108373.2406142,
+      "activity_samples": 2,
+      "flags": {
+        "cpu_above_one": 2,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 2,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.8637681684207035,
+        "benchmark_cpu_cores": 0.2599280469811044,
+        "monitor_cpu_cores": 0.02749297686711011,
+        "disk_bytes_per_second": 59045261.88306138
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 7,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-1-main",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "main",
+      "metrics": {
+        "pp": 1821.26,
+        "tg": 87.4
+      },
+      "started_unix": 1793108373.2414231,
+      "ended_unix": 1793108380.0699828,
+      "activity_samples": 3,
+      "flags": {
+        "cpu_above_one": 3,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 3,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 2
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.586852533362404,
+        "benchmark_cpu_cores": 0.061645725931634573,
+        "monitor_cpu_cores": 0.03165604082861784,
+        "disk_bytes_per_second": 58802614.65325117
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 23,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-2-candidate",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 1832.99,
+        "tg": 87.39
+      },
+      "started_unix": 1793108380.0708835,
+      "ended_unix": 1793108386.9489605,
+      "activity_samples": 4,
+      "flags": {
+        "cpu_above_one": 4,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 4,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.705977999170736,
+        "benchmark_cpu_cores": 0.08247247079226282,
+        "monitor_cpu_cores": 0.03248942221247996,
+        "disk_bytes_per_second": 58552841.78239691
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 24,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-3-candidate",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 1833.4,
+        "tg": 87.9
+      },
+      "started_unix": 1793108386.9498703,
+      "ended_unix": 1793108393.716029,
+      "activity_samples": 3,
+      "flags": {
+        "cpu_above_one": 3,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 3,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.688456684229437,
+        "benchmark_cpu_cores": 0.061648676907951096,
+        "monitor_cpu_cores": 0.02999014511322745,
+        "disk_bytes_per_second": 64763909.764240086
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 25,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-4-main",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "main",
+      "metrics": {
+        "pp": 1843.05,
+        "tg": 87.74
+      },
+      "started_unix": 1793108393.7171884,
+      "ended_unix": 1793108400.4890528,
+      "activity_samples": 3,
+      "flags": {
+        "cpu_above_one": 3,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 3,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 2
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.251482632672141,
+        "benchmark_cpu_cores": 0.06496499206001381,
+        "monitor_cpu_cores": 0.03165176339468285,
+        "disk_bytes_per_second": 16147462.126107587
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 24,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-5-candidate",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 1836.44,
+        "tg": 87.78
+      },
+      "started_unix": 1793108400.4901593,
+      "ended_unix": 1793108407.2555757,
+      "activity_samples": 4,
+      "flags": {
+        "cpu_above_one": 4,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 4,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 3
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.3211487873161145,
+        "benchmark_cpu_cores": 0.12371181642394816,
+        "monitor_cpu_cores": 0.03248981566308656,
+        "disk_bytes_per_second": 44535800.45021965
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 23,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-6-main",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "main",
+      "metrics": {
+        "pp": 1838.92,
+        "tg": 86.69
+      },
+      "started_unix": 1793108407.256745,
+      "ended_unix": 1793108414.0532153,
+      "activity_samples": 3,
+      "flags": {
+        "cpu_above_one": 3,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 3,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 4.5234822192612265,
+        "benchmark_cpu_cores": 0.05997981582727951,
+        "monitor_cpu_cores": 0.031655940994568206,
+        "disk_bytes_per_second": 80509256.63577862
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 25,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-7-main",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "main",
+      "metrics": {
+        "pp": 1804.62,
+        "tg": 86.83
+      },
+      "started_unix": 1793108414.0548868,
+      "ended_unix": 1793108420.851849,
+      "activity_samples": 3,
+      "flags": {
+        "cpu_above_one": 3,
+        "disk_above_100mib_s": 0,
+        "other_gpu_active": 3,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 3
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.127408078573018,
+        "benchmark_cpu_cores": 0.06331461848133542,
+        "monitor_cpu_cores": 0.02832495274330566,
+        "disk_bytes_per_second": 84111051.6041538
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 25,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "mxfp4-f32-8-candidate",
+      "suite": "mxfp4",
+      "cell": "f32",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 1841.03,
+        "tg": 88.66
+      },
+      "started_unix": 1793108420.853649,
+      "ended_unix": 1793108427.620608,
+      "activity_samples": 4,
+      "flags": {
+        "cpu_above_one": 4,
+        "disk_above_100mib_s": 2,
+        "other_gpu_active": 4,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 4
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.4979909888051295,
+        "benchmark_cpu_cores": 0.0449853768637149,
+        "monitor_cpu_cores": 0.03124054545523402,
+        "disk_bytes_per_second": 114603687.83296002
+      },
+      "physical_device_activity": {
+        "expected_pci": "0000:c9:00.0",
+        "expected_physical_gpu": 8,
+        "gpu8_activity_witness": true,
+        "gpu8_busy_samples": 25,
+        "gpu9_busy_samples": 0,
+        "gpu9_idle_during_samples": true,
+        "interpretation": "host sysfs GPU busy samples while the MXFP4 docker exec client was active; interpret with the raw activity monitor and pinned Vulkan order",
+        "sample_interval_seconds": 0.25
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-1-main",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 819.77,
+        "tg": 116.41
+      },
+      "started_unix": 1793108427.6219637,
+      "ended_unix": 1793108441.3637016,
+      "activity_samples": 7,
+      "flags": {
+        "cpu_above_one": 7,
+        "disk_above_100mib_s": 7,
+        "other_gpu_active": 7,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.5298361370265017,
+        "benchmark_cpu_cores": 0.37701278721816367,
+        "monitor_cpu_cores": 0.03141808468749399,
+        "disk_bytes_per_second": 1620210539.1348886
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-2-candidate",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 820.11,
+        "tg": 116.48
+      },
+      "started_unix": 1793108441.3650753,
+      "ended_unix": 1793108455.6546154,
+      "activity_samples": 7,
+      "flags": {
+        "cpu_above_one": 7,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 7,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 4
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.78369900596213,
+        "benchmark_cpu_cores": 0.39486883971923237,
+        "monitor_cpu_cores": 0.03070432284887123,
+        "disk_bytes_per_second": 1500770460.9080617
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-3-candidate",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 820.87,
+        "tg": 116.55
+      },
+      "started_unix": 1793108455.6560302,
+      "ended_unix": 1793108478.357671,
+      "activity_samples": 11,
+      "flags": {
+        "cpu_above_one": 11,
+        "disk_above_100mib_s": 9,
+        "other_gpu_active": 11,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 2
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.4490914532908785,
+        "benchmark_cpu_cores": 0.2662789613915876,
+        "monitor_cpu_cores": 0.029990572917800412,
+        "disk_bytes_per_second": 955229354.7428683
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-4-main",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 821.4,
+        "tg": 115.75
+      },
+      "started_unix": 1793108478.359041,
+      "ended_unix": 1793108501.5604823,
+      "activity_samples": 12,
+      "flags": {
+        "cpu_above_one": 10,
+        "disk_above_100mib_s": 9,
+        "other_gpu_active": 12,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 4
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.2784474990908528,
+        "benchmark_cpu_cores": 0.2599382445668725,
+        "monitor_cpu_cores": 0.02832662672289752,
+        "disk_bytes_per_second": 879208608.6662129
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-5-candidate",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 820.7,
+        "tg": 116.34
+      },
+      "started_unix": 1793108501.5623417,
+      "ended_unix": 1793108515.054864,
+      "activity_samples": 7,
+      "flags": {
+        "cpu_above_one": 5,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 7,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.3085610961011818,
+        "benchmark_cpu_cores": 0.4148697727758607,
+        "monitor_cpu_cores": 0.03141913723063013,
+        "disk_bytes_per_second": 1510183136.1933613
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-6-main",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 816.39,
+        "tg": 116.68
+      },
+      "started_unix": 1793108515.0563412,
+      "ended_unix": 1793108528.444436,
+      "activity_samples": 6,
+      "flags": {
+        "cpu_above_one": 5,
+        "disk_above_100mib_s": 4,
+        "other_gpu_active": 6,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 4
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.8995079573568938,
+        "benchmark_cpu_cores": 0.39323102046553227,
+        "monitor_cpu_cores": 0.0308254182651566,
+        "disk_bytes_per_second": 1752902900.3582897
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-7-main",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 821.65,
+        "tg": 116.49
+      },
+      "started_unix": 1793108528.4459531,
+      "ended_unix": 1793108541.8384361,
+      "activity_samples": 7,
+      "flags": {
+        "cpu_above_one": 7,
+        "disk_above_100mib_s": 4,
+        "other_gpu_active": 7,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.6978016587458398,
+        "benchmark_cpu_cores": 0.36775541546540164,
+        "monitor_cpu_cores": 0.030705735749978837,
+        "disk_bytes_per_second": 1505635724.9396873
+      }
+    },
+    {
+      "label": "routed35b-pp128-tg256-8-candidate",
+      "suite": "routed35b",
+      "cell": "pp128-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 820.62,
+        "tg": 116.67
+      },
+      "started_unix": 1793108541.8400593,
+      "ended_unix": 1793108556.6309462,
+      "activity_samples": 7,
+      "flags": {
+        "cpu_above_one": 7,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 7,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 2
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.2257912976469103,
+        "benchmark_cpu_cores": 0.36703514014679944,
+        "monitor_cpu_cores": 0.03141975194642155,
+        "disk_bytes_per_second": 1505481514.6767917
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-1-main",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 2026.88,
+        "tg": 116.93
+      },
+      "started_unix": 1793108556.6325102,
+      "ended_unix": 1793108573.6795053,
+      "activity_samples": 9,
+      "flags": {
+        "cpu_above_one": 5,
+        "disk_above_100mib_s": 4,
+        "other_gpu_active": 9,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 6
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.4384627520659174,
+        "benchmark_cpu_cores": 0.30768843689171627,
+        "monitor_cpu_cores": 0.03054687262338555,
+        "disk_bytes_per_second": 1173717860.2385347
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-2-candidate",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 2025.22,
+        "tg": 116.34
+      },
+      "started_unix": 1793108573.6813307,
+      "ended_unix": 1793108593.532575,
+      "activity_samples": 10,
+      "flags": {
+        "cpu_above_one": 10,
+        "disk_above_100mib_s": 6,
+        "other_gpu_active": 10,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.193914657750403,
+        "benchmark_cpu_cores": 0.28441606906258116,
+        "monitor_cpu_cores": 0.030991580402373722,
+        "disk_bytes_per_second": 1057426194.4770361
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-3-candidate",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 2024.67,
+        "tg": 115.95
+      },
+      "started_unix": 1793108593.5340776,
+      "ended_unix": 1793108610.679846,
+      "activity_samples": 8,
+      "flags": {
+        "cpu_above_one": 8,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 8,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.5740306981578844,
+        "benchmark_cpu_cores": 0.2917943032857417,
+        "monitor_cpu_cores": 0.03061664963430257,
+        "disk_bytes_per_second": 1322338857.4310343
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-4-main",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 2025.21,
+        "tg": 116.71
+      },
+      "started_unix": 1793108610.6816022,
+      "ended_unix": 1793108630.0299964,
+      "activity_samples": 10,
+      "flags": {
+        "cpu_above_one": 10,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 10,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 1
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.092609188586833,
+        "benchmark_cpu_cores": 0.31540951219033997,
+        "monitor_cpu_cores": 0.030491225479825166,
+        "disk_bytes_per_second": 1056859936.1196905
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-5-candidate",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 2024.66,
+        "tg": 116.66
+      },
+      "started_unix": 1793108630.031528,
+      "ended_unix": 1793108647.0266416,
+      "activity_samples": 9,
+      "flags": {
+        "cpu_above_one": 9,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 9,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 0
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.408525888400589,
+        "benchmark_cpu_cores": 0.30547059558484735,
+        "monitor_cpu_cores": 0.031102703019118026,
+        "disk_bytes_per_second": 1168903199.912461
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-6-main",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 2024.87,
+        "tg": 116.44
+      },
+      "started_unix": 1793108647.0281906,
+      "ended_unix": 1793108665.1787136,
+      "activity_samples": 9,
+      "flags": {
+        "cpu_above_one": 9,
+        "disk_above_100mib_s": 5,
+        "other_gpu_active": 9,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 8
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 3.395173151186035,
+        "benchmark_cpu_cores": 0.28936270885086735,
+        "monitor_cpu_cores": 0.031658176824117874,
+        "disk_bytes_per_second": 1170083450.490787
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-7-main",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "main",
+      "metrics": {
+        "pp": 2024.32,
+        "tg": 116.66
+      },
+      "started_unix": 1793108665.180289,
+      "ended_unix": 1793108682.2739868,
+      "activity_samples": 8,
+      "flags": {
+        "cpu_above_one": 8,
+        "disk_above_100mib_s": 4,
+        "other_gpu_active": 8,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 3
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 2.6298693647157227,
+        "benchmark_cpu_cores": 0.2867900530712145,
+        "monitor_cpu_cores": 0.030616321225554452,
+        "disk_bytes_per_second": 1314192849.2941232
+      }
+    },
+    {
+      "label": "routed35b-pp4096-tg256-8-candidate",
+      "suite": "routed35b",
+      "cell": "pp4096-tg256",
+      "arm": "candidate",
+      "metrics": {
+        "pp": 2024.36,
+        "tg": 116.42
+      },
+      "started_unix": 1793108682.2755284,
+      "ended_unix": 1793108700.120933,
+      "activity_samples": 9,
+      "flags": {
+        "cpu_above_one": 9,
+        "disk_above_100mib_s": 4,
+        "other_gpu_active": 9,
+        "sample_gap_above_3s": 0,
+        "unknown_gpu": 0,
+        "missed_process_reads": 8
+      },
+      "activity_means": {
+        "unrelated_cpu_cores": 1.6001494769778508,
+        "benchmark_cpu_cores": 0.32324962748307945,
+        "monitor_cpu_cores": 0.03054787310680628,
+        "disk_bytes_per_second": 1167262888.6032226
+      }
+    }
+  ],
+  "limitations": [
+    "Process counters omit children born and gone between samples. Per-call attribution uses samples whose end timestamp falls within each call, including loading.",
+    "Background activity is retained. This is a matched main/candidate regression check, not a fresh mx comparison."
+  ],
+  "activity_sha256": "45f5952eb2aa99a5cd0b74e1a8298ed1609f34248caa1f7f05b9d7cb56829898",
+  "activity_samples": 173,
+  "top_unrelated_cpu": [
+    {
+      "name": "cc1plus",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 333.2000000000001
+    },
+    {
+      "name": "llmx-server-res",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 130.73000000000005
+    },
+    {
+      "name": "llmx-cache-scen",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 86.14999999999999
+    },
+    {
+      "name": "llmx-server-pas",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 53.75999999999999
+    },
+    {
+      "name": "llmx",
+      "cgroup": "0::/system.slice/docker-15f8ce3ce85dd2ba30fd82118d17cedfab2dfc25e2d0fdc28a69300857b826b7.scope",
+      "cpu_seconds": 52.80999999999997
+    },
+    {
+      "name": "llmx-spec-test",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 47.46
+    },
+    {
+      "name": "llmx-server-spe",
+      "cgroup": "0::/system.slice/docker-e1dd9ba434373c744afcab4a88aa9ab95db0c7e91930c1fb903ce267e9e63e4d.scope",
+      "cpu_seconds": 31.58
+    },
+    {
+      "name": "z_rd_int_2",
+      "cgroup": "0::/",
+      "cpu_seconds": 29.99000000000001
+    }
+  ],
+  "elapsed_seconds": 394.86629152297974,
+  "all_calls_retained": true,
+  "performance_verdict": "Pass for existing-path regression coverage. Mean changes range from -0.294% to +0.881%; the small changes overlap observed variation. No speedup or layout-independent effect is claimed. All 32 calls and activity flags retained.",
+  "activity_assessment": "Production GPUs and a peer CPU build/test container were active. Main/candidate mean unrelated CPU is 3.41/3.21 cores, disk 688/661 MB/s including loading. No sample gaps over 3 seconds or unknown GPU counters. Process-read misses remain a limitation."
+}

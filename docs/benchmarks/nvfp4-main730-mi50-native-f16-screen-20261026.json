@@ -1,0 +1,1639 @@
+{
+  "schema": "nvfp4-main730-mi50-model-screen-audit-v1",
+  "scope": "Retained one-MI50 F32-tile control versus native-F16-tile candidate development screen only; not an acceptance/performance qualification.",
+  "execution": {
+    "path": "build-integration\\main730-screen-results\\model-screen-results-v3\\execution.json",
+    "sha256": "58e3eb1bb486b0bf0afee3720f80f9f0ea1540e3a92a53683af952385e7ba88e",
+    "passed": true,
+    "complete": true,
+    "calls_complete": true,
+    "witnesses_complete": true,
+    "cleanup_ok": true,
+    "removed": true,
+    "pins_unchanged": true,
+    "plan_sha256": "7d2016d30d9b77047a79e010cd425c0d4f7dc0000e1d21002c5d46be6990d786",
+    "runner_sha256": "a24720e32e021982f1c3ec5a33291885bf431b5f418ba5045e859ceb5a28920a",
+    "build_state_sha256": "c0426ba18eec47cf6462c8fb880cbf78aea72a0fd45059f071691fc284865dcd",
+    "device": {
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "physical": 8,
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "image_id": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "model": {
+      "bytes": 578052704,
+      "path": "/zpool1/models/Qwen3.5-0.8B-NVFP4-MTP-GGUF.gguf",
+      "sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728"
+    },
+    "verified_arms": {
+      "candidate": {
+        "binaries": {
+          "llmx": {
+            "bytes": 12779456,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx",
+            "sha256": "f363fd8e588edf7f09bc9adf5d8962d1f80f7371cc800047ac43b984bfb0f732"
+          },
+          "llmx-backend-vulkan-test": {
+            "bytes": 10526912,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx-backend-vulkan-test",
+            "sha256": "c213ff9865cad7b3cd741faf3ba7225e0f535f72dd8c1623fe4fdb4d20e5cca3"
+          },
+          "llmx-model-logits": {
+            "bytes": 10943432,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx-model-logits",
+            "sha256": "343d85b721b1fa8a2983fca22c5ae8a95157ed29836e6c166c371bdc7488a923"
+          },
+          "llmx-nvfp4-test": {
+            "bytes": 9763320,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx-nvfp4-test",
+            "sha256": "d00d61b2fdd789af66d5d2450be3af48cde008bae347e4f8cbac05227f5b8104"
+          },
+          "llmx-vulkan-lifetime-test": {
+            "bytes": 9433656,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/candidate/build/llmx-vulkan-lifetime-test",
+            "sha256": "1ce53ffc8de1a0568d49a612fee74bea9b530b499af9344d29e091e5122973ba"
+          }
+        },
+        "revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+        "selector_sha256": "3f1a3ee7e4f81dace50f72d76f6ffda999f0630e005c51e427bdfebc21be35e3",
+        "source_files": 3018,
+        "source_manifest_sha256": "26e7dacf1d72809a32baae7204d5bb1b3fb0ba66c6a50d07063128af18f5c76d",
+        "version": "llmx 0.1.0+unknown numerics 07241fd541e398c5"
+      },
+      "control": {
+        "binaries": {
+          "llmx": {
+            "bytes": 12779456,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/control/build/llmx",
+            "sha256": "1ee9cbce552d565da83380c61929aa69fb74bcbe90803bd7e1853b906c0ad473"
+          },
+          "llmx-model-logits": {
+            "bytes": 10943432,
+            "path": "/zpool1/llmx-xdev-quant-20261020/nvfp4-train-20261026/main730/control/build/llmx-model-logits",
+            "sha256": "7973394e6be14564614edfdbd456b625acf61877f14fe83cadb433a6a9b53c55"
+          }
+        },
+        "revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+        "selector_sha256": "7fa462e07991cd9176046b5ae8148a5cc7588f921b4f1868a1063aa356c616ea",
+        "source_files": 3018,
+        "source_manifest_sha256": "2e4650d39367f259b924c5660686919d8742b4d699c859e4928be66f3f6901e4",
+        "version": "llmx 0.1.0+unknown numerics 92cdf60699ec0031"
+      }
+    }
+  },
+  "artifact_hash_audit": {
+    "checked_count": 75,
+    "mismatch_count": 0,
+    "checks": [
+      {
+        "path": "activity.jsonl",
+        "expected_sha256": "49f908b48d82e4071607f468e64b40de0764a6197c8e20e5c5e16f379884b8fb",
+        "actual_sha256": "49f908b48d82e4071607f468e64b40de0764a6197c8e20e5c5e16f379884b8fb",
+        "matches": true
+      },
+      {
+        "path": "host-000-fuser.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-000-fuser.stdout",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-001-docker-ps.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-001-docker-ps.stdout",
+        "expected_sha256": "6e6b11afa4d093fd374cefe4a122b72e077b02da7e8da405e1dffdd41a9a30e3",
+        "actual_sha256": "6e6b11afa4d093fd374cefe4a122b72e077b02da7e8da405e1dffdd41a9a30e3",
+        "matches": true
+      },
+      {
+        "path": "host-002-peer-0-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-002-peer-0-inspect.stdout",
+        "expected_sha256": "5e15f61e34f8bf94ffdac5d7edc851323e80f7cfe8f0dc614bb4ceaf501cf54d",
+        "actual_sha256": "5e15f61e34f8bf94ffdac5d7edc851323e80f7cfe8f0dc614bb4ceaf501cf54d",
+        "matches": true
+      },
+      {
+        "path": "host-003-peer-1-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-003-peer-1-inspect.stdout",
+        "expected_sha256": "702821032e7bf9a1335869fe31749c906be5edca0b47bb3d8bf8a01be8b7c852",
+        "actual_sha256": "702821032e7bf9a1335869fe31749c906be5edca0b47bb3d8bf8a01be8b7c852",
+        "matches": true
+      },
+      {
+        "path": "host-004-peer-2-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-004-peer-2-inspect.stdout",
+        "expected_sha256": "48e51b44e15bb8aa921ba5d35797594491d908889b4ed3bab3eea0d49c24aadf",
+        "actual_sha256": "48e51b44e15bb8aa921ba5d35797594491d908889b4ed3bab3eea0d49c24aadf",
+        "matches": true
+      },
+      {
+        "path": "host-005-peer-3-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-005-peer-3-inspect.stdout",
+        "expected_sha256": "46f2f3b1095f5c5ddb806d5b9248eeb1b8a566d98b83ba066ca56ecf2c60aa63",
+        "actual_sha256": "46f2f3b1095f5c5ddb806d5b9248eeb1b8a566d98b83ba066ca56ecf2c60aa63",
+        "matches": true
+      },
+      {
+        "path": "host-006-peer-4-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-006-peer-4-inspect.stdout",
+        "expected_sha256": "aca31487c6c1127a3caa8ed7159fbfc75f74304ede080cdec51179b8a89c128b",
+        "actual_sha256": "aca31487c6c1127a3caa8ed7159fbfc75f74304ede080cdec51179b8a89c128b",
+        "matches": true
+      },
+      {
+        "path": "host-007-peer-4-top.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-007-peer-4-top.stdout",
+        "expected_sha256": "0e15501ebab6e924021ba4f85732d3a9f7cecd32dd35b9d7d6d2ed2cedd5ca37",
+        "actual_sha256": "0e15501ebab6e924021ba4f85732d3a9f7cecd32dd35b9d7d6d2ed2cedd5ca37",
+        "matches": true
+      },
+      {
+        "path": "host-008-peer-5-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-008-peer-5-inspect.stdout",
+        "expected_sha256": "080c322713514619328c50460b14d666c662e3bd8122f76b80ab71a491e81963",
+        "actual_sha256": "080c322713514619328c50460b14d666c662e3bd8122f76b80ab71a491e81963",
+        "matches": true
+      },
+      {
+        "path": "host-009-peer-5-top.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-009-peer-5-top.stdout",
+        "expected_sha256": "103c3bd4484b220efbb0b6a8347b773d51093351fd0818caa2ce616e3c130776",
+        "actual_sha256": "103c3bd4484b220efbb0b6a8347b773d51093351fd0818caa2ce616e3c130776",
+        "matches": true
+      },
+      {
+        "path": "host-010-image-inspect.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-010-image-inspect.stdout",
+        "expected_sha256": "30a82d6f0689a3aba153254fcc4cdc5435aa07602752a850cb6223e1aeba702e",
+        "actual_sha256": "30a82d6f0689a3aba153254fcc4cdc5435aa07602752a850cb6223e1aeba702e",
+        "matches": true
+      },
+      {
+        "path": "host-011-container-name-precheck.stderr",
+        "expected_sha256": "c7c69c7115a3517112cd962071244db2be8052071cdeef523faad0a71503b51d",
+        "actual_sha256": "c7c69c7115a3517112cd962071244db2be8052071cdeef523faad0a71503b51d",
+        "matches": true
+      },
+      {
+        "path": "host-011-container-name-precheck.stdout",
+        "expected_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "actual_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "matches": true
+      },
+      {
+        "path": "host-012-docker-create.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-012-docker-create.stdout",
+        "expected_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "actual_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "matches": true
+      },
+      {
+        "path": "host-013-inspect-owned.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-013-inspect-owned.stdout",
+        "expected_sha256": "c6557ecafce8028c98591704845e34327a994010e2739326b1ad8315a4f0fd87",
+        "actual_sha256": "c6557ecafce8028c98591704845e34327a994010e2739326b1ad8315a4f0fd87",
+        "matches": true
+      },
+      {
+        "path": "host-014-docker-start.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-014-docker-start.stdout",
+        "expected_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "actual_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "matches": true
+      },
+      {
+        "path": "host-015-control-version.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-015-control-version.stdout",
+        "expected_sha256": "8d6d4026ff2b42f090650e69a005745c811fc7a837ef7430887977fab4bd3abe",
+        "actual_sha256": "8d6d4026ff2b42f090650e69a005745c811fc7a837ef7430887977fab4bd3abe",
+        "matches": true
+      },
+      {
+        "path": "host-016-candidate-version.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-016-candidate-version.stdout",
+        "expected_sha256": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+        "actual_sha256": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+        "matches": true
+      },
+      {
+        "path": "host-017-vulkaninfo.stderr",
+        "expected_sha256": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+        "actual_sha256": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+        "matches": true
+      },
+      {
+        "path": "host-017-vulkaninfo.stdout",
+        "expected_sha256": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "actual_sha256": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "matches": true
+      },
+      {
+        "path": "host-018-control-model-info.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-018-control-model-info.stdout",
+        "expected_sha256": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+        "actual_sha256": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+        "matches": true
+      },
+      {
+        "path": "host-019-candidate-model-info.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-019-candidate-model-info.stdout",
+        "expected_sha256": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+        "actual_sha256": "2bcad0522aa65a6c53ae0f867c95c1dc1e05e0b6e7d1a3ab95f0409c5cc50155",
+        "matches": true
+      },
+      {
+        "path": "host-020-timing-00-control.stderr",
+        "expected_sha256": "70c356ec3084fb342fd463d49671742783ccd0550da30803829449d155f64a0c",
+        "actual_sha256": "70c356ec3084fb342fd463d49671742783ccd0550da30803829449d155f64a0c",
+        "matches": true
+      },
+      {
+        "path": "host-020-timing-00-control.stdout",
+        "expected_sha256": "cb7470eeeea5be756931229cda8359b4a15b11bc9123e7da668c2982548787ab",
+        "actual_sha256": "cb7470eeeea5be756931229cda8359b4a15b11bc9123e7da668c2982548787ab",
+        "matches": true
+      },
+      {
+        "path": "host-021-timing-01-candidate.stderr",
+        "expected_sha256": "0e85fa70b087cafb4cb9d22edd5f21752a4d3869c7c45018b7d01df8ba66fc7e",
+        "actual_sha256": "0e85fa70b087cafb4cb9d22edd5f21752a4d3869c7c45018b7d01df8ba66fc7e",
+        "matches": true
+      },
+      {
+        "path": "host-021-timing-01-candidate.stdout",
+        "expected_sha256": "39b732213b274f7b2faa4ebc497e412c0e73b508b71bc48b026629985edfe0a9",
+        "actual_sha256": "39b732213b274f7b2faa4ebc497e412c0e73b508b71bc48b026629985edfe0a9",
+        "matches": true
+      },
+      {
+        "path": "host-022-timing-02-control.stderr",
+        "expected_sha256": "f5562e9405c0ad341a592e35f2da1a61d58cedf610f80808732b3a8225511957",
+        "actual_sha256": "f5562e9405c0ad341a592e35f2da1a61d58cedf610f80808732b3a8225511957",
+        "matches": true
+      },
+      {
+        "path": "host-022-timing-02-control.stdout",
+        "expected_sha256": "8b5fb8156e1a60415e20d68c3a7782950e54c675dbd6aa3904fca4e567f575f6",
+        "actual_sha256": "8b5fb8156e1a60415e20d68c3a7782950e54c675dbd6aa3904fca4e567f575f6",
+        "matches": true
+      },
+      {
+        "path": "host-023-timing-03-candidate.stderr",
+        "expected_sha256": "6edbb8c1305eed2666289f5951e1848f9c60f7fe01bf9781ce668c3a6e9f4c79",
+        "actual_sha256": "6edbb8c1305eed2666289f5951e1848f9c60f7fe01bf9781ce668c3a6e9f4c79",
+        "matches": true
+      },
+      {
+        "path": "host-023-timing-03-candidate.stdout",
+        "expected_sha256": "9302a57d1cfc59fa0088296d639ee621dc6f6bf590fb63e761aa8b6f7053f666",
+        "actual_sha256": "9302a57d1cfc59fa0088296d639ee621dc6f6bf590fb63e761aa8b6f7053f666",
+        "matches": true
+      },
+      {
+        "path": "host-024-timing-04-candidate.stderr",
+        "expected_sha256": "e6a4f0a8fc309fa23a70eedf777487ad7511ba8083f9083ee7539b93720d3e67",
+        "actual_sha256": "e6a4f0a8fc309fa23a70eedf777487ad7511ba8083f9083ee7539b93720d3e67",
+        "matches": true
+      },
+      {
+        "path": "host-024-timing-04-candidate.stdout",
+        "expected_sha256": "2bdba88f27296fa3c14f14280950fc8c88aafddd115ccee938a79276a8ca8539",
+        "actual_sha256": "2bdba88f27296fa3c14f14280950fc8c88aafddd115ccee938a79276a8ca8539",
+        "matches": true
+      },
+      {
+        "path": "host-025-timing-05-control.stderr",
+        "expected_sha256": "00621e2ca01410ccac1fc5644911fbb98cfe8b653f26628e9324242b7d4e36ee",
+        "actual_sha256": "00621e2ca01410ccac1fc5644911fbb98cfe8b653f26628e9324242b7d4e36ee",
+        "matches": true
+      },
+      {
+        "path": "host-025-timing-05-control.stdout",
+        "expected_sha256": "d3eca01d1fe8f3149e03b9a8242444ec5edf911cac14387ac6b206b40b122103",
+        "actual_sha256": "d3eca01d1fe8f3149e03b9a8242444ec5edf911cac14387ac6b206b40b122103",
+        "matches": true
+      },
+      {
+        "path": "host-026-timing-06-control.stderr",
+        "expected_sha256": "9a9e883a1484baf9b135409866aace76a86251399f42de33a96e6424c59003d7",
+        "actual_sha256": "9a9e883a1484baf9b135409866aace76a86251399f42de33a96e6424c59003d7",
+        "matches": true
+      },
+      {
+        "path": "host-026-timing-06-control.stdout",
+        "expected_sha256": "e76a8f4b85e82d3da0519635a96864c6ecf4c556b552268b47b0f5466fe1dfd6",
+        "actual_sha256": "e76a8f4b85e82d3da0519635a96864c6ecf4c556b552268b47b0f5466fe1dfd6",
+        "matches": true
+      },
+      {
+        "path": "host-027-timing-07-candidate.stderr",
+        "expected_sha256": "c0de5b1a3e6588fd042f4d044a6ecb2e7ef690a647755324a523848a4a73bc16",
+        "actual_sha256": "c0de5b1a3e6588fd042f4d044a6ecb2e7ef690a647755324a523848a4a73bc16",
+        "matches": true
+      },
+      {
+        "path": "host-027-timing-07-candidate.stdout",
+        "expected_sha256": "f92899e64dd9f7470b85c1987f949f46af8dfffd103a0f4fa7e7a7130e165f81",
+        "actual_sha256": "f92899e64dd9f7470b85c1987f949f46af8dfffd103a0f4fa7e7a7130e165f81",
+        "matches": true
+      },
+      {
+        "path": "host-028-timing-08-control.stderr",
+        "expected_sha256": "935b08bc8940248fd3b396efabd333f13b0df1f7f7a950faa6cbaf54fcccde32",
+        "actual_sha256": "935b08bc8940248fd3b396efabd333f13b0df1f7f7a950faa6cbaf54fcccde32",
+        "matches": true
+      },
+      {
+        "path": "host-028-timing-08-control.stdout",
+        "expected_sha256": "29433b466d3f2cbe7ca6a42ab481be84fb7385d92cecdfdb3130272cb02431d2",
+        "actual_sha256": "29433b466d3f2cbe7ca6a42ab481be84fb7385d92cecdfdb3130272cb02431d2",
+        "matches": true
+      },
+      {
+        "path": "host-029-timing-09-candidate.stderr",
+        "expected_sha256": "0280dce26d0fb53b3662e005a1ea286a545239388f3b558950eab339ec81992c",
+        "actual_sha256": "0280dce26d0fb53b3662e005a1ea286a545239388f3b558950eab339ec81992c",
+        "matches": true
+      },
+      {
+        "path": "host-029-timing-09-candidate.stdout",
+        "expected_sha256": "c9509e34bf9be4f6e11035d2ace6e178f1269954b82b409c20e9ccb6cdfe7cac",
+        "actual_sha256": "c9509e34bf9be4f6e11035d2ace6e178f1269954b82b409c20e9ccb6cdfe7cac",
+        "matches": true
+      },
+      {
+        "path": "host-030-timing-10-candidate.stderr",
+        "expected_sha256": "cb99e482f9a9b1bfef7aa9b6b0679dc8c9733855561ab56d07068af77e476005",
+        "actual_sha256": "cb99e482f9a9b1bfef7aa9b6b0679dc8c9733855561ab56d07068af77e476005",
+        "matches": true
+      },
+      {
+        "path": "host-030-timing-10-candidate.stdout",
+        "expected_sha256": "10e750b1db690481d7dc050db166009408ed4330aa9e0488156593a763642d75",
+        "actual_sha256": "10e750b1db690481d7dc050db166009408ed4330aa9e0488156593a763642d75",
+        "matches": true
+      },
+      {
+        "path": "host-031-timing-11-control.stderr",
+        "expected_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+        "actual_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+        "matches": true
+      },
+      {
+        "path": "host-031-timing-11-control.stdout",
+        "expected_sha256": "f31cdba8df7690a073136fa3152cb3f9340321f45e10e0cd4740402e2fe5a860",
+        "actual_sha256": "f31cdba8df7690a073136fa3152cb3f9340321f45e10e0cd4740402e2fe5a860",
+        "matches": true
+      },
+      {
+        "path": "host-032-witness-12-control.stderr",
+        "expected_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+        "actual_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+        "matches": true
+      },
+      {
+        "path": "host-032-witness-12-control.stdout",
+        "expected_sha256": "1b2624cdbd20f4b312965d7d6924e4f990c21a953a9af4c4e0f793d4c246ce72",
+        "actual_sha256": "1b2624cdbd20f4b312965d7d6924e4f990c21a953a9af4c4e0f793d4c246ce72",
+        "matches": true
+      },
+      {
+        "path": "host-033-witness-13-candidate.stderr",
+        "expected_sha256": "ee1c528536c7f4b2a452733322c65bc28f4fb099a5816dad94e7dac71d2cd45e",
+        "actual_sha256": "ee1c528536c7f4b2a452733322c65bc28f4fb099a5816dad94e7dac71d2cd45e",
+        "matches": true
+      },
+      {
+        "path": "host-033-witness-13-candidate.stdout",
+        "expected_sha256": "d9186eae10b7e2a1ad1300b4097fe65b0a7ce9e658e1bf54843b9e0db94e951d",
+        "actual_sha256": "d9186eae10b7e2a1ad1300b4097fe65b0a7ce9e658e1bf54843b9e0db94e951d",
+        "matches": true
+      },
+      {
+        "path": "host-034-inspect-owned.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-034-inspect-owned.stdout",
+        "expected_sha256": "55b9f59c05ecb618cb75047def9e26f933d59fd5c272fdd20631b6982f7b8adb",
+        "actual_sha256": "55b9f59c05ecb618cb75047def9e26f933d59fd5c272fdd20631b6982f7b8adb",
+        "matches": true
+      },
+      {
+        "path": "host-035-docker-remove-owned.stderr",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "host-035-docker-remove-owned.stdout",
+        "expected_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "actual_sha256": "6b820a061d2dced118d3ae797035cdb7bed39cf7abea02b7439c81d75923d911",
+        "matches": true
+      },
+      {
+        "path": "monitor.log",
+        "expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "actual_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches": true
+      },
+      {
+        "path": "monitor.stop",
+        "expected_sha256": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "actual_sha256": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "matches": true
+      }
+    ]
+  },
+  "configuration": {
+    "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+    "prefill_tokens": [
+      128,
+      4096
+    ],
+    "decode_tokens": 256,
+    "threads": 4,
+    "ubatch": 512,
+    "dtype": "f16 requested; control reaches F32 NVFP4 tile while candidate uses native F16 tile (verified by actual path witnesses)",
+    "KV": [
+      "f16",
+      "f16"
+    ],
+    "MTP": "disabled",
+    "context": "model metadata 262144; no context override",
+    "order": "For each P: control warmup, candidate warmup, then measured control/candidate/candidate/control (ABBA). After all 12 timing calls, one separate P128/G1/r1 --profile path witness per arm.",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device": {
+      "node": "/dev/dri/renderD130",
+      "pci": "0000:c9:00.0",
+      "physical": 8,
+      "uuid": "00000000-c900-0000-0000-000000000000"
+    },
+    "clock_policy": "default; no power or clock changes"
+  },
+  "warmups": [
+    {
+      "index": 0,
+      "phase": "warmup",
+      "arm": "control",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.66,
+        "prefill_tok_s": 2267.07
+      },
+      "started_unix": 1792997871.8081381,
+      "ended_unix": 1792997877.6078885,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-020-timing-00-control.stdout",
+      "stdout_sha256": "cb7470eeeea5be756931229cda8359b4a15b11bc9123e7da668c2982548787ab",
+      "stderr": "host-020-timing-00-control.stderr",
+      "stderr_sha256": "70c356ec3084fb342fd463d49671742783ccd0550da30803829449d155f64a0c",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 2,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 1,
+      "phase": "warmup",
+      "arm": "candidate",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.38,
+        "prefill_tok_s": 2208.36
+      },
+      "started_unix": 1792997877.6377974,
+      "ended_unix": 1792997882.875784,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-021-timing-01-candidate.stdout",
+      "stdout_sha256": "39b732213b274f7b2faa4ebc497e412c0e73b508b71bc48b026629985edfe0a9",
+      "stderr": "host-021-timing-01-candidate.stderr",
+      "stderr_sha256": "0e85fa70b087cafb4cb9d22edd5f21752a4d3869c7c45018b7d01df8ba66fc7e",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 2,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 3,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 6,
+      "phase": "warmup",
+      "arm": "control",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.8,
+        "prefill_tok_s": 3578.06
+      },
+      "started_unix": 1792997903.4218807,
+      "ended_unix": 1792997910.7526724,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-026-timing-06-control.stdout",
+      "stdout_sha256": "e76a8f4b85e82d3da0519635a96864c6ecf4c556b552268b47b0f5466fe1dfd6",
+      "stderr": "host-026-timing-06-control.stderr",
+      "stderr_sha256": "9a9e883a1484baf9b135409866aace76a86251399f42de33a96e6424c59003d7",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 7,
+      "phase": "warmup",
+      "arm": "candidate",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 122.67,
+        "prefill_tok_s": 3461.58
+      },
+      "started_unix": 1792997910.75742,
+      "ended_unix": 1792997918.137966,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-027-timing-07-candidate.stdout",
+      "stdout_sha256": "f92899e64dd9f7470b85c1987f949f46af8dfffd103a0f4fa7e7a7130e165f81",
+      "stderr": "host-027-timing-07-candidate.stderr",
+      "stderr_sha256": "c0de5b1a3e6588fd042f4d044a6ecb2e7ef690a647755324a523848a4a73bc16",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    }
+  ],
+  "measured_calls": [
+    {
+      "index": 2,
+      "phase": "measured",
+      "arm": "control",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.27,
+        "prefill_tok_s": 2277.58
+      },
+      "started_unix": 1792997882.879863,
+      "ended_unix": 1792997888.0090537,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-022-timing-02-control.stdout",
+      "stdout_sha256": "8b5fb8156e1a60415e20d68c3a7782950e54c675dbd6aa3904fca4e567f575f6",
+      "stderr": "host-022-timing-02-control.stderr",
+      "stderr_sha256": "f5562e9405c0ad341a592e35f2da1a61d58cedf610f80808732b3a8225511957",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 1,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 2,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 3,
+      "phase": "measured",
+      "arm": "candidate",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.57,
+        "prefill_tok_s": 2209.13
+      },
+      "started_unix": 1792997888.01319,
+      "ended_unix": 1792997893.1390066,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-023-timing-03-candidate.stdout",
+      "stdout_sha256": "9302a57d1cfc59fa0088296d639ee621dc6f6bf590fb63e761aa8b6f7053f666",
+      "stderr": "host-023-timing-03-candidate.stderr",
+      "stderr_sha256": "6edbb8c1305eed2666289f5951e1848f9c60f7fe01bf9781ce668c3a6e9f4c79",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 1,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 2,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 4,
+      "phase": "measured",
+      "arm": "candidate",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 122.15,
+        "prefill_tok_s": 2203.91
+      },
+      "started_unix": 1792997893.143274,
+      "ended_unix": 1792997898.2827933,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-024-timing-04-candidate.stdout",
+      "stdout_sha256": "2bdba88f27296fa3c14f14280950fc8c88aafddd115ccee938a79276a8ca8539",
+      "stderr": "host-024-timing-04-candidate.stderr",
+      "stderr_sha256": "e6a4f0a8fc309fa23a70eedf777487ad7511ba8083f9083ee7539b93720d3e67",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 1,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 5,
+      "phase": "measured",
+      "arm": "control",
+      "prompt_tokens": 128,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.17,
+        "prefill_tok_s": 2241.73
+      },
+      "started_unix": 1792997898.2885945,
+      "ended_unix": 1792997903.417159,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-025-timing-05-control.stdout",
+      "stdout_sha256": "d3eca01d1fe8f3149e03b9a8242444ec5edf911cac14387ac6b206b40b122103",
+      "stderr": "host-025-timing-05-control.stderr",
+      "stderr_sha256": "00621e2ca01410ccac1fc5644911fbb98cfe8b653f26628e9324242b7d4e36ee",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 1,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 2,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 8,
+      "phase": "measured",
+      "arm": "control",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.39,
+        "prefill_tok_s": 3584.06
+      },
+      "started_unix": 1792997918.1426113,
+      "ended_unix": 1792997925.4805868,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-028-timing-08-control.stdout",
+      "stdout_sha256": "29433b466d3f2cbe7ca6a42ab481be84fb7385d92cecdfdb3130272cb02431d2",
+      "stderr": "host-028-timing-08-control.stderr",
+      "stderr_sha256": "935b08bc8940248fd3b396efabd333f13b0df1f7f7a950faa6cbaf54fcccde32",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 2,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 3,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 9,
+      "phase": "measured",
+      "arm": "candidate",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 122.69,
+        "prefill_tok_s": 3462.13
+      },
+      "started_unix": 1792997925.4855614,
+      "ended_unix": 1792997932.9166265,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-029-timing-09-candidate.stdout",
+      "stdout_sha256": "c9509e34bf9be4f6e11035d2ace6e178f1269954b82b409c20e9ccb6cdfe7cac",
+      "stderr": "host-029-timing-09-candidate.stderr",
+      "stderr_sha256": "0280dce26d0fb53b3662e005a1ea286a545239388f3b558950eab339ec81992c",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 10,
+      "phase": "measured",
+      "arm": "candidate",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.32,
+        "prefill_tok_s": 3460.89
+      },
+      "started_unix": 1792997932.921181,
+      "ended_unix": 1792997940.3552606,
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-030-timing-10-candidate.stdout",
+      "stdout_sha256": "10e750b1db690481d7dc050db166009408ed4330aa9e0488156593a763642d75",
+      "stderr": "host-030-timing-10-candidate.stderr",
+      "stderr_sha256": "cb99e482f9a9b1bfef7aa9b6b0679dc8c9733855561ab56d07068af77e476005",
+      "activity": {
+        "intervals": 5,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 5,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 11,
+      "phase": "measured",
+      "arm": "control",
+      "prompt_tokens": 4096,
+      "decode_tokens": 256,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 123.57,
+        "prefill_tok_s": 3580.73
+      },
+      "started_unix": 1792997940.3606236,
+      "ended_unix": 1792997947.6443498,
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "4096",
+        "--n",
+        "256",
+        "--r",
+        "1"
+      ],
+      "stdout": "host-031-timing-11-control.stdout",
+      "stdout_sha256": "f31cdba8df7690a073136fa3152cb3f9340321f45e10e0cd4740402e2fe5a860",
+      "stderr": "host-031-timing-11-control.stderr",
+      "stderr_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+      "activity": {
+        "intervals": 4,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 1,
+        "unknown_process_cpu_intervals": 4,
+        "coverage_complete": true
+      }
+    }
+  ],
+  "measured_summary": [
+    {
+      "prompt_tokens": 128,
+      "generation_tokens": 256,
+      "phase": "prefill",
+      "arms": {
+        "control": {
+          "samples": [
+            2277.58,
+            2241.73
+          ],
+          "n": 2,
+          "mean": 2259.6549999999997
+        },
+        "candidate": {
+          "samples": [
+            2209.13,
+            2203.91
+          ],
+          "n": 2,
+          "mean": 2206.52
+        }
+      },
+      "candidate_over_control": 0.976485348427083,
+      "delta_percent": -2.351465157291699
+    },
+    {
+      "prompt_tokens": 128,
+      "generation_tokens": 256,
+      "phase": "decode",
+      "arms": {
+        "control": {
+          "samples": [
+            123.27,
+            123.17
+          ],
+          "n": 2,
+          "mean": 123.22
+        },
+        "candidate": {
+          "samples": [
+            123.57,
+            122.15
+          ],
+          "n": 2,
+          "mean": 122.86
+        }
+      },
+      "candidate_over_control": 0.9970783963642266,
+      "delta_percent": -0.2921603635773429
+    },
+    {
+      "prompt_tokens": 4096,
+      "generation_tokens": 256,
+      "phase": "prefill",
+      "arms": {
+        "control": {
+          "samples": [
+            3584.06,
+            3580.73
+          ],
+          "n": 2,
+          "mean": 3582.395
+        },
+        "candidate": {
+          "samples": [
+            3462.13,
+            3460.89
+          ],
+          "n": 2,
+          "mean": 3461.51
+        }
+      },
+      "candidate_over_control": 0.9662558148947842,
+      "delta_percent": -3.374418510521582
+    },
+    {
+      "prompt_tokens": 4096,
+      "generation_tokens": 256,
+      "phase": "decode",
+      "arms": {
+        "control": {
+          "samples": [
+            123.39,
+            123.57
+          ],
+          "n": 2,
+          "mean": 123.47999999999999
+        },
+        "candidate": {
+          "samples": [
+            122.69,
+            123.32
+          ],
+          "n": 2,
+          "mean": 123.005
+        }
+      },
+      "candidate_over_control": 0.9961532231940395,
+      "delta_percent": -0.3846776805960461
+    }
+  ],
+  "path_witnesses": [
+    {
+      "index": 12,
+      "arm": "control",
+      "phase": "path_witness",
+      "prompt_tokens": 128,
+      "decode_tokens": 1,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 111.01,
+        "prefill_tok_s": 2179.32
+      },
+      "argv": [
+        "/control/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "stdout": "host-032-witness-12-control.stdout",
+      "stdout_sha256": "1b2624cdbd20f4b312965d7d6924e4f990c21a953a9af4c4e0f793d4c246ce72",
+      "stderr": "host-032-witness-12-control.stderr",
+      "stderr_sha256": "005cf79d52d1faca27563fec247c990eb8cf29750feee065b036ca8034f09f52",
+      "path_witness": {
+        "f32_tile_dispatches": 2,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 0,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4",
+          "matmul_tile_nvfp4_small"
+        ]
+      },
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 2,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 13,
+      "arm": "candidate",
+      "phase": "path_witness",
+      "prompt_tokens": 128,
+      "decode_tokens": 1,
+      "status": "complete",
+      "exit_code": 0,
+      "rates_tok_s": {
+        "decode_tok_s": 111.2,
+        "prefill_tok_s": 2137.48
+      },
+      "argv": [
+        "/candidate/llmx",
+        "bench",
+        "--model",
+        "/model.gguf",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--dtype",
+        "f16",
+        "--p",
+        "128",
+        "--n",
+        "1",
+        "--r",
+        "1",
+        "--profile"
+      ],
+      "stdout": "host-033-witness-13-candidate.stdout",
+      "stdout_sha256": "d9186eae10b7e2a1ad1300b4097fe65b0a7ce9e658e1bf54843b9e0db94e951d",
+      "stderr": "host-033-witness-13-candidate.stderr",
+      "stderr_sha256": "ee1c528536c7f4b2a452733322c65bc28f4fb099a5816dad94e7dac71d2cd45e",
+      "path_witness": {
+        "f32_tile_dispatches": 0,
+        "matrix_paths": {
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ],
+          "dtype": "f16"
+        },
+        "native_f16_tile_dispatches": 2,
+        "timed_nvfp4_tile_names": [
+          "matmul_tile_nvfp4_f16",
+          "matmul_tile_nvfp4_f16_small"
+        ]
+      },
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 0,
+          "unrelated_cpu": 0,
+          "disk": 1,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "missed_process_intervals": 0,
+        "unknown_process_cpu_intervals": 1,
+        "coverage_complete": true
+      }
+    }
+  ],
+  "monitoring": {
+    "path": "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py",
+    "sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "exit": 0,
+    "ok": true,
+    "samples": 44,
+    "intervals": 43,
+    "sample_start": "2026-10-26T06:57:47.915970+00:00",
+    "sample_end": "2026-10-26T06:59:13.938498+00:00",
+    "post_call_sample_after_last_call": true,
+    "execution_post_call_monitor_flag": true,
+    "frozen_thresholds": {
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "sample_gap_seconds": 3,
+      "unrelated_cpu_cores": 1
+    },
+    "flagged_intervals": {
+      "other_gpu": 0,
+      "unrelated_cpu": 5,
+      "disk": 13,
+      "gap": 0
+    },
+    "max_cpu_cores_by_role": {
+      "benchmark": 0.7798298641581178,
+      "monitor": 0.029992883409714274,
+      "unrelated": 1.644641187871928
+    },
+    "max_disk_bytes_per_second": 250428051.9961541,
+    "max_sample_gap_seconds": 2.013794398866594,
+    "unknown_gpu_intervals": 0,
+    "unknown_gpu_names": [],
+    "missed_process_intervals": 9,
+    "unknown_process_cpu_intervals": 38,
+    "coverage_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "prompt_equivalence_proof": {
+    "llmx_source": "src/cli/main.cpp bench_ids(seed,n,n_vocab), called with seeds 12345 for prompt and 777 for decode",
+    "mx_patch_path": "..\\nvfp4-20261025\\build-nvfp4-rig-main3\\matched-mx\\matched-inputs.patch",
+    "mx_patch_sha256": "982ecb146d414bc0008a73ad8a5958add227e7f7a1ad1ed389d1ddac3fc39ce8",
+    "mx_base_manifest_path": "..\\nvfp4-20261025\\build-nvfp4-rig-main3\\matched-mx\\source-pins.json",
+    "mx_base_manifest_sha256": "f5ee43557b4a36ee7f4697ba8d1c197f27b4d42a911093e77864a036da9fd7df",
+    "mx_final_source_path": "..\\nvfp4-20261025\\build-nvfp4-rig-main3\\mx-context-warmup\\llama-bench.cpp",
+    "mx_final_source_sha256": "f19e088bab61e9f322193cdf691542eaf0fd6ecab5b465adfc8cc055a0cd08e1",
+    "mx_context_warmup_change_path": "..\\nvfp4-20261025\\build-nvfp4-rig-main3\\mx-context-warmup\\change.json",
+    "mx_context_warmup_change_sha256": "0dd4be3f19f7413f92fd1882287c59e9a37c01305cc40f21f09ef32b51ee569c",
+    "proof_cases": [
+      {
+        "case": "pp128",
+        "seed": 12345,
+        "count": 128,
+        "vocab": 248320,
+        "same_as_saved_ids": true,
+        "u32le_sha256": "8e281f15d84d25c6eb5856564e4981c800b7ae5dc5e31e85f6c19b97388d6251",
+        "expected_u32le_sha256": "8e281f15d84d25c6eb5856564e4981c800b7ae5dc5e31e85f6c19b97388d6251",
+        "hash_matches": true
+      },
+      {
+        "case": "pp4096",
+        "seed": 12345,
+        "count": 4096,
+        "vocab": 248320,
+        "same_as_saved_ids": true,
+        "u32le_sha256": "629081636aa47bdb8ea6f6cd59591edf6c89ce32601014cccc4830ed79f5e143",
+        "expected_u32le_sha256": "629081636aa47bdb8ea6f6cd59591edf6c89ce32601014cccc4830ed79f5e143",
+        "hash_matches": true
+      },
+      {
+        "case": "tg256",
+        "seed": 777,
+        "count": 256,
+        "vocab": 248320,
+        "same_as_saved_ids": true,
+        "u32le_sha256": "e38861d6cbcb15a3793abd95ed5219736afa377153cea0aa95599ea7da4e28ac",
+        "expected_u32le_sha256": "e38861d6cbcb15a3793abd95ed5219736afa377153cea0aa95599ea7da4e28ac",
+        "hash_matches": true
+      }
+    ],
+    "statement": "Patch uses same uint32 LCG and vocab mapping as llmx, resets matching seeds for each prompt and decode; llmx and mx use same pinned model bytes."
+  },
+  "limitations": [
+    "One short development screen; only two measured samples per arm per cell. Means are descriptive and no performance floor/qualification is claimed.",
+    "Control and candidate use different NVFP4 activation paths, so this is not an output-identity comparison.",
+    "MI50 MX precision comparison remains separate and pending; this screen compares two llmx builds only.",
+    "Monitor records full process/GPU/disk observations. GPU/process counters can be unknown; disk activity is aggregate and not attributable per process.",
+    "No full HF, depth, split, existing-format, current-head CI or merge gate is established by this screen."
+  ],
+  "root_verification": {
+    "artifact_hashes_rechecked": 75,
+    "source_revision": "d880177f787c7765522995f7ed461daa6c23e69c",
+    "source_delta": [
+      "src/backends/vulkan/vulkan_kernels.hpp"
+    ],
+    "versions": {
+      "candidate": {
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "5ed9ed975e99625aff2a0484cd50de06a5fac1ef8f7dcfe4448a0fef6f3dbe30",
+        "text": "llmx 0.1.0+unknown numerics 07241fd541e398c5"
+      },
+      "control": {
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stdout_sha256": "8d6d4026ff2b42f090650e69a005745c811fc7a837ef7430887977fab4bd3abe",
+        "text": "llmx 0.1.0+unknown numerics 92cdf60699ec0031"
+      }
+    },
+    "container_removed": true,
+    "binary_and_model_pins_unchanged": true
+  },
+  "retained_preflight_attempts": [
+    {
+      "output": "main730/model-screen-results-v1",
+      "failure": "Privileged Portainer mistaken for a GPU workload. Fixed only for the exact verified management container/image/command, with fuser empty required.",
+      "inference_started": false
+    },
+    {
+      "output": "main730/model-screen-results-v2",
+      "failure": "Docker emits lowercase no such object. Corrected case-insensitive diagnostic check.",
+      "inference_started": false
+    }
+  ],
+  "kernel_diagnostic": {
+    "scope": "Separate P128/G1 profiled calls, not timing samples. No spills observed; instruction counts do not alone prove a bottleneck.",
+    "control": {
+      "tile": {
+        "vgprs": 84,
+        "spilled_vgprs": 0,
+        "valu": 636
+      },
+      "small": {
+        "vgprs": 64,
+        "spilled_vgprs": 0,
+        "valu": 613
+      }
+    },
+    "candidate": {
+      "tile": {
+        "vgprs": 64,
+        "spilled_vgprs": 0,
+        "valu": 679
+      },
+      "small": {
+        "vgprs": 48,
+        "spilled_vgprs": 0,
+        "valu": 730
+      }
+    }
+  }
+}

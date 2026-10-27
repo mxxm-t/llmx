@@ -1,0 +1,1586 @@
+{
+  "schema": "nvfp4-common-split-released-short-v1",
+  "passed": true,
+  "limits_changed": false,
+  "reference_regenerated": false,
+  "scope": "Unadopted common float split candidate. Frozen released-model short reference, default and F32, 21 checks each.",
+  "reports": {
+    "default": {
+      "status": "pass",
+      "start": 1793040964.674402,
+      "device": "vulkan:0",
+      "dtype": "default",
+      "commands": [
+        {
+          "label": "prompt-00-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The capital of France is"
+          ],
+          "start": 1793040965.5741775,
+          "exit_code": 0,
+          "seconds": 0.34192466735839844
+        },
+        {
+          "label": "prompt-00-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The capital of France is",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040965.9163675,
+          "exit_code": 0,
+          "seconds": 1.1144487857818604
+        },
+        {
+          "label": "prompt-01-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "Machine learning is"
+          ],
+          "start": 1793040967.031171,
+          "exit_code": 0,
+          "seconds": 0.3653695583343506
+        },
+        {
+          "label": "prompt-01-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "Machine learning is",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040967.396879,
+          "exit_code": 0,
+          "seconds": 1.085355520248413
+        },
+        {
+          "label": "prompt-02-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "def add(a, b):"
+          ],
+          "start": 1793040968.4826024,
+          "exit_code": 0,
+          "seconds": 0.3291332721710205
+        },
+        {
+          "label": "prompt-02-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "def add(a, b):",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040968.8120627,
+          "exit_code": 0,
+          "seconds": 1.1279959678649902
+        },
+        {
+          "label": "prompt-03-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The three primary colors are red,"
+          ],
+          "start": 1793040969.9404664,
+          "exit_code": 0,
+          "seconds": 0.34238290786743164
+        },
+        {
+          "label": "prompt-03-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The three primary colors are red,",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040970.2832172,
+          "exit_code": 0,
+          "seconds": 1.135073184967041
+        },
+        {
+          "label": "prompt-04-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "In 1969, humans first walked on the"
+          ],
+          "start": 1793040971.4187658,
+          "exit_code": 0,
+          "seconds": 0.3327450752258301
+        },
+        {
+          "label": "prompt-04-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "In 1969, humans first walked on the",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040971.751903,
+          "exit_code": 0,
+          "seconds": 1.2263741493225098
+        },
+        {
+          "label": "prompt-05-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The capital of France is Paris. The capital of Italy is Rome. The capital of"
+          ],
+          "start": 1793040972.9787347,
+          "exit_code": 0,
+          "seconds": 0.35283517837524414
+        },
+        {
+          "label": "prompt-05-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040973.3319387,
+          "exit_code": 0,
+          "seconds": 1.302851915359497
+        },
+        {
+          "label": "ppl-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+          ],
+          "start": 1793040974.6352737,
+          "exit_code": 0,
+          "seconds": 0.34655213356018066
+        },
+        {
+          "label": "ppl-00-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040974.9823675,
+          "exit_code": 0,
+          "seconds": 1.6416409015655518
+        },
+        {
+          "label": "ppl-00-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040976.6245847,
+          "exit_code": 0,
+          "seconds": 2.511916399002075
+        },
+        {
+          "label": "ppl-01-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "64",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040979.1370795,
+          "exit_code": 0,
+          "seconds": 1.6953110694885254
+        },
+        {
+          "label": "ppl-01-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "64",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040980.8330166,
+          "exit_code": 0,
+          "seconds": 2.484480857849121
+        },
+        {
+          "label": "ppl-02-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "64",
+            "--chunks",
+            "2",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040983.3180957,
+          "exit_code": 0,
+          "seconds": 1.4438061714172363
+        },
+        {
+          "label": "ppl-02-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "64",
+            "--chunks",
+            "2",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040984.762544,
+          "exit_code": 0,
+          "seconds": 1.8381915092468262
+        },
+        {
+          "label": "ppl-03-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "123",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040986.6013913,
+          "exit_code": 0,
+          "seconds": 1.6491003036499023
+        },
+        {
+          "label": "ppl-03-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/default/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "123",
+            "--device",
+            "vulkan:0"
+          ],
+          "start": 1793040988.2511666,
+          "exit_code": 0,
+          "seconds": 2.446040391921997
+        }
+      ],
+      "checks": [
+        {
+          "label": "prompt-00-ids",
+          "status": "pass",
+          "tokens": 5
+        },
+        {
+          "label": "prompt-00-logits",
+          "status": "pass",
+          "top1": 11751,
+          "top5_overlap": 5,
+          "top_ids": [
+            11751,
+            279,
+            7172,
+            198,
+            25,
+            31586,
+            303,
+            1076,
+            248046,
+            524
+          ],
+          "top_logits": [
+            15.139498,
+            14.583721,
+            14.375697,
+            14.332648,
+            14.234278,
+            13.970885,
+            13.508089,
+            13.477453,
+            13.374864,
+            13.149052
+          ]
+        },
+        {
+          "label": "prompt-01-ids",
+          "status": "pass",
+          "tokens": 3
+        },
+        {
+          "label": "prompt-01-logits",
+          "status": "pass",
+          "top1": 264,
+          "top5_overlap": 5,
+          "top_ids": [
+            264,
+            449,
+            279,
+            3428,
+            524,
+            799,
+            4364,
+            10141,
+            1429,
+            44265
+          ],
+          "top_logits": [
+            20.211124,
+            18.729521,
+            18.451504,
+            17.744482,
+            17.36442,
+            17.306997,
+            17.059227,
+            16.879488,
+            16.847393,
+            16.240421
+          ]
+        },
+        {
+          "label": "prompt-02-ids",
+          "status": "pass",
+          "tokens": 6
+        },
+        {
+          "label": "prompt-02-logits",
+          "status": "pass",
+          "top1": 198,
+          "top5_overlap": 5,
+          "top_ids": [
+            198,
+            460,
+            695,
+            317,
+            653,
+            271,
+            1133,
+            264,
+            220,
+            4673
+          ],
+          "top_logits": [
+            23.694948,
+            19.387093,
+            18.079803,
+            17.766735,
+            16.474483,
+            16.174788,
+            15.201002,
+            15.101749,
+            14.883333,
+            14.806091
+          ]
+        },
+        {
+          "label": "prompt-03-ids",
+          "status": "pass",
+          "tokens": 7
+        },
+        {
+          "label": "prompt-03-logits",
+          "status": "pass",
+          "top1": 6105,
+          "top5_overlap": 5,
+          "top_ids": [
+            6105,
+            5983,
+            13358,
+            18016,
+            4022,
+            321,
+            279,
+            55945,
+            1259,
+            864
+          ],
+          "top_logits": [
+            19.499268,
+            19.381813,
+            19.232862,
+            17.277802,
+            15.848997,
+            15.754107,
+            15.117886,
+            14.91247,
+            14.41633,
+            14.320913
+          ]
+        },
+        {
+          "label": "prompt-04-ids",
+          "status": "pass",
+          "tokens": 12
+        },
+        {
+          "label": "prompt-04-logits",
+          "status": "pass",
+          "top1": 16820,
+          "top5_overlap": 5,
+          "top_ids": [
+            16820,
+            17257,
+            7099,
+            8964,
+            4751,
+            11247,
+            4128,
+            9561,
+            9114,
+            1259
+          ],
+          "top_logits": [
+            16.339645,
+            16.011784,
+            15.369607,
+            13.930086,
+            13.51449,
+            13.000551,
+            12.892788,
+            12.802577,
+            12.63118,
+            12.213146
+          ]
+        },
+        {
+          "label": "prompt-05-ids",
+          "status": "pass",
+          "tokens": 17
+        },
+        {
+          "label": "prompt-05-logits",
+          "status": "pass",
+          "top1": 6124,
+          "top5_overlap": 5,
+          "top_ids": [
+            6124,
+            17163,
+            9564,
+            279,
+            5440,
+            31868,
+            15477,
+            8100,
+            6650,
+            6535
+          ],
+          "top_logits": [
+            17.559088,
+            17.405325,
+            17.048222,
+            16.812634,
+            15.839713,
+            15.824047,
+            15.767689,
+            15.753214,
+            15.663641,
+            15.497087
+          ]
+        },
+        {
+          "label": "ppl-ids",
+          "status": "pass",
+          "tokens": 243
+        },
+        {
+          "label": "ppl-00-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156229276,
+          "perplexity": 23.4819,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 4.648463185841223e-05,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-00-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156180322,
+          "perplexity": 23.4807,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 2.46936814152221e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-01-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873168336,
+          "perplexity": 48.0945,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 9.42594269051078e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-01-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873227824,
+          "perplexity": 48.0974,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 3.4771426904889324e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539525343,
+          "perplexity": 34.4506,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 0.0001778986076064193,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539649052,
+          "perplexity": 34.4548,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 5.418960760650293e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352791259,
+          "perplexity": 28.5824,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 6.121400849723457e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352693925,
+          "perplexity": 28.5796,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 3.611999150265888e-05,
+          "bound": 0.02
+        }
+      ],
+      "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+      "binary_sha256": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+      "vocabulary": 248320,
+      "model_context": 262144,
+      "bounds": {
+        "top5_overlap": 5,
+        "continuous_nll": 0.01,
+        "window_nll": 0.02,
+        "max_abs_logit": 100.0
+      },
+      "golden_hashes": {
+        "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+        "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+      },
+      "seconds": 26.023457765579224
+    },
+    "f32": {
+      "status": "pass",
+      "start": 1793040992.504733,
+      "device": "vulkan:0",
+      "dtype": "f32",
+      "commands": [
+        {
+          "label": "prompt-00-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The capital of France is"
+          ],
+          "start": 1793040993.3434966,
+          "exit_code": 0,
+          "seconds": 0.3371114730834961
+        },
+        {
+          "label": "prompt-00-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The capital of France is",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793040993.680903,
+          "exit_code": 0,
+          "seconds": 1.060472011566162
+        },
+        {
+          "label": "prompt-01-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "Machine learning is"
+          ],
+          "start": 1793040994.7417266,
+          "exit_code": 0,
+          "seconds": 0.35516881942749023
+        },
+        {
+          "label": "prompt-01-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "Machine learning is",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793040995.0972016,
+          "exit_code": 0,
+          "seconds": 1.0812928676605225
+        },
+        {
+          "label": "prompt-02-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "def add(a, b):"
+          ],
+          "start": 1793040996.17891,
+          "exit_code": 0,
+          "seconds": 0.3409709930419922
+        },
+        {
+          "label": "prompt-02-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "def add(a, b):",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793040996.52022,
+          "exit_code": 0,
+          "seconds": 1.0834097862243652
+        },
+        {
+          "label": "prompt-03-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The three primary colors are red,"
+          ],
+          "start": 1793040997.604037,
+          "exit_code": 0,
+          "seconds": 0.3522627353668213
+        },
+        {
+          "label": "prompt-03-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The three primary colors are red,",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793040997.9567032,
+          "exit_code": 0,
+          "seconds": 1.0613465309143066
+        },
+        {
+          "label": "prompt-04-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "In 1969, humans first walked on the"
+          ],
+          "start": 1793040999.0185335,
+          "exit_code": 0,
+          "seconds": 0.35106897354125977
+        },
+        {
+          "label": "prompt-04-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "In 1969, humans first walked on the",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793040999.369973,
+          "exit_code": 0,
+          "seconds": 1.122936725616455
+        },
+        {
+          "label": "prompt-05-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            "The capital of France is Paris. The capital of Italy is Rome. The capital of"
+          ],
+          "start": 1793041000.4933798,
+          "exit_code": 0,
+          "seconds": 0.3427612781524658
+        },
+        {
+          "label": "prompt-05-logits",
+          "command": [
+            "/build/llmx",
+            "logits",
+            "/model.gguf",
+            "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+            "--top",
+            "10",
+            "--threads",
+            "4",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041000.8366137,
+          "exit_code": 0,
+          "seconds": 1.1676392555236816
+        },
+        {
+          "label": "ppl-ids",
+          "command": [
+            "/build/llmx",
+            "tokenize",
+            "/model.gguf",
+            " = Robert Boulter = \n Robert Boulter is an English film , television and theatre actor . He had a guest @-@ starring role on the television series The Bill in 2000 . This was followed by a starring role in the play Herons written by Simon Stephens , which was performed in 2001 at the Royal Court Theatre . He had a guest role in the television series Judge John Deed in 2002 . In 2004 Boulter landed a role as \" Craig \" in the episode \" Teddy 's Story \" of the television series The Long Firm ; he starred alongside actors Mark Strong and Derek Jacobi . He was cast in the 2005 theatre productions of the Philip Ridley play Mercury Fur , which was performed at the Drum Theatre in Plymouth and the Menier Chocolate Factory in London . He was directed by John Tiffany and starred alongside Ben Whishaw , Shane Zaza , Harry Kent , Fraser Ayres , Sophie Stanton and Dominic Hall . \n In 2006 , Boulter starred alongside Whishaw in the play Citizenship written by Mark Ravenhill . He appeared on a 2006 episode of the television"
+          ],
+          "start": 1793041002.0047414,
+          "exit_code": 0,
+          "seconds": 0.3488001823425293
+        },
+        {
+          "label": "ppl-00-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041002.3540711,
+          "exit_code": 0,
+          "seconds": 1.7385914325714111
+        },
+        {
+          "label": "ppl-00-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041004.0932457,
+          "exit_code": 0,
+          "seconds": 3.97554087638855
+        },
+        {
+          "label": "ppl-01-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "64",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041008.0693505,
+          "exit_code": 0,
+          "seconds": 1.7304966449737549
+        },
+        {
+          "label": "ppl-01-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "64",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041009.8003814,
+          "exit_code": 0,
+          "seconds": 3.9100117683410645
+        },
+        {
+          "label": "ppl-02-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "64",
+            "--chunks",
+            "2",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041013.7110054,
+          "exit_code": 0,
+          "seconds": 1.5345187187194824
+        },
+        {
+          "label": "ppl-02-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "64",
+            "--chunks",
+            "2",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041015.2460983,
+          "exit_code": 0,
+          "seconds": 2.5307304859161377
+        },
+        {
+          "label": "ppl-03-batched",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--ctx-size",
+            "123",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041017.7774656,
+          "exit_code": 0,
+          "seconds": 1.6903440952301025
+        },
+        {
+          "label": "ppl-03-per-token",
+          "command": [
+            "/build/llmx",
+            "perplexity",
+            "/model.gguf",
+            "--file",
+            "/bundle/output/f32/excerpt.txt",
+            "--threads",
+            "6",
+            "--per-token",
+            "--ctx-size",
+            "123",
+            "--device",
+            "vulkan:0",
+            "--dtype",
+            "f32"
+          ],
+          "start": 1793041019.4684017,
+          "exit_code": 0,
+          "seconds": 3.9356298446655273
+        }
+      ],
+      "checks": [
+        {
+          "label": "prompt-00-ids",
+          "status": "pass",
+          "tokens": 5
+        },
+        {
+          "label": "prompt-00-logits",
+          "status": "pass",
+          "top1": 11751,
+          "top5_overlap": 5,
+          "top_ids": [
+            11751,
+            279,
+            7172,
+            198,
+            25,
+            31586,
+            303,
+            1076,
+            248046,
+            524
+          ],
+          "top_logits": [
+            15.139431,
+            14.583593,
+            14.375737,
+            14.332698,
+            14.234222,
+            13.970953,
+            13.50806,
+            13.477369,
+            13.374947,
+            13.149185
+          ]
+        },
+        {
+          "label": "prompt-01-ids",
+          "status": "pass",
+          "tokens": 3
+        },
+        {
+          "label": "prompt-01-logits",
+          "status": "pass",
+          "top1": 264,
+          "top5_overlap": 5,
+          "top_ids": [
+            264,
+            449,
+            279,
+            3428,
+            524,
+            799,
+            4364,
+            10141,
+            1429,
+            44265
+          ],
+          "top_logits": [
+            20.211277,
+            18.729565,
+            18.451664,
+            17.744457,
+            17.364483,
+            17.307087,
+            17.059151,
+            16.87949,
+            16.847519,
+            16.240229
+          ]
+        },
+        {
+          "label": "prompt-02-ids",
+          "status": "pass",
+          "tokens": 6
+        },
+        {
+          "label": "prompt-02-logits",
+          "status": "pass",
+          "top1": 198,
+          "top5_overlap": 5,
+          "top_ids": [
+            198,
+            460,
+            695,
+            317,
+            653,
+            271,
+            1133,
+            264,
+            220,
+            4673
+          ],
+          "top_logits": [
+            23.694862,
+            19.387123,
+            18.0798,
+            17.766571,
+            16.473932,
+            16.17392,
+            15.20075,
+            15.101737,
+            14.883042,
+            14.806055
+          ]
+        },
+        {
+          "label": "prompt-03-ids",
+          "status": "pass",
+          "tokens": 7
+        },
+        {
+          "label": "prompt-03-logits",
+          "status": "pass",
+          "top1": 6105,
+          "top5_overlap": 5,
+          "top_ids": [
+            6105,
+            5983,
+            13358,
+            18016,
+            4022,
+            321,
+            279,
+            55945,
+            1259,
+            864
+          ],
+          "top_logits": [
+            19.499454,
+            19.382069,
+            19.232906,
+            17.278099,
+            15.848819,
+            15.754115,
+            15.117794,
+            14.912324,
+            14.41618,
+            14.320884
+          ]
+        },
+        {
+          "label": "prompt-04-ids",
+          "status": "pass",
+          "tokens": 12
+        },
+        {
+          "label": "prompt-04-logits",
+          "status": "pass",
+          "top1": 16820,
+          "top5_overlap": 5,
+          "top_ids": [
+            16820,
+            17257,
+            7099,
+            8964,
+            4751,
+            11247,
+            4128,
+            9561,
+            9114,
+            1259
+          ],
+          "top_logits": [
+            16.339403,
+            16.011539,
+            15.369386,
+            13.929992,
+            13.514595,
+            13.000605,
+            12.892874,
+            12.802406,
+            12.631222,
+            12.212856
+          ]
+        },
+        {
+          "label": "prompt-05-ids",
+          "status": "pass",
+          "tokens": 17
+        },
+        {
+          "label": "prompt-05-logits",
+          "status": "pass",
+          "top1": 6124,
+          "top5_overlap": 5,
+          "top_ids": [
+            6124,
+            17163,
+            9564,
+            279,
+            5440,
+            31868,
+            15477,
+            8100,
+            6650,
+            6535
+          ],
+          "top_logits": [
+            17.559355,
+            17.405687,
+            17.048531,
+            16.812725,
+            15.839862,
+            15.824446,
+            15.767938,
+            15.753489,
+            15.664011,
+            15.497317
+          ]
+        },
+        {
+          "label": "ppl-ids",
+          "status": "pass",
+          "tokens": 243
+        },
+        {
+          "label": "ppl-00-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156186972,
+          "perplexity": 23.4809,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 4.180631858474726e-06,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-00-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 242,
+          "chunks": 1,
+          "context size": 262144,
+          "mean_nll": 3.156182811,
+          "perplexity": 23.4808,
+          "hf_mean_nll": 3.1561827913681415,
+          "absolute_nll_delta": 1.9631858361179866e-08,
+          "bound": 0.01
+        },
+        {
+          "label": "ppl-01-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873244515,
+          "perplexity": 48.0982,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 1.8080426904987235e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-01-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 239,
+          "chunks": 4,
+          "context size": 64,
+          "mean_nll": 3.873250408,
+          "perplexity": 48.0985,
+          "hf_mean_nll": 3.873262595426905,
+          "absolute_nll_delta": 1.218742690500818e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.53967814,
+          "perplexity": 34.4558,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 2.5101607606714538e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-02-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 128,
+          "scored tokens": 126,
+          "chunks": 2,
+          "context size": 64,
+          "mean_nll": 3.539680166,
+          "perplexity": 34.4559,
+          "hf_mean_nll": 3.5397032416076066,
+          "absolute_nll_delta": 2.3075607606504178e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-batched",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352703332,
+          "perplexity": 28.5799,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 2.6712991502808592e-05,
+          "bound": 0.02
+        },
+        {
+          "label": "ppl-03-per-token",
+          "status": "pass",
+          "tokens": 243,
+          "used tokens": 243,
+          "scored tokens": 241,
+          "chunks": 2,
+          "context size": 123,
+          "mean_nll": 3.352701355,
+          "perplexity": 28.5798,
+          "hf_mean_nll": 3.3527300449915027,
+          "absolute_nll_delta": 2.8689991502517387e-05,
+          "bound": 0.02
+        }
+      ],
+      "model_sha256": "71a0a29da9481f51d8e301f8ffb67feec1627cd18e92183a1f3918b0a7c35728",
+      "binary_sha256": "7858b8430fb134606adfff7eb26b54965e4798abf6abe637d4b9aa4e2ecd5784",
+      "vocabulary": 248320,
+      "model_context": 262144,
+      "bounds": {
+        "top5_overlap": 5,
+        "continuous_nll": 0.01,
+        "window_nll": 0.02,
+        "max_abs_logit": 100.0
+      },
+      "golden_hashes": {
+        "baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+        "baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d"
+      },
+      "seconds": 30.899965524673462
+    }
+  },
+  "witness": {
+    "default": {
+      "matrix_paths": [
+        {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "f16",
+              "block-int16"
+            ]
+          ]
+        }
+      ],
+      "kernels": [
+        "profile:   matmul_tile_nvfp4_f16 23.5621 ms (65.4636%)",
+        "profile:   matmul_reduce 1.00352 ms (2.78813%)",
+        "profile: kernel matmul_tile_nvfp4_f16: Driver pipeline hash=7088718968349424480 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7132 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=221812129 Instructions=1337 Copies=249 Branches=114 Latency=160192 Inverse Throughput=63588 VMEM Clause=67 SMEM Clause=55 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=618 SALU=316 VMEM=72 SMEM=55 VOPD=0",
+        "profile: kernel matmul_reduce: Driver pipeline hash=10556862320818546441 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0"
+      ],
+      "scope": "Separate P123 bench profile, not part of the HF outputs or performance samples."
+    },
+    "f32": {
+      "matrix_paths": [
+        {
+          "dtype": "f32",
+          "devices": [
+            [
+              "f32"
+            ]
+          ]
+        }
+      ],
+      "kernels": [
+        "profile:   matmul_tile_nvfp4 28.7352 ms (50.1634%)",
+        "profile:   matmul_reduce 0.86592 ms (1.51165%)",
+        "profile: kernel matmul_tile_nvfp4: Driver pipeline hash=3215204639396649056 SGPRs=32 VGPRs=84 Spilled SGPRs=0 Spilled VGPRs=0 Code size=7592 LDS size=17408 Scratch size=0 Subgroups per SIMD=3 Combined inputs=0 Combined outputs=0 Hash=1752813192 Instructions=1415 Copies=273 Branches=120 Latency=173696 Inverse Throughput=67492 VMEM Clause=74 SMEM Clause=62 Pre-Sched SGPRs=27 Pre-Sched VGPRs=55 VALU=636 SALU=351 VMEM=78 SMEM=62 VOPD=0",
+        "profile: kernel matmul_reduce: Driver pipeline hash=10556862320818546441 SGPRs=17 VGPRs=4 Spilled SGPRs=0 Spilled VGPRs=0 Code size=292 LDS size=0 Scratch size=0 Subgroups per SIMD=10 Combined inputs=0 Combined outputs=0 Hash=1332827041 Instructions=55 Copies=9 Branches=5 Latency=3028 Inverse Throughput=303 VMEM Clause=3 SMEM Clause=3 Pre-Sched SGPRs=13 Pre-Sched VGPRs=4 VALU=8 SALU=31 VMEM=3 SMEM=3 VOPD=0"
+      ],
+      "scope": "Separate P123 bench profile, not part of the HF outputs or performance samples."
+    }
+  },
+  "collection": {
+    "execution.json": "06a960aac706fbf35949d63bdf4da938df48e5624bb0f74c848dda1db8041142",
+    "f32.stdout": "4f435b9c8406df25ec07eec7e552a04477a6cda6d0f05d92fd87c8111833feb5",
+    "default.stdout": "4f435b9c8406df25ec07eec7e552a04477a6cda6d0f05d92fd87c8111833feb5",
+    "default-profile.stderr": "60b4de28000c236e08876fd077dd000bd951b15bd9aab12a2b5e5aea2a417de5",
+    "f32-profile.stderr": "dd8c40805f404d4c14973f16bb7ede6d29cd89421f29cd46701318444f14024c",
+    "default-profile.stdout": "9dec69e8bfa3eb6878a1a099db3bf37a3b86683a40c76d9d0deaecd2eef53717",
+    "f32.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "default.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f32-profile.stdout": "4bc5f27b7b654b331b690c1709479bad1377d112b7952d6cf20158015ed2555d",
+    "run.py": "e00ecddbf054b774a5d96e7a66ca53d61b350d768263c9dcaab704a80864615b",
+    "goldens/baseline_logits.json": "52c85b677bc8bbc84a68983f7e2850898c29330bb73c8298ceb2956927fcc23b",
+    "goldens/baseline_perplexity.json": "6f619e6b05810478ae15a8980455ccc118d5e3cf179a8472d237013b439a085d",
+    "output/default/prompt-01-ids.stdout": "da1673b0d2742eee80d9e36a15b728e8829396b8e85e1901c8404f298eb729ce",
+    "output/default/prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/prompt-05-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/prompt-00-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/ppl-00-batched.stdout": "c0e619806fdeecf8fcfa9e7023b1b80bb1ac831f6114fe5bf522675101957012",
+    "output/default/prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/prompt-03-logits.stdout": "9fb891e5b559af411a206b88a85e3f6b7fa1072b9c0b1f4f22970b38d6515717",
+    "output/default/ppl-03-batched.stderr": "fc777d7d47d3204258da5df72137621ffb4c61b131c384f639db99de89b89bb1",
+    "output/default/prompt-03-ids.stdout": "16150f8e5583ed592d0a6a1b6fa1e105815ba7f0f5e7a1b81898b2c761088d3b",
+    "output/default/prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/ppl-01-per-token.stdout": "14374cfe1cb60befc0509b2ba92d2100396f11afa8b5c7180dee26999437b9b7",
+    "output/default/ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/prompt-01-logits.stdout": "207fc00c6a56fbab00c0e49520932649b57f118de9e07b9c7e512b92c9866773",
+    "output/default/ppl-00-per-token.stdout": "d93bbbb3e980511c1b04704a6bcbf7c67f50f1628ab9fbe8ab1cef889186c82b",
+    "output/default/prompt-04-logits.stdout": "fd68e5c9eb45929e13b449cb75d195798cba185b18f04a1cdb4a4e427bb4d7fc",
+    "output/default/ppl-03-per-token.stdout": "4cddbb35b153cc01e701d8cf5b8b31133c66f6f32e5fc22496d71be9113848ca",
+    "output/default/prompt-02-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/ppl-01-batched.stderr": "fc777d7d47d3204258da5df72137621ffb4c61b131c384f639db99de89b89bb1",
+    "output/default/prompt-04-ids.stdout": "9ed0b6abdb6680b3b48e2b38bd3830ba8c6a31d5c789613d7bcbda835eb761fd",
+    "output/default/ppl-02-batched.stdout": "e8cd4e567f805185c6364d0923c8ff8a462f76653b07825bade4982d9e89bff6",
+    "output/default/ppl-02-per-token.stdout": "f42881903e72132a9c8f7fc346f8fae4ce3ea397f1726624a1d8f611c3810488",
+    "output/default/ppl-00-batched.stderr": "fc777d7d47d3204258da5df72137621ffb4c61b131c384f639db99de89b89bb1",
+    "output/default/ppl-03-batched.stdout": "a8642fd1cf69f3f34ccebb123497e177c7cf218c030b82b7f303a02cf62c7ca4",
+    "output/default/prompt-03-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/prompt-05-ids.stdout": "6626e157a965d48c6fce35f663927ae3681b742495221009caeaef3d199b684e",
+    "output/default/prompt-05-logits.stdout": "290c16ed11ca00cd4fd20673911d3705fab45f2e78c6ddd0131c5a05274f6754",
+    "output/default/prompt-02-ids.stdout": "cf2542a799589489b8cb1ecd6326645577d8acba3a49cd29d719141720952fd1",
+    "output/default/prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/prompt-00-logits.stdout": "162b494d45629d4ff8d1f826120563d729f209a22dcff5e3df33aec299e5d0c8",
+    "output/default/report.json": "3e4a6914fd536ff1f66e69cc135c37cca6bd15436a35839d549c5035ff33b99b",
+    "output/default/ppl-01-batched.stdout": "5e20ac8c561b41944bd766f43c40e1356353073682fc8018554ea1bd5659eb1a",
+    "output/default/prompt-02-logits.stdout": "afee374f96932ea147a23eb70d0d038404f335472bbf6e483172b4f8129b3a34",
+    "output/default/ppl-03-per-token.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+    "output/default/prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/ppl-02-per-token.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/ppl-02-batched.stderr": "fc777d7d47d3204258da5df72137621ffb4c61b131c384f639db99de89b89bb1",
+    "output/default/prompt-00-ids.stdout": "484f4aa22ec928e2bec637d9ed35bfabb9e62ab0ff79ca38453068048ad8c864",
+    "output/default/ppl-01-per-token.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/default/prompt-01-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/ppl-ids.stdout": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2",
+    "output/default/ppl-00-per-token.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/default/prompt-04-logits.stderr": "b0a3136025e40adca1cea9f8de28d83877ebb9f0dbaac4c70c67f346b25651e0",
+    "output/f32/prompt-03-ids.stdout": "16150f8e5583ed592d0a6a1b6fa1e105815ba7f0f5e7a1b81898b2c761088d3b",
+    "output/f32/prompt-00-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/ppl-03-batched.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-03-logits.stdout": "b18ab90c328f26683a0c5e58ea78d47918739b5007b756213114e674bf7d809f",
+    "output/f32/ppl-00-batched.stdout": "65baf674573a9095f8779c3d511f905de7e90c40c025df40f2ee7f8e9c6406d7",
+    "output/f32/prompt-00-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-04-ids.stdout": "9ed0b6abdb6680b3b48e2b38bd3830ba8c6a31d5c789613d7bcbda835eb761fd",
+    "output/f32/prompt-05-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/excerpt.txt": "7abb40ace0eec077b23baaf3f5e9ab7f89585707514444176a61cd2b6813725c",
+    "output/f32/prompt-01-ids.stdout": "da1673b0d2742eee80d9e36a15b728e8829396b8e85e1901c8404f298eb729ce",
+    "output/f32/prompt-02-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/ppl-02-per-token.stdout": "e7f9a614df212fe13c4c1c84f42d1bdf5661871b524422416abb7cc055a9a829",
+    "output/f32/ppl-02-batched.stdout": "cc8a54be107d03bc944faa2b8a1bbdb66e0d4b24e1040c0383a73b8a2fefdf72",
+    "output/f32/report.json": "882857b3f88ae37e5a758a290418d0f6ebb00168fb8aebb60a8465331cb3b453",
+    "output/f32/ppl-01-batched.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-02-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-03-per-token.stdout": "5403ad5e85126dbc82a510a961caa8fd45baed6f4e67528d5fd7ac42af025042",
+    "output/f32/ppl-00-per-token.stdout": "4ccb116fb7ecc08d061494469dc83512579a4a309b86a2739c495736557687e3",
+    "output/f32/prompt-04-logits.stdout": "38110c8492b70296986e8822f9d38994a2eb1cba112a98d9ed6cea2d280b6590",
+    "output/f32/ppl-01-per-token.stdout": "ab2b81a8bb64c2944a2dd6d4c03deed69c3bdef5c70ab5b504af95da6454f001",
+    "output/f32/prompt-05-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/ppl-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/prompt-01-logits.stdout": "20801fb9bbde4eb610dfce55119512a076d816ed69c1f4a108d5b1611341ea49",
+    "output/f32/prompt-00-logits.stdout": "9692179b86e27af07c6a9b0944b4dc1646949ec2517cc33fb616e9987d52d61f",
+    "output/f32/prompt-04-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/prompt-05-logits.stdout": "a2057fe97279cfafa5c9f167626cf2a34c27c21a590bd888a7f7fa890db65661",
+    "output/f32/prompt-00-ids.stdout": "484f4aa22ec928e2bec637d9ed35bfabb9e62ab0ff79ca38453068048ad8c864",
+    "output/f32/prompt-03-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/prompt-03-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-03-batched.stdout": "7fedd76de0858736db9b8467dcd8d6f05d5ca27d9cf17f88ebb0867707164543",
+    "output/f32/ppl-00-batched.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-00-per-token.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-04-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-01-per-token.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-01-logits.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-ids.stdout": "b7d9919ce6a2501d498935b3a636574f3220495c4fd694b391d13dccbe69ffe2",
+    "output/f32/prompt-05-ids.stdout": "6626e157a965d48c6fce35f663927ae3681b742495221009caeaef3d199b684e",
+    "output/f32/ppl-02-batched.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/ppl-02-per-token.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-02-ids.stdout": "cf2542a799589489b8cb1ecd6326645577d8acba3a49cd29d719141720952fd1",
+    "output/f32/prompt-01-ids.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "output/f32/ppl-03-per-token.stderr": "5b2669fb28f4580314d71b4d38f7cddd758593273aa8ee2962889527ddb8dffe",
+    "output/f32/prompt-02-logits.stdout": "de6e727ae14520583d90a10a9a729d70307a510e1404744051fdb53611fd0310",
+    "output/f32/ppl-01-batched.stdout": "f4f2b7c040a35168a031afda2aaa946011f9c7db4c912f99c1ec016f082acd35"
+  },
+  "coverage": "The context123 NLL case gives Model::score logical extent123, hence split_tiles_of=2 as at P128. Separate P123 profile confirms native-F16/default or F32 NV tiles and reduction dispatches. It is not a literal P128 full-logit reference.",
+  "remaining": [
+    "Adopt the measured common policy with persistent coverage",
+    "Integrated-tree existing-format, Windows and applicable landing checks"
+  ]
+}

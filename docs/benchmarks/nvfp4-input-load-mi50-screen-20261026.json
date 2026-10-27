@@ -1,0 +1,1211 @@
+{
+  "scope": "Private native-F16 NVFP4 input-load grouping candidate. Focused operator and matched llmx model screen, not mx or final qualification.",
+  "source": {
+    "scope": "Isolated native-F16 NVFP4 input load grouping, unchanged rounding and accumulation.",
+    "base_shader_sha256": "25a9be4b417eb5e768563476bc1191950162e596ae5b080ce8e5b7459ab35592",
+    "candidate_shader_sha256": "617585b2154a391586464a96f9c43b5de585e45f9a5f0c8ca72d6e2ac4cbf465"
+  },
+  "cleanup_equivalence": {
+    "scope": "Only unreachable preprocessor branches removed from the measured experiment; Windows glslc produces identical modules for all four NVFP4 tile variants. Linux verification remains separate.",
+    "clean_shader_sha256": "45435eb89786e7cc9adc0a4fd4bd2fe37cbd456fc8e9eaa79c0652cb29f50ec6",
+    "modules": [
+      {
+        "defines": [
+          "LLMX_NVFP4",
+          "LLMX_INPUT_F16",
+          "LLMX_PRESERVE_F32"
+        ],
+        "module_sha256": "90a6bf00734ec183649f8c3c18036f1a56d90380d35a6d400b3facd96d67afc8",
+        "identical": true
+      },
+      {
+        "defines": [
+          "LLMX_NVFP4"
+        ],
+        "module_sha256": "f4c2efe44c92035c14150ea2734a8d9ab7c6d79928139bca7baf6b88797700bb",
+        "identical": true
+      },
+      {
+        "defines": [
+          "LLMX_NVFP4",
+          "LLMX_BF16"
+        ],
+        "module_sha256": "1d8cf0718ff28327695bc96ea8ceb27344584860e199864192613c84eec22bc4",
+        "identical": true
+      },
+      {
+        "defines": [
+          "LLMX_NVFP4",
+          "LLMX_BF16",
+          "LLMX_PRESERVE_F32"
+        ],
+        "module_sha256": "76d6b0776488291d4cbf27a8da913feaacf2088d183a86fc5bd2b11d3d04d52e",
+        "identical": true
+      }
+    ]
+  },
+  "operator_summary": {
+    "schema": "nvfp4-mi50-grouped-input-load-analysis-v1",
+    "scope": "Same-MI50 synthetic probe screen for grouping NVFP4 native-F16 input loads under one column-validity branch and removing the per-element K-bound predicate. Exact-output probe only, not model/HF or qualification evidence.",
+    "cases": [
+      {
+        "shape": {
+          "width": 1024,
+          "rows": 2048,
+          "columns": 128
+        },
+        "arms": {
+          "baseline": {
+            "gpu_ms": {
+              "sample_count": 40,
+              "mean": 0.56438,
+              "min": 0.53472,
+              "max": 0.7672,
+              "stdev_sample": 0.036261508305852154
+            },
+            "host_ms": {
+              "sample_count": 40,
+              "mean": 0.72656505,
+              "min": 0.65374,
+              "max": 1.34616,
+              "stdev_sample": 0.12148326355741988
+            }
+          },
+          "input_load": {
+            "gpu_ms": {
+              "sample_count": 40,
+              "mean": 0.462356,
+              "min": 0.45328,
+              "max": 0.48032,
+              "stdev_sample": 0.005464198066763367,
+              "candidate_vs_baseline_percent": -18.077182040469186
+            },
+            "host_ms": {
+              "sample_count": 40,
+              "mean": 0.68528295,
+              "min": 0.560357,
+              "max": 4.17737,
+              "stdev_sample": 0.5668042439727181,
+              "candidate_vs_baseline_percent": -5.681817478008345
+            }
+          }
+        }
+      },
+      {
+        "shape": {
+          "width": 2048,
+          "rows": 1024,
+          "columns": 128
+        },
+        "arms": {
+          "baseline": {
+            "gpu_ms": {
+              "sample_count": 40,
+              "mean": 0.891744,
+              "min": 0.4984,
+              "max": 1.0592,
+              "stdev_sample": 0.16367753082329367
+            },
+            "host_ms": {
+              "sample_count": 40,
+              "mean": 1.0411309,
+              "min": 0.61424,
+              "max": 1.34796,
+              "stdev_sample": 0.19073860845398893
+            }
+          },
+          "input_load": {
+            "gpu_ms": {
+              "sample_count": 40,
+              "mean": 0.59172,
+              "min": 0.58432,
+              "max": 0.60224,
+              "stdev_sample": 0.00406289021794546,
+              "candidate_vs_baseline_percent": -33.64463343739907
+            },
+            "host_ms": {
+              "sample_count": 40,
+              "mean": 0.7369981,
+              "min": 0.698612,
+              "max": 0.787075,
+              "stdev_sample": 0.028125166546561015,
+              "candidate_vs_baseline_percent": -29.211773466717773
+            }
+          }
+        }
+      }
+    ],
+    "kernel_stats": {
+      "baseline": {
+        "Driver pipeline hash": "6419145438659096590",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7640",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "876927195",
+        "Instructions": "1427",
+        "Copies": "269",
+        "Branches": "120",
+        "Latency": "175232",
+        "Inverse Throughput": "69028",
+        "VMEM Clause": "74",
+        "SMEM Clause": "62",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "648",
+        "SALU": "351",
+        "VMEM": "78",
+        "SMEM": "62",
+        "VOPD": "0"
+      },
+      "input_load": {
+        "Driver pipeline hash": "14698252420801687541",
+        "SGPRs": "32",
+        "VGPRs": "84",
+        "Spilled SGPRs": "0",
+        "Spilled VGPRs": "0",
+        "Code size": "7160",
+        "LDS size": "17408",
+        "Scratch size": "0",
+        "Subgroups per SIMD": "3",
+        "Combined inputs": "0",
+        "Combined outputs": "0",
+        "Hash": "3066024734",
+        "Instructions": "1336",
+        "Copies": "249",
+        "Branches": "114",
+        "Latency": "158880",
+        "Inverse Throughput": "63332",
+        "VMEM Clause": "67",
+        "SMEM Clause": "55",
+        "Sched SGPRs": "27",
+        "Sched VGPRs": "55",
+        "VALU": "618",
+        "SALU": "315",
+        "VMEM": "72",
+        "SMEM": "55",
+        "VOPD": "0"
+      }
+    },
+    "activity": {
+      "path": "build-integration\\input-load-mi50-v1\\attempt-01\\activity.jsonl",
+      "sha256": "b5ea90a0df33dd08541ef5707c699cb3e0af7b7d784a7994cc4201099654368b",
+      "sample_count": 14,
+      "interval_seconds": 1.0,
+      "monitor_exit": 0,
+      "target_device": "renderD130 / PCI 0000:c9:00.0 / UUID 00000000-c900-0000-0000-000000000000",
+      "target_gpu_card_key": "card2",
+      "busy_samples_by_card": {
+        "card0": 0,
+        "card1": 0,
+        "card2": 0,
+        "card3": 0,
+        "card4": 13,
+        "card5": 13,
+        "card6": 9,
+        "card7": 9,
+        "card8": 13,
+        "card9": 13
+      },
+      "target_busy_nonzero_samples": 0,
+      "other_card_busy_samples": {
+        "card0": 0,
+        "card1": 0,
+        "card3": 0,
+        "card4": 13,
+        "card5": 13,
+        "card6": 9,
+        "card7": 9,
+        "card8": 13,
+        "card9": 13
+      },
+      "system_cpu_busy_percent": {
+        "interval_count": 12,
+        "min": 26.649076517150394,
+        "max": 32.89036544850498,
+        "mean": 29.563128427454565
+      },
+      "processes_with_cpu_delta_sample_count": 12,
+      "missed_process_records": 15,
+      "appeared_process_records": 1352,
+      "disappeared_process_records": 58,
+      "disk_counter_deltas": {
+        "loop0": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop1": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop2": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop3": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop4": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop5": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop6": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "loop7": {
+          "read_ops": 0,
+          "read_sectors": 0,
+          "write_ops": 0,
+          "write_sectors": 0
+        },
+        "nvme0n1": {
+          "read_ops": 1,
+          "read_sectors": 256,
+          "write_ops": 298,
+          "write_sectors": 5976
+        },
+        "sda": {
+          "read_ops": 286460,
+          "read_sectors": 2362328,
+          "write_ops": 331,
+          "write_sectors": 4088
+        },
+        "sdb": {
+          "read_ops": 180445,
+          "read_sectors": 1499752,
+          "write_ops": 322,
+          "write_sectors": 4040
+        },
+        "sdc": {
+          "read_ops": 294241,
+          "read_sectors": 2425392,
+          "write_ops": 329,
+          "write_sectors": 4104
+        },
+        "sdd": {
+          "read_ops": 176975,
+          "read_sectors": 1468944,
+          "write_ops": 325,
+          "write_sectors": 4056
+        },
+        "sde": {
+          "read_ops": 288259,
+          "read_sectors": 2375944,
+          "write_ops": 307,
+          "write_sectors": 4008
+        },
+        "sdf": {
+          "read_ops": 166907,
+          "read_sectors": 1391040,
+          "write_ops": 295,
+          "write_sectors": 3952
+        }
+      },
+      "coverage_limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+      "static_peers_at_admission": [
+        {
+          "name": "/llmx-ldev-cst8-pp512-l22-main2",
+          "cpuset": "4-7,12-15",
+          "commands": [
+            "docker-init",
+            "timeout",
+            "llmx"
+          ]
+        },
+        {
+          "name": "/llmx-serve",
+          "cpuset": "",
+          "commands": [
+            "docker-init",
+            "llmx"
+          ]
+        },
+        {
+          "name": "/llmx-health-dashboard",
+          "cpuset": "",
+          "commands": [
+            "docker-init",
+            "python3"
+          ]
+        },
+        {
+          "name": "/llmx-xdev-flash-20261015",
+          "cpuset": "0-1",
+          "commands": [
+            "docker-init",
+            "sleep"
+          ]
+        },
+        {
+          "name": "/open-webui",
+          "cpuset": "",
+          "commands": [
+            "python3"
+          ]
+        },
+        {
+          "name": "/cdev-abc-run2",
+          "cpuset": "",
+          "commands": [
+            "sleep",
+            "hf"
+          ]
+        },
+        {
+          "name": "/portainer",
+          "cpuset": "",
+          "commands": [
+            "portainer"
+          ]
+        }
+      ],
+      "note": "One-second samples can miss short-lived activity. Other GPUs and process/disk activity were active. Zero selected-card busy in sampled intervals is not proof that unsampled activity was zero.",
+      "intervals_with_process_missed_records": 9,
+      "intervals_with_appeared_process_records": 13
+    },
+    "interpretation": "All eight calls passed the probe exact-output checks, retaining rows ? columns nonzero outputs for each shape. Candidate pooled GPU time was lower in both synthetic 128-column cases. This is a short screen with two interleaved calls per arm and 40 measured samples per arm/shape, with observed other-GPU, CPU, process, and disk activity. It establishes no model effect or performance gate result. The container exited 137 during intentional cleanup after all eight calls completed with exit 0.",
+    "limitations": [
+      "Synthetic matrices only; both cases have 128 columns.",
+      "Not model/HF, depth, split, or end-to-end performance evidence.",
+      "No performance qualification or gate decision.",
+      "One-second monitor sampling can miss short-lived activity; all raw monitoring and calls are retained."
+    ],
+    "width_split_invariants": {
+      "conclusion": "For valid NVFP4 Vulkan matrix calls, every row width is a multiple of 64 and each NVFP4 K part and stage ends on a valid boundary. The grouped load may omit per-element k < nin checks. An xin-false path must still initialize its shared pairs, for example by writing zeros.",
+      "source_anchors": [
+        {
+          "path": "src/quant/types.hpp",
+          "lines": "86-87, 121",
+          "sha256": "0573cd81ba86b7630400b637447b3fdb20acf612b7415fe9e83d6f9e949e85bd",
+          "evidence": "NVFP4 block size is 64; row_bytes rejects nin not divisible by the storage block size."
+        },
+        {
+          "path": "src/backends/vulkan/vulkan_matmul.hpp",
+          "lines": "158-163, 626-635",
+          "sha256": "f807d6a678cafffb8cb386b6fab8f5b90854fcf29cc1adbc7ec40cf18b18a218",
+          "evidence": "Float tile uses steps=ceil(nin/32). split_blocks rounds K part size to an even count of 32-value steps, capped at nblk=nin/32, which is even for valid NVFP4 widths."
+        },
+        {
+          "path": "src/backends/vulkan/shaders/matmul_tile.comp",
+          "lines": "100-105, 462-486",
+          "sha256": "e68a3eb5c9938252fa5243601d822b274775543b0e678a6452f674806eda9d6c",
+          "evidence": "NVFP4 STAGE_K is 32 and XPR is 4. Input loops advance exactly one 32-value stage; xin still gates columns. The current per-value K predicate is redundant under the host width/split invariants."
+        },
+        {
+          "path": "src/backends/vulkan/vulkan_matmul.hpp",
+          "lines": "553-560",
+          "sha256": "f807d6a678cafffb8cb386b6fab8f5b90854fcf29cc1adbc7ec40cf18b18a218",
+          "evidence": "Routed float-tile dispatch uses the same checked matrix width and does not K-split in this path."
+        }
+      ],
+      "caveat": "The proof concerns paths that pass check_matrix/row_bytes. Preserve zero initialization for invalid xin columns because shared memory is consumed before output stores suppress invalid columns."
+    }
+  },
+  "operator_execution_pins": {
+    "path": "build-integration\\input-load-mi50-v1\\attempt-01\\execution.json",
+    "sha256": "2b031d8e9efa0f976bd8443757ec2a36f38e0e3c5e2c2cb59d89197457dc15ab",
+    "passed": true,
+    "call_count": 8,
+    "verified_artifact_count": 37,
+    "all_artifact_hashes_match_execution": true,
+    "raw_artifact_hashes": [
+      {
+        "path": "activity.jsonl",
+        "sha256": "b5ea90a0df33dd08541ef5707c699cb3e0af7b7d784a7994cc4201099654368b",
+        "matches_execution": true
+      },
+      {
+        "path": "vulkaninfo.stderr",
+        "sha256": "e7e344084d0639cbe052b1f37bf0dbae6b7c38b3cd22303ce4693ebbce44db97",
+        "matches_execution": true
+      },
+      {
+        "path": "monitor.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "matches_execution": true
+      },
+      {
+        "path": "monitor.stop",
+        "sha256": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+        "matches_execution": true
+      },
+      {
+        "path": "vulkaninfo.stdout",
+        "sha256": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-2/stdout.txt",
+        "sha256": "ed23afa4eae1ff02590261815478361021ab9f958676889feb31d4b201b89905",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-2/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-2/probe.stats.txt",
+        "sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-2/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-1/probe.stats.txt",
+        "sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-1/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-1/stdout.txt",
+        "sha256": "d4c83ddfd14c15abf476e94ad94726e8f4b3b99f1e4aaa2b4961f050549806c1",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-baseline-1/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-1/stdout.txt",
+        "sha256": "fd062f09e7b7983c09c3bff3cd12024fd31a64a4953bbb9eba04cb912618ec48",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-1/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-1/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-1/probe.stats.txt",
+        "sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-2/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-2/stdout.txt",
+        "sha256": "dbf10abe7c12c4981267f78518df7139d8f6531050616ad497d14aa42ff0763c",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-2/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-2/probe.stats.txt",
+        "sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-2/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-2/stdout.txt",
+        "sha256": "80ab77296ec9c3badad0499ef4c16722c2fb0610f564bb0d883fa2f096dbc973",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-2/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-2/probe.stats.txt",
+        "sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-2/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-2/stdout.txt",
+        "sha256": "38248752cbdf4ad778e9982e8d320c82a053f4cb656bc4c9649948bc280b0410",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-2/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "37d3da63626457d15bc9da440ad694c93ad6303902f32822024d7e4f358d6a94",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-baseline-2/probe.stats.txt",
+        "sha256": "da60121926cd7562fb617c6add38155deeb5a50e049656924a38445fe5ef4c80",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-1/probe.stats.txt",
+        "sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-1/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-1/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/2048-1024-128-input_load-1/stdout.txt",
+        "sha256": "96d8c2d66cd0c8b2d1b8cf183ff1f85e0e2d1b6f9504ceec92fe821161b56681",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-1/probe.matmul_tile_nvfp4_f16.isa.txt",
+        "sha256": "c6c5df3114f6c24d4a8c90949aa3c90c81cfd58064606a7216be3975a85d7de4",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-1/stdout.txt",
+        "sha256": "a4854de5cf5ccfbe57b9c4bbe6fbced1f68f8aa763544e6f6153581b1b2168d8",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-1/stderr.txt",
+        "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+        "matches_execution": true
+      },
+      {
+        "path": "calls/1024-2048-128-input_load-1/probe.stats.txt",
+        "sha256": "701b3ead658dbdba22049ec0862c362fd49542620caa5e78940bf157e45a9ad4",
+        "matches_execution": true
+      }
+    ],
+    "baseline_probe_sha256": "0a0956009c296d570519a0ce689303488f4c912a0d0274014ba7b16886205e47",
+    "candidate_probe_sha256": "d5b5c28ba7b5c2986b0e4f8c2af810b470b880df9a5b69cbd2a042f6c4e6a0ce",
+    "baseline_library_sha256": "88e0ecbeeef471c5851d618156df572842efcab6c977227c7ed225d952d83552",
+    "candidate_library_sha256": "77437af919d7970c6d00aefd8f0b90e0e326cb4c6dc3111f9589223377e7ac20",
+    "candidate_source_sha256": "617585b2154a391586464a96f9c43b5de585e45f9a5f0c8ca72d6e2ac4cbf465",
+    "probe_source_sha256": "81221bfc7b3e43d2b8f0d208bb8fa41f4a025d68b0598f320f5fdb3b2b321b8d",
+    "monitor_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device": {
+      "node": "renderD130",
+      "pci": "0000:c9:00.0",
+      "uuid": "00000000-c900-0000-0000-000000000000",
+      "initial_sysfs": {
+        "gpu_busy_percent": "0",
+        "mem_info_vram_used": "10932224",
+        "power_dpm_force_performance_level": "auto"
+      }
+    },
+    "cpuset": "2,3",
+    "container_exit_code_after_cleanup": 137,
+    "container_removed": true,
+    "all_calls_exit_zero": true
+  },
+  "model_summary": {
+    "schema": "nvfp4-mi50-input-load-model-screen-analysis-v1",
+    "scope": "Focused NVFP4 checks and matched development model screen, two host CPUs/threads in both arms. Not a reference-runtime or landing gate.",
+    "execution": {
+      "path": "build-integration/input-load-mi50-v1/model-screen-v1/execution.json",
+      "sha256": "ab06617ceb84dc868784ab516b3ae9e902c3b87320a141d961de720c878b66bb",
+      "passed": true,
+      "verified_artifact_count": 27,
+      "all_artifact_hashes_match_execution": true,
+      "raw_artifacts": [
+        {
+          "path": "p4096-1-candidate.stdout",
+          "sha256": "43a24216adb6436f8eb4316ff1ef2518b7655bdaecea43eebcc0edefde78db94",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-0-baseline.stderr",
+          "sha256": "d66202487a7bd37a1f5b9a1d4c34f3cce115ec6a6758122ede057f681431dded",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-0-baseline.stdout",
+          "sha256": "1eefdb6662bce5a401adf8952402426e01e69e261cb61f4088c36806f23da846",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-2-candidate.stdout",
+          "sha256": "fcdf10899375aaf7b84c47ee2394da81911504a1b0740ccfe1243d2cc9c068f7",
+          "matches_execution": true
+        },
+        {
+          "path": "build.stdout",
+          "sha256": "a5d8572bd55adc140463a76ed0f7c15a15ebe4162b668877dc90544c8b49ccdf",
+          "matches_execution": true
+        },
+        {
+          "path": "monitor.log",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "matches_execution": true
+        },
+        {
+          "path": "version-candidate.stdout",
+          "sha256": "4689f118359c00d77cfb364f2766da3292a156bdd01bd8cb5adc670866d53c93",
+          "matches_execution": true
+        },
+        {
+          "path": "monitor.stop",
+          "sha256": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+          "matches_execution": true
+        },
+        {
+          "path": "nvfp4-native.stderr",
+          "sha256": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+          "matches_execution": true
+        },
+        {
+          "path": "version-baseline.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-1-candidate.stdout",
+          "sha256": "981f9b4f687e95fa8e542926892c02e8f19b1c4277aefa737b92bb4e603ed13b",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-3-baseline.stdout",
+          "sha256": "b63ca807dd070496baf10eec4f7fe84249ad50dc937e59b0be0e147684ec7844",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-2-candidate.stdout",
+          "sha256": "bb6e8a57320102851bad977843c5c5b46ccd058b428d26c0b6398f03b03dc638",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-3-baseline.stderr",
+          "sha256": "2bda71bc887b1868368d4eb53e3ba96d49450839ca39e788fdb15333394afe49",
+          "matches_execution": true
+        },
+        {
+          "path": "activity.jsonl",
+          "sha256": "828cf76df51874cbe173a3a3d1a29bc7f8050765107b2173bb8697b41440f586",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-2-candidate.stderr",
+          "sha256": "e97e9c29b7a0fe50df6ce3e8f6a80f2f5628b4d234febcc282a1591188d83a2d",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-0-baseline.stderr",
+          "sha256": "356d896767e29ca2d76d2ff18c11c9256e35fc00f1663fc25206a3b4fee780be",
+          "matches_execution": true
+        },
+        {
+          "path": "build.stderr",
+          "sha256": "ca21f16c5de11be09debf09b0806601aa9830eae7cba6e20cbb153918a6aae1c",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-1-candidate.stderr",
+          "sha256": "e392b312c52159a271fd85d98d0098b88b5a27dfe9e9a6ac7fdf9949f3fb9787",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-0-baseline.stdout",
+          "sha256": "67e94e869cc21e8c08f5f1e60e1d0e66e595487cff930e0014e577918262a77a",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-3-baseline.stdout",
+          "sha256": "1f156aece12521140f882c29825e85f0f070735a91d96c5df71cb4bd9326da21",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-2-candidate.stderr",
+          "sha256": "0ad2cae9c52d618793811f7a36665c277ccf38bc3d1f4796c3234719ae1f3fb3",
+          "matches_execution": true
+        },
+        {
+          "path": "nvfp4-native.stdout",
+          "sha256": "6b57d5326ceae0e874df5987a9a392062c09d76a8423e142215ba1d15c42111d",
+          "matches_execution": true
+        },
+        {
+          "path": "version-candidate.stderr",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "matches_execution": true
+        },
+        {
+          "path": "p128-1-candidate.stderr",
+          "sha256": "562357b343219c73fcc520c33e5dfd0dd6fc592e32f153974e14b3cde46555fd",
+          "matches_execution": true
+        },
+        {
+          "path": "version-baseline.stdout",
+          "sha256": "da9a6b712f214be11091b4a9a5d5e5efdc61a02fc881968ab69a52a67b6f9c83",
+          "matches_execution": true
+        },
+        {
+          "path": "p4096-3-baseline.stderr",
+          "sha256": "c4180b7771928bb219672af6e1947d8f8fb0382c61512e7d318f2e85207dd737",
+          "matches_execution": true
+        }
+      ],
+      "baseline_binary_sha256": "13fb8af9de81343db18b33738f7a2e24d5839edf0ed6c6d880b521f5bed579d3",
+      "candidate_binary_sha256": "260601ac8509c2a9611855e001be5c8dbe49163729ffd279ed832f10be7a3102",
+      "native_test_sha256": "dda5e72db9aa584fe768a107643ec0b6deec10c3e66a908171efc45bf38793d5",
+      "versions": {
+        "baseline": "llmx 0.1.0+unknown numerics bb0bbc8b3f27dd6a",
+        "candidate": "llmx 0.1.0+unknown numerics 4257408ec9da23d5"
+      },
+      "shader_source_sha256": "617585b2154a391586464a96f9c43b5de585e45f9a5f0c8ca72d6e2ac4cbf465",
+      "probe_candidate_source_sha256": "617585b2154a391586464a96f9c43b5de585e45f9a5f0c8ca72d6e2ac4cbf465",
+      "container_removed": true,
+      "monitor_exit": 0,
+      "cpuset": "2,3",
+      "threads_per_call": 2,
+      "native_test_exit": 0,
+      "baseline_numerics": "bb0bbc8b3f27dd6a",
+      "candidate_numerics": "4257408ec9da23d5"
+    },
+    "calls": [
+      {
+        "label": "p128-0-baseline",
+        "arm": "baseline",
+        "phase": "pp128",
+        "started_unix": 1793021570.0061934,
+        "ended_unix": 1793021573.927892,
+        "pp_tok_s": 2352.2,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 245.34,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "67e94e869cc21e8c08f5f1e60e1d0e66e595487cff930e0014e577918262a77a",
+        "stderr_sha256": "d66202487a7bd37a1f5b9a1d4c34f3cce115ec6a6758122ede057f681431dded"
+      },
+      {
+        "label": "p128-1-candidate",
+        "arm": "candidate",
+        "phase": "pp128",
+        "started_unix": 1793021573.928514,
+        "ended_unix": 1793021577.7489963,
+        "pp_tok_s": 2823.69,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 247.56,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "981f9b4f687e95fa8e542926892c02e8f19b1c4277aefa737b92bb4e603ed13b",
+        "stderr_sha256": "562357b343219c73fcc520c33e5dfd0dd6fc592e32f153974e14b3cde46555fd"
+      },
+      {
+        "label": "p128-2-candidate",
+        "arm": "candidate",
+        "phase": "pp128",
+        "started_unix": 1793021577.7494552,
+        "ended_unix": 1793021581.5193157,
+        "pp_tok_s": 2811.02,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 248.0,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "bb6e8a57320102851bad977843c5c5b46ccd058b428d26c0b6398f03b03dc638",
+        "stderr_sha256": "0ad2cae9c52d618793811f7a36665c277ccf38bc3d1f4796c3234719ae1f3fb3"
+      },
+      {
+        "label": "p128-3-baseline",
+        "arm": "baseline",
+        "phase": "pp128",
+        "started_unix": 1793021581.5197527,
+        "ended_unix": 1793021585.2904165,
+        "pp_tok_s": 2357.05,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 249.48,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "1f156aece12521140f882c29825e85f0f070735a91d96c5df71cb4bd9326da21",
+        "stderr_sha256": "2bda71bc887b1868368d4eb53e3ba96d49450839ca39e788fdb15333394afe49"
+      },
+      {
+        "label": "p4096-0-baseline",
+        "arm": "baseline",
+        "phase": "pp4096",
+        "started_unix": 1793021585.2910373,
+        "ended_unix": 1793021591.2676892,
+        "pp_tok_s": 3563.21,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 246.64,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "1eefdb6662bce5a401adf8952402426e01e69e261cb61f4088c36806f23da846",
+        "stderr_sha256": "356d896767e29ca2d76d2ff18c11c9256e35fc00f1663fc25206a3b4fee780be"
+      },
+      {
+        "label": "p4096-1-candidate",
+        "arm": "candidate",
+        "phase": "pp4096",
+        "started_unix": 1793021591.2681484,
+        "ended_unix": 1793021597.0946918,
+        "pp_tok_s": 4151.06,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 231.45,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "43a24216adb6436f8eb4316ff1ef2518b7655bdaecea43eebcc0edefde78db94",
+        "stderr_sha256": "e392b312c52159a271fd85d98d0098b88b5a27dfe9e9a6ac7fdf9949f3fb9787"
+      },
+      {
+        "label": "p4096-2-candidate",
+        "arm": "candidate",
+        "phase": "pp4096",
+        "started_unix": 1793021597.095328,
+        "ended_unix": 1793021602.9226723,
+        "pp_tok_s": 4150.86,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 229.94,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "fcdf10899375aaf7b84c47ee2394da81911504a1b0740ccfe1243d2cc9c068f7",
+        "stderr_sha256": "e97e9c29b7a0fe50df6ce3e8f6a80f2f5628b4d234febcc282a1591188d83a2d"
+      },
+      {
+        "label": "p4096-3-baseline",
+        "arm": "baseline",
+        "phase": "pp4096",
+        "started_unix": 1793021602.923158,
+        "ended_unix": 1793021609.054016,
+        "pp_tok_s": 3564.22,
+        "pp_reported_spread": 0.0,
+        "tg_tok_s": 238.79,
+        "tg_reported_spread": 0.0,
+        "stdout_sha256": "b63ca807dd070496baf10eec4f7fe84249ad50dc937e59b0be0e147684ec7844",
+        "stderr_sha256": "c4180b7771928bb219672af6e1947d8f8fb0382c61512e7d318f2e85207dd737"
+      }
+    ],
+    "summary": [
+      {
+        "phase": "pp128",
+        "metric": "pp_tok_s",
+        "baseline_samples": [
+          2352.2,
+          2357.05
+        ],
+        "candidate_samples": [
+          2823.69,
+          2811.02
+        ],
+        "baseline_mean": 2354.625,
+        "candidate_mean": 2817.355,
+        "candidate_vs_baseline_percent": 19.65196156500504,
+        "sample_ranges": {
+          "baseline": [
+            2352.2,
+            2357.05
+          ],
+          "candidate": [
+            2811.02,
+            2823.69
+          ]
+        }
+      },
+      {
+        "phase": "pp128",
+        "metric": "tg_tok_s",
+        "baseline_samples": [
+          245.34,
+          249.48
+        ],
+        "candidate_samples": [
+          247.56,
+          248.0
+        ],
+        "baseline_mean": 247.41,
+        "candidate_mean": 247.78,
+        "candidate_vs_baseline_percent": 0.1495493310698759,
+        "sample_ranges": {
+          "baseline": [
+            245.34,
+            249.48
+          ],
+          "candidate": [
+            247.56,
+            248.0
+          ]
+        }
+      },
+      {
+        "phase": "pp4096",
+        "metric": "pp_tok_s",
+        "baseline_samples": [
+          3563.21,
+          3564.22
+        ],
+        "candidate_samples": [
+          4151.06,
+          4150.86
+        ],
+        "baseline_mean": 3563.715,
+        "candidate_mean": 4150.96,
+        "candidate_vs_baseline_percent": 16.47845015664833,
+        "sample_ranges": {
+          "baseline": [
+            3563.21,
+            3564.22
+          ],
+          "candidate": [
+            4150.86,
+            4151.06
+          ]
+        }
+      },
+      {
+        "phase": "pp4096",
+        "metric": "tg_tok_s",
+        "baseline_samples": [
+          246.64,
+          238.79
+        ],
+        "candidate_samples": [
+          231.45,
+          229.94
+        ],
+        "baseline_mean": 242.71499999999997,
+        "candidate_mean": 230.695,
+        "candidate_vs_baseline_percent": -4.952310322806575,
+        "sample_ranges": {
+          "baseline": [
+            238.79,
+            246.64
+          ],
+          "candidate": [
+            229.94,
+            231.45
+          ]
+        }
+      }
+    ],
+    "activity": {
+      "path": "build-integration/input-load-mi50-v1/model-screen-v1/activity.jsonl",
+      "sha256": "828cf76df51874cbe173a3a3d1a29bc7f8050765107b2173bb8697b41440f586",
+      "sample_count": 42,
+      "interval_seconds": 1.0,
+      "target_gpu": "renderD130, PCI 0000:c9:00.0 (card2)",
+      "target_busy_samples": 29,
+      "busy_samples_by_card": {
+        "card0": 15,
+        "card1": 0,
+        "card2": 29,
+        "card3": 0,
+        "card4": 41,
+        "card5": 41,
+        "card6": 0,
+        "card7": 27,
+        "card8": 42,
+        "card9": 42
+      },
+      "system_cpu_busy_percent": {
+        "intervals": 41,
+        "mean": 38.62217489868946,
+        "min": 28.918032786885245,
+        "max": 55.50428477257745
+      },
+      "samples_with_process_cpu_delta": 41,
+      "per_call": [
+        {
+          "label": "p128-0-baseline",
+          "samples_overlapping_call": 4,
+          "target_card2_nonzero": 2,
+          "other_gpu_busy_samples": 4,
+          "other_gpu_busy_cards": [
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 4
+        },
+        {
+          "label": "p128-1-candidate",
+          "samples_overlapping_call": 4,
+          "target_card2_nonzero": 2,
+          "other_gpu_busy_samples": 4,
+          "other_gpu_busy_cards": [
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 4
+        },
+        {
+          "label": "p128-2-candidate",
+          "samples_overlapping_call": 4,
+          "target_card2_nonzero": 3,
+          "other_gpu_busy_samples": 4,
+          "other_gpu_busy_cards": [
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 4
+        },
+        {
+          "label": "p128-3-baseline",
+          "samples_overlapping_call": 4,
+          "target_card2_nonzero": 3,
+          "other_gpu_busy_samples": 4,
+          "other_gpu_busy_cards": [
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 4
+        },
+        {
+          "label": "p4096-0-baseline",
+          "samples_overlapping_call": 6,
+          "target_card2_nonzero": 6,
+          "other_gpu_busy_samples": 6,
+          "other_gpu_busy_cards": [
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 6
+        },
+        {
+          "label": "p4096-1-candidate",
+          "samples_overlapping_call": 5,
+          "target_card2_nonzero": 5,
+          "other_gpu_busy_samples": 5,
+          "other_gpu_busy_cards": [
+            "card0",
+            "card4",
+            "card5",
+            "card7",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 5
+        },
+        {
+          "label": "p4096-2-candidate",
+          "samples_overlapping_call": 6,
+          "target_card2_nonzero": 4,
+          "other_gpu_busy_samples": 6,
+          "other_gpu_busy_cards": [
+            "card0",
+            "card4",
+            "card5",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 6
+        },
+        {
+          "label": "p4096-3-baseline",
+          "samples_overlapping_call": 6,
+          "target_card2_nonzero": 4,
+          "other_gpu_busy_samples": 6,
+          "other_gpu_busy_cards": [
+            "card0",
+            "card4",
+            "card5",
+            "card8",
+            "card9"
+          ],
+          "process_cpu_activity_samples": 6
+        }
+      ],
+      "limitations": "One-second sampling can miss short work and process gaps; the target-card busy counter may not reflect every short dispatch. Background GPU activity is explicitly retained by card and call window."
+    },
+    "interpretation": "The candidate has higher mean PP throughput for both prompts and slightly higher TG throughput at P128, but lower TG throughput at P4096. The long-prompt decode regression is retained. Sampled GPU activity overlaps every timing call, and other cards are also active; these data do not establish that activity caused any difference. Both arms used two host threads, while the earlier matched mx comparison used four, so this is not a directly matched reference or an mx gate pass.",
+    "limitations": [
+      "Two retained calls per arm and workload, each with one measured model repetition, in ABBA order. This is a limited development screen.",
+      "Both arms use two host CPUs/threads, unlike the earlier mx comparison with four.",
+      "Background GPU/process activity occurred; sampled activity cannot establish causality.",
+      "Not an mx qualification pass; no change to model/reference checks.",
+      "Both versions report 0.1.0+unknown; numeric identifiers differ because the shader differs."
+    ]
+  },
+  "next": "Current matched mx comparison and assessment of the retained long-prompt decode loss, followed by remaining depth, split, existing-path and landing checks. No numerical allowance changed.",
+  "analysis_hashes": {
+    "analysis.json": "43515a6325b61523cd54af08055b2bee5e3e5a30bf351f861a0a8f61b4bd633f",
+    "analysis-model.json": "6a726bc8ef492e8b34dca511bb6e948549405cb9c2311800145c3b352b82c664"
+  },
+  "focused_hf": {
+    "passed": true,
+    "execution_sha256": "55d61cafa0d284a8482908dab6c41514d0e55bf5a75d34126612607c4f8941e4",
+    "binary_sha256": "260601ac8509c2a9611855e001be5c8dbe49163729ffd279ed832f10be7a3102",
+    "component_stdout_sha256": "5c875889e2b1647f956705a1bf5d9c77c11ef8e35a3193ab29ec6b96f6283a20",
+    "full_logit_cases": 516,
+    "nll_checks": 48,
+    "native_f16_prompt_logit_max": 0.00104234,
+    "native_f16_prompt_logit_limit": 0.005869746208190918,
+    "native_f16_prompt_nll_max": 2.243e-05,
+    "native_f16_prompt_nll_limit": 0.0006043278951057829,
+    "module_equivalence": [
+      {
+        "module": "matmul_tile_nvfp4_f16",
+        "sha256": "789d58f1db3c6b1208f4f58060b9bbe7ade936f17a234e0a848e20e33e13f51e",
+        "identical": true
+      },
+      {
+        "module": "matmul_tile_nvfp4",
+        "sha256": "5a57581e60c0718bb5ea338387e2902bf351ee34050c677c60e57005fc79b961",
+        "identical": true
+      },
+      {
+        "module": "matmul_tile_nvfp4_bf16",
+        "sha256": "0efd3eb195e027270e1930cd0eef2978ce94cbf876b2cc0077a8375a17c37fec",
+        "identical": true
+      },
+      {
+        "module": "matmul_tile_nvfp4_bf16_preserve",
+        "sha256": "587d04b50d952c1fdce4e7bd22c7555db983b1c420ef5db179f6f8073587ccce",
+        "identical": true
+      }
+    ],
+    "container_removed": true,
+    "scope": "Existing tiny ordinary/scaled dense tied/untied and MoE fixture component, including native-F16 prompt tiles. Not released-model depth qualification."
+  }
+}

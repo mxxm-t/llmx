@@ -84,3 +84,5 @@ backends its caller made. It reads the plan
   `place_model` also places them by), since the device holds neither those
   weights nor their experts. It sets `ModelOptions::kv_backed`, so the
   storages back the whole budget as the model is made. Dtype resolution follows the fit and preserves that backing option; an added expert host is created once and used both to resolve its dtype and to construct the model.
+
+Weight-scale placement counts companion F32 bytes beside the weight. Every tensor shard retains its complete scalar/expert scale vector; host expert and lookup accounting include the companion storage rather than assuming it is embedded in quant blocks. The model owns validation through `weight_scale_count`, before placement consumes its count. Independent model checks cover tied use, layer split and TP2; released-file qualification remains separate.

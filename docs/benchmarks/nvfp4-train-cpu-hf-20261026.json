@@ -1,0 +1,87 @@
+{
+  "scope": "Current integrated CPU F32 NVFP4 tiny HF, ordinary and scale-equivalent dense/tied/MoE fixtures",
+  "tested_source_revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+  "evidence_status": "passed",
+  "state": {
+    "scope": "Current integrated CPU F32 NVFP4 tiny HF, ordinary and scale-equivalent dense/tied/MoE fixtures",
+    "source_revision": "008192ef66633852a77b9a13a5e3ba53cb0a98d7",
+    "binary_sha256": "134d2396d5440ab9b2cb48e09155bae0dba0409ba186e0fd687c748fa9892e19",
+    "inputs": {
+      "tests/data/baseline_nvfp4.json": "4e01597c81228f8fb2f2265d6e053255d86062d387411ca9db4af06c318f7f0a",
+      "tests/data/dtype_budget.json": "df8bfdc1aedc2006da6824c85430fd61abf0effd42cc29d1a368b59f250f256c",
+      "tests/nvfp4.py": "0bf570465aeedda56de5236cbd93b2851031018dbde0cff511fe0f342a4bb1e1",
+      "tests/block_fixture.py": "0b521ea0e05c5607351e5eb17f2563859c2d4160a505c02596f40a187882d338",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+    },
+    "argv": [
+      "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\native-model-arms\\candidate\\build\\Release\\llmx.exe",
+      "--only",
+      "nvfp4",
+      "--device",
+      "cpu",
+      "--dtype",
+      "f32",
+      "--cache-type",
+      "f32",
+      "--require-tools",
+      "--require-device-types",
+      "NVFP4"
+    ],
+    "started": 1792984765.6387663,
+    "passed": true,
+    "exit_code": 0,
+    "ended": 1792984783.3239245,
+    "log_sha256": "da1fc580396cd9385a04abc3e13ec764ded4a04892a63e7d1abcf125d26f298f"
+  },
+  "state_sha256": "c0e61c62d28d26d8023a5c43967007c32b8240e26a72bdeea9a8945df5ebec5f",
+  "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-train-20261026\\build-integration\\cpu-hf-current",
+  "full_logit_cases": 300,
+  "nll_checks": 24,
+  "maximum_logit_error": 1.8e-06,
+  "logit_bound": 2e-05,
+  "maximum_nll_error": 1.3e-07,
+  "nll_bound": 1e-05,
+  "errors": [
+    {
+      "family": "dense-untied",
+      "max_logit_error": 1.52e-06,
+      "max_nll_error": 1.3e-07
+    },
+    {
+      "family": "dense-tied",
+      "max_logit_error": 1.14e-06,
+      "max_nll_error": 8e-08
+    },
+    {
+      "family": "moe",
+      "max_logit_error": 1.8e-06,
+      "max_nll_error": 1.2e-07
+    },
+    {
+      "family": "dense-untied",
+      "max_logit_error": 1.52e-06,
+      "max_nll_error": 1.3e-07
+    },
+    {
+      "family": "dense-tied",
+      "max_logit_error": 1.14e-06,
+      "max_nll_error": 8e-08
+    },
+    {
+      "family": "moe",
+      "max_logit_error": 1.8e-06,
+      "max_nll_error": 1.2e-07
+    }
+  ],
+  "carry_forward": "Current src, tests, cmake and CMakeLists.txt are unchanged from the tested revision. Subsequent checkpoint changes are documentation only.",
+  "limitations": [
+    "CPU F32 execution only.",
+    "Tiny fixtures, including exactly scale-equivalent repacking, do not qualify scaled released models.",
+    "No native-F16 GPU, released-depth, split, performance or merge pass is established."
+  ]
+}

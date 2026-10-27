@@ -275,13 +275,13 @@ struct Lacking : backend::CpuBackend {
 };
 struct FailingHead : backend::CpuBackend {
     bool fail = false;
-    void matmul_logits(uint32_t type, backend::CSlice data, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t nbatch,
+    void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t nbatch,
                        backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (fail) {
             fail = false;
             throw std::runtime_error("injected");
         }
-        backend::CpuBackend::matmul_logits(type, data, x, y, nin, nout, nbatch, runs, dtype);
+        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, nbatch, runs, dtype);
     }
 };
 
@@ -1769,26 +1769,26 @@ struct DtypeWitness : backend::CpuBackend {
     size_t heads = 0;
     explicit DtypeWitness(backend::Dtype dtype) : selected(dtype) { set_threads(1); }
     void seen(backend::Dtype dtype, const char* what) const { require(dtype == selected, std::string(what) + " lost the model's activation dtype"); }
-    void matmul(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
                 backend::Dtype dtype = backend::Dtype::f16) override {
         seen(dtype, "a product");
-        backend::CpuBackend::matmul(type, w, x, y, nin, nout, rows, runs, dtype);
+        backend::CpuBackend::matmul(weight, x, y, nin, nout, rows, runs, dtype);
     }
-    void matmul_add(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+    void matmul_add(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
                     backend::Dtype dtype = backend::Dtype::f16) override {
         seen(dtype, "a residual product");
-        backend::CpuBackend::matmul_add(type, w, x, y, nin, nout, rows, runs, dtype);
+        backend::CpuBackend::matmul_add(weight, x, y, nin, nout, rows, runs, dtype);
     }
     void matmul_group(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin, size_t rows, backend::RowRuns runs = {},
                       backend::Dtype dtype = backend::Dtype::f16) override {
         seen(dtype, "a grouped product");
         backend::CpuBackend::matmul_group(projections, x, nin, rows, runs, dtype);
     }
-    void matmul_logits(uint32_t type, backend::CSlice w, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
+    void matmul_logits(backend::WeightView weight, backend::CSlice x, backend::Slice y, size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {},
                        backend::Dtype dtype = backend::Dtype::f16) override {
         seen(dtype, "a head's product");
         ++heads;
-        backend::CpuBackend::matmul_logits(type, w, x, y, nin, nout, rows, runs, dtype);
+        backend::CpuBackend::matmul_logits(weight, x, y, nin, nout, rows, runs, dtype);
     }
 };
 
@@ -2220,7 +2220,7 @@ struct GatePolicy : moe::CountingCpu {
     backend::Dtype selected;
     size_t routers = 0, shared = 0;
     explicit GatePolicy(backend::Dtype dtype) : selected(dtype) { set_threads(1); }
-    void matmul(uint32_t type, backend::CSlice weights, backend::CSlice x, backend::Slice y,
+    void matmul(backend::WeightView weight, backend::CSlice x, backend::Slice y,
                 size_t nin, size_t nout, size_t rows, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         if (nin == E && nout == X) {
             require(dtype == backend::Dtype::f32, "router did not keep F32 inputs");
@@ -2229,7 +2229,7 @@ struct GatePolicy : moe::CountingCpu {
             require(dtype == selected, "shared expert gate lost the selected dtype");
             ++shared;
         }
-        backend::CpuBackend::matmul(type, weights, x, y, nin, nout, rows, runs, dtype);
+        backend::CpuBackend::matmul(weight, x, y, nin, nout, rows, runs, dtype);
     }
 };
 

@@ -1,0 +1,131 @@
+{
+  "schema": "nvfp4-file-loaded-scale-splits-v1",
+  "base": "0e5860b01",
+  "coverage": "Tied and untied files loaded over two copying backends in equal layer shares and TP2, for every supported load mode. Both compute destinations must use their own scale storage and logits must match the existing independent F32 fixture.",
+  "runtime_changed": false,
+  "numerical_bounds_changed": false,
+  "first_attempt": {
+    "status": "failed",
+    "started_unix": 1793095105.4939783,
+    "previous_head": "0e5860b01",
+    "test_delta": "File-loaded layer and tensor splits retain companion scales on copying destinations",
+    "test_source_sha256": "cdb877d45df1d6b1178494031818449f89f84ffc7579cc72292224ca2ff84d7e",
+    "scope": "Fresh Windows CPU-only build and focused model-weight-scales regression. No Vulkan access or performance measurement.",
+    "steps": [
+      {
+        "name": "configure",
+        "command": [
+          "cmake",
+          "-S",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027",
+          "-B",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\startup-scale-cmake",
+          "-DLLMX_HAS_BACKEND_VULKAN=OFF",
+          "-DBUILD_TESTING=ON"
+        ],
+        "started_unix": 1793095105.4949734,
+        "pid": 47712,
+        "exit_code": 0,
+        "ended_unix": 1793095113.2050676,
+        "log_sha256": "c58aac8e10805b5b656c09959d891683ffc5e58452b015c96e0915c59949738a"
+      },
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\startup-scale-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx-model-weight-scales-test"
+        ],
+        "started_unix": 1793095113.2145836,
+        "pid": 26540,
+        "exit_code": 0,
+        "ended_unix": 1793095130.7444878,
+        "log_sha256": "b1326fe245e9f66a351e33299e42a5e48a7c96aa156f5816d13090f2325db0d7"
+      },
+      {
+        "name": "test",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\startup-scale-cmake",
+          "-C",
+          "Release",
+          "-R",
+          "^model-weight-scales$",
+          "--output-on-failure"
+        ],
+        "started_unix": 1793095130.7774866,
+        "pid": 52276,
+        "exit_code": 8,
+        "ended_unix": 1793095163.1470811,
+        "log_sha256": "b95bc8f72e02c3af9fc9a995569f141f3f27715b23e98d4df1b62844aededf17"
+      }
+    ],
+    "binary_sha256": "17cfce56f4ba1656c8037f0d543d459cce741e711fbc3f52cb24ba2d16e3b943",
+    "error": "AssertionError('test failed; see saved log')",
+    "ended_unix": 1793095163.1546001
+  },
+  "first_failure": "CPU collective refused Copying::is_cpu()==false before numerical validation of the TP case.",
+  "correction": "The TP-only test backend reports CPU identity while retaining reads_in_place()==false, owned weight allocation and copying adoption. Auto/direct therefore still defer and stream full companion-scale uploads.",
+  "passing_attempt": {
+    "status": "passed",
+    "started_unix": 1793095343.2223709,
+    "previous_head": "0e5860b01",
+    "test_delta": "File-loaded layer and tensor splits retain companion scales on copying destinations",
+    "test_source_sha256": "6818732c18bf04b74b92077d2448fad623437fda47d1c0e97f7ddf0eb6157b94",
+    "scope": "Fresh Windows CPU-only build and focused model-weight-scales regression. No Vulkan access or performance measurement.",
+    "steps": [
+      {
+        "name": "build",
+        "command": [
+          "cmake",
+          "--build",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\startup-scale-cmake",
+          "--config",
+          "Release",
+          "--parallel",
+          "1",
+          "--target",
+          "llmx-model-weight-scales-test"
+        ],
+        "started_unix": 1793095343.2233706,
+        "pid": 50720,
+        "exit_code": 0,
+        "ended_unix": 1793095360.8824673,
+        "log_sha256": "b1326fe245e9f66a351e33299e42a5e48a7c96aa156f5816d13090f2325db0d7"
+      },
+      {
+        "name": "test",
+        "command": [
+          "ctest",
+          "--test-dir",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\nvfp4-main5e9-20261027\\build-integration\\startup-scale-cmake",
+          "-C",
+          "Release",
+          "-R",
+          "^model-weight-scales$",
+          "--output-on-failure"
+        ],
+        "started_unix": 1793095360.9170327,
+        "pid": 88384,
+        "exit_code": 0,
+        "ended_unix": 1793095362.0229378,
+        "log_sha256": "757b7f6ee07a7245ccbee11f368bb5ffeda9705b2d4c9d77166f183990c228e6"
+      }
+    ],
+    "binary_sha256": "59b1d1a2e38feeb05bdf22885877339489200d55c16b1c7b016cf20d3155a4c2",
+    "ended_unix": 1793095362.0319386
+  },
+  "test_transcript": "Start testing: Oct 27 12:02 FLE Standard Time\n----------------------------------------------------------\n77/78 Testing: model-weight-scales\n77/78 Test: model-weight-scales\nCommand: \"C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-main5e9-20261027/build-integration/startup-scale-cmake/Release/llmx-model-weight-scales-test.exe\" \"C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-main5e9-20261027/build-integration/startup-scale-cmake/weight-scales-fixture.gguf\"\nDirectory: C:/Users/Marko/Desktop/Projects/llmx/worktrees/nvfp4-main5e9-20261027/build-integration/startup-scale-cmake\n\"model-weight-scales\" start time: Oct 27 12:02 FLE Standard Time\nOutput:\n----------------------------------------------------------\nmodel weight scales: single-file mapped streamed MoE prompt/decode/follow-up pass\nmodel weight scales: single-file auto streamed MoE prompt/decode/follow-up pass\nmodel weight scales: cross-shard mapped streamed MoE prompt/decode/follow-up pass\nmodel weight scales: cross-shard auto streamed MoE prompt/decode/follow-up pass\nmodel weight scales: independent F32, tied head, layer/tensor split and load modes pass\n<end of output>\nTest time =   0.32 sec\n----------------------------------------------------------\nTest Passed.\n\"model-weight-scales\" end time: Oct 27 12:02 FLE Standard Time\n\"model-weight-scales\" time elapsed: 00:00:00\n----------------------------------------------------------\n\nEnd testing: Oct 27 12:02 FLE Standard Time\n",
+  "static_checks": {
+    "docs": "pass",
+    "dead-code": "pass"
+  },
+  "limitations": "CPU-backed loader contract coverage only. This is not a new GPU, released-model, performance or startup-stack qualification result."
+}

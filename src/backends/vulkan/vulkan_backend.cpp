@@ -204,6 +204,28 @@ public:
             } else if (std::strcmp(e.extensionName, VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
                 d.exec_stats = true;
+            } else if (std::strcmp(e.extensionName, VK_KHR_SHADER_CLOCK_EXTENSION_NAME) == 0) {
+                VkPhysicalDeviceShaderClockFeaturesKHR clock{};
+                clock.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR;
+                VkPhysicalDeviceFeatures2 q{};
+                q.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                q.pNext = &clock;
+                fn.vkGetPhysicalDeviceFeatures2(d.physical, &q);
+                if (clock.shaderDeviceClock) {
+                    enabled.push_back(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
+                    d.device_clock = true;
+                }
+            } else if (std::strcmp(e.extensionName, VK_AMD_DEVICE_COHERENT_MEMORY_EXTENSION_NAME) == 0) {
+                VkPhysicalDeviceCoherentMemoryFeaturesAMD coherent{};
+                coherent.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COHERENT_MEMORY_FEATURES_AMD;
+                VkPhysicalDeviceFeatures2 q{};
+                q.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+                q.pNext = &coherent;
+                fn.vkGetPhysicalDeviceFeatures2(d.physical, &q);
+                if (coherent.deviceCoherentMemory) {
+                    enabled.push_back(VK_AMD_DEVICE_COHERENT_MEMORY_EXTENSION_NAME);
+                    d.uncached_memory = true;
+                }
             } else if (std::strcmp(e.extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0) {
                 enabled.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
                 d.memory_budget = true;
@@ -242,6 +264,20 @@ public:
         if (d.caps.integer_dot) {
             edot.pNext = e2.pNext;
             e2.pNext = &edot;
+        }
+        VkPhysicalDeviceShaderClockFeaturesKHR eclock{};
+        eclock.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CLOCK_FEATURES_KHR;
+        eclock.shaderDeviceClock = VK_TRUE;
+        if (d.device_clock) {
+            eclock.pNext = e2.pNext;
+            e2.pNext = &eclock;
+        }
+        VkPhysicalDeviceCoherentMemoryFeaturesAMD ecoherent{};
+        ecoherent.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_COHERENT_MEMORY_FEATURES_AMD;
+        ecoherent.deviceCoherentMemory = VK_TRUE;
+        if (d.uncached_memory) {
+            ecoherent.pNext = e2.pNext;
+            e2.pNext = &ecoherent;
         }
 
         // The profile is chosen here because it depends on the extension scan above.
@@ -320,15 +356,7 @@ public:
 
     ~VulkanBackend() override {
         Device& d = *dev_;
-        if (hold_.watchdog.joinable()) {
-            {
-                std::lock_guard<std::mutex> lk(hold_.mu);
-                hold_release();
-                hold_.quit = true;
-            }
-            hold_.wake.notify_all();
-            hold_.watchdog.join();
-        }
+        hold_release();
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
         for (auto& a : arena_) a.buffer.reset();
@@ -339,7 +367,7 @@ public:
         for (VkQueryPool q : queries_) d.fn.vkDestroyQueryPool(d.device, q, nullptr);
         staging_.reset();
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
-        for (VkEvent e : hold_.events) if (e) d.fn.vkDestroyEvent(d.device, e, nullptr);
+        hold_.word.reset();
         if (hold_.timeline) d.fn.vkDestroySemaphore(d.device, hold_.timeline, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
     }
@@ -586,10 +614,7 @@ public:
     };
 
     Submission prepare(const std::vector<VkSemaphore>& signals) {
-        if (hold_.on) {
-            std::lock_guard<std::mutex> lk(hold_.mu);
-            hold_release();
-        }
+        if (hold_.on) hold_release();
         Submission s;
         s.cmd = open();
         s.dispatches = chunk_ > 0;
@@ -623,26 +648,40 @@ public:
     size_t collective_bytes_per_row(size_t members, size_t width) const override;
     static size_t two_shot_crossover(size_t members);
 
-    // While held, each submission waits for the next submission or kHoldMs to keep the device busy between stages (Backend::hold_between_submissions).
+    // While held, each submission is followed by a wait on the device that the next submission or kHoldMs of the device's clock ends, keeping the device busy between stages (Backend::hold_between_submissions).
+    // A device whose shaders cannot read its clock keeps no hold, since a wait it cannot bound outlives a killed process.
     void hold_between_submissions(bool on) override {
         if (!on) {
             if (!hold_.holders || --hold_.holders) return;
-            std::lock_guard<std::mutex> lk(hold_.mu);
-            hold_release();
+            // A submission follows the release, whose start makes it visible at once, where the atomic alone took up to 3 ms on an MI50.
+            if (hold_.pending) flush();
             hold_.on = false;
             return;
         }
-        if (!hold_.watchdog.joinable()) hold_setup();
+        if (hold_.refused) return;
+        if (!dev_->device_clock) {
+            std::fprintf(stderr, "vulkan: %s keeps no hold between submissions, its shaders reading no device clock\n", dev_->caps.device.c_str());
+            hold_.refused = true;
+            return;
+        }
+        if (!hold_.timeline) {
+            hold_setup();
+            if (!hold_seen()) {
+                std::fprintf(stderr, "vulkan: %s keeps no hold between submissions, a hold not seeing its release\n", dev_->caps.device.c_str());
+                hold_.refused = true;
+                return;
+            }
+        }
         ++hold_.holders;
         hold_.on = true;
     }
 
-    // The hold's command buffers, timeline, events and watchdog, made once; a failure part way destroys what it made, so a later call starts again.
+    // The hold's command buffers, timeline, release word and kernel, made once; a failure part way destroys what it made, so a later call starts again.
     void hold_setup() {
         Fn& fn = dev_->fn;
         VkCommandBuffer cmds[kHolds] = {};
         VkSemaphore timeline = VK_NULL_HANDLE;
-        VkEvent events[kHolds] = {};
+        std::unique_ptr<VulkanBuffer> word;
         try {
             VkCommandBufferAllocateInfo ci{};
             ci.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -657,27 +696,36 @@ public:
             si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
             si.pNext = &ti;
             check(fn.vkCreateSemaphore(dev_->device, &si, nullptr, &timeline), "vkCreateSemaphore");
-            VkEventCreateInfo ei{};
-            ei.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-            for (VkEvent& e : events) check(fn.vkCreateEvent(dev_->device, &ei, nullptr, &e), "vkCreateEvent");
-            // A held queue whose host stopped submitting is let go, so an idle device idles and no wait outlasts the driver's job timeout.
-            hold_.watchdog = std::thread([this] {
-                std::unique_lock<std::mutex> lk(hold_.mu);
-                while (!hold_.quit) {
-                    if (!hold_.pending) { hold_.wake.wait(lk); continue; }
-                    if (hold_.wake.wait_until(lk, hold_.since + std::chrono::milliseconds(kHoldMs)) == std::cv_status::timeout)
-                        hold_release();
-                }
-            });
+            // The release counter, in host memory the device reads past its caches where it offers such a type.
+            word = std::make_unique<VulkanBuffer>(dev_, 2 * sizeof(uint32_t), true, true);
+            kernel(K_HOLD, 0);
         } catch (...) {
-            for (VkEvent e : events) if (e) fn.vkDestroyEvent(dev_->device, e, nullptr);
+            word.reset();
             if (timeline) fn.vkDestroySemaphore(dev_->device, timeline, nullptr);
             if (cmds[0]) fn.vkFreeCommandBuffers(dev_->device, pool_, kHolds, cmds);
             throw;
         }
         std::copy(cmds, cmds + kHolds, hold_.cmds);
-        std::copy(events, events + kHolds, hold_.events);
         hold_.timeline = timeline;
+        hold_.word = std::move(word);
+        // The device's clock is taken to tick at the timestamp period, as the drivers feed both from one reference clock; backend-vulkan holds an unreleased hold's end to 50-400 ms.
+        hold_.ticks = (uint32_t)std::min<double>(4.0e9, kHoldMs * 1.0e6 / std::max(dev_->timestamp_ns, 1e-3));
+    }
+
+    // Whether one hold, released once it is spinning and with no submission after it, ends by the release rather than its bound, which a device that cannot show a running shader the host's write would not; checked once, at setup.
+    // The queue's earlier work is waited for and the release comes a tenth of the bound after the hold's submission, so no submission's start shows the hold the write.
+    bool hold_seen() {
+        if (const Ticket t = last_ticket_.load()) wait(t);
+        hold_queue();
+        std::this_thread::sleep_for(std::chrono::milliseconds(kHoldMs / 10));
+        hold_release();
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &hold_.timeline;
+        wi.pValues = &hold_.last;
+        check(dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX), "vkWaitSemaphores");
+        return reinterpret_cast<const std::atomic<uint32_t>*>(hold_.word->mapped())[1].load() != hold_.seq;
     }
 
     // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on).
@@ -691,14 +739,14 @@ public:
         if (open_ && chunk_) flush();
     }
 
-    // Callers hold hold_.mu.
+    // Every hold queued so far ends: the release counter takes the last hold's sequence, which the spinning hold reads with an atomic.
     void hold_release() {
         if (!hold_.pending) return;
-        dev_->fn.vkSetEvent(dev_->device, hold_.events[hold_.slot]);
+        reinterpret_cast<std::atomic<uint32_t>*>(hold_.word->mapped())->store(hold_.seq);
         hold_.pending = false;
     }
 
-    // A submission that waits on the next slot's event; the slot's previous hold has finished once the hold timeline reaches its value.
+    // A submission of the hold's kernel in the next slot; the slot's previous hold has finished once the hold timeline reaches its value.
     void hold_queue() {
         const uint32_t i = (hold_.slot + 1) % kHolds;
         if (hold_.value[i]) {
@@ -709,16 +757,31 @@ public:
             wi.pValues = &hold_.value[i];
             check(dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX), "vkWaitSemaphores");
         }
-        check(dev_->fn.vkResetEvent(dev_->device, hold_.events[i]), "vkResetEvent");
         VkCommandBuffer cmd = hold_.cmds[i];
         check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
         VkCommandBufferBeginInfo bi{};
         bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
-        dev_->fn.vkCmdWaitEvents(cmd, 1, &hold_.events[i], VK_PIPELINE_STAGE_HOST_BIT,
-                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 0, nullptr, 0, nullptr, 0, nullptr);
+        const Kernel& k = kernel(K_HOLD, 0);
+        const VkDescriptorBufferInfo released{hold_.word->handle(), 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet w{};
+        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        w.dstBinding = 0;
+        w.descriptorCount = 1;
+        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        w.pBufferInfo = &released;
+        const uint32_t pc[2] = {hold_.seq + 1, hold_.ticks};
+        dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
+        dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0, 1, &w);
+        dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), pc);
+        dev_->fn.vkCmdDispatch(cmd, 1, 1, 1);
+        // What the hold records reaches the host once its timeline value does (hold_seen).
+        VkMemoryBarrier mb{};
+        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+        mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
         check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
         const uint64_t value = hold_.last + 1;
         VkTimelineSemaphoreSubmitInfo tsi{};
@@ -732,13 +795,11 @@ public:
         si.pCommandBuffers = &cmd;
         si.signalSemaphoreCount = 1;
         si.pSignalSemaphores = &hold_.timeline;
-        std::lock_guard<std::mutex> lk(hold_.mu);
         check(dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
         hold_.last = hold_.value[i] = value;
         hold_.slot = i;
+        ++hold_.seq;
         hold_.pending = true;
-        hold_.since = std::chrono::steady_clock::now();
-        hold_.wake.notify_all();
     }
 
     void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
@@ -1565,22 +1626,20 @@ private:
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time
-    static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host
+    static constexpr int kHoldMs = 100;         // the longest a held queue waits for its host, on the device's clock
     struct {
         bool on = false;                        // some holder remains
+        bool refused = false;                   // the device keeps no hold, without a device clock or a hold seeing its release, and said so
         size_t holders = 0;
         VkCommandBuffer cmds[kHolds] = {};
-        VkEvent events[kHolds] = {};
         VkSemaphore timeline = VK_NULL_HANDLE;  // signalled as each hold ends
         uint64_t value[kHolds] = {};
         uint64_t last = 0;
         uint32_t slot = 0;
-        bool pending = false;                   // the slot's event is unset and its hold queued
-        bool quit = false;
-        std::chrono::steady_clock::time_point since;
-        std::mutex mu;                          // the pending hold and its event, shared with the watchdog
-        std::condition_variable wake;
-        std::thread watchdog;
+        uint32_t seq = 0;                       // the last hold queued; a hold ends once the release counter reaches its sequence
+        uint32_t ticks = 0;                     // kHoldMs in the device clock's ticks
+        bool pending = false;                   // the last hold is queued and not yet released
+        std::unique_ptr<VulkanBuffer> word;     // the release counter, which the host writes and the holds read, then the sequence of the last hold its bound ended
     } hold_;
     std::unique_ptr<VulkanBuffer> staging_;
     Ticket staged_[2] = {};                   // the last copy out of each half of staging

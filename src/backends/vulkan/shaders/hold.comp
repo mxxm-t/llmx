@@ -1,0 +1,14 @@
+#version 450
+#extension GL_EXT_shader_realtime_clock : require
+// A held queue's wait between submissions (Backend::hold_between_submissions): one invocation spins until the host's release counter reaches this hold's sequence or `ticks` of the device's clock have passed.
+// The bound ends the job by itself, so a host that never releases it, a killed process among them, leaves no wait for the driver's job timeout to reset.
+layout(local_size_x = 1) in;
+layout(push_constant) uniform P { uint seq; uint ticks; } p;
+layout(set = 0, binding = 0) coherent buffer R { uint released; uint bounded; };
+void main() {
+    // The counter is read with an atomic, since a plain load answered from a cache never sees the host's write (docs/src/backends-vulkan.md); a hold its bound ends records its sequence.
+    const uint start = clockRealtime2x32EXT().x;
+    bool waiting = true;
+    while ((waiting = int(atomicAdd(released, 0u) - p.seq) < 0) && clockRealtime2x32EXT().x - start < p.ticks) {}
+    if (waiting) atomicExchange(bounded, p.seq);
+}

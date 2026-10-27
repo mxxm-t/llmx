@@ -84,7 +84,8 @@ public:
 
 class VulkanBuffer final : public Buffer {
 public:
-    VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, bool host_visible)
+    // With `uncached`, host memory the device reads past its caches where it offers such a type (Device::uncached_memory), and host memory the CPU does not cache otherwise.
+    VulkanBuffer(std::shared_ptr<Device> dev, size_t bytes, bool host_visible, bool uncached = false)
         : dev_(std::move(dev)), size_(bytes) {
         if (!bytes) return;   // an empty allocation has no address and no object
         VkBufferCreateInfo bi{};
@@ -102,12 +103,21 @@ public:
             ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             ai.allocationSize = req.size;
             // Device memory prefers not to be host visible, so it comes from the device-local heap rather than the BAR window; host-visible memory prefers to be cached.
-            ai.memoryTypeIndex = host_visible
-                ? dev_->memory_type(req.memoryTypeBits,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                    VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0)
+            // The device-uncached types are taken only for `uncached` and only where the device enabled them.
+            constexpr VkMemoryPropertyFlags device_uncached = VK_MEMORY_PROPERTY_DEVICE_COHERENT_BIT_AMD | VK_MEMORY_PROPERTY_DEVICE_UNCACHED_BIT_AMD;
+            const VkMemoryPropertyFlags host = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            const auto uncached_type = [&] {
+                if (dev_->uncached_memory)
+                    for (uint32_t i = 0; i < dev_->memory.memoryTypeCount; ++i)
+                        if ((req.memoryTypeBits >> i & 1) && (dev_->memory.memoryTypes[i].propertyFlags & (host | device_uncached)) == (host | device_uncached)) return i;
+                return dev_->memory_type(req.memoryTypeBits, host, 0, VK_MEMORY_PROPERTY_HOST_CACHED_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT | device_uncached);
+            };
+            ai.memoryTypeIndex = uncached
+                ? uncached_type()
+                : host_visible
+                ? dev_->memory_type(req.memoryTypeBits, host, VK_MEMORY_PROPERTY_HOST_CACHED_BIT, device_uncached)
                 : dev_->memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0,
-                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+                                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | device_uncached);
             VkDeviceMemory memory = VK_NULL_HANDLE;
             const VkResult r = dev_->fn.vkAllocateMemory(dev_->device, &ai, nullptr, &memory);
             if (r != VK_SUCCESS) {

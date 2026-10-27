@@ -1,6 +1,8 @@
 // Include the implementation to exercise private resource ownership with fake Vulkan calls, without adding runtime test hooks.
 #include "backends/vulkan/vulkan_backend.cpp"
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -73,6 +75,18 @@ struct VulkanLifetimeTest {
         b.pending_[b.ring_index_].swap(pending);
     }
     static size_t retained(VulkanBackend& b) { return b.pending_[b.ring_index_].size(); }
+    static bool device_clock(VulkanBackend& b) { return b.dev_->device_clock; }
+    // Whether the last hold queued ends within `ns`.
+    static bool hold_ended(VulkanBackend& b, uint64_t ns, uint64_t value = 0) {
+        VkSemaphoreWaitInfo wi{};
+        wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        wi.semaphoreCount = 1;
+        wi.pSemaphores = &b.hold_.timeline;
+        if (!value) value = b.hold_.last;
+        wi.pValues = &value;
+        return b.dev_->fn.vkWaitSemaphores(b.dev_->device, &wi, ns) == VK_SUCCESS;
+    }
+    static uint64_t hold_last(VulkanBackend& b) { return b.hold_.last; }
     static void drop(VulkanBackend& b, VulkanBuffer& buffer) { b.drop_padded(buffer); }
     // Every submission retired, nothing open and no wait left for a next submission.
     static bool idle(VulkanBackend& b) {
@@ -257,6 +271,66 @@ int dictionary_checks() {
     return failures;
 }
 
+// A hold (Backend::hold_between_submissions) ends within 1 ms at the 99th percentile once the next submission releases it or it is given back, and by the device's clock within 50 to 400 ms if never.
+// A release the spinning hold does not see shows as a hold that runs to its bound, and a misread clock rate as one that ends at 10 ms or at a second.
+int hold_timing_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    if (!backend::VulkanLifetimeTest::device_clock(b)) {
+        std::cout << "hold timing skipped, the device's shaders read no device clock\n";
+        return 0;
+    }
+    using Clock = std::chrono::steady_clock;
+    const auto ms_since = [](Clock::time_point t) { return std::chrono::duration<double, std::milli>(Clock::now() - t).count(); };
+    const auto at = [](const std::vector<double>& v, size_t i) { return v.empty() ? 0.0 : v[std::min(i, v.size() - 1)]; };
+    b.hold_between_submissions(true);
+    std::cout << "hold timing: uncached host memory " << backend::VulkanLifetimeTest::device(b)->uncached_memory << "\n";
+    int failures = 0;
+    std::vector<double> release;
+    for (int i = 0; i < 1000; ++i) {
+        b.wait(b.submit());
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
+        const uint64_t held = backend::VulkanLifetimeTest::hold_last(b);
+        const auto t0 = Clock::now();
+        b.submit();
+        if (!backend::VulkanLifetimeTest::hold_ended(b, 2000000000ull, held)) break;
+        release.push_back(ms_since(t0));
+    }
+    std::sort(release.begin(), release.end());
+    const bool released = release.size() == 1000 && at(release, 990) < 1.0;
+    std::cout << "hold released by the next submission: " << release.size() << " holds, p50 " << at(release, 500) << " ms, p99 " << at(release, 990) << " ms, max "
+              << at(release, 999) << " ms" << (released ? " PASS\n" : " FAIL\n");
+    if (!released) ++failures;
+    // The hold given back with no work after it.
+    std::vector<double> alone;
+    for (int i = 0; i < 300; ++i) {
+        b.wait(b.submit());
+        std::this_thread::sleep_for(std::chrono::microseconds(500));
+        const uint64_t held = backend::VulkanLifetimeTest::hold_last(b);
+        const auto t0 = Clock::now();
+        b.hold_between_submissions(false);
+        if (!backend::VulkanLifetimeTest::hold_ended(b, 2000000000ull, held)) break;
+        alone.push_back(ms_since(t0));
+        b.hold_between_submissions(true);
+    }
+    std::sort(alone.begin(), alone.end());
+    const bool given_back = alone.size() == 300 && at(alone, 296) < 1.0;
+    std::cout << "hold given back: " << alone.size() << " holds, p50 " << at(alone, 150) << " ms, p99 " << at(alone, 296) << " ms, max " << at(alone, 299) << " ms"
+              << (given_back ? " PASS\n" : " FAIL\n");
+    if (!given_back) ++failures;
+    for (int i = 0; i < 3; ++i) {
+        b.wait(b.submit());
+        const auto t1 = Clock::now();
+        const bool ended = backend::VulkanLifetimeTest::hold_ended(b, 2000000000ull);
+        const double took = ms_since(t1);
+        const bool ok = ended && took >= 50 && took <= 400;
+        std::cout << "hold never released: ended " << ended << " after " << took << " ms" << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    b.hold_between_submissions(false);
+    return failures;
+}
+
 int kernel_checks() {
     int failures = 0;
     for (int kind = 1; kind <= 5; ++kind) {
@@ -282,20 +356,20 @@ int kernel_checks() {
     return failures;
 }
 
-// Hold setup (Backend::hold_between_submissions) failing at its timeline (1) or at one of its four events (2 to 5): what it made is destroyed, and a later call makes the hold whole.
+// Hold setup (Backend::hold_between_submissions) failing at its timeline (1) or at its release counter's memory (2): what it made is destroyed, and a later call makes the hold whole.
 struct HoldCalls;
 HoldCalls* hold_calls = nullptr;
 struct HoldCalls {
     backend::Fn original;
     std::shared_ptr<backend::Device> device;
     int failure, creates = 0, freed = 0;
-    std::vector<uint64_t> live;   // the semaphores and events made since these calls were set
+    std::vector<uint64_t> live;   // the semaphores and memory made since these calls were set
     HoldCalls(backend::VulkanBackend& b, int fail) : device(backend::VulkanLifetimeTest::device(b)), failure(fail) {
         original = device->fn;
         hold_calls = this;
         auto& fn = device->fn;
         fn.vkCreateSemaphore = semaphore; fn.vkDestroySemaphore = destroy_semaphore;
-        fn.vkCreateEvent = event; fn.vkDestroyEvent = destroy_event;
+        fn.vkAllocateMemory = memory; fn.vkFreeMemory = free_memory;
         fn.vkFreeCommandBuffers = free_cmds;
     }
     ~HoldCalls() { device->fn = original; hold_calls = nullptr; }
@@ -311,10 +385,10 @@ struct HoldCalls {
         if (r == VK_SUCCESS) q.live.push_back((uint64_t)*out);
         return r;
     }
-    static VKAPI_ATTR VkResult VKAPI_CALL event(VkDevice d, const VkEventCreateInfo* ci, const VkAllocationCallbacks* a, VkEvent* out) {
+    static VKAPI_ATTR VkResult VKAPI_CALL memory(VkDevice d, const VkMemoryAllocateInfo* ai, const VkAllocationCallbacks* a, VkDeviceMemory* out) {
         auto& q = *hold_calls;
         if (q.fail_next()) return VK_ERROR_OUT_OF_HOST_MEMORY;
-        const VkResult r = q.original.vkCreateEvent(d, ci, a, out);
+        const VkResult r = q.original.vkAllocateMemory(d, ai, a, out);
         if (r == VK_SUCCESS) q.live.push_back((uint64_t)*out);
         return r;
     }
@@ -322,9 +396,9 @@ struct HoldCalls {
         hold_calls->gone((uint64_t)s);
         hold_calls->original.vkDestroySemaphore(d, s, a);
     }
-    static VKAPI_ATTR void VKAPI_CALL destroy_event(VkDevice d, VkEvent e, const VkAllocationCallbacks* a) {
-        hold_calls->gone((uint64_t)e);
-        hold_calls->original.vkDestroyEvent(d, e, a);
+    static VKAPI_ATTR void VKAPI_CALL free_memory(VkDevice d, VkDeviceMemory m, const VkAllocationCallbacks* a) {
+        hold_calls->gone((uint64_t)m);
+        hold_calls->original.vkFreeMemory(d, m, a);
     }
     static VKAPI_ATTR void VKAPI_CALL free_cmds(VkDevice d, VkCommandPool p, uint32_t n, const VkCommandBuffer* c) {
         ++hold_calls->freed;
@@ -335,9 +409,13 @@ struct HoldCalls {
 int hold_checks() {
     int failures = 0;
     const std::vector<uint8_t> src = [] { std::vector<uint8_t> v(4096); for (size_t i = 0; i < v.size(); ++i) v[i] = (uint8_t)(i * 7 + 1); return v; }();
-    for (int kind = 1; kind <= 5; ++kind) {
+    for (int kind = 1; kind <= 2; ++kind) {
         auto base = backend::make_vulkan_backend(0);
         auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+        if (!backend::VulkanLifetimeTest::device_clock(b)) {
+            std::cout << "hold_case=" << kind << " skipped, the device's shaders read no device clock\n";
+            continue;
+        }
         bool threw = false, cleaned = false, copied = false;
         {
             HoldCalls q(b, kind);
@@ -346,13 +424,15 @@ int hold_checks() {
             cleaned = q.live.empty() && q.freed == 1;
             q.failure = 0;
             b.hold_between_submissions(true);
-            const auto s = b.adopt(src.data(), src.size());
-            const auto d = b.alloc(src.size(), backend::Memory::host_visible);
-            b.copy(*d, 0, *s, 0, 2048);
-            b.wait(b.submit());
-            b.copy(*d, 2048, *s, 2048, 2048);
-            b.wait(b.submit());
-            copied = std::memcmp(d->host_ptr(), src.data(), src.size()) == 0;
+            {
+                const auto s = b.adopt(src.data(), src.size());
+                const auto d = b.alloc(src.size(), backend::Memory::host_visible);
+                b.copy(*d, 0, *s, 0, 2048);
+                b.wait(b.submit());
+                b.copy(*d, 2048, *s, 2048, 2048);
+                b.wait(b.submit());
+                copied = std::memcmp(d->host_ptr(), src.data(), src.size()) == 0;
+            }
             b.hold_between_submissions(false);
             base.reset();
             cleaned = cleaned && q.live.empty();
@@ -1737,7 +1817,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

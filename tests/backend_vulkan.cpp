@@ -4998,7 +4998,7 @@ int main(int argc, char** argv) {
             checks += 2;
         }
 
-        // A device holding between submissions (Backend::hold_between_submissions): work behind a hold runs once the next submission lets it go, also after an idle gap the watchdog ends, and a backend dropped with a hold pending tears down.
+        // A device holding between submissions (Backend::hold_between_submissions): work behind a hold runs once the next submission lets it go, also after an idle gap the hold's own bound ends, and a backend dropped with a hold pending tears down.
         {
             auto h = backend::make_vulkan_backend(0, false);
             h->hold_between_submissions(true);

@@ -121,15 +121,36 @@ The lifetime and packed-quantization tests include the implementation and use te
   free slot only once 16 submissions are in flight.
   A backend asked to hold between submissions (a device of a placement over
   several), while any request to hold remains, follows each `submit()` with a
-  submission that waits on an event:
-  the next submission sets it, or a watchdog thread, started then, after
-  100 ms without one, so the card stays busy, and its clock up, while
-  another device runs its stage, and an idle card still idles. The
-  backend's own flushes (a chunk, an upload, a read, `sync`) set a pending
-  event and add none, and neither does a tensor group's sum, whose
+  submission of the hold kernel (`shaders/hold.comp`), one invocation that
+  spins until the release counter reaches its sequence or 100 ms of the
+  device's clock have passed, so the card stays busy, and its clock up,
+  while another device runs its stage, an idle card still idles, and a
+  process killed mid-hold leaves a job that ends by itself rather than one
+  the driver resets every ring for at its job timeout. The release counter
+  is one word of host memory, of a type the device reads past its caches
+  where it offers one (VK_AMD_device_coherent_memory's device-uncached host
+  memory, `Device::uncached_memory`); the next submission's `prepare` writes
+  the last hold's sequence there before it submits, and the hold, reading it
+  with an atomic, ends within a fraction of a millisecond; where the device
+  offers no such type, as RADV on an MI50, host memory the CPU does not
+  cache serves, and the atomic sees the write there too. The hold given
+  back is followed by a submission, at whose start the release is seen at
+  once, where the atomic alone took up to 3 ms on an MI50. The
+  backend's own flushes (a chunk, an upload, a read, `sync`) release a pending
+  hold and add none, and neither does a tensor group's sum, whose
   submission the member's next work follows at once: a group's member is
-  held once a stage, after the stage's own `submit()`. The hold's command buffers, timeline, events and
-  watchdog are made at the first request; a failure part way destroys what
+  held once a stage, after the stage's own `submit()`. A device whose
+  shaders read no device clock (`Device::device_clock`, VK_KHR_shader_clock's
+  `shaderDeviceClock`) keeps no hold and says so, and so does one whose
+  first hold, released with no submission after it, ends by its bound
+  rather than the release (`hold_seen`, checked once at setup through the
+  word after the counter, where a hold its bound ends writes its sequence;
+  the queue's earlier work is waited for and the release comes 10 ms after
+  the hold's submission, so it reaches a hold already spinning and no
+  submission's start shows it the write). The 100 ms are counted in
+  the clock's ticks at the timestamp period, the drivers feeding both from
+  one reference clock. The hold's command buffers, timeline, release counter
+  and kernel are made at the first request; a failure part way destroys what
   it made, so a later request starts again.
   Small per-call inputs go through a host-visible arena per ring slot; a
   scratch outgrown mid-pass retires with the slot rather than being freed
@@ -460,6 +481,19 @@ From the comment at line 2:
 - The sum of squares is a lane's fused multiply-adds, then a tree through shared memory in a fixed order, so a head computes the same in every build and beside any other rows.
 - With `quant` 1, dim is a multiple of 32 and the output's 16-bit twin is written beside it (xquant.glsl); with `quant` 2 the integer-dot tile reads the rows next, and a lane writes four values of the twin at a time.
 - dst may be x: every value is read for the sum before the barrier, and after it each lane reads and writes only its own values.
+
+### `src/backends/vulkan/shaders/hold.comp`
+
+A held queue's wait between submissions: one invocation reads the release
+counter with `atomicAdd(released, 0)` until it reaches the hold's sequence
+(compared as a signed difference, so the counter may wrap), or until the
+low word of `clockRealtime2x32EXT` has advanced the push constant's ticks
+from the first read. A plain load did not do: on the Radeon VII under the
+AMD proprietary driver a `coherent volatile` load, scalar or vector, never
+saw the host's write even in device-uncached memory, every hold running to
+its bound, while the atomic saw it within 0.3 ms; on an MI50 under RADV a
+load saw it only once the next submission's start invalidated the L2, and
+the atomic within 0.1 ms with or without one.
 
 ### `src/backends/vulkan/shaders/matmul_row.comp`
 

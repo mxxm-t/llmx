@@ -71,7 +71,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act attention_vec
         sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
-        kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows)
+        kv_index_pool kv_index_scores_tile kv_index_select kv_index_select_wide add_bias gelu layer_norm_rows mix_rows hold)
     # A variant is the same source compiled with a define, "name=source=DEFINE"; the row kernel is one module per family of types, since one module for all of them raised every path's registers.
     set(LLMX_VK_VARIANTS moe_route_s1=moe_route=LLMX_SLOTS1 moe_route_s2=moe_route=LLMX_SLOTS2 moe_route_s4=moe_route=LLMX_SLOTS4 moe_route_s8=moe_route=LLMX_SLOTS8
         matmul_row_iq4_dot=matmul_row=LLMX_IQ4+LLMX_DOT+LLMX_PRESERVE_F32

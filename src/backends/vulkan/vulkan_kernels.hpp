@@ -948,6 +948,10 @@ const uint32_t kSpvAttentionFullTileD64[] = {
 const uint32_t kSpvAttentionFullTileD72[] = {
 #include "vulkan/attention_full_tile_d72.inc"
 };
+// A held queue's bounded wait (Backend::hold_between_submissions).
+const uint32_t kSpvHold[] = {
+#include "vulkan/hold.inc"
+};
 
 // IDs, diagnostic names and module bindings share this order; cache variants rely on adjacent IDs.
 #define LLMX_VULKAN_KERNELS(X) \
@@ -1219,7 +1223,8 @@ const uint32_t kSpvAttentionFullTileD72[] = {
     X(K_NORM_ROPE_PARTIAL_STREAMS, "norm_rope_partial_streams", kSpvNormRopePartialStreams, sizeof(kSpvNormRopePartialStreams), 7, nullptr) \
     X(K_ATTENTION_FULL, "attention_full", kSpvAttentionFull, sizeof(kSpvAttentionFull), 7, nullptr) \
     X(K_ATTENTION_FULL_TILE_D64, "attention_full_tile_d64", kSpvAttentionFullTileD64, sizeof(kSpvAttentionFullTileD64), 6, nullptr) \
-    X(K_ATTENTION_FULL_TILE_D72, "attention_full_tile_d72", kSpvAttentionFullTileD72, sizeof(kSpvAttentionFullTileD72), 6, nullptr)
+    X(K_ATTENTION_FULL_TILE_D72, "attention_full_tile_d72", kSpvAttentionFullTileD72, sizeof(kSpvAttentionFullTileD72), 6, nullptr) \
+    X(K_HOLD, "hold", kSpvHold, sizeof(kSpvHold), 1, nullptr)
 
 #define LLMX_KERNEL_ID(id, name, ...) id,
 enum KernelId { LLMX_VULKAN_KERNELS(LLMX_KERNEL_ID) K_COUNT };

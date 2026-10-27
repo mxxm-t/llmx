@@ -463,6 +463,68 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                 document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + script + "</script></body>")
                 self.assertEqual(len(self.run_browser(document, width)), 15)
 
+    def test_image_encode_progress_rendering(self):
+        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+let healthTimestamp = 120000;
+function health(items) {
+  healthTimestamp += 1000;
+  return {requests: {live: {sample_elapsed_ms: healthTimestamp, limit: 64, total: items.length, omitted: 0, items}}};
+}
+const base = {prefilled_tokens: 0, published_tokens: 0, elapsed_ms: 12000};
+updateLiveRequests(health([{...base, id: 'image-a', phase: 'encode', image: {
+  index: 1, count: 2, rows: 11844, pieces_done: 540, pieces_total: 1082
+}}]));
+drawLiveRequests(state.liveRequests);
+let row = document.querySelector('.live-request-row');
+let progress = row.querySelector('.live-image-progress');
+check('encode phase and image rows render', row.querySelector('.live-phase').textContent === 'encode' &&
+  progress.textContent.includes('Image 1/2 / 11,844 rows'));
+check('piece progress shows measured percentage and counts', progress.textContent.includes('49.9%') &&
+  progress.textContent.includes('540/1,082 pieces') && row.querySelector('[role=progressbar]').getAttribute('aria-valuenow') === '49.90757855822551');
+check('image progress labels fit the card width', [...progress.querySelectorAll('.live-image-labels span')].every(label =>
+  label.scrollWidth <= label.clientWidth + 1));
+const stable = [row.getBoundingClientRect().height, progress.getBoundingClientRect().height];
+updateLiveRequests(health([{...base, id: 'image-a', phase: 'encode', image: {
+  index: 1, count: 2, rows: 11844, pieces_done: 0, pieces_total: 0
+}}]));
+drawLiveRequests(state.liveRequests);
+row = document.querySelector('.live-request-row');
+progress = row.querySelector('.live-image-progress');
+check('zero total says waiting without a percentage', progress.textContent.includes('Waiting for encoder') &&
+  !progress.textContent.includes('%') && !row.querySelector('[role=progressbar]').hasAttribute('aria-valuenow'));
+check('waiting state keeps card geometry stable', JSON.stringify(stable) === JSON.stringify([
+  row.getBoundingClientRect().height, progress.getBoundingClientRect().height]));
+updateLiveRequests(health([
+  {...base, id: 'image-a', phase: 'encode', image: {index: 1, count: 2, rows: 100, pieces_done: 1, pieces_total: 2}},
+  {...base, id: 'image-b', phase: 'encode', image: {index: 2, count: 2, rows: 200, pieces_done: 2, pieces_total: 4}}
+]));
+drawLiveRequests(state.liveRequests);
+check('multiple live images keep their own index and totals', document.querySelectorAll('.live-image-progress').length === 2 &&
+  document.querySelectorAll('.live-image-progress')[1].textContent.includes('Image 2/2 / 200 rows'));
+updateLiveRequests(health([{...base, id: 'image-a', phase: 'generate'}]));
+drawLiveRequests(state.liveRequests);
+check('transition to generation removes image progress', !document.querySelector('.live-image-progress') &&
+  document.querySelector('.live-phase').textContent === 'generate');
+updateLiveRequests(health([{...base, id: 'old-api', phase: 'prefill'}]));
+drawLiveRequests(state.liveRequests);
+check('older request rows render without image metadata', !document.querySelector('.live-image-progress') &&
+  document.querySelector('.live-request-row'));
+updateLiveRequests({requests: {}});
+drawLiveRequests(state.liveRequests);
+check('older server without live rows stays unavailable', $('live-requests-summary').textContent.includes('unavailable'));
+check('responsive layout has no horizontal overflow', document.documentElement.scrollWidth <= innerWidth);
+globalThis.rateTestResults = outcomes;
+"""
+        results = ("<pre id='rate-test-results'></pre><script>" + cases +
+                   "document.querySelector('#rate-test-results').textContent = JSON.stringify(globalThis.rateTestResults);</script>")
+        document = source.replace("</body>", results + "</body>")
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                self.assertEqual(len(self.run_browser(document, width)), 10)
+
     def test_shared_runtime_and_request_windows(self):
         source = HTML_FILE.read_text(encoding="utf-8")
         helpers = "\n".join(function_source(source, name) for name in FUNCTIONS)

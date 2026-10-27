@@ -63,6 +63,12 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   Requests that start and finish between polls may not appear because the
   endpoint exposes current live rows, not completed request history. It contains
   no prompt text or token IDs.
+- During image encoding, a live item may include `phase: "encode"` and an
+  optional `image` object with one-based `index`, `count`, `rows`,
+  `pieces_done` and `pieces_total`. The card shows the image number, row count
+  and piece progress. A zero `pieces_total` is shown as "Waiting for encoder"
+  without a percentage. Older servers and non-encoding phases need no image
+  fields; text progress remains in `prefilled_tokens`.
 - Rate values keep the same type and spacing as snapshots become stale or
   rates become unavailable. A separate status line labels the last measured
   value; unavailable values use `--`. Known zero rates stay at zero on the

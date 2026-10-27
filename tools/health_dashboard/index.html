@@ -928,6 +928,37 @@ p {
   color: var(--muted);
   font-size: 12px
 }
+.live-image-progress {
+  margin-top: 9px;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums
+}
+.live-image-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px
+}
+.live-image-labels span:last-child {
+  text-align: right
+}
+.live-image-track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #253343
+}
+.live-image-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cyan)
+}
+.live-image-track.waiting {
+  visibility: hidden
+}
 .live-request-details summary {
   cursor: pointer;
   width: fit-content;
@@ -1214,6 +1245,13 @@ td:last-child {
   }
   .live-request-row {
     padding: 11px
+  }
+  .live-image-labels {
+    display: grid;
+    gap: 2px
+  }
+  .live-image-labels span:last-child {
+    text-align: left
   }
   .live-request-rate strong {
     font-size: 16px
@@ -2972,12 +3010,24 @@ function updateLiveRequests(raw, alignedWindows = null, alignWindows = false) {
   const rows = items.map(item => {
     return {
       id: item.id,
-      phase: ['queued', 'paused', 'prefill', 'generate'].includes(item.phase) ? item.phase : 'unknown',
+      phase: ['queued', 'paused', 'prefill', 'encode', 'generate'].includes(item.phase) ? item.phase : 'unknown',
       prompt: item.prompt_tokens,
       reused: item.reused_tokens,
       prefilled: item.prefilled_tokens,
       published: item.published_tokens,
       elapsed: item.elapsed_ms,
+      image: item.image && typeof item.image === 'object' && !Array.isArray(item.image) &&
+        Number.isSafeInteger(item.image.index) && item.image.index >= 1 &&
+        Number.isSafeInteger(item.image.count) && item.image.count >= item.image.index &&
+        Number.isSafeInteger(item.image.rows) && item.image.rows >= 0 &&
+        Number.isSafeInteger(item.image.pieces_done) && item.image.pieces_done >= 0 &&
+        Number.isSafeInteger(item.image.pieces_total) && item.image.pieces_total >= 0 ? {
+          index: item.image.index,
+          count: item.image.count,
+          rows: item.image.rows,
+          piecesDone: item.image.pieces_done,
+          piecesTotal: item.image.pieces_total
+        } : null,
       pp: requestWindowRate(liveRequestHistory, item.id, 'prefilled_tokens', state.interval,
         alignWindows ? (alignedWindows?.prefilled_tokens || {}) : null),
       tg: requestWindowRate(liveRequestHistory, item.id, 'published_tokens', state.interval,
@@ -3058,6 +3108,29 @@ function drawLiveRequests(view) {
       metric.append(status);
       rates.append(metric)
     }
+    let imageProgress = null;
+    if (item.phase === 'encode' && item.image) {
+      imageProgress = element('div', 'live-image-progress');
+      const waiting = item.image.piecesTotal === 0;
+      const percent = waiting ? null : Math.min(100, item.image.piecesDone / item.image.piecesTotal * 100);
+      const labels = element('div', 'live-image-labels');
+      labels.append(element('span', '', 'Image ' + fmt(item.image.index) + '/' + fmt(item.image.count) + ' / ' + fmt(item.image.rows) + ' rows'));
+      labels.append(element('span', '', waiting ? 'Waiting for encoder' : fmt(percent) + '% / ' + fmt(item.image.piecesDone) + '/' + fmt(item.image.piecesTotal) + ' pieces'));
+      const track = element('div', 'live-image-track' + (waiting ? ' waiting' : ''));
+      track.setAttribute('role', 'progressbar');
+      track.setAttribute('aria-label', waiting ? 'Image encoding waiting for encoder' : 'Image encoding progress');
+      track.setAttribute('aria-valuemin', '0');
+      if (!waiting) {
+        track.setAttribute('aria-valuemax', '100');
+        track.setAttribute('aria-valuenow', String(percent));
+      } else {
+        track.setAttribute('aria-valuetext', 'Waiting for encoder');
+      }
+      const fill = element('span');
+      fill.style.width = (percent === null ? 0 : percent) + '%';
+      track.append(fill);
+      imageProgress.append(labels, track);
+    }
     const details = document.createElement('details');
     details.className = 'live-request-details';
     const detailSummary = document.createElement('summary');
@@ -3065,7 +3138,9 @@ function drawLiveRequests(view) {
     const counters = element('div', 'live-request-counters');
     counters.append(counter('Prompt', item.prompt), counter('Reused', item.reused), counter('Prefilled', item.prefilled), counter('Published', item.published));
     details.append(detailSummary, counters);
-    row.append(head, rates, details);
+    row.append(head, rates);
+    if (imageProgress) row.append(imageProgress);
+    row.append(details);
     fragment.append(row)
   }
   body.append(fragment);

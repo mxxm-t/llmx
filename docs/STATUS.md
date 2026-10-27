@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Dashboard image-encoding progress (2026-10-27, branch integrate/dashboard-image-20261027)
+
+- **Goal:** show progress for live requests that are encoding images, using the optional image fields already exposed by `/v1/health`.
+- **Done:** replayed the dashboard preview from `ff7b816a3` and its narrow-layout fix from `32a980a2c`. This uses the live item fields introduced by `ac940c059`; the collector and runtime are unchanged. README documents the fields, text progress remains separate, and zero `pieces_total` displays "Waiting for encoder" without a percentage.
+- **Tests:** all 11 combined collector/browser tests pass without skips, including image progress at desktop and narrow widths and the startup transitions. `docs` and `dead-code` pass. Commands and tested source hashes are retained in `build-integration/final-image-checks-v1/receipt.json`. The unchanged image panel's earlier visual review also covers 1440 and 390 CSS pixels without overflow.
+- **Review and landing:** only the dashboard README and STATUS change among 145 tracked Markdown pages; the other pages retain the review at main `0bff88ed3`. The runtime contract is already on main, and no collector, inference or numerical code changes. This static UI feature lands as one fast-forward commit on `0bff88ed3`; the applicable browser and documentation checks run, with no unrelated GPU gate. Existing startup and restart-rate behavior is preserved.
+- **Left:** publish and deploy the combined dashboard. Optional `image.elapsed_ms` remains unused until its meaning is defined.
+
 ## Dashboard startup status consumer (2026-10-27, branch feat/dashboard-startup-status)
 
 - **Goal:** show the server's bounded `/v1/health` startup and failure record while preserving ready telemetry and inference-rate semantics.

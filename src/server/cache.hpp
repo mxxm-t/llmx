@@ -2317,7 +2317,8 @@ inline void Cache::prove(const Lines& lines, Request& r) {
         wake_readers(lines, r.proof_);
         sync_disk();
         r.proof_ = r.prove_at_ = 0;
-        r.prove_state_ = r.unproved_ = r.boundary_kept_ = false;
+        r.prove_state_ = r.unproved_ = false;
+        r.boundary_kept_ = 0;
         return;
     }
 }
@@ -2327,7 +2328,7 @@ inline void Cache::unprove(const Lines& lines, Request& r) {
     if (r.unproved_) try { model_.reset(r.seq_); } catch (const std::exception&) {}
     const uint64_t id = r.proof_;
     r.proof_ = r.prove_at_ = 0;
-    r.boundary_kept_ = r.boundary_kept_ && !r.unproved_;
+    if (r.unproved_) r.boundary_kept_ = 0;
     r.prove_state_ = r.unproved_ = false;
     std::lock_guard<std::mutex> lk(m_);
     end_proof(lines, id);

@@ -1,5 +1,26 @@
 # llmx - Development Status
 
+## A message boundary kept on a split whose prompt continues (2026-10-27, branch fix/boundary-retire on main dd4163407, LDEV's FINDING of 2026-10-27 02:26, in progress)
+
+- **Why:** every cut turn on production logged "the message boundary a request asked for was not kept (its history has no state kept once its pass retired, at 0)", so an edit or a regenerate of the last message after a cut read the whole cut prompt again (95k to 212k tokens). The scheduler marked the request when it formed the pass whose slice ends at the boundary, and the first of the request's passes to retire spent the mark: on a split a long prompt continues in consecutive passes, so the pass of the slice before retired first, before the boundary's checkpoint was the sequence's.
+- **Done:** `Request::boundary_kept_` is the boundary's position, the end of the slice whose pass keeps it, in place of a flag (F2DEV's decision of 2026-10-27 02:27); retire asks for the boundary only on the pass whose rows end there, and the proof's path reads the same position. A second loss stood behind it: the boundary's copy to host memory is refused for a sequence in flight ("inference: a copy to host memory of a sequence in flight", twice in production's log of 2026-10-27), and a continued prompt's next slice was in flight when the boundary's pass retired; so no slice continues while a boundary's pass is in flight (`Scheduler::continues`), one pipeline bubble a prompt that asks for a boundary.
+- **Audit** (the owner's rule of 2026-10-16: every path where passes in flight retire out of order and a decision taken at a pass's formation could be spent by an earlier pass's retirement, read at main d1525c6e9):
+
+  | Decision | Taken | Consumed | Verdict |
+  |---|---|---|---|
+  | the message boundary's state (`boundary_kept_`) | formation, the slice ending at it | retire of the first pass of the request | same bug, fixed here |
+  | the boundary's copy to host memory (`Cache::keep_boundary`) | the boundary pass's retire | `Model::copy_to_host`, refused while a later slice of the sequence is in flight | other: a second loss on the same path, fixed here by not continuing past a boundary in flight |
+  | the follow-up checkpoint (`keep_at_`) and any `BatchEntry::keep` | formation | that pass's own last-stage commit (`Pass::kept`, `stage_commit`) | safe: held by the pass |
+  | a proof's state (`prove_at_`) | formation | `Cache::prove`, only once `seq_.in_flight()` is false | safe |
+  | a boundary over rows restored unproved | formation | the same retire as the boundary, now at its position | safe with the fix |
+  | a verify's mark and drafts (`verify_`) | formation | `settle_verifies` of the same slot; a decoding request is in one pass at a time | safe |
+  | a slice's ticket under the interleaved rule (`slice_ticket_`) | each stage of the slice's pass, the latest slice overwriting | the next slice's formation | safe |
+  | a cancel, a job's completion and its donor, parking and pausing | none at formation | each waits for `seq_.in_flight()` to be false | safe |
+  | sampling and a request's end | the wanting rows of a pass | that pass's retire | safe |
+  | rows read again, `reached_`, the restore's first pass and a turn's change timing | none | any retire, as counts or the first pass's time | other: counts and timings, no rows kept or lost |
+- **Tests:** the first commit, failing on main: `server-passes-cpu`'s boundary on a split whose prompt continues (AGENTS, Tests).
+- **Left:** CTest, Qwen3-0.6B byte identity against main, the hosted run.
+
 ## The long-context queue planned (2026-10-27, branch docs/cache-plan-r9 on main 8bdef6867, docs only, the owner's approval of 2026-10-26 to plan it, decided by the owner on 2026-10-27, lands by fast-forward as one commit)
 
 - **Goal:** docs/CACHE-PLAN.md section 10 (revision 9): cheaper context cuts and the next window prepared in idle time, YaRN for a model that declares rope scaling, and KV beyond VRAM through the indexer, each with the measured facts and the measurement that decides whether it goes on the roadmap.

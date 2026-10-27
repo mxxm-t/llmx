@@ -251,7 +251,7 @@ private:
     bool first_pass_ = false;      // a promotion it took waits for its next pass to retire, whose time is Restore::first_pass_ms
     Clock::time_point first_before_{};   // first_ as that promotion found it: unset where the pass gives the first token, so the pass is in prompt_ms
     size_t boundary_at_ = 0;       // on a model that keeps a state, where the slice that reaches it keeps the state as a message boundary; 0 once kept or skipped
-    bool boundary_kept_ = false;   // its pass in flight keeps that state, which goes to host memory once the pass retires
+    size_t boundary_kept_ = 0;     // where its pass in flight keeps that state, the end of that pass's slice, which goes to host memory once that pass retires; 0 for none
     size_t keep_at_ = 0;           // on a model that keeps a state, where the slice that reaches it keeps the state as a checkpoint; 0 once kept or skipped
     size_t read_alone_ = 0;        // prompt rows it read while it was alone, which prompt_slice brings back to a whole ubatch once company comes; 0 after that
     backend::Ticket slice_ticket_ = 0;   // under the interleaved rule, its last slice's submission at the first stage, before whose retirement no next slice is formed
@@ -1117,7 +1117,7 @@ private:
                 }
                 if (!e.keep) cache_.moved(Move::boundary_not_kept, "server: cache: the message boundary asked at %zu tokens was not kept (no checkpoint slot for it)\n", at + n);
                 r->boundary_at_ = 0;
-                r->boundary_kept_ = e.keep;
+                r->boundary_kept_ = e.keep ? at + n : 0;
             }
             // The slice that ends a proof's path keeps its state there, which the proof compares.
             if (r->prove_state_ && r->prove_at_ == at + n && !e.keep) {
@@ -1505,9 +1505,10 @@ private:
                 r.restore_.part(r.restore_.first_pass_ms, std::chrono::duration<double, std::milli>(Clock::now() - f.begun).count(), r.first_before_);
             }
             if (r.job_) job_rows += f.rows[e];
-            if (r.boundary_kept_) {
+            // Only the pass whose rows reach the boundary holds its state: an earlier slice of a continued prompt retires first.
+            if (r.boundary_kept_ && f.from[e] + f.rows[e] == r.boundary_kept_) {
                 // A state computed over rows restored from unproved files is kept by no one: prove keeps the one at its path's end once the proof has ended equal.
-                r.boundary_kept_ = r.unproved_ && to == r.prove_at_;
+                if (!r.unproved_ || to != r.prove_at_) r.boundary_kept_ = 0;
                 std::lock_guard<std::mutex> lk(m_);
                 if (!r.cancel_.load() && !r.unproved_) cache_.asked_boundary(r);
             }
@@ -2246,6 +2247,8 @@ private:
     // Not while a request could not grow, nor a cancelled request, nor a job while a request waits for its seat or room; beside generated rows a continuation leaves a slot free.
     bool continues(const Request& r, bool generating) const {
         if (!r.seq_.in_flight() || stalled_now_ || r.cancel_.load() || decoding(r) || (r.job_ && jobs_yield_)) return false;
+        // A boundary's pass retires before the next slice is formed, since its copy to host memory needs the sequence at rest (Cache::keep_boundary).
+        if (r.boundary_kept_) return false;
         size_t free = 0;
         for (size_t k = 0; k < normal_; ++k) {
             const Slot& s = slots_[k];

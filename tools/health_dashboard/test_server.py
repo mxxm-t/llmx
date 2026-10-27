@@ -19,6 +19,24 @@ def health(uptime=10, model="demo", version="v1", requests=3):
     }
 
 
+def startup_health(status="starting", uptime=1):
+    return {
+        "status": status,
+        "server": {"uptime_s": uptime, "model": "demo", "version": "v1", "numerics": "abc"},
+        "requests": {"now": {"active": 0, "queued": 0, "paused": 0, "kv_tokens": 0}},
+        "startup": {
+            "started_unix": 1000, "elapsed_s": 2.5, "phase": "weights",
+            **({"error": "bad model"} if status == "failed" else {}),
+            "phases": [
+                {"name": "metadata", "state": "done", "seconds": 0.2},
+                {"name": "weights", "state": "running", "seconds": 2.3,
+                 "bytes_done": 50, "bytes_total": 100, "bytes_per_s": 21,
+                 "files": [{"name": "part-1.gguf", "bytes_done": 50, "bytes_total": 100}]},
+            ],
+        },
+    }
+
+
 class HealthTests(unittest.TestCase):
     def test_schema_and_nonfinite_rejection(self):
         for raw in (
@@ -30,6 +48,15 @@ class HealthTests(unittest.TestCase):
             with self.subTest(raw=raw), self.assertRaises(ValueError):
                 server.parse_health(raw)
         self.assertEqual(server.parse_health(json.dumps(health()).encode())["status"], "ok")
+        self.assertEqual(server.parse_health_response(json.dumps(startup_health()).encode(), 503)["status"], "starting")
+        for status, raw in (
+            (200, json.dumps(startup_health()).encode()),
+            (503, b'{"status":"bad","server":{},"requests":{},"startup":{}}'),
+            (503, json.dumps({**startup_health("failed"), "startup": {"error": "no phases"}}).encode()),
+            (503, json.dumps({**startup_health(), "startup": {**startup_health()["startup"], "phases": [{"name": "x", "state": "running", "seconds": 1, "bytes_done": 1}]}}).encode()),
+        ):
+            with self.subTest(status=status, raw=raw), self.assertRaises(ValueError):
+                server.parse_health_response(raw, status)
         with self.assertRaisesRegex(ValueError, "exceeds 1 MiB"):
             server.parse_health(b" " * (server.MAX_BODY + 1))
 
@@ -51,6 +78,7 @@ class HealthTests(unittest.TestCase):
         self.assertEqual(failed["latest"], initial["latest"])
         self.assertEqual(failed["last_success"], initial["last_success"])
         self.assertEqual(failed["error"], "offline")
+        self.assertIsNone(failed["startup"])
         self.assertTrue(collector.poll_once())
         recovered = collector.snapshot()
         self.assertTrue(recovered["ok"])
@@ -90,6 +118,24 @@ class HealthTests(unittest.TestCase):
                     self.send_response(302)
                     self.send_header("Location", "/valid")
                     self.end_headers()
+                elif self.mode in ("starting", "failed"):
+                    body = json.dumps(startup_health(self.mode)).encode()
+                    self.send_response(503)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                elif self.mode == "ready":
+                    body = json.dumps(health(uptime=10)).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                elif self.mode in ("bad503", "oversize503"):
+                    body = b"{" if self.mode == "bad503" else b" " * (server.MAX_BODY + 1)
+                    self.send_response(503)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
                 else:
                     body = b"{broken"
                     self.send_response(200)
@@ -104,6 +150,36 @@ class HealthTests(unittest.TestCase):
             c = server.Collector("http://127.0.0.1:%d/health" % mock.server_port)
             self.assertFalse(c.poll_once())
             self.assertEqual(c.snapshot()["error"], "invalid JSON response")
+            Upstream.mode = "ready"
+            self.assertTrue(c.poll_once())
+            initial_ready = c.snapshot()
+            self.assertFalse(initial_ready["samples"][-1]["reset"])
+            Upstream.mode = "starting"
+            self.assertTrue(c.poll_once())
+            starting = c.snapshot()
+            self.assertFalse(starting["ok"])
+            self.assertEqual(starting["startup"]["status"], "starting")
+            self.assertEqual(len(starting["samples"]), len(initial_ready["samples"]))
+            Upstream.mode = "ready"
+            self.assertTrue(c.poll_once())
+            ready = c.snapshot()
+            self.assertIsNone(ready["startup"])
+            self.assertTrue(ready["samples"][-1]["reset"])
+            self.assertTrue(any(event["kind"] == "restart" for event in ready["events"]))
+            Upstream.mode = "failed"
+            self.assertTrue(c.poll_once())
+            failed = c.snapshot()
+            self.assertEqual(failed["startup"]["status"], "failed")
+            self.assertEqual(failed["latest"]["status"], "ok")
+            Upstream.mode = "bad"
+            self.assertFalse(c.poll_once())
+            offline = c.snapshot()
+            self.assertIsNone(offline["startup"])
+            self.assertEqual(offline["latest"], ready["latest"])
+            for mode, message in (("bad503", "invalid JSON response"), ("oversize503", "exceeds 1 MiB")):
+                Upstream.mode = mode
+                self.assertFalse(c.poll_once())
+                self.assertIn(message, c.snapshot()["error"])
             Upstream.mode = "redirect"
             self.assertFalse(c.poll_once())
             self.assertIn("HTTP 302", c.snapshot()["error"])

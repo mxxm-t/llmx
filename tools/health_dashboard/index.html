@@ -239,6 +239,71 @@ p {
 .notice.show {
   display: block
 }
+.startup-card {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-color: #514633
+}
+.startup-card[hidden] { display: none }
+.startup-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap
+}
+.startup-head h2 { margin: 0; font-size: 15px }
+.startup-summary {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums
+}
+.startup-error {
+  margin: 10px 0 0;
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere
+}
+.startup-phases {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none
+}
+.startup-phase {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(110px, .8fr) minmax(130px, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0e151e;
+  font-size: 11px
+}
+.startup-phase-name { overflow-wrap: anywhere; color: #dce6f1 }
+.startup-phase-state { color: var(--muted) }
+.startup-phase-state.running { color: var(--amber) }
+.startup-phase-state.failed { color: var(--red) }
+.startup-phase-detail { min-width: 0; color: var(--muted); overflow-wrap: anywhere }
+.startup-progress {
+  height: 4px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #253140
+}
+.startup-progress span { display: block; height: 100%; background: var(--cyan) }
+.startup-files { display: grid; gap: 3px; margin-top: 6px; font-size: 10px }
+.startup-file { overflow-wrap: anywhere }
+@media(max-width:600px) {
+  .startup-card { padding: 15px }
+  .startup-phase { grid-template-columns: minmax(0,1fr) auto; gap: 5px 8px }
+  .startup-phase-detail { grid-column: 1 / -1 }
+}
 #token-rate-note {
   display: block;
   height: 18px;
@@ -1715,6 +1780,14 @@ button[hidden] {
    </div>
    <div class="notice" id="notice" role="status">
    </div>
+   <section aria-live="polite" class="card startup-card" hidden id="startup-panel">
+    <div class="startup-head">
+     <h2 id="startup-title">Server starting</h2>
+     <span class="startup-summary" id="startup-summary"></span>
+    </div>
+    <p class="startup-error" hidden id="startup-error"></p>
+    <ol class="startup-phases" id="startup-phases"></ol>
+   </section>
    <div class="grid kpis">
     <div class="card kpi">
      <div class="card-label">
@@ -2775,6 +2848,8 @@ const state = {
   samples: [],
   latest: null,
   events: [],
+  startup: null,
+  startupObservedAt: null,
   collector: null,
   seq: 0,
   lastSuccess: null,
@@ -2923,6 +2998,12 @@ function drawLiveRequests(view) {
   const scrollTop = wrap.scrollTop;
   body.replaceChildren();
   wrap.hidden = true;
+  if (state.startup && ['starting', 'failed'].includes(state.startup.status)) {
+    txt('live-requests-count', '--');
+    summary.className = 'live-request-summary no-data';
+    summary.textContent = 'Live request rates are paused during server startup.';
+    return
+  }
   if (live.available === null) {
     txt('live-requests-count', '--');
     summary.className = 'live-request-summary no-data';
@@ -3251,13 +3332,72 @@ for (const[title, rows] of moveGroups) {
   }
   $('moves').append(card)
 }
+function currentStartup() {
+  const age = number(state.startupObservedAt) ? Math.max(0, Date.now() / 1000 - state.startupObservedAt) : null;
+  return !state.error && number(age) && age <= Math.max(10, state.interval * 3) &&
+    state.startup && ['starting', 'failed'].includes(state.startup.status) ? state.startup : null;
+}
 function snapshot() {
+  const startup = currentStartup();
   return {
-    samples: state.samples.slice(),
-    latest: state.latest,
-    liveRequests: state.liveRequests,
+    samples: startup ? [] : state.samples.slice(),
+    latest: startup || state.latest,
+    liveRequests: startup ? {available: true, items: [], total: 0, omitted: 0} : state.liveRequests,
     events: state.events.slice(),
-    lastSuccess: state.lastSuccess
+    startup,
+    startupObservedAt: state.startupObservedAt,
+    lastSuccess: startup ? state.startupObservedAt : state.lastSuccess
+  }
+}
+function renderStartup(startup, observedAt) {
+  const panel = $('startup-panel');
+  panel.hidden = !startup || !['starting', 'failed'].includes(startup.status);
+  if (panel.hidden) return;
+  const failed = startup.status === 'failed';
+  const age = number(observedAt) ? Math.max(0, Date.now() / 1000 - observedAt) : null;
+  const stale = number(age) && age > Math.max(10, state.interval * 3);
+  txt('startup-title', stale ? 'Last startup response (stale)' : failed ? 'Startup failed' : 'Server starting');
+  const record = startup.startup && typeof startup.startup === 'object' ? startup.startup : {};
+  txt('startup-summary', (typeof record.phase === 'string' && record.phase ? record.phase : 'Waiting for first phase') +
+    ' / ' + (number(record.elapsed_s) ? fmt(record.elapsed_s) + ' s elapsed' : 'elapsed time unavailable') +
+    (stale ? ' / last observed ' + duration(age) + ' ago' : ''));
+  const error = $('startup-error');
+  error.hidden = !failed || typeof record.error !== 'string';
+  error.textContent = error.hidden ? '' : record.error;
+  const list = $('startup-phases');
+  list.replaceChildren();
+  for (const phase of Array.isArray(record.phases) ? record.phases : []) {
+    const row = element('li', 'startup-phase');
+    row.append(element('span', 'startup-phase-name', typeof phase.name === 'string' ? phase.name : 'Unknown phase'));
+    row.append(element('span', 'startup-phase-state ' + (typeof phase.state === 'string' ? phase.state : ''),
+      (typeof phase.state === 'string' ? phase.state : 'state unavailable') +
+      (number(phase.seconds) ? ' / ' + fmt(phase.seconds) + ' s' : '')));
+    const detail = element('div', 'startup-phase-detail');
+    const hasBytes = number(phase.bytes_done) && number(phase.bytes_total);
+    if (hasBytes) {
+      detail.append(element('span', '', bytes(phase.bytes_done) + ' / ' + bytes(phase.bytes_total)));
+      if (number(phase.bytes_per_s)) detail.append(element('span', '', ' / ' + bytes(phase.bytes_per_s) + '/s phase average'));
+      if (phase.bytes_total > 0) {
+        const progress = element('div', 'startup-progress');
+        const fillBar = element('span');
+        fillBar.style.width = Math.min(100, Math.max(0, phase.bytes_done / phase.bytes_total * 100)) + '%';
+        progress.setAttribute('role', 'img');
+        progress.setAttribute('aria-label', bytes(phase.bytes_done) + ' of ' + bytes(phase.bytes_total));
+        progress.append(fillBar);
+        detail.append(progress)
+      }
+      if (Array.isArray(phase.files) && phase.files.length) {
+        const files = element('div', 'startup-files');
+        for (const file of phase.files) {
+          files.append(element('span', 'startup-file', (typeof file.name === 'string' ? file.name : 'File') + ': ' +
+            (number(file.bytes_done) ? bytes(file.bytes_done) : '--') + ' / ' +
+            (number(file.bytes_total) ? bytes(file.bytes_total) : '--')))
+        }
+        detail.append(files)
+      }
+    }
+    row.append(detail);
+    list.append(row)
   }
 }
 function drawOwnHistory(raw) {
@@ -3882,6 +4022,7 @@ function render() {
   drawLiveRequests(view.liveRequests);
   const m = p => get(raw, p);
   const workMode = configureWorkRates(raw);
+  const startupActive = !!view.startup && ['starting', 'failed'].includes(view.startup.status);
   document.querySelectorAll('[data-m]').forEach(e => {
     const v = m(e.dataset.m);
     e.textContent = e.dataset.format === 'bytes' ? bytes(v): e.dataset.format === 'ms' ? (number(v) ? fmt(v) + ' ms': '--'): typeof v === 'boolean' ? (v ? 'Yes': 'No'): fmt(v);
@@ -3898,9 +4039,11 @@ function render() {
   const outputField = chartConfigurations.find(config => config.id === 'throughput').fields[0];
   const throughputConfig = chartConfigurations.find(config => config.id === 'throughput');
   const latestMeasured = sampleIntervalMeasurement(view.samples, view.samples.length - 1, outputField, throughputConfig.clockField);
-  txt('token-rate', workMode === 'unavailable' ? '--' : formatRate(latestMeasured?.rate ?? null));
+  txt('token-rate', startupActive || workMode === 'unavailable' ? '--' : formatRate(latestMeasured?.rate ?? null));
   const sampleAge = runtimeSampleAge(view.samples, throughputConfig.clockField);
-  if (workMode === 'runtime' && number(sampleAge) && sampleAge > 0) {
+  if (startupActive) {
+    txt('token-rate-note', 'Inference rates are unavailable during server startup.');
+  } else if (workMode === 'runtime' && number(sampleAge) && sampleAge > 0) {
     const stale = sampleAge > Math.max(15, state.interval * 3);
     const status = stale ? 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; rate unavailable.' : 'Runtime snapshot unchanged for ' + fmt(sampleAge) + ' s; showing last measured sample interval as stale.';
     txt('token-rate-note', status);
@@ -3908,7 +4051,7 @@ function render() {
   }
   $('token-rate-note').title = $('token-rate-note').textContent;
   const req = latestRate(view.samples, 'requests.since_start.finished');
-  txt('request-rate', number(req) ? fmt(req * 60): '--');
+  txt('request-rate', startupActive ? '--' : number(req) ? fmt(req * 60): '--');
   txt('device-description', 'Server KV pool: ' + fmt(m('server.kv_tokens')) + ' tokens');
   fill('device-bar', m('reuse.device.now.kv_tokens'), m('server.kv_tokens'));
   txt('host-description', bytes(m('reuse.host.now.allocated_bytes')) + ' allocated / ' + bytes(m('reuse.host.now.limit_bytes')) + ' limit');
@@ -3937,6 +4080,7 @@ function render() {
   renderMetadata(raw);
   renderTopology(raw);
   renderLookupStorage(raw);
+  renderStartup(view.startup, view.startupObservedAt);
   renderEvents(view.events);
   explorerRows = view.latest ? flattenAll(raw): [];
   txt('metric-count', explorerRows.length + ' fields');
@@ -3954,15 +4098,21 @@ function renderStatus() {
   const age = state.lastSuccess === null ? null: Math.max(0, Date.now() / 1000 - state.lastSuccess);
   const stale = !state.ok || (age !== null && age > Math.max(10, state.interval * 3));
   const status = $('connection');
-  status.className = 'live ' + (state.ok && !stale ? 'good': state.received ? 'bad': '');
-  txt('connection-text', !state.received ? 'Connecting': state.ok && !stale ? 'Live telemetry': state.lastSuccess ? 'Telemetry stale': 'Disconnected');
+  const startup = currentStartup();
+    status.className = 'live ' + (startup?.status === 'failed' ? 'bad' : startup ? '' : state.ok && !stale ? 'good': state.received ? 'bad': '');
+  txt('connection-text', startup ? startup.status === 'failed' ? 'Startup failed' : 'Server starting' :
+    !state.received ? 'Connecting': state.ok && !stale ? 'Live telemetry': state.lastSuccess ? 'Telemetry stale': 'Disconnected');
   const messages = [];
   if (state.paused) messages.push('View paused. Collection continues in the background. Resume to see the latest samples.');
-  if (state.received && stale) messages.push((state.lastSuccess ? 'Showing the last successful health response. ': 'No successful health response yet. ') + (state.error || 'Waiting for fresh telemetry.'));
+  if (startup) messages.push(startup.status === 'failed' ? 'The reachable server reports a startup failure.' : 'The server has not started serving yet. Inference rates are paused.');
+  else if (state.received && stale) messages.push((state.lastSuccess ? 'Showing the last successful health response. ': 'No successful health response yet. ') + (state.error || 'Waiting for fresh telemetry.'));
   txt('notice', messages.join(' '));
   $('notice').classList.toggle('show', messages.length > 0);
+  if (!state.paused) renderStartup(state.startup, state.startupObservedAt);
   const view = state.paused && state.view ? state.view: snapshot();
-  txt('timestamp', view.lastSuccess === null ? 'Waiting for the first health sample.': (state.paused ? 'Paused at ': 'Last successful sample ') + new Date(view.lastSuccess * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.lastSuccess)) + ' ago');
+  txt('timestamp', view.startup && number(view.startupObservedAt) ?
+    (state.paused ? 'Paused at startup response ': 'Startup response observed ') + new Date(view.startupObservedAt * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.startupObservedAt)) + ' ago' :
+    view.lastSuccess === null ? 'Waiting for the first health sample.': (state.paused ? 'Paused at ': 'Last successful sample ') + new Date(view.lastSuccess * 1000).toLocaleString() + ' / ' + duration(Math.max(0, Date.now() / 1000 - view.lastSuccess)) + ' ago');
 }
 async function poll() {
   if (state.polling) return;
@@ -3982,6 +4132,8 @@ async function poll() {
       state.events = [];
       state.seq = 0;
       resetLiveRequestSample();
+      state.startup = null;
+      state.startupObservedAt = null;
       state.liveRequests = {available: null, items: [], total: null, omitted: null};
     }
     state.collector = data.collector_id;
@@ -3991,6 +4143,8 @@ async function poll() {
     state.received = true;
     state.lastSuccess = number(data.last_success) ? data.last_success: null;
     state.latest = data.latest && typeof data.latest === 'object' ? data.latest: null;
+    state.startup = data.startup && typeof data.startup === 'object' ? data.startup : null;
+    state.startupObservedAt = number(data.startup_observed_at) ? data.startup_observed_at : null;
     const fresh = Array.isArray(data.samples) ? data.samples: [];
     for (const s of fresh) {
       if (Number.isInteger(s.seq) && s.seq > state.seq && number(s.t) && s.metrics && typeof s.metrics === 'object') {
@@ -4001,6 +4155,7 @@ async function poll() {
     state.samples.sort((a, b) => a.seq - b.seq);
     const newest = state.samples.at( - 1);
     if (newest) state.samples = state.samples.filter(s => s.t >= newest.t - 3600);
+    if (state.startup || fresh.some(sample => sample.reset)) resetLiveRequestSample();
     const workMode = configureWorkRates(state.latest || {});
     const alignedWindows = workMode === 'runtime' && state.samples.length ? {
       prefilled_tokens: sampleIntervalMeasurement(state.samples, state.samples.length - 1,
@@ -4008,7 +4163,8 @@ async function poll() {
       generated_tokens: sampleIntervalMeasurement(state.samples, state.samples.length - 1,
         'requests.live.work.generated_tokens', 'requests.live.sample_elapsed_ms')
     } : null;
-    updateLiveRequests(state.latest || {}, alignedWindows, workMode === 'runtime');
+    if (state.startup) state.liveRequests = {available: true, items: [], total: 0, omitted: 0};
+    else updateLiveRequests(state.latest || {}, alignedWindows, workMode === 'runtime');
     if (Array.isArray(data.events)) {
       const seen = new Set(state.events.map(e => e.t + '|' + e.kind + '|' + e.message));
       for (const e of data.events) {

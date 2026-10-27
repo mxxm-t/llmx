@@ -357,7 +357,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
             profile = Path(temp) / "profile"
             page.write_text(document, encoding="utf-8", newline="")
             result = subprocess.run([browser, "--headless=new", "--disable-gpu", "--no-first-run",
-                                     "--disable-background-networking", "--window-size=" + str(width) + ",1200",
+                                     "--disable-background-networking", "--no-sandbox", "--window-size=" + str(width) + ",1200",
                                      "--user-data-dir=" + str(profile), "--dump-dom", page.as_uri()],
                                     capture_output=True, text=True, timeout=90, check=True)
         match = re.search(r"<pre id=[\"']rate-test-results[\"']>(.*?)</pre>", result.stdout, re.S)
@@ -376,6 +376,92 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
         for width in (1440, 390):
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 19)
+
+    def test_startup_panel_transitions_and_rate_suppression(self):
+        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+const now = Math.floor(Date.now() / 1000);
+function startup(status, record) { return {status, server: {uptime_s: 0}, requests: {now: {active: 0, queued: 0, paused: 0, kv_tokens: 0}}, startup: record}; }
+state.interval = 2;
+state.error = null;
+state.received = true;
+state.ok = false;
+state.lastSuccess = now - 1;
+state.latest = {server: {uptime_s: 25}, requests: {
+  now: {active: 2, queued: 0, paused: 0}, limits: {active: 8},
+  since_start: {finished: 10, prompt_tokens: 50, generated_tokens: 100},
+  live: {sample_elapsed_ms: 25000, total: 1, omitted: 0, limit: 64,
+    work: {prefilled_tokens: 50, generated_tokens: 100}, items: [{id: 'r-1', phase: 'generate', prompt_tokens: 50,
+      reused_tokens: 0, prefilled_tokens: 50, published_tokens: 100, elapsed_ms: 5000}]}
+}, work: {since_start: {prefilled_tokens: 50, generated_tokens: 100}}};
+state.samples = [
+  {seq: 1, t: now - 4, reset: false, metrics: {'requests.live.work.generated_tokens': 0,
+    'requests.live.work.prefilled_tokens': 0, 'requests.live.sample_elapsed_ms': 21000,
+    'requests.since_start.finished': 0}},
+  {seq: 2, t: now - 2, reset: false, metrics: {'requests.live.work.generated_tokens': 100,
+    'requests.live.work.prefilled_tokens': 50, 'requests.live.sample_elapsed_ms': 23000,
+    'requests.since_start.finished': 2}}
+];
+state.liveRequests = {available: true, items: [{id: 'r-old', phase: 'generate', prompt: 1, reused: 0,
+  prefilled: 1, published: 1, elapsed: 1000, pp: 20, tg: 30}], total: 1, omitted: 0};
+state.startup = startup('starting', {started_unix: now, elapsed_s: 3.25, phase: 'metadata', phases: [
+  {name: 'metadata', state: 'running', seconds: 3.25}
+]});
+state.startupObservedAt = now;
+render();
+check('starting phase is shown', $('startup-title').textContent === 'Server starting' && $('startup-summary').textContent.includes('metadata'));
+check('timestamp names the startup response', $('timestamp').textContent.includes('Startup response observed'));
+check('missing byte totals do not invent progress', !$('startup-phases').querySelector('.startup-progress') && !$('startup-phases').textContent.includes('%'));
+check('startup current fields come from 503 envelope', document.querySelector('[data-m="requests.now.active"]').textContent === '0' &&
+  [...document.querySelectorAll('[data-m="requests.since_start.finished"]')].every(el => el.textContent === '--'));
+check('prior ready samples are retained but absent from startup view', state.samples.length === 2 && snapshot().samples.length === 0);
+check('startup hides old live request rates', !$('live-requests-rows').querySelector('.live-request-row') && $('live-requests-summary').textContent.includes('paused'));
+check('startup suppresses old inference and request throughput', $('token-rate').textContent === '--' && $('request-rate').textContent === '--');
+check('PP and TG chart headline rates do not reuse ready samples', $('prompt-value').textContent === '--' && $('throughput-value').textContent === '--');
+state.startup = startup('starting', {started_unix: now, elapsed_s: 6, phase: 'weights', phases: [
+  {name: '<img src=x onerror=alert(1)>', state: 'running', seconds: 5,
+   bytes_done: 50, bytes_total: 100, bytes_per_s: 10,
+   files: [{name: '<b>weights.gguf</b>', bytes_done: 50, bytes_total: 100}]}
+]});
+render();
+check('byte progress labels phase average and file counts', $('startup-phases').textContent.includes('phase average') && $('startup-phases').textContent.includes('weights.gguf'));
+check('untrusted phase and file labels are text only', !$('startup-phases').querySelector('img,b'));
+state.startup = startup('failed', {started_unix: now, elapsed_s: 7, phase: 'failed', error: '<svg onload=alert(1)>bad weights', phases: [
+  {name: 'weights', state: 'failed', seconds: 7}
+]});
+state.startupObservedAt = now;
+render();
+check('current failure is explicit and safely rendered', $('startup-title').textContent === 'Startup failed' &&
+  $('startup-error').textContent.includes('<svg') && !$('startup-error').querySelector('svg') && $('connection-text').textContent === 'Startup failed');
+state.startupObservedAt = now - 40;
+state.error = 'collector unavailable';
+renderStatus();
+check('unreachable old startup observation is labeled stale', $('startup-title').textContent === 'Last startup response (stale)' && $('connection-text').textContent === 'Telemetry stale');
+state.error = null;
+state.startup = null;
+state.startupObservedAt = null;
+state.ok = true;
+state.latest.startup = {started_unix: now - 10, elapsed_s: 7, phase: 'ready', phases: [{name: 'weights', state: 'done', seconds: 7}]};
+state.lastSuccess = now;
+state.samples.push({seq: 3, t: now, reset: true, metrics: {'requests.live.work.generated_tokens': 0,
+  'requests.live.work.prefilled_tokens': 0, 'requests.live.sample_elapsed_ms': 1000, 'requests.since_start.finished': 0}});
+resetLiveRequestSample();
+updateLiveRequests(state.latest);
+render();
+check('ready collapses startup panel and clears request rate baseline', $('startup-panel').hidden && state.liveRequests.items[0].pp === null && state.liveRequests.items[0].tg === null);
+check('first ready sample reset prevents reuse of pre-startup rates', $('prompt-value').textContent === '--' && $('throughput-value').textContent === '--');
+check('startup panel fits viewport without overflow', document.documentElement.scrollWidth <= innerWidth);
+globalThis.rateTestResults = outcomes;
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        self.assertIn("fresh.some(sample => sample.reset)", source)
+        for width in (1440, 390):
+            with self.subTest(width=width):
+                script = cases.replace("TEST_WIDTH", str(width))
+                document = source.replace("</body>", "<pre id='rate-test-results'></pre><script>" + script + "</script></body>")
+                self.assertEqual(len(self.run_browser(document, width)), 15)
 
     def test_shared_runtime_and_request_windows(self):
         source = HTML_FILE.read_text(encoding="utf-8")

@@ -85,6 +85,13 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
 - Missing metrics remain unavailable. Upstream failure keeps the last good
   snapshot with a stale indication. Server resets and counter decreases break
   derived rates instead of creating negative spikes.
+- A valid HTTP 503 health body with `status: starting` or `status: failed` is
+  shown separately from operational telemetry. Startup records do not enter
+  inference samples; the first ready sample after startup breaks rate windows.
+  Phase progress appears only when byte totals are reported, and `bytes_per_s`
+  is labeled as the phase average. A failed payload is current only while the
+  health endpoint continues to return it; if the endpoint becomes unreachable,
+  the dashboard returns to the last successful snapshot and marks it stale.
 
 The dashboard groups requests, cache tiers, drafting, scheduling and recovery.
 The searchable metrics explorer exposes the complete latest health document,
@@ -97,7 +104,8 @@ helpers with a 90-second bound per browser invocation; a timeout fails the test
 and is not retried or skipped. Without Chrome or Edge, the browser check is
 skipped. This adds no runtime dependency. The same check renders the full page
 at desktop and narrow widths and compares live-card and chart geometry across
-busy, zero, stale, expired, reset, missing-counter and recovery states.
+busy, zero, stale, expired, reset, missing-counter, recovery, startup, failure
+and readiness states.
 
 The model placement panel shows realized topology when `/v1/health` includes
 `topology`: split mode, tensor width, layer stages and backend names. Expand

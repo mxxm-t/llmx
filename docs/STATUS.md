@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## Dashboard startup status consumer (2026-10-27, branch feat/dashboard-startup-status)
+
+- **Goal:** show the server's bounded `/v1/health` startup and failure record while preserving ready telemetry and inference-rate semantics.
+- **Done:** reviewed the startup response contract in `e20deb144`; collector validates only bounded HTTP 503 `starting`/`failed` records, keeps them out of samples, clears them on transport errors, and marks the first later ready sample as a reset. The dashboard shows current/stale startup state, phase and file progress, and suppresses inference rates while startup is observed. README documents the behavior.
+- **Tests:** all 10 collector and browser tests pass, including HTTP 503/schema/size/malformed/startup-to-ready-restart/transport preservation and browser transitions, missing byte progress, failure escaping, ready collapse and rate suppression. Chrome checks execute without skips. Desktop (1440 CSS pixels) and narrow (390) visual review found no horizontal overflow. `docs` and `dead-code` pass. The checked source hashes and commands are retained in `build-integration/final-startup-checks-v1/receipt.json`. These are the applicable standalone collector and static UI checks, with no inference or numerical change. The hosted workflow already runs these tests.
+- **Review:** the six changed files were reviewed against the startup contract at `e20deb144`. The Markdown delta is STATUS and the dashboard README; the other 143 tracked Markdown pages are unchanged from main `e9efe108b` and their existing review carries forward. No new flags, runtime dependencies or polling loops.
+- **Landing:** one feature commit on main `e9efe108b`, intended to land by fast-forward without a merge commit. Production deployment is separate.
+- **Left:** publish and deploy the dashboard. Startup progress requires the separate runtime startup API, which is not on this branch; existing ready-only servers remain supported. A failed server may exit before the collector observes its failure.
+
 ## Short prompts beside a long one (2026-10-26, branch feat/short-prompts on main ac940c059 (the landing stack: fix/disk-digest-stop, then fix/image-encode-live), the plan in docs/SERVER.md cleared by F2DEV and XDEV and decided by the owner on 2026-10-26, lands by fast-forward as two commits)
 
 - **Goal:** a chat turn admitted behind a long prompt nothing reuses (Open WebUI's tasks of 110k-200k tokens on production) is read beside it rather than after all of it, arrival order kept.

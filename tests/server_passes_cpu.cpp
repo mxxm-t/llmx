@@ -2006,6 +2006,56 @@ void continued(const gguf::GGUFModel& weights, uint32_t vocab) {
             }
 }
 
+// A message boundary on a split whose prompt continues in consecutive passes (Stats::continued), on a hybrid model with checkpoint slots and a host tier, at P = 2 and 3 on two slow devices.
+// The boundary is kept once the pass whose slice reaches it retires, not when the pass of an earlier slice still in flight retires first, and an edit of the last message forks it with its reply alone;
+// a boundary at the first slice's end is kept as before.
+void boundary_continued(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    Submitters seen;
+    const size_t pool = 16 * kBlock;
+    const Make one = on(weights, [] { return cpus(1); }, 3, 3);
+    for (const size_t start : {size_t(600), size_t(200)})
+    for (const size_t passes : {size_t(2), size_t(3)}) {
+        const std::vector<uint32_t> before = prompt_of(11, start, vocab), message = prompt_of(12, 100, vocab), other = prompt_of(13, 50, vocab);
+        std::vector<uint32_t> first = before, edit = before;
+        first.insert(first.end(), message.begin(), message.end());
+        edit.insert(edit.end(), other.begin(), other.end());
+        const Reply own = serve(*one(pool, kUbatch), tok, 3, {{Req{edit, 3}}})[0];
+        const std::string where = "a message boundary at " + std::to_string(start / kBlock * kBlock) + " on two slow devices at P = " + std::to_string(passes);
+        const Make split = on(weights, [&seen] {
+            return std::vector<backend::BackendPtr>{std::make_shared<Slow>(&seen, 2), std::make_shared<Slow>(&seen, 2)};
+        }, 3, 3);
+        auto model = split(pool, kUbatch);
+        server::Scheduler sched(*model, tok, 3, 64, passes, false, (size_t)1 << 30);
+        std::thread runner([&] { sched.run(); });
+        Reply reply;
+        size_t reused = 0;
+        server::Scheduler::Stats after_first, st;
+        try {
+            drain(*sched.submit(first, params_of(Req{first, 3}), first.size(), before.size()));
+            after_first = sched.stats();
+            const auto e = sched.submit(edit, params_of(Req{edit, 3}), edit.size(), before.size());
+            reply = drain(*e);
+            reused = e->reused();
+            st = sched.stats();
+            ledger(st, *model, where);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+        require(start < 2 * kBlock || after_first.continued > 0, where + ": the prompt never continued while its slice before was in flight");
+        require(after_first.boundaries == 1, where + ": " + std::to_string(after_first.boundaries) + " boundaries kept where the last message starts, against 1");
+        const size_t want = before.size() / kBlock * kBlock;
+        require(reused == want && st.boundary_hits == 1,
+                where + ": the edit reused " + std::to_string(reused) + " tokens through " + std::to_string(st.boundary_hits) + " boundaries, against " + std::to_string(want) + " through 1");
+        same(own, reply, where + ", the edit");
+        ++checks;
+    }
+}
+
 int main(int argc, char** argv) {
     try {
         // What a caller asks the fit for is what the scheduler reserves: a row a request and, where requests draft, a pass's draft rows, at most 64 and at most --draft-max a request, in each logits ring.
@@ -2038,6 +2088,7 @@ int main(int argc, char** argv) {
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         interleaved(served(kSplit), (uint32_t)kSplit.vocab);
         continued(served(kSplit), (uint32_t)kSplit.vocab);
+        boundary_continued(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         fitted_reservation(served(kSplit));
         cases(served(kSplit), (uint32_t)kSplit.vocab);
         // A hybrid model, whose linear-attention layers keep a recurrent state, over the same cases: without checkpoint slots it keeps no donor, and a stage may hold only states.

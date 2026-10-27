@@ -10,6 +10,9 @@ int dot_word(uint w, uint x, int acc) { return acc + dotPacked4x8EXT(int(w), int
 #define dot_word dot_pairs
 #endif
 
+// HALVES (16), 2 only with HALF and TREE on 64-lane subgroups and a row of at most 16 blocks: each 32-lane half takes its own ROWS rows, lane l working as lane l % 32 does in the other builds (docs/src/backends-vulkan.md, Decode builds).
+layout(constant_id = 16) const uint HALVES = 1;
+
 // Columns whose activations a lane loads together: their loads issue back to back, and a group past the pushed count is skipped whole.
 // A plain pass gives a build more than half the columns it holds (for_each_column_chunk), so only a group past the first half of a one-group build can be past the count, and the other builds check before every group.
 const uint GROUP = MAX_COLS < 4u ? MAX_COLS : 4u;

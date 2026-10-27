@@ -276,8 +276,16 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
     size_t rows = 0;
     for (const Projection* pr : live) rows += pr->rows;
     for_each_column_chunk(plan.kernel, nbatch, nin, rows, [&](size_t col0, size_t ncols, int variant) {
-        row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, variant);
+        row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, ncols == 1 && paired_build(plan.kernel, nin) ? kVecPaired : variant);
     });
+}
+
+// Whether a plain one-column call of Q8_0 rows `nin` wide takes the paired build: half-block order and the reduction tree on 64-lane subgroups, and an even block count of at most 16, so a half's lanes cover the row.
+// It gives every column the bits of the build it replaces (docs/src/backends-vulkan.md, Decode builds).
+inline bool VulkanBackend::paired_build(KernelId id, size_t nin) const {
+    const size_t nblk = nin / 32;
+    const uint32_t forms = vec_forms(kVecPaired, dev_->profile);
+    return is_vec_kernel(id) && dev_->caps.subgroup_size == 64 && (forms & kQ8Tree) && (forms & kQ8Half) && nblk % 2 == 0 && nblk <= 16;
 }
 
 // Return the count of available decode builds, narrowest first, limited by the profile's Q8_0 or Q4/K-quant column limit.
@@ -366,7 +374,7 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
 
 // Rows a subgroup takes in a row kernel's build: in matmul_row.comp the build's rows a cluster of lanes (build_rows), in the Q8_0 decode kernel its build's own (kVecBuilds).
 inline uint32_t VulkanBackend::sg_rows(const RowPlan& plan, int variant) const {
-    return is_vec_kernel(plan.kernel) ? kVecBuilds[variant].rows : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
+    return is_vec_kernel(plan.kernel) ? kVecBuilds[variant].rows * kVecBuilds[variant].halves : dev_->caps.subgroup_size / plan.cluster * build_rows(plan.kernel, variant);
 }
 
 // Dispatch a row build over the selected columns and projections.

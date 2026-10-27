@@ -1468,7 +1468,7 @@ inline bool row_kernel_builds_one_column(KernelId id) {
 
 const uint32_t kRowColsWide = 8, kRowColsOne = 1;
 // A kernel's pipelines: the wide build, then the one-column, then for the row kernels the wide build grouped by expert, then the Q8_0 decode kernel's further builds.
-const int kVariants = 9;
+const int kVariants = 10;
 
 // The Q8_0 reduction forms are selected by the device profile so every build gives a column the same bits.
 // The subgroup tree depends on the device's reduction pairs; half-block order is fixed for all builds (docs/src/backends-vulkan.md, Decode builds).
@@ -1478,13 +1478,16 @@ const uint32_t kQ8Tree = 1, kQ8Half = 2;
 // Their numbering and specialization constants are in docs/src/backends-vulkan.md, Decode builds.
 struct VecBuild {
     uint32_t cols, rows, steps, forms, span;
+    uint32_t halves = 1;   // rows sets a subgroup takes, one per half (shaders/matmul_vec_q8.glsl, HALVES)
     uint32_t capacity() const { return cols * span; }
 };
 const VecBuild kVecBuilds[kVariants] = {{kRowColsWide, 4, 1, kQ8Tree, 1}, {kRowColsOne, 2, 1, 0, 1}, {kRowColsWide, 4, 1, 0, 1},
                                         {2, 2, 1, kQ8Tree, 1}, {4, 4, 1, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 1}, {16, 4, 2, kQ8Tree, 2},
-                                        {kRowColsOne, 1, 4, 0, 1}, {kRowColsOne, 2, 2, 0, 1}};
+                                        {kRowColsOne, 1, 4, 0, 1}, {kRowColsOne, 2, 2, 0, 1}, {kRowColsOne, 2, 1, kQ8Tree, 1, 2}};
 // Its other one-column builds, one row and four steps and two rows and two steps, which one_column_build picks in place of variant 1 by the call's shape.
 const int kVecOneRow = 7, kVecTwoSteps = 8;
+// Its paired one-column build, two rows a half of the subgroup, which a plain call of short rows takes in place of the others (VulkanBackend::paired_build); two rows measured faster than one and four (docs/STATUS.md).
+const int kVecPaired = 9;
 // Its builds for plain columns, narrowest first.
 const int kVecByWidth[] = {1, 3, 4, 0, 5, 6};
 

@@ -8,6 +8,27 @@
 - **Landing:** tools, tests and docs only, rebased onto main `509d3241b`. The intervening main change concerns Vulkan vision attention; the layered tool, generator tests and reference inputs retain their checked bytes, so the exact tiny HF evidence carries forward. The affected generator and docs checks run on this tree, with applicable hosted checks required before fast-forward. No inference runtime or numerical limit changes.
 - **Follow-up:** use file-exact HF NLL and perplexity against the uniform reference for the frozen Qwen3-8B Q2 file. The Q2_0 integration must pin the candidate tree's `spec_decode.py` and `gen_baseline.py`; this main-tree unit case uses Q2_K, which its decoder supports. The large-file Q2 quality result remains pending. The tiny test establishes adapter equivalence, not released-model correctness.
 
+## Short Q8_0 rows decode two to a subgroup (2026-10-27, DDEV, branch feat/q8-short-k on main 26f97c37d (gated on cfd195380), lever 3 part 1 of the 2x2 decode plan, design approved by F2DEV at 10:14, code approved at 13:02, lands by fast-forward as one commit)
+
+- **Goal:** a one-column Q8_0 decode call of rows at most 16 blocks wide (hc_up, 320 wide on Qwen3.8-Flash-Next) takes the paired build: each 32-lane half of a subgroup takes its own rows, where today 44 of 64 lanes have no block. Every column keeps the bits of the build it replaces.
+- **Why:** the 2x2 decode profile of 2026-10-27 (Flash UD-Q4_K_XL, int8) has the hyper-connection pair at 1.01 ms a stage, 91 calls of about 11 us; hc_up runs at 340-370 GB/s against 650-700 for the large products.
+- **Done:** the build (variant 9, specialization constant 16 `HALVES`, `VulkanBackend::paired_build`) on the plain call path only, two rows a half; the decode-column comparison at Q8_0 rows 320, 448 and 512 wide, the one-column build witness for short rows, and the --isa counts of a paired build, with planted refusals; docs.
+- **Probe** (GPU 9 alone, default clocks, one-column calls, 2000 warm calls, median of 7 repeats of 1000, main c004c8e3a against the build at two and four rows a half, interleaved twice; the bytes of every case identical across all arms, int8 and f16, and also at one row a half):
+
+  | Shape (K x rows) | main int8 | paired int8 | main f16 | paired f16 |
+  |---|---|---|---|---|
+  | 320 x 10240 (hc_up) | 10.24 us | 7.38 us (-28%) | 11.84 us | 8.18 us (-31%) |
+  | 448 x 2560 | 5.01 us | 4.47 us | 5.47 us | 4.74 us |
+  | 512 x 2560 | 5.15 us | 4.60 us | 5.55 us | 4.86 us |
+  | 64 x 4096 | 5.71 us | 4.23 us | 6.34 us | 4.50 us |
+  | 2560 x 2560 (control, unchanged) | 12.13 us | 12.13 us | 13.53 us | 13.54 us |
+
+  Four rows a half were slower than two at int8 (hc_up 7.72 us) and level at f16, so two are kept.
+- **Gates** (main cfd195380 against the branch, both built the same way, GPUs 4-7, default clocks, CPUs 4-7,12-15): Flash UD-Q4_K_XL identity byte for byte at 2x2 int8, 2x2 auto and layer 4 int8 (the last 16 logits rows of a 3k-token prompt and 64 greedy tokens); `llmx-split-check` of Qwen3-0.6B Q8_0 over two MI50s bit-identical in both arms; MI50 CTest passes but q2-k-vulkan and q3-k-vulkan, which fail on main too (a test expectation, fixed on its own branch); backend-vulkan --isa on an MI50 holds the two paired builds to their counts; the Radeon VII's vulkan CTests and --isa pass, with no paired build there; docs and dead-code pass.
+- **Timing, tg32 tok/s, ABBA:** Flash 2x2 int8: main 47.53, 45.85, 47.47, 47.33 (median 47.40); branch 45.45, 48.23, 48.34, 48.78 (median 48.29, +1.9%); pp64 level. Layer 4 int8: main 51.18, 43.21; branch 45.17, 44.19, unresolved, since main alone spread 8 tok/s across two runs.
+- **Left:** the rebase on main, its builds and the hosted run.
+- **Also recorded here:** lever 4, the inject gates as a role of hc_down's dispatch, is parked. On the MI50 the Q8_0 decode build is the _preserve module and F32 rows keep the ordinary one, so the fused kernel's two parts differ in float controls and the fusion is refused (F2DEV, 09:57 and 10:05); it would pay only where both modules match.
+
 ## DeepSeek-V4.1-Flash-1017 and DeepSeek-V4 planned (2026-10-27, branch docs/deepseek4-plan on main 53309fd3b, docs only, the owner's request of 2026-10-27, reviewed by F2DEV and XDEV, decided by the owner on 2026-10-27, lands by fast-forward as one commit)
 
 - **Goal:** docs/DEEPSEEK4.md: the plan for running DeepSeek-V4.1-Flash-1017 (`deepseek41`) and DeepSeek-V4-Flash (`deepseek4`) in llmx, from the plan the owner decided on 2026-09-26, updated for the 1017 release and for what llmx gained since.

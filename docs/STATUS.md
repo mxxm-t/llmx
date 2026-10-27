@@ -15,6 +15,13 @@
 - **Left:** the hosted run at the landing head; then production can take it as a preview.
 - **Gotchas:** an undeclared string parameter whose text is a JSON object or array now becomes that object or array; the request did not say it is a string, and a list is what a client that leaves the schema out was seen to need.
 
+## The boundary test pins the host's free memory (2026-10-27, branch fix/boundary-host-memory on fix/tool-arg-types c004c8e3a, which lands first, tests only, F2DEV's FINDING of 2026-10-27 08:42, lands by fast-forward as one commit)
+
+- **Why:** `server-passes-cpu`'s continued-boundary cases admitted the boundary's copy to host memory against the machine's real free memory (`Model::host_admits` through `host_available`), so under XDEV's memory-capped Windows sandbox the 128-token case at P = 2 was refused its copy and failed with "0 boundaries ... against 1".
+- **Done:** both models of the cases take a fixed 64 GiB through `ModelOptions::host_memory` (the harness's `on`), so the verdict depends on the scheduler alone. AGENTS (Tests) says so.
+- **Tests:** a scratch copy with the figure at 1 MiB fails the case as XDEV saw; pinned it passes; CTest, docs and dead-code on the branch.
+- **Left:** the hosted run; then NVFP4's CPU-suite leg counts.
+
 ## A message boundary kept on a split whose prompt continues (2026-10-27, branch fix/boundary-retire on main dd4163407, LDEV's FINDING of 2026-10-27 02:26, in progress)
 
 - **Why:** every cut turn on production logged "the message boundary a request asked for was not kept (its history has no state kept once its pass retired, at 0)", so an edit or a regenerate of the last message after a cut read the whole cut prompt again (95k to 212k tokens). The scheduler marked the request when it formed the pass whose slice ends at the boundary, and the first of the request's passes to retire spent the mark: on a split a long prompt continues in consecutive passes, so the pass of the slice before retired first, before the boundary's checkpoint was the sequence's.

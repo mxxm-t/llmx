@@ -2013,7 +2013,9 @@ void boundary_continued(const gguf::GGUFModel& weights, uint32_t vocab) {
     const bpe::Tokenizer tok(weights);
     Submitters seen;
     const size_t pool = 16 * kBlock;
-    const Make one = on(weights, [] { return cpus(1); }, 3, 3);
+    // The host's free memory as a fixed ample figure, so a boundary's copy is admitted whatever the machine has free.
+    const auto host_memory = []() -> std::optional<size_t> { return (size_t)64 << 30; };
+    const Make one = on(weights, [] { return cpus(1); }, 3, 3, 0, 0, false, 1, host_memory);
     for (const size_t start : {size_t(600), size_t(200)})
     for (const size_t passes : {size_t(2), size_t(3)}) {
         const std::vector<uint32_t> before = prompt_of(11, start, vocab), message = prompt_of(12, 100, vocab), other = prompt_of(13, 50, vocab);
@@ -2024,7 +2026,7 @@ void boundary_continued(const gguf::GGUFModel& weights, uint32_t vocab) {
         const std::string where = "a message boundary at " + std::to_string(start / kBlock * kBlock) + " on two slow devices at P = " + std::to_string(passes);
         const Make split = on(weights, [&seen] {
             return std::vector<backend::BackendPtr>{std::make_shared<Slow>(&seen, 2), std::make_shared<Slow>(&seen, 2)};
-        }, 3, 3);
+        }, 3, 3, 0, 0, false, 1, host_memory);
         auto model = split(pool, kUbatch);
         server::Scheduler sched(*model, tok, 3, 64, passes, false, (size_t)1 << 30);
         std::thread runner([&] { sched.run(); });

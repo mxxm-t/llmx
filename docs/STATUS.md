@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## DeepSeek-V4.1-Flash-1017 and DeepSeek-V4 planned (2026-10-27, branch docs/deepseek4-plan on main 53309fd3b, docs only, the owner's request of 2026-10-27, reviewed by F2DEV and XDEV, decided by the owner on 2026-10-27, lands by fast-forward as one commit)
+
+- **Goal:** docs/DEEPSEEK4.md: the plan for running DeepSeek-V4.1-Flash-1017 (`deepseek41`) and DeepSeek-V4-Flash (`deepseek4`) in llmx, from the plan the owner decided on 2026-09-26, updated for the 1017 release and for what llmx gained since.
+- **Done:** 1017 compared file by file with V4.1-Flash on the Hub (same configuration, tokenizer, tensor index and kernels; every weight shard new; two reference fixes, the index keys in decode and an FP8 cast of the attention output); the other project's 1017 GGUF headers read on the test machine (the files the page's provenance lists) and the upstream layout's from range reads; the big runtimes' and the fork's handling surveyed; the V4 question answered (one module, two registry entries, V4 about a quarter to a third more model work).
+- **Reviews:** F2DEV (four points, cleared 07:33) and XDEV (four points, cleared 07:36), every finding taken with its evidence in the page's section 10.
+- **Decisions:** the owner answered all nine on 2026-10-27 as recommended (the page's section 9): V4 too after V4.1's CPU step; both `deepseek41` layouts, the local one first; the other project's 1017 GGUF read read-only once it is finished, no download; V4.1 checked against the local file's own weights; announced whole-machine windows; the 2026-10-19 depth rules for the 16k check (a gate change); 1017's FP8 cast not emulated; the fork as the speed reference; V4-0731's UD file copied back when V4 starts.
+- **Left:** lands by fast-forward as one docs commit; building starts when the coordinator assigns a developer.
+- **Gotchas:** the other project's DeepSeek files are read read-only, and only once that project says they are finished (decision 3); V4.1 needs all ten MI50s, so its device checks run in announced whole-machine windows (decision 5).
+
 ## Vulkan AllReduce submission cost (2026-10-28, in progress)
 
 - **Goal:** reduce the completed multi-device AllReduce cost toward the matched ROCm reference without adding a ROCm dependency. Keep the existing ordered sum, peer-buffer ownership and failure contracts.

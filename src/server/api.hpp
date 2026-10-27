@@ -726,16 +726,7 @@ private:
                 throw BadRequest(400, at + " must be {\"type\": \"function\", \"function\": {\"name\": a string, \"description\": a string, \"parameters\": an object}}");
             const jmini::Value* strict = fn->get("strict");
             if (strict && strict->t == jmini::Value::T::Bool && strict->b) throw BadRequest(400, at + ".function.strict is not supported: a strict schema needs constrained decoding");
-            // A parameter whose declared type is not a string, nor a list holding "string", has its value written as JSON (chat::ToolCallSplit).
-            const jmini::Value* properties = params ? params->get("properties") : nullptr;
-            if (properties && properties->isObject())
-                for (const auto& [key, schema] : properties->obj) {
-                    const jmini::Value* kind = schema.get("type");
-                    bool text = !kind || (kind->isString() && kind->asString() == "string");
-                    if (kind && kind->isArray())
-                        for (const auto& k : kind->asArray()) text = text || (k.isString() && k.asString() == "string");
-                    if (!text) t.typed[name->asString()].insert(key);
-                }
+            if (params) t.typed[name->asString()] = chat::tool_params(*params);
         }
         if (none || tools->asArray().empty()) return t;
         if (format_.tool_format == chat::ToolFormat::none)

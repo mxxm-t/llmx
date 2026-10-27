@@ -255,9 +255,40 @@ void check_tool_split(const std::string& what, chat::ToolFormat format, const ch
     }
 }
 
+// How chat::tool_params writes each parameter of a schema: text where it admits only strings, JSON where it admits no string, structured where it admits both or names no type, read through anyOf, references, enum, const, items and properties.
+void check_tool_params(Tally& tally) {
+    using V = chat::ToolValue;
+    const jmini::Value parameters = jmini::parse(R"({"type": "object", "properties": {
+        "s": {"type": "string"}, "sn": {"type": ["string", "null"]}, "e": {"enum": ["a", "b"]}, "cs": {"const": "x"},
+        "i": {"type": "integer"}, "in": {"type": ["integer", "null"]}, "b": {"type": "boolean"}, "cn": {"const": 3},
+        "an": {"anyOf": [{"type": "array", "items": {"type": "string"}}, {"type": "null"}]}, "one": {"oneOf": [{"type": "object"}, {"type": "number"}]},
+        "all": {"allOf": [{"$ref": "#/$defs/Item"}]}, "ref": {"$ref": "#/$defs/Tasks"}, "old": {"$ref": "#/definitions/Tasks"},
+        "items": {"items": {"type": "object"}}, "props": {"properties": {"a": {"type": "string"}}},
+        "sa": {"type": ["string", "array"]}, "as": {"anyOf": [{"type": "string"}, {"type": "object"}]}, "none": {"description": "no type"},
+        "missing": {"$ref": "#/$defs/Missing"}, "loop": {"$ref": "#/$defs/Loop"}},
+        "$defs": {"Tasks": {"type": "array", "items": {"$ref": "#/$defs/Item"}}, "Item": {"type": "object"}, "Loop": {"$ref": "#/$defs/Loop"}},
+        "definitions": {"Tasks": {"type": "array"}}})");
+    const std::map<std::string, V> expected = {
+        { "s", V::text }, { "sn", V::text }, { "e", V::text }, { "cs", V::text },
+        { "i", V::json }, { "in", V::json }, { "b", V::json }, { "cn", V::json }, { "an", V::json }, { "one", V::json },
+        { "all", V::json }, { "ref", V::json }, { "old", V::json }, { "items", V::json }, { "props", V::json },
+        { "sa", V::structured }, { "as", V::structured }, { "none", V::structured }, { "missing", V::structured }, { "loop", V::structured } };
+    static const char* const names[] = { "text", "json", "structured" };
+    ++tally.cases;
+    const std::map<std::string, V> got = chat::tool_params(parameters);
+    for (const auto& [key, v] : expected) {
+        const auto at = got.find(key);
+        if (at == got.end()) tally.fail("tool_params: no value for " + key);
+        else if (at->second != v) tally.fail("tool_params: " + key + " is written as " + names[(int)at->second] + " where it is " + names[(int)v]);
+    }
+    if (got.size() != expected.size()) tally.fail("tool_params: " + std::to_string(got.size()) + " parameters where the schema declares " + std::to_string(expected.size()));
+    ++tally.cases;
+    if (!chat::tool_params(jmini::parse(R"({"type": "object"})")).empty()) tally.fail("tool_params: parameters for a schema without properties");
+}
+
 void check_tool_splits(Tally& tally) {
     using chat::ToolFormat;
-    const chat::ToolTypes typed = { { "get_weather", { "days" } } };
+    const chat::ToolTypes typed = { { "get_weather", { { "city", chat::ToolValue::text }, { "days", chat::ToolValue::json } } } };
     const std::string paris = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}\n</tool_call>";
     check_tool_split("a JSON call alone", ToolFormat::json, typed, paris, "", { { "get_weather", "{\"city\": \"Paris\"}" } }, tally);
     check_tool_split("text and two JSON calls", ToolFormat::json, typed, "Let me check.\n" + paris + "\n<tool_call>\n{\"name\": \"noop\", \"arguments\": {}}\n</tool_call>",
@@ -286,7 +317,7 @@ void check_tool_splits(Tally& tally) {
                      { { "f", "{\"text\": \"a \\\"b\\\"\\u000a\\u000ac\\\\d\"}" } }, tally);
     check_tool_split("a typed value that is not JSON", ToolFormat::xml, typed, "<tool_call>\n<function=get_weather>\n<parameter=days>\nthree\n</parameter>\n</function>\n</tool_call>", "",
                      { { "get_weather", "{\"days\": \"three\"}" } }, tally);
-    check_tool_split("an untyped value that looks like JSON", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=n>\n3\n</parameter>\n</function>\n</tool_call>", "",
+    check_tool_split("a number for a tool the request leaves out", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=n>\n3\n</parameter>\n</function>\n</tool_call>", "",
                      { { "f", "{\"n\": \"3\"}" } }, tally);
     // A tool the request leaves out, as a client that gives large tools' schemas on request does: an object or an array is written as JSON, other text as a string.
     check_tool_split("an array for a tool the request leaves out", ToolFormat::xml, typed,
@@ -344,7 +375,7 @@ void check_tool_template(const std::string& name, const chat::ChatFormat& format
         v.str = text;
         return v;
     };
-    const chat::ToolTypes typed = { { "get_weather", { "days" } } };
+    const chat::ToolTypes typed = { { "get_weather", { { "city", chat::ToolValue::text }, { "days", chat::ToolValue::json } } } };
     if (format.tool_format != chat::ToolFormat::none)
         for (const std::string& content : { std::string(), std::string("Let me check.") }) {
             ++tally.cases;
@@ -640,6 +671,7 @@ int main(int argc, char** argv) {
             try { format.render({ { "user", "x", std::nullopt } }, false); } catch (const chat::TemplateError&) {}
         }
         check_stable_prefix(tally);
+        check_tool_params(tally);
         check_tool_splits(tally);
         {
             ++tally.cases;

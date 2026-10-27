@@ -181,8 +181,60 @@ private:
 // The tool-call format a chat template writes, read from its text: a JSON object in <tool_call>, a function and its parameters in <tool_call>, or none (docs/SERVER.md, Tool calls).
 enum class ToolFormat { none, json, xml };
 
-// For each tool by name, the parameters whose declared type is not a string, whose values in the function format are written as JSON where they are JSON.
-using ToolTypes = std::map<std::string, std::set<std::string>>;
+// How a parameter's value in the function format is written: as a string; as JSON where it is JSON; as JSON where it is a JSON object or array, else as a string (docs/SERVER.md, Tool calls).
+enum class ToolValue { text, json, structured };
+
+// For each tool by name, how each parameter its schema declares is written; a tool or a parameter the request does not declare is `structured`.
+using ToolTypes = std::map<std::string, std::map<std::string, ToolValue>>;
+
+// The JSON types a schema admits, through its type, enum, const, anyOf, oneOf, allOf, a reference into the parameters' $defs or definitions, properties and items; none where it names none.
+inline void schema_types(const jmini::Value& schema, const jmini::Value& parameters, std::set<std::string>& out, int depth = 0) {
+    if (!schema.isObject() || depth > 32) return;
+    using T = jmini::Value::T;
+    static_assert((int)T::Null == 0 && (int)T::Bool == 1 && (int)T::Number == 2 && (int)T::String == 3 && (int)T::Array == 4 && (int)T::Object == 5, "kinds follows jmini's value order");
+    static const char* const kinds[] = {"null", "boolean", "number", "string", "array", "object"};
+    if (const jmini::Value* type = schema.get("type")) {
+        if (type->isString()) out.insert(type->str);
+        if (type->isArray())
+            for (const jmini::Value& t : type->arr)
+                if (t.isString()) out.insert(t.str);
+        return;
+    }
+    if (const jmini::Value* c = schema.get("const")) { out.insert(kinds[(int)c->t]); return; }
+    if (const jmini::Value* e = schema.get("enum"); e && e->isArray() && !e->arr.empty()) {
+        for (const jmini::Value& v : e->arr) out.insert(kinds[(int)v.t]);
+        return;
+    }
+    for (const char* key : {"anyOf", "oneOf", "allOf"})
+        if (const jmini::Value* list = schema.get(key); list && list->isArray())
+            for (const jmini::Value& s : list->arr) schema_types(s, parameters, out, depth + 1);
+    if (const jmini::Value* ref = schema.get("$ref"); ref && ref->isString())
+        for (const char* at : {"$defs", "definitions"}) {
+            const std::string prefix = std::string("#/") + at + "/";
+            const jmini::Value* defs = parameters.get(at);
+            if (defs && ref->str.compare(0, prefix.size(), prefix) == 0)
+                if (const jmini::Value* target = defs->get(ref->str.substr(prefix.size()))) schema_types(*target, parameters, out, depth + 1);
+        }
+    if (out.empty() && schema.get("properties")) out.insert("object");
+    if (out.empty() && schema.get("items")) out.insert("array");
+}
+
+// How each parameter a tool's `parameters` schema declares is written: text where it admits only strings (and null), JSON where it admits no string, and structured where it admits strings and another type or names no type.
+inline std::map<std::string, ToolValue> tool_params(const jmini::Value& parameters) {
+    std::map<std::string, ToolValue> out;
+    const jmini::Value* properties = parameters.get("properties");
+    if (!properties || !properties->isObject()) return out;
+    for (const auto& [key, schema] : properties->obj) {
+        std::set<std::string> types;
+        schema_types(schema, parameters, types);
+        types.erase("null");
+        ToolValue v = ToolValue::structured;
+        if (types.size() == 1 && types.count("string")) v = ToolValue::text;
+        else if (!types.empty() && !types.count("string")) v = ToolValue::json;
+        out[key] = v;
+    }
+    return out;
+}
 
 // A piece of a reply's tool call: its index among the reply's calls, the function's name on the call's first piece, and the next part of its arguments.
 struct ToolCallDelta {
@@ -303,17 +355,19 @@ private:
         used = i;
         return 1;
     }
-    // A parameter's value as JSON: as written where the tool declares a type other than a string and the text is JSON, else as a string.
+    // A parameter's value as JSON, as its ToolValue gives it.
     std::string value(const std::string& key, const std::string& v) const {
-        const auto tool = typed_.find(name_);
-        if (tool != typed_.end() && tool->second.count(key)) {
+        ToolValue kind = ToolValue::structured;
+        if (const auto tool = typed_.find(name_); tool != typed_.end())
+            if (const auto param = tool->second.find(key); param != tool->second.end()) kind = param->second;
+        if (kind != ToolValue::text) {
             size_t b = 0, e = v.size();
             while (b < e && space(v[b])) ++b;
             while (e > b && space(v[e - 1])) --e;
             const std::string trimmed = v.substr(b, e - b);
             try {
-                jmini::parse(trimmed);
-                return trimmed;
+                const jmini::Value parsed = jmini::parse(trimmed);
+                if (kind == ToolValue::json || parsed.isObject() || parsed.isArray()) return trimmed;
             } catch (const std::runtime_error&) {
             }
         }

@@ -354,9 +354,20 @@ the call computes fewer output rows than the knee of its activations' width,
 its projections' rows together and, routed, times its entries, else variant
 8 over 8-bit activations and variant 1 over 16-bit ones; the knees are the
 profile's `q8_decode_two_rows_from` and `q8_decode_one_row_below_16bit`.
-No other kernel has a variant 7 or 8 pipeline; their slots stay empty, since
-a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11 and 13 carry these
-properties. Constant 12 selects half-block order, fixed by the device profile
+Variant 9 is the paired one-column build: two rows a subgroup half, each
+32-lane half taking its own rows, which a plain call (`matmul_group_impl`, not
+a routed one) takes in place of the one-column build `one_column_build` gives
+where `paired_build` holds: the half-block order and the transposed reduction
+on 64-lane subgroups, and an even block count of at most 16, so a half's 32
+lanes cover the row. Lane l works as lane l % 32 does in the other builds, so
+a row's lanes, blocks, products and accumulation order are theirs, and the
+reduction's first five levels pair lanes inside a half as theirs do; their
+sixth level adds the other half's +0, since those lanes have no block, so the
+paired build skips it and keeps every bit (a lane's partial starts at +0 and
+is never -0, so no sum is -0 either).
+No other kernel has a variant 7, 8 or 9 pipeline; their slots stay empty, since
+a pipeline is built on its first dispatch. Specialization constants 0, 9, 10, 11, 13 and 16 carry these
+properties, 16 being the halves (`HALVES`). Constant 12 selects half-block order, fixed by the device profile
 for every build; the transposed reduction is allowed only where the subgroup
 uses its expected reduction pairs. These choices preserve a column's bits
 across build widths.
@@ -391,7 +402,9 @@ Without transposed reduction, each row and column uses the baseline
 reduction and one residual add. With it, R rows and C columns use
 `R * C - 1` pairwise adds and one add for each reduction level above
 the base-two logarithm of `R * C`, plus one residual add per 64 values; the driver may express
-those reduction adds as shuffled or ordinary instructions.
+those reduction adds as shuffled or ordinary instructions. The paired build
+takes five reduction levels, so one add fewer for each row than a one-column
+build of its rows with all six.
 
 Other row builds must retain the baseline counts or whole additional copies
 of one column's products, depending on whether the compiler unrolls the

@@ -379,6 +379,7 @@ public:
         if (variant == 2) return std::string(kKernelNames[id]) + (tile ? "_narrow" : "_grouped");
         if (is_vec_kernel((KernelId)id) && variant == kVecOneRow) return std::string(kKernelNames[id]) + "_1col_1row";
         if (is_vec_kernel((KernelId)id) && variant == kVecTwoSteps) return std::string(kKernelNames[id]) + "_1col_2step";
+        if (is_vec_kernel((KernelId)id) && variant == kVecPaired) return std::string(kKernelNames[id]) + "_1col_paired";
         if (variant && is_row_kernel((KernelId)id)) return std::string(kKernelNames[id]) + "_" + std::to_string(build_cols((KernelId)id, variant)) + "col";
         if (moe_step_kernel((KernelId)id)) return std::string(kKernelNames[id]) + (variant == kVecOneRow ? "_1row" : variant == kVecTwoSteps ? "_2step" : variant == 1 ? "_1col" : "");
         return std::string(kKernelNames[id]) + (!variant ? "" : tile ? "_small" : "_x8");
@@ -515,7 +516,8 @@ public:
                 const VecBuild& b = kVecBuilds[variant];
                 const uint32_t forms = vec_forms(variant, d.profile);
                 text = "; q8_decode_build cols=" + std::to_string(b.cols) + " rows=" + std::to_string(b.rows) + " steps=" + std::to_string(b.steps) +
-                       " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) + "\n";
+                       " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) +
+                       " halves=" + std::to_string(b.halves) + "\n";
             } else if (build_rows((KernelId)id, variant) > 1) {
                 text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) + "\n";
             }
@@ -1411,6 +1413,7 @@ public:
                            size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0);
     size_t column_builds(KernelId id, size_t nin, size_t rows, int (&out)[kVariants]) const;
     int one_column_build(size_t nin, size_t rows, bool x8) const;
+    bool paired_build(KernelId id, size_t nin) const;
     template <typename Fn>
     void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, const Fn& each) const;
 

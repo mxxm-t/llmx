@@ -2192,12 +2192,17 @@ size_t check_q8_one_column_builds(backend::Backend& vk) {
     std::vector<Case> cases = {{wide - 32, 256, 0}, {wide, 256, 0}, {wide - 32, from, 0}, {wide - 32, from16, 0}};
     for (size_t knee : {from, from16})
         for (const Case& c : {Case{wide, knee - 1, 0}, Case{wide, knee, 0}, Case{wide, knee / 2, knee - knee / 2 - 1}, Case{wide, knee / 2, knee - knee / 2}}) cases.push_back(c);
+    // Short rows take the paired build where the profile has the half-block order and the tree: 16 blocks, 14 in a group of two, 10; the odd 9 and the 18 past a half's lanes keep the others.
+    for (const Case& c : {Case{512, 300, 0}, Case{448, 150, 151}, Case{320, from, 0}, Case{288, 300, 0}, Case{576, 300, 0}})
+        if (c.nin <= wide) cases.push_back(c);
+    const bool pairs = (prof.q8_decode_forms & 3u) == 3u;
     size_t checks = 0;
     for (backend::Dtype dtype : {backend::Dtype::f16, backend::Dtype::int8}) {
         const bool x8 = dtype == backend::Dtype::int8;
         const std::string want_one = x8 ? "matmul_vec_q8_i8_1col" : "matmul_vec_q8_1col";
         // The suffix of the build the rule gives, from the profile's numbers.
         auto build = [&](size_t nin, size_t rows) -> std::string {
+            if (pairs && nin / 32 % 2 == 0 && nin / 32 <= 16) return "_paired";
             if (nin < wide) return "";
             if (!x8) return rows < from16 ? "_1row" : "";
             return rows < from ? "_1row" : "_2step";
@@ -2259,8 +2264,9 @@ size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool onl
     // Q8_0 rows also as many as the profile's q8_decode_two_rows_from, from which a one-column chunk of rows 1024 wide or wider takes the build of two rows and two steps; rows 224 wide take the narrow build.
     const size_t two_rows = backend::vulkan_device_profile(vk).q8_decode_two_rows_from;
     struct Case { uint32_t type; size_t nin; size_t nout = 300; };
+    // Q8_0 rows 320, 448 and 512 wide take the paired build alone where the profile has the half-block order and the tree, and every wider build beside it.
     for (const Case& c : {Case{f32, 4096}, Case{f32, 1280}, Case{f32, 224}, Case{q8, 4096}, Case{q8, 2560}, Case{q8, 1280}, Case{q8, 224},
-                          Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
+                          Case{q8, 320}, Case{q8, 448}, Case{q8, 512}, Case{q8, 2560, two_rows}, Case{q8, 1280, two_rows},
                           Case{q40, 4096}, Case{q40, 1280}, Case{q40, 224}, Case{q41, 4096}, Case{q41, 1280}, Case{q41, 224}, Case{q50, 4096}, Case{q50, 1280}, Case{q50, 224}, Case{q51, 4096}, Case{q51, 1280}, Case{q51, 224},
                           Case{q4k, 4096}, Case{q4k, 1280}, Case{q5k, 4096}, Case{q5k, 1280}, Case{q6k, 4096}, Case{q6k, 1280},
                           Case{quant::GGML_TYPE_TQ1_0, 512}, Case{quant::GGML_TYPE_TQ2_0, 512}}) {
@@ -2531,7 +2537,7 @@ struct DecodeOps {
 };
 // A Q8_0 decode build as the backend made it, read from the first line of its representation (vulkan_kernel_representations): the columns and rows a subgroup takes, the steps of weights a lane loads before using any, and its forms.
 struct DecodeBuild {
-    unsigned cols = 0, rows = 0, steps = 0;
+    unsigned cols = 0, rows = 0, steps = 0, halves = 1;
     bool tree = false, half = false;
 };
 // The value after ` key=` on a representation's first line, or false where the key is missing or its value is not a number.
@@ -2549,9 +2555,10 @@ bool decode_build(const std::string& text, DecodeBuild& b) {
     auto field = [&](const char* key, unsigned& v) { return header_field(line, key, v); };
     unsigned tree = 0, half = 0;
     if (!field("cols", b.cols) || !field("rows", b.rows) || !field("steps", b.steps) || !field("tree", tree) || !field("half", half)) return false;
+    if (line.find(" halves=") != std::string::npos && !field("halves", b.halves)) return false;
     b.tree = tree != 0;
     b.half = half != 0;
-    return b.cols && b.rows && b.steps;
+    return b.cols && b.rows && b.steps && (b.halves == 1 || (b.halves == 2 && b.tree && b.half && b.cols == 1));
 }
 // A two-row build of the Q4 and K-quant row kernels, read from the first line of its representation: the columns it holds and the rows a cluster takes.
 bool row_build(const std::string& text, unsigned& cols, unsigned& rows) {
@@ -2578,7 +2585,8 @@ DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     }
     size_t log = 0;
     while ((size_t(1) << log) < rc) ++log;
-    for (size_t l = 0; l < 6; ++l) n.reduce += l < log ? rc >> (l + 1) : 1;
+    // A paired build (halves 2) takes the tree's first five levels, its halves holding other rows.
+    for (size_t l = 0; l < (b.halves > 1 ? 5u : 6u); ++l) n.reduce += l < log ? rc >> (l + 1) : 1;
     n.reduce += rc > 64 ? rc / 64 : 1;
     return n;
 }
@@ -2631,7 +2639,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 if (!digits.empty() && digits.find_first_not_of("0123456789") == std::string::npos) cols = std::stoul(digits);
             }
             // The Q8_0 decode kernel's other one-column builds are held to their shapes like the wider builds.
-            const bool two_row_one = (kernel == vec || kernel == vec8) && (b == one.first + "_1row" || b == one.first + "_2step");
+            const bool two_row_one = (kernel == vec || kernel == vec8) && (b == one.first + "_1row" || b == one.first + "_2step" || b == one.first + "_paired");
             if (cols < 2 && !two_row_one) continue;
             const FloatOps& got = build.second;
             auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + b); };
@@ -2719,8 +2727,18 @@ void check_decode_contraction() {
     const std::string one1 = code("cols=1 rows=1 steps=4 tree=0 half=1", 12, 7, 6);
     const std::string one2 = code("cols=1 rows=2 steps=2 tree=0 half=1", 16, 10, 12);
     const std::string two = code("cols=2 rows=2 steps=1 tree=1 half=1", 16, 11, 5);
-    require(check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_1row", one1}, {"matmul_vec_q8_1col_2step", one2}, {"matmul_vec_q8_2col", two}}).decode == 3,
+    // The paired build: two rows a lane as the one-column build, half-block order, and the tree's five levels within a half.
+    const std::string paired = code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 6, 4);
+    require(check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_1row", one1}, {"matmul_vec_q8_1col_2step", one2}, {"matmul_vec_q8_2col", two},
+                               {"matmul_vec_q8_1col_paired", paired}}).decode == 4,
             "Q8 separate products fail their captured shape counts");
+    // The same build reduced through all six levels, as if its halves were joined, is refused.
+    for (const std::string& wrong : {code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 6, 5), code("cols=1 rows=2 steps=1 tree=1 half=1 halves=2", 8, 7, 4)}) {
+        bool refused = false;
+        try { check_contraction({{"matmul_vec_q8_1col", one}, {"matmul_vec_q8_1col_paired", wrong}}); }
+        catch (const std::runtime_error&) { refused = true; }
+        require(refused, "a paired Q8 build's changed reduction escaped its shape counts");
+    }
     for (const std::string& wrong : {code("cols=2 rows=2 steps=1 tree=1 half=1", 15, 11, 5),
                                      code("cols=2 rows=2 steps=1 tree=1 half=1", 16, 10, 5),
                                      two + "v_fma_f32 v0, v1, v2, v3\n"}) {
@@ -2833,7 +2851,7 @@ size_t check_weight_dispatch() {
                             // A routed tile of few entries takes the narrow build of its tall module, or of its one module (kNarrowCols).
                             const bool narrow = routed && tile && integer && (entry.first == expected + "_tall_narrow" || entry.first == expected + "_narrow");
                             require(entry.first == expected || entry.first == expected + "_1col" || entry.first == expected + "_1col_1row" ||
-                                        entry.first == expected + "_1col_2step" || entry.first == expected + "_small" || narrow,
+                                        entry.first == expected + "_1col_2step" || entry.first == expected + "_1col_paired" || entry.first == expected + "_small" || narrow,
                                     ("weight dispatch expected " + expected + ", got " + entry.first).c_str());
                             ++products;
                         }

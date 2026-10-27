@@ -15,14 +15,16 @@
     [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) acc[r][c] = 0.0;
     if (HALF && (nblk & 1u) == 0u && S == 64u) {
         // Each row's first word, a multiple of 17 words since the row's first block is even; per lane its four quant words, a fifth where the bytes straddle, its scale word and its activation offsets, which a step moves by 272 words.
-        const uint bh = lane >> 1u;
+        // With HALVES a half's lanes take the blocks lanes 0 to 31 take in the other builds; the including function puts each half on its own rows.
+        const uint hl = HALVES > 1u ? lane & 31u : lane;
+        const uint bh = hl >> 1u;
         uint rw[ROWS];
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) rw[r] = ((wrow0 + min(row0 + r, nout - 1u)) * nblk) * 17u / 2u;
         const bool odd = (bh & 1u) == 0u;
-        uint lq = (bh * 34u + 2u + (lane & 1u) * 16u) >> 2u;
+        uint lq = (bh * 34u + 2u + (hl & 1u) * 16u) >> 2u;
         uint ls = (bh * 34u) >> 2u;
         uint l5 = lq + (odd ? 4u : 3u);
-        uint lx = lane;
+        uint lx = hl;
         uint lb = bh;
         const uint nin16 = p.nin / 16u;
 // Column g + J's products, one for each row, added to its accumulators.
@@ -153,6 +155,8 @@
         uint idx = 0u;
         bool writer = true;
         [[unroll]] for (uint l = 0u; l < 6u; ++l) {
+            // With HALVES the last level would join the halves' rows; in the other builds it adds the +0 of lanes without blocks, so skipping it keeps every bit.
+            if (HALVES > 1u && l == 5u) break;
             bool up = keeps_upper(l, lane);
             if (l < LOGNV) {
                 const uint h = NV >> (l + 1u);

@@ -65,7 +65,7 @@ void main() {
         part = local_wg % SPAN;
         local_wg /= SPAN;
     }
-    uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS;
+    uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS * HALVES + (HALVES > 1u ? (lane >> 5u) * ROWS : 0u);
     uint col0 = p.col0 + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
@@ -81,7 +81,7 @@ void main() {
         out0 = e;
         wrow0 = ids[e] * nout;
     }
-    // A subgroup past the last row returns whole; one that holds a row reads the rows past the end as the last row and writes none of them.
+    // A subgroup past the last row returns whole, with HALVES a half, whose lanes pair with no others; one that holds a row reads the rows past the end as the last row and writes none of them.
     if (row0 >= nout) return;
     if (SPAN > 1u && p.ncols <= part * MAX_COLS) return;
     const uint ncols = MAX_COLS == 1u ? 1u : GROUPED ? g_cnt : SPAN > 1u ? min(p.ncols - part * MAX_COLS, MAX_COLS) : p.ncols;

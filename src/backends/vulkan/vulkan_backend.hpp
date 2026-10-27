@@ -40,7 +40,7 @@ bool vulkan_prefer_integer_dot(Backend& backend);
 std::string vulkan_kernel_statistics(const Backend& backend);
 
 // The driver's internal representations (the ISA on AMD) of every kernel a diagnostics backend has compiled, as (kernel name, text), empty for a backend opened without diagnostics or a device that does not serve them.
-// A build of the Q8_0 decode kernel starts with a line of its shape and forms, `; q8_decode_build cols=C rows=R steps=S tree=T half=H`, and a two-row row-kernel build with `; row_build cols=C rows=R` (docs/VULKAN.md).
+// A build of the Q8_0 decode kernel starts with a line of its shape and forms, `; q8_decode_build cols=C rows=R steps=S tree=T half=H halves=V`, and a two-row row-kernel build with `; row_build cols=C rows=R` (docs/VULKAN.md).
 std::vector<std::pair<std::string, std::string>> vulkan_kernel_representations(const Backend& backend);
 
 // Device time per kernel in milliseconds since the last call, for a diagnostics backend on a queue that timestamps, the output head's dispatches (Backend::matmul_logits) under their kernel's name with " head" after it.

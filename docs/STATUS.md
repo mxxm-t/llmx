@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## The long-context queue planned (2026-10-27, branch docs/cache-plan-r9 on main 8bdef6867, docs only, the owner's approval of 2026-10-26 to plan it, decided by the owner on 2026-10-27, lands by fast-forward as one commit)
+
+- **Goal:** docs/CACHE-PLAN.md section 10 (revision 9): cheaper context cuts and the next window prepared in idle time, YaRN for a model that declares rope scaling, and KV beyond VRAM through the indexer, each with the measured facts and the measurement that decides whether it goes on the roadmap.
+- **Done:** the section, from production's logs of 2026-10-17 to 27 (cut turns re-reading 69828 to 149317 tokens in 67 to 211 s at a moved start, the turns after them 0.5 to 88 s), the rope keys of every GGUF on the test machine, and Flash-Next's attention metadata.
+- **Reviews and decisions:** cleared by F2DEV (06:01, with his two additions in) and XDEV (06:03, the replay); the owner decided on 2026-10-27: measure the idle gaps first, keep the half step, YaRN inside DeepSeek-V4.1's module, KV beyond VRAM off the roadmap until measured. docs and dead-code pass on the tree that lands.
+- **Left:** the idle-gap measurement, a day of production's `/v1/health` read by a poller of its own; step 10 only on its result.
+
 ## Dashboard image-encoding progress (2026-10-27, branch integrate/dashboard-image-20261027)
 
 - **Goal:** show progress for live requests that are encoding images, using the optional image fields already exposed by `/v1/health`.

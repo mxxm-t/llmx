@@ -5,7 +5,7 @@ Approved to build on 2026-10-13, the nine questions decided as section 6 records
 Names in sections 4 to 6 may not exist yet.
 Each statement about today's code is marked **[v]**, verified by reading the code or a log for this plan, or **[i]**, inferred from those; **[r]** marks what the reviewer read and this plan takes from the review.
 Read at main e982e13dd; production's log and health at revision 7cf01359f on 2026-10-13.
-Revision 8 (2026-10-26) adds section 9, lookup tables in memory, its five questions decided by the owner the same day. Revision 7 (2026-10-17) records what has landed and adds the device pool and the order of what remains (sections 0, 7 and 8). Revision 6, the decisions recorded. Revision 5 came after the reviews of 2026-10-13; both reviewers cleared revision 3 for the owner, revision 4 holds their text corrections and revision 6 adds step 10, the next context window prepared before a cut.
+Revision 9 (2026-10-27) adds section 10, the long-context queue: cheaper cuts and the next window, YaRN and KV beyond VRAM, each with the measurement that decides it, its four questions decided by the owner the same day. Revision 8 (2026-10-26) adds section 9, lookup tables in memory, its five questions decided by the owner the same day. Revision 7 (2026-10-17) records what has landed and adds the device pool and the order of what remains (sections 0, 7 and 8). Revision 6, the decisions recorded. Revision 5 came after the reviews of 2026-10-13; both reviewers cleared revision 3 for the owner, revision 4 holds their text corrections and revision 6 adds step 10, the next context window prepared before a cut.
 
 ## 0. Where the plan stands, 2026-10-17
 
@@ -402,3 +402,66 @@ Decided on 2026-10-26, all as recommended, after F2DEV's and XDEV's reviews; ste
 | 3 | The whole Flash table on production (26.8 GiB beside the 16 GiB ZFS cache)? | no, not on this host: at most the 2% of a fresh prompt steps 1 and 2 leave | no |
 | 4 | `device` becomes the table split by rows, one slice a card, in place of a copy on each member of the group, only on step 4's measured gain over the copy? | yes | yes, only on a measured gain over today's copy where the copy fits |
 | 5 | Whether `auto` prefers host memory over the devices where both hold a table? | deferred to step 3's measurement against today's device copy | deferred to that measurement |
+
+## 10. The long-context queue (planned, revision 9, 2026-10-27, decided by the owner on 2026-10-27)
+
+The owner's approval of 2026-10-26 to plan three things, each going on the roadmap only on a good measured performance: (a) cheaper context cuts that keep one window start for as many turns as possible, and the next window prepared in idle time; (b) YaRN for a model whose config declares rope scaling, never forced on one that does not; (c) a long chat's KV kept in the host or disk tier, only the blocks the indexer selects brought to the cards.
+Read at main 8bdef6867, with production's logs of 2026-10-17 to 2026-10-27 (`/zpool1/llmx-serve/rollback-*/old-server.log` on the test machine, parsed by `s8/cuts.py`) and the headers of the GGUF files in `/zpool1/models`.
+
+### Measured facts
+
+- **The cut today.** Under `--context-overflow shift` a prompt past the request limit (262144 on production) drops whole steps of half the limit counted from its start, at message boundaries (`Api::fit`, `first_kept`, `kCutTo` in `src/server/context_cut.hpp`) **[v]**. The window start holds while the kept part grows back to the limit: production dropped the same 137643, 276837, 445012 and 583578 tokens on two or three turns each **[v]**.
+- **What a cut costs on production.** Production's chat grew by 47k to 71k tokens a turn on 2026-10-26 and 27 (232360, 279446, 330080, 388787, 447591, 514840, 586159, 657237, 703829, 770115, 832237 tokens before the cut), so the start moved every second or third turn **[v]**. The first turn at a new start reused nothing and read the whole kept part again; the turns after it reused it **[v]**:
+
+| Log | Kept after the cut | Reused | Time to first token |
+|---|---|---|---|
+| 2026-10-26 (d) | 149317 | 0 | 210.6 s |
+| 2026-10-26 (e) | 94717 | 0 | 96.5 s |
+| 2026-10-26 (e) | 141803, 192437 | all but the new turn | 0.5 s, 0.5 s |
+| 2026-10-26 (e) | 111950 | 0 | 118.0 s |
+| 2026-10-26 (e) | 170754 | all but the new turn | 0.5 s |
+| 2026-10-26 (e) | 69828 | 0 | 67.4 s |
+| 2026-10-27 (a) | 120251 | 0 | 125.4 s |
+| 2026-10-27 (a) | 186537 | 182784 | 14.5 s |
+| 2026-10-27 (a) | 130976 | 0 | 148.0 s |
+
+  The re-read runs at 0.71 to 1.04k tokens a second on 2x2. Of the chat's 13 turns past the limit in those logs, six moved the start and took 67 to 211 s, one followed a restart, and the other six took 0.5 to 88 s **[v]**. Earlier builds took 318 to 1206 s for 107579 to 146786 kept tokens (2026-10-17 to 25) **[v]**. A restart onto other numerics is apart: 2026-10-27 (a)'s first turn read 212225 tokens in 260.6 s at an unchanged start **[v]**.
+- **Edits after a cut.** Every cut turn also logged its message boundary as not kept, so an edit or a regenerate of its last message read the whole kept part again; fix/boundary-retire (at its gate on 2026-10-27) keeps it **[v]**.
+- **Idle time between turns** is not in the logs, whose lines carry no time, so whether a prepared window would be ready before the next turn is not known yet.
+- **Rope scaling.** No file of an architecture llmx runs declares it: every Qwen3, Qwen3.5, Qwen3.6, Qwen3.8 and Qwen3.8-Flash-Next file on the test machine gives only `rope.freq_base` and the sections, at its native context (40960 for Qwen3 dense, 262144 for the rest) **[v]**. Of the files there, gpt-oss declares YaRN (factor 32 from 4096) and the other project's DeepSeek-V4.1 conversion declares YaRN (factor 16 from 65536, a header read only) **[v]**; neither is an architecture llmx runs. qwen35 refuses a scaled rope by name (`arch-qwen35`) **[v]**.
+- **Flash-Next's attention and KV.** 48 layers, 12 of them sparse attention (every fourth), 2 KV heads of 256, the indexer choosing 2048 tokens a query from groups of 4 (`attention.indexer.top_k`, `compress_ratios`); the other 36 layers keep a fixed state **[v]**. A sparse layer's KV is 2 KiB a token in f16 **[i]**, so the selected rows of one decode step are 12 x 2048 x 2 KiB = 48 MiB across the cards. Production's pool holds 599360 tokens beside 262144 a request, and the longest history takes 11008 MiB of host memory **[v, start line]**; run D restored 16.71 GB from disk in 16.70 s **[v]**.
+
+### (a) Cheaper cuts
+
+1. **The next window prepared in idle time** is step 10 and section 8's item 12, decided by the owner on 2026-10-13 (question 9), unchanged in design. The figures above size it: a prepared window saves a cut turn's 67 to 211 s when the server has that long idle before the next turn, and nothing when the next turn comes sooner. **Measured first:** a day of production's turn times from `docker logs --timestamps` (read only), the gap from each reply's end to the next turn's arrival against the re-read the turn after would need, the client's tasks after each reply counted as the busy time they are. Built only where most cut turns had the gap; its gate stays the two-cut scenario against the same run with preparation off.
+2. **A larger step, for fewer and smaller re-reads.** A step of f of the limit does not bound a move's re-read by (1 - f) of it: the cut counts whole steps past the last turn start that does not fit and then takes the first turn start after them, so a large arriving turn and the turns' boundaries leave more or less (a half step kept 149317 rows, more than 131072). Replayed instead (`s8/replay.py` and `s8/replay2.py` on the test machine): `first_kept`'s rule over production's 24 recorded turns past the limit in four conversations (2026-10-17 to 27), each user turn starting where the turn before ended with its reply and every recorded cut an exact start, the system message's rows fitted per conversation (0 and 4750), at which the half step reproduces all 24 recorded cuts, then the same turns at three quarters:
+
+   | Step | Moves of the start in 20 turns | Re-read a move, median and worst | The same at 950 tok/s | Kept after a move, least and median | Re-read a turn, mean |
+   |---|---|---|---|---|---|
+   | 1/2 (today) | 7, about 2.5 a day over the 66 h the two longer conversations' logs span | 120251, 149317 | 127 s, 157 s | 69828, 120251 | 41718 tokens, 44 s |
+   | 3/4 | 5, about 1.8 a day | 69828, 111219 | 74 s, 117 s | 2609, 69828 | 15640 tokens, 16 s |
+
+   Three quarters re-reads about 38% of today's tokens a turn and moves the start less often, but its worst move still re-reads 111219 rows, and once it kept only the newest turn (2609 rows): the only turn start past three quarters of the limit was the newest one, so the model saw none of the chat before it. The effect on replies is not measured. One constant (`kCutTo` as a fraction), no flag; the cut owner and its tests (`context-cut`, the server's cut cases) move with it, P5's same-place rule unchanged.
+
+### (b) YaRN
+
+Not an item of its own. No model llmx runs declares rope scaling, and llmx never applies scaling a model does not declare. The first architecture whose files declare it, DeepSeek-V4.1 on the roadmap, takes YaRN in its own module as its declared rope, with that module's tiny HF fixture and the long-context check (AGENTS.md, Traps the gates exist for) as its gate. qwen35 and qwen4exp keep refusing a scaled rope by name until a file of theirs declares one. When a second architecture's files declare it, YaRN moves into the rope owner the architectures share (the graph pieces under `src/model/arch/`), never a copy (F2DEV, 2026-10-27).
+
+### (c) KV beyond VRAM
+
+Not on the roadmap until two measurements say it pays, and a use exists.
+- **What it would move.** A decode step reads 48 MiB of selected rows; if the selection changed whole every step, that is about 3.2 ms a step over PCIe 3.0 x16 at its nominal 15.75 GB/s against a decode step of about 25 to 30 ms on 2x2 **[i]**. A prompt pass of 512 rows selects 2048 tokens each, whose union can be most of the history: up to 512 MiB a sparse layer a pass at 262144 tokens, 6 GiB a pass **[i]**, more than the pass's own time to move.
+- **What stays on the cards regardless.** The indexer scores every past group for each query, so its keys for the whole history stay on the cards whatever tier holds the KV: 128 values a group of 4 tokens a sparse layer, about 64 B a token at 16 bits and 768 B over the 12 layers, against 24 KiB of KV **[i]**. They, not the selected rows, bound how far the cards' memory a history needs can shrink (F2DEV, 2026-10-27).
+- **Measured first:** in a probe build, never committed, the distinct groups a decode step selects that the step before did not, the union a prompt pass selects and the indexer keys' bytes a token as stored, over a 200k-token chat on production's model; and the cards' host-to-device rate. Built only if the decode traffic stays under a twentieth of a step and a prompt pass needs far less than the whole history.
+- **Its use.** Today the pool holds two whole requests beside each other and a conversation that comes back is restored whole, 11008 MiB for Flash's longest history, about 11 s at run D's disk rate, once. Selected blocks would pay where more long conversations are active than the pool holds; production has one. It does not shorten a cut, whose cause is the model's 262144-token context, not the cards' memory.
+
+### Order and the owner's decisions
+
+Decided on 2026-10-27 after F2DEV's and XDEV's reviews; the idle-gap measurement is the first done, and nothing else is built before its result.
+
+| | Question | Recommendation | Decided |
+|---|---|---|---|
+| 1 | Measure production's idle gaps for a day (read only, no change), then build step 10 only where most cut turns had the gap? | yes | yes: measure first, then step 10 only if most cut turns had enough idle time |
+| 2 | A cut step of three quarters of the limit in place of half: on production's replayed turns 5 moves in 20 turns in place of 7, 38% of the re-read a turn (16 s against 44 s), the worst move 117 s against 157 s, and once only the newest turn kept? | the owner's choice of time against context; no recommendation, since the cost in replies is not measured and the replay shows a cut that keeps one turn | no: the half step stays, halving being the common rule among servers |
+| 3 | YaRN only inside the architecture whose files declare it (DeepSeek-V4.1), no item of its own? | yes | yes, moving to a shared rope owner when a second architecture declares it (the owner's YaRN for declaring models of 2026-10-26) |
+| 4 | KV beyond VRAM off the roadmap until the two measurements of (c) pay and more long conversations are active than the pool holds? | yes | yes, as the owner's rule of 2026-10-26 that an item goes on the roadmap only on a good measured performance has it |

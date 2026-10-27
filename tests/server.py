@@ -718,6 +718,30 @@ WEATHER_ARGUMENTS = "{\"city\": \"Paris\", \"days\": 3}"
 # A reply of two calls under the Qwen3 template, the token that closes the first also opening the second.
 TWO_CALLS = ["<think>\n\n</think>\n\n<tool_call>\n{\"name\": \"get_", "weather\", \"arguments\": {\"city\": \"Par", "is\"}}\n</tool_",
              "call>\n<tool_call>\n{\"name\": \"get_weather\", \"argu", "ments\": {\"city\": \"Tok", "yo\"}}\n</tool_call>"]
+# A function call under the Qwen 3.8 template whose one parameter is a list of objects, as a task checklist tool takes it.
+TASK_VALUE = "[{\"content\": \"Plan\", \"status\": \"pending\"}, {\"content\": \"Build\"}]"
+TASK_REPLY = ["\n</think>\n\n<tool_call>\n<function=create_tasks>\n<parameter=tasks>\n", TASK_VALUE[:20], TASK_VALUE[20:], "\n</parameter>\n</function>\n</tool_call>"]
+TASK_ARGUMENTS = "{\"tasks\": " + TASK_VALUE + "}"
+
+
+def task_tool(schema, defs=None):
+    """The checklist tool with `schema` as its one parameter's, and `defs` as its parameters' $defs."""
+    parameters = {"type": "object", "properties": {"tasks": schema}, "required": ["tasks"]}
+    if defs:
+        parameters["$defs"] = defs
+    return {"type": "function", "function": {"name": "create_tasks", "description": "A task checklist.", "parameters": parameters}}
+
+
+TASK_ITEM = {"type": "object", "properties": {"id": {"type": "string"}, "content": {"type": "string"},
+                                              "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"]}},
+             "required": ["content"]}
+# The ways a request may declare that list, or leave the tool out.
+TASK_TOOLS = [("an array", [task_tool({"type": "array", "items": TASK_ITEM})]),
+              ("an array or null", [task_tool({"anyOf": [{"type": "array", "items": TASK_ITEM}, {"type": "null"}]})]),
+              ("a reference", [task_tool({"$ref": "#/$defs/Tasks"}, {"Tasks": {"type": "array", "items": {"$ref": "#/$defs/TaskItem"}}, "TaskItem": TASK_ITEM})]),
+              ("items without a type", [task_tool({"items": TASK_ITEM})]),
+              ("no type", [task_tool({"description": "The tasks."})]),
+              ("a tool left out", [{"type": "function", "function": {"name": "search_tools", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}}}}])]
 
 
 def check_tool_calls(directory):
@@ -725,7 +749,8 @@ def check_tool_calls(directory):
     /v1/chat/completions gives the call in the compatible shape, whole and streamed, with finish_reason tool_calls and a null content; /v1/chat gives the text whole; tool_choice "none" is the request without tools.
     The loop's second request, the call sent back as the reply gave it with the tool's result, reuses the first request's history past its reply, which the server read again as the client sends it back.
     The tools of the chat fixture render through /v1/tokenize as the reference renders them under every pinned template, and what the server cannot honour is refused with its reason.
-    parallel_tool_calls false ends a reply of two calls at the first call's close, the compatible reply holding one call and /v1/chat's text ending with the token that closes it."""
+    parallel_tool_calls false ends a reply of two calls at the first call's close, the compatible reply holding one call and /v1/chat's text ending with the token that closes it.
+    A function call's list of objects is that list, whole and streamed, under a schema declaring it an array, through anyOf, through $ref, by its items, with no type and for a tool the request leaves out, and a string under one declaring a string."""
     with open(os.path.join(os.path.dirname(__file__), "data", "baseline_chat_template.json"), encoding="utf-8") as f:
         fixture = json.load(f)
     templates = {t["name"]: t for t in fixture["templates"]}
@@ -824,6 +849,26 @@ def check_tool_calls(directory):
         assert events[-2]["choices"][0]["finish_reason"] == "tool_calls" and events[-1] is None, events[-2:]
         status, native = srv.post("/v1/chat", dict(body, parallel_tool_calls=False))
         assert status == 200 and native["text"] == "".join(TWO_CALLS[:4]) and native["tokens"] == 4, native
+    finally:
+        srv.close()
+    # A function call's array value is the array however the request's schema declares it, and where the request leaves the tool out, as a client that gives large tools' schemas on request does.
+    vocab = byte + ["".join(byte[b] for b in p.encode()) for p in TASK_REPLY] + ["<|endoftext|>"]
+    eos = len(vocab) - 1
+    f32.write_model(model, chain_tensors([ord("\n")] + list(range(256, eos)) + [eos], len(vocab), config), templates["Qwen3.8"]["template"], eos,
+                    config=config, tokens=vocab)
+    srv = Server(model)
+    try:
+        for what, tools in TASK_TOOLS:
+            body = {"messages": ask, "tools": tools, "temperature": 0, "max_tokens": 64}
+            status, got = srv.post("/v1/chat/completions", body)
+            calls = got["choices"][0]["message"].get("tool_calls") if status == 200 else None
+            assert status == 200 and calls and calls[0]["function"] == {"name": "create_tasks", "arguments": TASK_ARGUMENTS}, (what, status, got)
+            events = srv.stream("/v1/chat/completions", dict(body, stream=True))
+            pieces = [t for e in events if e and e.get("choices") for t in e["choices"][0]["delta"].get("tool_calls", [])]
+            assert "".join(t["function"]["arguments"] for t in pieces) == TASK_ARGUMENTS, (what, pieces)
+        # A parameter the schema declares a string keeps the same text as a string.
+        status, got = srv.post("/v1/chat/completions", {"messages": ask, "temperature": 0, "max_tokens": 64, "tools": [task_tool({"type": "string"})]})
+        assert status == 200 and got["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] == json.dumps({"tasks": TASK_VALUE}), got
     finally:
         srv.close()
     # A template that writes no tool-call format refuses tools.
@@ -2459,7 +2504,7 @@ def run(require=False):
               "a refusal where the reference raises, answered on the chat routes, malformed calls refused with 400, and a template variable written 1.0 a float  [ok]" % checked)
         rendered = check_tool_calls(directory)
         print("server: a reply of a tool call in the JSON and the function format given in the compatible shape whole and streamed with finish_reason tool_calls, as text on /v1/chat, "
-              "tool_choice none the request without tools, the loop's second request reusing the reply, the refusals, and %d renders with tools as the reference's  [ok]" % rendered)
+              "tool_choice none the request without tools, the loop's second request reusing the reply, the refusals, a list argument as a list under six schemas and a string under a string's, and %d renders with tools as the reference's  [ok]" % rendered)
         print("server: an assistant turn with its reasoning in the content, in reasoning_content or null beside it renders as chat renders its own reply, "
               "and whole in both under a template without reasoning; two chat turns under a Qwen 3.8 template are the reference's renders; "
               "/v1/tokenize counts each as the chat routes read it; a bad reasoning_content and a conversation the template raises on answer 400  [ok]")

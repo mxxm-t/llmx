@@ -288,6 +288,10 @@ void check_tool_splits(Tally& tally) {
                      { { "get_weather", "{\"days\": \"three\"}" } }, tally);
     check_tool_split("an untyped value that looks like JSON", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=n>\n3\n</parameter>\n</function>\n</tool_call>", "",
                      { { "f", "{\"n\": \"3\"}" } }, tally);
+    // A tool the request leaves out, as a client that gives large tools' schemas on request does: an object or an array is written as JSON, other text as a string.
+    check_tool_split("an array for a tool the request leaves out", ToolFormat::xml, typed,
+                     "<tool_call>\n<function=create_tasks>\n<parameter=tasks>\n[{\"content\": \"a\"}]\n</parameter>\n<parameter=note>\n[a]\n</parameter>\n</function>\n</tool_call>", "",
+                     { { "create_tasks", "{\"tasks\": [{\"content\": \"a\"}], \"note\": \"[a]\"}" } }, tally);
     check_tool_split("a function opening that is no call", ToolFormat::xml, typed, "<tool_call>\nhello\n</tool_call>", "<tool_call>\nhello\n</tool_call>", {}, tally);
     check_tool_split("a function call cut inside a parameter", ToolFormat::xml, typed, "<tool_call>\n<function=f>\n<parameter=a>\n1\n</parameter>\n<parameter=b>\nx", "",
                      { { "f", "{\"a\": \"1\"}" } }, tally);

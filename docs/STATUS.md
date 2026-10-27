@@ -1,5 +1,31 @@
 # llmx - Development Status
 
+## Q2_K and Q3_K narrow tile test witnesses (2026-10-27, Done, lands by fast-forward as one test-fix commit)
+
+The two native tests now recognize `matmul_tile_q2_narrow` and
+`matmul_tile_q3_narrow`, the routed 16-column kernels introduced by
+`7300e94ac`. Only their exact-name predicates change. Numerical assertions,
+integer arithmetic witnesses, unsupported-int8 refusals and runtime code
+are unchanged.
+
+Both original tests fail on main `5673d3c25` on an MI50 and pass with the
+corrected predicates against the same Vulkan library. Each checks 1,309
+exact row-class pairs, with 2,248 Q2_K and 2,252 Q3_K block-int16 calls.
+The integration on NVFP4 main `c601fc31e` preserves those predicates and
+passes fresh Windows native builds and tests. Docs and dead-code pass.
+F2DEV reviewed the two-predicate fix. [Reproduction, binaries and CI
+evidence](benchmarks/q23-narrow-witness-20261027.json).
+
+[Hosted run 40516747943](https://github.com/mxxm-t/llmx/actions/runs/40516747943)
+at `677937f74` passes the relevant Windows, Linux, Vulkan-build and UBSan
+jobs and the macOS configure/build/native-test steps. The macOS inference
+suite was still running at the landing audit. It is unrelated to this
+tests-only change and is not claimed as passed. The final delta from that
+tested head is documentation and evidence only. No new inference
+performance or HF round is required for these predicates. The change
+lands by fast-forward from unchanged main `c601fc31e`.
+
+
 ## NVFP4 read-only weight support (2026-10-27, Done, lands by fast-forward as one feature commit)
 
 | Feature | CPU | Vulkan | Quantize writer |

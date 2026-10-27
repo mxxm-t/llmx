@@ -1,0 +1,1192 @@
+{
+  "base": "5673d3c25c9e4a1504b9d4865ebd763768df9adb",
+  "scope": "Two test-only narrow-tile name predicates. No runtime, numerical bound, fixture or arithmetic witness changes.",
+  "introduced_by": "7300e94ac",
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "device": {
+    "physical_gpu": 9,
+    "render": "/dev/dri/renderD131",
+    "pci": "0000:cc:00.0"
+  },
+  "arms": {
+    "main": {
+      "base": "5673d3c25",
+      "started_unix": 1793106752.3800564,
+      "commands": [
+        {
+          "label": "q2_k-build",
+          "argv": [
+            "/usr/bin/c++",
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable",
+            "-I/work/main/build/generated",
+            "-I/work/main/source/src",
+            "-I/work/main/source/tests",
+            "/out/q2_k.cpp",
+            "/work/main/build/libllmx-vulkan.a",
+            "-ldl",
+            "-o",
+            "/out/q2_k"
+          ],
+          "started_unix": 1793106752.3956556,
+          "exit_code": 0,
+          "ended_unix": 1793106766.4526262
+        },
+        {
+          "label": "q2_k-vulkan",
+          "argv": [
+            "/out/q2_k",
+            "--vulkan"
+          ],
+          "started_unix": 1793106766.4669647,
+          "exit_code": 1,
+          "ended_unix": 1793106769.7472918
+        },
+        {
+          "label": "q3_k-build",
+          "argv": [
+            "/usr/bin/c++",
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable",
+            "-I/work/main/build/generated",
+            "-I/work/main/source/src",
+            "-I/work/main/source/tests",
+            "/out/q3_k.cpp",
+            "/work/main/build/libllmx-vulkan.a",
+            "-ldl",
+            "-o",
+            "/out/q3_k"
+          ],
+          "started_unix": 1793106769.7477012,
+          "exit_code": 0,
+          "ended_unix": 1793106783.8393106
+        },
+        {
+          "label": "q3_k-vulkan",
+          "argv": [
+            "/out/q3_k",
+            "--vulkan"
+          ],
+          "started_unix": 1793106783.8529525,
+          "exit_code": 1,
+          "ended_unix": 1793106786.6029437
+        }
+      ],
+      "runtime_sha256": "fdb0f4ffb5df037d7176d47eac356a44286250888ff21d356169170f8247dba7",
+      "q2_k_source_sha256": "61c615321316ec3957a3571fd0835f7dbbb0735fc3aabc7d54181abb231d89f2",
+      "q2_k_binary_sha256": "1b50d09d04d45e3553bc430b32d9434fd9a1ef9f0398d36bded16adb734155d6",
+      "q3_k_source_sha256": "4e21ba1438281100a4291b8f7b245a407d686a70ed46416fab96c85777cb164c",
+      "q3_k_binary_sha256": "513dc5fc09ba7942ceb311067d84d3e5c42ede7338cdafc9156fe4a5042a7ee6",
+      "ended_unix": 1793106786.603183
+    },
+    "fixed": {
+      "base": "5673d3c25",
+      "started_unix": 1793106904.7392802,
+      "commands": [
+        {
+          "label": "q2_k-build",
+          "argv": [
+            "/usr/bin/c++",
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable",
+            "-I/work/main/build/generated",
+            "-I/work/main/source/src",
+            "-I/work/main/source/tests",
+            "/out/q2_k.cpp",
+            "/work/main/build/libllmx-vulkan.a",
+            "-ldl",
+            "-o",
+            "/out/q2_k"
+          ],
+          "started_unix": 1793106904.7558794,
+          "exit_code": 0,
+          "ended_unix": 1793106918.7767181
+        },
+        {
+          "label": "q2_k-cpu",
+          "argv": [
+            "/out/q2_k"
+          ],
+          "started_unix": 1793106918.7914095,
+          "exit_code": 0,
+          "ended_unix": 1793106920.538356
+        },
+        {
+          "label": "q2_k-vulkan",
+          "argv": [
+            "/out/q2_k",
+            "--vulkan"
+          ],
+          "started_unix": 1793106920.5386634,
+          "exit_code": 0,
+          "ended_unix": 1793106923.7995925
+        },
+        {
+          "label": "q3_k-build",
+          "argv": [
+            "/usr/bin/c++",
+            "-O3",
+            "-DNDEBUG",
+            "-std=c++17",
+            "-mavx2",
+            "-mfma",
+            "-mf16c",
+            "-Wall",
+            "-Wextra",
+            "-Werror=unused-function",
+            "-Werror=unused-variable",
+            "-Werror=unused-but-set-variable",
+            "-I/work/main/build/generated",
+            "-I/work/main/source/src",
+            "-I/work/main/source/tests",
+            "/out/q3_k.cpp",
+            "/work/main/build/libllmx-vulkan.a",
+            "-ldl",
+            "-o",
+            "/out/q3_k"
+          ],
+          "started_unix": 1793106923.8000417,
+          "exit_code": 0,
+          "ended_unix": 1793106937.83345
+        },
+        {
+          "label": "q3_k-cpu",
+          "argv": [
+            "/out/q3_k"
+          ],
+          "started_unix": 1793106937.8470645,
+          "exit_code": 0,
+          "ended_unix": 1793106939.1624558
+        },
+        {
+          "label": "q3_k-vulkan",
+          "argv": [
+            "/out/q3_k",
+            "--vulkan"
+          ],
+          "started_unix": 1793106939.1627653,
+          "exit_code": 0,
+          "ended_unix": 1793106941.8772113
+        }
+      ],
+      "runtime_sha256": "fdb0f4ffb5df037d7176d47eac356a44286250888ff21d356169170f8247dba7",
+      "q2_k_source_sha256": "1b4a97d219b5d87fd8d928bca5a118934e5c93a92d34227f47ae4c8c852b509d",
+      "q2_k_binary_sha256": "778e894f5784f36abe790602d3d530032d50e923f069820080f6bed29d851335",
+      "q3_k_source_sha256": "31c87e651610129aca0bc6922db2e291b962f440574dc7dbf812c5e834cd05fc",
+      "q3_k_binary_sha256": "a5dcc8c8dcf46a5c8e478e90e75ef86341663d4852bad41310eff690f5b16c09",
+      "ended_unix": 1793106941.8775303
+    }
+  },
+  "cleanup_verified": true,
+  "evidence_root_rig": "/zpool1/llmx-xdev-quant-20261020/nvfp4-mainf61-20261026/q23-narrow-witness-{main,fixed}-20261027",
+  "raw_receipt_sha256": {
+    "main/execution.json": "cc3fe572746bf2d68b87af387a73e9ada48dae7e2e03f5304865d84ea6011679",
+    "main/controller.json": "8f85910bdd7a1c19952f5ba77a961eb90428eaac7514cdf251aff4c2e7b150de",
+    "main/q2_k-vulkan.stdout": "720c738e03feef3cdb221196075b40c83c012a973ab4798c828af287117a16d6",
+    "main/q2_k-vulkan.stderr": "3264645f69719f6ae97fc4cdeec1a2d00065d6b29b5a76245199e500508c7e62",
+    "main/q3_k-vulkan.stdout": "27d1d557d3b973e30545e95829d86f49ada9b9b36900c800e397ddfae38bd301",
+    "main/q3_k-vulkan.stderr": "57c7afdf3d12252401b37953d45d94bf92224b1cfbbb42e645894071f16e92f1",
+    "fixed/execution.json": "68a9c5ae6fb6d7a2b0b4776f7c27857fbaafcd0412e1214eec270b77e38d8159",
+    "fixed/controller.json": "7867c9b69eccda186849ec98014d52b3cd5d35fcf2579f7842bb70a7b046a04a",
+    "fixed/q2_k-vulkan.stdout": "9667ba56e309593d110bc44701d7c8cac4843d4c01b4c4b1597ebefd16a79651",
+    "fixed/q2_k-vulkan.stderr": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35",
+    "fixed/q3_k-vulkan.stdout": "1a7ecaf391328fe4c3504b45ffccf71eef23343664bbc5dadb91185978b8bc81",
+    "fixed/q3_k-vulkan.stderr": "1034f73d7f01ee916d26ac5646ade65100d6d83b8ca089e4e5e40bfbaccaca35"
+  },
+  "numerical_coverage": {
+    "Q2_K": {
+      "exact_decoded_values": 65011712,
+      "independent_values": 557601,
+      "exact_row_class_pairs": 1309,
+      "block_int16_calls": 2248
+    },
+    "Q3_K": {
+      "exact_decoded_values": 32505856,
+      "independent_values": 1187897,
+      "exact_row_class_pairs": 1309,
+      "block_int16_calls": 2252
+    }
+  },
+  "limitations": "Targeted tests, not an inference performance run. Runtime library identical in both arms. Hosted checks and review are tracked separately.",
+  "rebased_checkpoint": {
+    "base": "c601fc31e57d3e1dbbeba8d48387cb82ad84c9ae",
+    "candidate": "677937f741c8e009f6ed0d16f4a0de24dc7ea294",
+    "delta": "Same two exact-name predicates. NVFP4 test/API changes from new main are preserved. Only STATUS insertion conflicted.",
+    "fresh_windows_cpu_build_and_tests": {
+      "revision": "677937f741c8e009f6ed0d16f4a0de24dc7ea294",
+      "steps": [
+        {
+          "name": "configure",
+          "argv": [
+            "cmake",
+            "-S",
+            ".",
+            "-B",
+            "build-repro/final-cpu/cmake",
+            "-G",
+            "Visual Studio 18 2026",
+            "-A",
+            "x64",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DLLMX_HAS_BACKEND_VULKAN=OFF"
+          ],
+          "started_unix": 1793109436.775734,
+          "pid": 88180,
+          "exit_code": 0,
+          "ended_unix": 1793109443.935671,
+          "log_sha256": "7c3d64cefed195b1be7387c02940da6a1fc2fd8efaa10e317e7e7b250e22fef4"
+        },
+        {
+          "name": "build",
+          "argv": [
+            "cmake",
+            "--build",
+            "build-repro/final-cpu/cmake",
+            "--config",
+            "Release",
+            "--parallel",
+            "1",
+            "--target",
+            "llmx-q2-k-test",
+            "llmx-q3-k-test"
+          ],
+          "started_unix": 1793109443.946195,
+          "pid": 78796,
+          "exit_code": 0,
+          "ended_unix": 1793109453.6212385,
+          "log_sha256": "ac275890934e20034a4556147fd7cde2ade818d927cecefcff3559bc92084dea"
+        },
+        {
+          "name": "ctest",
+          "argv": [
+            "ctest",
+            "--test-dir",
+            "build-repro/final-cpu/cmake",
+            "-C",
+            "Release",
+            "-R",
+            "^(q2-k|q3-k)$",
+            "--output-on-failure"
+          ],
+          "started_unix": 1793109453.6284473,
+          "pid": 89016,
+          "exit_code": 0,
+          "ended_unix": 1793109461.74692,
+          "log_sha256": "2a60e0dcbabec7db6609c5b080ddea266a0b22896c7adf16b90cf837c0846248"
+        }
+      ],
+      "passed": true,
+      "binaries": {
+        "llmx-q2-k-test.exe": "ee725f671a915bbbb41e4b8a7989760a26e3473a56ba8c85aff8d208f82f7908",
+        "llmx-q3-k-test.exe": "42d8d3def9ce0160cb4e33e5c8946f88e0c7af70bcdb54bd738a535379906727"
+      }
+    },
+    "raw_receipt_sha256": "bd13576be0565a0b2a4cea791d773afef1f452ae72d63b349993c56d64ae3c17",
+    "docs_dead_code": "Pass after rebase: docs 0 findings/21 planted faults, dead-code known baseline/19 planted faults.",
+    "ci": {
+      "run_id": 40516747943,
+      "head": "677937f741c8e009f6ed0d16f4a0de24dc7ea294",
+      "status": "Pending relevant hosted build/native-test steps"
+    },
+    "gpu_evidence_scope": "Original failure and fixed MI50 checks are on5673d3c25 as pinned above, not relabeled as a new GPU run after NVFP4."
+  },
+  "landing": {
+    "base": "c601fc31e57d3e1dbbeba8d48387cb82ad84c9ae",
+    "tested_head": "677937f741c8e009f6ed0d16f4a0de24dc7ea294",
+    "ci": {
+      "id": 40516747943,
+      "head": "677937f741c8e009f6ed0d16f4a0de24dc7ea294",
+      "url": "https://github.com/mxxm-t/llmx/actions/runs/40516747943",
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 122232442467,
+          "name": "Vulkan backend (build, Linux)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:09Z",
+              "completed_at": "2026-10-27T13:58:10Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:13Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:13Z",
+              "completed_at": "2026-10-27T13:58:13Z"
+            },
+            {
+              "name": "Vulkan headers and shader compiler",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:13Z",
+              "completed_at": "2026-10-27T13:58:29Z"
+            },
+            {
+              "name": "Configure with the Vulkan backend",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:29Z",
+              "completed_at": "2026-10-27T13:58:32Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:58:32Z",
+              "completed_at": "2026-10-27T14:11:48Z"
+            },
+            {
+              "name": "Backend tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T14:11:48Z",
+              "completed_at": "2026-10-27T14:26:35Z"
+            },
+            {
+              "name": "Failed tests as annotations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T14:26:35Z",
+              "completed_at": "2026-10-27T14:26:36Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:26:36Z",
+              "completed_at": "2026-10-27T14:26:41Z"
+            },
+            {
+              "name": "Test on the CPU",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:26:41Z",
+              "completed_at": "2026-10-27T14:34:26Z"
+            },
+            {
+              "name": "Dead code in the linked binaries",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:34:26Z",
+              "completed_at": "2026-10-27T14:42:52Z"
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 21,
+              "started_at": "2026-10-27T14:42:52Z",
+              "completed_at": "2026-10-27T14:42:52Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 22,
+              "started_at": "2026-10-27T14:42:52Z",
+              "completed_at": "2026-10-27T14:42:53Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 23,
+              "started_at": "2026-10-27T14:42:53Z",
+              "completed_at": "2026-10-27T14:42:53Z"
+            }
+          ]
+        },
+        {
+          "id": 122232442838,
+          "name": "CPU (windows-2022)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:12Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:12Z",
+              "completed_at": "2026-10-27T13:58:23Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:23Z",
+              "completed_at": "2026-10-27T13:58:23Z"
+            },
+            {
+              "name": "Python byte-compile and tool help",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:23Z",
+              "completed_at": "2026-10-27T13:58:23Z"
+            },
+            {
+              "name": "Health dashboard tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:23Z",
+              "completed_at": "2026-10-27T13:58:52Z"
+            },
+            {
+              "name": "Test fixture downloader",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:58:52Z",
+              "completed_at": "2026-10-27T13:58:54Z"
+            },
+            {
+              "name": "Configure",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T13:58:54Z",
+              "completed_at": "2026-10-27T13:59:12Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T13:59:12Z",
+              "completed_at": "2026-10-27T14:11:40Z"
+            },
+            {
+              "name": "Backend tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:11:40Z",
+              "completed_at": "2026-10-27T14:32:49Z"
+            },
+            {
+              "name": "Failed tests as annotations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:32:49Z",
+              "completed_at": "2026-10-27T14:32:50Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:32:50Z",
+              "completed_at": "2026-10-27T14:32:59Z"
+            },
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-27T14:32:59Z",
+              "completed_at": "2026-10-27T14:47:34Z"
+            },
+            {
+              "name": "Plain build and test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-27T14:47:34Z",
+              "completed_at": "2026-10-27T14:56:05Z"
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 25,
+              "started_at": "2026-10-27T14:56:05Z",
+              "completed_at": "2026-10-27T14:56:06Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 26,
+              "started_at": "2026-10-27T14:56:06Z",
+              "completed_at": "2026-10-27T14:56:08Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 27,
+              "started_at": "2026-10-27T14:56:08Z",
+              "completed_at": "2026-10-27T14:56:08Z"
+            }
+          ]
+        },
+        {
+          "id": 122232442856,
+          "name": "CPU (Linux TSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:09Z",
+              "completed_at": "2026-10-27T13:58:10Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:13Z"
+            },
+            {
+              "name": "Configure with thread checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:13Z",
+              "completed_at": "2026-10-27T13:58:25Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:25Z",
+              "completed_at": "2026-10-27T13:59:58Z"
+            },
+            {
+              "name": "Thread tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:59:58Z",
+              "completed_at": "2026-10-27T14:14:02Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:14:02Z",
+              "completed_at": "2026-10-27T14:14:02Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:14:02Z",
+              "completed_at": "2026-10-27T14:14:02Z"
+            }
+          ]
+        },
+        {
+          "id": 122232442977,
+          "name": "CPU (ubuntu-24.04)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:10Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:13Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:13Z",
+              "completed_at": "2026-10-27T13:58:13Z"
+            },
+            {
+              "name": "Python byte-compile and tool help",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:13Z",
+              "completed_at": "2026-10-27T13:58:15Z"
+            },
+            {
+              "name": "Health dashboard tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:15Z",
+              "completed_at": "2026-10-27T13:58:22Z"
+            },
+            {
+              "name": "Test fixture downloader",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:58:22Z",
+              "completed_at": "2026-10-27T13:58:22Z"
+            },
+            {
+              "name": "Configure",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T13:58:22Z",
+              "completed_at": "2026-10-27T13:58:22Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T13:58:22Z",
+              "completed_at": "2026-10-27T14:06:21Z"
+            },
+            {
+              "name": "Backend tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:06:21Z",
+              "completed_at": "2026-10-27T14:20:22Z"
+            },
+            {
+              "name": "Failed tests as annotations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:20:22Z",
+              "completed_at": "2026-10-27T14:20:22Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:20:22Z",
+              "completed_at": "2026-10-27T14:20:24Z"
+            },
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-27T14:20:24Z",
+              "completed_at": "2026-10-27T14:25:39Z"
+            },
+            {
+              "name": "Plain build and test",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 13,
+              "started_at": "2026-10-27T14:25:39Z",
+              "completed_at": "2026-10-27T14:25:39Z"
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 25,
+              "started_at": "2026-10-27T14:25:39Z",
+              "completed_at": "2026-10-27T14:25:39Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 26,
+              "started_at": "2026-10-27T14:25:39Z",
+              "completed_at": "2026-10-27T14:25:40Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 27,
+              "started_at": "2026-10-27T14:25:40Z",
+              "completed_at": "2026-10-27T14:25:40Z"
+            }
+          ]
+        },
+        {
+          "id": 122232443023,
+          "name": "CPU (Linux UBSan)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:11Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:11Z",
+              "completed_at": "2026-10-27T13:58:14Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:14Z",
+              "completed_at": "2026-10-27T13:58:14Z"
+            },
+            {
+              "name": "Test fixture downloader",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:14Z",
+              "completed_at": "2026-10-27T13:58:15Z"
+            },
+            {
+              "name": "Configure with undefined-behavior checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:15Z",
+              "completed_at": "2026-10-27T13:58:19Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:58:19Z",
+              "completed_at": "2026-10-27T14:18:14Z"
+            },
+            {
+              "name": "Backend tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T14:18:14Z",
+              "completed_at": "2026-10-27T14:36:37Z"
+            },
+            {
+              "name": "Failed tests as annotations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T14:36:37Z",
+              "completed_at": "2026-10-27T14:36:38Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:36:38Z",
+              "completed_at": "2026-10-27T14:36:41Z"
+            },
+            {
+              "name": "Test",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:36:41Z",
+              "completed_at": "2026-10-27T14:45:29Z"
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 19,
+              "started_at": "2026-10-27T14:45:29Z",
+              "completed_at": "2026-10-27T14:45:29Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 20,
+              "started_at": "2026-10-27T14:45:29Z",
+              "completed_at": "2026-10-27T14:45:29Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 21,
+              "started_at": "2026-10-27T14:45:29Z",
+              "completed_at": "2026-10-27T14:45:29Z"
+            }
+          ]
+        },
+        {
+          "id": 122232443086,
+          "name": "CPU (macos-15-intel)",
+          "status": "in_progress",
+          "conclusion": null,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:15Z",
+              "completed_at": "2026-10-27T13:58:18Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:18Z",
+              "completed_at": "2026-10-27T13:58:31Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:31Z",
+              "completed_at": "2026-10-27T13:58:32Z"
+            },
+            {
+              "name": "Python byte-compile and tool help",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:32Z",
+              "completed_at": "2026-10-27T13:58:32Z"
+            },
+            {
+              "name": "Health dashboard tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:32Z",
+              "completed_at": "2026-10-27T13:59:10Z"
+            },
+            {
+              "name": "Test fixture downloader",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:59:10Z",
+              "completed_at": "2026-10-27T13:59:11Z"
+            },
+            {
+              "name": "Configure",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T13:59:11Z",
+              "completed_at": "2026-10-27T13:59:23Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T13:59:23Z",
+              "completed_at": "2026-10-27T14:17:42Z"
+            },
+            {
+              "name": "Backend tests",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:17:42Z",
+              "completed_at": "2026-10-27T14:44:29Z"
+            },
+            {
+              "name": "Failed tests as annotations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10,
+              "started_at": "2026-10-27T14:44:29Z",
+              "completed_at": "2026-10-27T14:44:29Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:44:29Z",
+              "completed_at": "2026-10-27T14:44:37Z"
+            },
+            {
+              "name": "Test",
+              "status": "in_progress",
+              "conclusion": null,
+              "number": 12,
+              "started_at": "2026-10-27T14:44:37Z",
+              "completed_at": null
+            },
+            {
+              "name": "Plain build and test",
+              "status": "pending",
+              "conclusion": null,
+              "number": 13,
+              "started_at": null,
+              "completed_at": null
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "pending",
+              "conclusion": null,
+              "number": 25,
+              "started_at": null,
+              "completed_at": null
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "pending",
+              "conclusion": null,
+              "number": 26,
+              "started_at": null,
+              "completed_at": null
+            }
+          ]
+        },
+        {
+          "id": 122232443109,
+          "name": "HF reference (CPU)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1,
+              "started_at": "2026-10-27T13:58:10Z",
+              "completed_at": "2026-10-27T13:58:11Z"
+            },
+            {
+              "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2,
+              "started_at": "2026-10-27T13:58:11Z",
+              "completed_at": "2026-10-27T13:58:14Z"
+            },
+            {
+              "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3,
+              "started_at": "2026-10-27T13:58:14Z",
+              "completed_at": "2026-10-27T13:58:14Z"
+            },
+            {
+              "name": "Test fixture downloader",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4,
+              "started_at": "2026-10-27T13:58:14Z",
+              "completed_at": "2026-10-27T13:58:15Z"
+            },
+            {
+              "name": "Configure",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5,
+              "started_at": "2026-10-27T13:58:15Z",
+              "completed_at": "2026-10-27T13:58:16Z"
+            },
+            {
+              "name": "Build",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6,
+              "started_at": "2026-10-27T13:58:16Z",
+              "completed_at": "2026-10-27T14:10:20Z"
+            },
+            {
+              "name": "HF fixtures key",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7,
+              "started_at": "2026-10-27T14:10:20Z",
+              "completed_at": "2026-10-27T14:10:20Z"
+            },
+            {
+              "name": "Restore HF fixtures",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8,
+              "started_at": "2026-10-27T14:10:20Z",
+              "completed_at": "2026-10-27T14:11:43Z"
+            },
+            {
+              "name": "Fetch pinned HF fixtures",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9,
+              "started_at": "2026-10-27T14:11:43Z",
+              "completed_at": "2026-10-27T14:11:46Z"
+            },
+            {
+              "name": "Save HF fixtures",
+              "status": "completed",
+              "conclusion": "skipped",
+              "number": 10,
+              "started_at": "2026-10-27T14:11:46Z",
+              "completed_at": "2026-10-27T14:11:46Z"
+            },
+            {
+              "name": "Numpy for the spec decoders",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11,
+              "started_at": "2026-10-27T14:11:46Z",
+              "completed_at": "2026-10-27T14:11:50Z"
+            },
+            {
+              "name": "Test with required HF fixtures",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12,
+              "started_at": "2026-10-27T14:11:50Z",
+              "completed_at": "2026-10-27T14:43:33Z"
+            },
+            {
+              "name": "HF gate with f32 caches",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13,
+              "started_at": "2026-10-27T14:43:33Z",
+              "completed_at": "2026-10-27T14:56:52Z"
+            },
+            {
+              "name": "Q8_0 fixture path and perplexity excerpt",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14,
+              "started_at": "2026-10-27T14:56:52Z",
+              "completed_at": "2026-10-27T14:56:53Z"
+            },
+            {
+              "name": "Layer split over two CPU backends",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15,
+              "started_at": "2026-10-27T14:56:53Z",
+              "completed_at": "2026-10-27T14:57:43Z"
+            },
+            {
+              "name": "Many users through the server",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 16,
+              "started_at": "2026-10-27T14:57:43Z",
+              "completed_at": "2026-10-27T15:01:12Z"
+            },
+            {
+              "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 31,
+              "started_at": "2026-10-27T15:01:12Z",
+              "completed_at": "2026-10-27T15:01:12Z"
+            },
+            {
+              "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 32,
+              "started_at": "2026-10-27T15:01:12Z",
+              "completed_at": "2026-10-27T15:01:12Z"
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 33,
+              "started_at": "2026-10-27T15:01:12Z",
+              "completed_at": "2026-10-27T15:01:12Z"
+            }
+          ]
+        }
+      ]
+    },
+    "scope": "Tests-only. Relevant native build/test coverage passes on Windows, Linux, macOS and the Vulkan build, plus UBSan. macOS inference Test remains in progress and is unrelated to these two exact-name predicates.",
+    "carry": "Original main5673 CPU/MI50 failure and corrected witnesses remain the GPU evidence. Rebase to c601 preserves both test predicates and existing Q2/Q3 implementation. Fresh c601 Windows native checks and hosted build/native checks cover integration. The final delta from CI-tested677 is docs/evidence only.",
+    "publication": "Prepared to fast-forward unchanged GitHub main, then remove the temporary CI branch. No runtime or numerical-bound changes."
+  }
+}

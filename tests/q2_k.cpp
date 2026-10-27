@@ -298,7 +298,7 @@ int main(int argc, char** argv) {
                 const bool float_tile = name == "matmul_tile" || name.rfind("matmul_tile ", 0) == 0
                                      || name.rfind("matmul_tile_small", 0) == 0 || name.rfind("matmul_tile_tall", 0) == 0;
                 const bool bf16_tile = name.rfind("matmul_tile_bf16", 0) == 0;
-                const bool q2_tile = name == "matmul_tile_q2" || name.rfind("matmul_tile_q2 ", 0) == 0 || name.rfind("matmul_tile_q2_small", 0) == 0;
+                const bool q2_tile = name == "matmul_tile_q2" || name.rfind("matmul_tile_q2 ", 0) == 0 || name.rfind("matmul_tile_q2_small", 0) == 0 || name == "matmul_tile_q2_narrow";
                 if (name.rfind("matmul_row", 0) == 0) require(float_row || packed_row, "Q2_K dispatched an unexpected row module");
                 if (name.rfind("matmul_tile", 0) == 0) require(float_tile || bf16_tile || q2_tile, "Q2_K dispatched an unexpected tile module");
                 require(name.rfind("matmul_vec_q", 0) != 0 && name.rfind("matmul_tile_qi8", 0) != 0, "Q2_K dispatched a native int8 module");

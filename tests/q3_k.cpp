@@ -266,7 +266,7 @@ int main(int argc, char** argv) {
                 const bool float_row = n.rfind("matmul_row_float_x_q3", 0) == 0;
                 const bool packed_row = n.rfind("matmul_row_q3_dot", 0) == 0;
                 const bool plain_tile = n == "matmul_tile" || n.rfind("matmul_tile ", 0) == 0 || n.rfind("matmul_tile_small", 0) == 0 || n.rfind("matmul_tile_tall", 0) == 0;
-                const bool q3_tile = n == "matmul_tile_q3" || n.rfind("matmul_tile_q3 ", 0) == 0 || n.rfind("matmul_tile_q3_small", 0) == 0;
+                const bool q3_tile = n == "matmul_tile_q3" || n.rfind("matmul_tile_q3 ", 0) == 0 || n.rfind("matmul_tile_q3_small", 0) == 0 || n == "matmul_tile_q3_narrow";
                 const bool rounded_tile = n.rfind("matmul_tile_bf16", 0) == 0;
                 if (n.rfind("matmul_row", 0) == 0) require(float_row || packed_row, "Q3_K dispatched an unexpected row");
                 if (n.rfind("matmul_tile", 0) == 0) require(plain_tile || rounded_tile || q3_tile, "Q3_K dispatched an unexpected tile");

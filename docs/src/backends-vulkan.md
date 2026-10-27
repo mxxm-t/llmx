@@ -310,7 +310,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
 - `norm_rope_partial`: one workgroup per (row, head) (`shaders/norm_rope_partial.comp`), the head's sum of squares a tree through shared memory, reading the heads at their strides and writing them contiguously; Qwen3 does not reach it on this backend, whose fused `norm_rope_kv` has the same arithmetic per head at the full width.
   Several position streams a row, or no norm, take its `norm_rope_partial_streams` build, the streams table (`RopeStreams::of`) and the positions going up through the argument arena; one stream with a norm keeps the plain build.
 - The vision encoder's ops (docs/VISION.md, section 3): `add_bias` (`shaders/add_bias.comp`), `gelu` in both forms (`shaders/gelu.comp`) and `mix_rows` (`shaders/mix_rows.comp`, its taps' ids and weights through the argument arena) stride over their elements from at most a full x dimension of workgroups, and `layer_norm_rows` (`shaders/layer_norm_rows.comp`) takes one workgroup a row.
-  `attention` through non-causal views, every row reading its view's whole history, takes the tiled kernel's `attention_full_tile_d64` and `attention_full_tile_d72` builds at heads 64 and 72 wide, a vision encoder's (72 as two runs of 32 and one dimension a lane, and two rows to each group of eight lanes), and `attention.comp`'s `attention_full` build at any other width the per-row kernel takes.
+  `attention` through non-causal views, every row reading its view's whole history, takes the flash kernel's `attention_full_tile_d64` and `attention_full_tile_d72` builds (`shaders/attention_flash.comp`) at heads 64 and 72 wide, a vision encoder's, and `attention.comp`'s `attention_full` build at any other width the per-row kernel takes.
   Both full builds start at a workgroup offset (`wg0`), so the host cuts a call into near-equal pieces of at most `kFullTileProducts` or `kFullRowProducts` multiply-adds (`attention_pieces`), each submitted alone (`isolate`), and an image's attention stays well inside the GPU's job timeout: one 16384-patch dispatch outran it on an MI50.
 - The qwen35 layers' ops (docs/QWEN35.md), each checked against the CPU and for its own bit-for-bit rules by `backend-vulkan`:
   - `sigmoid_mul` (`shaders/sigmoid_mul.comp`) and `gated_rms_norm` (`shaders/gated_rms_norm.comp`, one workgroup per (row, head)) write the copy of their output that the matmul reading it next takes, by its row runs, as `silu_mul` and `rms_norm_rows` do: the 16-bit twin, four values a lane where `tile_reads` says one tile call reads the batch.
@@ -436,6 +436,17 @@ From the comment at line 2:
 - Each split's maximum and sum are read once into shared memory and its weight formed once, so a lane's column sum reads only independent loads; the sums run in split order, as one lane reading every split would take them.
 - The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
 - With `quant` set the output's 16-bit twin is written beside it.
+
+### `src/backends/vulkan/shaders/attention_flash.comp`
+
+From the comment at line 2:
+
+- Non-causal attention of a vision encoder, heads 64 or 72 wide over f32 caches: one workgroup per (tile of 64 query rows of one view, head), in FlashAttention-2's shape.
+- A group of eight lanes takes rows r and r + 32 and holds their queries, scaled, and their outputs in registers, lane c owning dimensions 4c + 32k (and 64 + c of a 72-wide head).
+- Keys and values pass through shared memory 16 at a time.
+- Scores go eight keys at a time: each lane's partial dot over its dimensions, then a butterfly over the eight lanes that leaves key 8g + c's score in lane c; the online softmax is F32, and each key's weight reaches the weighted sum by shuffle from the lane that scored it.
+- Every loop has a constant count and is unrolled, so no private array is indexed at run time and no driver spills one to scratch.
+- A row's arithmetic is the same in any tile and any dispatch, so a call cut into pieces gives the bits of the uncut call.
 
 ### `src/backends/vulkan/shaders/attention_tile.comp`
 

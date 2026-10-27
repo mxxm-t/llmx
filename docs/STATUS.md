@@ -485,6 +485,24 @@ Each synthetic comparison below covers 300 full-logit and 24 NLL cases, with den
 - **Tests:** a scratch copy with the figure at 1 MiB fails the case as XDEV saw; pinned it passes; CTest, docs and dead-code on the branch.
 - **Left:** the hosted run; then NVFP4's CPU-suite leg counts.
 
+## The encoder's attention in FlashAttention-2's shape (2026-10-27, branch perf/image-encode-attention on main 26f97c37d, step 1 of perf/image-encode, the owner's approval of the order of VDEV's SUMMARY of 09:31 and its CORRECTION, F2DEV's DECIDED of 09:33, lands by fast-forward as one commit)
+
+- **Goal:** the vision encoder's non-causal attention (heads 64 and 72) in FlashAttention-2's shape in F32, faster on both cards with the same precision form; f16 staging becomes the default form only if it is faster on the MI50.
+- **Done:** `shaders/attention_flash.comp` takes the `attention_full_tile_d64` and `attention_full_tile_d72` builds: 64 query rows a workgroup, each group of eight lanes holding two rows' queries and outputs in registers, keys and values through shared memory 16 at a time, scores eight keys at a time by partial dots and a butterfly, the softmax online in F32, and each key's weight shuffled from the lane that scored it.
+  Every loop is unrolled, so no private array is indexed at run time: the AMD proprietary driver spilled the old build to scratch (320 and 352 bytes) and ran the encoder's attention about three times slower on the Radeon VII than on an MI50.
+  Each row's arithmetic is the old build's, so the rows are the same bits as main's on both cards (the 0.8B and Flash-Next towers at 1024x1024, and Flash-Next at 2048x2048 on the MI50).
+  `shaders/attention_tile.comp` is back to its causal builds only, as before the image commit.
+  `backend-vulkan` holds the rows of a call cut into dispatches to the bits of the uncut call at heads 64 and 72 (F2DEV's condition (b)).
+- **Tried and not kept:** a first form with the queries in shared memory and each lane scoring whole keys (two keys a lane a tile) gave the Radeon VII the same gain but was 2 to 4% slower than main on the MI50 in encode wall time, being bound by its shared-memory reads; fetching the next key tile into registers during the current one cost the MI50 about 4% at 2048x2048; 128-thread workgroups, 8- and 32-key tiles and 128-row tiles were slower or needed 58 KiB of shared memory; f16 staging of Q, K and V in shared memory (the f16 form) was 3 to 18% slower on the MI50, since the widening costs more than the halved reads save there, so the default keeps F32; unrolling the old build's loops kept its bits and took 1 to 3% off on the MI50 but left the Radeon VII's spill.
+- **Gate, main 26f97c37d against 92753011f, each built the same way from its own commit:** encode wall of `llmx-encode-image`, median ms, interleaved main, branch, branch, main twice, three encodes a run.
+  Radeon VII (AMD proprietary driver, Windows): 0.8B tower 1024x1024 1314 to 747, Flash-Next 1024x1024 5094 to 2911, Flash-Next 2048x2048 60700 to 25100.
+  MI50 (GPU 9, RADV, a host load of 14 to 16 from other work, so the runs drift; ABBA pair means): 0.8B -0.7%, Flash-Next 1024 -1.9%, Flash-Next 2048 -2.0%; quieter single rounds before the rebase gave -1.6%, -1.8% and -4%.
+  Driver statistics: no scratch on either driver (8192 and 9216 bytes of shared memory, against 12288 and 13312 with 320 and 352 bytes of scratch on the Radeon VII before).
+  Qwen3-0.6B Q8_0 `logits` of a 1468-token prompt, whose rows take the causal tile, byte-identical to main on both cards.
+  Correctness on both cards: `vision` (0.8B file-exact 8.75e-5 on the MI50, 8.58e-5 on the Radeon VII, bound 1.18e-4), Flash-Next's tower against HF float64 (9.05e-6 and 6.39e-6, bound 1.95e-5; main's figures, since the rows are main's bits), `image` and `backend-vulkan` pass; CTest 94 of 94 on the MI50 build.
+- **Left:** the hosted run and F2DEV's review.
+- **Gotchas:** the encoder's attention runs over patches, four per output token, so its rate is about 5.5 TFLOPS on the MI50 (40% of F32 peak) on main and here alike.
+
 ## A message boundary kept on a split whose prompt continues (2026-10-27, branch fix/boundary-retire on main dd4163407, LDEV's FINDING of 2026-10-27 02:26, in progress)
 
 - **Why:** every cut turn on production logged "the message boundary a request asked for was not kept (its history has no state kept once its pass retired, at 0)", so an edit or a regenerate of the last message after a cut read the whole cut prompt again (95k to 212k tokens). The scheduler marked the request when it formed the pass whose slice ends at the boundary, and the first of the request's passes to retire spent the mark: on a split a long prompt continues in consecutive passes, so the pass of the slice before retired first, before the boundary's checkpoint was the sequence's.

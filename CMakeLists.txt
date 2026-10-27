@@ -227,7 +227,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
         attention_g4=attention=LLMX_G4 attention_k16_g4=attention=LLMX_K16+LLMX_G4 attention_v16_g4=attention=LLMX_V16+LLMX_G4
         attention_kv16_g4=attention=LLMX_K16+LLMX_V16+LLMX_G4
         attention_full=attention=LLMX_FULL norm_rope_partial_streams=norm_rope_partial=LLMX_STREAMS
-        attention_full_tile_d64=attention_tile=LLMX_FULL+LLMX_D64 attention_full_tile_d72=attention_tile=LLMX_FULL+LLMX_D72
+        attention_full_tile_d64=attention_flash=LLMX_D64 attention_full_tile_d72=attention_flash=LLMX_D72
         attention_vec_k16=attention_vec=LLMX_K16 attention_vec_v16=attention_vec=LLMX_V16 attention_vec_kv16=attention_vec=LLMX_K16+LLMX_V16
         attention_vec_g4=attention_vec=LLMX_G4 attention_vec_k16_g4=attention_vec=LLMX_K16+LLMX_G4
         attention_vec_v16_g4=attention_vec=LLMX_V16+LLMX_G4 attention_vec_kv16_g4=attention_vec=LLMX_K16+LLMX_V16+LLMX_G4

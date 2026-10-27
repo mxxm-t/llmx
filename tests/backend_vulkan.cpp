@@ -3844,7 +3844,7 @@ size_t check_ops(backend::Backend& vk) {
             require(q35::same_bits(in_place, r.second), "the rope over streams in place differs on the device");
         }
     }
-    // Attention over one non-causal view of an image's patches, every row seeing every key: the tiled kernel's builds at the towers' head widths, and the per-row kernel's at 128.
+    // Attention over one non-causal view of an image's patches, every row seeing every key: the flash kernel's builds at the towers' head widths, and the per-row kernel's at 128.
     for (int hd : {64, 72, 128})
         for (size_t n : {size_t(37), size_t(300), size_t(4096)}) {
             const int heads = 4;
@@ -3865,12 +3865,12 @@ size_t check_ops(backend::Backend& vk) {
             };
             values += close(run(p.cpu), run(p.vk), 1e-4, "non-causal attention differs from the CPU beyond 1e-4");
         }
-    // 8192 patches of 16 heads 72 wide, which the tiled build cuts into two dispatches (vulkan-buffer checks the pieces): rows at both ends of each give the bits of the same rows in an uncut call of 32 rows over the same keys.
+    // 8192 patches of 16 heads 64 and 72 wide, which the flash kernel cuts into two dispatches (vulkan-buffer checks the pieces): rows at both ends of each give the bits of the same rows in an uncut call of 32 rows over the same keys.
     // The 4096 rows of heads 128 wide above are cut in two by the per-row build and held to the CPU.
-    {
-        const int heads = 16, hd = 72;
+    for (int hd : {64, 72}) {
+        const int heads = 16;
         const size_t n = 8192, w = size_t(heads) * size_t(hd), picked[4] = {0, 4088, 4096, 8184};
-        const auto q = uniform(n * w, 413, -2.0f, 2.0f), k = uniform(n * w, 414, -2.0f, 2.0f), v = uniform(n * w, 415);
+        const auto q = uniform(n * w, 413 + uint32_t(hd), -2.0f, 2.0f), k = uniform(n * w, 414 + uint32_t(hd), -2.0f, 2.0f), v = uniform(n * w, 415 + uint32_t(hd));
         auto st = vk.kv_alloc(1, size_t(heads), size_t(hd), n);
         std::vector<int32_t> blocks(backend::blocks_for(n, vk.kv_layout().block_tokens));
         for (size_t i = 0; i < blocks.size(); ++i) blocks[i] = int32_t(i);
@@ -3906,7 +3906,7 @@ size_t check_ops(backend::Backend& vk) {
         catch (const std::runtime_error& e) { refused = std::string(e.what()).find("causal and non-causal views") != std::string::npos; }
         require(refused, "an attention call of causal and non-causal views was not refused by name");
     }
-    std::cout << "backend-vulkan: vision encoder ops: bias exact, row mix, norm, gelu and rope over streams within their bounds, non-causal attention over 37 to 4096 keys, tiled at heads 64 and 72, and 8192 keys cut into dispatches\n";
+    std::cout << "backend-vulkan: vision encoder ops: bias exact, row mix, norm, gelu and rope over streams within their bounds, non-causal attention over 37 to 4096 keys, through the flash kernel at heads 64 and 72, and 8192 keys cut into dispatches at both\n";
     return values;
 }
 }  // namespace vision

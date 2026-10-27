@@ -137,7 +137,7 @@ inline void VulkanBackend::attention(CSlice Q, size_t layer, const KVView* views
     const size_t rows = placed.back().row0 + placed.back().view->nq;
     if (floats_from(Q) < rows * qstride || floats_from(out) < rows * qstride)
         throw std::runtime_error("vulkan: attention rows outside their allocation");
-    // Non-causal views of heads 64 or 72 wide, a vision encoder's, take the tiled kernel's full build: a tile of 64 query rows shares each staged tile of keys (shaders/attention_tile.comp).
+    // Non-causal views of heads 64 or 72 wide, a vision encoder's, take the flash kernel: a tile of 64 query rows shares each staged tile of keys (shaders/attention_flash.comp).
     if (full && (head_dim == 64 || head_dim == 72)) {
         ViewTable t = view_table(layer, placed, false);
         VulkanKVStorage& s = *t.storage;

@@ -1537,8 +1537,8 @@ const size_t kNarrowCols = 16;
 // Layouts the shaders fix, which the host must match.
 const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group = l / 4u` ("four lanes per pair")
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
-const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u * RPG`, the query rows of one tile
-const size_t kFullTileRows = 64;          // and of one tile of its full builds, whose `RPG` is 2
+const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
+const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, the query rows of one non-causal tile
 
 // The multiply-adds one dispatch of non-causal attention takes at most, about 60 ms on an MI50, well inside the GPU's job timeout.
 // The per-row build is about 16 times slower a product, so it takes 16 times fewer.

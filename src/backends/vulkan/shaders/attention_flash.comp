@@ -1,0 +1,167 @@
+#version 450
+// Non-causal attention of a vision encoder, heads 64 or 72 wide over f32 caches: one workgroup per (tile of 64 query rows of one view, head), FlashAttention-2's shape.
+// Each group of eight lanes holds its two rows' queries and outputs in registers, keys and values pass through shared memory BK at a time, and the softmax runs online in F32.
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
+#extension GL_EXT_control_flow_attributes : require
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major; uint wg0; } p;
+layout(set = 0, binding = 0) readonly buffer Q { vec4 q[]; };
+layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
+layout(set = 0, binding = 2) readonly buffer K { vec4 kb[]; };
+layout(set = 0, binding = 3) readonly buffer V { vec4 vb[]; };
+layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
+#include "views.glsl"
+#if defined(LLMX_D64)
+const uint DIM = 64u;
+#elif defined(LLMX_D72)
+const uint DIM = 72u;
+#endif
+// Rows of a workgroup, keys of a staged tile, and a head's width in vec4s.
+const uint THREADS = 256u, TQ = 64u, BK = 16u, D4 = DIM / 4u;
+// Each group of eight lanes takes rows r and r + 32 of the tile; lane c ends with the scores of keys c + 8 g of a staged tile and owns query and output columns 4 c + 32 k (and 64 + c of a 72-wide head).
+const uint RPG = TQ * 8u / THREADS, LANES = 8u, GROUPS = THREADS / 8u, KPL = BK / LANES, RUNS = 2u;
+shared vec4 ks[BK * D4];
+shared vec4 vs[BK * D4];
+
+void main() {
+    uint wg = gl_WorkGroupID.x + p.wg0;
+    uint n = view_count();
+    uint v = 0u, first = 0u;
+    for (uint i = 0u; i < n; ++i) {
+        uint tiles = (view_nq(i) + TQ - 1u) / TQ;
+        if (wg < first + tiles * p.n_head) { v = i; break; }
+        first += tiles * p.n_head;
+    }
+    uint local = wg - first;
+    uint tile = local / p.n_head;
+    uint h = local - tile * p.n_head;
+    uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v);
+    uint kvh = h / (p.n_head / p.n_head_kv);
+    uint lid = gl_LocalInvocationID.x;
+    uint r = lid >> 3u, c = lid & 7u;
+    uint gbase = gl_SubgroupInvocationID & ~7u;
+    uint q4 = p.n_head * D4;
+    // Lane c holds dimensions 4 c + 32 k of its rows' queries, scaled (and 64 + c of a 72-wide head); rows past the view repeat its last row and are never written.
+    vec4 qv[RPG][RUNS];
+#ifdef LLMX_D72
+    float qt[RPG];
+#endif
+    [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+        uint qb = (row0 + min(tile * TQ + r + GROUPS * s, nq - 1u)) * q4 + h * D4;
+        [[unroll]] for (uint k = 0u; k < RUNS; ++k) qv[s][k] = q[qb + 8u * k + c] * p.scale;
+#ifdef LLMX_D72
+        qt[s] = q[qb + 16u + c / 4u][c & 3u] * p.scale;
+#endif
+    }
+    vec4 acc[RPG][RUNS];
+    float m[RPG], l[RPG];
+#ifdef LLMX_D72
+    float at[RPG];
+#endif
+    [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+        [[unroll]] for (uint k = 0u; k < RUNS; ++k) acc[s][k] = vec4(0.0);
+        m[s] = -1.0 / 0.0;
+        l[s] = 0.0;
+#ifdef LLMX_D72
+        at[s] = 0.0;
+#endif
+    }
+    uint end = hist + nq;
+    uint bf4 = p.n_head_kv * p.bt * D4;
+    for (uint t0 = 0u; t0 < end; t0 += BK) {
+        barrier();
+        // Stage BK keys and values, zero past the last key so a masked score meets finite values.
+        for (uint i = lid; i < BK * D4; i += THREADS) {
+            uint j = i / D4, d = i - j * D4;
+            uint t = t0 + j;
+            vec4 kk = vec4(0.0), vv = vec4(0.0);
+            if (t < end) {
+                uint base = view_block(v, t / p.bt) * bf4 + (kvh * p.bt + t % p.bt) * D4 + d;
+                kk = kb[base];
+                vv = vb[base];
+            }
+            ks[j * D4 + d] = kk;
+            vs[j * D4 + d] = vv;
+        }
+        barrier();
+        // Scores eight keys at a time: each lane's partial dot over its dimensions, then a butterfly over the eight lanes that leaves key 8 g + c's score in lane c.
+        float sc[RPG][KPL];
+        [[unroll]] for (uint g = 0u; g < KPL; ++g) {
+            float part[RPG][8];
+            [[unroll]] for (uint j = 0u; j < 8u; ++j) {
+                [[unroll]] for (uint s = 0u; s < RPG; ++s) part[s][j] = 0.0;
+                [[unroll]] for (uint k = 0u; k < RUNS; ++k) {
+                    vec4 kk = ks[(LANES * g + j) * D4 + 8u * k + c];
+                    [[unroll]] for (uint s = 0u; s < RPG; ++s) part[s][j] += dot(qv[s][k], kk);
+                }
+#ifdef LLMX_D72
+                float kt = ks[(LANES * g + j) * D4 + 16u + c / 4u][c & 3u];
+                [[unroll]] for (uint s = 0u; s < RPG; ++s) part[s][j] += qt[s] * kt;
+#endif
+            }
+            [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+                bool up4 = (c & 4u) != 0u, up2 = (c & 2u) != 0u, up1 = (c & 1u) != 0u;
+                [[unroll]] for (uint j = 0u; j < 4u; ++j)
+                    part[s][j] = (up4 ? part[s][j + 4u] : part[s][j]) + subgroupShuffleXor(up4 ? part[s][j] : part[s][j + 4u], 4u);
+                [[unroll]] for (uint j = 0u; j < 2u; ++j)
+                    part[s][j] = (up2 ? part[s][j + 2u] : part[s][j]) + subgroupShuffleXor(up2 ? part[s][j] : part[s][j + 2u], 2u);
+                sc[s][g] = (up1 ? part[s][1] : part[s][0]) + subgroupShuffleXor(up1 ? part[s][0] : part[s][1], 1u);
+            }
+        }
+        float w[RPG][KPL];
+        [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+            float mt = -1.0 / 0.0;
+            [[unroll]] for (uint j = 0u; j < KPL; ++j) {
+                if (t0 + c + LANES * j >= end) sc[s][j] = -1.0 / 0.0;
+                mt = max(mt, sc[s][j]);
+            }
+            mt = max(mt, subgroupShuffleXor(mt, 1u));
+            mt = max(mt, subgroupShuffleXor(mt, 2u));
+            mt = max(mt, subgroupShuffleXor(mt, 4u));
+            float mn = max(m[s], mt);
+            float corr = mn == -1.0 / 0.0 ? 1.0 : exp(m[s] - mn);
+            float sum = 0.0;
+            [[unroll]] for (uint j = 0u; j < KPL; ++j) {
+                w[s][j] = sc[s][j] == -1.0 / 0.0 ? 0.0 : exp(sc[s][j] - mn);
+                sum += w[s][j];
+            }
+            sum += subgroupShuffleXor(sum, 1u);
+            sum += subgroupShuffleXor(sum, 2u);
+            sum += subgroupShuffleXor(sum, 4u);
+            l[s] = l[s] * corr + sum;
+            m[s] = mn;
+            [[unroll]] for (uint k = 0u; k < RUNS; ++k) acc[s][k] *= corr;
+#ifdef LLMX_D72
+            at[s] *= corr;
+#endif
+        }
+        // The weighted sum over the tile's keys in order, each key's weight taken from the lane that scored it.
+        [[unroll]] for (uint kk = 0u; kk < BK; ++kk) {
+            float wa[RPG];
+            [[unroll]] for (uint s = 0u; s < RPG; ++s) wa[s] = subgroupShuffle(w[s][kk / LANES], gbase + kk % LANES);
+            [[unroll]] for (uint k = 0u; k < RUNS; ++k) {
+                vec4 vv = vs[kk * D4 + 8u * k + c];
+                [[unroll]] for (uint s = 0u; s < RPG; ++s) acc[s][k] += wa[s] * vv;
+            }
+#ifdef LLMX_D72
+            float vt = vs[kk * D4 + 16u + c / 4u][c & 3u];
+            [[unroll]] for (uint s = 0u; s < RPG; ++s) at[s] += wa[s] * vt;
+#endif
+        }
+    }
+    uint qstride = p.n_head * DIM;
+    [[unroll]] for (uint s = 0u; s < RPG; ++s) {
+        uint b = tile * TQ + r + GROUPS * s;
+        if (b >= nq) continue;
+        uint base = (row0 + b) * qstride + h * DIM;
+        [[unroll]] for (uint k = 0u; k < RUNS; ++k) {
+            vec4 a = acc[s][k] / l[s];
+            uint d = 32u * k + 4u * c;
+            o[base + d] = a.x; o[base + d + 1u] = a.y; o[base + d + 2u] = a.z; o[base + d + 3u] = a.w;
+        }
+#ifdef LLMX_D72
+        o[base + 64u + c] = at[s] / l[s];
+#endif
+    }
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "Standalone dashboard collector and static UI. No inference or numerical change.",
+  "startup_commit": "0bff88ed34602285b58e67118bbe64377583e293",
+  "image_progress_commit": "8840c594a1bb926a36b8a6c3af07a69f560d94e7",
+  "validation": {
+    "command": "python -X utf8 -m unittest discover -s tools/health_dashboard -v",
+    "tests_passed": 11,
+    "tests_skipped": 0,
+    "docs": "pass",
+    "dead_code": "pass",
+    "browser_widths_css_px": [1440, 390],
+    "horizontal_overflow": false,
+    "startup_api_contract_revision": "e20deb144",
+    "image_api_revision": "ac940c059",
+    "runtime_api_deployment_claimed": false
+  },
+  "deployment": {
+    "utc_unix": 1793074070.0256653,
+    "url": "http://11.10.10.13:8182",
+    "container": "llmx-health-dashboard",
+    "server_py_sha256": "4cd0bb1d968823e6c59335501220b3d4e856c6ffbf6b0aba970f6ae9a0a1e7a8",
+    "served_html_sha256": "c261940fe7b9787e024e8cb808a3569a6671d18d178c94ff81390571fba7eb84",
+    "collector_ok": true,
+    "first_observation_samples": 1,
+    "restart_policy": "unless-stopped",
+    "inference_restart_requested": false,
+    "history_reset": true,
+    "rollback_directory": "/zpool1/llmx-serve/dashboard-release-8840c594a1bb926a36b8a6c3af07a69f560d94e7"
+  }
+}

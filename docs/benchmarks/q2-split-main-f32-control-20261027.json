@@ -1,0 +1,493 @@
+{
+  "scope": "one retained Q2_0 dense-untied CPU packed capture versus main CPU F32 on the identical independently decoded weights",
+  "execution_authorized": true,
+  "invocations_planned": 1,
+  "packed_result_reused": true,
+  "packed_model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\dense-untied.gguf",
+  "packed_model_sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+  "packed_capture_error": "Q2_0 dense-untied width 1 batched 'a'/HF logit error: 0.00002766",
+  "packed_capture_tool_sha256": "63ac5711e7db87539c19acdf62f770b982276404b1c62d541ddfb08c38e26ab1",
+  "ids": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\f32-text-last.ids",
+  "ids_sha256": "1c69b33c780b53869047efe2001ffb1bf3e136be74ac65e8a1856dc605afa06b",
+  "token_ids": [
+    97,
+    98,
+    99,
+    100,
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109
+  ],
+  "golden_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+  "decoded_f32_weights_sha256": "f247ae83c4f3b82eea0b04e38811e118825f1639ad3ca221313db385c85780e6",
+  "expected_weights_sha256": "f247ae83c4f3b82eea0b04e38811e118825f1639ad3ca221313db385c85780e6",
+  "f32_model": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\dense-untied-decoded-f32.gguf",
+  "f32_model_sha256": "24d0ed0106744d6516a90ff3f7840add70a6d6adc420b14d3c891f5922f1d812",
+  "main_tool": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+  "main_tool_sha256": "702484e90a7a714cabbc6d5a2ab1d781028f0855b3d03eb3d2fb6a7db8dcaf01",
+  "source_sha256": {
+    "tests/low_bits.py": "4419d10335138d18f13e759cbb35824f31de37e3c6cef83f05313321e0339a9b",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tools/model_logits.cpp": "e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c"
+  },
+  "runner_sha256": "613716a05a5b838b360eccf147927e8ee68466fc1a35c74e5d448168c44c70a3",
+  "settings": {
+    "devices": "cpu",
+    "cache": "f32",
+    "ubatch": 3,
+    "threads": 0,
+    "load_mode": "-",
+    "width": 1,
+    "context_length": 128,
+    "prompt_rows": 13,
+    "greedy_rows": 64
+  },
+  "metadata_fields_required": [
+    "vocab",
+    "tokens",
+    "storage_types",
+    "greedy",
+    "dtype",
+    "matrix_paths"
+  ],
+  "packed_metadata_validation": {
+    "required_fields_present": true,
+    "missing_fields": [],
+    "vocab_is_260": true,
+    "tokens_match_input_ids": true,
+    "greedy_has_64_ids": true,
+    "storage_types_nonempty": true,
+    "expected_storage_type_present": true,
+    "effective_dtype_is_recorded": true,
+    "all_phase_paths_are_f32": true,
+    "valid": true
+  },
+  "packed_hf_endpoint_errors": {
+    "batched": {
+      "max_abs_error": 3.0517578125e-05,
+      "cases": [
+        {
+          "text": "a",
+          "row_index": 0,
+          "max_abs_logit_error": 2.765655517578125e-05,
+          "worst_token": 66,
+          "got": -2.212052345275879,
+          "hf": -2.2120800018310547,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "ab",
+          "row_index": 1,
+          "max_abs_logit_error": 2.288818359375e-05,
+          "worst_token": 81,
+          "got": -6.490605354309082,
+          "hf": -6.490628242492676,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abc",
+          "row_index": 2,
+          "max_abs_logit_error": 2.193450927734375e-05,
+          "worst_token": 223,
+          "got": 3.25142765045166,
+          "hf": 3.2514495849609375,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefg",
+          "row_index": 6,
+          "max_abs_logit_error": 3.0517578125e-05,
+          "worst_token": 216,
+          "got": -7.593101978302002,
+          "hf": -7.593071460723877,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefghijklm",
+          "row_index": 12,
+          "max_abs_logit_error": 2.1219253540039062e-05,
+          "worst_token": 69,
+          "got": -0.7396838665008545,
+          "hf": -0.7396626472473145,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        }
+      ]
+    },
+    "decode": {
+      "max_abs_error": 3.0517578125e-05,
+      "cases": [
+        {
+          "text": "a",
+          "row_index": 0,
+          "max_abs_logit_error": 2.765655517578125e-05,
+          "worst_token": 66,
+          "got": -2.212052345275879,
+          "hf": -2.2120800018310547,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "ab",
+          "row_index": 1,
+          "max_abs_logit_error": 2.288818359375e-05,
+          "worst_token": 81,
+          "got": -6.490605354309082,
+          "hf": -6.490628242492676,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abc",
+          "row_index": 2,
+          "max_abs_logit_error": 2.193450927734375e-05,
+          "worst_token": 223,
+          "got": 3.25142765045166,
+          "hf": 3.2514495849609375,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefg",
+          "row_index": 6,
+          "max_abs_logit_error": 3.0517578125e-05,
+          "worst_token": 216,
+          "got": -7.593101978302002,
+          "hf": -7.593071460723877,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefghijklm",
+          "row_index": 12,
+          "max_abs_logit_error": 2.1219253540039062e-05,
+          "worst_token": 69,
+          "got": -0.7396838665008545,
+          "hf": -0.7396626472473145,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        }
+      ]
+    }
+  },
+  "packed_rows": {
+    "batched": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\captures\\dense-untied-w1.batched.bin",
+      "sha256": "1b46a4ee41c1cc867c6c627cda2d857b291de30b469f12d8910814236caa879e"
+    },
+    "decode": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\captures\\dense-untied-w1.decode.bin",
+      "sha256": "1b46a4ee41c1cc867c6c627cda2d857b291de30b469f12d8910814236caa879e"
+    },
+    "greedy": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\captures\\dense-untied-w1.greedy.bin",
+      "sha256": "8e3846dee9c5599d97f633e578d3cfb3b3eee500dfd3f3b7f171b77428f2d3c0"
+    }
+  },
+  "argv": [
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q23-narrow-witness-20261027\\build-repro\\final-cpu\\cmake\\Release\\llmx-model-logits.exe",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\dense-untied-decoded-f32.gguf",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\first-run\\f32-text-last.ids",
+    "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\main-f32",
+    "cpu",
+    "f32",
+    "3",
+    "0",
+    "-",
+    "1"
+  ],
+  "returncode": 0,
+  "stdout_sha256": "359293bf6cb029c475cc5927f3c43f07ad9a4539ecaaf2524b01f6b7f55ea1ff",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "main_tool_sha256_after": "702484e90a7a714cabbc6d5a2ab1d781028f0855b3d03eb3d2fb6a7db8dcaf01",
+  "metadata": {
+    "version": "0.1.0+g9d00fb0a5b21",
+    "architecture": "",
+    "vocab": 260,
+    "tokens": [
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109
+    ],
+    "storage_types": [
+      0,
+      8
+    ],
+    "greedy": [
+      143,
+      136,
+      8,
+      119,
+      189,
+      5,
+      250,
+      215,
+      97,
+      215,
+      86,
+      83,
+      153,
+      33,
+      108,
+      77,
+      136,
+      74,
+      97,
+      254,
+      234,
+      107,
+      45,
+      215,
+      53,
+      215,
+      53,
+      215,
+      53,
+      32,
+      24,
+      188,
+      130,
+      5,
+      215,
+      53,
+      107,
+      179,
+      33,
+      68,
+      207,
+      105,
+      181,
+      148,
+      215,
+      88,
+      37,
+      237,
+      153,
+      123,
+      81,
+      53,
+      142,
+      172,
+      167,
+      108,
+      237,
+      222,
+      133,
+      199,
+      188,
+      215,
+      240,
+      108
+    ],
+    "dtype": "f16",
+    "matrix_paths": {
+      "batched": [
+        [
+          "f32"
+        ]
+      ],
+      "decode": [
+        [
+          "f32"
+        ]
+      ],
+      "greedy": [
+        [
+          "f32"
+        ]
+      ]
+    }
+  },
+  "main_metadata_validation": {
+    "required_fields_present": true,
+    "missing_fields": [],
+    "vocab_is_260": true,
+    "tokens_match_input_ids": true,
+    "greedy_has_64_ids": true,
+    "storage_types_nonempty": true,
+    "expected_storage_type_present": true,
+    "effective_dtype_is_recorded": true,
+    "all_phase_paths_are_f32": true,
+    "valid": true
+  },
+  "metadata_matches_retained_capture": true,
+  "configuration_validation": {
+    "retained_model_context_length": 128,
+    "f32_model_context_length": 128,
+    "context_lengths_match_requested_128": true,
+    "cache_type_f32_is_pinned_in_argv": true,
+    "raw_rows_have_expected_shapes": true
+  },
+  "status": "captured",
+  "f32_rows": {
+    "batched": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\main-f32.batched.bin",
+      "sha256": "1b46a4ee41c1cc867c6c627cda2d857b291de30b469f12d8910814236caa879e",
+      "max_abs_difference_vs_retained_q2": {
+        "absolute": 0.0,
+        "row": 0,
+        "token": 0,
+        "left": 1.5593538284301758,
+        "right": 1.5593538284301758
+      }
+    },
+    "decode": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\main-f32.decode.bin",
+      "sha256": "5eb5d4d8fe6bca37204598878f50ea16fd7bd3a091de77411d38872283db7013",
+      "max_abs_difference_vs_retained_q2": {
+        "absolute": 2.3603439331054688e-05,
+        "row": 2,
+        "token": 199,
+        "left": -1.8768870830535889,
+        "right": -1.8768634796142578
+      }
+    },
+    "greedy": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\main-f32-control\\main-f32.greedy.bin",
+      "sha256": "24bd8a16aafd468d0bd25a6cad5ac2dc2808853d93dba31e184c6ffd646bc5ed",
+      "max_abs_difference_vs_retained_q2": {
+        "absolute": 2.47955322265625e-05,
+        "row": 60,
+        "token": 112,
+        "left": -8.579334259033203,
+        "right": -8.57935905456543
+      }
+    }
+  },
+  "main_f32_hf_endpoint_errors": {
+    "batched": {
+      "max_abs_error": 3.0517578125e-05,
+      "cases": [
+        {
+          "text": "a",
+          "row_index": 0,
+          "max_abs_logit_error": 2.765655517578125e-05,
+          "worst_token": 66,
+          "got": -2.212052345275879,
+          "hf": -2.2120800018310547,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "ab",
+          "row_index": 1,
+          "max_abs_logit_error": 2.288818359375e-05,
+          "worst_token": 81,
+          "got": -6.490605354309082,
+          "hf": -6.490628242492676,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abc",
+          "row_index": 2,
+          "max_abs_logit_error": 2.193450927734375e-05,
+          "worst_token": 223,
+          "got": 3.25142765045166,
+          "hf": 3.2514495849609375,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefg",
+          "row_index": 6,
+          "max_abs_logit_error": 3.0517578125e-05,
+          "worst_token": 216,
+          "got": -7.593101978302002,
+          "hf": -7.593071460723877,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefghijklm",
+          "row_index": 12,
+          "max_abs_logit_error": 2.1219253540039062e-05,
+          "worst_token": 69,
+          "got": -0.7396838665008545,
+          "hf": -0.7396626472473145,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        }
+      ]
+    },
+    "decode": {
+      "max_abs_error": 2.6226043701171875e-05,
+      "cases": [
+        {
+          "text": "a",
+          "row_index": 0,
+          "max_abs_logit_error": 1.9073486328125e-05,
+          "worst_token": 117,
+          "got": 5.323517799377441,
+          "hf": 5.323498725891113,
+          "existing_bound": 2e-05,
+          "within_existing_bound": true
+        },
+        {
+          "text": "ab",
+          "row_index": 1,
+          "max_abs_logit_error": 2.5272369384765625e-05,
+          "worst_token": 69,
+          "got": 4.143668174743652,
+          "hf": 4.143642902374268,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abc",
+          "row_index": 2,
+          "max_abs_logit_error": 1.811981201171875e-05,
+          "worst_token": 199,
+          "got": -1.8768634796142578,
+          "hf": -1.8768815994262695,
+          "existing_bound": 2e-05,
+          "within_existing_bound": true
+        },
+        {
+          "text": "abcdefg",
+          "row_index": 6,
+          "max_abs_logit_error": 2.6226043701171875e-05,
+          "worst_token": 247,
+          "got": 0.9381141662597656,
+          "hf": 0.9380879402160645,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        },
+        {
+          "text": "abcdefghijklm",
+          "row_index": 12,
+          "max_abs_logit_error": 2.4557113647460938e-05,
+          "worst_token": 6,
+          "got": 1.8453716039657593,
+          "hf": 1.8453961610794067,
+          "existing_bound": 2e-05,
+          "within_existing_bound": false
+        }
+      ]
+    }
+  },
+  "terminal_result": "captured"
+}

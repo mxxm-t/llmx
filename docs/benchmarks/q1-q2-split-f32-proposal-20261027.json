@@ -1,0 +1,127 @@
+{
+  "status": "User approved on 2026-10-27; installed for qualification only. NLL and other limits unchanged.",
+  "rule": "Same reference-only rule as the approved three-fixture amendment: existing 2e-5 plus the original fixed sweep maximum for this family and split shape.",
+  "reference_sha256": "dc73d5816bea9d4edb96015cfe34a76e81a4b8813c16d6f1d888b2360436d96e",
+  "scope": "Only the five listed exact fixture identities, with completed all-F32 matrix-path witnesses, CPU/Vulkan CLI/raw capture. Logits only.",
+  "unchanged": [
+    "NLL 1e-5",
+    "operator or decoder tolerances",
+    "BF16 and other policies",
+    "unlisted fixture identities",
+    "released-model and depth bounds"
+  ],
+  "limitations": [
+    "Main F32 reproduces all retained single-CPU batched rows, but decode bytes differ.",
+    "Main Q2 split MoE decode still exceeds the proposed limit; the rule is empirical, not a universal floating-point bound.",
+    "CPU group consistency and standalone device operators do not qualify untested GPU model or split paths."
+  ],
+  "fixtures": [
+    {
+      "name": "dense-untied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "abf76c4bc24e4f542085bdceda2f4d618bcb6594616b5e3443c6b49f8c479540",
+      "packed_sha256": "9ea2d7b0b62ef71d8ba1aaeefb1fddeb9be29bb7c88e4db0f0032292acff7e07",
+      "family": "q1-0",
+      "golden_file": "baseline_q1_0_split.json",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "reference_logit_spread": 8.20159912109375e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 0.0001020159912109375
+    },
+    {
+      "name": "dense-tied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "2b926e365c04f407537b2876661e3eeadee1727a30bfd1233f940713c40a0491",
+      "packed_sha256": "3a357f60c3225847a123a151115e1c004db05dc87630eb275ea69b88633fcadc",
+      "family": "q1-0",
+      "golden_file": "baseline_q1_0_split.json",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "reference_logit_spread": 8.20159912109375e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 0.0001020159912109375
+    },
+    {
+      "name": "moe",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+      "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654",
+      "family": "q1-0",
+      "golden_file": "baseline_q1_0_split.json",
+      "golden_sha256": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+      "reference_logit_spread": 8.20159912109375e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 0.0001020159912109375
+    },
+    {
+      "name": "dense-tied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "5614b1c4e056ee065da031c450d73d31e4cc3afc333adcd09a027e9240b48d1c",
+      "packed_sha256": "fc7b4611e96d493131d09416a807191985d8d977931baeace77145b6b0c1cc8a",
+      "family": "q2-0",
+      "golden_file": "baseline_q2_0_split.json",
+      "golden_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "reference_logit_spread": 7.82012939453125e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 9.82012939453125e-05
+    },
+    {
+      "name": "moe",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "248bcbf034738dffb8632321b0de13de97da19e2de4c0a5f0d73ef2fbc7db22f",
+      "packed_sha256": "667ff515cc5cff1c7bcf5dd4531f2f16a90b5185fb399ba51bfbf8605bef71dc",
+      "family": "q2-0",
+      "golden_file": "baseline_q2_0_split.json",
+      "golden_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "reference_logit_spread": 7.82012939453125e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 9.82012939453125e-05
+    }
+  ],
+  "approval": "Approve these five exact fixtures"
+}

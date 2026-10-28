@@ -1,0 +1,1705 @@
+{
+  "scope": "Reproduced Q2 narrow routed integer tile defect and one-ID classification fix. Focused development checkpoint, not full merge qualification.",
+  "root_cause": "Host planned 128-row tall tile but missing ID selected 32-row pipeline specialization. With 16 narrow columns MROWS became zero, leaving output unwritten.",
+  "runtime_sha256": "86e99e2f47630042821a60fe99f3ac430e27505b09f323fb7a193fdc0a3b49a1",
+  "build": {
+    "passed": true,
+    "seconds": 122.41859245300293,
+    "removed": true,
+    "overlay": {
+      "src/backends/vulkan/vulkan_dispatch.hpp": "dc190cebf65f61aed2065db3d9e6f75b4595a27d03a5a0be97a623ebbf770c1d",
+      "src/backends/vulkan/vulkan_backend.cpp": "6ec85ee748d94d5e3a35015d23e090f7ac0907c6f289fd92e7f1037bbea941a0"
+    },
+    "receipt_sha256": "c7771f2af7858ba4fe9901a888456cf41adadab8eb878a0d178a552c6c525367"
+  },
+  "registry_audit": {
+    "registered_tall_ids": 53,
+    "classified_tall_ids": 53,
+    "missing": [],
+    "unknown": []
+  },
+  "runtime_source_audit": {
+    "files_checked": 195,
+    "all_code_matches_built_source": true,
+    "comment_only_difference": [
+      "src/backends/vulkan/shaders/low_bits.glsl"
+    ],
+    "native_source": "f5898bfd6d3b041aeda4a83e25304a1a444ccca2d5f94f1010483af4ff9c5eff"
+  },
+  "HF": {
+    "passed": true,
+    "calls": 27,
+    "plan": {
+      "scope": "Repeat the frozen 27-case Q2 HF plan after the reproduced tall-tile classification fix, with unchanged references and limits.",
+      "text": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+      "endpoints": [
+        64,
+        128
+      ],
+      "context": 128,
+      "ubatch": 128,
+      "threads": 4,
+      "cache": "f32/f32",
+      "calls": 27,
+      "policies": [
+        "f16"
+      ],
+      "models": {
+        "q2-0-dense-untied": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+        "q2-0-dense-tied": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+        "q2-0-moe": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+      },
+      "source_overlay": {
+        "tools/gen_baseline.py": "5528683a93fb748c6fe7158df9f2326765d7cc93e14195303a211487c9b3eeb7",
+        "tools/calibrate_dtype.py": "a5448874407def003b218d926502e8712940b536a8c86debd0e706b925dc3138",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+        "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+        "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+        "tests/raw_blocks.py": "b5421029f366d3485db94f2a758590221440ee9b92bf2c88b59410661790d1d5",
+        "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+        "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+        "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+        "tests/data/dtype_budget.json": "54e8a08bc268043eee5f58f4220a8da28fb1bea647b5188af4004e88e49ba135"
+      },
+      "budget_sha256": "54e8a08bc268043eee5f58f4220a8da28fb1bea647b5188af4004e88e49ba135",
+      "candidate_sha256": "86e99e2f47630042821a60fe99f3ac430e27505b09f323fb7a193fdc0a3b49a1",
+      "predecessor_sha256": "4fafb58acf456fc4acb5f0ce0c6a98b347d7879d73e8f2d90c9cb8eb4f318b18",
+      "bounds": {
+        "f16": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "f32": {
+          "logit": 2e-05,
+          "nll": 1e-05
+        }
+      },
+      "identity_mapping": "Existing GGUFcontext128 unchanged; canonicalgoldencontext16 is referencecapacityonly difference. No existing exact-fixture F32 allowance supplied for newpositions.",
+      "witness": "Every call requires block-int16. MoE also requires F32 for router roles. Native checks separately establish exact row/tile execution.",
+      "ubatches": [
+        1,
+        3,
+        128
+      ],
+      "reference_sha256": "24d8c0ced2d36830d1330aa24d25cd14a4506854f712c4e9e1052423f3316baa"
+    },
+    "results": [
+      {
+        "tag": "00-q2-0-dense-untied-f16-u1-logits64",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139969.7669284,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0015569020385743926,
+        "passed": true,
+        "seconds": 0.37450480461120605,
+        "files": {
+          "00-q2-0-dense-untied-f16-u1-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+          "00-q2-0-dense-untied-f16-u1-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "01-q2-0-dense-untied-f16-u1-logits128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139970.141774,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.002074900573730609,
+        "passed": true,
+        "seconds": 0.17241430282592773,
+        "files": {
+          "01-q2-0-dense-untied-f16-u1-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+          "01-q2-0-dense-untied-f16-u1-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "02-q2-0-dense-untied-f16-u1-perplexity128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139970.3144796,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 19.044059556,
+        "reference_nll": 19.04412231562721,
+        "error": 6.275962720891926e-05,
+        "passed": true,
+        "seconds": 0.2200927734375,
+        "files": {
+          "02-q2-0-dense-untied-f16-u1-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+          "02-q2-0-dense-untied-f16-u1-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "03-q2-0-dense-untied-f16-u3-logits64",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139970.5347967,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0015569020385743926,
+        "passed": true,
+        "seconds": 0.12006092071533203,
+        "files": {
+          "03-q2-0-dense-untied-f16-u3-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+          "03-q2-0-dense-untied-f16-u3-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "04-q2-0-dense-untied-f16-u3-logits128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139970.6551163,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.002074900573730609,
+        "passed": true,
+        "seconds": 0.17042922973632812,
+        "files": {
+          "04-q2-0-dense-untied-f16-u3-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+          "04-q2-0-dense-untied-f16-u3-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "05-q2-0-dense-untied-f16-u3-perplexity128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139970.8258061,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 19.044059556,
+        "reference_nll": 19.04412231562721,
+        "error": 6.275962720891926e-05,
+        "passed": true,
+        "seconds": 0.16993403434753418,
+        "files": {
+          "05-q2-0-dense-untied-f16-u3-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+          "05-q2-0-dense-untied-f16-u3-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "06-q2-0-dense-untied-f16-u128-logits64",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139970.995989,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0015569020385743926,
+        "passed": true,
+        "seconds": 0.12012410163879395,
+        "files": {
+          "06-q2-0-dense-untied-f16-u128-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+          "06-q2-0-dense-untied-f16-u128-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "07-q2-0-dense-untied-f16-u128-logits128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139971.1163812,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.002074900573730609,
+        "passed": true,
+        "seconds": 0.17014622688293457,
+        "files": {
+          "07-q2-0-dense-untied-f16-u128-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+          "07-q2-0-dense-untied-f16-u128-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "08-q2-0-dense-untied-f16-u128-perplexity128",
+        "model": "q2-0-dense-untied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-untied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139971.2868204,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 19.044059556,
+        "reference_nll": 19.04412231562721,
+        "error": 6.275962720891926e-05,
+        "passed": true,
+        "seconds": 0.11999702453613281,
+        "files": {
+          "08-q2-0-dense-untied-f16-u128-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+          "08-q2-0-dense-untied-f16-u128-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "09-q2-0-dense-tied-f16-u1-logits64",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139971.4101145,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0014165202636711172,
+        "passed": true,
+        "seconds": 0.17023515701293945,
+        "files": {
+          "09-q2-0-dense-tied-f16-u1-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+          "09-q2-0-dense-tied-f16-u1-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "10-q2-0-dense-tied-f16-u1-logits128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139971.5806837,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0017169271545407483,
+        "passed": true,
+        "seconds": 0.17017626762390137,
+        "files": {
+          "10-q2-0-dense-tied-f16-u1-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+          "10-q2-0-dense-tied-f16-u1-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "11-q2-0-dense-tied-f16-u1-perplexity128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139971.7511714,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.93972055,
+        "reference_nll": 21.939557315396957,
+        "error": 0.00016323460304334958,
+        "passed": true,
+        "seconds": 0.22006011009216309,
+        "files": {
+          "11-q2-0-dense-tied-f16-u1-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+          "11-q2-0-dense-tied-f16-u1-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "12-q2-0-dense-tied-f16-u3-logits64",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139971.9715297,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0014165202636711172,
+        "passed": true,
+        "seconds": 0.12023186683654785,
+        "files": {
+          "12-q2-0-dense-tied-f16-u3-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+          "12-q2-0-dense-tied-f16-u3-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "13-q2-0-dense-tied-f16-u3-logits128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139972.0920873,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0017169271545407483,
+        "passed": true,
+        "seconds": 0.12027597427368164,
+        "files": {
+          "13-q2-0-dense-tied-f16-u3-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+          "13-q2-0-dense-tied-f16-u3-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "14-q2-0-dense-tied-f16-u3-perplexity128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139972.212701,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.93972055,
+        "reference_nll": 21.939557315396957,
+        "error": 0.00016323460304334958,
+        "passed": true,
+        "seconds": 0.1701061725616455,
+        "files": {
+          "14-q2-0-dense-tied-f16-u3-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+          "14-q2-0-dense-tied-f16-u3-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "15-q2-0-dense-tied-f16-u128-logits64",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139972.3831491,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0014165202636711172,
+        "passed": true,
+        "seconds": 0.12133550643920898,
+        "files": {
+          "15-q2-0-dense-tied-f16-u128-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+          "15-q2-0-dense-tied-f16-u128-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "16-q2-0-dense-tied-f16-u128-logits128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139972.505012,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0017169271545407483,
+        "passed": true,
+        "seconds": 0.12039399147033691,
+        "files": {
+          "16-q2-0-dense-tied-f16-u128-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+          "16-q2-0-dense-tied-f16-u128-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "17-q2-0-dense-tied-f16-u128-perplexity128",
+        "model": "q2-0-dense-tied",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-dense-tied.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139972.6257844,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.93972055,
+        "reference_nll": 21.939557315396957,
+        "error": 0.00016323460304334958,
+        "passed": true,
+        "seconds": 0.12009930610656738,
+        "files": {
+          "17-q2-0-dense-tied-f16-u128-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+          "17-q2-0-dense-tied-f16-u128-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350"
+        }
+      },
+      {
+        "tag": "18-q2-0-moe-f16-u1-logits64",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139972.7530463,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0046463491973876,
+        "passed": true,
+        "seconds": 0.2715482711791992,
+        "files": {
+          "18-q2-0-moe-f16-u1-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+          "18-q2-0-moe-f16-u1-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "19-q2-0-moe-f16-u1-logits128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139973.0250876,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0023710977096558228,
+        "passed": true,
+        "seconds": 0.2736210823059082,
+        "files": {
+          "19-q2-0-moe-f16-u1-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+          "19-q2-0-moe-f16-u1-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "20-q2-0-moe-f16-u1-perplexity128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "1",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139973.2992275,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.481157277,
+        "reference_nll": 21.4813513762064,
+        "error": 0.00019409920640001133,
+        "passed": true,
+        "seconds": 0.3293020725250244,
+        "files": {
+          "20-q2-0-moe-f16-u1-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+          "20-q2-0-moe-f16-u1-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "21-q2-0-moe-f16-u3-logits64",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139973.6291435,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0046463491973876,
+        "passed": true,
+        "seconds": 0.17072057723999023,
+        "files": {
+          "21-q2-0-moe-f16-u3-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+          "21-q2-0-moe-f16-u3-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "22-q2-0-moe-f16-u3-logits128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139973.800367,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0023710977096558228,
+        "passed": true,
+        "seconds": 0.17070794105529785,
+        "files": {
+          "22-q2-0-moe-f16-u3-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+          "22-q2-0-moe-f16-u3-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "23-q2-0-moe-f16-u3-perplexity128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "3",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139973.9716203,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.481157277,
+        "reference_nll": 21.4813513762064,
+        "error": 0.00019409920640001133,
+        "passed": true,
+        "seconds": 0.17038416862487793,
+        "files": {
+          "23-q2-0-moe-f16-u3-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+          "23-q2-0-moe-f16-u3-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "24-q2-0-moe-f16-u128-logits64",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 64,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139974.142486,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0046463491973876,
+        "passed": true,
+        "seconds": 0.1203603744506836,
+        "files": {
+          "24-q2-0-moe-f16-u128-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+          "24-q2-0-moe-f16-u128-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "25-q2-0-moe-f16-u128-logits128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "logits",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "logits",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--top",
+          "260"
+        ],
+        "started": 1793139974.263322,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "error": 0.0023710977096558228,
+        "passed": true,
+        "seconds": 0.12148308753967285,
+        "files": {
+          "25-q2-0-moe-f16-u128-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+          "25-q2-0-moe-f16-u128-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      },
+      {
+        "tag": "26-q2-0-moe-f16-u128-perplexity128",
+        "model": "q2-0-moe",
+        "dtype": "f16",
+        "mode": "perplexity",
+        "text_length": 128,
+        "argv": [
+          "/b/llmx",
+          "perplexity",
+          "/models/q2-0-moe.gguf",
+          "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+          "--threads",
+          "4",
+          "--ubatch",
+          "128",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f16",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--ctx-size",
+          "128"
+        ],
+        "started": 1793139974.3852923,
+        "exit_code": 0,
+        "bounds": {
+          "logit": 0.4165916442871094,
+          "nll": 0.022201185994788375
+        },
+        "matrix_paths": {
+          "dtype": "f16",
+          "devices": [
+            [
+              "f32",
+              "block-int16"
+            ]
+          ]
+        },
+        "witness_qualified": true,
+        "mean_nll": 21.481157277,
+        "reference_nll": 21.4813513762064,
+        "error": 0.00019409920640001133,
+        "passed": true,
+        "seconds": 0.12045073509216309,
+        "files": {
+          "26-q2-0-moe-f16-u128-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+          "26-q2-0-moe-f16-u128-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea"
+        }
+      }
+    ],
+    "max_errors": {
+      "logits": 0.0046463491973876,
+      "perplexity": 0.00019409920640001133
+    },
+    "artifacts": {
+      "00-q2-0-dense-untied-f16-u1-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "00-q2-0-dense-untied-f16-u1-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+      "01-q2-0-dense-untied-f16-u1-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "01-q2-0-dense-untied-f16-u1-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+      "02-q2-0-dense-untied-f16-u1-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "02-q2-0-dense-untied-f16-u1-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+      "03-q2-0-dense-untied-f16-u3-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "03-q2-0-dense-untied-f16-u3-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+      "04-q2-0-dense-untied-f16-u3-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "04-q2-0-dense-untied-f16-u3-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+      "05-q2-0-dense-untied-f16-u3-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "05-q2-0-dense-untied-f16-u3-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+      "06-q2-0-dense-untied-f16-u128-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "06-q2-0-dense-untied-f16-u128-logits64.stdout": "508bfdbfcd1d80f8b1bffc1c53c2992925e71f9018ea101ddec142fddd83a15f",
+      "07-q2-0-dense-untied-f16-u128-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "07-q2-0-dense-untied-f16-u128-logits128.stdout": "2dd5be5650ddffac1307f06d69556ea768e29bdfd1bb008962c29933ad1b312b",
+      "08-q2-0-dense-untied-f16-u128-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "08-q2-0-dense-untied-f16-u128-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+      "09-q2-0-dense-tied-f16-u1-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "09-q2-0-dense-tied-f16-u1-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+      "10-q2-0-dense-tied-f16-u1-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "10-q2-0-dense-tied-f16-u1-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+      "11-q2-0-dense-tied-f16-u1-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "11-q2-0-dense-tied-f16-u1-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+      "12-q2-0-dense-tied-f16-u3-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "12-q2-0-dense-tied-f16-u3-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+      "13-q2-0-dense-tied-f16-u3-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "13-q2-0-dense-tied-f16-u3-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+      "14-q2-0-dense-tied-f16-u3-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "14-q2-0-dense-tied-f16-u3-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+      "15-q2-0-dense-tied-f16-u128-logits64.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "15-q2-0-dense-tied-f16-u128-logits64.stdout": "c3b3f20389fb8c80bca41bb4fdadfff5b2c75a79a59ded213810f5faea1c34b6",
+      "16-q2-0-dense-tied-f16-u128-logits128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "16-q2-0-dense-tied-f16-u128-logits128.stdout": "99ac33ece3e05757cf84883e831f0accd4d8ba4096e312002469a63bb373b410",
+      "17-q2-0-dense-tied-f16-u128-perplexity128.stderr": "eae57983f9fa866d6254df9787f7c91260753daba8379d4bc6e79359104e9350",
+      "17-q2-0-dense-tied-f16-u128-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+      "18-q2-0-moe-f16-u1-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "18-q2-0-moe-f16-u1-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+      "19-q2-0-moe-f16-u1-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "19-q2-0-moe-f16-u1-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+      "20-q2-0-moe-f16-u1-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "20-q2-0-moe-f16-u1-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+      "21-q2-0-moe-f16-u3-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "21-q2-0-moe-f16-u3-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+      "22-q2-0-moe-f16-u3-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "22-q2-0-moe-f16-u3-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+      "23-q2-0-moe-f16-u3-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "23-q2-0-moe-f16-u3-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+      "24-q2-0-moe-f16-u128-logits64.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "24-q2-0-moe-f16-u128-logits64.stdout": "aa924957707d582e62b35f2439b7d34e958fd81b12d9594f6cf072dff371a937",
+      "25-q2-0-moe-f16-u128-logits128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "25-q2-0-moe-f16-u128-logits128.stdout": "52c28622c8b7c24adce1ec7a8f4933c425911b5531b82ad5445a299709e02ee1",
+      "26-q2-0-moe-f16-u128-perplexity128.stderr": "590c73e178e007ebccf7ad5bd53152d5c04c0434b64823b1168962e4f458a4ea",
+      "26-q2-0-moe-f16-u128-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+      "device-map.json": "8620c6552e0b490435a203afc0eec141e90e0c487cffc517e6132fe1614aa396",
+      "execution.json": "5bade0f2966674c5e3fb15e2f0d6fea5a852697584d96e0cde73676113a84481",
+      "gpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "gpu.stdout": "99f9a04e01954c417fa2de8b93e56df9df328b3b272c05f13ad425b52542e792",
+      "references.json": "24d8c0ced2d36830d1330aa24d25cd14a4506854f712c4e9e1052423f3316baa",
+      "supervisor.json": "ca1dad60c434d053418bc54e1b4b78a1b8e31552aa26354b452bdaee96f0df63",
+      "vulkaninfo.txt": "b1170395417da1fbcbb21c6255eea6f06efe104921a21efc9b83cd700a039dc2"
+    }
+  },
+  "independent_reference_control": {
+    "review_sha256": "6bf056ad748beb7328703f85339c2056e40ee997cc52a77ad51f68b48ec1fa04",
+    "review": {
+      "passed": true,
+      "seconds": 52.300270557403564,
+      "removed": true,
+      "inputs_unchanged": true,
+      "report_sha256": "0360199dd47f8aefefdd4a8495f7d441f33259564304847e58b071ad1be132ac",
+      "supervisor_sha256": "291d8530b217bed8c7c27ac5bc9512646b707a35d673643f54f17acda6f7bb18",
+      "reference": {
+        "full_F32_final_logits_exact": true,
+        "full_F32_final_max_error": 0.0,
+        "full_F32_NLL_delta": 0.0
+      },
+      "comparisons": [
+        {
+          "tag": "f32-full",
+          "max_all_logits_vs_F32_full": 0.0,
+          "max_final_logits_vs_F32_full": 0.0,
+          "max_final_logits_vs_same_shape_F32": 0.0,
+          "nll_delta_vs_F32_full": 0.0
+        },
+        {
+          "tag": "block-int16-full",
+          "max_all_logits_vs_F32_full": 0.006847023963928223,
+          "max_final_logits_vs_F32_full": 0.0025806427001953125,
+          "max_final_logits_vs_same_shape_F32": 0.0025806427001953125,
+          "nll_delta_vs_F32_full": 9.856607291069963e-05
+        },
+        {
+          "tag": "f32-cached1",
+          "max_all_logits_vs_F32_full": 0.0001842975616455078,
+          "max_final_logits_vs_F32_full": 3.814697265625e-05,
+          "max_final_logits_vs_same_shape_F32": 0.0,
+          "nll_delta_vs_F32_full": 3.373870878675689e-06
+        },
+        {
+          "tag": "block-int16-cached1",
+          "max_all_logits_vs_F32_full": 0.008043289184570312,
+          "max_final_logits_vs_F32_full": 0.0024585723876953125,
+          "max_final_logits_vs_same_shape_F32": 0.0024666786193847656,
+          "nll_delta_vs_F32_full": 0.00019639305600449575
+        },
+        {
+          "tag": "f32-cached3",
+          "max_all_logits_vs_F32_full": 0.00024199485778808594,
+          "max_final_logits_vs_F32_full": 2.765655517578125e-05,
+          "max_final_logits_vs_same_shape_F32": 0.0,
+          "nll_delta_vs_F32_full": 3.7857003007957246e-06
+        },
+        {
+          "tag": "block-int16-cached3",
+          "max_all_logits_vs_F32_full": 0.00603485107421875,
+          "max_final_logits_vs_F32_full": 0.002062678337097168,
+          "max_final_logits_vs_same_shape_F32": 0.0020465850830078125,
+          "nll_delta_vs_F32_full": 4.670384160831986e-05
+        }
+      ],
+      "routing_comparisons": [
+        {
+          "tag": "f32-full",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0,
+          "max_weight_difference": 0.0
+        },
+        {
+          "tag": "f32-full",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0,
+          "max_weight_difference": 0.0
+        },
+        {
+          "tag": "block-int16-full",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0004241466522216797,
+          "max_weight_difference": 7.522106170654297e-05
+        },
+        {
+          "tag": "block-int16-full",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0014748573303222656,
+          "max_weight_difference": 0.00020742416381835938
+        },
+        {
+          "tag": "f32-cached1",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 9.059906005859375e-06,
+          "max_weight_difference": 2.7120113372802734e-06
+        },
+        {
+          "tag": "f32-cached1",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 6.318092346191406e-05,
+          "max_weight_difference": 5.602836608886719e-06
+        },
+        {
+          "tag": "block-int16-cached1",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0004203319549560547,
+          "max_weight_difference": 8.600950241088867e-05
+        },
+        {
+          "tag": "block-int16-cached1",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.0012590289115905762,
+          "max_weight_difference": 0.0002084970474243164
+        },
+        {
+          "tag": "f32-cached3",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 8.58306884765625e-06,
+          "max_weight_difference": 3.2186508178710938e-06
+        },
+        {
+          "tag": "f32-cached3",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 7.224082946777344e-05,
+          "max_weight_difference": 4.291534423828125e-06
+        },
+        {
+          "tag": "block-int16-cached3",
+          "router": "model.layers.0.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.00042176246643066406,
+          "max_weight_difference": 8.511543273925781e-05
+        },
+        {
+          "tag": "block-int16-cached3",
+          "router": "model.layers.1.mlp.gate",
+          "sets_equal_to_F32_full": true,
+          "first_order_difference": null,
+          "order_difference_count": 0,
+          "max_router_logit_difference": 0.00133514404296875,
+          "max_weight_difference": 0.0001913905143737793
+        }
+      ],
+      "interpretation": "Independent mathematical block-int16 input reconstruction stays close for full/cached HF and does not reproduce runtime F16 MoE ubatch1/3 divergence. All four experts are selected with identical rank order throughout. Does not emulate GPU reciprocal or reduction instruction order. Existing runtime F32 controls are stable across batches; frozen predecessor reproduces F16 divergence, so this is not introduced by the integer-row trial. Full token logits and router traces retained; next discriminator is first runtime operation/token divergence, not broader sweeps."
+    }
+  },
+  "prefix_diagnostic": {
+    "execution_sha256": "c4c91aa567c63260c2ff76274e39a5db6c52dd1b8efd7bbda73047a91585235f",
+    "results": [
+      {
+        "length": 65,
+        "maximum_logit_difference": 0.0
+      },
+      {
+        "length": 80,
+        "maximum_logit_difference": 0.0
+      },
+      {
+        "length": 96,
+        "maximum_logit_difference": 25.732723999999997
+      },
+      {
+        "length": 112,
+        "maximum_logit_difference": 26.239023
+      }
+    ]
+  },
+  "native_evidence": {
+    "path": "docs\\benchmarks\\q2-row-int16-native-20261027.json",
+    "sha256": "a86bafff8655c1bcdf06ba254f6375834b31310b8452f7abdc365233233e1f20"
+  },
+  "prior_failures": "q2-row-int16-hf-20261027.json and q2-row-int16-native-20261027.json retain the original failures and exact prior binary.",
+  "remaining": "Q1 speed recovery, split, released-model/depth, final matched timing, existing-path and hosted landing checks remain. No limits changed, no full correctness or performance gate claim."
+}

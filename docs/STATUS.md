@@ -72,6 +72,1828 @@
 - **Gotchas:** the historical opaque-FD timeline import across different device UUIDs is outside Vulkan's compatibility contract and remains research. A passing RADV probe alone does not establish a supported contract. Experimental environment switches, inference deadlines, exit-without-teardown paths and permanent fail-closed flags are not adopted. All isolated, combined, null and superseded screens remain in the evidence. The selected cache/close-on-exec candidate is an intermediate checkpoint, with a demonstrated throughput gain, the reported TTFT tradeoff and a substantial remaining ROCm gap. Production is unchanged by this landing.
 
 
+## Q1/Q2 packed halfword reads (in development)
+
+- **Landing integration (2026-10-29):** combined candidate `2f3a8b341` builds successfully on Windows with Vulkan. Hosted run `40787880146` found a stale expected support set in `backend-errors`; the failure was reproduced locally. The test now expects IDs 41 and 42 while retaining its unsupported-ID and storage/decoder consistency checks. The corrected target was rebuilt and focused CTest passed 1/1; docs/dead-code also passed. The full Windows candidate build passed for all 92 executables, with the original test failure retained. A fresh detached MI50 build of public main `53309fd3b` completed in 197.55 seconds. These checks do not complete the remaining landing gates; no merge is claimed.
+- **Review checkpoint (2026-10-29):** the reviewed low-bits test passes on CPU and Radeon VII. Full Radeon backend validation passes with 43,599,360 BF16 batch-invariant values and 199,544 decode-column checks. Earlier failures from stale support/path/source catalogs in the tests remain recorded. Runtime edits only name the existing two-row variant; arithmetic and dispatch values are unchanged. [Review coverage receipt](benchmarks/q1-q2-review-coverage-20261029.json). The Markdown inventory and live Q1/Q2, precision, owner and status claims were reviewed; prior historical evidence is retained. Q2 fixture tooling is being prepared separately from this checkpoint, with two fixed rules chosen before quality measurements. Main is not merged.
+- **Goal:** qualify Q1/Q2 and close their decode gap against matched mx Vulkan.
+- **Done:** aligned halfword weight reads remain in the shared format helper. Q1 one-column integer calls reuse activation loads across two output rows in the existing row owner, including grouped projections. Weight expansion now happens within each row's loop to shorten overlapping register lifetimes. Each row retains its arithmetic and range repair. The Q1 format helper now expands sign bits with an exactly equivalent unsigned mask expression, shared by integer rows and tiles.
+- **Verified Q1:** the current cluster32 candidate passes focused CPU, MI50 and Radeon VII operators, short rankings/NLL with F16 and F32 KV on MI50 and Radeon VII, and raw/chat 16K CPU/Radeon depth comparisons under their recorded policies. On Radeon VII, auto resolves to F16 while Q1 matrix-path witnesses are F32. The corrected exact-method MI50 raw and chat comparisons each pass 512/512 positions with zero ties or misses under the unchanged 0.1 rule. [Exact depth evidence](benchmarks/q1-exact-depth-20261029.json). Earlier MI50 raw/chat results used the division-based reference producer and remain historical. The packed F32 split-MoE fixture passes on one MI50, layer2 and TP2. The selected automatic F16 policy also passes the frozen tiny-HF Q1 dense untied, dense tied and MoE fixtures on MI50 layer2 and TP2 splits using F32 KV, with 150 full-logit comparisons and 12 NLL checks per placement. The released Boole file-exact consumer now passes layer2 and TP2 on MI50 GPUs 4/5 with both F16 and F32 KV, all six ranking prompts and eight NLL checks per cell. Matched Q1 MI50 prefill and decode exceed mx Vulkan at P128/G256 and P4096/G256. Earlier sign-mask score-byte identity remains historical evidence, not a claim for the changed reduction order.
+- **Verified Q2 depth:** selected-policy raw and chat pass under the unchanged frozen exact-producer policy and 0.1 tie rule. Raw gives 504 exact, 8 accepted ties and 0 misses; chat gives 498 exact, 14 accepted ties and 0 misses. Each cell has 512 scored positions and actual block-int16/F16-KV path witnesses. [Q2 selected-depth evidence](benchmarks/q2-depth-selected-20261028.json).
+- **Left:** the adopted cluster32 candidate closes the Q1 decode gap in short screens, but is not fully qualified. The adopted row-local schedule previously gained 4.60% over the grouped two-row build; the later four-row and loop-unroll trials are not retained. Q1 selected-policy controls are complete, with 394/394 activation samples matching exact reconstruction and all four 17-position histories preserving top1/top2. The corrected exact-method MI50 raw and chat comparisons each pass 512/512 with zero ties or misses. The review coverage is added: grouped one-column/two-row identity, F16/native-int8 row classes and range repair, decode-column invariance and BF16 physical-batch boundaries. Focused CPU and Radeon checks pass; MI50 integer-profile execution and final landing checks remain. Q2 selected-policy depth and both original-F32 quality companions are complete; quality remains descriptive. Q2 all-layer code6 matrix localization is complete. The eight user-approved Q2 short-test exceptions are retained as named failures, not passes, and apply only to the pinned Qwen3-0.6B-Q2_0.gguf file (SHA-256 `8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b`) on MI50 under the default path. Reuse requires retained-output identity on the final candidate. All other existing limits and requirements remain unchanged. The exact-method short replay resolves some selected-policy diagnostics; remaining canonical failures stay recorded. The exact-arithmetic replay matches all 170 investigated layer-0 V F32 outputs and their F16 cache words, closing that localized arithmetic suspicion without clearing Q2's end-to-end failures. Its exact-input layer-0 Q/K/V control meets the existing operator bound, which does not establish an end-to-end pass. No merge or complete-support claim is made. [Q1 controls and Q2 quality evidence](benchmarks/q1-controls-q2-quality-20261029.json).
+- **Gotchas:** all 18-byte blocks start at even offsets but alternate word alignment. Row halfwords stay within logical tensor bytes. Tile words can include two masked padding bytes inside the existing four-byte-rounded allocation. The packed-code proof and address proof are independent factors, not an all-payloads-by-all-layouts Cartesian sweep.
+
+The earlier Q2 Rome17 HF control reproduces the retained selected-policy logits byte
+for byte, using the older block-int16 reconstruction helper and F32 sums. Q2 still gives 4/5 under the existing top-five rule against that
+reference and 5/5 against a diagnostic F64-Linear control. The latter is not
+an alternative gate reference. The main/Q4 exact-weight control also changes
+from 5/5 against full HF to 4/5 against singleton HF. This demonstrates
+sensitivity but does not clear Q2's failure. Independent review produced a
+[scoped proposal](benchmarks/q2-short-exception-proposal-20261028.json), whose
+eight named short-test exceptions are now user-approved as failures, not
+passes, for the pinned file and MI50 default path only. Reuse requires retained
+output identity on the final candidate; all other limits remain unchanged.
+The [exact replay](benchmarks/q2-v-boundary-arithmetic-20261028.json)
+resolves the localized V-boundary suspicion only. [Pinned comparisons](benchmarks/q2-hf-sensitivity-20261028.json).
+
+The v3 depth prerequisites are complete: raw and chat input/token parity is
+verified, runtime chat rendering matches the frozen text, and fixed-scale input
+reconstruction is byte exact across 544 blocks. Both MI50 captures retain all
+512 score rows and path witnesses under the selected F16/block-int16/F16-KV
+policy. HF self-controls retain the selected-policy 16-exact/one-tie and F32
+17-exact outcomes. [Prerequisite evidence](benchmarks/q2-depth-prerequisites-20261028.json).
+The exact-producer selected-policy depth comparisons now pass the unchanged 0.1
+tie rule: raw 504 exact/8 accepted ties/0 misses; chat 498/14/0. The original-F32
+raw quality companion is complete: runtime mean NLL is 18.664799414 against
+18.655014209 for F32 HF and 18.664419456 for selected HF. Versus original F32,
+runtime has 484 exact choices, 18 descriptive ties and 10 misses; selected HF
+has 482/20/10. These are quality information beside the selected-policy gate,
+not another depth gate or a use of the short NLL limit. The chat companion is
+also complete, with runtime mean NLL 17.782929514 versus original F32 HF
+17.785119082; its top1 counts are descriptive, not another depth gate.
+[Selected-depth evidence](benchmarks/q2-depth-selected-20261028.json).
+
+The exact-method short replay retains five ranking cells and three continuous
+NLL schedules. Q2 agrees with selected HF for capital, F32-KV colors and Rome;
+code F16 still chooses 40604 against HF 54200, whose top-two gap is 0.351575851,
+and colors F16 remains 4/5. Batched F16/F32-KV NLL differences are
+-0.002550249/-0.003996583. F16-KV singleton remains +0.031272777 for Q2 and
++0.021784172 for main/Q4, outside 0.01; HF alone changes 0.011747089 between
+the retained batch/singleton schedules. Q2 and exact-value Q4 share activation
+packing but use different centered-dot arithmetic, so Q4 matching HF does not
+establish greater accuracy. The completed code6 observation covers 28 layers,
+113 dispatches and 197 projections per arm, with baseline/observer score-byte
+identity. All 75,328 activation blocks and all 788 weight-edge samples match
+independent expected values. Same-input double-dot errors remain small
+(maximum 0.000034351 Q2, 0.000146874 Q4), despite accumulated residual
+differences. Exact emitted-order replay matches both first divergent Q words;
+Q2 is closer to double there. This resolves the localized large-error matrix
+suspicion, without exhaustively replaying shared nonmatrix intermediates.
+[Code6 evidence](benchmarks/q2-code6-disposition-evidence-20261029.json).
+The updated [scoped disposition proposal](benchmarks/q2-short-disposition-proposal-20261029.md)
+now names five canonical ranking and three continuous-NLL failures. All 13
+previously missing NLL cells are complete: the 12 windows pass (maximum delta
+0.012708657 against 0.02), while F32-KV singleton fails at -0.012433873 and
+main/Q4 also fails at -0.013269968. All 16 default NLL cells are measured,
+with 13 passes and three continuous failures. The eight named short-test
+exceptions are approved only for the pinned file and MI50 default path; their
+underlying results remain failures, not passes, and reuse requires retained-
+output identity on the final candidate. No new gate, reference or limit is
+selected. Canonical original-F32 failures remain failed. Older helper results stay labeled approximate;
+current four-thread results do not isolate helper correction from the older
+one-thread accumulation. V1/V2 and short preflight failures remain preserved.
+[Exact short and raw-quality evidence](benchmarks/q2-exact-short-and-raw-quality-20261028.json).
+
+Checkpoint review: the tracked Markdown catalog was reviewed for this
+documentation-only delta against unchanged source, tests, CLI and precision
+rules. This status and Q1-Q2 needed current short/quality claims updated; other
+matching pages are rules, historical records or other formats. Unchanged pages
+carry the prior semantic review, not a fresh line-by-line reread. The docs and
+dead-code components are rerun for this checkpoint; no runtime or limit changes.
+
+The development branch now caps the Q1 integer-row reduction group at 32 while
+keeping two-row activation reuse. Focused native CPU and Vulkan checks pass,
+including grouped-call identity, and both 16K raw/chat HF comparisons give
+512 exact top-one choices with no ties or misses. This changes reduction
+order, so the prior full-score byte identity is not inherited. The new scores
+differ from the old captures and independently meet the existing HF rule.
+
+| Tokens/s | Retained sign-mask llmx | Cluster32 trial | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2499.13 | 2502.70 | 1122.82 |
+| Decode | 239.58 | 253.22 | 251.15 |
+
+All twelve planned P128/G256 samples are retained, four per arm. Decode gains
+5.69% over retained and measures 0.82% above mx, with effectively unchanged
+prefill. Full monitoring and activity flags are preserved with the results.
+The native checks take 2.32 seconds including supervision; helper build and
+two depth captures take 89.65 seconds, followed by 7.78 seconds for the two
+comparisons against frozen HF scores. No reference is regenerated or limit
+changed. The short file-exact consumer also passes six top-one/top-five prompts
+and eight NLL checks for each of F16 and F32 KV. Maximum NLL differences are
+0.000050 and 0.000013, against continuous/window limits 0.01/0.02. That run
+takes 30.99 seconds and preserves the binary, source and reference hashes.
+Split, other-device and final matched performance checks remain. [Cluster32 evidence](benchmarks/q1-two-row-cluster32-20261028.json).
+The later fixed P4096/G256 comparison also completes all twelve calls:
+
+| Tokens/s | Retained sign-mask llmx | Cluster32 llmx | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2175.34 | 2188.46 | 1310.59 |
+| Decode | 240.56 | 254.75 | 251.64 |
+
+Decode gains 5.90% over retained and is 1.23% above mx. Prefill measures
+0.60% above retained and 66.98% above mx. All four candidate decode samples
+exceed all four reference samples. Every call has monitoring coverage, two
+calls overlap unrelated-CPU flags, and none overlap other-GPU, disk or gap
+flags. Unknown process CPU remains recorded. The retained prefill samples
+span 2152.26-2238.30, so the small prefill difference is not claimed as a
+stable gain. No samples are removed. This establishes the measured Q1
+Vulkan comparison at P128 and P4096, while other-device, split and landing
+checks remain. Evidence is in the same cluster32 record.
+
+The retained split-MoE F32 NLL failure predates the current explicitly rounded
+vector row kernel. The current packed fixture now passes on one MI50, a layer
+split across GPUs 4/5, and TP2 across GPUs 4/5. All batched, decode and greedy
+matrix-path witnesses are F32 with F32 KV. The current approved consumer passes
+ten endpoint logit checks for each placement under the previously approved
+0.000102015991211 identity-specific bound, with NLL against the unchanged
+0.00001 limit:
+
+| Placement | Maximum logit error / bound | NLL error / bound |
+|---|---:|---:|
+| One MI50 | 0.000035285949707 / 0.000102015991211 | 0.000008275829693 / 0.000010000000000 |
+| Layer split, GPUs 4/5 | 0.000035285949707 / 0.000102015991211 | 0.000008275829693 / 0.000010000000000 |
+| TP2, GPUs 4/5 | 0.000033855438232 / 0.000102015991211 | 0.000009462246734 / 0.000010000000000 |
+
+The consumer checks retained captures offline; no reference or limit changed.
+This closes this F32 MoE fixture issue at these three placements, not the
+broader split, dtype or model qualification. The initial two-device bundle's
+plan-hash typo was rejected before GPU capture; no inference ran, so that was
+an admission failure rather than a runtime failure. Its output remains
+preserved. The frozen one-GPU capture's strict-logit misses and signature
+error, and the two-device attempt's old strict consumer outcomes, remain
+retained as legacy diagnostics. The TP2 logits are not claimed byte-identical
+to layer-split logits. [Current F32 evidence](benchmarks/q1-current-f32-moe-20261028.json)
+includes the retry receipts, raw hashes, and unchanged source/build/prior-capture
+checks.
+
+A fresh Windows cluster32 build passes, followed by the focused low-bits native
+CPU check and the native Vulkan check on Radeon VII. Both Q1_0 and Q2_0 row and
+tile dispatches are witnessed. The Windows input audit matches the frozen
+cluster32 build receipt with only the checked shader-comment wording change and
+omission of the rig-only native shader representation dump. A documentation-only
+commit landed during compilation; the embedded version is dirty, while the
+recorded runtime input hashes stayed unchanged. Radeon VII had 1 percent 3D
+activity at preflight, so this is correctness evidence and makes no timing claim.
+The native check alone covers operators; the released-file short HF result
+below adds model coverage. Later raw/chat depth evidence is recorded below;
+the MI50 depth-reference precision review and full-suite qualification remain
+open. [Windows
+native evidence](benchmarks/q1-cluster32-windows-native-20261028.json).
+
+The current cluster32 Boole-1.7B Q1_0 short file-exact HF check also passes on
+Radeon VII. Both F16- and F32-KV runs pass all six top-one and top-five set and
+order checks, plus eight continuous/window NLL checks; maximum reported NLL
+deltas are 0.000058 and 0.000001 against unchanged 0.01/0.02 limits. Each run
+retains 14 path witnesses: effective dtype F16, actual device matrix path F32.
+The runs take 32.50 and 31.05 seconds; Radeon background GPU activity was
+sampled, so this is not performance evidence. The first attempt stopped before
+inference on a missing `f32` import; retry2 passed after the exact pinned
+consumer import closure, with all inputs unchanged. [Radeon short evidence](benchmarks/q1-radeon-released-short-20261028.json).
+
+The released Boole Q1_0 file also passes the unchanged file-exact HF consumer
+on MI50 GPUs 4/5, for layer2 and TP2 with F16 and F32 KV. All four cells pass
+all six top-one, top-five set and order checks plus eight NLL checks. Maximum
+continuous/window NLL deltas are 0.000050/0.000049 with F16 KV and
+0.000019/0.000015 with F32 KV, below unchanged 0.01/0.02 limits. Auto resolves
+to F16 and all 56 matrix witnesses report block-int16 on both devices. All 60
+CLI calls succeeded; all 137 recorded output hashes match, candidate inputs
+remained unchanged, and the container was removed. No reference or limit
+changed. [Released split evidence](benchmarks/q1-released-split-20261028.json).
+
+The CPU-default raw and chat HF depth comparisons each pass 512/512 exact
+top-one choices, with zero accepted ties and zero misses under the unchanged
+0.1 rule. The captured Q1 run requested auto, which resolves to effective F16
+under the frozen CPU policy; Q1 has no integer-dot path, so its actual matrix
+products are F32, with F16/F16 KV. The final retry3 runtime-capture manifest is
+complete and unchanged across the chat comparison; this confirms that capture
+only and does not close broader CPU qualification. The earlier retry2 capture
+still records its prefill refusal because its metadata expected auto to resolve
+to F32. The first raw comparison launch stopped before comparing because its
+receipt lookup used the wrong path; corrected v2 raw and chat consumers resolve
+the receipt from the plan's candidate `rig_root` and `build_receipt` entries.
+No inference replay for the comparison, reference regeneration or limit change
+was involved. Broader CPU/device and split coverage, plus final qualification,
+remain open. [Combined
+CPU depth evidence](benchmarks/q1-cpu-default-depth-20261028.json) retains both
+cell results, launch receipts and the final chat capture confirmation; the
+dated [raw CPU depth record](benchmarks/q1-cpu-default-raw-depth-20261028.json)
+remains unchanged.
+Radeon VII raw and chat 16K depth now each pass 512 exact top-one choices,
+zero ties and zero misses under the unchanged rule. Completed witnesses keep
+actual Q1 matrix products F32 and KV F16/F16, allowing reuse of the pinned
+CPU-default HF reference. Runtime, source, model and reference pins remain
+unchanged. The initial low-memory admission refusal is retained; both later
+captures passed the original guards. This closes those two depth cells only.
+[Radeon depth evidence](benchmarks/q1-radeon-depth-20261028.json).
+
+The checkpoint review revisited the tracked Markdown inventory and its 20
+pages with Q1/Q2 claims. The older Radeon evidence records CPU status at its
+collection time; the combined depth result above supersedes that pending status.
+Family-level qualification statements remain open and accurate.
+
+The product row-planner header matches the tested candidate after line-ending
+normalization. The checkpoint documentation review checked live Q1/Q2 claims
+in the Markdown inventory, README, usage, assets, CI and source-owner pages
+against the implementation and retained records. Family qualification remains
+open, and historical screens remain labelled as such. The updated owner page
+describes the changed reduction group. Docs and dead-code checks pass with
+zero documentation findings and the existing seven listed code findings.
+
+The current Q1/Q2 fixture, generator and consumer WIP has now been reviewed as
+a development checkpoint. The focused reference-generator run passes 97 tests;
+reference-consumer completes 75 tests, with 71 passing and four skips. Those skips are the two optional Qwen4Exp native binaries not
+present beside this executable, the two-device server case without two
+configured devices, and the POSIX-only SIGTERM persistence case on Windows.
+The generator covers the Q1_0/Q2_0 raw-block dense tied/untied and MoE fixture
+families and their ordinary and split references. The consumer forwards the
+approved exact fixture identity through shared and raw-block HF checks while
+requiring the F32 path witnesses. Synthetic decoded weights use compact F32
+arrays. File-exact Qwen3/Qwen3MoE generation constructs from pinned config and
+tokenizer, then loads every GGUF tensor without downloading checkpoint weights;
+it records checkpoint tensor equality as unavailable. Prospective F16
+calibration may extend a frozen Q1_0/Q2_0 BF16 family only when the entire
+existing BF16 entry, including reference rows and metadata, matches exactly.
+No budget changed. These focused tool checks do not
+close Q1 qualification or Q2's open ranking/NLL and depth checks; released-file,
+other-device, split and final performance qualification remain outstanding.
+[Focused tool evidence](benchmarks/q12-reference-tools-20261028.json) records
+the checked input hashes, counts, skips and retained log.
+
+Public main `9d00fb0a5` is integrated into this development branch. Its
+Q2_K/Q3_K narrow-tile witness tests and evidence are retained. The merge changes
+no runtime, calibration or fixture input; prior numerical evidence keeps its
+recorded scope. Final landing checks still apply to the completed tree.
+
+
+The adopted sign-mask expression is exact over all 65536 raw halfwords,
+checking both packed components and 262144 independent signed lanes. Only
+Q1 integer row/tile shader modules change, and focused CPU/Vulkan operators
+pass. The driver hot loop falls from 342 to 308 instructions, retaining 32
+dots and the same loads; full-kernel instructions fall from 1789 to 1755.
+VGPRs stay at 48 with no spills. A twelve-call matched P128/G256 screen gives:
+
+| Tokens/s | Previous row-local llmx | Sign-mask llmx | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2488.10 | 2498.98 | 1119.05 |
+| Decode | 234.95 | 239.50 | 251.70 |
+
+Decode gains 1.94% and prefill 0.44%. All four candidate decode samples
+(237.10-240.58) exceed the baseline range (232.29-236.69), but final matched
+qualification remains open. The separate profiled Q1 body falls from
+355.208 to 347.819 ms. Every call has full monitoring coverage; three overlap
+unrelated-CPU flags, five disk flags, none other-GPU or sampling-gap flags,
+and unknown process CPU remains. All samples are retained. This is an
+instruction-cost improvement, not a register/occupancy claim or completed
+performance gate. [Sign-mask evidence](benchmarks/q1-sign-mask-20261028.json).
+
+The subsequent sign-mask identity capture passes for raw and chat. Each
+16K prompt produces 512 full-vocabulary rows, 311164928 bytes, exactly
+matching the retained qualified scores. All 512 path witnesses per case
+confirm F16 arithmetic, F16 KV and block-int16 products. The isolated helper
+build and both captures finish in 90.1 seconds with source, library, model,
+inputs and reference hashes unchanged. No HF reference is regenerated.
+[Depth identity evidence](benchmarks/q1-sign-mask-depth-20261028.json).
+
+A later unroll-by-two trial stays in scratch. Focused native checks pass,
+but its twelve-call screen gives the following means:
+
+| Tokens/s | Retained sign-mask llmx | Unroll trial | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2497.51 | 2499.87 | 1119.92 |
+| Decode | 239.68 | 237.45 | 251.41 |
+
+Every trial decode sample is below every retained sample, a mean loss of
+0.93%, with effectively unchanged prefill. Each unrolled body still loads
+three descriptors; the intended load hoisting is absent. Full shader
+instructions rise from 1755 to 2067, with 48 VGPRs, no spills and the same
+static subgroup limit. All calls have monitoring coverage. Six aggregate
+disk intervals are flagged, none for other GPUs, unrelated CPU or gaps;
+unknown process CPU is retained. No sample is discarded. The retained arm
+is 4.67% below mx decode in this comparison. The trial needs no expensive
+depth rerun. [Unroll evidence](benchmarks/q1-block-unroll2-20261028.json).
+
+The later pair-local weight trial retains two-row reuse and all eight loaded
+activation pairs, expanding each weight pair just before its ordered dot.
+Focused native checks pass. Its twelve-call P128/G256 screen gives
+prefill 2488.56 / 2488.10 / 1120.00 and decode 236.21 / 237.24 / 252.52
+tokens/s for retained source / trial / mx Vulkan. The observed decode gain
+is 0.43%, with unchanged prefill. Final VGPRs remain 48 and instructions
+1789; the intended register-pressure reduction is not demonstrated. The
+trial stays in scratch, with no expensive depth rerun or product edit.
+Every call has monitoring coverage and overlaps CPU/other-GPU activity;
+nine overlap aggregate disk flags, with unknown process CPU throughout and
+no sampling gaps. No samples are removed. Next is actual shader disassembly
+before another scheduling edit. [Pair-local evidence](benchmarks/q1-pair-local-weights-20261028.json).
+That driver disassembly is now captured from two small native helpers linked
+to the unchanged runtime libraries. Both checks pass. The hot two-row loop
+has 342 instructions and 32 integer dots in both arms, four vector activation
+loads, one activation-scale load and six weight halfword loads. The compiler
+already removes repeated packed-weight loads. Only the two-row assembly
+changes, in instruction order and register assignment; three other captured
+specializations are instruction-identical. Static evidence does not establish
+wait costs. The remaining candidates are weight-expansion cost and overlap
+between successive K iterations, which mx explicitly unrolls.
+[Driver ISA evidence](benchmarks/q1-pair-local-isa-20261028.json).
+
+The subsequent four-row integer experiment is not adopted. Its focused native
+CPU/Vulkan checks pass after correcting three stale test-name suffixes, with
+runtime binaries unchanged by that test-only rebuild. A twelve-call matched
+P128/G256 screen on physical MI50 4 gives prefill 2486.55 / 2489.37 / 1122.01
+and decode 236.57 / 227.04 / 252.39 tokens/s for current two-row / four-row /
+mx Vulkan. The trial loses 4.03% decode without a meaningful prefill gain.
+Registers rise from 48 to 64 VGPRs and the compiled subgroup limit falls
+from five to four, with no spills. This is consistent with added register
+pressure, not proof of measured occupancy. All calls overlap other-GPU and
+unrelated-CPU flags, nine overlap aggregate disk flags, and unknown process
+CPU remains. Every call is covered, no samples are dropped and no gap flags
+occur. Four-row decode ranges 225.76-227.66 versus current 236.21-237.02.
+No depth run is spent on this losing experiment. Current source stays at the
+two-row implementation. [Experiment evidence](benchmarks/q1-four-row-int16-20261028.json).
+
+Q2's completed singleton diagnostic captures all 246 F64 token losses. Main/Q4
+and candidate/Q4 are byte-identical. Q2 differs, but against matching
+selected-policy HF singleton execution its mean delta, mean absolute error
+and worst error are smaller than main/Q4's. This is diagnostic evidence, not
+a replacement gate. The two missing main/Q4 short controls are complete.
+Against selected full-prompt HF, Rome with F16 KV remains the unresolved
+Q2 top-five failure (4/5 while main/Q4 gets 5/5). HF shape sensitivity does
+not excuse it: neither full nor singleton HF puts runtime token 41479 in
+its top five. The subsequent Q4 baseline/observer captures finish in 6.91
+seconds, preserve all full logits bit for bit, and retain all 84 layer phases.
+Q2/Q4 first diverge after layer 0 attention on identical input. Against the
+independent same-input HF stage, Q2 maximum/RMS error is
+0.0000309348/0.00000301594, versus Q4 0.0000748634/0.00000501349.
+Q2 is closer at this first cut despite its final ranking failure. This
+localizes an initial difference but does not establish its eventual cause.
+The later trajectories show amplification, but their inputs already differ.
+The next projection control reuses existing observer binaries and F32/F64
+dot references. Both Q4 captures, all 84 layer outputs and prior Q4 history
+are byte-identical, and Q2/Q4 normalized projection inputs match exactly.
+Against the same-input F64 reference, Q2 has lower RMS error for Q, K and V
+than Q4. Their respective RMS pairs are 2.2131e-7/2.8877e-7,
+2.3481e-7/2.9717e-7 and 2.1027e-7/2.5795e-7. Q2/Q4 attention-context
+maximum difference grows to 0.000243336. Independent binary16 conversion
+of the captured V arrays predicted 170 differing values out of 17408.
+The completed device-cache readback confirms all 170 changes, with zero
+V conversion mismatches in either arm. K differs in 92 half words. Both
+new observers preserve the prior logits, head input and all 84 layer arrays
+bit for bit. Same-input F64 attention replay gives maximum/RMS residuals
+of 5.5541e-7/2.7938e-8 for Q2 and 6.4096e-7/2.9816e-8 for Q4. The replayed
+Q2/Q4 context delta has RMS 3.111118e-6, versus actual 3.111214e-6; changing
+V alone accounts for a maximum 0.000243307, while the Q/K-only maximum is
+0.0000534756. This establishes expected F16-boundary amplification at this
+first layer, not the cause or acceptability of the final ranking miss.
+The independent review agrees. [Cache readback evidence](benchmarks/q2-cache-causal-20261028.json).
+The completed layer-0 substitution control now replaces only rotated Q and
+logical K/V with retained Q4 values, preserving the original Q2 projection
+inputs and every later Q2 operator. All 34816 attention-context values become
+Q4's exact bits, with 96256 unused cache bytes per side preserved. The final
+selected-policy HF top-five comparison changes from 4/5 to 5/5, with the
+correct top-one token unchanged. Against original F32 HF it changes from
+3/5 to 4/5 and still fails. This isolates a causal effect of the measured
+first-layer rounding difference on the selected-policy rank miss. It is an
+artificial intervention, not a supported mode or an unmodified-Q2 pass.
+No limit or reference changes. A technical gate review is requested on TUI.
+The original build interruption while investigating the user's ar-bench
+session disconnect is retained; after the user reported it solved, only the
+unfinished build/capture resumed. [Intervention evidence](benchmarks/q2-layer0-intervention-20261028.json).
+[Singleton and rank evidence](benchmarks/q2-singleton-rank-controls-20261028.json).
+
+The project Markdown catalog was reviewed against this diagnostic checkpoint.
+STATUS, Q1-Q2 and the Vulkan source-owner page need updates. README support
+remains in development, CLI and build instructions are unchanged, and the
+source-owner page now describes the adopted sign-mask expansion. Historical measurements remain historical.
+
+The latest scheduling change loads all eight activation pairs before expanding
+one output row's weights at a time. It retains each row's eight ordered dots,
+scale check, FMA and reduction. Only the Q1 integer row shader module changes.
+Compiled VGPR use falls from 64 to 48, the reported subgroup limit rises from
+four to five and static instructions fall from 1792 to 1789, with no spills.
+These are compiled limits, not measured occupancy. Unlike the rejected
+streamed-pair experiment, this adds no pair loop or partial-sum loop.
+
+| Adopted row-local Q1 screen, P128/G256 tokens/s | Grouped baseline | Row-local weights | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2484.07 | 2485.46 | 1116.40 |
+| Decode | 225.28 | 235.64 | 252.28 |
+
+All twelve calls are retained, four per arm with default clocks on physical
+MI50 8. Every call has monitoring coverage. Ten overlap aggregate disk flags;
+no other-GPU, known unrelated-CPU or sampling-gap flags occur. Unknown process
+CPU deltas remain in every call. Native CPU/Vulkan checks and both full-score
+16K captures pass with unchanged bits, so the existing HF results carry
+forward without a new HF execution. This is a development checkpoint, not
+final qualification. The full Markdown catalog is reviewed for this shader
+delta, with STATUS, Q1-Q2 and the Vulkan owner page updated.
+[Scheduling evidence](benchmarks/q1-row-local-weights-20261028.json).
+
+The grouped extension removes one dispatch restriction without changing a
+shader instruction. The new native fixture checks independent double dots,
+exact kernel selection, guards and grouped-versus-alone bits at widths
+384, 2048 and 6144. Its raw/chat 16K identity checks each retain all 512 by
+151936 F32 logits, allowing the existing independent HF results to carry
+forward without another HF execution. Source review confirms per-projection
+row mapping, output bounds and accumulation remain in their existing owners.
+
+| Grouped extension P128/G256, tokens/s | Before grouped extension | Grouped two-row | Matched mx Vulkan target |
+|---|---:|---:|---:|
+| Prefill | 2484.36 | 2485.20 | 1121.28 |
+| Decode | 215.83 | 226.01 | 251.95 |
+
+All twelve calls are retained, four per arm on physical MI50 8 with default
+clocks. Every call has monitoring coverage. No other-GPU, known unrelated-CPU
+or sample-gap flags occur. Nine calls overlap aggregate disk flags, which
+cannot separate model loads from unrelated I/O, and process churn leaves
+unknown CPU deltas in every call. The profiled one-row Q1 kernel disappears;
+profiled decode GPU time falls from 648.856 to 617.955 ms. The throughput gain
+is useful development evidence, not a final gate pass. The frozen source,
+library and runtime binaries are unchanged after testing; only the stale
+word "isolated" in a shader comment is removed after that build.
+[Grouped evidence and Markdown review](benchmarks/q1-grouped-two-row-20261028.json).
+The checkpoint reviews the full Markdown catalog for this dispatch/test delta,
+updates STATUS, Q1-Q2 and the Vulkan owner page, and retains historical results
+below as measurements of their named builds.
+
+The initial eight-call screen found Q2 decode +4.75%, with nearly unchanged
+prefill. A fresh twelve-call before/after/mx/mx/after/before screen confirms
+the direction at +4.52%. Q1's smaller +0.88% decode result remains a modest
+development result, not a robust final speed claim.
+
+| P128/G256, tokens/s | Before | Halfword reads | Matched mx Vulkan |
+|---|---:|---:|---:|
+| Q1 prefill | 2466.22 | 2477.10 | 1120.90 |
+| Q1 decode | 206.32 | 208.13 | 251.80 |
+| Q2 prefill | 5620.24 | 5628.88 | 3581.58 |
+| Q2 decode | 313.56 | 327.72 | 332.72 |
+
+Two samples per arm use the same physical GPU 8, default clocks, four CPU
+threads, F16 KV, context 40960 and matching deterministic-token/full-warmup
+harness. Background GPU and CPU activity was flagged, with disk activity in
+two Q2 llmx calls. Every call has complete monitoring coverage and all samples
+are retained. mx Q2 prefill varied from 3410.67 to 3752.49 tokens/s, so its mean
+must be read alongside that spread. Q1 decode remains 17.34% below mx; Q2 is
+1.50% below, with 57.16% higher prefill. The latter tradeoff is reported together
+and is not treated as an automatic isolated-cell rejection.
+[Initial screen](benchmarks/q12-halfword-screen-20261027.json),
+[fresh matched comparison](benchmarks/q12-halfword-matched-20261028.json),
+[correctness, compiled statistics and source audit](benchmarks/q12-halfword-evidence-20261027.json).
+
+The focused comparison checks full printed stdout equality, not internal float
+bits. It reuses the independently validated Q1/Q2 references without changing
+their bounds. The build receipt inherited an obsolete scope string and container
+name from its builder; the recorded overlay, source inventories, changed shader
+modules and binary hashes identify this experiment. The raw receipt is preserved.
+
+Checkpoint Markdown review carries 152 unchanged pages with applicability to
+this three-file shader delta, and rechecks STATUS and the Vulkan owner page.
+The owner page now describes the halfword access and removes historical trial
+text from its live implementation description. Support remains unqualified in
+the usage, format and quant-owner documents. Focused docs and dead-code checks
+pass. No public flags, CPU arithmetic, precision limits or ownership boundaries
+change. [Review record](benchmarks/q12-halfword-markdown-review-20261028.json).
+
+The subsequent released short check passes Q1's six ranking and eight NLL
+comparisons with both F16 and F32 KV. Maximum NLL errors are 0.0000593710 and
+0.0000131520. Q2 passes only two of six ranking prompts with F16 KV and five
+with F32 KV; the unchanged consumer skips NLL after ranking failures. In the
+remaining F32-KV colors prompt, HF ranks token 102563 above 102644 by 0.0618
+(rounded reference scores), while the candidate reverses them by 0.065354.
+All 40 logits/NLL calls witness block-int16 inputs. These results do not isolate
+the halfword edit as a cause, and no failure is waived. An independent HF
+arithmetic control separates activation rounding from KV storage below.
+The first runner stopped before inference for missing test data; the corrected
+isolated bundle preserves that refusal, uses the original pinned dependency,
+finishes in 43.04 seconds and removes its container. All source, reference,
+model and runtime pins remain unchanged.
+[Released short evidence](benchmarks/q12-released-short-20261028.json).
+
+The seven-token HF colors control independently reproduces the top-one flip
+from block-int16 inputs alone with F32 KV: full-prompt HF gives 102644 a
+0.0771046 lead over 102563, and singleton-cached HF gives it a 0.00519753
+lead. F32-input/F32-KV HF keeps 102563 in both shapes. F16 KV independently
+flips the winner with F32 inputs, reproducing the earlier cache-only finding.
+All 197 Linear modules and all 28 layers' cache writes are covered under the
+fixed source-derived policy. Full versus singleton maximum-logit differences
+are 0.00159478 for F32/F32, 0.243623 for F32/F16, 0.108003 for block16/F32,
+and 0.606745 for block16/F16. These spreads are retained, not hidden behind
+a numerical-identity claim. Direct F32 and full F32 cache agree exactly;
+the old F32/F16-cache reference vectors differ from this loader/head layout
+by at most 0.00001145. The CPU-only control finishes in 30.67 seconds and
+removes its container with all pins unchanged.
+
+This establishes a narrowing-sensitivity mechanism, not full Q2 correctness.
+The selected-policy depth rule explicitly leaves short rankings unchanged,
+so no short gate, limit or original golden is amended. The subsequent fixed
+full-prompt selected-policy diagnostic over all six short prompts retains
+singleton HF self-controls and every original failure for peer review.
+[Independent arithmetic control](benchmarks/q2-colors-hf-control-20261028.json).
+
+All 24 selected-policy forwards finish in 50.78 seconds with unchanged pins
+and the container removed. Runtime top-one choices match the fixed full-prompt
+HF reference in all 12 model/cache cells. The existing ranking function gives
+diagnostic agreement of six of six with F32 KV and five of six with F16 KV;
+the original canonical results remain five of six and two of six respectively.
+The F16-KV Rome prompt still has a top-five mismatch: HF's fifth token 20002
+scores 11.7223616, while runtime includes 41479, HF's seventh at 11.5631418.
+The gap 0.1592197 exceeds the unchanged 0.1 boundary rule. HF full versus
+singleton itself changes the top token on the F16-KV code prompt, with gaps
+0.0987473 and 0.193211 in opposite directions. The largest HF shape differences
+are 1.66457 with F16 KV and 0.428740 with F32 KV. No alternate reference shape
+is selected to improve agreement. These diagnostics narrow the remaining
+question but do not amend or pass the gate.
+[All-six diagnostic](benchmarks/q2-six-short-policy-20261028.json).
+
+Applying that same ranking function to the retained HF arrays themselves gives
+10 of 12 matches for cached-as-candidate/full-as-reference and 9 of 12 in the
+reverse direction. F32-KV passes all six both ways; the discrepancies are in
+F16 KV. Rome is asymmetric because the existing fifth/sixth boundary rule
+accepts the cached result's substitution of full-HF sixth token 124131, while
+the reverse comparison loses cached-HF fourth token 124131. The runtime's
+seventh-token substitution still fails. Prior layered controls resolved the
+explicit untied-head mapping, and prior HF cache-only controls already showed
+rank sensitivity without qualifying default cache. No remaining localized
+loader, decoder, halfword or cache-hook defect has been established. Peer
+review of the method and further qualification remain required.
+[Retained-array self-review](benchmarks/q2-short-self-review-20261028.json).
+
+The follow-up checkpoint reviews this updated STATUS against the completed
+short and arithmetic controls, carrying the other 153 Markdown pages with
+unchanged hashes and applicability to the restored halfword runtime. The
+precision rule remains unchanged. [Review record](benchmarks/q12-arithmetic-checkpoint-review-20261028.json).
+
+## 2026-10-28: Q2 exact-weight Q4 control
+
+A diagnostic GGUF represents the pinned Q2 file's 196 Q2 matrices as Q4_0,
+with every one of 440,401,920 decoded values verified bit for bit, including
+signed zero. Its other 115 tensors and all metadata remain unchanged. The
+conversion completed in 12.28 seconds. It changes no runtime or reference.
+
+Eighteen focused calls compare main `9d00fb0a5`, the candidate's Q4 path and
+its Q2 path on free physical GPU9. Production maps GPUs0-3 and is unchanged.
+All calls request F16 and witness block-int16. Main/Q4 and candidate/Q4 have
+identical stdout on all six cases. The continuous 247-token outputs are also
+identical across all three arms, including the nine-decimal mean NLL:
+
+| KV | All three arms, mean NLL | Error vs original F32 HF | Error vs selected-policy HF | Existing continuous bound |
+|---|---:|---:|---:|---:|
+| F16 | 17.572619865 | 0.008521461 | 0.012771289 | 0.01 |
+| F32 | 17.544304012 | 0.019794392 | 0.005357537 | 0.01 |
+
+The original F32 and selected-policy references are distinct; neither is
+substituted for the other. These continuous discrepancies reproduce on
+established main without Q2 kernels. Equal means do not prove identical
+internal scores or per-target losses.
+
+Main/Q4 also fails F16-KV colors top1 and Rome top5, but its scores differ
+from Q2. With F32 KV both Q4 cases pass, while Q2 colors still reverses top1,
+as the earlier independent block-int16 HF control also does. The two kernel
+families have different rounding and accumulation order. This evidence does
+not establish that every rank failure is an existing-main issue.
+
+The follow-up's `--per-token` flag selects singleton execution; it does not
+print individual losses. Its three retained controls give mean NLL
+17.585207197 on main/Q4 and candidate/Q4, versus 17.594695802 on candidate/Q2.
+They are not the intended per-target capture. The subsequent scoring
+diagnostic below captures those losses without a new HF run, reference
+amendment or acceptance allowance.
+Both completed controls removed their containers without OOM. Initial mount
+and CLI-option refusals are retained separately.
+[Conversion proof, calls, analysis and receipts](benchmarks/q2-q4-exact-weight-control-20261028.json).
+
+The completed diagnostic calls `Model::score` and `infer::token_nll` on the
+same 247 tokens. Separate callers built against frozen main and candidate
+libraries verify exact tokenizer IDs, F16/block-int16 execution, F16 KV,
+247 finite score rows and 246 finite F64 losses. All three arms match the
+CLI mean to nine decimals, and their complete loss arrays are bit-identical.
+The batched NLL discrepancy is therefore shared with main at every target,
+not merely hidden by an equal rounded mean.
+
+| Reference for the identical loss arrays | Mean signed error | Mean absolute per-target error | Largest per-target error |
+|---|---:|---:|---:|
+| Original F32 HF | +0.008521461 | 0.344655493 | 3.091441647 |
+| Selected-policy HF, F16 KV | -0.012771290 | 0.135805954 | 1.293619385 |
+
+Per-target errors are diagnostic quantities, not newly introduced bounds.
+Only the mean is compared with the existing 0.01 continuous-NLL limit.
+Full logits were not captured; loss identity does not establish their identity.
+Short ranking, singleton and depth qualification remain separate. Both
+callers built in parallel; build and capture completed in 53.91 seconds.
+All three containers were removed without OOM and frozen inputs were
+unchanged. [Loss hashes, HF comparison and build receipts](benchmarks/q2-q4-per-target-control-20261028.json).
+
+## 2026-10-28: Q2 first-attention exact-input control
+
+The fixed Rome17 observer adds layer-0 normalized input, Q/K/V projection
+outputs and attention context. Both native capture arms preserve the prior
+logits, head input and all 84 layer arrays exactly. The independent HF replay
+preserves its prior arrays too. All five stages finish in about 130 seconds,
+with containers removed and source, model and metadata unchanged.
+
+Normalized inputs differ by at most 0.000000476837. To separate that input
+difference from projection arithmetic, a second control feeds the exact
+runtime normalized values through the existing independent block-int16
+reconstruction and independently decoded weights, using F32 and F64 dots.
+
+| Actual layer-0 products | Elements | Max absolute error vs F64 | Failures under existing operator bound |
+|---|---:|---:|---:|
+| Q | 34816 | 0.00000336896 | 0 |
+| K | 17408 | 0.00000464329 | 0 |
+| V | 17408 | 0.00000164866 | 0 |
+
+The existing bound is `2e-5 * max(1, abs(reference))`, unchanged from
+`tests/low_bits.cpp`. Full F64 arrays are retained. End-to-end attention
+context differs by at most 0.0001220703. These results find no projection
+bound violation on the actual first-stage inputs; they do not qualify all
+later operations or waive the remaining short ranking/NLL failures.
+[Capture identities, independent controls and hashes](benchmarks/q2-first-attention-20261028.json).
+
+## 2026-10-28: Q1 two-row integer decode, identity, quality and speed
+
+The adopted two-row Q1 integer decode path reuses activation loads within the
+existing Vulkan row owner for a single-projection, one-column call with at
+least two output rows. Other quant types, grouped projections and multi-column
+calls keep their existing dispatch. Each row retains its dot and reduction
+order and has independent range repair. Its 157.62-second build changes the
+Q1 integer row implementation and dispatch owner.
+Permanent focused CPU and Vulkan native checks pass in 1.39 and 2.77 seconds.
+The Vulkan check witnesses the exact one-row and two-row kernels, checks
+widths 384, 2048 and 6144 with 1, 2, 3 and 5 output rows, and compares dense,
+logits and additive outputs bit for bit with each packed row run alone. Existing
+independent bounds, output guards and paired range-repair cases also pass.
+
+| Compiled Q1 decode kernel | One row | Two rows |
+|---|---:|---:|
+| Instructions per invocation | 977 | 1792 |
+| VGPRs | 48 | 64 |
+| Subgroups per SIMD | 5 | 4 |
+| Spilled registers / scratch bytes | 0 / 0 | 0 / 0 |
+
+These are compiler statistics, not measured throughput. The two-row path has
+higher register use and lower reported occupancy, so activation reuse alone
+does not establish a speed gain.
+
+| Q1 matched screen, tokens/s | Before | Two-row | Matched mx Vulkan |
+|---|---:|---:|---:|
+| Prefill | 2459.45 | 2422.37 | 1051.94 |
+| Decode | 201.91 | 208.47 | 241.48 |
+
+All 18 calls are retained. Prefill is 1.5077% below before; decode is 3.2473%
+above before and 13.6689% below mx. The last slow pair carries CPU, disk and
+other-GPU activity flags; unknown process-CPU intervals remain recorded, and
+no sample was discarded. The direction is modest development evidence, not
+the final speed gate.
+[Matched timing and monitoring](benchmarks/q1-two-row-matched-20261028.json).
+
+The raw and chat 16K captures each retain 512 full-vocabulary logit vectors
+(151,936 scores each) and are bit-identical to the frozen halfword runtime.
+Both F32 quality companions match all 512 top-one choices. For raw, original
+F32 HF mean NLL is 2.630626592629, selected-policy HF is 2.630725623732 and
+runtime is 2.630633882072. For chat, original F32 HF mean NLL is
+2.840091207561 and runtime is 2.839832198318, a difference of
+-0.000259009243. These are descriptive quality results under the existing
+policy; no limit changed.
+At this earlier native checkpoint, Q1 split coverage and other landing work
+remained open; the later split results are recorded above. Q2 default failures
+remain open.
+[Receipts, hashes, scope and compiled statistics](benchmarks/q1-two-row-native-20261028.json).
+
+## 2026-10-28: Q1 chat depth and Q2 explicit F32 control
+
+The frozen halfword candidate passes both single-MI50 selected-policy depth
+inputs under the existing 512-position rule. Chat HF completes in 3002.80
+seconds with no OOM, its container removed and all inputs unchanged. The
+consumer verifies the complete score arrays, input and policy hashes, and
+512 completed block-int16 path witnesses for each input.
+
+| Q1 16K input | Exact top-one | Accepted ties | Misses | Required misses |
+|---|---:|---:|---:|---:|
+| Raw | 512 | 0 | 0 | 0 |
+| Chat template | 512 | 0 | 0 | 0 |
+
+The raw and chat maximum absolute logit differences are 0.0216007233 and
+0.0691509247, respectively, diagnostic values rather than separate limits.
+F32 quality companions complete on disjoint four-core sets with admission
+covering both jobs' complete memory caps and the host reserve. They are not a
+second default-path acceptance rule. The two-row matched speed screen is
+recorded above; decode remains below mx and this is not final speed
+qualification. Other backends, split coverage and final landing checks remain
+separate requirements.
+
+Q2's explicit `--dtype f32` and F32 KV control passes the unchanged canonical
+short consumer in 22.97 seconds. All 14 inference calls witness only F32
+matrix execution. The run removes its container and preserves source, model,
+reference and binary hashes. Every local artifact hash is verified.
+
+| Q2 explicit F32 / F32 KV check | Observed | Existing requirement |
+|---|---:|---:|
+| Top-one and top-five ranking | 6/6 each | 6/6 each |
+| Continuous NLL, batched / singleton | 0.000072 / 0.000053 | <=0.01 each |
+| Largest window NLL difference | 0.000234 | <=0.02 |
+| All continuous and window NLL cases | 8/8 | 8/8 |
+
+These controls strengthen the precision-sensitivity diagnosis alongside the
+HF-only narrowing controls and same-input layer replays. They do not qualify
+default block-int16 execution with F16 KV or clear its original failures.
+No runtime, reference, numerical limit or supported-type declaration changes.
+[Receipts and comparison evidence](benchmarks/q1-chat-q2-f32-control-20261028.json).
+
+Checkpoint Markdown review reconciles all 154 pages against the prior catalog
+and plan refresh. STATUS and the Q1/Q2 plan describe these completed checks;
+the other 152 pages retain their reviewed scope because source, public flags,
+precision rules and supported-type declarations are unchanged. The isolated
+two-row Q1 decode experiment remains scratch work, not an adopted runtime
+change. Focused docs and dead-code checks pass for this checkpoint.
+
+## 2026-10-28: Q2 layer observations and same-input controls
+
+The fixed Rome17 diagnostic captures all 84 residual boundaries per arm.
+Embedding values match exactly; the first difference is after layer 0
+attention, with maximum absolute error 0.0000309348. Observing the layers
+preserves complete runtime logits and head input byte for byte, and the HF
+observations preserve their prior logits and head inputs. All adjacent layer
+boundaries match within each arm. The isolated build and four diagnostic
+stages finish in 156.49 seconds, with inputs unchanged and containers removed.
+
+A separate 26.47-second CPU-only HF replay supplies each attention stage its
+captured runtime input and each FFN stage its captured post-attention input.
+It preserves the independent block-int16 and F16-KV arithmetic owners. The
+FFN reference adds its result to that same captured residual, avoiding the
+original residual retained by the surrounding decoder layer.
+
+| Maximum absolute residual difference | Full histories | Identical stage inputs |
+|---|---:|---:|
+| Layer 0 attention | 0.0000309348 | 0.0000309348 |
+| Layer 2 FFN | 0.0780334 | 0.000114441 |
+| Layer 27 attention | 7.23148 | 0.00401306 |
+| Layer 27 FFN | 327.575 | 0.00622940 |
+
+This demonstrates substantial amplification of earlier differences. It does
+not establish an end-to-end pass or prove that every local error is acceptable.
+All 56 same-input stage comparisons remain recorded, without a fitted bound.
+The canonical short ranking and NLL failures remain open. A separately pinned
+HF-only NLL control completes on the exact failing 247-token excerpt. Its F32
+case reproduces the frozen golden mean of 17.564098403680916 within 7.1e-15.
+All cells score the same 246 targets. The 105.26-second run retains each
+per-token loss, full-logit hashes and all module/cache coverage, with no OOM,
+inputs unchanged and the container removed. Full logits are not retained by
+this NLL-only diagnostic.
+
+| Continuous NLL case | Original F32 HF | Selected-policy HF | llmx | Absolute llmx/selected-HF gap |
+|---|---:|---:|---:|---:|
+| F32 KV, batched | 17.564098404 | 17.549661549 | 17.544304012 | 0.005357537 |
+| F16 KV, batched | 17.564098404 | 17.585391154 | 17.572619865 | 0.012771289 |
+| F16 KV, singleton | 17.564098404 | 17.609181154 | 17.594695802 | 0.014485352 |
+
+HF alone moves by 0.014437, 0.021293 and 0.045083 from the original golden,
+respectively, exceeding the unchanged 0.01 bound. Its selected F16-KV full
+and singleton shapes differ by 0.023790. This establishes sensitivity without
+llmx execution, but switching the reference alone would still leave both
+F16-KV runtime comparisons outside 0.01. Peer review has been requested with
+all results retained. No runtime, reference selection or acceptance limit
+changes.
+[Layer evidence and controls](benchmarks/q2-layer-sensitivity-20261028.json).
+
+## 2026-10-28: Current BF16 split refresh and four-thread HF controls
+
+The frozen halfword runtime passes all 216 BF16 endpoint/NLL calls on MI50
+single-device, layer split and TP2 across the six retained fixtures. The six
+TP2 raw captures also pass their direct HF checks. Five pass the retained
+CPU/group comparator; Q2 tied reproduces the existing 0.0185273743 NLL gap
+against its 0.01 limit in batched and decode execution. The existing-main
+control remains evidence of provenance, not a waiver. Inputs stay unchanged
+and both stage containers are removed.
+
+Four-thread HF controls produce byte-identical arrays to all twelve retained
+one-thread histories. All nine shape comparisons keep 17/17 top-one matches.
+The separate synthetic-history memory probe passes within the unchanged
+15 GiB cap, leaving 1.77 GiB after accounting for the remaining KV rows and
+the full score mapping. This supports the separately pinned four-thread
+producer for the remaining references, not a long-context correctness claim.
+The Q1 selected-policy chat reference is running; the completed one-thread
+raw reference is preserved. Shape, policy, input and acceptance rules remain
+unchanged. [Refresh and controls](benchmarks/q12-bf16-refresh-20261028.json).
+
+## 2026-10-28: Q1 raw depth passes and Q2 head input isolated
+
+The fixed Q1 selected-policy raw reference completes its 16K prompt and 512
+full-vocabulary scoring positions. Runtime matches HF top-one exactly at all
+512 positions, with no tie allowance needed. The maximum full-logit difference
+is 0.0216007, reported as a diagnostic rather than an acceptance threshold.
+Every runtime row witnesses block-int16. The separate chat runtime capture
+also completes with 512 witnesses, but its HF reference is still pending.
+The one-thread HF reference takes 6766.78 seconds and peaks at 12.90 GiB,
+without OOM or input changes. F32 quality companions remain unexecuted.
+
+Q2's unchanged NLL consumer is run separately because the earlier ranking
+failure prevented reaching it. It retains these results and stops each cache
+at its first failure, so the remaining windows are not claimed as checked.
+
+| Q2 continuous NLL comparison | Difference from HF | Existing bound | Result |
+|---|---:|---:|---|
+| F16 KV, batched | 0.008521 | 0.010 | Pass |
+| F16 KV, per-token | 0.030597 | 0.010 | Fail |
+| F32 KV, batched | 0.019794 | 0.010 | Fail |
+
+The Rome head diagnostic completes its instrumented/uninstrumented and
+capture/replay byte controls. For the disputed tokens 20002 and 41479, the
+runtime input gives a double-dot margin of -0.027939, while the HF input gives
++0.159220. Replaying HF's input through Vulkan restores HF's ordering; both
+full head replays pass the existing Q6_K operator bound. Independent HF and
+runtime head-input rounding agree bit for bit across all 1024 values. The
+largest GPU error against either disputed double dot is 0.00001236.
+This localizes the ranking change to the upstream activations, not a head
+decoder or head-input rounding defect. Earlier-layer observations and the NLL
+discrepancy remain to investigate; no released-file bound or ranking is waived.
+
+The first diagnostic preflight incorrectly compared a 324-file runtime map
+with all 1382 build files. Every pinned runtime and source file was unchanged.
+The corrected isolated bundle also pins the full build map, preserves the
+original refusal, and completes with all seven stage containers removed.
+[Depth, NLL and head evidence](benchmarks/q12-depth-head-results-20261028.json).
+
+## 2026-10-28: Q1 streamed-pair scheduling not retained
+
+The isolated trial keeps packed-pair, scale, FMA and repair order, but computes
+pairs in a two-trip loop to shorten register lifetimes. Native CPU/Vulkan checks
+pass. Only the Q1 integer row module changes; other generated shaders remain
+identical. The compiled one-column kernel falls from 48 to 36 VGPRs and from
+977 to 940 static instructions, with no spills or scratch in either build.
+The driver's reported subgroups per SIMD rise from five to seven. These are
+compiled statistics, not measured occupancy or a timing prediction.
+
+| P128/G256, tokens/s | Frozen halfword | Streamed pairs | Matched mx Vulkan |
+|---|---:|---:|---:|
+| Q1 prefill | 2482.94 | 2459.83 | 1100.14 |
+| Q1 decode | 207.63 | 177.31 | 249.01 |
+
+All six fixed calls complete with full monitoring coverage. Background GPU,
+CPU and some disk activity is flagged and every sample is retained. Both
+candidate decode samples are below both baseline samples: 179.34/175.27
+versus 207.70/207.55 tokens/s. The 14.60% decode loss gives no reason to advance
+this trial; the tracked runtime stays on halfword reads. No broad HF rerun is
+started for this candidate. The diagnostic profile is separate from timing.
+[Matched evidence](benchmarks/q1-streamed-pairs-matched-20261028.json).
+
+## 2026-10-28: Windows Q1/Q2 focused checks pass
+
+A fresh MSVC Vulkan build from `3100d7ac698c.dirty` passes the independent
+native CPU checks and Radeon VII row/tile, embedding and matrix checks.
+Its 204 relevant build inputs remain unchanged and match the frozen halfword
+source after line-ending normalization. The executable is
+`build-low-bits-windows-halfword-20261028/Release/llmx.exe`.
+
+Each requested dtype passes 300 full-logit comparisons and 24 NLL checks
+over the six ordinary context-16 HF fixtures. F16 requests take wider F32
+paths on this device, with bounds selected by completed execution witnesses.
+BF16 uses the existing frozen family budgets. No bound or reference changes.
+
+| Request / quant | Maximum logit error | Applicable logit bound | Maximum NLL error | NLL bound |
+|---|---:|---:|---:|---:|
+| F16 / Q1_0 | 0.00001933 | 0.00002; 0.000056478 for approved dense fixtures | 0.00000314 | 0.00001 |
+| F16 / Q2_0 | 0.00001678 | 0.00002 | 0.00000238 | 0.00001 |
+| BF16 / Q1_0 | 0.16842031 | 0.64549065 | 0.01942302 | 0.08592282 |
+| BF16 / Q2_0 | 0.12627404 | 0.58370399 | 0.01065253 | 0.14389012 |
+
+All F16-requested errors also stay below the ordinary F32 limits. These
+single-device results do not replace MI50 integer-path, split, released-model,
+depth or performance checks. The existing Q2 tied BF16 TP2 NLL mismatch is
+still open. The live Q1 raw HF reference is incomplete; no depth pass is
+claimed. [Windows evidence](benchmarks/q12-windows-focused-20261028.json).
+
+Checkpoint review rechecks this page and carries the prior semantic review
+of unchanged Markdown for this evidence-only delta. Public support remains
+unqualified; runtime, flags and numerical policy are unchanged.
+
+## 2026-10-28: Q2 output-head diagnostic prepared
+
+The remaining Rome top-five mismatch has a targeted diagnostic prepared in
+isolation. It captures runtime and HF inputs after the final normalization,
+before head input rounding, and replays each through the full 151936-by-1024
+Q6_K output head. Uninstrumented versus instrumented logits and captured
+versus replayed logits must match byte for byte before interpreting the cut.
+Independent decoding of the two disputed head rows supplies double-dot
+errors and margins. The existing Q6_K CPU/GPU operator bound remains separate
+from external HF correctness; no ranking rule or numerical limit changes.
+
+Root review fixed a missing explicit memory argument in the scratch caller.
+MSVC syntax and Python syntax checks pass, and the prior rig inputs match
+their recorded hashes. Linux linking and model execution are still pending.
+The runner checks available memory, free GPUs and production bindings at
+each applicable stage and preserves failures. The live Q1 raw depth reference
+has completed its 16K prompt and continues its singleton steps; that is not
+a completed reference or candidate comparison.
+
+The prepared Q1 depth consumer uses the existing `hf_depth_top1` owner.
+Synthetic checks distinguish exact choices, accepted second-token ties and
+misses, and reject malformed or nonfinite inputs. They do not qualify a model.
+All project Markdown pages were checked for changes against the preceding
+review, with unchanged pages carried forward for this diagnostic-only delta.
+The runtime, public flags and support claims are unchanged.
+[Preparation and review](benchmarks/q12-head-depth-preparation-20261028.json).
+
+## 2026-10-28: Q1 smaller row cluster not retained
+
+The profile still places 71.61% of sampled Q1 decode device time in integer
+rows including the head. A one-line Q1-only cluster cap at 32 lanes tests two
+output rows per MI50's 64-lane subgroup instead of one at widths of 2048 or
+more. The isolated build and native CPU/Vulkan checks pass, but the eight-call
+before/after screen gives Q1 decode 204.805 to 206.740 tokens/s (+0.94%) while
+the unchanged Q2 control moves 318.715 to 320.850 (+0.67%). Prefill changes
+are +0.21% and +0.13%. Background CPU and disk activity occurs throughout,
+with complete monitoring and every sample retained. This does not establish
+a useful gain beyond the control variation, nor a memory or occupancy cause.
+The cap is removed, restoring the halfword runtime exactly. Because it changes
+F32 reduction order without a demonstrated useful gain, no broad HF rerun is
+started for this trial. [Fixed screen](benchmarks/q1-cluster32-screen-20261028.json).
+
+## 2026-10-28: Q1 depth input and runtime template parity
+
+Both fixed histories have 16384 prompt tokens and 512 corpus continuation
+targets, chosen independently of candidate output. Whole-text HF tokenization,
+chunked HF tokenization and frozen CLI tokenization agree. The chat input keeps
+the complete template and default assistant header; it is not a truncated
+rendered stream. Input preparation completes in 8.75 seconds.
+
+A metadata-only C++ probe uses the frozen runtime's GGUF reader, tokenizer and
+chat-format owner. Its rendered bytes and all 16384 whole-string token IDs
+match the independently frozen HF chat input exactly. It maps no tensor
+payload and performs no forward pass. Compile/run completes in 12.57 seconds;
+all input/source hashes remain unchanged and the owned container is removed.
+This establishes template parity, not model correctness or dispatch coverage.
+
+The original CPU HF estimate was 17.03 GiB, including 7.57 GiB decoded
+parameters and 3.61 GiB final F32 HF KV storage. Its proposed 20 GiB cap and
+22 GiB admission exceeded available host memory. That proposal is retained
+alongside the measured resource revision below.
+[Inputs, rendering and memory estimate](benchmarks/q1-depth-input-render-20261028.json).
+
+The bounded memory probe completes in 180.16 seconds without an OOM. Loading
+peaks at 10.286 GiB. A 512-row append to 15872 synthetic historical rows,
+with all 28 layers and the one-row head, peaks at 12.806 GiB. Minimum host
+available memory is 4.477 GiB. The synthetic zero history checks allocation
+shapes only; it is not a correctness reference. The container is removed and
+all input/source pins remain unchanged.
+
+The separately pinned full-depth-v2 resource plan uses a 15 GiB cap and
+17 GiB admission. After the measured peak, another 0.109 GiB of cache growth
+and 0.290 GiB of saved scores leave 1.795 GiB for unmeasured growth. Prior
+prompt chunks may cause allocator fragmentation that the probe did not
+measure. The run preserves any OOM, timeout or reserve failure, with no
+automatic retry or cap increase. Its 2 GiB live host reserve and 10800-second
+deadline remain enforced. The actual raw reference started at 00:44 UTC,
+using CPU 3 and one thread, with fixed prompt512/continuation1/head1 and
+unchanged arithmetic, inputs and numerical limits. It remains in progress.
+[Memory measurements and resource revision](benchmarks/q1-depth-memory-20261028.json).
+
+Checkpoint review carries the prior semantic review of 153 unchanged Markdown
+pages and updates this STATUS page for the measured memory result. No runtime,
+CLI, support claim or precision policy changed. The runtime depth capture and
+Q2 NLL-only observer are being prepared separately. Q2's canonical ranking
+failures remain open; running its previously skipped NLL checks cannot waive
+them. [Review record](benchmarks/q1-depth-memory-review-20261028.json).
+
+## 2026-10-28: Q1 pair-lifetime trial prepared
+
+Static analysis of the retained MI50 assembly separates the 188-instruction
+normal dot loop from a 580-instruction repair block. The normal loop loads
+16 activation pair words and expands the weight pairs before consuming them.
+These counts describe compiled code, not measured instruction costs. The
+shader still uses 48 VGPRs; achieved occupancy and stall costs remain unknown.
+
+An isolated scratch trial consumes four pair couples per iteration in the
+Q1 one-column integer path. Its two iterations preserve pair order 0 through
+7, every integer dot, scale/FMA, repair and row reduction. Source review finds
+no changed grouped/routed/tail mapping. It may reduce live registers, but the
+extra loop could outweigh that benefit. It differs from the discarded
+four-output-row reuse and independent-accumulator experiments.
+
+Local shader compilation passes. Q2's integer shader and both Q1 float shader
+variants remain byte-identical. After specialization expressions are fully
+folded, the Q1 eight-column shader is byte-identical too. The one-column
+shader changes and retains the explicit loop. The initial freeze-only check
+left specialization expressions unresolved; its artifacts are preserved.
+No tracked runtime source changed. Rig compilation, final ISA/register checks,
+native validation and matched timing are pending. The running HF reference
+is not interrupted to benchmark this trial.
+[Static evidence and isolated shader checks](benchmarks/q1-pair-lifetime-preparation-20261028.json).
+
+Checkpoint Markdown review carries the prior semantic review of 153 unchanged
+pages and checks this STATUS change against the scratch evidence. No public
+support, flag or precision-policy claim changes.
+[Review record](benchmarks/q1-pair-lifetime-review-20261028.json).
+
+A follow-up audit corrects the Q1/Q2 plan's stale "current checkpoint" link.
+It now distinguishes the historical float-path results from the retained
+MI50 integer path and points to this page's current work. The remaining
+152 Markdown pages retain their prior review with no applicability change.
+[Documentation correction](benchmarks/q1-q2-plan-refresh-20261028.json).
+
+## 2026-10-28: Q1 packed sign trial not retained
+
+Signed bit extraction reproduces the existing Q1 packed -1/+1 words in all
+524288 exhaustive halfword/position/pair cases. The isolated build and native
+CPU/Vulkan checks pass, as do all 6144 nonzero outputs of the released FFN
+shape probe. The compiled row drops from 977 to 973 instructions, but keeps
+703 vector ALU instructions, 48 VGPRs, 64 SGPRs and zero spills or scratch;
+code size increases from 5028 to 5220 bytes.
+
+| P128/G256 screen, tokens/s | Before | Trial | Change |
+|---|---:|---:|---:|
+| Q1 prefill | 2474.90 | 2480.24 | +0.22% |
+| Q1 decode | 206.36 | 206.00 | -0.18% |
+| Q2 prefill, unchanged control | 5523.30 | 5598.23 | +1.36% |
+| Q2 decode, unchanged control | 315.53 | 315.46 | -0.03% |
+
+All eight fixed calls have complete activity coverage, with unrelated CPU and
+disk activity throughout and no other GPU activity. Every sample is retained,
+including the lower first Q2 prefill result. This shows no useful Q1 gain;
+the small decode difference is not treated as an established regression. The
+trial is removed, and all 201 runtime/config files again match the retained
+halfword build. No broad HF rerun was needed for a discarded experiment.
+The earlier matched mx figures stay separate: Q1 1120.90 prefill / 251.80
+decode and Q2 3581.58 / 332.72; this screen has no new mx arm.
+[Samples and contention](benchmarks/q1-signpack-screen-20261028.json).
+
+## 2026-10-28: Q1 trace decoder limitation and HF phase controls
+
+The frozen halfword runtime runs a checked 2048-by-6144 single-column Q1
+product with all 6144 outputs exact and nonzero. Both captures retain ordinary
+runs before and after, activity logs, hashes and completed cleanup. RGP1.16
+identifies pipeline B82C7F6B1BA6E533 and the expected 1536 workgroups of 256
+threads. It exposes 6144 waves and the compiled ISA but no analyzable Q1
+instruction timings. Removing timestamp instrumentation reproduces that
+limitation, so the query-reset shader is not a sufficient explanation.
+
+The exported ISA marks all 16 native dot instructions as unrecognized words;
+their encodings match the driver's `v_dot2_i32_i16` disassembly. RGP also
+misreads their second words as separate instructions. That proves an analyzer
+decoder limitation, not the kernel's bottleneck. Its role in the missing timing
+is likely but not independently isolated. Compiled statistics still show 48
+VGPRs, 64 SGPRs and no scratch or spills. No sampled wait costs, measured
+occupancy limit or bandwidth saturation is claimed. The next experiment must
+use compatible analysis or an isolated, output-checked kernel comparison.
+[Capture, decoder and cleanup evidence](benchmarks/q1-row-trace-20261028.json).
+
+The independent Q1 HF phase control completes 12 histories of 80 input tokens,
+with a fixed boundary after 64 tokens and 17 scored positions per history.
+All 197 matrix modules and 28 cache layers have the expected call and row
+coverage. Prompt slices of 64 and 17 are byte-identical at fixed continuation
+grouping. Batched versus singleton continuation retains all 17 top-one choices:
+
+| HF self-control policy | Maximum logit difference | Top-one agreement |
+|---|---:|---:|
+| F32 inputs and F32 KV | 0.0000305176 | 17/17 |
+| CPU F32 inputs and F16 KV | 0.000650406 | 17/17 |
+| MI50 block-int16 inputs and F16 KV | 0.00165939 | 17/17 |
+
+These are reference self-controls, not candidate depth results. The general
+policy requires the controls and review, but does not prescribe a new Q1
+maximum-logit self-control allowance. None is invented or transferred from
+NVFP4. The raw/chat depth producer will use one fixed arithmetic policy,
+512-row prompt slices and singleton continuation, with its F32 quality
+companion. The existing 512-position rule and all other gates stay unchanged.
+[Control coverage, arrays and receipts](benchmarks/q1-depth-prerequisites-20261028.json).
+
+## 2026-10-27: Q1/Q2 integer-row accumulator trial not retained
+
+Four independent integer accumulators replace the sixteen-dot dependency chain
+in an isolated Q1/Q2 build. Native CPU/Vulkan checks pass, and captured assembly
+confirms four independent chains of four dots. The experiment changes executed
+instructions, but the eight-call development screen shows no meaningful gain:
+Q1 decode 205.94 to 205.36 tokens/s (-0.28%), Q2 312.01 to 312.41 (+0.13%).
+Prefill changes stay within 0.14%. Other GPUs and background CPU activity were
+flagged throughout, with disk activity in the Q1 cells; all samples are retained.
+These small differences do not establish a regression or a gain. The trial
+is removed for lack of demonstrated benefit, with the tested checkpoint's
+runtime restored exactly. The prepared 54-call HF identity check was not run.
+[Timing and activity](benchmarks/q12-row-sums-screen-20261027.json),
+[compiled instruction check](benchmarks/q12-row-sums-isa-20261027.json).
+
+The remaining source-level opportunity is packed-field loading: the captured
+Q1 loop loads individual bytes through separate word-address calculations.
+Inspect aligned packed reads and mx's vector field decoding before another
+change. No memory-bandwidth or cache-miss attribution has been established.
+The follow-up Markdown review carries 153 unchanged pages from the preceding
+catalog and checks this changed STATUS record against the timing/ISA evidence.
+The docs and dead-code components pass after the trial was removed.
+
+## 2026-10-27: Q1 shared integer products
+
+Q1 now reuses Q2's shared block-int16 row and tile machinery, with packed sign
+decoding in `low_bits.glsl`. Explicit F32 and unsupported profiles retain float
+products. No model, loader or server-specific dispatch was added.
+
+The first native screen failed a large-input cancellation case before timing.
+The Q1 integer shader entered a specialized float branch because its guard
+checked the weight format alone. Requiring `LLMX_FLOAT_X` fixes that branch
+selection. The corrected build passes the native CPU/Vulkan operator checks,
+including grouped/routed/residual calls, range repair and narrow tile witnesses.
+The failed screen is retained at the rig's Q1/Q2 `q1-int16-screen-v1` directory.
+
+| P128/G256, tokens/s | Before | Candidate | Matched mx Vulkan |
+|---|---:|---:|---:|
+| Q1 prefill | 1130.82 | 2465.45 | 1119.75 |
+| Q1 decode | 182.94 | 206.44 | 252.21 |
+| Q2 prefill | 5624.41 | 5623.45 | 3662.24 |
+| Q2 decode | 314.78 | 314.52 | 335.32 |
+
+Two samples per arm, interleaved before/after/mx/mx/after/before, use physical
+GPU 8, default clocks, four CPU threads, F16 KV and the pinned matching harness.
+Q1 gains 118.02% prefill and 12.84% decode. Q2 control changes stay below 0.09%.
+Other GPUs were active throughout; two calls also crossed the predefined
+background CPU threshold. Monitoring covers every call, with no disk or sample
+gap flags. All samples remain in the [screen record](benchmarks/q1-int16-screen-20261027.json).
+Candidate CLI SHA-256 starts `8c5bd0c1`; this is not the final speed gate.
+Q1 decode remains 18.15% below mx and Q2 decode 6.20% below mx in this screen.
+
+The independent Q1 F16 calibration was verified and frozen before candidate
+model comparisons: 30 routing-stable F16 fixtures, maxima 0.0728139877319336
+logits and 0.0040363038044972654 NLL, with the existing twice-maximum rule.
+All 60 raw F16/BF16 rows match the recorded data, and removing only the new
+Q1 F16 entry reproduces the entire previous budget exactly.
+[Calibration evidence](benchmarks/q1-f16-calibration-20261027.json).
+The narrowed Q1 candidate passes all 27 focused independent HF calls on three
+split-shaped fixtures at context 128, ubatches 1/3/128, logit endpoints 64/128
+and 127-token NLL. Maximum errors are 0.00280904805 logits and 0.000148499362
+NLL. All three GGUF files regenerate byte-identically; completed calls witness
+block-int16 products, with MoE routers retaining F32. This is single-device
+integration coverage, not multi-device or depth qualification.
+[Focused HF evidence](benchmarks/q1-int16-hf-20261027.json).
+
+GPU timestamps still put 71.85% of Q1 decode device time in its integer row
+products including the head, and 50.88% of Q2 in its low-bit rows. Their compiled
+row shaders use 48 VGPRs, no spills or scratch, and a theoretical five subgroups
+per SIMD. These diagnostic timings include profiling overhead and do not
+establish memory stalls or actual occupancy. Compiled ISA confirms sixteen
+dependent integer dot instructions per 32-value group. Splitting that exact
+integer sum into independent accumulators is the next measured experiment.
+[Profile and ISA evidence](benchmarks/q1-int16-profile-20261027.json).
+Split, released-file depth, final timing and landing checks remain.
+
+Checkpoint documentation review covered all 154 Markdown pages, carrying
+unchanged text with a current-source applicability check. The review found
+two quant-owner summaries missing the shared integer path; both are corrected.
+The docs and dead-code components pass. All 201 runtime/config files match
+the tested build, allowing only line-ending normalization. Broader Python
+reference/consumer work remains on this development branch. No merge is claimed.
+
+## 2026-10-27: Q2 narrow routed tile fixed
+
+The fixed candidate passes all 27 focused HF cases and all 88 native row/tile
+cases, including four exact narrow routed-tile witnesses. The original failure
+remains recorded. No reference, oracle or numerical bound changed.
+
+Independent HF block-int16 full/cached controls stayed close across all 128
+positions, with maximum logit error 0.008043 and unchanged router ordering.
+Runtime prefix probes agreed at 65/80 tokens but diverged at 96/112, matching
+the profile's routed-tile crossover of 96. A native one-token/all-expert case
+then reproduced the failure in the exact narrow kernel.
+
+The missing `K_MATMUL_TILE_Q2_0_DOT_TALL` classification made the host plan
+128 rows while the shader received a 32-row specialization. With 16 narrow
+columns, its rows per invocation became zero and outputs remained unwritten.
+Adding the missing ID fixes that configuration; all 53 registered tall tile
+IDs now appear in the classifier. No new dispatch owner or tuning flag was added.
+
+| Focused check | Before fix | After fix |
+|---|---:|---:|
+| Q2 F16 HF calls | 23/27 | 27/27 |
+| Maximum logit error | 22.96376 | 0.00464635 |
+| Maximum NLL error | 0.14429759 | 0.00019410 |
+| Native narrow routed case | Failed independent oracle | Passed |
+
+Fixed CLI SHA-256 starts `86e99e2f`; build and test containers are removed.
+The build's 195 runtime/config source files match current code after line-ending
+normalization, apart from one comment-only edit. The expanded native source
+was rebuilt separately against that frozen runtime. The capability text now
+reports Q2 integer rows and tiles on eligible profiles. The lower-level source
+documentation was corrected along with the failure evidence.
+[Build, HF, reference and source audit](benchmarks/q2-tall-tile-fix-20261027.json),
+[native before/after evidence](benchmarks/q2-row-int16-native-20261027.json).
+
+The prior row speedup is still a development result, not a final comparison
+for this fixed binary. Q1 speed recovery, split coverage, released-model depth,
+matched timing, existing-path and hosted landing checks remain. Production
+was unchanged. Broader reference/consumer work remains in progress on this branch.
+
+Checkpoint docs review covered the 154-page Markdown catalog, carrying 151
+unchanged pages from the previous hash-based review and inspecting the three
+changed pages. All 1383 local link targets exist. It found two stale usage
+claims: the decoder list omitted Q1/Q2, and TQ was still called unqualified.
+Both are corrected, keeping Q1/Q2 inference explicitly in progress. The source
+dead-code check and docs check pass, including their 19 and 21 planted faults.
+These checks used the existing Windows help executable and do not qualify the
+new Vulkan binary on Windows. The local checkpoint covers runtime/native work
+and its evidence; broader Python fixture/consumer changes remain uncommitted.
+
+## 2026-10-27: Q2 integer-row speedup and focused MoE investigation
+
+The Q2 candidate reuses the shared integer row owner and the same unpacking
+adapter as its integer tile. A fixed P128/G256 ABBA screen measures decode
+268.77 -> 314.84 tok/s (+17.14%) and prefill 5642.71 -> 5639.34 (-0.06%).
+The unchanged Q1 control stays within 0.17%. All eight calls and background
+activity are retained. The earlier mx Vulkan Q2 result was 334.29 decode and
+4124.71 prefill; this screen has no fresh mx arm and is not final qualification.
+[Timing evidence](benchmarks/q2-row-int16-screen-20261027.json).
+
+CPU and Vulkan native checks pass on the frozen runtime. The 76 new calls
+cover row/tile grouped, routed, residual and range cases, with 38 actual
+row-kernel and 38 tile-kernel witnesses. Test-only rebuilding preserved the
+runtime, library and shader hashes. One-token/all-expert routed coverage
+is being added for the distinct ungrouped dispatch.
+[Native evidence](benchmarks/q2-row-int16-native-20261027.json).
+
+The focused HF run passes 23/27 calls across three canonical split models,
+ubatch 1/3/128, endpoints 64/128 and NLL over 127 scored tokens. Four MoE
+failures at ubatch 1/3 have logit error 22.96376 and NLL error 0.14429759,
+above the frozen Q2 F16 bounds. The predecessor with float rows reproduces
+all four, including identical printed NLL. Explicit F32 runs show no large
+batch discrepancy: NLL passes at all three batch sizes; six strict F32
+logit failures match the previously recorded reference discrepancy and remain
+failures. This synthetic MoE uses all four experts, so a changed selected
+expert set cannot explain the result. An independent rounded-input HF check
+is investigating the cause. No bound changed, and the candidate is not
+qualified. [HF calls and controls](benchmarks/q2-row-int16-hf-20261027.json).
+
+Source documentation and the pending capability-description edit now distinguish
+the Q2 integer row/tile candidate from its float fallback. The focused docs
+check passes with zero findings and all 21 planted faults detected. The capability
+text edit is not yet rebuilt into the frozen candidate. Released-model depth,
+split, final matched performance
+and landing checks remain open. Production is unchanged by this work.
+
+
+## 2026-10-27: Q1 scale-after-sum trial not qualified
+
+A reference-guided Q1 trial summed four signed inputs before applying their
+block scale, repairing nonfinite partials from per-value scaled weights. Native
+CPU/Vulkan checks passed, including huge inputs with zero or tiny signed scales.
+The fixed eight-call ABBA screen measured Q1 decode 182.76 -> 187.20 tok/s
+(+2.43%) and prefill 1130.63 -> 1128.98; Q2 control stayed near 5624 -> 5638
+prefill and 268.18 -> 268.49 decode. All samples/activity remain.
+
+The focused F32 HF screen passed 101/102 calls. Q1 split-MoE context-16 NLL
+error was 0.000010036744235719652 against 0.00001. No bound changed. The
+scale-after implementation was removed, retaining the prior Q1 eight-value
+sign-bit path and the independent Q2 integer-tile improvement. The new native
+range cases remain. This is a recorded failed trial, not evidence of a new
+format-decoding defect or permission to waive the NLL gate.
+[Timing](benchmarks/q1-scale-after-screen-20261027.json),
+[HF failure](benchmarks/q1-scale-after-hf-20261027.json).
+
+
+
+## 2026-10-27: Q2 shared integer-tile prefill checkpoint
+
+The Q2 candidate reuses Vulkan's block-int16 prompt tile through a compact
+adapter in `low_bits.glsl`. Q1, Q2 row arithmetic and explicit F32 tiles remain
+as in the previous checkpoint. The isolated build, CPU/Vulkan native operators,
+arithmetic-path witnesses and independent packed-lane proof pass.
+
+| P128/G256 screen | Before PP tok/s | After PP tok/s | Before TG tok/s | After TG tok/s | Earlier mx Vulkan PP/TG target |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Q1 unchanged-path control | 1129.61 | 1128.49 | 182.49 | 182.62 | 1120.30 / 252.37 |
+| Q2 Qwen3 0.6B | 2459.07 | 5640.38 | 267.91 | 268.10 | 4124.71 / 334.29 |
+
+Q2 prefill improves 129.37% in this fixed eight-call ABBA screen. All samples
+remain, including activity on other GPUs and aggregate disk traffic in both
+arms. No owned competing build or correctness workload ran during timing.
+The earlier mx values are separate, not an interleaved final comparison.
+[Timing and activity](benchmarks/q2-int16-screen-20261027.json).
+
+The independent prospective F16 reference measured all 30 Q2 fixtures as
+routing-stable. Existing BF16 data and every other budget value reproduced
+exactly. The data was frozen at `93842eafe` before candidate execution, using
+the existing maximum-times-two calibration policy. This adds missing F16
+reference data, not a post-failure allowance. The candidate binary is
+`3a7dbfdbe4e4c28d34a2435f9175487d81756755b41afe6f4d7eef6b924fbc3f`.
+[Calibration evidence](benchmarks/q2-f16-calibration-20261027.json).
+The subsequent longer-context screen passes all nine F16 HF cases with actual
+block-int16 witnesses, maximum logit/NLL errors 0.00261510/0.00019410. All three
+strict F32 NLL controls pass. Six additional strict F32 logit controls exceed
+2e-5, with maximum 0.00007193; each captured output is byte-identical to the
+predecessor and the relevant Q2 F32 shader hashes are unchanged. These control
+failures stay reported, with no allowance broadened. All three GGUF files are
+byte-identical to the previous fixtures, including context-128 metadata.
+[Longer-context evidence](benchmarks/q2-int16-tile-hf-20261027.json).
+Native prompt-tile follow-up passes all 22 calls: mixed grouped, routed and
+weighted residual operations under F16/int8-wider at width 192, rows 65 and
+columns 129, plus signed zero/minimum-half scale range probes. All calls have
+actual `matmul_tile_q2_0_dot_small` witnesses and independent reconstructed-input
+references. Only the test executable rebuilt against the frozen runtime.
+[Native evidence](benchmarks/q2-int16-native-20261027.json).
+Split, released/depth and final matched performance checks remain open.
+No merge or release qualification.
+
+
+
+## 2026-10-27: Q1 eight-value sign-bit row checkpoint
+
+Q1-only eight-value traversal with sign-bit weight decoding passes the focused
+CPU/Vulkan operators and all 102 single-GPU F32 HF calls across six split-shaped
+fixtures, ubatches 1/3/16 and four threads. The changed reduction order is not
+claimed bit-identical. Q1 MoE maximum NLL error is 0.000008276 against 0.00001.
+Q2 retains its four-value traversal after the earlier eight-value failure.
+
+| P128/G256 screen | Before PP tok/s | After PP tok/s | Before TG tok/s | After TG tok/s | Earlier mx Vulkan PP/TG target |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Q1 Boole 1.7B | 1130.65 | 1126.19 | 154.47 | 178.76 | 1120.30 / 252.37 |
+| Q2 Qwen3 0.6B control | 2462.64 | 2462.93 | 263.70 | 267.83 | 4124.71 / 334.29 |
+
+Fixed eight-call ABBA, same environment and pinned models, monitored background
+activity and all samples retained. The mx values are an earlier separate screen,
+not a final interleaved gate for this binary. No tolerance changed or merge.
+[Timing](benchmarks/q1-eight-sign-screen-20261027.json) and
+[focused HF evidence](benchmarks/q1-eight-sign-hf-20261027.json) retain identities.
+Split/dtype, released/depth and final matched performance checks remain open.
+
+
+## Q1_0 and Q2_0 read-only weights (2026-10-27, in development)
+
+- **Goal:** support the two planned packed formats through the existing quant registry and CPU/Vulkan matrix owners, including embeddings, dense and routed products, dtype policies and device splits. Keep their distinct packing explicit. No quantizer or architecture extension is included.
+- **Done:** independent CPU decoders and Python raw-field references, Vulkan shared float tile/embedding integration and format-specific float row variants, and focused CPU/Radeon VII operator checks. The fresh Windows build passes `low-bits`, `low-bits-vulkan` and `gguf-validation`. Each format witnesses GPU row and tile dispatches, with grouped/routed/additive calls, odd block counts, embedding zero signs and BF16-distinguishing inputs covered. CLI decoding matches the independent format reference over 327680 Q1_0 and 163840 Q2_0 values. Q1_0 Boole-1.7B and Q2_0 Qwen3-0.6B files have verified complete payloads, inventories and first GPU load/generate checks. Tiny HF consumers and `tools/gen_baseline.py q1-q2` are registered, with all twelve ordinary/split references generated. Ordinary Q1_0 and Q2_0 CPU/Vulkan comparisons pass, Q1_0 using the approved exact-fixture allowance. Original strict failures and subsequent split findings remain recorded below. [Scope, ownership and checks](Q1-Q2.md).
+- **Left:** finish split-fixture and independent numerical qualification, preserving the original failures and matched controls, then remaining operator and split coverage, matched-build/layout controls and matched mx Vulkan speed qualification, pinned file-exact HF/raw-chat 16K checks, then applicable integration and hosted gates remain open. F16/int8 requests currently keep wider F32 products for these weights and report that fallback. README makes no qualified inference-support claim yet.
+- **Gotchas:** the verified Bonsai group-64 file needs unsupported YaRN scaling and is retained as a refusal, not edited to fit the loader. The alternate Q2_0 file's short output is incoherent. Independent HF on the same decoded weights reproduces the first eight token ranks, including the unusual next token; this diagnoses one position and does not qualify the full output. Group-128 Q2_0 is a different layout. The current pinned mx Vulkan source registers both formats. No speed result is claimed from cold smoke runs. The separate Q2_K/Q3_K witness fix is published as `9d00fb0a5` and is not a runtime dependency.
+- **Docs review:** a cheap agent surveyed Markdown, support claims and owners at this checkpoint. Updated ASSETS to use the canonical decoder/support lists, corrected the existing storage-layout count to 35, and described the new native tests and shared shader owner. No model, loading or CLI dispatch was duplicated. Focused docs and dead-code checks pass. [Checkpoint evidence](benchmarks/q1-q2-initial-checkpoint-20261027.json) records exact inputs and binaries, retained development failures and remaining qualification work.
+
+### Row specialization diagnostic (2026-10-27)
+
+GPU timestamps put 80.2% of Q1_0 decode and 82.6% of Q2_0 decode in the
+shared float row kernel. The Q1 row reports no scratch spills. Four shader
+variants now fix the format at compile time, preserving lane traversal,
+FMA order and the shared decoder. Focused CPU/Vulkan operator checks pass.
+The initial eight-call ABBA screen gives the following means, with every
+sample retained. This is a development screen, not final speed qualification:
+the build identities differ, and layout controls and mx comparisons remain.
+
+| Model | Before PP128 | After PP128 | Before TG64 | After TG64 | TG change | mx Vulkan gate |
+|---|---:|---:|---:|---:|---:|---|
+| Boole-1.7B Q1_0 | 294.81 | 298.76 | 12.88 | 23.91 | +85.7% | Not run |
+| Qwen3-0.6B Q2_0 | 583.32 | 584.74 | 34.37 | 57.34 | +66.8% | Not run |
+
+Rates are tokens per second on Windows Radeon VII. Unrelated CPU activity
+averaged 5.66 to 7.62 cores during the calls, and four GPU counter samples
+were unavailable. Known unrelated GPU engine activity reached 2.56%.
+The large decode changes motivate retaining the trial; the small prefill
+differences are not independently established gains. [Samples, identities
+and monitoring limitations](benchmarks/q1-q2-row-specialization-screen-20261027.json).
+The checkpoint review updated the affected source-owner pages and retained
+README's unqualified status. Remaining checks are listed above.
+
+Focused CPU and Radeon VII checks also pass the added finite-range,
+cancellation and row-class cases. A bounded HF diagnostic compares all
+151936 final logits after the same five input tokens: maximum absolute
+differences are 0.005273 on CPU and 0.005282 on Vulkan, with the same eight
+highest token IDs. The two Vulkan row implementations print identical
+six-decimal logit vectors here; this is not a binary-identity claim. The
+reference uses the GGUF's explicit head, following the existing file-exact
+topology policy. Its first two preflight refusals exposed the checkpoint's
+tied-head mismatch and remain recorded. No numerical limit changed.
+[HF diagnostic](benchmarks/q2-first-token-hf-control-20261027.json).
+
+### Tiny HF qualification (2026-10-27, open)
+
+The next prefill experiment reuses one packed byte across its neighboring
+weights in the existing float tile loader. Decoded values and dot-product
+order stay unchanged. The clean build and two focused CPU/Vulkan checks pass.
+The eight-call ABBA screen gives Q1 PP128 298.27 to 311.51 tok/s (+4.4%)
+and Q2 585.46 to 547.23 (-6.5%), with decode nearly unchanged. The GPU
+monitor could not start under the child PowerShell execution policy, so
+during-run GPU activity is unknown; preflight saw two RuneLite engines
+near two percent each. CPU/disk samples and all calls remain recorded.
+The binary identities also differ. This mixed diagnostic is not a speed
+gate. A four-call profile comparison with working GPU monitoring reproduces
+the split result: Q1 tall-tile time falls from 148.959 to 128.146 ms while
+Q2 small-tile time rises from 103.996 to 122.116 ms. Neither tile spills.
+The [profile evidence](benchmarks/q1-q2-tile-byte-profile-20261027.json) retains
+both phases and shader statistics without inferring causality from register counts.
+Fixing Q1/Q2 types through the existing shader specialization constant and kernel
+registry, retaining the shared shader binary and arithmetic, passes a clean build
+and both focused native tests. The Vulkan witness now requires the named format's
+tile pipeline. Docs and dead-code checks pass.
+
+| Type-fixed tile screen | Before PP128 | After PP128 | Change | Before TG64 | After TG64 | mx Vulkan gate |
+|---|---:|---:|---:|---:|---:|---|
+| Q1_0 Boole-1.7B | 298.77 | 376.01 | +25.9% | 23.93 | 23.97 | Pending |
+| Q2_0 Qwen3-0.6B | 585.29 | 706.81 | +20.8% | 57.14 | 57.26 | Pending |
+
+This second eight-call ABBA screen retains all samples, including three unknown
+GPU counter samples. Known unrelated GPU engine activity reaches 2.51 percent;
+unrelated CPU activity averages 5.45 to 7.12 cores across calls. Build identities
+differ, and layout controls and matched mx qualification remain open. Q2's
+affected Vulkan HF checks pass all 150 logit cases and 12 NLL checks with
+unchanged limits (maxima 0.00001979 and 0.00000266). This is not a completed speed gate.
+[First screen](benchmarks/q1-q2-tile-byte-screen-20261027.json),
+[type-fixed screen](benchmarks/q1-q2-tile-specialization-screen-20261027.json).
+
+All twelve ordinary/split references are generated with the pinned HF
+environment. Two attempts stopped at the 2 GiB free-memory reserve. Keeping
+decoded packed weights in compact F32 arrays, and releasing each HF model
+before constructing the next fixture, lets generation finish within that
+reserve. Existing shared-fixture hashes and both already-generated ordinary
+references are unchanged. The stopped attempts remain recorded.
+
+| Ordinary checks | Maximum logit error | Limit | Maximum NLL error | Limit | Result |
+|---|---:|---:|---:|---:|---|
+| Q2_0 CPU, 150 logit cases and 12 NLL checks | 0.00001897 | 0.00002000 | 0.00000242 | 0.00001000 | Pass |
+| Q2_0 Vulkan, 150 logit cases and 12 NLL checks | 0.00001979 | 0.00002000 | 0.00000266 | 0.00001000 | Pass |
+| Q1_0 CPU, first failing untied case | 0.00002059 | 0.00002000 | Not completed | 0.00001000 | Fail |
+| Q1_0 Vulkan, first failing tied case | 0.00002003 | 0.00002000 | Not completed | 0.00001000 | Fail |
+
+The Q1 CPU failure is identical on current main `9d00fb0a5` with the same
+weights stored as F32. The Vulkan raw-logit control measures 0.000020504
+for Q1 and 0.000018597 for the same weights stored as F32, so the failing
+CLI result is not solely decimal rounding. The capture raises context
+capacity from 16 to 96 for its fixed 64-step tail, preserving every weight
+and other model setting. No limit or fixture value is changed to pass.
+The missing Vulkan long-text control is complete: packed Q1 prints a maximum
+error of 0.000020237 versus 0.000017237 for identical decoded F32 weights at
+both tested batch sizes. Q2's first split-fixture CPU capture fails at
+0.00002766 before widths two and four are attempted. Its matched main F32
+control reproduces all 13 batched rows bit for bit. Main decode also exceeds
+the old bound but differs from packed decode. The maximum endpoint errors
+are 0.000030518 batched in both arms, 0.000030518 packed decode and
+0.000026226 main F32 decode. These are retained failures, not waived checks.
+[Matched control](benchmarks/q2-split-main-f32-control-20261027.json).
+
+A fixed independent HF sweep now covers 60 models and 300 full-versus-cached
+F32 comparisons. All canonical full-forward results reproduce the goldens,
+and all expert sets remain stable. Maximum reference discrepancies are
+0.000036478/0.000082016 for Q1 ordinary/split and
+0.000020027/0.000078201 for Q2 ordinary/split. The sweep reads no runtime
+outputs and installs no limits. Two processes stopped at the unchanged
+2 GiB memory reserve; completed rows were retained and the remaining rows
+resumed under the same pinned plan. Raw hashes, producer and all executions
+are retained in the [reference evidence](benchmarks/q1-q2-f32-reference-sensitivity-20261027.json).
+This demonstrates reference sensitivity, not a mathematical bound on llmx's
+error or a passed correctness gate. Peer review and matched controls remain
+part of deciding whether a scoped policy proposal is justified.
+A [three-fixture amendment](benchmarks/q1-q2-f32-proposal-20261027.md) is
+approved by the user on 2026-10-27 and installed in the existing shared bound
+owner's data. The user explicitly requires independent correctness proof.
+Focused consumer checks prove exact fixture matching, all-F32 execution
+witnesses, unchanged NLL, strict unlisted fixtures and separation from BF16
+budgets. Approval does not pass the original failures or qualify the branch.
+Split execution, BF16 requests and released-file/depth checks remain open.
+[Reference generation, failures and controls](benchmarks/q1-q2-tiny-hf-progress-20261027.json).
+
+The BF16 family calibration commands pass 16 focused tool tests. Their first
+local execution stopped during HF import at the 2 GiB memory reserve, before
+any model measurement. An isolated rig environment is being prepared with
+the same reference packages. Paired Linux candidate/main builds started after
+SDEV's fairness run ended, on one CPU worker with an 8 GiB cap and no GPU
+access. The exported build source predates only the test-bound amendment;
+runtime source is unchanged. No new rig timing or model qualification is
+claimed yet.
+
+After the approved allowance, Q1 ordinary CPU and Radeon VII each pass all
+150 full-logit comparisons and 12 NLL checks. MoE retains the original
+2e-5 logit limit. CPU maxima are 0.00002059 logits and 0.00000419 NLL;
+Vulkan maxima are 0.00002024 and 0.00000484. NLL remains below 1e-5.
+The consumer scope checks pass 17 tests, including the raw-capture owner.
+
+Q2 split dense-untied passes CPU widths 1, 2 and 4, including the existing
+group/reference checks. The subsequent dense-tied width-one capture fails
+its unchanged limit at 0.00002384. It is not among the approved identities.
+A matched main 9d00fb0a5 control holding the independently decoded F32
+weights reproduces every one of the 13 batched rows bit for bit. Its largest
+golden-endpoint error is 0.000024319 in both arms. Decode differs, with
+maxima 0.000024319 packed and 0.000022888 on main F32. This diagnoses existing
+numerical behavior but grants no allowance or passed qualification. Further
+split cases are now captured, with unresolved failures summarized below.
+
+Both isolated Linux source builds passed. Their native Q1/Q2 CPU and MI50
+operator checks also pass, with per-format row/tile witnesses. Physical GPU8
+was checked free and exposed alone to the test container, then released.
+The BF16 rig reference attempt stopped at import before any model measurement
+because the isolated overlay lacked `requests`; its failed attempt is retained.
+The completed repair and reference checks are recorded below. [Evidence](benchmarks/q1-q2-approved-f32-progress-20261027.json)
+pins the builds, tests, raw captures and remaining work. No new speed or
+released-model correctness claim is made.
+
+A fixed eight-call follow-up covers the remaining Q1 split dense/tied/MoE
+fixtures and Q2 split MoE, packed on the candidate against independently
+decoded F32 weights on main. Every fixture reproduces all 13 batched logit
+rows bit for bit, and all 64 greedy token IDs match. Decode logit bytes differ.
+All four batched NLL differences stay below 1e-5. Both arms nevertheless
+exceed the original 2e-5 logit bound. Q2 split MoE has the largest decode
+errors: packed 0.000083804 and main F32 0.000128508. The checks retain every
+row, identity and failure in the [split controls](benchmarks/q1-q2-split-main-controls-20261027.json).
+These controls isolate existing arithmetic behavior at the captured positions;
+they do not grant an allowance to these unlisted fixtures or complete the
+multi-device and released-model gates.
+
+CPU groups of widths two and four also complete for those four fixtures and
+Q2 split dense-tied. All ten comparisons against the retained single-CPU
+batched, per-token and greedy captures pass the existing device-reference
+criteria. Their independent HF logit checks remain failed under the original
+strict limits; consistency with one device is not an external correctness
+proof. [Group results and retained failures](benchmarks/q1-q2-cpu-groups-progress-20261027.json)
+cover all planned CPU calls without a further allowance. The later GPU captures
+and released-file results below do not yet complete independent qualification.
+
+The isolated BF16 reference environment repair completed without altering its
+base venv. Both 30-model families finished, retaining the initial import failure.
+Q1 has 30 stable rows; Q2 has 29 stable rows and one ordinary-MoE seed-zero
+routing change retained as refused. Every canonical-seed row is stable.
+The existing prospective calibration rule produces logit/NLL budgets of
+0.6454906464/0.0859228192 for Q1 and 0.5837039948/0.1438901198 for Q2.
+These absolute tiny-fixture bounds were installed before candidate BF16 model
+comparisons. Root independently verified the plan's identities, complete
+coverage, reference maxima, factor two and preservation of every old budget
+entry. [Frozen reference evidence](benchmarks/q1-q2-bf16-calibration-20261027.json)
+does not by itself qualify runtime execution or change released-file limits.
+Subsequent ordinary CPU/Radeon VII BF16 consumers pass all four family/device
+cells, 600 full-logit comparisons and 48 NLL checks, under those frozen bounds.
+The shared consumer checks actual completed matrix-path witnesses. [Runtime
+errors and headroom](benchmarks/q1-q2-bf16-consumers-20261027.json) retain every
+fixture's maximum and bound. BF16 split and released-file/depth checks remain
+open. The user subsequently approved the additional five split F32 identities
+in a [separate amendment](benchmarks/q1-q2-split-f32-proposal-20261027.md).
+They are installed for qualification, with all previous budgets unchanged.
+The focused reference-consumer checks pass. NLL and operator limits remain
+unchanged, and the original strict logit failures below remain recorded.
+
+The Linux CPU, single-MI50, layer2 and TP2 split diagnostic completed all
+24 captures. Offline reconstruction verifies all 72 raw float32 hashes,
+and all 90 device/group comparison subchecks pass. Independent HF checks
+remain failed: 184 of 240 endpoint checks and two of 24 NLL checks fail.
+Q2 split dense-untied passes all four placements under its approved identity.
+The new NLL failures are Q1 split MoE on one GPU and layer2:
+0.000010133473882 against the unchanged 0.000010000000000 limit.
+TP2 is within that bound at 0.000009936534799. These failures are retained
+in the [GPU split evidence](benchmarks/q1-q2-gpu-splits-20261027.json).
+Main and candidate holding independently decoded F32 control weights give
+identical batched, decode and greedy bytes, with NLL error 0.000005810870412.
+That control does not reproduce the packed Q1 NLL failure, which remains open.
+
+After the five additional exact-fixture logit approvals, the unchanged
+captures were checked again through the shared HF consumer. All 72 raw
+phase hashes and canonical fixture identities still match. All 240 endpoint
+logit checks now pass, while NLL remains 22 of 24: the two Q1 split-MoE
+failures above are unchanged. The original strict outcomes remain alongside
+the approved-limit results in the [recheck record](benchmarks/q1-q2-approved-split-recheck-20261027.json).
+Inference was not repeated for this policy-only change.
+
+An isolated observer now localizes the first Q1/F32 difference to the first
+Q projection, whose input is bit-identical. Both files hold the same decoded
+weights. The observer preserves every batched, decode and greedy output byte
+in both arms, and its Vulkan library and shaders are unchanged. Independent
+double dots cover all 6144 Q/K/V outputs for the first three tokens. Both arms
+stay within the existing operator comparison bound; Q1's largest absolute
+errors are 0.000002795 for Q, 0.000002146 for K and 0.000003984 for V.
+A separate replay of the documented Q1 row FMA/reduction order reproduces
+all 6144 outputs bit for bit. This establishes the measured first divergence,
+not every downstream operation or full-model qualification.
+
+The independent HF NLL batching control also detects reference sensitivity:
+
+| Q1 split-MoE reference | Mean NLL | Difference from canonical golden | Candidate difference from this reference |
+|---|---|---|---|
+| Canonical Windows HF golden | 18.5742196667 | 0 | 0.0000101335 |
+| Linux HF, full 13-token forward | 18.5742230957 | 0.0000034290 | 0.0000135624 |
+| Linux HF, cached one-token steps | 18.5742023175 | 0.0000173492 | 0.0000072158 |
+| Linux HF, cached three-token chunks | 18.5742109767 | 0.0000086900 | 0.0000014435 |
+
+Within one Linux HF environment, full versus cached-one NLL differs by
+0.0000207782, exceeding the unchanged 0.0000100000 candidate limit. All
+weights and fixture hashes match. The first rig attempt failed its canonical
+golden byte-identity control and is retained; the second measures the
+cross-environment difference explicitly. The Windows attempt stopped at its
+memory reserve. These are diagnostic controls, not replacement goldens,
+additional allowances or a qualification pass. The original Q1 NLL failure
+remains open. The [observer and HF evidence](benchmarks/q1-moe-observer-20261027.json)
+pins receipts, raw outputs, scripts and the remaining uncertainty.
+
+Released Q2 short HF checks distinguish KV storage from matrix precision:
+
+| Released Q2 check | CPU | Radeon VII | Required |
+|---|---|---|---|
+| Default F16 KV, prompt checks | 4/6 pass | 4/6 pass | All 6 |
+| F32 KV, top-1 and top-5 | 6/6 each | 6/6 each | Exact top-1, top-5 with existing tie rule |
+| F32 KV, NLL cases | 8/8 pass | 8/8 pass | 0.01 continuous, 0.02 window |
+| F32 KV, largest printed NLL difference | 0.000110 | 0.000150 | Same unchanged limits |
+
+A fixed dtype/cache control clears the two prompt failures by changing only
+KV storage to F32, on both backends. Independent HF rounding K/V to F16
+reproduces the top-1 flip and top-5 membership change; its F32 cached forward
+is bit-identical to direct HF. This attributes cache sensitivity, but does
+not establish identical full logits or qualify default-cache results.
+Top-10 llmx/HF value differences still reach 0.252 in that diagnostic.
+Original failures, all 16 policy-control calls and independent reference
+provenance remain in the [released-file evidence](benchmarks/q1-q2-released-progress-20261027.json).
+No new allowance is installed for these released-file checks. Q1 released-file
+checks, BF16 split checks, raw/chat 16K, matched mx Vulkan performance and final
+landing checks remain open.
+
+### BF16 split and matched Vulkan checkpoint (2026-10-27)
+
+The BF16 CLI sweep completed 1063 valid passing calls: 985 logit and 78 NLL
+checks. CPU1, single-GPU and two-GPU layer split each completed all 324 calls.
+TP2 completed 91 of 324 before the bounded run ended. The harness also tried
+648 CPU2/CPU4 commands which the CLI refuses before inference because `cpu`
+was listed more than once. These are harness errors, not numerical failures.
+Source/model hashes were unchanged, there was no OOM, and the owned container was removed.
+[Counts, failures and receipts](benchmarks/q1-q2-bf16-split-progress-20261027.json).
+
+The raw tool follow-up completed 24 captures on CPU1/CPU2/CPU4 and TP2 without
+repeating the valid CLI grid. All 72 BF16 phase witnesses, 264 direct HF
+logit/NLL checks and 24 existing HF capture comparisons pass. The separate
+CPU1-referenced group checks initially reported 13 of 18 because the scratch
+harness required exact greedy identity instead of the existing shared tie
+rule. Rechecking the same hashed captures with that rule gives 17 of 18.
+TP2 Q2 tied still differs in NLL by 0.0185273743 against its unchanged 0.01
+limit. That failure remains open. This is frozen scalar-row evidence, not evidence
+for the later vector experiment. All raw outputs and pins are retained, and
+the container was removed after 74.2 seconds without OOM.
+[Raw captures and failures](benchmarks/q1-q2-bf16-raw-captures-20261027.json).
+The [group recheck](benchmarks/q1-q2-bf16-group-recheck-20261027.json) supersedes
+only the erroneous scratch comparison, with no new inference or policy change.
+
+The isolated mx reference harness now uses the same context, token vocabulary
+and full-phase warmups. Its runtime libraries and original checkout are
+unchanged. A fixed eight-call ABBA screen uses the same model files, MI50,
+image, four CPU threads, ubatch 512, F16 KV and direct loading in both arms:
+
+| Model | llmx PP128 | mx Vulkan PP128 | llmx TG256 | mx Vulkan TG256 | Reference target |
+|---|---:|---:|---:|---:|---|
+| Boole-1.7B Q1_0 | 1092.62 | 1120.30 | 66.45 | 252.37 | Meet or exceed mx |
+| Qwen3-0.6B Q2_0 | 2455.25 | 4124.71 | 178.40 | 334.29 | Meet or exceed mx |
+
+Rates are tokens per second, means of two retained calls per arm. This is a
+development screen, not a completed speed gate. Q2 mx prefill ranges from
+3874.28 to 4375.14 tok/s. Other jobs used separate GPUs throughout, sampled
+unrelated CPU use averaged 0.59 to 0.96 cores per call, and aggregate disk
+traffic crossed the declared threshold in five overlapping call windows.
+No GPU counters or sampling gaps were missing, but short-lived process CPU
+coverage was incomplete. Every sample is retained. The first attempted run
+was refused before inference for the invalid `--g` flag; the corrected run
+uses `--n`. Profiling, P4096, main/layout comparisons and final qualification
+remain open. [Samples, pins and activity](benchmarks/q1-q2-matched-vulkan-screen-20261027.json).
+
+The subsequent MI50 profile attributes 87.88% of Q1 decode device time to
+its row products, including 13.28% in the output head. Q2's low-bit rows take
+70.04%, with another 5.28% in its K-quant head. Both low-bit row kernels use
+20 VGPRs and 32 SGPRs, with no spills or scratch storage. Their prompt tiles
+take 93.74% and 91.06% of Q1 and Q2 prefill device time respectively. These
+are timestamped dispatch costs, not hardware occupancy or bandwidth claims.
+[Profile and compiler statistics](benchmarks/q1-q2-mi50-profile-20261027.json).
+
+A new isolated experiment loads four adjacent values from a packed byte and
+reuses the existing F32 row's vector-dot pattern. The shared low-bit decoder
+still owns value and sign handling. This changes accumulation order and is
+not qualified by the earlier scalar-row numerical results. Only four of 318
+compiled shader modules change. The first trial passes CPU operators but
+fails Vulkan cancellation at Q1 input magnitude 1e8, row zero: observed
+1.73015e7 against exact zero. The performance screen stops before timing.
+A separate corrected build rounds each product before pairwise addition to
+test the suspected vector-dot contraction. The original failures remain in
+the rig's `row-four-screen-v1` and `row-four-screen-v2` directories. Corrected
+CPU and Vulkan operator checks now pass, including cancellation and range
+cases. The fixed eight-call before/after screen gives these means:
+
+| Model | Before PP128 | Four-value PP128 | Before TG256 | Four-value TG256 | TG change |
+|---|---:|---:|---:|---:|---:|
+| Boole-1.7B Q1_0 | 1090.81 | 1102.74 | 66.72 | 132.51 | +98.6% |
+| Qwen3-0.6B Q2_0 | 2450.44 | 2466.42 | 178.69 | 268.80 | +50.4% |
+
+The earlier mx Vulkan targets remain 1120.30/252.37 for Q1 PP/TG and
+4124.71/334.29 for Q2. They were measured in the preceding screen, not
+interleaved with this experiment. The small prefill differences are not
+established gains. Every sample is retained. Other GPUs were active,
+unrelated sampled CPU use averaged 0.26 to 0.44 cores, and no disk or
+sampling-gap threshold was crossed. Short-lived process CPU coverage is
+incomplete. [Inputs, samples and monitoring](benchmarks/q1-q2-row-four-screen-20261027.json).
+A focused F32/F32-KV screen now passes all 90 full-vocabulary endpoint
+comparisons and 12 NLL checks across the six split fixtures on one MI50,
+threads four and ubatches 1/3/16. All 102 execution witnesses confirm F32.
+The existing approved exact-fixture logit limits apply; NLL stays at 1e-5.
+Q1 MoE's largest NLL error is now 0.000007219 on this path. This clears the
+single-device successor check, not the retained scalar-row failure or the
+pending split-device checks. Inputs and binary hashes remain unchanged,
+and the isolated container was removed without OOM after 10.1 seconds.
+[Focused HF evidence](benchmarks/q1-q2-row-four-hf-20261027.json).
+BF16, device splits, Windows, released models and final qualification remain open.
+
+The four-value successor profile still attributes 80.64% of Q1 decode
+device time to low-bit rows including its head, and 57.45% of Q2 decode to
+low-bit rows. Each row shader uses 24 VGPRs and 32 SGPRs with no spills or
+scratch storage. Prefill remains dominated by tiles. The separate eight-value
+experiment shares their scale and Q1 packed byte, changing accumulation order.
+The four-value build and its evidence stay frozen for comparison.
+[Successor profile](benchmarks/q1-q2-row-four-profile-20261027.json).
+
+The four-value build also completed all 360 focused direct-HF checks across
+single-device BF16 and F32/BF16 layer and tensor splits. These checks do not
+replace the outstanding BF16 CPU1-relative group NLL check.
+[Split results](benchmarks/q1-q2-row-four-splits-20261027.json).
+
+The eight-value trial improved decode in its fixed screen but failed four
+of 216 focused F32 checks. Q2 MoE on one device and a layer split exceeded
+the approved logit bound at both tested ubatches: 0.0001000233 against
+0.0000982013. All 36 NLL checks passed. No limit changed. The next experiment
+reuses activations across four output rows only in the one-column build,
+retaining the passing four-value arithmetic order.
+[Numerical failures](benchmarks/q1-q2-row-eight-hf-20261027.json).
+
+| Model | Four-value TG256 | Eight-value TG256 | Earlier mx Vulkan target |
+|---|---:|---:|---:|
+| Boole-1.7B Q1_0 | 132.40 | 149.52 | 252.37 |
+| Qwen3-0.6B Q2_0 | 266.80 | 289.22 | 334.29 |
+
+Rates are tokens per second. The mx target came from the preceding screen,
+not this interleaving. Prefill was nearly unchanged. CPU and disk activity
+flags and every fixed sample are retained in the
+[eight-value screen](benchmarks/q1-q2-row-eight-screen-20261027.json).
+The pinned mx source reuses activations across four rows on GCN and applies
+the block scale after grouped code dots. Our trial borrows the reuse strategy
+without copying source or changing scale placement. Mx's runtime logger
+reports operation classes, not the selected shader pipeline, so its output
+does not establish activation of Q2's available integer path.
+
+The first four-row reuse trial passed focused CPU/Vulkan operators, but its
+fixed before/after screen gives Q1 decode 132.17/132.17 and Q2 decode
+267.90/249.26 tok/s. Prefill differs by less than half a percent. Compiler
+statistics show 48 VGPRs instead of 24 and a theoretical limit of five
+subgroups per SIMD instead of ten, with no spills. This is a register-pressure
+lead, not a measured occupancy claim. Broader numerical checks are deferred.
+The next isolated edit consumes one row's decoded weights at a time instead
+of retaining four decoded vectors together; products and reductions stay
+unchanged. [Samples, monitoring and compiler statistics](benchmarks/q1-q2-row-reuse-screen-20261027.json).
+
+
+### Q1 released short reference and decode controls (2026-10-27)
+
+The config-only Qwen3/MoE reference loader has a completed controlled proof:
+six tiny models, 84 exact output pairs after both HF arms' parameter storage
+is equally aligned. Original unequal-layout differences remain recorded and
+are not called bit-identical. Every parameter, buffer and tied alias is checked,
+and original storage is restored. Alignment is a diagnostic harness control,
+not a runtime or reference-budget change. [Proof and retained failures](benchmarks/q1-q2-file-exact-config-proof-20261027.json).
+The full reference-generator suite passes 84 tests.
+
+The pinned released Q1 file now passes all six short prompt rankings and eight
+continuous/window NLL checks with both F16 and F32 KV on the frozen four-value
+row binary. The largest printed F16-KV NLL difference is 0.000046, within the
+unchanged 0.01/0.02 limits. These 247-token checks are not the 16K raw/chat gate.
+[Reference and consumer evidence](benchmarks/q1-released-short-hf-20261027.json).
+
+Sequential four-row reuse did not improve speed: Q1 decode changed from 132.31
+to 129.05 tok/s and Q2 from 267.56 to 245.17. A subsequent matched control held
+that arithmetic fixed and changed four subgroups per workgroup to one:
+
+| Model | Four subgroups TG256 | One subgroup TG256 | Earlier mx Vulkan TG256 target |
+|---|---:|---:|---:|
+| Boole-1.7B Q1_0 | 128.79 | 128.60 | 252.37 |
+| Qwen3-0.6B Q2_0 | 242.30 | 238.69 | 334.29 |
+
+The mx target is from the earlier matched screen, not an interleaved arm in
+this control. All eight calls and contention evidence remain recorded. Other
+GPUs and background CPU/disk work were active; short-lived process coverage
+was incomplete. No useful speed gain was demonstrated. Both reuse trials and
+the workgroup specialization were removed, restoring the focused-tested four-value
+row path. Native CPU/Vulkan operators passed before each screen. Broader HF
+checks were not repeated for trials that did not advance.
+[Sequential reuse](benchmarks/q1-q2-row-reuse-screen-v2-20261027.json),
+[workgroup control](benchmarks/q1-q2-row-single-sg-screen-20261027.json).
+A four-call mx Q2 default/disabled-MMVQ control gives mean decode 335.77 versus
+330.95 tok/s, about 1.45%. Disabling that path leaves most of the llmx gap,
+so integer decode alone is not the explanation. Prefill means 3786.61 versus
+3480.89 varied between arms and are not attributed to a particular dispatch.
+All calls and activity remain in the [control](benchmarks/q2-mx-mmvq-control-20261027.json).
+The [actual MI50 final instructions](benchmarks/q1-q2-row-isa-20261027.json)
+confirm four code-to-float conversions and four scale multiplications in each
+Q1 four-weight loop, followed by its activation products. An isolated copied
+test captured the instructions while all frozen runtime, library and shader
+hashes stayed unchanged. A Q1-only sign-bit decoder is now an unqualified
+experiment. Its finite-scale identity was independently checked across all
+126976 binary16-scale/code pairs, including both zero signs. Activation
+products and reduction order remain the four-value implementation's.
+
+The sign-bit trial passes CPU/Vulkan operators and 102 focused F32 HF checks.
+Its first HF attempt refused a stale expected executable hash before inference;
+the corrected harness retains that refusal. Actual final assembly confirms
+code-to-float conversions fall from four to zero and scale multiplies from
+four to zero, while activation products and pairwise sums remain.
+
+| Model | Before PP128 | After PP128 | Before TG256 | After TG256 | Earlier mx Vulkan PP128 / TG256 target |
+|---|---:|---:|---:|---:|---:|
+| Boole-1.7B Q1_0 | 1099.83 | 1125.14 | 132.43 | 157.31 | 1120.30 / 252.37 |
+| Qwen3-0.6B Q2_0 | 2467.33 | 2465.12 | 266.75 | 267.59 | 4124.71 / 334.29 |
+
+This development screen retains all eight calls and activity, with the mx
+figures from a separate earlier screen. Q1 decode improves about 18.8%; small
+prefill changes and the final mx gate still need matched qualification.
+[Timing](benchmarks/q1-sign-screen-20261027.json),
+[102 focused HF checks and printed-output identity](benchmarks/q1-sign-hf-20261027.json),
+[final instructions](benchmarks/q1-sign-isa-20261027.json).
+
+The remaining BF16 group-NLL failure reproduces on frozen main with decoded
+F32 weights: main decoded, candidate decoded and candidate packed all print
+CPU NLL 20.633240763 and TP2 NLL 20.651768138. All 25 tensors independently
+decode to the same bits and metadata matches. The six-call control uses the
+same 13 input IDs, 12 scores, context 16, ubatch 3, six threads, F32 KV and
+BF16 witnesses. This identifies existing behavior on this fixture; it does
+not change the 0.01 limit or mark the failure passed. A scoped review request
+is posted to LDEV on TUI. [Control](benchmarks/q2-bf16-existing-main-control-20261027.json).
+
+The checkpoint Markdown review inventories 152 tracked pages and two new
+policy records, reviews affected current contracts against their owners and
+checks 49 relevant evidence links. It fixes AGENTS' stale ordinary-Q1 failure
+claim. Historical data and unrelated features were catalogued, not newly
+qualified. Docs and dead-code checks pass. [Review scope](benchmarks/q1-q2-markdown-review-20261027.json).
+
 ## Q2_K and Q3_K narrow tile test witnesses (2026-10-27, Done, lands by fast-forward as one test-fix commit)
 
 The two native tests now recognize `matmul_tile_q2_narrow` and

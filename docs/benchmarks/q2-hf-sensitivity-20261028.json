@@ -1,0 +1,70 @@
+{
+  "scope": "Completed whole-model HF arithmetic and schedule sensitivity diagnostic for Q2 Rome17. Diagnostic evidence only: no reference substitution, new numerical threshold, product change, or Q2 gate pass.",
+  "execution": {
+    "path": "build-low-bits-dev/q2-rome-hf-sensitivity-v1/out/hf/execution.json",
+    "sha256": "86718f9b04cdf66f4eaa08f3ff015b4c222f44257cd0aa33bc55ec1a135cd168",
+    "complete": true,
+    "unchanged": true,
+    "exit_code": 0,
+    "container_removed": true,
+    "report_sha256": "f091c11728d221843695d1b25753fbf919617f6b62ad73e65c243b0e0f2c7359",
+    "rank_comparison_sha256": "69f40376041b848f8575c2a1e69f10f9b8f44c0c02686380ef6c65867d0135b3",
+    "rank_compare_script_sha256": "40d8e0077ab6f9403319122248d1b95376f2c2c03d06e8efa8d5ea15814a5030"
+  },
+  "fixed_inputs": {
+    "model": "Qwen/Qwen3-0.6B Q2_0 released GGUF; 196 Q2_0 Linear tensors, Q4_K embedding, Q6_K output head",
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "prompt": "Frozen 17-token Rome17 prompt from q2-rome-layer-cut-v1 fixture prompts[5]",
+    "token_ids_le_i32_sha256": "cc6c88b117febf3b8674bc48a8879ab45df1a7d163ae3b5edc2be5a136a80f9a",
+    "plan_sha256": "f59570a11ac8454201c0f8a35e6c1c47c04f706b6b8b66babc8b729706c16fef",
+    "prior_full_logits_sha256": "9e0de308d3f38df8959e0f2005903f835c8dbaf0baa28616620c61a614a12431",
+    "linear_inputs": "Same independent block16 half-away reconstruction over 32-value blocks for all 197 Linear calls, including the output head",
+    "kv": "F16 round-widen in all three variants",
+    "other_operations": "F32; all parameters remain F32",
+    "existing_top5_rule": {"margin": 0.1, "owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"}
+  },
+  "diagnostic_variants": [
+    {
+      "name": "full-f32-reproduction",
+      "purpose": "Control; one 17-token call with ordinary HF F32 Linear accumulation",
+      "logits_sha256": "9e0de308d3f38df8959e0f2005903f835c8dbaf0baa28616620c61a614a12431",
+      "prior_byte_identical": true,
+      "top1": 5845
+    },
+    {
+      "name": "singleton-f32",
+      "purpose": "Schedule sensitivity; 17 one-token calls sharing the logical cache, ordinary HF F32 Linear accumulation",
+      "logits_sha256": "6957e0ccc20c2f3df62e446c922db44c0caa7e00cf0c6e9ac07b675733c12469",
+      "full_f32_comparison": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}
+    },
+    {
+      "name": "full-f64-linear",
+      "purpose": "Accumulation sensitivity only; each Linear computes input/weight/bias in F64 and casts output to F32, one 17-token call",
+      "logits_sha256": "e12b8248ceff25e8b6836f553f43a9a7bc918f263be35f8220dbcf291c285174",
+      "full_f32_comparison": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}
+    }
+  ],
+  "runtime_comparison": {
+    "q2_runtime_logits_sha256": "ec3a30c753494488a34eb2dc252fd7b9eed5bc4d350b7ca1094b876dd937aaab",
+    "q2_runtime_without_observer_sha256": "ec3a30c753494488a34eb2dc252fd7b9eed5bc4d350b7ca1094b876dd937aaab",
+    "observer_control": "The without-observer file is the same Q2 baseline runtime capture, not a Q4 result.",
+    "against_full_f32": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "4/5", "top1_same": true},
+    "against_diagnostic_f64_linear": {"exact_top5_overlap": "3/5", "existing_rule_top5_overlap": "5/5", "top1_same": true},
+    "interpretation": "The Q2 runtime remains 4/5 against the retained full-F32 HF control under the existing rule. Matching the diagnostic F64 Linear control at 5/5 does not make that diagnostic a reference and does not pass Q2. These controls show arithmetic/schedule sensitivity; they do not disprove a runtime defect."
+  },
+  "retained_q4_cli_rank_controls": {
+    "source": "build-low-bits-dev/q2-q4-lossless-control-v1/evidence/control-out",
+    "precision": "Retained CLI top-ten values printed to six decimal places; these are not full-vocabulary F32 logit captures.",
+    "main_q4": {"source_file": "main-q4-f16-rome.stdout", "sha256": "d99517c3f9270064edd134f4089daca2b7846548537b54a189d89434e95e1c02", "against_full_f32": {"exact_top5_overlap": "5/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}, "against_singleton_hf": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "4/5", "top1_same": true}, "against_f64_linear_hf": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}},
+    "candidate_q4": {"source_file": "candidate-q4-f16-rome.stdout", "sha256": "d99517c3f9270064edd134f4089daca2b7846548537b54a189d89434e95e1c02", "against_full_f32": {"exact_top5_overlap": "5/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}, "against_singleton_hf": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "4/5", "top1_same": true}, "against_f64_linear_hf": {"exact_top5_overlap": "4/5", "existing_rule_top5_overlap": "5/5", "top1_same": true}},
+    "main_candidate_cli_rows_byte_identical": true,
+    "interpretation": "These authentic main/candidate Q4 CLI controls add context for schedule and arithmetic sensitivity; their comparison precision is limited to retained six-decimal top-ten rows, and they do not replace the full-F32 HF control or waive the Q2 runtime result."
+  },
+  "separate_continuous_nll_evidence": {
+    "source": "docs/benchmarks/q2-layer-sensitivity-20261028.json",
+    "source_sha256": "bc7c53a1a201a8e1bba42eb2b54b16b1ce0e39d4cf4d93d7e348ccedbcc6326c",
+    "observation": "Selected-policy HF full versus singleton differed by 0.0237900000688 mean NLL, above the unchanged 0.01 bound without runtime involvement.",
+    "relationship": "Earlier, separate continuous-NLL diagnostic; not a result from the Rome17 ranking run above."
+  },
+  "next_interpretation": "Use the pinned whole-model schedule and accumulation controls to distinguish acceptable reference/arithmetic sensitivity from a runtime defect. Keep the selected reference, rule and gate unchanged until the discrepancy is resolved."
+}

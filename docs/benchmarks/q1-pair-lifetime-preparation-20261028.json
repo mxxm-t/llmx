@@ -1,0 +1,398 @@
+{
+  "scope": "Isolated Q1 one-column integer pair scheduling trial, prepared locally only. No production source edit.",
+  "hypothesis": "The captured normal row loop holds all16 activation pair words and many expanded weight pairs simultaneously. Keeping four pair couples live at a time may lower registers; loop overhead may outweigh the gain. Static evidence does not establish achieved occupancy or wait costs.",
+  "distinct_from_old_trials": "Changes pair lifetimes within one output row. Earlier four-row reuse enlarged live state; accumulator-chain and packed-sign trials did not reduce48 VGPRs.",
+  "isa_evidence": {
+    "path": "build-low-bits-dev\\q12-halfword-isa-v1\\out\\matmul_row_q1_0_dot_1col.txt",
+    "sha256": "30e5dc3e6192b80d8ac252fcff59b31bbc71e4c0f09c49cade955ca3f37d3e97",
+    "normal_dot_block": "BB29",
+    "static_instruction_count": 188,
+    "opcode_counts": {
+      "s_mov_b64": 1,
+      "s_mov_b32": 3,
+      "s_movk_i32": 2,
+      "s_lshl_b32": 1,
+      "s_load_dwordx4": 3,
+      "v_mul_lo_u32": 1,
+      "v_add_u32_e32": 18,
+      "v_lshrrev_b32_e32": 15,
+      "v_and_b32_e32": 35,
+      "v_lshlrev_b32_e32": 19,
+      "v_lshl_add_u32": 2,
+      "v_add3_u32": 1,
+      "s_waitcnt": 8,
+      "buffer_load_ushort": 3,
+      "s_mul_i32": 3,
+      "s_lshr_b32": 2,
+      "buffer_load_dwordx4": 4,
+      "s_add_u32": 1,
+      "v_add_lshl_u32": 1,
+      "buffer_load_dword": 1,
+      "v_bfe_u32": 4,
+      "v_cvt_f32_f16_e32": 1,
+      "v_lshl_or_b32": 16,
+      "v_xor_b32_e32": 16,
+      "v_dot2_i32_i16": 16,
+      "v_mul_f32_e32": 1,
+      "v_min_f32_e64": 1,
+      "v_cmp_eq_i32_e64": 2,
+      "s_or_b64": 1,
+      "v_cmp_neq_f32_e64": 1,
+      "s_and_b64": 1,
+      "v_cndmask_b32_e64": 1,
+      "v_cvt_f32_i32_e32": 1,
+      "v_fma_f32": 1,
+      "s_branch": 1
+    },
+    "native_dot_count": 16,
+    "normal_loads": [
+      "buffer_load_ushort v11, v10, s[20:23], 0 offen              ; e0481000 80050b0a",
+      "buffer_load_ushort v12, v6, s[20:23], 0 offen               ; e0481000 80050c06",
+      "buffer_load_ushort v13, v6, s[20:23], 0 offen offset:2      ; e0481002 80050d06",
+      "buffer_load_dwordx4 v[16:19], v14, s[24:27], 0 offen        ; e05c1000 8006100e",
+      "buffer_load_dwordx4 v[20:23], v14, s[24:27], 0 offen offset:16 ; e05c1010 8006140e",
+      "buffer_load_dwordx4 v[24:27], v14, s[24:27], 0 offen offset:32 ; e05c1020 8006180e",
+      "buffer_load_dwordx4 v[28:31], v14, s[24:27], 0 offen offset:48 ; e05c1030 80061c0e",
+      "buffer_load_dword v15, v15, s[28:31], 0 offen               ; e0501000 80070f0f"
+    ],
+    "repair_block_static_instructions": 580,
+    "limit": "Static code only. The normal loop executes per assigned block; rare-path instruction count is not its runtime cost."
+  },
+  "scope_delta": "Q1 integer rows at MAX_COLS1 only. Same pair index sequence0..7, dot order, scale multiplication/FMA, repair, row reduction, input representation and bytes. Other types and multiple-column Q1 retain old source path.",
+  "order_proof": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "original_source_sha256": "c9b821513e2f3e775d861061bfc2a9e4cef8ec3d41e04b78ba85cec6b1b102e9",
+  "trial_source_sha256": "a6aff2937338795ebd6301da6f01dec8f993a92d2faa143cd0132ed667e9d1d4",
+  "next_checks": [
+    "Compile local Q1/Q2 SPIR-V, require Q2 control byte identity.",
+    "When memory permits, isolated rig build and inspect final ISA/register count before timing.",
+    "Native CPU/Vulkan operator and range checks plus paired frozen output comparison.",
+    "Only if compiled scheduling actually changes, fixed interleaved before/after screen with Q2 control, same environment and contention logging. No competing owned HF or build during timing.",
+    "Retain only if speed benefit is meaningful; broader numerical gates only if trial advances."
+  ],
+  "compiles": [
+    {
+      "family": "q1_0",
+      "arm": "before",
+      "argv": [
+        "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+        "-fshader-stage=compute",
+        "--target-env=vulkan1.2",
+        "-O",
+        "-I",
+        "src\\backends\\vulkan\\shaders",
+        "-DLLMX_DOT",
+        "-DLLMX_LOW_BITS_DOT",
+        "-DLLMX_Q1_0",
+        "-DLLMX_PRESERVE_F32",
+        "-o",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\q1_0-before.spv",
+        "src\\backends\\vulkan\\shaders\\matmul_row.comp"
+      ],
+      "exit_code": 0,
+      "bytes": 13512,
+      "sha256": "88cc9f976d4ff35c6660a96a9c8160c91bb32311a0953494405555d3c0b36b63"
+    },
+    {
+      "family": "q1_0",
+      "arm": "trial",
+      "argv": [
+        "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+        "-fshader-stage=compute",
+        "--target-env=vulkan1.2",
+        "-O",
+        "-I",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders",
+        "-DLLMX_DOT",
+        "-DLLMX_LOW_BITS_DOT",
+        "-DLLMX_Q1_0",
+        "-DLLMX_PRESERVE_F32",
+        "-o",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\q1_0-trial.spv",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders\\matmul_row.comp"
+      ],
+      "exit_code": 0,
+      "bytes": 16720,
+      "sha256": "19207ba35dca55a463862a8c4d5d5690bcf1a7063706e1f6a3b541e2c5fd790a"
+    },
+    {
+      "family": "q2_0",
+      "arm": "before",
+      "argv": [
+        "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+        "-fshader-stage=compute",
+        "--target-env=vulkan1.2",
+        "-O",
+        "-I",
+        "src\\backends\\vulkan\\shaders",
+        "-DLLMX_DOT",
+        "-DLLMX_LOW_BITS_DOT",
+        "-DLLMX_Q2_0",
+        "-DLLMX_PRESERVE_F32",
+        "-o",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\q2_0-before.spv",
+        "src\\backends\\vulkan\\shaders\\matmul_row.comp"
+      ],
+      "exit_code": 0,
+      "bytes": 13696,
+      "sha256": "9a01aa01fa61174c78156f94234d669cb3929a3129fbe359a13352d1e9512db5"
+    },
+    {
+      "family": "q2_0",
+      "arm": "trial",
+      "argv": [
+        "C:\\VulkanSDK\\1.4.357.0\\Bin\\glslc.exe",
+        "-fshader-stage=compute",
+        "--target-env=vulkan1.2",
+        "-O",
+        "-I",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders",
+        "-DLLMX_DOT",
+        "-DLLMX_LOW_BITS_DOT",
+        "-DLLMX_Q2_0",
+        "-DLLMX_PRESERVE_F32",
+        "-o",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\q2_0-trial.spv",
+        "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders\\matmul_row.comp"
+      ],
+      "exit_code": 0,
+      "bytes": 13696,
+      "sha256": "9a01aa01fa61174c78156f94234d669cb3929a3129fbe359a13352d1e9512db5"
+    }
+  ],
+  "passed": true,
+  "compiler": "shaderc v2026.3 v2026.3\nspirv-tools v2026.3 v2022.4-1283-gb707790a\nglslang 11.1.0-1493-g168d452a\n\nTarget: SPIR-V 1.0\n",
+  "q2_control_identical": true,
+  "q1_spirv_changed": true,
+  "source_untouched": true,
+  "specialized_spirv": [
+    {
+      "columns": 1,
+      "arm": "before",
+      "bytes": 11668,
+      "sha256": "3ecbb3e66584e298780ac6ba38c4dc5d83c75799e6c311d2c90acc00f960d04e",
+      "dont_unroll": 0,
+      "loop_merge": 11
+    },
+    {
+      "columns": 1,
+      "arm": "trial",
+      "bytes": 14876,
+      "sha256": "da9bb8873531cb4dbc6b31748e344fb2fa59a7f2b1a682d16571bd88cf25bff6",
+      "dont_unroll": 1,
+      "loop_merge": 12
+    },
+    {
+      "columns": 8,
+      "arm": "before",
+      "bytes": 11668,
+      "sha256": "2943b3889bebdc517557cf784f6c2bee06ddc5e2d958ab9cf58b7c914147b396",
+      "dont_unroll": 0,
+      "loop_merge": 11
+    },
+    {
+      "columns": 8,
+      "arm": "trial",
+      "bytes": 14876,
+      "sha256": "d6e1599c208fd509367dc3bcc3cee5f368f6e41ded86016479ecf83a57e472a9",
+      "dont_unroll": 1,
+      "loop_merge": 12
+    }
+  ],
+  "multiple_columns_binary_equal": false,
+  "fully_folded_spirv": [
+    {
+      "columns": 1,
+      "arm": "before",
+      "bytes": 11496,
+      "sha256": "511741351b664d8282354d2ddf15d0e7a54311ead16277fedbafd272563be052",
+      "dont_unroll": 0,
+      "loop_merge": 11,
+      "spec_ops": 0
+    },
+    {
+      "columns": 1,
+      "arm": "trial",
+      "bytes": 13312,
+      "sha256": "eafb04f9acae2486b2127afd919aacd1a98512c0c561fa9e8739c762e128116e",
+      "dont_unroll": 1,
+      "loop_merge": 10,
+      "spec_ops": 0
+    },
+    {
+      "columns": 8,
+      "arm": "before",
+      "bytes": 11548,
+      "sha256": "d6a8b6e2fef23682e49627cade72127ce39a3afa995e1605842abb84bff3294d",
+      "dont_unroll": 0,
+      "loop_merge": 11,
+      "spec_ops": 0
+    },
+    {
+      "columns": 8,
+      "arm": "trial",
+      "bytes": 11548,
+      "sha256": "d6a8b6e2fef23682e49627cade72127ce39a3afa995e1605842abb84bff3294d",
+      "dont_unroll": 0,
+      "loop_merge": 11,
+      "spec_ops": 0
+    }
+  ],
+  "folded_multiple_columns_binary_equal": true,
+  "initial_specialization_limitation": "Initial freeze-only pipeline left OpSpecConstantOp unfolded. Retained original artifacts; separate folded pass removes selected-policy dead branches.",
+  "float_controls": [
+    {
+      "preserve": false,
+      "identical": true,
+      "cells": [
+        {
+          "arm": "before",
+          "argv": [
+            "C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-I",
+            "src\\backends\\vulkan\\shaders",
+            "-DLLMX_FLOAT_X",
+            "-DLLMX_Q1_0",
+            "-o",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\q1-float-0-before.spv",
+            "src\\backends\\vulkan\\shaders\\matmul_row.comp"
+          ],
+          "sha256": "ad500869192d8feb2577af4f4e5428081de25a1aaf319bcc6744dff6ff5fa3e6",
+          "bytes": 9812
+        },
+        {
+          "arm": "trial",
+          "argv": [
+            "C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-I",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders",
+            "-DLLMX_FLOAT_X",
+            "-DLLMX_Q1_0",
+            "-o",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\q1-float-0-trial.spv",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders\\matmul_row.comp"
+          ],
+          "sha256": "ad500869192d8feb2577af4f4e5428081de25a1aaf319bcc6744dff6ff5fa3e6",
+          "bytes": 9812
+        }
+      ]
+    },
+    {
+      "preserve": true,
+      "identical": true,
+      "cells": [
+        {
+          "arm": "before",
+          "argv": [
+            "C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-I",
+            "src\\backends\\vulkan\\shaders",
+            "-DLLMX_FLOAT_X",
+            "-DLLMX_Q1_0",
+            "-DLLMX_PRESERVE_F32",
+            "-o",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\q1-float-1-before.spv",
+            "src\\backends\\vulkan\\shaders\\matmul_row.comp"
+          ],
+          "sha256": "754f1a577315c15b93603c642aea322d03c5d9384b50461568239bbed29be661",
+          "bytes": 9908
+        },
+        {
+          "arm": "trial",
+          "argv": [
+            "C:/VulkanSDK/1.4.357.0/Bin/glslc.exe",
+            "-fshader-stage=compute",
+            "--target-env=vulkan1.2",
+            "-O",
+            "-I",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders",
+            "-DLLMX_FLOAT_X",
+            "-DLLMX_Q1_0",
+            "-DLLMX_PRESERVE_F32",
+            "-o",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\q1-float-1-trial.spv",
+            "build-low-bits-dev\\q1-streamed-pairs-v1\\shaders\\matmul_row.comp"
+          ],
+          "sha256": "754f1a577315c15b93603c642aea322d03c5d9384b50461568239bbed29be661",
+          "bytes": 9908
+        }
+      ]
+    }
+  ],
+  "mx_inspection": {
+    "commit": "c4d12e2c0094c9028318bed5bb1a30bb48f8a35b",
+    "source_pins": {
+      "ggml/src/ggml-vulkan/vulkan-shaders/dequant_funcs.glsl": "dbd119706ac698c845ecc66ae3185dce0b52e5c0416df48ad39b25c5e3aa8372",
+      "ggml/src/ggml-vulkan/vulkan-shaders/mul_mat_vec.comp": "191eba12fabefedee842bbfdc8035d4823b1981ba42bf58ac51d94eb09987261",
+      "ggml/src/ggml-vulkan/vulkan-shaders/vulkan-shaders-gen.cpp": "115d59ae53df75432860c69664178f4d9510493bcccbabe959d46c1624bc5f6c",
+      "ggml/src/ggml-vulkan/ggml-vulkan.cpp": "8df2c8f52fc59d19d3dda8a0198cc2bcf00dcb29d81eb428e43a68bb68068815"
+    },
+    "finding": "Generic Q1 matrix-vector source handles eight adjacent values with float signed-unit decoding and grouped scale-after-dot. It has several row/column specialization variants. Source inspection alone does not witness the pipeline chosen by the timed binary. Earlier four-output-row reuse experiments remain rejected; this trial instead limits per-row packed integer pair lifetimes. No mx implementation copied into llmx."
+  },
+  "artifact_hashes": {
+    "builder.diff": "5ff65b8e7eaa72bd5949ed8a2d87a74cc2f85c439b85de98623831b01e1b664c",
+    "q1-before-c1-folded.spv": "511741351b664d8282354d2ddf15d0e7a54311ead16277fedbafd272563be052",
+    "q1-before-c1-folded.spvasm": "b9e4b588edcd9a51028fa94370d71673b4c963954a4f39fbd91a716eec82d2bc",
+    "q1-before-c1.spv": "3ecbb3e66584e298780ac6ba38c4dc5d83c75799e6c311d2c90acc00f960d04e",
+    "q1-before-c1.spvasm": "8cd7f2b27905ad6bb19b1433928cbf65dcf3bb82b770e31d79e04a0ea48e7ff7",
+    "q1-before-c8-folded.spv": "d6a8b6e2fef23682e49627cade72127ce39a3afa995e1605842abb84bff3294d",
+    "q1-before-c8-folded.spvasm": "24690e6ec37f3dfb159d6b9297240b04134a93003c53159007129296d2da2909",
+    "q1-before-c8.spv": "2943b3889bebdc517557cf784f6c2bee06ddc5e2d958ab9cf58b7c914147b396",
+    "q1-before-c8.spvasm": "fcec98d34f6ad84ca7b67d7865099731b1138dbf93761c73d9b0cdb0893f7c84",
+    "q1-float-0-before.spv": "ad500869192d8feb2577af4f4e5428081de25a1aaf319bcc6744dff6ff5fa3e6",
+    "q1-float-0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-0-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-0-trial.spv": "ad500869192d8feb2577af4f4e5428081de25a1aaf319bcc6744dff6ff5fa3e6",
+    "q1-float-0-trial.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-0-trial.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-1-before.spv": "754f1a577315c15b93603c642aea322d03c5d9384b50461568239bbed29be661",
+    "q1-float-1-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-1-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-1-trial.spv": "754f1a577315c15b93603c642aea322d03c5d9384b50461568239bbed29be661",
+    "q1-float-1-trial.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-float-1-trial.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1-trial-c1-folded.spv": "eafb04f9acae2486b2127afd919aacd1a98512c0c561fa9e8739c762e128116e",
+    "q1-trial-c1-folded.spvasm": "8d5b1f004d7adbe20d1395f0313e13a1a5d0872afaa65291a79598d8b51d1adb",
+    "q1-trial-c1.spv": "da9bb8873531cb4dbc6b31748e344fb2fa59a7f2b1a682d16571bd88cf25bff6",
+    "q1-trial-c1.spvasm": "bcaa5a72d7ac53a4adb7c289f63c37cf6187b4143c6f89557e59e826bf27d54e",
+    "q1-trial-c8-folded.spv": "d6a8b6e2fef23682e49627cade72127ce39a3afa995e1605842abb84bff3294d",
+    "q1-trial-c8-folded.spvasm": "24690e6ec37f3dfb159d6b9297240b04134a93003c53159007129296d2da2909",
+    "q1-trial-c8.spv": "d6e1599c208fd509367dc3bcc3cee5f368f6e41ded86016479ecf83a57e472a9",
+    "q1-trial-c8.spvasm": "b1522a113c011f2197205dc8852bf1d98884ae9be423ae940f541297309b90af",
+    "q1_0-before.spv": "88cc9f976d4ff35c6660a96a9c8160c91bb32311a0953494405555d3c0b36b63",
+    "q1_0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1_0-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1_0-trial.spv": "19207ba35dca55a463862a8c4d5d5690bcf1a7063706e1f6a3b541e2c5fd790a",
+    "q1_0-trial.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q1_0-trial.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2_0-before.spv": "9a01aa01fa61174c78156f94234d669cb3929a3129fbe359a13352d1e9512db5",
+    "q2_0-before.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2_0-before.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2_0-trial.spv": "9a01aa01fa61174c78156f94234d669cb3929a3129fbe359a13352d1e9512db5",
+    "q2_0-trial.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "q2_0-trial.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "record.json": "ad32c77a0954e13b5154be78f3deb0250ee7b0653b9eeb3f36b4e4929ba04b8d",
+    "review.json": "523ae465590559ad70751570738db366096501e42c9a10265860c6f51f4317b3",
+    "source.diff": "6b6d5a119031692d2640ddb0ef2ce0f6784d9561467b6b99efd66ada98235404"
+  },
+  "candidate_qualified": false,
+  "runtime_changed": false,
+  "review": "Helper and root reviewed unchanged pair order, int32 bound1048544, common scale/FMA/repair/reduction and unchanged row mappings. Final AMD code generation and speed are not established."
+}

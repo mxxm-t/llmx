@@ -1,0 +1,180 @@
+{
+  "scope": "Offline exact arithmetic replay of 170 retained layer-0 Q2 V outputs and their F16 cache words. No gate amendment.",
+  "bundle": "build-low-bits-dev\\q2-v-boundary-arithmetic-v1",
+  "manifest_sha256": "55bd365ee4b455ec37e93459d391ab0d240d9b4ca6f64759d3893a492e12cc0c",
+  "report": {
+    "scope": "Exact offline F32 replay of the pinned 170 Q2 V cache-boundary entries.\n\nAll arithmetic is integer/rational, rounded explicitly to IEEE binary32 RNE.\nThe native ucrtbase fmaf is a cross-check of the software arithmetic, never\nthe replay's implementation. No runtime, inference, Torch or GPU is invoked.\n",
+    "complete": true,
+    "software_validation": {
+      "known_rounding_cases": 16,
+      "native_fmaf_cross_checks": 10003,
+      "native_library": "ucrtbase.dll:fmaf",
+      "mismatches": [],
+      "seed": "0x17020261028",
+      "replay_uses_native_float_arithmetic": false
+    },
+    "entries": 170,
+    "f32_byte_exact": 170,
+    "f16_byte_exact": 170,
+    "q2_observed_conversion_exact": 170,
+    "q4_observed_conversion_exact": 170,
+    "mismatches": 0,
+    "arithmetic_result_classes": {
+      "normal_results": 38044,
+      "subnormal_results": 0,
+      "zero_results": 36,
+      "infinite_results": 0
+    },
+    "replay_script_sha256": "e63bae5ffb067ee9d926d63cdafbe61e6f3dc73d125e89358486489041be1a38",
+    "input_pins_sha256": "80915272912aa4ee573a108915b38e2cc8b3a004410bd46f52b0493b67325ff4",
+    "entry_details_sha256": "d711c5fd9738a3504da1029458f9b0d28ab9b7ecf6978ed2ced1bc6584b35429",
+    "activated_tokens": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "no_inference_build_or_device_work": true,
+    "end_to_end_gate_status": "unchanged; not an end-to-end pass"
+  },
+  "emitted_order_audit": {
+    "scope": "Offline emitted-arithmetic/provenance audit of the 170-entry replay; no gate amendment.",
+    "frozen_runtime_library_sha256": "43ce47d9badacc7b286616a7cbe70a29f5bdb90929f6e70a8c7d2f7f725b4007",
+    "captured_helper_sha256": "d46a31c75e0f8ebf132049f838bfea2e6a7b549c0dbf316c588c107cb5f307ba",
+    "module_provenance": "ELF64 symbol-table extraction from the retained native-probe helper; same pinned static library as the retained ISA capture. Local Windows modules were not used.",
+    "frozen_source_identity": "All twelve owner/source files match the frozen ISA receipt after CRLF-to-LF normalization; old source snapshot used where current source changed.",
+    "selected_path": {
+      "basis": "Frozen host dispatch and MI50 RADV profile + captured shape, dtype, weight type and completed matrix-path witness. Per-inference dispatch-counter trace was not retained.",
+      "shape": [
+        17,
+        1024,
+        1024
+      ],
+      "dtype": "f16",
+      "input_twin": "block-int16",
+      "profile": "MI60 / MI50, radv, prefer_integer_dot=true",
+      "row_tile_crossover": 40,
+      "columns": [
+        8,
+        8,
+        1
+      ],
+      "kernel": "matmul_row_q2_0_dot; one-column specialization for final token",
+      "grouped_specialization_8": false,
+      "grouping_note": "Q/K/V projections share a dispatch through projection index pi; GROUPED=true is expert grouping and is not this call.",
+      "cluster": 32,
+      "groups_per_row": 32,
+      "lane_mapping": "lane l receives activation/weight group b=l; exactly one 32-value group per lane for nin=1024",
+      "subgroup": "MI50 wave64; each row is a 32-lane cluster. XOR offsets 16,8,4,2,1 never cross the row cluster.",
+      "producer": "rms_norm_rows, quant=1; scalar normalized value is stored to F32 output and used to produce its retained twin"
+    },
+    "integer_product": "Q2 fields decode independently to -1/0/+1/+2; per-block integer sums are exact, |sum| <= 2097088 < 2^24 and < 2^31.",
+    "scale_load": "SPIR-V load ushort -> UnpackHalf2x16 -> low component; retained ISA v_cvt_f32_f16.",
+    "float_order": "First round F32(weight_scale * input_scale), then F32 FMA(scale, exact F32(integer_dot), +0); descending XOR shuffles and F32 adds. Both extracted SPIR-V and retained final machine ISA confirm these distinct operations.",
+    "input_quantization": "Ordinary path only. Scale is peak * binary32 0x38000100. Reciprocal seed is 0x7ef311c3 - significand_bits, followed by four individually rounded, NoContraction Newton triples, multiplication by 32767 and Ldexp. Round codes via separate F32 input*inverse, abs+0.5, floor, sign and clamp.",
+    "input_quantization_limit": "Producer SPIR-V and frozen source are retained; its machine ISA and packed-twin readback are not. The replay establishes the composed quantization/dot output for these 170 entries, not an independent byte comparison of every intermediate twin value.",
+    "source_order_not_assumed": true,
+    "spirv_row_checks": [
+      "OpExecutionMode %4 DenormPreserve 32",
+      "OpExecutionMode %4 SignedZeroInfNanPreserve 32",
+      "OpDecorate %645 SpecId 8",
+      "%645 = OpSpecConstantFalse %bool",
+      "OpDecorate %712 SpecId 0",
+      "%712 = OpSpecConstant %uint 8",
+      "%1182 = OpLoad %ushort %1181",
+      "%1184 = OpExtInst %v2float %1 UnpackHalf2x16 %1183",
+      "%1185 = OpCompositeExtract %float %1184 0",
+      "%881 = OpFMul %float %1185 %877",
+      "OpDecorate %881 NoContraction",
+      "%900 = OpExtInst %float %1 Fma %881 %896 %899",
+      "%934 = OpGroupNonUniformShuffleXor %float %uint_3 %1563 %1558",
+      "%936 = OpFAdd %float %1563 %934",
+      "%938 = OpShiftRightLogical %uint %1558 %uint_1"
+    ],
+    "spirv_scalar_producer_checks": [
+      "%1666 = OpFMul %float %1658 %1665",
+      "%7257 = OpFMul %float %6309 %float_3_05185094en05",
+      "%7300 = OpISub %uint %uint_2129859011 %7299",
+      "%7305 = OpFMul %float %7297 %7301",
+      "%7306 = OpFSub %float %float_2 %7305",
+      "%7307 = OpFMul %float %7301 %7306",
+      "%7329 = OpFMul %float %float_32767 %7325",
+      "%7344 = OpExtInst %float %1 Ldexp %7329 %7343",
+      "%7491 = OpFMul %float %9657 %9633",
+      "%7496 = OpFAdd %float %7495 %float_0_5",
+      "%7497 = OpExtInst %float %1 Floor %7496",
+      "%7503 = OpExtInst %int %1 SClamp %7499 %int_n32767 %int_32767"
+    ],
+    "spirv_newton_no_contraction_ids": [
+      7305,
+      7306,
+      7307,
+      7311,
+      7312,
+      7313,
+      7317,
+      7318,
+      7319,
+      7323,
+      7324,
+      7325,
+      7329
+    ],
+    "final_machine_isa_checks": {
+      "matmul_row_q2_0_dot.txt": {
+        "sha256": "80c60a09ad71db6a89e229ea047845b5925d343463085146c919901398558c79",
+        "required_instructions": [
+          "v_dot2_i32_i16",
+          "v_cvt_f32_f16",
+          "v_mul_f32",
+          "v_fma_f32",
+          "ds_bpermute_b32",
+          "v_add_f32",
+          "v_xor_b32",
+          "s_lshr_b32"
+        ]
+      },
+      "matmul_row_q2_0_dot_1col.txt": {
+        "sha256": "b3e503d46540ee7056c1c6e9b4a0846a9b6490afcd7fdfe261a07625ec496b5a",
+        "required_instructions": [
+          "v_dot2_i32_i16",
+          "v_cvt_f32_f16",
+          "v_mul_f32",
+          "v_fma_f32",
+          "ds_bpermute_b32",
+          "v_add_f32",
+          "v_xor_b32",
+          "s_lshr_b32"
+        ]
+      }
+    },
+    "arithmetic_validation_tools": {
+      "C:\\Windows\\System32\\ucrtbase.dll": "3c60056371f82e4744185b6f2fa0c69042b1e78804685944132974dd13f3b6d9",
+      "C:/VulkanSDK/1.4.357.0/Bin/spirv-dis.exe": "decbe91bd0693eae5d1e7c4d41014ab27455412c0013a35d1b280ba368dc6c01"
+    },
+    "result": {
+      "f32_exact": 170,
+      "f16_exact": 170,
+      "mismatches": 0
+    },
+    "interpretation": "Closes the localized suspicion that these Q2 V half-boundary crossings require a wrongly decoded weight, wrong Q2 integer dot, wrong scale/FMA/reduction result or wrong F16 conversion. Does not prove other coordinates/operators or end-to-end correctness."
+  },
+  "limitations": [
+    "No producer machine ISA or packed-twin readback was retained. The composed outputs match, not independently captured intermediate twins.",
+    "This resolves the localized arithmetic suspicion, not the short ranking or NLL failures or full-model correctness."
+  ],
+  "next": "Required Q2 default raw/chat HF depth qualification under unchanged criteria. Short-case exception proposal remains unapproved."
+}

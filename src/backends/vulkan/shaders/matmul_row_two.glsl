@@ -1,4 +1,4 @@
-// The two-row builds' body (matmul_row.comp, ROWS above 1; the Q4 and K-quant families): a cluster's dots of rows r0 to r0 + ROWS - 1, up to MAX_COLS columns, each sum handed to ROW_STORE2(c, r, s); it returns from the including function.
+// Two-row builds (ROWS > 1): a cluster computes adjacent rows and hands each sum to ROW_STORE2; this body returns from the including function.
 // The including function supplies row, nout, l, wrow, type, wide, ncols and the XCOL and OCOL column maps, as for matmul_row_one.glsl.
     if (ROWS > 1u) {
         // The two-row builds: cluster `row` takes rows r0 .. r0 + ROWS - 1, those past the matrix's last read as its last and written by no lane.
@@ -7,6 +7,33 @@
         uint rlast = nout - 1u - r0;
         float accr[ROWS][MAX_COLS];
         [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) accr[r][c] = 0.0;
+#if defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT)
+        uint repair[ROWS][MAX_COLS];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) repair[r][c] = 0u;
+        uint nblocks = p.nin / 32u;
+        uint wbr[ROWS];
+        [[unroll]] for (uint r = 0u; r < ROWS; ++r) wbr[r] = w0 + min(r, rlast);
+        for (uint b = l; b < nblocks; b += p.cluster) {
+            for (uint c = 0u; c < MAX_COLS; ++c) {
+                if (c >= ncols) break;
+                uint col = XCOL(c), a2 = xa_col(col) / 2u + b * 8u;
+                uvec2 activations[8];
+                [[unroll]] for (uint j = 0u; j < 8u; ++j) activations[j] = xq2[a2 + j];
+                float dx = xq_block(col, b).x;
+                [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
+                    float dw;
+                    uint codes = lookup_group(wbr[r], p.nin, b, dw);
+                    uvec2 weights[8];
+                    [[unroll]] for (uint j = 0u; j < 8u; ++j) weights[j] = lookup_pairs(codes, j);
+                    int sum = 0;
+                    for (uint j = 0u; j < 8u; ++j) sum = dot_pairs(weights[j], activations[j], sum);
+                    float scale = dw * dx;
+                    if (lookup_unsafe_scale(dw, dx, scale)) repair[r][c] = 1u;
+                    accr[r][c] = fma(scale, float(sum), accr[r][c]);
+                }
+            }
+        }
+#endif
 #ifdef LLMX_Q4
         if (type == TYPE_Q4_0 && wide != 0u) {
             uint nblocks = p.nin / Q4_0_BLOCK;
@@ -183,6 +210,12 @@
             [[unroll]] for (uint r = 0u; r < ROWS; ++r) {
                 float s = accr[r][c];
                 for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) s += subgroupShuffleXor(s, off);
+#if defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT)
+                uint unsafe = repair[r][c];
+                for (uint off = p.cluster / 2u; off > 0u; off >>= 1u) unsafe |= subgroupShuffleXor(unsafe, off);
+                if (l == 0u && r <= rlast && (unsafe != 0u || isnan(s) || isinf(s)))
+                    s = lookup_float_twin(w0 + r, XCOL(c), p.nin, 0u, p.nin / 32u);
+#endif
                 ROW_STORE2(c, r, s)
             }
         }

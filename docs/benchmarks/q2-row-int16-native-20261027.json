@@ -1,0 +1,302 @@
+{
+  "title": "Focused Q2 integer row and tile native qualification",
+  "date": "2026-10-27",
+  "scope": "Independent native operator checks against the frozen Q2 row candidate. Only the copied test executable rebuilt; no runtime, kernel or numerical-limit changes during this run.",
+  "status": "Fixed runtime86e99 passes all88 native Q2 row, wide-tile and narrow routed-tile calls plus CPU checks. Frozen2101 narrow failure retained. HF and performance gates remain separate.",
+  "runtime_sha256": "2101c7a5f78fe35117cef3dcbb3279e7d917281ea9a2211a14a0d5ce2a7e1c5b",
+  "test_source_sha256": "37e457458ba56f90c05872c6f7c31510291d33b72ded22cc5c4b40676a111dad",
+  "frozen_test_source_sha256": "d1539ab581eb4e5d15a0757dde7f612f58b020344d144067ca5a573a6b8cbf6d",
+  "test_executable_sha256": "41bafea6a5f0b6566bfbeb2bff3bfa5422b435fdbb9b0291933def9aa53c1572",
+  "cases": {
+    "width": 192,
+    "packed_row_stride_bytes": 54,
+    "output_rows": 65,
+    "logical_extents": [
+      1,
+      129
+    ],
+    "physical_grouped_columns": {
+      "decode": 3,
+      "prompt": 129
+    },
+    "experts": 3,
+    "selected_per_token": 2,
+    "policies": [
+      "f16",
+      "int8 request using the wider block-int16 implementation"
+    ],
+    "grouped_routed_residual_calls": 12,
+    "range_calls": 64,
+    "operations": [
+      "mixed Q2/F32 grouped product",
+      "routed grouped product",
+      "nonuniform weighted routed residual"
+    ],
+    "range": {
+      "actual_rows": 1,
+      "actual_columns": 1,
+      "logical_extents": [
+        1,
+        129
+      ],
+      "half_scale_bits": [
+        "0x0000",
+        "0x8000",
+        "0x0001",
+        "0x8001"
+      ],
+      "one_hot_inputs": [
+        1e+38,
+        -1e+38,
+        1e-30,
+        -1e-30
+      ],
+      "purpose": "Huge finite inputs beside signed zero/tiny scales, plus tiny-input cases whose combined scale is subnormal while the final product fits."
+    }
+  },
+  "oracle": {
+    "normal": "Independent low-bit field decoder and double weight dots over testq::row_activations, using the existing low-bits close contract.",
+    "range": "The same independently reconstructed inputs and double weights, with the preexisting IQ2 finite-range rounding bound reused unchanged.",
+    "guards": "Output boundary guards retained for grouped, routed, residual and range cases.",
+    "source_preservation": "Root check_products row-input policy, check_scale_after_range and other existing invariant bodies retained."
+  },
+  "witnesses": {
+    "row_calls": 38,
+    "tile_calls": 38,
+    "actual_kernel_counts": {
+      "matmul_row_q2_0_dot": 2,
+      "matmul_row_q2_0_dot_grouped": 4,
+      "matmul_row_q2_0_dot_1col": 32,
+      "matmul_tile_q2_0_dot_small": 38
+    },
+    "matrix_paths": {
+      "mixed_grouped": [
+        "f32",
+        "block-int16"
+      ],
+      "routed_residual_and_range": [
+        "block-int16"
+      ]
+    },
+    "scope": "Each new operation drains earlier paths/timestamps and asserts the expected row-dot or tile-dot kernel. Routed selection is predicted from logical prompt extent, separately from dense crossover. Real timestamps were available for all 76 calls."
+  },
+  "hash_controls": {
+    "frozen_inputs_unchanged": true,
+    "frozen_runtime_libraries_shaders_files_checked": 322,
+    "runtime_library_hashes": {
+      "libllmx-vulkan.a": "aa8c29c362b734ba06690f60218204a9d5e757ec0959cebbb52487abf6f6793e"
+    },
+    "full_runtime_manifest_sha256": "ad1936fb67c6e9dcb31feed9530e197d7a70bb9fa845b08fa995715a66ddd587",
+    "full_source_manifest_sha256": "9195bf1b55f1260d7be2e9ba14b1691772d4c9eb39b61094efd9d2370551427b",
+    "copied_runtime_libraries_shaders_unchanged": true,
+    "only_native_test_target_rebuilt": true,
+    "retained_full_manifests": "build-low-bits-dev/q2-row-native-v1/out/execution.json"
+  },
+  "execution": {
+    "seconds": 30.439471006393433,
+    "limits": {
+      "build_seconds": 600,
+      "run_seconds": 180,
+      "host_reserve_bytes": 2147483648,
+      "build_memory": "8g",
+      "run_memory": "4g",
+      "physical_gpu": 9
+    },
+    "gpu_preflight": {
+      "cards": {
+        "card0": {
+          "GPU use (%)": "100",
+          "PCI Bus": "0000:03:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "30422257664"
+        },
+        "card1": {
+          "GPU use (%)": "100",
+          "PCI Bus": "0000:44:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "29512503296"
+        },
+        "card2": {
+          "GPU use (%)": "98",
+          "PCI Bus": "0000:83:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32357711872"
+        },
+        "card3": {
+          "GPU use (%)": "100",
+          "PCI Bus": "0000:86:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32358744064"
+        },
+        "card4": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:89:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card5": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:8C:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card6": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C3:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        },
+        "card7": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C6:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        },
+        "card8": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C9:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card9": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:CC:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        }
+      },
+      "pci": "0000:cc:00.0",
+      "node": "/dev/dri/renderD131",
+      "production_id": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2",
+      "protected_paths": [
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/zpool1/llmx-serve/flash-5673d3c25",
+        "/zpool1/llmx-serve/flash-5673d3c25/disk",
+        "/zpool1/models"
+      ],
+      "checked": 1793139090.5890179
+    },
+    "containers": [
+      {
+        "tag": "build",
+        "seconds": 22.49058222770691,
+        "exit_code": 0,
+        "OOMKilled": false,
+        "removed": true
+      },
+      {
+        "tag": "cpu",
+        "seconds": 2.4683196544647217,
+        "exit_code": 0,
+        "OOMKilled": false,
+        "removed": true
+      },
+      {
+        "tag": "capture",
+        "seconds": 2.5290911197662354,
+        "exit_code": 0,
+        "OOMKilled": false,
+        "removed": true
+      }
+    ]
+  },
+  "artifacts": {
+    "local_output": "build-low-bits-dev/q2-row-native-v1/out",
+    "remote_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-row-native-v1",
+    "execution_sha256": "a56d01f3bb2a60ac63f502525fa6a902785f7ec858490b847c23da9a66b0207a",
+    "supervisor_script_sha256": "fbe6cb4d4d3cc51a61faa469ccd4012a3f24aa3b9afd3619a80d6ccc6e4124f5",
+    "payload_manifest_sha256": "aecc4a983750b9c4982f3cd3d163b97055220be86ca1899af886ff1a83ba3a30",
+    "output_hashes": {
+      "build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "capture.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "capture.stdout": "fcdbc5e38674e790bb52b3add4c124c5cad756845c7574d3a9bdc18758e0d381",
+      "build.stdout": "cf3d811aea967d6f42bf0ee0f54e3b75890a1d879ce592fe2c5bc7afa39ef2d5",
+      "cpu.stdout": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61"
+    }
+  },
+  "failures": [],
+  "remaining": "No performance test was run. Tiny/model HF, explicit F32 control findings, BF16 review, split, released-file/depth and integration checks retain their separate dispositions.",
+  "ungrouped_followup": {
+    "numerical_cases_passed": 6,
+    "native_process_exit": 0,
+    "actual_kernel": "matmul_row_q2_0_dot_1col",
+    "actual_kernel_count": 6,
+    "scope": "Two mixed grouped, two routed gate, two routed residual cases; F16 and wider int8; one token, four selected experts of four, width 1024, 65 output rows. Independent reconstructed-input/double-weight oracle and original bounds.",
+    "supervisor_passed": false,
+    "supervisor_failure": "Postcapture count expected four _1col witnesses, but mixed projections also legitimately use _1col, giving six. Raw native process succeeded. No numerical or kernel witness failure.",
+    "receipt_sha256": "ff2322a89eed30a86a3f6a6f41655ab7d952a21e7fafa1e7b701704446fe3548",
+    "capture_sha256": "1364867460f614b1dab177209f753156cf11d717b8e1cfbb986ebbf3c17a117a",
+    "test_source_sha256": "9e015a9a343a36a5935ff5fcfac9273bc20ca6c8d58056cf98e99b6da26bbb9d",
+    "tracked_test_source_sha256": "10b74a20ca9c2ffab03823bdd7f4e398a580236e09ca431db0c976931cfd0ad3",
+    "test_executable_sha256": "477914c1e8d94c9fb5767ab95684527dc23fad81acf2d0dccb913396e02ee8c3",
+    "runtime_sha256": "2101c7a5f78fe35117cef3dcbb3279e7d917281ea9a2211a14a0d5ce2a7e1c5b",
+    "frozen_unchanged": true,
+    "removed": true,
+    "seconds": 19.591893911361694,
+    "prior_refusal": "q2-ungrouped-native-v1: scratch-only focused main left check_vulkan_paths unused and compilation refused under -Werror; no GPU executed. v2 marks this function maybe_unused only in copied test. Both artifacts retained.",
+    "artifacts": "build-low-bits-dev/q2-ungrouped-native-v2/out/",
+    "review": "build-low-bits-dev/q2-ungrouped-native-v2/review.json"
+  },
+  "narrow_routed_followup": {
+    "status": "Frozen candidate fails the missing narrow routed integer-tile case.",
+    "runtime_sha256": "2101c7a5f78fe35117cef3dcbb3279e7d917281ea9a2211a14a0d5ce2a7e1c5b",
+    "test_source_sha256": "32271d7cccaaf2376977a96237dc6b593c1b4ebb26ed7888f1c4758fe0d52bcb",
+    "tracked_test_source_sha256": "f5898bfd6d3b041aeda4a83e25304a1a444ccca2d5f94f1010483af4ff9c5eff",
+    "test_executable_sha256": "404fbf3d38be63469b501ac41b45623ad275ea392ff570b72f6678b08abf8e95",
+    "case": {
+      "columns": 1,
+      "logical_extent": 129,
+      "width": 1024,
+      "output_rows": 65,
+      "experts": 4,
+      "selected": 4,
+      "dtype": "f16",
+      "actual_kernel": "matmul_tile_q2_0_dot_tall_narrow"
+    },
+    "failure": "low-bit routed double-dot differs",
+    "scope": "First F16 mixed grouped call passes with matmul_tile_q2_0_dot_small. First F16 routed call has the demanded narrow kernel witness and fails independent reconstructed-input/double-weight oracle. Fail-fast prevents remaining residual/int8 calls; no bounds changed.",
+    "diagnosis_from_root": "vulkan_dispatch.hpp tall_tile classifier omits K_MATMUL_TILE_Q2_0_DOT_TALL; host plans tall128 but specialization defaults32. Runtime fix belongs to root and was not applied during this run.",
+    "receipt_sha256": "96ae95dd2f304de15c9c88cb6a4ab69e0766345ff49942186438ce4f416067a4",
+    "stdout_sha256": "86cb6f2b7d829b178fdf2f031a47120f966c4a896f4da0129b7cdcd587dafb43",
+    "stderr_sha256": "07c6a8383568cac726b976076cfb332726ef122711cc08dd6bfec074008f0f7f",
+    "frozen_unchanged": true,
+    "containers_removed": true,
+    "seconds": 19.634390115737915,
+    "artifacts": "build-low-bits-dev/q2-narrow-native-v1/out/"
+  },
+  "fixed_tall_classifier_followup": {
+    "status": "CPU and Vulkan native checks pass after missing tall-kernel classifier ID fix.",
+    "runtime_sha256": "86e99e2f47630042821a60fe99f3ac430e27505b09f323fb7a193fdc0a3b49a1",
+    "test_source_sha256": "f5898bfd6d3b041aeda4a83e25304a1a444ccca2d5f94f1010483af4ff9c5eff",
+    "test_executable_sha256": "e899878e1dab24ebe0fddd40085ddf7bfacc9f2ba4490cb732047c073daa72c1",
+    "calls": 88,
+    "row_calls": 44,
+    "tile_calls": 44,
+    "actual_kernel_counts": {
+      "matmul_row_q2_0_dot": 2,
+      "matmul_row_q2_0_dot_grouped": 4,
+      "matmul_row_q2_0_dot_1col": 38,
+      "matmul_tile_q2_0_dot_small": 40,
+      "matmul_tile_q2_0_dot_tall_narrow": 4
+    },
+    "before_after": "Frozen2101 runtime fails the first one-token logicalextent129 F16 routed case after witnessing the tall_narrow kernel. Fixed86e99 runtime passes the same independent oracle plus all four F16/int8 routed/residual narrow cases and all prior row/wide-tile/range cases. No oracle or tolerance change.",
+    "receipt_sha256": "bbf0bad2331b1851e9275820a12ad129e8c2c4180889509d80e428a358a0a2b7",
+    "seconds": 22.0355544090271,
+    "frozen_unchanged": true,
+    "all_containers_removed": true,
+    "limits": {
+      "build_seconds": 600,
+      "run_seconds": 180,
+      "host_reserve_bytes": 2147483648,
+      "build_memory": "8g",
+      "run_memory": "4g",
+      "physical_gpu": 9
+    },
+    "artifacts": "build-low-bits-dev/q2-tall-fix-native-v1/out/",
+    "limitations": "Native coverage only; HF qualification and performance remain separate. Prior failing runtime and harness bookkeeping/compile refusals retained."
+  }
+}

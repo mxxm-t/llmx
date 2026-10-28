@@ -1,0 +1,231 @@
+{
+  "scope": "Q1 selected-policy raw16K depth passes; Q2 NLL failures retained and Rome head mismatch localized upstream. Not full qualification.",
+  "q1": {
+    "reference_seconds": 6766.7787272930145,
+    "reference_peak_GiB": 12.90228271484375,
+    "reference_rows": 512,
+    "reference_score_sha256": "0156f5eb67a70905115eefc4b5aaf1caa7732a5f6be75d4f77040a9fe73d5ab8",
+    "runtime_capture_seconds": 89.40548396110535,
+    "comparison": {
+      "scope": "Selected-policy depth comparison only; other qualification remains separate.",
+      "variant": "raw",
+      "counts": {
+        "exact": 512,
+        "accepted-tie": 0,
+        "miss": 0
+      },
+      "passed": true,
+      "margin": 0.1,
+      "reference_receipt_sha256": "da70ab16c767f53b72388213b62ee726632309a11c6ce8c069264377e21436bf",
+      "capture_receipt_sha256": "9255b634a1e1b168d3af30b85408bf40b6582e7df84794b12dbfd00d11c9d41a",
+      "consumer_sha256": "9eea2b32d817607857099eab7ab6680b9fe6a6bb2d735d95d20fd460de446ccb",
+      "rule_owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+    },
+    "largest_logit_difference": 0.021600723266601562,
+    "remaining": "Chat selected-policy reference, F32 quality companions and other landing checks remain."
+  },
+  "q2_NLL": {
+    "completed": true,
+    "passed": false,
+    "cases": [
+      {
+        "tag": "q2-0-auto-kv-f16",
+        "passed": false,
+        "failure": "Traceback (most recent call last):\n  File \"/w/tests/baseline.py\", line 182, in check_model_ppl\n    result = common.check_ppl(out, case, doc[\"n_tokens\"], model_context, spec)\n  File \"/w/tests/common.py\", line 595, in check_ppl\n    require(delta <= bound, \"mean NLL %.6f vs HF %.6f: difference %.9g exceeds bound %.9g\"\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n            % (nll, case[\"mean_nll\"], delta, bound))\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/w/tests/common.py\", line 534, in require\n    raise ValueError(message)\nValueError: mean NLL 17.594696 vs HF 17.564098: difference 0.0305973983 exceeds bound 0.01\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/prepared/run.py\", line 54, in <module>\n    result=baseline.check_model_ppl(ppl,baseline.ppl_excerpt(ppl,str(folder)),model,spec,'file-exact-ppl-only',model_context)\n  File \"/w/tests/baseline.py\", line 184, in check_model_ppl\n    raise AssertionError(\"%s context %d %s: %s: %s\"\n                         % (spec[\"file\"], case[\"context_size\"], mode, error, out)) from error\nAssertionError: Qwen3-0.6B-Q2_0.gguf context 0 per-token: mean NLL 17.594696 vs HF 17.564098: difference 0.0305973983 exceeds bound 0.01: tokens: 247\nused tokens: 247\nscored tokens: 246\nchunks: 1\ncontext size: 40960\nmean NLL: 17.594695802\nperplexity: 4.37804e+07\n\n",
+        "children": 3
+      },
+      {
+        "tag": "q2-0-auto-kv-f32",
+        "passed": false,
+        "failure": "Traceback (most recent call last):\n  File \"/w/tests/baseline.py\", line 182, in check_model_ppl\n    result = common.check_ppl(out, case, doc[\"n_tokens\"], model_context, spec)\n  File \"/w/tests/common.py\", line 595, in check_ppl\n    require(delta <= bound, \"mean NLL %.6f vs HF %.6f: difference %.9g exceeds bound %.9g\"\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n            % (nll, case[\"mean_nll\"], delta, bound))\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/w/tests/common.py\", line 534, in require\n    raise ValueError(message)\nValueError: mean NLL 17.544304 vs HF 17.564098: difference 0.0197943917 exceeds bound 0.01\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/prepared/run.py\", line 54, in <module>\n    result=baseline.check_model_ppl(ppl,baseline.ppl_excerpt(ppl,str(folder)),model,spec,'file-exact-ppl-only',model_context)\n  File \"/w/tests/baseline.py\", line 184, in check_model_ppl\n    raise AssertionError(\"%s context %d %s: %s: %s\"\n                         % (spec[\"file\"], case[\"context_size\"], mode, error, out)) from error\nAssertionError: Qwen3-0.6B-Q2_0.gguf context 0 batched: mean NLL 17.544304 vs HF 17.564098: difference 0.0197943917 exceeds bound 0.01: tokens: 247\nused tokens: 247\nscored tokens: 246\nchunks: 1\ncontext size: 40960\nmean NLL: 17.544304012\nperplexity: 4.16289e+07\n\n",
+        "children": 2
+      }
+    ],
+    "limits_unchanged": true,
+    "stop_rule": "Existing owner stops each cache at its first NLL failure. Window cases and subsequent per-token cases are not claimed."
+  },
+  "q2_head": {
+    "scope": "Fixed Rome head-cut analysis; independent two-row double dots, no new bound.",
+    "capture_and_replay_byte_controls": true,
+    "head_tokens": [
+      20002,
+      41479
+    ],
+    "sources": {
+      "runtime": {
+        "original_input_sha256": "85dd9c52dcc520c4bda28e7006a12ca4eaaf8ad4e82cacced6143b6eac2e8083",
+        "rounded_input_sha256": "d3359369561b155ce80057e183d24c91933f28a009ddafad49858b9dc17a7523",
+        "double_dots": {
+          "20002": 11.53776065936266,
+          "41479": 11.565699615210974
+        },
+        "sum_magnitudes": {
+          "20002": 73.68020516728234,
+          "41479": 63.94535519518835
+        },
+        "double_margin_20002_minus41479": -0.02793895584831496,
+        "outputs": {
+          "CPU": {
+            "sha256": "7cb49ed6588a16cc1b1a68ac76b532778ff3a6bd1a2c1e5421893b3855377d63",
+            "logits": {
+              "20002": 11.537760734558105,
+              "41479": 11.565702438354492
+            },
+            "margin_20002_minus41479": -0.02794170379638672,
+            "errors_vs_double": {
+              "20002": 7.519544631406916e-08,
+              "41479": 2.823143518071447e-06
+            }
+          },
+          "GPU": {
+            "sha256": "ec3a30c753494488a34eb2dc252fd7b9eed5bc4d350b7ca1094b876dd937aaab",
+            "logits": {
+              "20002": 11.53777027130127,
+              "41479": 11.565711975097656
+            },
+            "margin_20002_minus41479": -0.02794170379638672,
+            "errors_vs_double": {
+              "20002": 9.61193861037657e-06,
+              "41479": 1.2359886682133947e-05
+            }
+          }
+        }
+      },
+      "HF-replayed": {
+        "original_input_sha256": "97598f2b534a79cc4676c9160fa8480db93e83c30f4ed9f52b6ca19b182ce35d",
+        "rounded_input_sha256": "02b35b81421cdac9d771ba2e42d0abf126744f9f3ab5881563ca219726d6936c",
+        "double_dots": {
+          "20002": 11.722361769162863,
+          "41479": 11.56314219461585
+        },
+        "sum_magnitudes": {
+          "20002": 73.64419623661003,
+          "41479": 64.04135162288246
+        },
+        "double_margin_20002_minus41479": 0.15921957454701285,
+        "outputs": {
+          "CPU": {
+            "sha256": "7e86d8d81ca328f0c5f527b62d7072ff982726a6e6ec7383b24556c42cac4b24",
+            "logits": {
+              "20002": 11.72236156463623,
+              "41479": 11.563140869140625
+            },
+            "margin_20002_minus41479": 0.15922069549560547,
+            "errors_vs_double": {
+              "20002": -2.045266320749306e-07,
+              "41479": -1.3254752246893986e-06
+            }
+          },
+          "GPU": {
+            "sha256": "e4e31ea08dbaffb611f9d53969aae54a9c3b2b23edac867757cd3330e02c3e5b",
+            "logits": {
+              "20002": 11.722360610961914,
+              "41479": 11.563142776489258
+            },
+            "margin_20002_minus41479": 0.15921783447265625,
+            "errors_vs_double": {
+              "20002": -1.1582009484811806e-06,
+              "41479": 5.818734081231014e-07
+            }
+          }
+        }
+      },
+      "HF-original": {
+        "original_input_sha256": "97598f2b534a79cc4676c9160fa8480db93e83c30f4ed9f52b6ca19b182ce35d",
+        "rounded_input_sha256": "02b35b81421cdac9d771ba2e42d0abf126744f9f3ab5881563ca219726d6936c",
+        "double_dots": {
+          "20002": 11.722361769162863,
+          "41479": 11.56314219461585
+        },
+        "sum_magnitudes": {
+          "20002": 73.64419623661003,
+          "41479": 64.04135162288246
+        },
+        "double_margin_20002_minus41479": 0.15921957454701285,
+        "outputs": {
+          "HF": {
+            "sha256": "9e0de308d3f38df8959e0f2005903f835c8dbaf0baa28616620c61a614a12431",
+            "logits": {
+              "20002": 11.72236156463623,
+              "41479": 11.563141822814941
+            },
+            "margin_20002_minus41479": 0.15921974182128906,
+            "errors_vs_double": {
+              "20002": -2.045266320749306e-07,
+              "41479": -3.718009082831486e-07
+            }
+          }
+        }
+      }
+    },
+    "weights": {
+      "20002": {
+        "F32_sha256": "ab5ac16e862cb587046951a9feb1c01cb7dca7c97749cdf258ee9d338a49b702",
+        "count": 1024
+      },
+      "41479": {
+        "F32_sha256": "b763218b36c8c572208957359bb67ed26e6d5b1bb62798d2ada9438f8d13d2be",
+        "count": 1024
+      }
+    },
+    "new_numeric_threshold": false,
+    "HF_rounding_implementation_diagnostic": {
+      "equal_bits": 1024,
+      "count": 1024,
+      "max_abs_difference": 0.0,
+      "disposition": "Diagnostic only; no selecting reconstruction by agreement."
+    },
+    "existing_Q6_head_bound": {
+      "runtime": {
+        "owner": "tests/backend_vulkan.cpp Q6_K matmul_logits versus CPU independently row_activations-rounded input",
+        "relative": 0.0001,
+        "failures": 0
+      },
+      "hf": {
+        "owner": "tests/backend_vulkan.cpp Q6_K matmul_logits versus CPU independently row_activations-rounded input",
+        "relative": 0.0001,
+        "failures": 0
+      }
+    },
+    "interpretation": "Double dots/margins localize head versus upstream input effects; no new double-error allowance or released-file gate pass. Any existing head-bound failure or byte-control failure remains a defect candidate. Canonical full reference and ranking thresholds are unchanged."
+  },
+  "head_terminal": {
+    "seconds": 138.82819724082947,
+    "all_stages_removed": true,
+    "inputs_unchanged": true
+  },
+  "artifact_hashes": {
+    "build-low-bits-dev/q1-depth-prereq-v1/full-depth-v2/MI50-selected-raw/supervisor.json": "da70ab16c767f53b72388213b62ee726632309a11c6ce8c069264377e21436bf",
+    "build-low-bits-dev/q1-depth-prereq-v1/full-depth-v2/MI50-selected-raw/report.json": "996be88cf4ced88409b88a30cdecdbfb6135f385e577ad82cecd844b91643fd3",
+    "build-low-bits-dev/q1-depth-prereq-v1/depth-capture-v1/out/execution.json": "9255b634a1e1b168d3af30b85408bf40b6582e7df84794b12dbfd00d11c9d41a",
+    "build-low-bits-dev/q1-depth-prereq-v1/depth-capture-v1/raw-comparison.json": "9eb2eb1d95e27096ecdf85b61001fc817733f0c0fc63ff9d5bfc80f4dc62b0d3",
+    "build-low-bits-dev/q2-nll-only-v1/out/supervisor.json": "7ff1df71fb30d47992477035073692e4b6260f5eddcf8cef79c4cbbf59c99259",
+    "build-low-bits-dev/q2-nll-only-v1/out/execution.json": "b430823fd95602976445c825c2d596f37387bb4c81cc503fd72b6b460918ce2b",
+    "build-low-bits-dev/q2-rome-head-cut-v2/out/execution.json": "c975c3befb33bfb0135babdda248866dc02baf0e865eed0ed3b3943cb60cc1da",
+    "build-low-bits-dev/q2-rome-head-cut-v2/out/head-analysis.json": "97eea85e3a577a004c147e0c678a21c8129efb231054ef0706e0bb47cc02f2c6"
+  },
+  "diagnostic_preflight_correction": {
+    "reason": "Prior ISA receipt pins 324 runtime products, not all 1382 build files; comparing its subset map with a full map falsely refused unchanged inputs.",
+    "prior_failure_sha256": "9219e462fe2df37ed489095a44b454f14e3eb8cd9f39f84cda47c63a39e99d11",
+    "verified_all_922_source_files_unchanged": true,
+    "verified_all_324_runtime_products_unchanged": true,
+    "additional_full_build_snapshot": "build-inputs.json from completed unchanged Q1 runtime capture",
+    "build_snapshot_sha256": "009ece8c205143f48900dde7f9f8e364c6393b582b5581f5777f49106e3c3272",
+    "numerics_or_policy_changed": false
+  },
+  "markdown_review": {
+    "prior_catalog": "docs\\benchmarks\\q1-trace-checkpoint-review-20261028.json",
+    "prior_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+    "pages": 154,
+    "unchanged_carried": 153,
+    "changed_pages": {
+      "docs/STATUS.md": "4f56338b3c07364ef7878da01b3e5cbdd8ac18792826d48c8d0a94bb0519ea62"
+    },
+    "scope": "Evidence-only checkpoint. STATUS current claims checked against completed reference/capture, head/NLL receipts and rejected performance trial. Unchanged source/usage/precision/architecture pages retain prior semantic review. No runtime or numerical policy change."
+  },
+  "checks": {
+    "docs": "PASS: zero findings,21 planted faults",
+    "dead_code": "PASS: seven listed findings,19 planted faults",
+    "log_sha256": "a50151f42ce7cf05ab8301abe3d99145e9888de821e111340765e760b4fc59c9"
+  }
+}

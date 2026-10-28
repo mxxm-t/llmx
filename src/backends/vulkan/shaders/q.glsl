@@ -11,6 +11,12 @@ const uint MXFP4_BYTES = 17u;
 const uint TYPE_NVFP4 = 40u;
 const uint NVFP4_BLOCK = 64u;
 const uint NVFP4_BYTES = 36u;
+const uint TYPE_Q1_0 = 41u;
+const uint Q1_0_BLOCK = 128u;
+const uint Q1_0_BYTES = 18u;
+const uint TYPE_Q2_0 = 42u;
+const uint Q2_0_BLOCK = 64u;
+const uint Q2_0_BYTES = 18u;
 
 const uint TYPE_TQ1_0 = 34u;
 const uint TYPE_TQ2_0 = 35u;
@@ -87,6 +93,8 @@ float half_at(uint lo, uint hi) {
 
 // Bytes and values per block of a type.
 uint block_bytes(uint type) {
+    if (type == TYPE_Q1_0) return Q1_0_BYTES;
+    if (type == TYPE_Q2_0) return Q2_0_BYTES;
 #if !defined(LLMX_FLOAT_X) || defined(LLMX_NVFP4)
     if (type == TYPE_NVFP4) return NVFP4_BYTES;
 #endif
@@ -99,6 +107,8 @@ uint block_bytes(uint type) {
 }
 bool is_kquant(uint type) { return type == TYPE_Q2_K || type == TYPE_Q3_K || type == TYPE_Q4_K || type == TYPE_Q5_K || type == TYPE_Q6_K; }
 uint block_values(uint type) {
+    if (type == TYPE_Q1_0) return Q1_0_BLOCK;
+    if (type == TYPE_Q2_0) return Q2_0_BLOCK;
 #if !defined(LLMX_FLOAT_X) || defined(LLMX_NVFP4)
     if (type == TYPE_NVFP4) return NVFP4_BLOCK;
 #endif

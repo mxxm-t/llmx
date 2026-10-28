@@ -1,0 +1,53 @@
+{
+  "scope": "Current Q1 candidate CPU-default-cache raw 16K depth comparison only. This closes one raw CPU cell, not chat depth, final-source confirmation, full CPU qualification or merge qualification.",
+  "documentation_checkpoint": "3155572f8b",
+  "candidate": {
+    "build_receipt_sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6",
+    "cli_sha256": "c0a668057928cca2646baa337c94ec1b84cdad397ef431a501bacf9676741006",
+    "library_sha256": "608e2afde63e90f7f7966a5d2bb904177a3c645d482badd96caa9fe5fa2e8278",
+    "plan_sha256": "aaf098896183932095c5aee12c5264007686f20d072fd95bfa74954b6bca5492",
+    "plan_scope": "CPU-default auto-dtype Q1 runtime capture; raw/chat 16K prompts, 511 single-token decode steps; no HF comparison, numerical allowance or gate result.",
+    "dtype": "auto; effective F16 under frozen CPU policy",
+    "actual_q1_matrix_path": "F32; Q1 has no CPU integer-dot path",
+    "kv": "F16/F16",
+    "runtime_capture_retry": "cpu-default-runtime-depth-retry3-v1/out-retry3"
+  },
+  "reference": {
+    "policy": "CPU-default-cache",
+    "model_sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "map_sha256": "47498695b0c52f32dbcef1be8a3c657885ff182888d22b3721bf5a7487404bf0",
+    "input_manifest_sha256": "5eaa4798e402d63b31f32f741b1f7af0728ebdf4e253933054ca7cca985c92a0",
+    "supervisor_sha256": "ad1a61eb140724c313c4c188996829e145770910f3d5cab6354f90ced98975dc",
+    "scores_sha256": "ec6124e58b3014bcd56ed79f0949c1622eaacdbf0e5a5669f6efc8721057a1df"
+  },
+  "comparison": {
+    "consumer": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/compare-cpu-depth-v2.py",
+    "consumer_sha256": "1d50bc572a2f11709cbb8cb216c18ef56d714b456dd1bb943db3f187c0629361",
+    "result": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/cpu-default-raw.json",
+    "result_sha256": "d50a903a74378f4ced77b9853eaa1c6e935762342afaaed00db5787ba1c04dff",
+    "counts": {"exact": 512, "accepted_tie": 0, "miss": 0},
+    "margin": 0.1,
+    "passed": true,
+    "capture_execution_sha256_before": "6a387f247006d1564e83cd354263acf33357b589911b7daefc38100a167138a6",
+    "capture_execution_sha256_after": "0ed024e18a0632f6d658cb97ade83f4e616f5b8be36a9e2f48003045833f1b81",
+    "capture_scores_sha256": "62db90a9f19376827e9ac4a96093eb3561f38b4be7ab9f967196b882e641b2ac",
+    "capture_logs_sha256": {
+      "stdout": "93e03f3e345c40b9e93a6f07ff255c3b8fb05bc13d062da5ea9238a927f56412",
+      "stderr": "c7bc9bfb8fa338b7403ad24dfed8f842170cf653a05d46b00a3c5be01eefa860"
+    }
+  },
+  "harness_history": {
+    "initial_comparison": "Stopped before comparing: the harness looked in the parent of rig_root instead of resolving the candidate receipt from rig_root/build_receipt. No inference ran.",
+    "corrected_comparison": "The v2 consumer resolves the plan's candidate rig_root and build_receipt. It verifies the pinned reference, capture plan, candidate receipt and hashes before comparing the retained raw cell.",
+    "inference_replayed": false,
+    "reference_regenerated": false,
+    "rule_changed": false,
+    "initial_retry2_runtime_refusal": "Retained separately: metadata expected auto to resolve to F32 and capture refused before prefill. This is not a comparison miss."
+  },
+  "remaining": [
+    "CPU-default chat depth",
+    "final-source confirmation",
+    "broader CPU qualification",
+    "full Q1/Q2 qualification and landing checks"
+  ]
+}

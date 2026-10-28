@@ -1,0 +1,125 @@
+{
+  "status": "DRAFT FOR ROOT REVIEW; user approval pending; no policy or test changes made",
+  "recommendation": "Permit continued qualification with a finite ledger of these exact reference-sensitive short cases. Keep every measured failure visible. This is not release approval and is not a claim that end-to-end correctness is proven.",
+  "scope": {
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "model": "Qwen3-0.6B-Q2_0.gguf: 196 Q2_0 body matrices, Q4_K embedding, Q6_K output head",
+    "backend": "The retained MI50/RADV environment only",
+    "matrix_policy": "Default F16-class block-int16 execution; explicit F32 execution is outside the proposed exception and keeps its current requirements",
+    "cache_note": "f16 and f32 below name KV storage, not activation dtype",
+    "runtime_library_sha256": "43ce47d9badacc7b286616a7cbe70a29f5bdb90929f6e70a8c7d2f7f725b4007",
+    "q2_row_spirv_sha256": "24b281231b7fd0feb9f9ba09e560df6787163e826a6f7bac91851cf71373da9b",
+    "identity_requirements": "Exact retained token IDs, reference artifact, KV type, scoring schedule and completed arithmetic witness. A later checkpoint needs retained-output/module equivalence or renewed review; no automatic extension to changed arithmetic, other files, prompts or backends."
+  },
+  "original_f32_hf_ranking_failures": [
+    {
+      "case_index": 0,
+      "prompt": "The capital of France is",
+      "kv": "f16",
+      "q2": "top1 matches; top5 4/5",
+      "selected_full_policy_hf": "Q2 top1 matches; top5 5/5",
+      "main_q4": "Same original-reference top5 4/5 failure; selected-full top5 5/5",
+      "localized_v_replay_applies": false
+    },
+    {
+      "case_index": 2,
+      "prompt": "def add(a, b):",
+      "kv": "f16",
+      "q2": "top1 40604 versus original HF 54200; top5 5/5",
+      "selected_full_policy_hf": "Reproduces Q2 top1 40604; top5 5/5. HF full/singleton also changes top1.",
+      "main_q4": "Original-reference top1/top5 pass; differs from selected-full top1",
+      "localized_v_replay_applies": false
+    },
+    {
+      "case_index": 3,
+      "prompt": "The three primary colors are red,",
+      "kv": "f16",
+      "q2": "top1 102644 versus original HF 102563; top5 3/5",
+      "selected_full_policy_hf": "Reproduces Q2 top1 and top5 5/5",
+      "main_q4": "Also fails original top1 and top5 3/5, with another winner 103971; selected-full top5 5/5 but top1 differs",
+      "localized_v_replay_applies": false
+    },
+    {
+      "case_index": 3,
+      "prompt": "The three primary colors are red,",
+      "kv": "f32",
+      "q2": "top1 102644 versus original HF 102563; top5 5/5",
+      "selected_full_policy_hf": "Reproduces Q2 top1 and top5 5/5",
+      "main_q4": "Original-reference pass; differs from selected-full top1",
+      "localized_v_replay_applies": false
+    },
+    {
+      "case_index": 5,
+      "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+      "kv": "f16",
+      "q2": "top1 matches; top5 3/5 against original F32 HF",
+      "selected_full_policy_hf": "Top1 matches; top5 4/5 remains a failure",
+      "main_q4": "Original top5 4/5 failure; selected-full top5 5/5",
+      "localized_v_replay_applies": "Only the 170 differing layer-0 V boundary entries: exact software Q2 product and F16 conversion, not the final ranking",
+      "reference_sensitivity": "HF full and singleton/F64-Linear variants change literal top5. Existing tie-aware helper gives HF variants 5/5 against full HF; this is not transitive and does not clear runtime Q2. F64 is not a replacement reference."
+    }
+  ],
+  "continuous_nll_ledger": {
+    "input": "The retained 247-token Robert Boulter excerpt, 246 scored targets",
+    "existing_bound": 0.01,
+    "rows": [
+      {
+        "kv": "f16",
+        "runtime_schedule": "batched",
+        "runtime_mean": 17.572619864577923,
+        "original_f32_hf_delta": 0.008521460897001079,
+        "original_result": "pass; no original-reference NLL exception needed",
+        "selected_full_policy_hf_delta": -0.012771289525899381,
+        "selected_full_result": "diagnostic failure",
+        "main_q4_evidence": "All 246 per-target F64 losses are byte-identical across main/Q4, candidate/Q4 and candidate/Q2"
+      },
+      {
+        "kv": "f32",
+        "runtime_schedule": "batched",
+        "runtime_mean_cli": 17.544304012,
+        "original_f32_hf_delta_cli": -0.019794391680921564,
+        "original_result": "failure proposed for exact-case exception ledger",
+        "selected_full_policy_hf_delta_cli": -0.0053575373362093615,
+        "selected_full_result": "diagnostic pass",
+        "main_q4_evidence": "Main/Q4, candidate/Q4 and candidate/Q2 CLI outputs match, including nine-decimal mean; per-target F32-KV identity was not established"
+      },
+      {
+        "kv": "f16",
+        "runtime_schedule": "singleton (--per-token)",
+        "runtime_mean": 17.594695801872177,
+        "original_f32_hf_delta": 0.030597398191258954,
+        "original_result": "failure proposed for exact-case exception ledger",
+        "selected_full_policy_hf_delta": 0.009304647768358496,
+        "selected_full_result": "diagnostic pass against fixed full-prompt HF",
+        "selected_singleton_policy_hf_delta": -0.014485352300408927,
+        "selected_singleton_result": "diagnostic failure against matched singleton HF",
+        "main_q4_evidence": "Main/Q4 singleton also fails original (+0.021108793716791426) and matched singleton HF (-0.023973956774876456), but differs from Q2 by +0.009488604474467529 Q2-minus-Q4 mean"
+      }
+    ],
+    "hf_only_sensitivity": "Selected-policy HF F16-KV full versus singleton changes mean NLL by 0.0237900000688, without runtime involvement. Selected arithmetic and KV choices also exceed 0.01 against original F32 HF.",
+    "localized_v_replay_applies": false,
+    "unmeasured_cases": "No exception is proposed for F32-KV singleton or uncompleted windowed cases. Existing required NLL measurements must still be completed and reported."
+  },
+  "proposed_disposition": [
+    "Keep the original F32 HF goldens and the 0.1 ranking/0.01 NLL rules unchanged; failed comparisons remain failed comparisons in reports.",
+    "If the user approves, permit the exact five ranking cells and the two original-reference continuous-NLL cells listed above to be named accepted short-case exceptions for this identity when assessing qualification; also retain the selected-policy diagnostic failures explicitly.",
+    "The exception is not a new numerical margin and does not authorize different output sets, changed models/arithmetic, missing measurements, nonfinite outputs, or any unlisted failure.",
+    "All operator, exact decoding/conversion/range, tiny-HF, split/batch identity, other precision/backend, windowed and long-context NLL/ranking checks remain required under their existing criteria. The listed NLL controls remain required measurements and are never silently skipped.",
+    "No merge, release, broader backend claim or end-to-end correctness claim follows from this approval. Unlisted failures remain blockers."
+  ],
+  "independent_assessment": {
+    "why_continuation_is_reasonable": "Arithmetic sensitivity is independently demonstrated; existing-main identical weights reproduce material failures; the focused causal V suspicion now has a 170/170 exact arithmetic explanation. More short reference variants would add little.",
+    "what_is_proven": "The exact composed Q2 activation quantization/weight decode/integer dot/F32 scale-FMA-reduction result and F16 conversion for the 170 named layer-0 V entries.",
+    "what_is_not_proven": "Correctness of every reached operator or of the released model at depth. Accepting the named failures is an explicit policy exception, not a numerical proof that those failed gates passed.",
+    "single_remaining_discriminating_proof": "The already-required external default-precision Q2 depth qualification on this exact file, raw and chat, under the unchanged tie-aware criteria. Do not invent a new short-reference variant or require 512 exact matches where the existing rule permits ties."
+  },
+  "evidence": [
+    "docs/benchmarks/q2-singleton-rank-controls-20261028.json",
+    "docs/benchmarks/q2-six-short-policy-20261028.json",
+    "docs/benchmarks/q2-layer-sensitivity-20261028.json",
+    "docs/benchmarks/q2-q4-exact-weight-control-20261028.json",
+    "docs/benchmarks/q2-q4-per-target-control-20261028.json",
+    "docs/benchmarks/q2-hf-sensitivity-20261028.json",
+    "build-low-bits-dev/q2-v-boundary-arithmetic-v1/manifest.json"
+  ]
+}

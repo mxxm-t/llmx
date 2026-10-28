@@ -27,10 +27,10 @@
 #if defined(LLMX_I8) && !(defined(LLMX_DOT) && (defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)))
 #error "the 8-bit twin is read by the Q4 and K-quant families through the integer dot"
 #endif
-#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1) || defined(LLMX_K23) || defined(LLMX_TQ))
+#if defined(LLMX_DOT) && !(defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || defined(LLMX_MXFP4) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1) || defined(LLMX_K23) || defined(LLMX_TQ) || defined(LLMX_LOW_BITS_DOT))
 #error "Q8_0 and F32 rows take matmul_vec_q8.comp and the plain build on integer-dot devices"
 #endif
-#if defined(LLMX_TQ) && defined(LLMX_DOT)
+#if (defined(LLMX_TQ) && defined(LLMX_DOT)) || defined(LLMX_LOW_BITS_DOT)
 #define LLMX_LOOKUP_DOT
 #endif
 #if defined(LLMX_IQ4) || ((defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)) && defined(LLMX_DOT))
@@ -99,7 +99,7 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
-// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both.
+// Rows a cluster takes, specialization constant 9: Q4/K-quant row builds and Q1's one-column decode build reuse each column's activation loads across two rows.
 // A row's lanes, blocks, products and reduction are the one-row builds', and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 layout(constant_id = 9) const uint ROWS = 1;
 
@@ -123,6 +123,9 @@ vec4 weight4(uint i) {
 #endif
 #if defined(LLMX_FLOAT_X) || defined(LLMX_MXFP4) || defined(LLMX_LOOKUP_DOT) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((w32s[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_LOW_BITS_DOT
+#define LOW_BITS_HALF(i) uint(w16s[pi].w16[(i) >> 1u])
+#endif
 #ifdef LLMX_TQ
 #define TQ_WORD(i) w32s[pi].w32[i]
 #endif
@@ -204,7 +207,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xq_block(col, b).x;
 }
-#ifdef LLMX_TQ
+#ifdef LLMX_LOW_BITS_DOT
+#include "lookup_dot.glsl"
+#elif defined(LLMX_TQ)
 #include "tq_dot.glsl"
 #elif defined(LLMX_IQ3_XXS)
 #include "iq3_xxs_dot.glsl"

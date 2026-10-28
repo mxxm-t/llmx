@@ -1,0 +1,954 @@
+{
+  "scope": "Focused longer-context Q2 F16 shared-tile HF check on existing canonical split models. Independent HF F32/eager references; no new model bytes, numerical allowance or policy change.",
+  "result": "All nine F16 cases pass. Three strict F32 NLL cases pass; six new-position strict F32 logit cases fail and are reproduced by the frozen predecessor. Overall screen is not a full pass.",
+  "plan": {
+    "scope": "Existing canonical Q2 split GGUFs, independent HF references at new 64/128 positions; no model identity or budget change.",
+    "text": "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx",
+    "endpoints": [
+      64,
+      128
+    ],
+    "context": 128,
+    "ubatch": 128,
+    "threads": 4,
+    "cache": "f32/f32",
+    "calls": 18,
+    "policies": [
+      "f16",
+      "f32"
+    ],
+    "models": {
+      "q2-0-dense-untied": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+      "q2-0-dense-tied": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+      "q2-0-moe": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+    },
+    "source_overlay": {
+      "tools/gen_baseline.py": "5528683a93fb748c6fe7158df9f2326765d7cc93e14195303a211487c9b3eeb7",
+      "tools/calibrate_dtype.py": "a5448874407def003b218d926502e8712940b536a8c86debd0e706b925dc3138",
+      "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+      "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+      "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+      "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "tests/raw_blocks.py": "b5421029f366d3485db94f2a758590221440ee9b92bf2c88b59410661790d1d5",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+      "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+      "tests/data/dtype_budget.json": "54e8a08bc268043eee5f58f4220a8da28fb1bea647b5188af4004e88e49ba135"
+    },
+    "budget_sha256": "54e8a08bc268043eee5f58f4220a8da28fb1bea647b5188af4004e88e49ba135",
+    "candidate_sha256": "3a7dbfdbe4e4c28d34a2435f9175487d81756755b41afe6f4d7eef6b924fbc3f",
+    "predecessor_sha256": "4fafb58acf456fc4acb5f0ce0c6a98b347d7879d73e8f2d90c9cb8eb4f318b18",
+    "bounds": {
+      "f16": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "f32": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      }
+    },
+    "identity_mapping": "Existing GGUF context 128 is unchanged; canonical golden context 16 differs only in reference capacity. No existing exact-fixture F32 allowance is supplied for the new positions.",
+    "witness": "Every F16 call requires block-int16, with permitted F32 roles. Logits require the F32 head; explicit F32 controls require exactly [[f32]]. Global witnesses are not per-role proof."
+  },
+  "identity_mapping": {
+    "same_existing_GGUF_bytes": true,
+    "actual_GGUF_context": 128,
+    "committed_short_reference_context": 16,
+    "interpretation": "Only the HF reference capacity and measured positions expand. Each independently regenerated GGUF matches the existing context-128 file hash exactly; decoded and packed canonical hashes are unchanged.",
+    "F32_bound_scope": "The consumer supplies no exact-fixture allowance for the new positions. It uses the existing strict 2e-5 logit and 1e-5 NLL controls."
+  },
+  "counts": {
+    "planned": 18,
+    "completed": 18,
+    "F16_passed": 9,
+    "F32_NLL_passed": 3,
+    "F32_logit_failed": 6,
+    "additional_predecessor_controls": 6
+  },
+  "maximum_F16_errors": {
+    "logit": 0.0026150977096557337,
+    "nll": 0.00019409920640001133
+  },
+  "calls": [
+    {
+      "tag": "00-q2-0-dense-untied-f16-logits64",
+      "model": "q2-0-dense-untied",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.0015736036224365257,
+      "passed": true,
+      "files": {
+        "00-q2-0-dense-untied-f16-logits64.stdout": "1ca2e7a62cb0e73e82fc11f9c4cba4da0ecf0b1f4575961e802104a4f9c6d7ca",
+        "00-q2-0-dense-untied-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "01-q2-0-dense-untied-f16-logits128",
+      "model": "q2-0-dense-untied",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.0019205670623780868,
+      "passed": true,
+      "files": {
+        "01-q2-0-dense-untied-f16-logits128.stdout": "f9bf656ac8f7d248bb33bba42c6ab4f734a95e1eebac96d4c634ec2af9c82f41",
+        "01-q2-0-dense-untied-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "02-q2-0-dense-untied-f16-perplexity128",
+      "model": "q2-0-dense-untied",
+      "dtype": "f16",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 19.044059556,
+      "reference_nll": 19.04412231562721,
+      "error": 6.275962720891926e-05,
+      "passed": true,
+      "files": {
+        "02-q2-0-dense-untied-f16-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+        "02-q2-0-dense-untied-f16-perplexity128.stderr": "3ef7698e009a609084b7d780e326f0a697710fbc8c00fb6e1469e38fbec9d4cc"
+      }
+    },
+    {
+      "tag": "03-q2-0-dense-untied-f32-logits64",
+      "model": "q2-0-dense-untied",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 6.818432617183845e-05,
+      "passed": false,
+      "files": {
+        "03-q2-0-dense-untied-f32-logits64.stdout": "1492411c5de92c3b5a42472c5733a67e521199679a383b864f67c762144fd0f9",
+        "03-q2-0-dense-untied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "04-q2-0-dense-untied-f32-logits128",
+      "model": "q2-0-dense-untied",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 4.00207824711174e-05,
+      "passed": false,
+      "files": {
+        "04-q2-0-dense-untied-f32-logits128.stdout": "74ed402c72c660aeb359eb64ac098a6ab64d733971d0ffd93ae60e7ef04ec86f",
+        "04-q2-0-dense-untied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "05-q2-0-dense-untied-f32-perplexity128",
+      "model": "q2-0-dense-untied",
+      "dtype": "f32",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 19.044125858,
+      "reference_nll": 19.04412231562721,
+      "error": 3.5423727915429026e-06,
+      "passed": true,
+      "files": {
+        "05-q2-0-dense-untied-f32-perplexity128.stdout": "1b4ced0bcbc04448e9a0b2e084167ea22ea0b6a848e2f13820d3a16ce82bd980",
+        "05-q2-0-dense-untied-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "06-q2-0-dense-tied-f16-logits64",
+      "model": "q2-0-dense-tied",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.001337520263671621,
+      "passed": true,
+      "files": {
+        "06-q2-0-dense-tied-f16-logits64.stdout": "d3ffc83cb6a1f32ba13ae1e91a364da64839792e7dc599f8cf1b44e8044be0fb",
+        "06-q2-0-dense-tied-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "07-q2-0-dense-tied-f16-logits128",
+      "model": "q2-0-dense-tied",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.0017729271545405823,
+      "passed": true,
+      "files": {
+        "07-q2-0-dense-tied-f16-logits128.stdout": "82f2a214181809181773264a6d92491a5ea9c44922120d0e587d024f584466fd",
+        "07-q2-0-dense-tied-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "08-q2-0-dense-tied-f16-perplexity128",
+      "model": "q2-0-dense-tied",
+      "dtype": "f16",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 21.93972055,
+      "reference_nll": 21.939557315396957,
+      "error": 0.00016323460304334958,
+      "passed": true,
+      "files": {
+        "08-q2-0-dense-tied-f16-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+        "08-q2-0-dense-tied-f16-perplexity128.stderr": "3ef7698e009a609084b7d780e326f0a697710fbc8c00fb6e1469e38fbec9d4cc"
+      }
+    },
+    {
+      "tag": "09-q2-0-dense-tied-f32-logits64",
+      "model": "q2-0-dense-tied",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 5.551953124971476e-05,
+      "passed": false,
+      "files": {
+        "09-q2-0-dense-tied-f32-logits64.stdout": "41fafb8d22c09b806f093ce9bc0c64e79868c4e9cf9ac537aec5586aed05cb24",
+        "09-q2-0-dense-tied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "10-q2-0-dense-tied-f32-logits128",
+      "model": "q2-0-dense-tied",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 5.024879455550746e-05,
+      "passed": false,
+      "files": {
+        "10-q2-0-dense-tied-f32-logits128.stdout": "db5181ae8bc6b68b40471445b5956e0c08ac403511c2fe1f09296b17d9104083",
+        "10-q2-0-dense-tied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "11-q2-0-dense-tied-f32-perplexity128",
+      "model": "q2-0-dense-tied",
+      "dtype": "f32",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 21.939556747,
+      "reference_nll": 21.939557315396957,
+      "error": 5.683969561687263e-07,
+      "passed": true,
+      "files": {
+        "11-q2-0-dense-tied-f32-perplexity128.stdout": "f753b60f21d6609f372ef8f387ff2a87994bceb91696e1b79505695f2126b3ef",
+        "11-q2-0-dense-tied-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "12-q2-0-moe-f16-logits64",
+      "model": "q2-0-moe",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.001246242736815617,
+      "passed": true,
+      "files": {
+        "12-q2-0-moe-f16-logits64.stdout": "d87e352b79f40f572327f45f2bfc5bf0812f8ec0dbfc39f20d1990dd2e304183",
+        "12-q2-0-moe-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "13-q2-0-moe-f16-logits128",
+      "model": "q2-0-moe",
+      "dtype": "f16",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 0.0026150977096557337,
+      "passed": true,
+      "files": {
+        "13-q2-0-moe-f16-logits128.stdout": "6fd978f6b02604589b04fd923e5fc389e4775cbdcccc3f0e017405e5c7dbee92",
+        "13-q2-0-moe-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "14-q2-0-moe-f16-perplexity128",
+      "model": "q2-0-moe",
+      "dtype": "f16",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 0.4165916442871094,
+        "nll": 0.022201185994788375
+      },
+      "matrix_paths": {
+        "dtype": "f16",
+        "devices": [
+          [
+            "f32",
+            "block-int16"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 21.481157277,
+      "reference_nll": 21.4813513762064,
+      "error": 0.00019409920640001133,
+      "passed": true,
+      "files": {
+        "14-q2-0-moe-f16-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+        "14-q2-0-moe-f16-perplexity128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd"
+      }
+    },
+    {
+      "tag": "15-q2-0-moe-f32-logits64",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 64,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 7.192993164117922e-05,
+      "passed": false,
+      "files": {
+        "15-q2-0-moe-f32-logits64.stdout": "257dec565afcc78cc8019e094553ba6aa0623f3148cea47bc4f22770c8a00186",
+        "15-q2-0-moe-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "16-q2-0-moe-f32-logits128",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "error": 3.988113403341487e-05,
+      "passed": false,
+      "files": {
+        "16-q2-0-moe-f32-logits128.stdout": "10f1e4929bf85cb59863edfe4110d6d0494eb671f2115445101c93067dcf6ef6",
+        "16-q2-0-moe-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    },
+    {
+      "tag": "17-q2-0-moe-f32-perplexity128",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "perplexity",
+      "text_length": 128,
+      "exit_code": 0,
+      "bounds": {
+        "logit": 2e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "witness_qualified": true,
+      "mean_nll": 21.481354808,
+      "reference_nll": 21.4813513762064,
+      "error": 3.4317935977412617e-06,
+      "passed": true,
+      "files": {
+        "17-q2-0-moe-f32-perplexity128.stdout": "98b3f202f6f16bb0f2961a81c3a5e09d0c4aca24177886820fd1005e7f0a1dcc",
+        "17-q2-0-moe-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a"
+      }
+    }
+  ],
+  "predecessor_controls": [
+    {
+      "candidate_tag": "03-q2-0-dense-untied-f32-logits64",
+      "predecessor_tag": "control-00-q2-0-dense-untied-f32-logits64",
+      "stdout_sha256": "1492411c5de92c3b5a42472c5733a67e521199679a383b864f67c762144fd0f9",
+      "max_logit_error": 6.818432617183845e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    },
+    {
+      "candidate_tag": "04-q2-0-dense-untied-f32-logits128",
+      "predecessor_tag": "control-01-q2-0-dense-untied-f32-logits128",
+      "stdout_sha256": "74ed402c72c660aeb359eb64ac098a6ab64d733971d0ffd93ae60e7ef04ec86f",
+      "max_logit_error": 4.00207824711174e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    },
+    {
+      "candidate_tag": "09-q2-0-dense-tied-f32-logits64",
+      "predecessor_tag": "control-02-q2-0-dense-tied-f32-logits64",
+      "stdout_sha256": "41fafb8d22c09b806f093ce9bc0c64e79868c4e9cf9ac537aec5586aed05cb24",
+      "max_logit_error": 5.551953124971476e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    },
+    {
+      "candidate_tag": "10-q2-0-dense-tied-f32-logits128",
+      "predecessor_tag": "control-03-q2-0-dense-tied-f32-logits128",
+      "stdout_sha256": "db5181ae8bc6b68b40471445b5956e0c08ac403511c2fe1f09296b17d9104083",
+      "max_logit_error": 5.024879455550746e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    },
+    {
+      "candidate_tag": "15-q2-0-moe-f32-logits64",
+      "predecessor_tag": "control-04-q2-0-moe-f32-logits64",
+      "stdout_sha256": "257dec565afcc78cc8019e094553ba6aa0623f3148cea47bc4f22770c8a00186",
+      "max_logit_error": 7.192993164117922e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    },
+    {
+      "candidate_tag": "16-q2-0-moe-f32-logits128",
+      "predecessor_tag": "control-05-q2-0-moe-f32-logits128",
+      "stdout_sha256": "10f1e4929bf85cb59863edfe4110d6d0494eb671f2115445101c93067dcf6ef6",
+      "max_logit_error": 3.988113403341487e-05,
+      "bound": 2e-05,
+      "both_fail": true
+    }
+  ],
+  "identity_claim": "All six failing candidate F32 stdout files are byte-identical to their predecessor captures. This proves identical captured printed outputs, not unprinted internal float identity. No bound is waived.",
+  "witness_scope": "Every F16 call witnesses block-int16. Last-position logits also witness the retained F32 head; MoE NLL witnesses F32 routers, while dense NLL legitimately uses block-int16 only. Global path witnesses do not establish per-role routed-tile execution; native operator kernel witnesses remain separate.",
+  "models": [
+    {
+      "name": "q2-0-dense-untied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 128
+      },
+      "canonical_reference_config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "f247ae83c4f3b82eea0b04e38811e118825f1639ad3ca221313db385c85780e6",
+      "packed_sha256": "733c90dc2a43c1b1af8e59393601e2535763752793b9848655d2026681212a23",
+      "gguf_sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df",
+      "actual_context_metadata": 128,
+      "regenerated_whole_file_byte_equal": true,
+      "moe_selects_all_experts": true
+    },
+    {
+      "name": "q2-0-dense-tied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 128
+      },
+      "canonical_reference_config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "5614b1c4e056ee065da031c450d73d31e4cc3afc333adcd09a027e9240b48d1c",
+      "packed_sha256": "fc7b4611e96d493131d09416a807191985d8d977931baeace77145b6b0c1cc8a",
+      "gguf_sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+      "actual_context_metadata": 128,
+      "regenerated_whole_file_byte_equal": true,
+      "moe_selects_all_experts": true
+    },
+    {
+      "name": "q2-0-moe",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 128,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "canonical_reference_config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "248bcbf034738dffb8632321b0de13de97da19e2de4c0a5f0d73ef2fbc7db22f",
+      "packed_sha256": "667ff515cc5cff1c7bcf5dd4531f2f16a90b5185fb399ba51bfbf8605bef71dc",
+      "gguf_sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91",
+      "actual_context_metadata": 128,
+      "regenerated_whole_file_byte_equal": true,
+      "moe_selects_all_experts": true
+    }
+  ],
+  "reference_environment": {
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "numpy": "2.2.6",
+    "threads": 1
+  },
+  "reference_sha256": "24d8c0ced2d36830d1330aa24d25cd14a4506854f712c4e9e1052423f3316baa",
+  "execution": {
+    "seconds": 84.82952523231506,
+    "stages": [
+      {
+        "tag": "reference",
+        "started": 1793137667.751578,
+        "cid": "a9aabdcc9ef99fe35b296d4309755a788d88747c4e1d7228d6950f81652451b0",
+        "minimum_available_bytes": 18743136256,
+        "exit_code": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-27T21:47:47.868097777Z",
+          "FinishedAt": "2026-10-27T21:49:06.81035248Z"
+        },
+        "removed": true,
+        "seconds": 80.29795837402344
+      },
+      {
+        "tag": "gpu",
+        "started": 1793137748.1956053,
+        "cid": "1692d7d9bfae483123fc3b3fa53d5d35f6a59fb973175398d99f9c7e1426ca99",
+        "minimum_available_bytes": 19330437120,
+        "exit_code": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-27T21:49:08.286737322Z",
+          "FinishedAt": "2026-10-27T21:49:11.846833703Z"
+        },
+        "removed": true,
+        "seconds": 4.325256586074829
+      }
+    ],
+    "gpu_preflight": {
+      "cards": {
+        "card0": {
+          "GPU use (%)": "98",
+          "PCI Bus": "0000:03:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "30420410368"
+        },
+        "card1": {
+          "GPU use (%)": "98",
+          "PCI Bus": "0000:44:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "29510574080"
+        },
+        "card2": {
+          "GPU use (%)": "97",
+          "PCI Bus": "0000:83:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32355958784"
+        },
+        "card3": {
+          "GPU use (%)": "100",
+          "PCI Bus": "0000:86:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32356909056"
+        },
+        "card4": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:89:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card5": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:8C:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card6": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C3:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        },
+        "card7": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C6:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        },
+        "card8": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C9:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card9": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:CC:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        }
+      },
+      "physical": 8,
+      "pci": "0000:c9:00.0",
+      "node": "/dev/dri/renderD130",
+      "production_id": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2",
+      "protected": [
+        "/dev/dri/renderD132",
+        "/dev/dri/renderD133",
+        "/dev/dri/renderD136",
+        "/dev/dri/renderD137",
+        "/zpool1/llmx-serve/flash-5673d3c25",
+        "/zpool1/llmx-serve/flash-5673d3c25/disk",
+        "/zpool1/models"
+      ],
+      "time": 1793137748.1952443
+    },
+    "inputs_unchanged": true
+  },
+  "output_hashes": {
+    "05-q2-0-dense-untied-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "08-q2-0-dense-tied-f16-perplexity128.stdout": "976c4402e60628df8e04dba629f68ac61b016a7cd1bae6afd751bc1a78ea4d0f",
+    "15-q2-0-moe-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "04-q2-0-dense-untied-f32-logits128.stdout": "74ed402c72c660aeb359eb64ac098a6ab64d733971d0ffd93ae60e7ef04ec86f",
+    "control-01-q2-0-dense-untied-f32-logits128.stdout": "74ed402c72c660aeb359eb64ac098a6ab64d733971d0ffd93ae60e7ef04ec86f",
+    "gpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "11-q2-0-dense-tied-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "06-q2-0-dense-tied-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "control-02-q2-0-dense-tied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "14-q2-0-moe-f16-perplexity128.stdout": "b1271b9e9011feae573b953ec2715d58e7af9271170498c35283d0e5a6e0a4d4",
+    "13-q2-0-moe-f16-logits128.stdout": "6fd978f6b02604589b04fd923e5fc389e4775cbdcccc3f0e017405e5c7dbee92",
+    "control-03-q2-0-dense-tied-f32-logits128.stdout": "db5181ae8bc6b68b40471445b5956e0c08ac403511c2fe1f09296b17d9104083",
+    "09-q2-0-dense-tied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "01-q2-0-dense-untied-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "16-q2-0-moe-f32-logits128.stdout": "10f1e4929bf85cb59863edfe4110d6d0494eb671f2115445101c93067dcf6ef6",
+    "17-q2-0-moe-f32-perplexity128.stdout": "98b3f202f6f16bb0f2961a81c3a5e09d0c4aca24177886820fd1005e7f0a1dcc",
+    "control-05-q2-0-moe-f32-logits128.stdout": "10f1e4929bf85cb59863edfe4110d6d0494eb671f2115445101c93067dcf6ef6",
+    "03-q2-0-dense-untied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "vulkaninfo.txt": "9a1f0ce8a04b8747fa6d26319cd8209320023e5895dd073f4e455806b912ea4d",
+    "00-q2-0-dense-untied-f16-logits64.stdout": "1ca2e7a62cb0e73e82fc11f9c4cba4da0ecf0b1f4575961e802104a4f9c6d7ca",
+    "12-q2-0-moe-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "02-q2-0-dense-untied-f16-perplexity128.stderr": "3ef7698e009a609084b7d780e326f0a697710fbc8c00fb6e1469e38fbec9d4cc",
+    "reference.stdout": "52f1e1209b45d81eb306173e0f77e6302c99199e889778771ec394dd0f9b146b",
+    "control-00-q2-0-dense-untied-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "control-04-q2-0-moe-f32-logits64.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "10-q2-0-dense-tied-f32-logits128.stdout": "db5181ae8bc6b68b40471445b5956e0c08ac403511c2fe1f09296b17d9104083",
+    "07-q2-0-dense-tied-f16-logits128.stdout": "82f2a214181809181773264a6d92491a5ea9c44922120d0e587d024f584466fd",
+    "device-map.json": "8620c6552e0b490435a203afc0eec141e90e0c487cffc517e6132fe1614aa396",
+    "references.json": "24d8c0ced2d36830d1330aa24d25cd14a4506854f712c4e9e1052423f3316baa",
+    "control-03-q2-0-dense-tied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "13-q2-0-moe-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "09-q2-0-dense-tied-f32-logits64.stdout": "41fafb8d22c09b806f093ce9bc0c64e79868c4e9cf9ac537aec5586aed05cb24",
+    "17-q2-0-moe-f32-perplexity128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "16-q2-0-moe-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "01-q2-0-dense-untied-f16-logits128.stdout": "f9bf656ac8f7d248bb33bba42c6ab4f734a95e1eebac96d4c634ec2af9c82f41",
+    "08-q2-0-dense-tied-f16-perplexity128.stderr": "3ef7698e009a609084b7d780e326f0a697710fbc8c00fb6e1469e38fbec9d4cc",
+    "05-q2-0-dense-untied-f32-perplexity128.stdout": "1b4ced0bcbc04448e9a0b2e084167ea22ea0b6a848e2f13820d3a16ce82bd980",
+    "04-q2-0-dense-untied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "15-q2-0-moe-f32-logits64.stdout": "257dec565afcc78cc8019e094553ba6aa0623f3148cea47bc4f22770c8a00186",
+    "execution.json": "d8ec9427b06407a1f368449eb8031640bd38d03cd1403307c960b6977260733d",
+    "11-q2-0-dense-tied-f32-perplexity128.stdout": "f753b60f21d6609f372ef8f387ff2a87994bceb91696e1b79505695f2126b3ef",
+    "gpu.stdout": "cdfbfb17ea0aa089707d01d539da03c4bff09f504d2184b92de0d85c8eded3e5",
+    "control-01-q2-0-dense-untied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "14-q2-0-moe-f16-perplexity128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "control-02-q2-0-dense-tied-f32-logits64.stdout": "41fafb8d22c09b806f093ce9bc0c64e79868c4e9cf9ac537aec5586aed05cb24",
+    "06-q2-0-dense-tied-f16-logits64.stdout": "d3ffc83cb6a1f32ba13ae1e91a364da64839792e7dc599f8cf1b44e8044be0fb",
+    "control-04-q2-0-moe-f32-logits64.stdout": "257dec565afcc78cc8019e094553ba6aa0623f3148cea47bc4f22770c8a00186",
+    "10-q2-0-dense-tied-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "07-q2-0-dense-tied-f16-logits128.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "03-q2-0-dense-untied-f32-logits64.stdout": "1492411c5de92c3b5a42472c5733a67e521199679a383b864f67c762144fd0f9",
+    "control-05-q2-0-moe-f32-logits128.stderr": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+    "00-q2-0-dense-untied-f16-logits64.stderr": "00bef91e72156c80f459b155859fe61b756e8470cf04ce201e9115a6784ed2fd",
+    "12-q2-0-moe-f16-logits64.stdout": "d87e352b79f40f572327f45f2bfc5bf0812f8ec0dbfc39f20d1990dd2e304183",
+    "control-00-q2-0-dense-untied-f32-logits64.stdout": "1492411c5de92c3b5a42472c5733a67e521199679a383b864f67c762144fd0f9",
+    "reference.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "02-q2-0-dense-untied-f16-perplexity128.stdout": "bbe7600ba61c6eb44df04fb7d6a6ecbef402c0c36e923d5834d90c1bc1ee5748",
+    "models/q2-0-moe.gguf": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91",
+    "models/q2-0-dense-tied.gguf": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+    "models/q2-0-dense-untied.gguf": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df"
+  },
+  "artifacts": {
+    "local_output": "build-low-bits-dev/q2-tile-hf-v1/out",
+    "execution_sha256": "d8ec9427b06407a1f368449eb8031640bd38d03cd1403307c960b6977260733d",
+    "supervisor_sha256": "ff156cc6daa82e6fda136202ea8d3818217403c1ed62e52f0b5e5ec76629ec4c"
+  },
+  "remaining": "Strict F32 long-position failures remain retained and unresolved as gates, with the existing predecessor reproducing them. Full operator, split, released-file/depth and integration qualification remain separate; the existing BF16 group review is unchanged.",
+  "source_overlay_pins": {
+    "tools/gen_baseline.py": "5528683a93fb748c6fe7158df9f2326765d7cc93e14195303a211487c9b3eeb7",
+    "tools/calibrate_dtype.py": "a5448874407def003b218d926502e8712940b536a8c86debd0e706b925dc3138",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+    "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+    "tests/raw_blocks.py": "b5421029f366d3485db94f2a758590221440ee9b92bf2c88b59410661790d1d5",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+    "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+    "tests/data/dtype_budget.json": "54e8a08bc268043eee5f58f4220a8da28fb1bea647b5188af4004e88e49ba135"
+  },
+  "full_source_manifest_sha256": "681730a038764dfcbb03df589ce99d205c23a1504348c8ffb504bc5d602d26ad",
+  "full_source_manifest_location": "Retained in local output supervisor.json and remote isolated source/.",
+  "Q2_F32_shader_identity": {
+    "scope": "Existing Q2 F32 row, shared float tile and shared embedding SPIR-V arrays are unchanged between the frozen predecessor and candidate.",
+    "predecessor_build": "q1-eight-sign-v1/build",
+    "candidate_build": "q2-int16-v1/build",
+    "all_six_relevant_arrays_equal": true,
+    "common_sha256": {
+      "matmul_row_q2_0.inc": "f6fa1a2c2821b0cad35dfd4da5d3f052d167ca0afe3dccfadf657e7daf5f5a6b",
+      "matmul_row_q2_0_preserve.inc": "9dbba12a9892d29f0e1139b078cf9bcd53092aa236a7aab0db540910a6b48f82",
+      "matmul_tile.inc": "b996e173226db172f3b4098ae4f91c8645b3d3a32a064e5a1c025efa012f3c83",
+      "matmul_tile_preserve.inc": "2d9b19dc14e7470a9ae5f170c5200b3f680392ed3377f3a059080660a4267a67",
+      "embed.inc": "6fb8c100fcc4e8a2d5038ac98c1d330b5a8384bdce248728f23927347def5d66",
+      "embed_ids.inc": "0ed2b2889f7e1d8bd9806bda95c3a7bc384fc67cdeb426bcb42bb2349f54f87b"
+    },
+    "read_only_audit": "build-low-bits-dev/q2-tile-hf-v1/q2-f32-shader-identity.json",
+    "audit_sha256": "96514b65a00fe8c9d539bac6bf846b22ad592fdf37984bfe64fda155c78d48a1"
+  }
+}

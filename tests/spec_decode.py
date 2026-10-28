@@ -25,6 +25,7 @@ IQ3_XXS = 18
 IQ1_S, IQ1_M = 19, 29
 TQ1_0, TQ2_0 = 34, 35
 NVFP4 = 40
+Q1_0, Q2_0 = 41, 42
 
 # GGUF type id: name, values per block, bytes per block.
 TYPES = {
@@ -54,6 +55,8 @@ TYPES = {
     TQ2_0: ("TQ2_0", 256, 66),
     MXFP4: ("MXFP4", 32, 17),
     NVFP4: ("NVFP4", 64, 36),
+    Q1_0: ("Q1_0", 128, 18),
+    Q2_0: ("Q2_0", 64, 18),
 }
 
 # IQ2_XXS fixed dictionary bytes from ggml-common.h at 2fe50c3b322c54cfb984d68a6bdb64b8abf9e3ea; SHA256 05826b5d3e472a3a78f196be62ac78acf81df0f909626e12ab9fa2a5d490dd54.
@@ -394,6 +397,18 @@ def q4_0(block):
     return [d * ((q & 15) - 8) for q in qs] + [d * ((q >> 4) - 8) for q in qs]
 
 
+# Q1_0: an f16 scale and 128 sign bits, least-significant bit first.
+def q1_0(block):
+    d = f16(block, 0)
+    return [d if (block[2 + i // 8] >> (i % 8)) & 1 else -d for i in range(128)]
+
+
+# Q2_0: an f16 scale and 64 two-bit codes, least-significant field first; codes map to -1, 0, 1, 2.
+def q2_0(block):
+    d = f16(block, 0)
+    return [d * (((block[2 + i // 4] >> (2 * (i % 4))) & 3) - 1) for i in range(64)]
+
+
 # Q4_1: an f16 scale d and an f16 min m, then nibbles in Q4_0's order, each d * nibble + m.
 def q4_1(block):
     d, m = f16(block, 0), f16(block, 2)
@@ -721,6 +736,7 @@ def iq1_m(block):
 
 PURE = {
     NVFP4: nvfp4,
+    Q1_0: q1_0, Q2_0: q2_0,
     F32: lambda block: [struct.unpack("<f", bytes(block))[0]],
     F16: lambda block: [f16(block, 0)],
     IQ1_S: iq1_s, IQ1_M: iq1_m,
@@ -771,6 +787,16 @@ def _np_bf16(a):
 
 def _np_q8_0(a):
     return _half(a, 0) * np.ascontiguousarray(a[:, 2:34]).view(np.int8).astype(np.float32)
+
+
+def _np_q1_0(a):
+    bits = np.unpackbits(a[:, 2:18], axis=1, bitorder="little").astype(np.float32)
+    return np.where(bits != 0, _half(a, 0), -_half(a, 0))
+
+
+def _np_q2_0(a):
+    codes = np.stack([(a[:, 2 + i // 4] >> (2 * (i % 4))) & 3 for i in range(64)], axis=1).astype(np.float32)
+    return _half(a, 0) * (codes - 1)
 
 
 def _np_q4_0(a):
@@ -1017,6 +1043,7 @@ NUMPY = {
     IQ1_S: _np_iq1_s, IQ1_M: _np_iq1_m,
     TQ1_0: _np_tq1_0, TQ2_0: _np_tq2_0,
     Q8_0: _np_q8_0, Q4_0: _np_q4_0, Q4_1: _np_q4_1, Q5_0: _np_q5_0, Q5_1: _np_q5_1, Q4_K: _np_q4_k, Q5_K: _np_q5_k, Q6_K: _np_q6_k,
+    Q1_0: _np_q1_0, Q2_0: _np_q2_0,
     Q2_K: _np_q2_k, Q3_K: _np_q3_k, IQ3_S: _np_iq3_s, IQ2_S: _np_iq2_s, IQ2_XXS: _np_iq2_xxs, IQ2_XS: _np_iq2_xs, IQ3_XXS: _np_iq3_xxs, IQ4_NL: _np_iq4_nl, IQ4_XS: _np_iq4_xs, MXFP4: _np_mxfp4,
 }
 

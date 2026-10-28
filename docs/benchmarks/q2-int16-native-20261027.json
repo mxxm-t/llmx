@@ -1,0 +1,193 @@
+{
+  "scope": "Focused native Q2 integer prompt-tile qualification against frozen runtime 3a7dbfdbe4e4c28d34a2435f9175487d81756755b41afe6f4d7eef6b924fbc3f; test-only rebuild.",
+  "passed": true,
+  "seconds": 22.209473848342896,
+  "test_source_sha256": "bc1c961a7f6c7afaf8a569fe19abc8fdb0a5b5751d05967a5ae07779c7c90289",
+  "runtime_sha256": "3a7dbfdbe4e4c28d34a2435f9175487d81756755b41afe6f4d7eef6b924fbc3f",
+  "cases": {
+    "prompt": {
+      "width": 192,
+      "rows": 65,
+      "columns": 129,
+      "row_stride_bytes": 54,
+      "experts": 3,
+      "selected": 2,
+      "policies": [
+        "f16",
+        "int8 (wider block-int16)"
+      ],
+      "operations": [
+        "mixed Q2/F32 grouped",
+        "routed",
+        "weighted routed residual"
+      ],
+      "oracle": "Independent field-decoded double weights times testq::row_activations; existing low-bits close contract unchanged."
+    },
+    "range": {
+      "width": 192,
+      "actual_rows": 1,
+      "actual_columns": 1,
+      "logical_prompt_extent": 129,
+      "half_scales": [
+        "0x0000",
+        "0x8000",
+        "0x0001",
+        "0x8001"
+      ],
+      "one_hot_inputs": [
+        1e+38,
+        -1e+38,
+        1e-30,
+        -1e-30
+      ],
+      "policy": "f16",
+      "cases": 16,
+      "oracle": "Independent double weight dot over testq::row_activations; existing IQ2 finite-range rounding bound reused verbatim. Tiny signed weight scales with tiny inputs make the combined scale subnormal while final products fit."
+    }
+  },
+  "witnesses": [
+    "Q2 mixed grouped block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 routed block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 routed residual block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 mixed grouped block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 routed block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 routed residual block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small",
+    "Q2 finite range block-int16 witness: matmul_tile_q2_0_dot_small"
+  ],
+  "witness_scope": "Each new operation drains prior times/paths, verifies exact matrix paths and requires the actual Q2 integer-tile name when timestamps are available. All22 calls have real timestamps here.",
+  "source_control": "Existing check_scale_after_range, range/cancellation, products, embeddings and row-class function bodies preserved exactly from pre-edit snapshot. Original grouped/routed defaults remain three-column F32 cases.",
+  "build_control": "Only llmx-low-bits-test target rebuilt. All copied/frozen llmx, library and generated shader hashes unchanged; frozen source and original native executable unchanged.",
+  "resources": {
+    "build_seconds": 600,
+    "run_seconds": 180,
+    "host_reserve_bytes": 2147483648,
+    "build_memory": "8g",
+    "run_memory": "4g",
+    "physical_gpu": 9
+  },
+  "gpu_preflight": {
+    "cards": {
+      "card0": {
+        "GPU use (%)": "99",
+        "PCI Bus": "0000:03:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "30420492288"
+      },
+      "card1": {
+        "GPU use (%)": "99",
+        "PCI Bus": "0000:44:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "29510737920"
+      },
+      "card2": {
+        "GPU use (%)": "97",
+        "PCI Bus": "0000:83:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32356122624"
+      },
+      "card3": {
+        "GPU use (%)": "100",
+        "PCI Bus": "0000:86:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32357072896"
+      },
+      "card4": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:89:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card5": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:8C:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card6": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C3:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      },
+      "card7": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C6:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      },
+      "card8": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C9:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card9": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:CC:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      }
+    },
+    "pci": "0000:cc:00.0",
+    "node": "/dev/dri/renderD131",
+    "production_id": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2",
+    "protected_paths": [
+      "/dev/dri/renderD132",
+      "/dev/dri/renderD133",
+      "/dev/dri/renderD136",
+      "/dev/dri/renderD137",
+      "/zpool1/llmx-serve/flash-5673d3c25",
+      "/zpool1/llmx-serve/flash-5673d3c25/disk",
+      "/zpool1/models"
+    ],
+    "checked": 1793138300.2375062
+  },
+  "containers": [
+    {
+      "tag": "build",
+      "seconds": 16.274880170822144,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "cpu",
+      "seconds": 2.2696592807769775,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "capture",
+      "seconds": 2.2754733562469482,
+      "exit_code": 0,
+      "removed": true
+    }
+  ],
+  "artifacts": {
+    "capture.stdout": "587bf821a56e48031b3a3571c10937a126b849ad03b494db0e1bae058a86d1cc",
+    "cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "capture.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build.stdout": "dabd826570f66613d2ec4ccaef71dbbb12034b04b96e5156cdeb840275ab5454",
+    "cpu.stdout": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61"
+  },
+  "execution_sha256": "6ca77edb1351ea6d4599547dcc285ee6377fa5b1e1ac9d2d0d63088f0c15f797",
+  "test_patch": "test-only.patch",
+  "remaining": "This is focused operator evidence; model, split, released-file/depth, performance and integration gates remain separate.",
+  "review_sha256": "fb828f4761e8595c2c7ab16e8ed8e71431efdbd9408690aa8ba35d4af2cbe02e",
+  "raw_directory": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-native-tile-v1"
+}

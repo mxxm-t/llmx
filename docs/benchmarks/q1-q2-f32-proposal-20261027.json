@@ -1,0 +1,76 @@
+{
+  "status": "User approved on 2026-10-27; installed for qualification, not a correctness pass.",
+  "rule": "Existing 2e-5 margin plus the independent HF full/cached F32 maximum in the same family and ordinary/split shape.",
+  "reference_sha256": "dc73d5816bea9d4edb96015cfe34a76e81a4b8813c16d6f1d888b2360436d96e",
+  "scope": "Only listed exact fixture identities and completed all-F32 matrix witnesses, CPU or Vulkan, CLI or raw capture. Logits only.",
+  "unchanged": [
+    "NLL 1e-5",
+    "all unlisted fixture identities",
+    "operator and decoder checks",
+    "other arithmetic policies",
+    "released-file and long-context bounds"
+  ],
+  "fixtures": [
+    {
+      "family": "Q1_0",
+      "name": "dense-untied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+      "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0",
+      "reference_logit_spread": 3.647804260253906e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 5.647804260253906e-05,
+      "golden_file": "baseline_q1_0.json",
+      "golden_sha256": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e"
+    },
+    {
+      "family": "Q1_0",
+      "name": "dense-tied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+      "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d",
+      "reference_logit_spread": 3.647804260253906e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 5.647804260253906e-05,
+      "golden_file": "baseline_q1_0.json",
+      "golden_sha256": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e"
+    },
+    {
+      "family": "Q2_0",
+      "name": "dense-untied",
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "f247ae83c4f3b82eea0b04e38811e118825f1639ad3ca221313db385c85780e6",
+      "packed_sha256": "733c90dc2a43c1b1af8e59393601e2535763752793b9848655d2026681212a23",
+      "reference_logit_spread": 7.82012939453125e-05,
+      "existing_logit_limit": 2e-05,
+      "proposed_logit_limit": 9.82012939453125e-05,
+      "golden_file": "baseline_q2_0_split.json",
+      "golden_sha256": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75"
+    }
+  ],
+  "approval": "User: ok then i agree. Follow-up: correctness must be proven."
+}

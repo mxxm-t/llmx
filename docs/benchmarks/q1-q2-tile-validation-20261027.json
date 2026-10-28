@@ -1,0 +1,42 @@
+{
+  "status": "focused development checks pass; full Q1/Q2 qualification remains open",
+  "commit": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+  "dirty": true,
+  "exe_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+  "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+  "files": {
+    "src/backends/vulkan/shaders/low_bits.glsl": "c91e426460c9e44308a532371e3b5e2b834af4cdb90277343937b667efeeb6c6",
+    "src/backends/vulkan/shaders/matmul_tile.comp": "36bc5e16979c978a789cf456c614841cc32b29f2c356527f83b083a9ba6d2360",
+    "src/backends/vulkan/vulkan_kernels.hpp": "4c5bda1d9042c6219bcf2524c44e12a6070cc43019b58cdd8a348af3b7ca9058",
+    "src/backends/vulkan/vulkan_dispatch.hpp": "991730bffc55d13d0d04f6276cafabfbf1f5097c739752a566b2aeb0f808b0a5",
+    "tests/low_bits.cpp": "b28371104c9891cc5db26f3a70c17fcd8fd55504a71466220046623e87aa58cd",
+    "tests/low_bits.py": "4419d10335138d18f13e759cbb35824f31de37e3c6cef83f05313321e0339a9b",
+    "tests/block_fixture.py": "41d7a15d186e9c8768cc27b71d29b1dd7a5c60f86b220e12269d6f229dd81b05",
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/data/baseline_q2_0.json": "51e0e6c86f18dbdf20bcf7bbc2d20ac75cd1ed16769e96ad88cc1d5b807c6b6f",
+    "build-low-bits-dev/tile-byte-screen/specialized-build.log": "a3338193dfeaa9c159104845e48bb513d4a6e4b51593652153e978a25147eebf",
+    "build-low-bits-dev/tile-byte-screen/specialized-operators.log": "1aaa860a5927fd5ba66a93c0e2e54374d2f749a8be3813b671c5f5dea7d237e0",
+    "build-low-bits-dev/tile-byte-screen/specialized-q2-hf.log": "82a2ac44b62296a88e0c71c12f1e538ce15a1fead11789936fb0f629dab5a1f4",
+    "build-low-bits-dev/tile-byte-screen/docs.log": "139a98f35b9afcd352b9fd50e8036193d27f4fc43085d19d8a51a0a3139c053a"
+  },
+  "checks": [
+    "clean MSVC Vulkan build: llmx and low-bits test",
+    "low-bits and low-bits-vulkan CTest: 2/2",
+    "docs and dead-code components: pass",
+    "Q2_0 ordinary Vulkan HF: 150 full-logit and 12 NLL checks pass"
+  ],
+  "q2_hf": {
+    "max_logit_error": 1.979e-05,
+    "logit_limit": 2e-05,
+    "max_nll_error": 2.66e-06,
+    "nll_limit": 1e-05
+  },
+  "remaining": [
+    "Q1 ordinary and Q2 split reference-sensitivity proposal pending approval",
+    "other split and BF16 qualification",
+    "same-build and layout controls",
+    "matched mx Vulkan performance",
+    "file-exact short and raw/chat 16K HF",
+    "applicable existing-format identity and integration/hosted checks"
+  ]
+}

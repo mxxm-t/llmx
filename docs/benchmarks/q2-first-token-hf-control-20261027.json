@@ -1,0 +1,256 @@
+{
+  "scope": "Five-token prompt, one final logit vector. Diagnostic only, not model/depth qualification.",
+  "reference": {
+    "prompt": "The capital of France is",
+    "token_ids": [
+      785,
+      6722,
+      315,
+      9625,
+      374
+    ],
+    "next_logits_shape": [
+      151936
+    ],
+    "next_logits_dtype": "float32",
+    "reference_repo": "Qwen/Qwen3-0.6B",
+    "reference_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "weights_file": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+    "weights_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "weight_decoder": "current tests/spec_decode.py, one module at a time",
+    "file_tied_head": false,
+    "topology_policy": "GGUF owns the head topology, matching tools/gen_baseline.py load_reference",
+    "all_file_parameters_seen": true,
+    "minimum_available_memory_gib": 2.251,
+    "available_memory_after_gib": 2.921,
+    "next_logits_file": "q2-first-token-hf-layered.f32.bin",
+    "next_logits_sha256": "c5f7dc49b16d20c3681679887600051c28612574ef202e67ac45986c80996177",
+    "top8_ids": [
+      223,
+      252,
+      34811,
+      73916,
+      239,
+      7942,
+      95689,
+      141816
+    ],
+    "top8_logits": [
+      13.33703899383545,
+      12.469650268554688,
+      12.345115661621094,
+      12.181292533874512,
+      11.951177597045898,
+      11.933578491210938,
+      11.633964538574219,
+      11.53912353515625
+    ]
+  },
+  "reference_run": {
+    "command": [
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+      "-X",
+      "utf8",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py",
+      "--model",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+      "--output",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-first-token-hf-layered.f32.bin"
+    ],
+    "timeout_seconds": 300,
+    "diagnostic_only": true,
+    "started_utc": "2026-10-27T15:01:02Z",
+    "sources_sha256": {
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py": "ed260b021f2c5e7ed93ec257234a108ff72ea4acbbe2326062480b20e2069415",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_layered_reference.py": "851ff407a8e327e8a8825de9781343d270ce1c682771a8c46a53ca47504ad452",
+      "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_baseline.py": "702a3f59e8f71601dd2bdc6c86a23d6acd8a1520e99cd15b62170e135a3804c9"
+    },
+    "returncode": 0,
+    "elapsed_seconds": 17.141
+  },
+  "original_refusals": [
+    {
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-first-token-hf-layered.f32.bin"
+      ],
+      "timeout_seconds": 300,
+      "diagnostic_only": true,
+      "started_utc": "2026-10-27T14:57:34Z",
+      "sources_sha256": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py": "c9df4117de25e97cb97f3f581a4d30de2c2a9fe8c853609b3fcc97fc13e20089",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_layered_reference.py": "851ff407a8e327e8a8825de9781343d270ce1c682771a8c46a53ca47504ad452",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_baseline.py": "702a3f59e8f71601dd2bdc6c86a23d6acd8a1520e99cd15b62170e135a3804c9"
+      },
+      "returncode": 1,
+      "elapsed_seconds": 22.469
+    },
+    {
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "--output",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-first-token-hf-layered.f32.bin"
+      ],
+      "timeout_seconds": 300,
+      "diagnostic_only": true,
+      "started_utc": "2026-10-27T14:59:27Z",
+      "sources_sha256": {
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2_layered_first_token_hf.py": "bf34ea035985cbba3f3b99afc8c2cfb6edfd859c418cb5c6549bc555c822f8bc",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_layered_reference.py": "851ff407a8e327e8a8825de9781343d270ce1c682771a8c46a53ca47504ad452",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-qwen3-layered-20261004\\tools\\gen_baseline.py": "702a3f59e8f71601dd2bdc6c86a23d6acd8a1520e99cd15b62170e135a3804c9"
+      },
+      "returncode": 1,
+      "elapsed_seconds": 20.875
+    }
+  ],
+  "runs": [
+    {
+      "label": "cpu",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "The capital of France is",
+        "--top",
+        "151936",
+        "--dtype",
+        "f32",
+        "--device",
+        "cpu",
+        "--threads",
+        "4",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "returncode": 0,
+      "started_unix": 1793113365.9125206,
+      "elapsed_seconds": 0.6302220821380615,
+      "binary_sha256": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+      "version": "llmx 0.1.0+gddca152e3de9.dirty numerics 8e7ccc76b7fb6a36",
+      "logits_compared": 151936,
+      "max_absolute_error": 0.005272325378418152,
+      "rms_error": 0.0012327340612822957,
+      "top8_ids": [
+        223,
+        252,
+        34811,
+        73916,
+        239,
+        7942,
+        95689,
+        141816
+      ],
+      "top8_match_hf": true,
+      "stdout_sha256": "7a38f5767a99d859253416902caa422c19dbbdf1f6b97350153e7d8c72a6dca2",
+      "matrix_report": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n"
+    },
+    {
+      "label": "vulkan-before",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\profile-first\\llmx-before.exe",
+        "logits",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "The capital of France is",
+        "--top",
+        "151936",
+        "--dtype",
+        "f32",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "returncode": 0,
+      "started_unix": 1793113366.7570293,
+      "elapsed_seconds": 1.3051745891571045,
+      "binary_sha256": "36bf1dcebc7b7f4a5e317bf6bd3f987bf48c6cd0a11268cafe81833746f02a0d",
+      "version": "llmx 0.1.0+gc601fc31e57d.dirty numerics 84ccf38f6e554a09",
+      "logits_compared": 151936,
+      "max_absolute_error": 0.0052817485656735386,
+      "rms_error": 0.0012240757869099051,
+      "top8_ids": [
+        223,
+        252,
+        34811,
+        73916,
+        239,
+        7942,
+        95689,
+        141816
+      ],
+      "top8_match_hf": true,
+      "stdout_sha256": "578c0bd2a5443b57f5a920413d1406ce2e0764ee5d4363aefa868be9b49d18bf",
+      "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n"
+    },
+    {
+      "label": "vulkan-after",
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "logits",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+        "The capital of France is",
+        "--top",
+        "151936",
+        "--dtype",
+        "f32",
+        "--device",
+        "vulkan:0",
+        "--threads",
+        "4",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "returncode": 0,
+      "started_unix": 1793113368.3140664,
+      "elapsed_seconds": 1.0092132091522217,
+      "binary_sha256": "8a18f440405dff1ce5e0f1043617d2b3fd0f9db609e48ae78ea272a97d498ebc",
+      "version": "llmx 0.1.0+gddca152e3de9.dirty numerics 8e7ccc76b7fb6a36",
+      "logits_compared": 151936,
+      "max_absolute_error": 0.0052817485656735386,
+      "rms_error": 0.0012240757869099051,
+      "top8_ids": [
+        223,
+        252,
+        34811,
+        73916,
+        239,
+        7942,
+        95689,
+        141816
+      ],
+      "top8_match_hf": true,
+      "stdout_sha256": "578c0bd2a5443b57f5a920413d1406ce2e0764ee5d4363aefa868be9b49d18bf",
+      "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n"
+    }
+  ],
+  "printed_logits_equal_before_after": true,
+  "comparison_precision": "CLI decimal output, six fractional digits. Equality here is not binary F32 identity.",
+  "interpretation": "Independent HF reproduces the first next-token ranking using the exact GGUF weights and explicit head. This does not establish the cause of all subsequent incoherent output or waive any qualification gate."
+}

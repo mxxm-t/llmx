@@ -4,6 +4,62 @@ The collective exports one binary signal per source as a sync file and duplicate
 
 The backend caches the greatest ticket confirmed by a successful Vulkan timeline wait. Waiting for or querying that ticket or an older one returns through an atomic completion value, including when another host thread waited; a timeout or Vulkan error does not advance it. Unconfirmed tickets retain the existing Vulkan wait and failure behavior.
 
+Q1_0 and Q2_0 use shared float tile and embedding families, with format-specific
+float row shader variants whose weight type is fixed at shader compilation.
+Their float rows take eight adjacent values per lane for Q1 and four for Q2,
+with one output row per cluster. Products round to F32 before pairwise addition,
+preventing the cancellation residual observed with a contracted vector dot.
+`shaders/low_bits.glsl` owns their contiguous bit fields and scaled signed codes,
+including Q2_0 code 3 and signed zero. Q1 forms its signed unit weight by flipping
+the decoded scale's sign bit. Qualification and rejected experiments are
+recorded in [STATUS](../STATUS.md).
+Q1 and Q2 `WeightKernels` entries use 32-value
+groups for integer rows, with the shared planner restoring value-based work
+for their float fallbacks. The float tile loader reuses each packed byte across
+the adjacent values it holds. Tile registry entries reuse the shared shader
+binary and fix the weight type through specialization constant 15, with the
+existing short/small/tall shapes. BF16 requests use the input-rounding tile.
+Both development candidates register shared block-int16 rows and prompt tiles
+for F16/int8 on integer-dot profiles, with four signed codes unpacked by
+`low_bits.glsl`. Q1 supplies four 32-value groups per block, Q2 two.
+The integer adapter reads aligned halfwords for scales and packed codes, reusing
+one code halfword for four Q1 packed pairs or two Q2 pairs. Row shaders provide
+their existing 16-bit buffer view; tiles mask a halfword from their 32-bit view.
+Every logical halfword stays within its block. The tile word may include two
+masked bytes of the buffer's existing four-byte padding at the tensor's end.
+The format owner performs unpacking once for both callers, without changing
+integer sums, scale application or range repair.
+Q1 places each sign bit at bit 0 of an independent 16-bit field, multiplies
+the packed mask by `0xfffe` and complements it. A clear sign bit becomes
+`0xffff` and a set one becomes `0x0001`, with no carry between fields.
+This exact identity reduces weight-expansion instructions in rows and tiles;
+Q2 keeps its own centering expression.
+Q1 integer rows cap their reduction group at 32 lanes in the shared row planner.
+On a 64-lane subgroup, two-row dispatches compute four output rows per subgroup.
+This changes the distribution of blocks across lanes and the floating reduction
+order; each block retains its exact integer dot and range repair.
+Q1's one-column integer dispatch reuses activations across two output rows,
+including grouped projections. Each projection keeps its own row bounds and
+output buffer; an odd tail clamps the unused read and suppresses its store.
+Mixed types partition before this dispatch, so Q2 retains its existing kernel.
+The Q1 two-row body loads eight activation pairs once, then expands and
+consumes each row's weights in turn. This keeps the original eight-dot order
+without holding both expanded rows live at once in the compiled kernel.
+They reuse twin preparation,
+grouped/routed dispatch and scale/range repair. Explicit F32 requests and devices
+without the required integer-dot profile retain float paths. Prospective F16
+calibration is frozen for both families. The specialized float row branch
+requires `LLMX_FLOAT_X`, so an integer variant cannot read its twin as floats.
+Each narrow routed integer tile is registered as tall,
+so its pipeline row count agrees with the dispatch plan. The formerly missing
+classification caused unwritten outputs and is covered by a one-token/all-expert
+case whose logical prompt extent selects the narrow tile. At this implementation
+checkpoint, the fixed candidate passed 88 native cases and 27 focused HF calls.
+Subsequent Q1/Q2 qualification is recorded in [Q1-Q2](../Q1-Q2.md) and
+[STATUS](../STATUS.md); Q1's exact-method MI50 depth review and Q2's default
+short-ranking/NLL disposition remain open. This is an implementation checkpoint,
+not completed inference qualification.
+
 NVFP4 float tiles use `float_tile_rows_for` for ordinary and routed calls. It selects 64 rows for the small tile and 128 rows for the tall tile; NVFP4 does not use the 32-row dense fallback. Performance evidence is summarized in [STATUS](../STATUS.md).
 
 TQ1_0 and TQ2_0 share scalar code, scale and value decoding in `tq.glsl`; `tq_packed.glsl` owns four codes packed into signed16 pairs. The packed decoder shares address and plane work across four values and centers both fields without carrying between lanes. The packed module's `tq_bytes4` helper assembles four bytes from two word accesses at even offsets; row and integer-tile callers supply `TQ_WORD` through their existing weight-buffer accessor. TQ1_0 uses byte-wrapped radix expansion across its 160/80/16-value regions; TQ2_0 uses two-bit planes, including the raw code 3 value of +2. Scalar decoding uses byte offsets; packed reads handle the alternating half-word alignment of 54/66-byte blocks without requiring full word alignment. Embedding preserves the sign of a zero product explicitly.
@@ -550,7 +606,7 @@ The including function supplies the row, its weight row, the type, the column co
 
 ### `src/backends/vulkan/shaders/matmul_row_two.glsl`
 
-The Q4 and K-quant families' two-row builds' body (`ROWS` above 1): a cluster's dots of two adjacent rows with up to MAX_COLS columns, each sum handed to `ROW_STORE2(c, r, s)`, then a return from the including function.
+The Q4 and K-quant families' two-row builds and Q1's one-column integer build share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Q1 retains each block's integer dot and range repair, with the shared row planner choosing its reduction group.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`
 

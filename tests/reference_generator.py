@@ -292,7 +292,7 @@ class ReferenceGenerator(unittest.TestCase):
                         self.assertEqual(actual, kind)
                         self.assertEqual(shape[0] % 256, 0)
                         self.assertEqual(len(data), math.prod(shape) // 256 * size)
-                        self.assertEqual(decoded[name], sd.decode(kind, data, math.prod(shape)))
+                        self.assertEqual(list(decoded[name]), sd.decode(kind, data, math.prod(shape)))
 
     def test_q5_0_uses_shared_raw_block_reference(self):
         selected = generator.parse_args(["q5-0"])
@@ -309,7 +309,7 @@ class ReferenceGenerator(unittest.TestCase):
                                 for _, shape, kind, data in packed))
             decoded = {name: values for name, _, _, values in weights}
             for name, shape, kind, data in packed:
-                self.assertEqual(decoded[name], sd.decode(kind, data, math.prod(shape)))
+                self.assertEqual(list(decoded[name]), sd.decode(kind, data, math.prod(shape)))
 
     def test_defaults_and_invalid_selection(self):
         default = generator.parse_args([])
@@ -432,7 +432,7 @@ class ReferenceGenerator(unittest.TestCase):
         for name, shape, kind, payload in packed:
             self.assertEqual(kind, sd.IQ2_S)
             self.assertEqual(len(payload), math.prod(shape) // 256 * 82)
-            self.assertEqual(decoded[name], sd.decode(sd.IQ2_S, payload, math.prod(shape)))
+            self.assertEqual(list(decoded[name]), sd.decode(sd.IQ2_S, payload, math.prod(shape)))
         self.assertNotIn("output.weight", decoded)
 
     def test_iq1_generator_and_required_reference(self):
@@ -470,7 +470,7 @@ class ReferenceGenerator(unittest.TestCase):
         for name, shape, kind, payload in packed:
             self.assertEqual(kind, sd.IQ3_XXS)
             self.assertEqual(len(payload), math.prod(shape) // 256 * 98)
-            self.assertEqual(decoded[name], sd.decode(sd.IQ3_XXS, payload, math.prod(shape)))
+            self.assertEqual(list(decoded[name]), sd.decode(sd.IQ3_XXS, payload, math.prod(shape)))
         self.assertNotIn("output.weight", decoded)
 
     def test_iq2_small_generator_fixtures(self):
@@ -489,7 +489,7 @@ class ReferenceGenerator(unittest.TestCase):
                 for name, shape, actual, data in packed:
                     self.assertEqual(actual, block_type)
                     self.assertEqual(len(data), math.prod(shape) // 256 * block_size)
-                    self.assertEqual(decoded[name], sd.decode(block_type, data, math.prod(shape)))
+                    self.assertEqual(list(decoded[name]), sd.decode(block_type, data, math.prod(shape)))
                 self.assertNotIn("output.weight", decoded)
 
     def test_iq3_xxs_keeps_format_and_hf_scopes(self):
@@ -552,7 +552,7 @@ class ReferenceGenerator(unittest.TestCase):
                 if moe:
                     self.assertEqual(config["expert_used_count"], config["expert_count"])
 
-    def _load_file_exact_weights(self, tensors, tied=True, reference_values=None, expose_head=True):
+    def _load_file_exact_weights(self, tensors, tied=True, reference_values=None, expose_head=True, reference_checkpoint=True):
         import numpy as np
         import spec_decode as sd
 
@@ -572,7 +572,7 @@ class ReferenceGenerator(unittest.TestCase):
             path = Path(directory) / "unregistered.gguf"
             sd.write_gguf(path, {"general.architecture": (8, "qwen3")}, tensors)
             args = SimpleNamespace(weights_gguf=str(path))
-            generator.load_gguf_weights(args, torch, model)
+            generator.load_gguf_weights(args, torch, model, reference_checkpoint=reference_checkpoint)
             return args.weights, embedding.copy(), head.copy()
 
     @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
@@ -642,9 +642,9 @@ class ReferenceGenerator(unittest.TestCase):
                 self[...] = values
                 return self
 
-        def make_model(*_, **kwargs):
+        def make_model(config, **kwargs):
             embedding = np.zeros((2, 32), dtype=np.float32).view(Parameter)
-            tied = kwargs.get("tie_word_embeddings", checkpoint_tied)
+            tied = config.tie_word_embeddings
             head = embedding if tied else embedding.copy()
             parameters = [("model.embed_tokens.weight", embedding)]
             if not tied:
@@ -661,8 +661,15 @@ class ReferenceGenerator(unittest.TestCase):
         torch = SimpleNamespace(float32=object(), set_num_threads=MagicMock(),
                                 no_grad=contextlib.nullcontext, from_numpy=lambda values: values,
                                 equal=np.array_equal, int32=np.int32)
+        def load_config(*_, **kwargs):
+            config.tie_word_embeddings = kwargs.get("tie_word_embeddings", config.tie_word_embeddings)
+            return config
+
+        config_loader = MagicMock(side_effect=load_config)
+        checkpoint_loader = MagicMock(side_effect=AssertionError("file-exact must not load checkpoint weights"))
         transformers = SimpleNamespace(AutoTokenizer=SimpleNamespace(from_pretrained=MagicMock()),
-                                       AutoModelForCausalLM=SimpleNamespace(from_pretrained=loader))
+                                       AutoConfig=SimpleNamespace(from_pretrained=config_loader),
+                                       AutoModelForCausalLM=SimpleNamespace(from_config=loader, from_pretrained=checkpoint_loader))
         with tempfile.TemporaryDirectory(prefix="llmx_reference_head_topology_") as directory:
             for explicit, head_value, checkpoint_tied in ((True, 2.0, True), (True, 1.0, True),
                                                          (False, 1.0, True), (False, 1.0, False), (True, 2.0, False)):
@@ -674,17 +681,60 @@ class ReferenceGenerator(unittest.TestCase):
                     sd.write_gguf(path, {"general.architecture": (8, "qwen3")}, tensors)
                     args = SimpleNamespace(family=None, weights_gguf=str(path), threads=1,
                                            repo="Qwen/Qwen3-0.6B", revision="c1899de289a04d12100db370d81485cdf75e47ca")
+                    config = SimpleNamespace(tie_word_embeddings=checkpoint_tied)
                     loader.reset_mock()
+                    config_loader.reset_mock()
+                    transformers.AutoTokenizer.from_pretrained.reset_mock()
                     with patch.dict(sys.modules, torch=torch, transformers=transformers):
                         _, _, _, model = generator.load_reference(args)
                     self.assertEqual(model.config.tie_word_embeddings, not explicit)
                     self.assertEqual(model.head is model.embedding, not explicit)
                     self.assertTrue(np.all(model.embedding == 1.0))
                     self.assertTrue(np.all(model.head == head_value))
-                    expected = dict(revision=args.revision, torch_dtype=torch.float32, attn_implementation="eager")
-                    expected["tie_word_embeddings"] = not explicit
-                    loader.assert_called_once_with(args.repo, **expected)
+                    config_loader.assert_called_once_with(args.repo, revision=args.revision, tie_word_embeddings=not explicit)
+                    transformers.AutoTokenizer.from_pretrained.assert_called_once_with(args.repo, revision=args.revision)
+                    loader.assert_called_once_with(config, torch_dtype=torch.float32, attn_implementation="eager")
+                    checkpoint_loader.assert_not_called()
+                    torch.set_num_threads.assert_called_with(1)
                     self.assertEqual(args.weights["tensors"], len(tensors))
+                    self.assertIsNone(args.weights["tensors_equal_to_reference"])
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which file-exact decodes with")
+    def test_config_only_file_exact_keeps_replacement_guards_without_checkpoint_provenance(self):
+        import spec_decode as sd
+
+        values = [1.0] * 64
+        embedding = ("token_embd.weight", [32, 2], sd.F32, struct.pack("<64f", *values))
+        head = ("output.weight",) + embedding[1:]
+        metadata, _, _ = self._load_file_exact_weights([embedding, head], reference_values=values, reference_checkpoint=False)
+        self.assertIsNone(metadata["tensors_equal_to_reference"])
+        self.assertTrue(metadata["tied_output_verified"])
+        with self.assertRaisesRegex(SystemExit, "lacks lm_head.weight"):
+            self._load_file_exact_weights([embedding], tied=False, reference_checkpoint=False)
+        wrong_shape = ("output.weight", [2, 32], sd.F32, embedding[3])
+        with self.assertRaisesRegex(SystemExit, "lm_head.weight is"):
+            self._load_file_exact_weights([embedding, wrong_shape], tied=False, reference_checkpoint=False)
+
+    def test_file_exact_moe_keeps_pinned_environment_and_config_identity(self):
+        config, model = object(), MagicMock()
+        model.cpu.return_value = model
+        tokenizer = SimpleNamespace(from_pretrained=MagicMock())
+        config_loader = SimpleNamespace(from_pretrained=MagicMock(return_value=config))
+        causal = SimpleNamespace(from_config=MagicMock(return_value=model), from_pretrained=MagicMock())
+        torch = SimpleNamespace(float32=object(), set_num_threads=MagicMock())
+        transformers = SimpleNamespace(AutoTokenizer=tokenizer, AutoConfig=config_loader, AutoModelForCausalLM=causal)
+        file = SimpleNamespace(value=lambda _: "qwen3moe", tensors=[])
+        args = SimpleNamespace(family="qwen3", weights_gguf="model.gguf", threads=1, repo="pinned/model", revision="b" * 40)
+        with patch.dict(sys.modules, torch=torch, transformers=transformers), \
+                patch("spec_decode.GGUF", return_value=file), patch.object(generator, "qwen3moe_environment") as environment, \
+                patch.object(generator, "load_gguf_weights") as replace:
+            generator.load_reference(args)
+        environment.assert_called_once_with()
+        config_loader.from_pretrained.assert_called_once_with(args.repo, revision=args.revision, tie_word_embeddings=True)
+        tokenizer.from_pretrained.assert_called_once_with(args.repo, revision=args.revision)
+        causal.from_config.assert_called_once_with(config, torch_dtype=torch.float32, attn_implementation="eager")
+        causal.from_pretrained.assert_not_called()
+        replace.assert_called_once_with(args, torch, model, reference_checkpoint=False)
 
     def test_file_exact_selection(self):
         with tempfile.TemporaryDirectory(prefix="llmx_reference_file_exact_") as directory:
@@ -1809,6 +1859,89 @@ class DtypeCalibration(unittest.TestCase):
                     for split in (False, True) for seed in (12345, 0, 1, 2, 3)}
         self.assertEqual(set(identities), expected)
         self.assertEqual(source.call_count, len(expected))
+
+    def test_q1_q2_family_policies_and_their_canonical_seeds(self):
+        import low_bits
+        torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        fixture_stub = ({"context_length": 16}, [], [])
+        for family, method, own_seed in (("q1-0", "fixture_q1", 12345),
+                                         ("q2-0", "fixture_q2", 12346)):
+            expected = {(name, split, seed) for name in ("dense-untied", "dense-tied", "moe")
+                        for split in (False, True) for seed in (own_seed, 0, 1, 2, 3)}
+            with self.subTest(family=family), \
+                    patch.object(low_bits, method, return_value=fixture_stub) as fixture_source, \
+                    patch.dict(sys.modules, {"gen_baseline": SimpleNamespace(tiny_block_model=lambda *args: object())}):
+                models = list(self.calibration.family_models(family))
+            identities = [identity for _, identity in models]
+            self.assertEqual(len(identities), 30)
+            self.assertEqual({(i["fixture"], i["split"], i["seed"]) for i in identities}, expected)
+            self.assertEqual(fixture_source.call_count, 30)
+
+            seen_dtypes = []
+            def measured(model, torch, dtype, routing):
+                seen_dtypes.append(dtype)
+                routing.update(stable=True, calls=0)
+                return 0.01, 0.001
+            with patch.object(self.calibration, "family_models", return_value=models), \
+                    patch.object(self.calibration, "errors", side_effect=measured), \
+                    patch("builtins.open", unittest.mock.mock_open(read_data='{"families": {}}')):
+                result = self.calibration.family_budget(family, torch, transformers)
+            policies = ["f16", "bf16"]
+            self.assertEqual(seen_dtypes, policies * 30)
+            self.assertEqual(set(result["families"][family]["dtypes"]), set(policies))
+            self.assertEqual(result["families"][family]["dtypes"]["bf16"]["logit_budget"], 0.02)
+
+    def test_q1_q2_add_only_missing_f16_without_replacing_frozen_entries(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", get_num_threads=lambda: 1)
+        transformers = SimpleNamespace(__version__="4.55.2")
+        identity = {"fixture": "dense-tied", "split": True, "seed": 12346}
+        original = {"dtypes": {"f32": {"frozen": True}}, "f32_reference_allowances": [{"frozen": True}],
+                    "families": {"prior": {"frozen": True}}}
+        def measured(model, torch, dtype, routing):
+            routing.update(stable=True, calls=0)
+            return (0.01, 0.001) if dtype == "f16" else (0.02, 0.002)
+        for family in ("q1-0", "q2-0"):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "budget.json"
+                path.write_text(json.dumps(original))
+                with patch.object(self.calibration, "BUDGET", str(path)), \
+                        patch.object(self.calibration, "family_models", return_value=[(object(), identity)]), \
+                        patch.object(self.calibration, "errors", side_effect=measured), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    complete = self.calibration.family_budget(family, torch, transformers)
+                    frozen = json.loads(json.dumps(complete))
+                    del frozen["families"][family]["dtypes"]["f16"]
+                    path.write_text(json.dumps(frozen))
+                    self.assertEqual(self.calibration.family_budget(family, torch, transformers), complete)
+                    self.assertEqual(json.loads(path.read_text()), frozen)
+                    self.assertEqual(complete["dtypes"], original["dtypes"])
+                    self.assertEqual(complete["f32_reference_allowances"], original["f32_reference_allowances"])
+                    self.assertEqual(complete["families"]["prior"], original["families"]["prior"])
+                    for base, dtype in ((frozen, "bf16"), (complete, "f16"), (complete, "bf16")):
+                        changed = json.loads(json.dumps(base))
+                        changed["families"][family]["dtypes"][dtype]["logit_budget"] += 0.001
+                        path.write_text(json.dumps(changed))
+                        with self.subTest(dtype=dtype), self.assertRaisesRegex(ValueError, "frozen family"):
+                            self.calibration.family_budget(family, torch, transformers)
+                        self.assertEqual(json.loads(path.read_text()), changed)
+                    frozen["families"][family]["threads"] = 2
+                    path.write_text(json.dumps(frozen))
+                    with self.assertRaisesRegex(ValueError, "frozen family"):
+                        self.calibration.family_budget(family, torch, transformers)
+
+    def test_q1_q2_family_cli_selectors(self):
+        torch = SimpleNamespace(__version__="2.5.1+cpu", set_num_threads=MagicMock())
+        transformers = SimpleNamespace(__version__="4.55.2")
+        for family in ("q1-0", "q2-0"):
+            with self.subTest(family=family), tempfile.TemporaryDirectory() as directory, \
+                    patch.dict(sys.modules, {"torch": torch, "transformers": transformers}), \
+                    patch.object(self.calibration, "family_budget", return_value={"family": family}) as measure:
+                target = Path(directory) / "calibration.json"
+                self.calibration.main(["--family", family, "--output", str(target)])
+                measure.assert_called_once_with(family, torch, transformers)
+                self.assertEqual(json.loads(target.read_text()), {"family": family})
+        torch.set_num_threads.assert_has_calls([call(1), call(1)])
 
     def test_invalid_reference_cannot_freeze_a_budget(self):
         for value in (-1.0, float("nan"), float("inf")):

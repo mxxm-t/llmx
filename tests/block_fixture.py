@@ -1,4 +1,5 @@
 import hashlib
+from array import array
 import json
 import tempfile
 import math
@@ -16,7 +17,7 @@ VARIANTS = (("dense-untied", False, False), ("dense-tied", True, False), ("moe",
 def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False):
     """Raw-block matrices in the shared tiny dense/MoE layout, independently decoded for HF; norms and routers stay F32."""
     block = sd.TYPES[type_id][1]
-    assert block in (32, 64, 256), "unsupported tiny block width"
+    assert block in (32, 64, 128, 256), "unsupported tiny block width"
     width, hidden, head = (96, 160, 32) if block == 32 else (256, 768, 128)
     config = {"block_count": 2, "embedding_length": width, "feed_forward_length": hidden,
               "attention.head_count": 2, "attention.head_count_kv": 1,
@@ -51,7 +52,7 @@ def fixture(tied, moe, type_id, make_block, seed=12345, context=16, split=False)
         else:
             assert shape[0] % block == 0
             payload = b"".join(make_block(next_value, b) for b in range(n // block))
-            values = sd.decode(type_id, payload, n)
+            values = array("f", sd.decode(type_id, payload, n))
             packed.append((name, shape, type_id, payload))
         weights.append((name, hf or hf_name(name), shape, values))
 
@@ -126,7 +127,7 @@ def run_family(kind, label, make_fixture, family=None, repack=None):
             print("%s: SKIP - selected device has no %s kernel" % (kind, label))
             return common.SKIPPED
         for name, model, golden in models:
-            error, count = common.check_hf_fixture(label + " " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16), family=family)
+            error, count = common.check_hf_fixture(label + " " + name, model, golden["cases"], golden["perplexity"], TEXTS[-1], (1, 2, 3, 5, 16), family=family, fixture=golden)
             worst = max(worst, error)
             comparisons += count
     assert comparisons == 150, label + " full-logit coverage changed"

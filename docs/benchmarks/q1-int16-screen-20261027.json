@@ -1,0 +1,5711 @@
+{
+  "scope": "Q1 shared integer row/tile candidate versus prior and matched mx Vulkan, with Q2 control. Twelve fixed development calls; not final qualification.",
+  "gate_passed": false,
+  "matrix": [
+    {
+      "family": "q1-0",
+      "phase": "pp",
+      "samples": {
+        "before": [
+          1133.22,
+          1128.42
+        ],
+        "after": [
+          2466.05,
+          2464.84
+        ],
+        "mx": [
+          1119.304371,
+          1120.195998
+        ]
+      },
+      "means": {
+        "before": 1130.8200000000002,
+        "after": 2465.445,
+        "mx": 1119.7501845
+      },
+      "change_percent": 118.02276224332782,
+      "vs_mx_percent": 120.17812849040888
+    },
+    {
+      "family": "q1-0",
+      "phase": "tg",
+      "samples": {
+        "before": [
+          183.05,
+          182.83
+        ],
+        "after": [
+          206.22,
+          206.65
+        ],
+        "mx": [
+          252.122742,
+          252.294858
+        ]
+      },
+      "means": {
+        "before": 182.94,
+        "after": 206.435,
+        "mx": 252.2088
+      },
+      "change_percent": 12.843008636711485,
+      "vs_mx_percent": -18.149168466762454
+    },
+    {
+      "family": "q2-0",
+      "phase": "pp",
+      "samples": {
+        "before": [
+          5648.09,
+          5600.73
+        ],
+        "after": [
+          5639.52,
+          5607.37
+        ],
+        "mx": [
+          3618.445546,
+          3706.0425
+        ]
+      },
+      "means": {
+        "before": 5624.41,
+        "after": 5623.445,
+        "mx": 3662.244023
+      },
+      "change_percent": -0.01715735517148209,
+      "vs_mx_percent": 53.55189235569953
+    },
+    {
+      "family": "q2-0",
+      "phase": "tg",
+      "samples": {
+        "before": [
+          315.45,
+          314.12
+        ],
+        "after": [
+          315.12,
+          313.93
+        ],
+        "mx": [
+          335.66155,
+          334.986412
+        ]
+      },
+      "means": {
+        "before": 314.78499999999997,
+        "after": 314.525,
+        "mx": 335.323981
+      },
+      "change_percent": -0.08259605762662714,
+      "vs_mx_percent": -6.202652413338738
+    }
+  ],
+  "calls": [
+    {
+      "index": 0,
+      "family": "q1-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141206.9920142,
+      "end": 1793141211.0121737,
+      "rates": {
+        "pp": 1133.22,
+        "tg": 183.05
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 1,
+      "family": "q1-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141211.0126624,
+      "end": 1793141214.3323503,
+      "rates": {
+        "pp": 2466.05,
+        "tg": 206.22
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 2,
+      "family": "q1-0",
+      "arm": "mx",
+      "command": [
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793141214.332735,
+      "end": 1793141219.2050202,
+      "rates": {
+        "pp": 1119.304371,
+        "tg": 252.122742
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 3,
+      "family": "q1-0",
+      "arm": "mx",
+      "command": [
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793141219.2052815,
+      "end": 1793141223.3268895,
+      "rates": {
+        "pp": 1120.195998,
+        "tg": 252.294858
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 4,
+      "family": "q1-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141223.327189,
+      "end": 1793141226.6476421,
+      "rates": {
+        "pp": 2464.84,
+        "tg": 206.65
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 5,
+      "family": "q1-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141226.6479301,
+      "end": 1793141230.4186997,
+      "rates": {
+        "pp": 1128.42,
+        "tg": 182.83
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 3,
+        "flags": {
+          "other_gpu": 3,
+          "unrelated_cpu": 1,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 6,
+      "family": "q2-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141230.4189942,
+      "end": 1793141232.9886906,
+      "rates": {
+        "pp": 5648.09,
+        "tg": 315.45
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 1,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 7,
+      "family": "q2-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141232.9891355,
+      "end": 1793141235.5078673,
+      "rates": {
+        "pp": 5639.52,
+        "tg": 315.12
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 8,
+      "family": "q2-0",
+      "arm": "mx",
+      "command": [
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793141235.5082424,
+      "end": 1793141249.0480354,
+      "rates": {
+        "pp": 3618.445546,
+        "tg": 335.66155
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 9,
+      "family": "q2-0",
+      "arm": "mx",
+      "command": [
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793141249.0484009,
+      "end": 1793141262.7350824,
+      "rates": {
+        "pp": 3706.0425,
+        "tg": 334.986412
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 10,
+      "family": "q2-0",
+      "arm": "after",
+      "command": [
+        "/trial/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141262.7354023,
+      "end": 1793141265.1531549,
+      "rates": {
+        "pp": 5607.37,
+        "tg": 313.93
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    },
+    {
+      "index": 11,
+      "family": "q2-0",
+      "arm": "before",
+      "command": [
+        "/b/llmx",
+        "bench",
+        "--model",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "--p",
+        "128",
+        "--n",
+        "256",
+        "--r",
+        "1",
+        "--threads",
+        "4",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "auto",
+        "--ubatch",
+        "512",
+        "--cache-type-k",
+        "f16",
+        "--cache-type-v",
+        "f16",
+        "--load-mode",
+        "direct"
+      ],
+      "start": 1793141265.15347,
+      "end": 1793141267.5718575,
+      "rates": {
+        "pp": 5600.73,
+        "tg": 314.12
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 2,
+        "flags": {
+          "other_gpu": 2,
+          "unrelated_cpu": 0,
+          "disk": 0,
+          "gap": 0
+        },
+        "unknown_gpu_intervals": 0,
+        "coverage_complete": true
+      }
+    }
+  ],
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q2-tall-fix-v1/build/llmx": "86e99e2f47630042821a60fe99f3ac430e27505b09f323fb7a193fdc0a3b49a1",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/llama-bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-int16-v2/build/llmx": "8c5bd0c1c6f597acf0c703b6d1db982b1e0eee30251845c400d08fe249d0e994",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-int16-v2/build/llmx-low-bits-test": "34cb23d5237a88fb364b05ec614fc4ca2d862140c06c23c8ebbdd2cd199bbe41",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0.6.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0.26.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0.26.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0.26.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0.26.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0.6.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-bench-impl.so": "debea6a1da948375ce974bbf6f0b3161e69c2d15b17de3668a2393002f051724",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "device": {
+    "physical": 8,
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130"
+  },
+  "versions": {
+    "llmx_version": "llmx 0.1.0+unknown numerics 152cac31a9be8f4e\n",
+    "trial_version": "llmx 0.1.0+unknown numerics 2810d18c77198410\n"
+  },
+  "settings": {
+    "p": 128,
+    "g": 256,
+    "threads": 4,
+    "ubatch": 512,
+    "context": 40960,
+    "kv": "f16/f16",
+    "cpu_set": "12-15",
+    "order": [
+      "before",
+      "after",
+      "mx",
+      "mx",
+      "after",
+      "before"
+    ]
+  },
+  "monitoring": {
+    "meta": {
+      "event": "start",
+      "pid": 589027,
+      "ticks_per_second": 100,
+      "logical_cpus": 16,
+      "interval": 2.0,
+      "benchmark_cgroups": [
+        "1f67754743c120454241655d0320e34038ef5b17dcb714de419adab7cad17fd5"
+      ],
+      "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+    },
+    "samples": 34,
+    "intervals": [
+      {
+        "start": 1793141204.101058,
+        "end": 1793141206.075513,
+        "dt": 2.0031556389294565,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029952739983831567,
+          "unrelated": 0.20966917988682096
+        },
+        "system_busy_fraction": 0.020325203252032575,
+        "disk_bytes_per_second": 4089.5474324591364,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 3,
+        "missed": [],
+        "appeared": [
+          [
+            589030,
+            140519855
+          ],
+          [
+            589051,
+            140519884
+          ],
+          [
+            589101,
+            140519914
+          ]
+        ],
+        "disappeared": [
+          [
+            587436,
+            140516855
+          ],
+          [
+            587505,
+            140516883
+          ],
+          [
+            588399,
+            140518901
+          ],
+          [
+            588607,
+            140519499
+          ]
+        ]
+      },
+      {
+        "start": 1793141206.075513,
+        "end": 1793141208.081936,
+        "dt": 2.0008241161704063,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.019991762232734543,
+          "unrelated": 0.2998764334910181
+        },
+        "system_busy_fraction": 0.05961719485409478,
+        "disk_bytes_per_second": 68526515.09540415,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 82,
+        "missed": [],
+        "appeared": [
+          [
+            589112,
+            140519947
+          ],
+          [
+            589113,
+            140519965
+          ],
+          [
+            589114,
+            140519965
+          ],
+          [
+            589115,
+            140519965
+          ],
+          [
+            589116,
+            140519965
+          ],
+          [
+            589144,
+            140519993
+          ],
+          [
+            589149,
+            140520030
+          ],
+          [
+            589175,
+            140520034
+          ],
+          [
+            589207,
+            140520076
+          ],
+          [
+            589208,
+            140520076
+          ],
+          [
+            589209,
+            140520076
+          ],
+          [
+            589210,
+            140520076
+          ],
+          [
+            589211,
+            140520076
+          ],
+          [
+            589215,
+            140520078
+          ],
+          [
+            589216,
+            140520090
+          ],
+          [
+            589217,
+            140520090
+          ],
+          [
+            589218,
+            140520090
+          ],
+          [
+            589219,
+            140520090
+          ],
+          [
+            589220,
+            140520090
+          ],
+          [
+            589221,
+            140520090
+          ],
+          [
+            589225,
+            140520131
+          ],
+          [
+            589226,
+            140520131
+          ],
+          [
+            589227,
+            140520131
+          ],
+          [
+            589228,
+            140520131
+          ],
+          [
+            589229,
+            140520131
+          ],
+          [
+            589230,
+            140520131
+          ],
+          [
+            589231,
+            140520131
+          ],
+          [
+            589232,
+            140520131
+          ],
+          [
+            589233,
+            140520131
+          ],
+          [
+            589234,
+            140520131
+          ],
+          [
+            589235,
+            140520131
+          ],
+          [
+            589236,
+            140520131
+          ],
+          [
+            589237,
+            140520131
+          ],
+          [
+            589238,
+            140520131
+          ],
+          [
+            589239,
+            140520131
+          ],
+          [
+            589240,
+            140520131
+          ],
+          [
+            589241,
+            140520131
+          ],
+          [
+            589242,
+            140520131
+          ],
+          [
+            589243,
+            140520131
+          ],
+          [
+            589244,
+            140520131
+          ],
+          [
+            589245,
+            140520131
+          ],
+          [
+            589246,
+            140520131
+          ],
+          [
+            589247,
+            140520131
+          ],
+          [
+            589248,
+            140520131
+          ],
+          [
+            589249,
+            140520131
+          ],
+          [
+            589250,
+            140520131
+          ],
+          [
+            589251,
+            140520131
+          ],
+          [
+            589252,
+            140520131
+          ],
+          [
+            589253,
+            140520131
+          ],
+          [
+            589254,
+            140520131
+          ],
+          [
+            589255,
+            140520131
+          ],
+          [
+            589256,
+            140520131
+          ],
+          [
+            589257,
+            140520131
+          ],
+          [
+            589258,
+            140520131
+          ],
+          [
+            589259,
+            140520131
+          ],
+          [
+            589260,
+            140520131
+          ],
+          [
+            589261,
+            140520131
+          ],
+          [
+            589262,
+            140520131
+          ],
+          [
+            589263,
+            140520131
+          ],
+          [
+            589264,
+            140520131
+          ],
+          [
+            589265,
+            140520131
+          ],
+          [
+            589266,
+            140520131
+          ],
+          [
+            589267,
+            140520131
+          ],
+          [
+            589268,
+            140520131
+          ],
+          [
+            589269,
+            140520131
+          ],
+          [
+            589270,
+            140520131
+          ],
+          [
+            589271,
+            140520131
+          ],
+          [
+            589272,
+            140520131
+          ],
+          [
+            589273,
+            140520131
+          ],
+          [
+            589274,
+            140520131
+          ],
+          [
+            589275,
+            140520131
+          ],
+          [
+            589276,
+            140520131
+          ],
+          [
+            589277,
+            140520131
+          ],
+          [
+            589278,
+            140520131
+          ],
+          [
+            589279,
+            140520131
+          ],
+          [
+            589280,
+            140520131
+          ],
+          [
+            589281,
+            140520131
+          ],
+          [
+            589282,
+            140520131
+          ],
+          [
+            589283,
+            140520131
+          ],
+          [
+            589284,
+            140520131
+          ],
+          [
+            589285,
+            140520131
+          ],
+          [
+            589286,
+            140520131
+          ]
+        ],
+        "disappeared": [
+          [
+            569436,
+            140473293
+          ],
+          [
+            582847,
+            140504089
+          ],
+          [
+            587614,
+            140517405
+          ],
+          [
+            588045,
+            140517917
+          ],
+          [
+            588411,
+            140518940
+          ],
+          [
+            588420,
+            140518942
+          ],
+          [
+            588451,
+            140518976
+          ],
+          [
+            588515,
+            140519453
+          ],
+          [
+            588551,
+            140519490
+          ],
+          [
+            588552,
+            140519490
+          ]
+        ]
+      },
+      {
+        "start": 1793141208.081936,
+        "end": 1793141210.079199,
+        "dt": 2.000656171934679,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.17494260378660775,
+          "monitor": 0.034988520757321555,
+          "unrelated": 0.18493932400298535
+        },
+        "system_busy_fraction": 0.024749373433583965,
+        "disk_bytes_per_second": 1085083.9991664889,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 7,
+        "missed": [],
+        "appeared": [
+          [
+            589289,
+            140520204
+          ],
+          [
+            589290,
+            140520217
+          ],
+          [
+            589291,
+            140520217
+          ],
+          [
+            589292,
+            140520217
+          ],
+          [
+            589293,
+            140520217
+          ],
+          [
+            589294,
+            140520217
+          ],
+          [
+            589295,
+            140520217
+          ]
+        ],
+        "disappeared": [
+          [
+            586893,
+            140515097
+          ],
+          [
+            588134,
+            140518169
+          ],
+          [
+            588490,
+            140519193
+          ],
+          [
+            588491,
+            140519193
+          ]
+        ]
+      },
+      {
+        "start": 1793141210.079199,
+        "end": 1793141212.080943,
+        "dt": 2.000597988953814,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.024992527372351723,
+          "unrelated": 0.31990435036610204
+        },
+        "system_busy_fraction": 0.07324740647595096,
+        "disk_bytes_per_second": 68616156.14828508,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 22,
+        "missed": [
+          {
+            "pid": 589476,
+            "error": "FileNotFoundError"
+          }
+        ],
+        "appeared": [
+          [
+            589333,
+            140520396
+          ],
+          [
+            589360,
+            140520432
+          ],
+          [
+            589388,
+            140520436
+          ],
+          [
+            589397,
+            140520476
+          ],
+          [
+            589398,
+            140520476
+          ],
+          [
+            589399,
+            140520477
+          ],
+          [
+            589411,
+            140520501
+          ],
+          [
+            589412,
+            140520501
+          ],
+          [
+            589413,
+            140520501
+          ],
+          [
+            589414,
+            140520501
+          ],
+          [
+            589415,
+            140520501
+          ],
+          [
+            589416,
+            140520501
+          ],
+          [
+            589417,
+            140520501
+          ],
+          [
+            589418,
+            140520501
+          ],
+          [
+            589419,
+            140520501
+          ],
+          [
+            589420,
+            140520501
+          ],
+          [
+            589421,
+            140520501
+          ],
+          [
+            589422,
+            140520501
+          ],
+          [
+            589423,
+            140520501
+          ],
+          [
+            589424,
+            140520501
+          ],
+          [
+            589425,
+            140520501
+          ],
+          [
+            589427,
+            140520511
+          ]
+        ],
+        "disappeared": [
+          [
+            586570,
+            140514356
+          ],
+          [
+            586789,
+            140514845
+          ],
+          [
+            587668,
+            140517511
+          ],
+          [
+            588182,
+            140518425
+          ],
+          [
+            588418,
+            140518942
+          ],
+          [
+            588516,
+            140519453
+          ],
+          [
+            588517,
+            140519453
+          ],
+          [
+            588760,
+            140519525
+          ],
+          [
+            589149,
+            140520030
+          ],
+          [
+            589175,
+            140520034
+          ]
+        ]
+      },
+      {
+        "start": 1793141212.080943,
+        "end": 1793141214.081253,
+        "dt": 2.0004338449798524,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.20495554053382323,
+          "monitor": 0.024994578113880884,
+          "unrelated": 0.16996313117439002
+        },
+        "system_busy_fraction": 0.036084091622215264,
+        "disk_bytes_per_second": 1191677.498349869,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 30,
+        "missed": [],
+        "appeared": [
+          [
+            589479,
+            140520538
+          ],
+          [
+            589480,
+            140520563
+          ],
+          [
+            589481,
+            140520563
+          ],
+          [
+            589482,
+            140520563
+          ],
+          [
+            589483,
+            140520563
+          ],
+          [
+            589484,
+            140520563
+          ],
+          [
+            589485,
+            140520563
+          ],
+          [
+            589486,
+            140520563
+          ],
+          [
+            589487,
+            140520563
+          ],
+          [
+            589488,
+            140520563
+          ],
+          [
+            589489,
+            140520563
+          ],
+          [
+            589490,
+            140520563
+          ],
+          [
+            589491,
+            140520563
+          ],
+          [
+            589492,
+            140520563
+          ],
+          [
+            589493,
+            140520563
+          ],
+          [
+            589494,
+            140520563
+          ],
+          [
+            589495,
+            140520563
+          ],
+          [
+            589496,
+            140520563
+          ],
+          [
+            589497,
+            140520563
+          ],
+          [
+            589498,
+            140520563
+          ],
+          [
+            589499,
+            140520563
+          ],
+          [
+            589500,
+            140520563
+          ],
+          [
+            589501,
+            140520563
+          ],
+          [
+            589502,
+            140520575
+          ],
+          [
+            589553,
+            140520623
+          ],
+          [
+            589562,
+            140520650
+          ],
+          [
+            589575,
+            140520729
+          ],
+          [
+            589576,
+            140520729
+          ],
+          [
+            589577,
+            140520729
+          ],
+          [
+            589578,
+            140520729
+          ]
+        ],
+        "disappeared": [
+          [
+            587973,
+            140517657
+          ],
+          [
+            588489,
+            140519193
+          ],
+          [
+            588493,
+            140519193
+          ],
+          [
+            588852,
+            140519610
+          ],
+          [
+            588862,
+            140519642
+          ],
+          [
+            588957,
+            140519705
+          ],
+          [
+            589291,
+            140520217
+          ]
+        ]
+      },
+      {
+        "start": 1793141214.081253,
+        "end": 1793141216.083428,
+        "dt": 2.000623560976237,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029990649500659692,
+          "unrelated": 0.27991272867282385
+        },
+        "system_busy_fraction": 0.07431796801505175,
+        "disk_bytes_per_second": 38899.871778989,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 4,
+        "missed": [],
+        "appeared": [
+          [
+            589580,
+            140520764
+          ],
+          [
+            589606,
+            140520768
+          ],
+          [
+            589673,
+            140520926
+          ],
+          [
+            589674,
+            140520932
+          ]
+        ],
+        "disappeared": [
+          [
+            579544,
+            140498705
+          ],
+          [
+            588053,
+            140517932
+          ],
+          [
+            588416,
+            140518942
+          ],
+          [
+            589101,
+            140519914
+          ],
+          [
+            589208,
+            140520076
+          ],
+          [
+            589211,
+            140520076
+          ],
+          [
+            589360,
+            140520432
+          ],
+          [
+            589388,
+            140520436
+          ]
+        ]
+      },
+      {
+        "start": 1793141216.083428,
+        "end": 1793141218.090615,
+        "dt": 2.000414233189076,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.4848995692525234,
+          "monitor": 0.02999378778881588,
+          "unrelated": 0.33992959493991337
+        },
+        "system_busy_fraction": 0.06220546654099901,
+        "disk_bytes_per_second": 421800.63808826514,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            99
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 6,
+        "missed": [],
+        "appeared": [
+          [
+            589683,
+            140520954
+          ],
+          [
+            589684,
+            140520985
+          ],
+          [
+            589685,
+            140520989
+          ],
+          [
+            589686,
+            140520989
+          ],
+          [
+            589715,
+            140521011
+          ],
+          [
+            589719,
+            140521026
+          ]
+        ],
+        "disappeared": [
+          [
+            585844,
+            140512281
+          ],
+          [
+            587612,
+            140517405
+          ],
+          [
+            588111,
+            140518026
+          ],
+          [
+            588422,
+            140518943
+          ],
+          [
+            589112,
+            140519947
+          ],
+          [
+            589113,
+            140519965
+          ],
+          [
+            589114,
+            140519965
+          ],
+          [
+            589144,
+            140519993
+          ]
+        ]
+      },
+      {
+        "start": 1793141218.090615,
+        "end": 1793141220.081876,
+        "dt": 2.000473335850984,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02499408470182405,
+          "unrelated": 0.21994794537605164
+        },
+        "system_busy_fraction": 0.05841708542713564,
+        "disk_bytes_per_second": 1148656.149931892,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 6,
+        "missed": [],
+        "appeared": [
+          [
+            589753,
+            140521241
+          ],
+          [
+            589754,
+            140521241
+          ],
+          [
+            589755,
+            140521241
+          ],
+          [
+            589756,
+            140521241
+          ],
+          [
+            589757,
+            140521252
+          ],
+          [
+            589783,
+            140521255
+          ]
+        ],
+        "disappeared": [
+          [
+            582539,
+            140503321
+          ],
+          [
+            587582,
+            140517145
+          ],
+          [
+            589290,
+            140520217
+          ],
+          [
+            589578,
+            140520729
+          ],
+          [
+            589580,
+            140520764
+          ],
+          [
+            589606,
+            140520768
+          ]
+        ]
+      },
+      {
+        "start": 1793141220.081876,
+        "end": 1793141222.081907,
+        "dt": 2.0005683491472155,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.48986079401773286,
+          "monitor": 0.029991477184759155,
+          "unrelated": 0.23993181747807324
+        },
+        "system_busy_fraction": 0.049309045226130666,
+        "disk_bytes_per_second": 429957.81692070724,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 8,
+        "missed": [
+          {
+            "pid": 589479,
+            "error": "FileNotFoundError"
+          }
+        ],
+        "appeared": [
+          [
+            589794,
+            140521398
+          ],
+          [
+            589819,
+            140521497
+          ],
+          [
+            589820,
+            140521500
+          ],
+          [
+            589821,
+            140521500
+          ],
+          [
+            589822,
+            140521501
+          ],
+          [
+            589823,
+            140521501
+          ],
+          [
+            589828,
+            140521515
+          ],
+          [
+            589829,
+            140521515
+          ]
+        ],
+        "disappeared": [
+          [
+            584849,
+            140509721
+          ],
+          [
+            588158,
+            140518397
+          ],
+          [
+            588257,
+            140518515
+          ],
+          [
+            588258,
+            140518515
+          ],
+          [
+            589397,
+            140520476
+          ],
+          [
+            589399,
+            140520477
+          ],
+          [
+            589479,
+            140520538
+          ],
+          [
+            589686,
+            140520989
+          ]
+        ]
+      },
+      {
+        "start": 1793141222.081907,
+        "end": 1793141224.079087,
+        "dt": 2.0005479578394443,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02499315240310415,
+          "unrelated": 0.2199397411473165
+        },
+        "system_busy_fraction": 0.06693903205531115,
+        "disk_bytes_per_second": 14678090.512617769,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 6,
+        "missed": [],
+        "appeared": [
+          [
+            589881,
+            140521550
+          ],
+          [
+            589933,
+            140521636
+          ],
+          [
+            589942,
+            140521657
+          ],
+          [
+            589943,
+            140521664
+          ],
+          [
+            589969,
+            140521667
+          ],
+          [
+            590006,
+            140521710
+          ]
+        ],
+        "disappeared": [
+          [
+            589207,
+            140520076
+          ],
+          [
+            589210,
+            140520076
+          ],
+          [
+            589215,
+            140520078
+          ],
+          [
+            589553,
+            140520623
+          ],
+          [
+            589562,
+            140520650
+          ],
+          [
+            589757,
+            140521252
+          ],
+          [
+            589783,
+            140521255
+          ]
+        ]
+      },
+      {
+        "start": 1793141224.079087,
+        "end": 1793141226.08386,
+        "dt": 2.0004362049512565,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.20995420846736468,
+          "monitor": 0.024994548627067226,
+          "unrelated": 0.2299498473690185
+        },
+        "system_busy_fraction": 0.03137747097583932,
+        "disk_bytes_per_second": 1150725.024023493,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 22,
+        "missed": [
+          {
+            "pid": 590085,
+            "error": "FileNotFoundError"
+          }
+        ],
+        "appeared": [
+          [
+            590008,
+            140521735
+          ],
+          [
+            590009,
+            140521735
+          ],
+          [
+            590010,
+            140521735
+          ],
+          [
+            590011,
+            140521735
+          ],
+          [
+            590012,
+            140521735
+          ],
+          [
+            590013,
+            140521735
+          ],
+          [
+            590014,
+            140521735
+          ],
+          [
+            590015,
+            140521735
+          ],
+          [
+            590016,
+            140521735
+          ],
+          [
+            590017,
+            140521735
+          ],
+          [
+            590018,
+            140521735
+          ],
+          [
+            590019,
+            140521753
+          ],
+          [
+            590020,
+            140521753
+          ],
+          [
+            590021,
+            140521753
+          ],
+          [
+            590022,
+            140521753
+          ],
+          [
+            590023,
+            140521797
+          ],
+          [
+            590024,
+            140521797
+          ],
+          [
+            590025,
+            140521797
+          ],
+          [
+            590026,
+            140521797
+          ],
+          [
+            590027,
+            140521797
+          ],
+          [
+            590028,
+            140521797
+          ],
+          [
+            590029,
+            140521805
+          ]
+        ],
+        "disappeared": [
+          [
+            588340,
+            140518681
+          ],
+          [
+            588347,
+            140518805
+          ],
+          [
+            588417,
+            140518942
+          ],
+          [
+            588488,
+            140519193
+          ],
+          [
+            589294,
+            140520217
+          ],
+          [
+            589577,
+            140520729
+          ],
+          [
+            589673,
+            140520926
+          ],
+          [
+            589753,
+            140521241
+          ]
+        ]
+      },
+      {
+        "start": 1793141226.08386,
+        "end": 1793141228.08804,
+        "dt": 2.0005432080943137,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029991854091047133,
+          "unrelated": 0.3399076796985342
+        },
+        "system_busy_fraction": 0.06637307329348852,
+        "disk_bytes_per_second": 17214908.36121766,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 13,
+        "missed": [],
+        "appeared": [
+          [
+            590087,
+            140521938
+          ],
+          [
+            590095,
+            140521961
+          ],
+          [
+            590097,
+            140521996
+          ],
+          [
+            590122,
+            140521999
+          ],
+          [
+            590130,
+            140522009
+          ],
+          [
+            590131,
+            140522009
+          ],
+          [
+            590132,
+            140522009
+          ],
+          [
+            590133,
+            140522009
+          ],
+          [
+            590134,
+            140522009
+          ],
+          [
+            590135,
+            140522009
+          ],
+          [
+            590136,
+            140522010
+          ],
+          [
+            590167,
+            140522030
+          ],
+          [
+            590177,
+            140522044
+          ]
+        ],
+        "disappeared": [
+          [
+            588415,
+            140518942
+          ],
+          [
+            588514,
+            140519453
+          ],
+          [
+            589115,
+            140519965
+          ],
+          [
+            589683,
+            140520954
+          ],
+          [
+            589715,
+            140521011
+          ],
+          [
+            589819,
+            140521497
+          ],
+          [
+            589821,
+            140521500
+          ],
+          [
+            589943,
+            140521664
+          ],
+          [
+            589969,
+            140521667
+          ]
+        ]
+      },
+      {
+        "start": 1793141228.08804,
+        "end": 1793141230.085186,
+        "dt": 2.0005872000474483,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.174948635076591,
+          "monitor": 0.024992662153798716,
+          "unrelated": 0.2449280891072274
+        },
+        "system_busy_fraction": 0.02758620689655178,
+        "disk_bytes_per_second": 1038031.2340050697,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 7,
+        "missed": [],
+        "appeared": [
+          [
+            590210,
+            140522158
+          ],
+          [
+            590211,
+            140522174
+          ],
+          [
+            590213,
+            140522265
+          ],
+          [
+            590214,
+            140522265
+          ],
+          [
+            590215,
+            140522265
+          ],
+          [
+            590216,
+            140522265
+          ],
+          [
+            590217,
+            140522265
+          ]
+        ],
+        "disappeared": [
+          [
+            576510,
+            140492057
+          ],
+          [
+            588486,
+            140519158
+          ],
+          [
+            588487,
+            140519174
+          ],
+          [
+            589576,
+            140520729
+          ],
+          [
+            589754,
+            140521241
+          ],
+          [
+            590022,
+            140521753
+          ]
+        ]
+      },
+      {
+        "start": 1793141230.085186,
+        "end": 1793141232.087595,
+        "dt": 2.0005893390625715,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": true,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02499263543183171,
+          "unrelated": 2.4842679619240715
+        },
+        "system_busy_fraction": 0.19123252858958073,
+        "disk_bytes_per_second": 104691582.58043146,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 80,
+        "missed": [],
+        "appeared": [
+          [
+            590221,
+            140522373
+          ],
+          [
+            590248,
+            140522376
+          ],
+          [
+            590271,
+            140522420
+          ],
+          [
+            590272,
+            140522420
+          ],
+          [
+            590273,
+            140522420
+          ],
+          [
+            590274,
+            140522420
+          ],
+          [
+            590275,
+            140522421
+          ],
+          [
+            590276,
+            140522421
+          ],
+          [
+            590277,
+            140522421
+          ],
+          [
+            590278,
+            140522422
+          ],
+          [
+            590287,
+            140522454
+          ],
+          [
+            590288,
+            140522454
+          ],
+          [
+            590289,
+            140522454
+          ],
+          [
+            590290,
+            140522454
+          ],
+          [
+            590291,
+            140522454
+          ],
+          [
+            590292,
+            140522454
+          ],
+          [
+            590293,
+            140522454
+          ],
+          [
+            590294,
+            140522454
+          ],
+          [
+            590295,
+            140522454
+          ],
+          [
+            590296,
+            140522454
+          ],
+          [
+            590297,
+            140522454
+          ],
+          [
+            590298,
+            140522454
+          ],
+          [
+            590299,
+            140522454
+          ],
+          [
+            590300,
+            140522454
+          ],
+          [
+            590301,
+            140522454
+          ],
+          [
+            590302,
+            140522454
+          ],
+          [
+            590303,
+            140522454
+          ],
+          [
+            590304,
+            140522454
+          ],
+          [
+            590305,
+            140522454
+          ],
+          [
+            590306,
+            140522454
+          ],
+          [
+            590307,
+            140522454
+          ],
+          [
+            590308,
+            140522454
+          ],
+          [
+            590309,
+            140522454
+          ],
+          [
+            590310,
+            140522454
+          ],
+          [
+            590311,
+            140522454
+          ],
+          [
+            590312,
+            140522454
+          ],
+          [
+            590313,
+            140522454
+          ],
+          [
+            590314,
+            140522454
+          ],
+          [
+            590315,
+            140522454
+          ],
+          [
+            590316,
+            140522454
+          ],
+          [
+            590317,
+            140522454
+          ],
+          [
+            590318,
+            140522454
+          ],
+          [
+            590319,
+            140522454
+          ],
+          [
+            590320,
+            140522454
+          ],
+          [
+            590321,
+            140522454
+          ],
+          [
+            590322,
+            140522454
+          ],
+          [
+            590323,
+            140522454
+          ],
+          [
+            590324,
+            140522454
+          ],
+          [
+            590325,
+            140522454
+          ],
+          [
+            590326,
+            140522454
+          ],
+          [
+            590327,
+            140522454
+          ],
+          [
+            590328,
+            140522454
+          ],
+          [
+            590329,
+            140522454
+          ],
+          [
+            590330,
+            140522454
+          ],
+          [
+            590331,
+            140522454
+          ],
+          [
+            590332,
+            140522454
+          ],
+          [
+            590333,
+            140522454
+          ],
+          [
+            590334,
+            140522454
+          ],
+          [
+            590335,
+            140522454
+          ],
+          [
+            590336,
+            140522454
+          ],
+          [
+            590337,
+            140522454
+          ],
+          [
+            590338,
+            140522454
+          ],
+          [
+            590339,
+            140522454
+          ],
+          [
+            590340,
+            140522454
+          ],
+          [
+            590341,
+            140522454
+          ],
+          [
+            590342,
+            140522454
+          ],
+          [
+            590343,
+            140522454
+          ],
+          [
+            590344,
+            140522454
+          ],
+          [
+            590345,
+            140522454
+          ],
+          [
+            590346,
+            140522454
+          ],
+          [
+            590347,
+            140522454
+          ],
+          [
+            590348,
+            140522454
+          ],
+          [
+            590349,
+            140522454
+          ],
+          [
+            590350,
+            140522454
+          ],
+          [
+            590351,
+            140522454
+          ],
+          [
+            590352,
+            140522454
+          ],
+          [
+            590353,
+            140522454
+          ],
+          [
+            590363,
+            140522521
+          ],
+          [
+            590364,
+            140522521
+          ],
+          [
+            590365,
+            140522521
+          ]
+        ],
+        "disappeared": [
+          [
+            564501,
+            140462110
+          ],
+          [
+            573244,
+            140483613
+          ],
+          [
+            586066,
+            140512793
+          ],
+          [
+            588188,
+            140518426
+          ],
+          [
+            589209,
+            140520076
+          ],
+          [
+            589685,
+            140520989
+          ],
+          [
+            590006,
+            140521710
+          ],
+          [
+            590097,
+            140521996
+          ],
+          [
+            590122,
+            140521999
+          ],
+          [
+            590131,
+            140522009
+          ]
+        ]
+      },
+      {
+        "start": 1793141232.087595,
+        "end": 1793141234.096885,
+        "dt": 2.0006233509629965,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.03498909475704441,
+          "unrelated": 0.29490808438080285
+        },
+        "system_busy_fraction": 0.06346214263273642,
+        "disk_bytes_per_second": 101088493.19520946,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            96
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 5,
+        "missed": [],
+        "appeared": [
+          [
+            590417,
+            140522564
+          ],
+          [
+            590418,
+            140522630
+          ],
+          [
+            590444,
+            140522633
+          ],
+          [
+            590503,
+            140522649
+          ],
+          [
+            590512,
+            140522665
+          ]
+        ],
+        "disappeared": [
+          [
+            589881,
+            140521550
+          ],
+          [
+            589933,
+            140521636
+          ],
+          [
+            589942,
+            140521657
+          ],
+          [
+            590221,
+            140522373
+          ],
+          [
+            590248,
+            140522376
+          ]
+        ]
+      },
+      {
+        "start": 1793141234.096885,
+        "end": 1793141236.091881,
+        "dt": 2.0005345470272005,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02499331994756108,
+          "unrelated": 0.23993587149658638
+        },
+        "system_busy_fraction": 0.050927381326626886,
+        "disk_bytes_per_second": 1379983.1670502333,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 8,
+        "missed": [
+          {
+            "pid": 590087,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 590589,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 590590,
+            "error": "FileNotFoundError"
+          }
+        ],
+        "appeared": [
+          [
+            590526,
+            140522777
+          ],
+          [
+            590527,
+            140522777
+          ],
+          [
+            590528,
+            140522777
+          ],
+          [
+            590529,
+            140522777
+          ],
+          [
+            590532,
+            140522855
+          ],
+          [
+            590551,
+            140522882
+          ],
+          [
+            590562,
+            140522884
+          ],
+          [
+            590578,
+            140522885
+          ]
+        ],
+        "disappeared": [
+          [
+            523263,
+            140360920
+          ],
+          [
+            576757,
+            140492761
+          ],
+          [
+            589030,
+            140519855
+          ],
+          [
+            589051,
+            140519884
+          ],
+          [
+            589295,
+            140520217
+          ],
+          [
+            590020,
+            140521753
+          ],
+          [
+            590087,
+            140521938
+          ],
+          [
+            590215,
+            140522265
+          ],
+          [
+            590216,
+            140522265
+          ],
+          [
+            590418,
+            140522630
+          ],
+          [
+            590444,
+            140522633
+          ]
+        ]
+      },
+      {
+        "start": 1793141236.091881,
+        "end": 1793141238.086506,
+        "dt": 2.000577748985961,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.03498989231259876,
+          "unrelated": 0.3149090308133888
+        },
+        "system_busy_fraction": 0.03883495145631066,
+        "disk_bytes_per_second": 544610.675867137,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            99
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 9,
+        "missed": [],
+        "appeared": [
+          [
+            590642,
+            140522951
+          ],
+          [
+            590650,
+            140522970
+          ],
+          [
+            590659,
+            140523033
+          ],
+          [
+            590660,
+            140523033
+          ],
+          [
+            590661,
+            140523033
+          ],
+          [
+            590662,
+            140523033
+          ],
+          [
+            590663,
+            140523033
+          ],
+          [
+            590664,
+            140523034
+          ],
+          [
+            590686,
+            140523049
+          ]
+        ],
+        "disappeared": [
+          [
+            584061,
+            140507161
+          ],
+          [
+            585284,
+            140511261
+          ],
+          [
+            589820,
+            140521500
+          ],
+          [
+            590095,
+            140521961
+          ],
+          [
+            590133,
+            140522009
+          ],
+          [
+            590135,
+            140522009
+          ],
+          [
+            590167,
+            140522030
+          ]
+        ]
+      },
+      {
+        "start": 1793141238.086506,
+        "end": 1793141240.089451,
+        "dt": 2.000585699919611,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02499268089440464,
+          "unrelated": 0.16995023008195156
+        },
+        "system_busy_fraction": 0.013145539906103232,
+        "disk_bytes_per_second": 1152686.4358236005,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 3,
+        "missed": [],
+        "appeared": [
+          [
+            590708,
+            140523289
+          ],
+          [
+            590709,
+            140523289
+          ],
+          [
+            590710,
+            140523289
+          ]
+        ],
+        "disappeared": [
+          [
+            589292,
+            140520217
+          ],
+          [
+            589293,
+            140520217
+          ],
+          [
+            590527,
+            140522777
+          ],
+          [
+            590529,
+            140522777
+          ]
+        ]
+      },
+      {
+        "start": 1793141240.089451,
+        "end": 1793141242.089303,
+        "dt": 2.0006332609336823,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02999050409268833,
+          "unrelated": 0.17994302455612998
+        },
+        "system_busy_fraction": 0.0153460695270905,
+        "disk_bytes_per_second": 0.0,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 1,
+        "missed": [],
+        "appeared": [
+          [
+            590741,
+            140523511
+          ]
+        ],
+        "disappeared": [
+          [
+            589427,
+            140520511
+          ]
+        ]
+      },
+      {
+        "start": 1793141242.089303,
+        "end": 1793141244.091676,
+        "dt": 2.000578919192776,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.0249927656041556,
+          "unrelated": 0.1999421248332448
+        },
+        "system_busy_fraction": 0.03448275862068961,
+        "disk_bytes_per_second": 427908.1378831172,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 5,
+        "missed": [],
+        "appeared": [
+          [
+            590743,
+            140523548
+          ],
+          [
+            590744,
+            140523548
+          ],
+          [
+            590795,
+            140523577
+          ],
+          [
+            591088,
+            140523662
+          ],
+          [
+            591096,
+            140523673
+          ]
+        ],
+        "disappeared": [
+          [
+            589398,
+            140520476
+          ],
+          [
+            589823,
+            140521501
+          ],
+          [
+            590132,
+            140522009
+          ],
+          [
+            590363,
+            140522521
+          ],
+          [
+            590417,
+            140522564
+          ],
+          [
+            590503,
+            140522649
+          ],
+          [
+            590512,
+            140522665
+          ],
+          [
+            590663,
+            140523033
+          ]
+        ]
+      },
+      {
+        "start": 1793141244.091676,
+        "end": 1793141246.089841,
+        "dt": 2.000483655836433,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029992746916451596,
+          "unrelated": 0.23494318417887083
+        },
+        "system_busy_fraction": 0.018170426065162948,
+        "disk_bytes_per_second": 1126127.6708897026,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 5,
+        "missed": [],
+        "appeared": [
+          [
+            591099,
+            140523801
+          ],
+          [
+            591100,
+            140523801
+          ],
+          [
+            591101,
+            140523801
+          ],
+          [
+            591102,
+            140523801
+          ],
+          [
+            591116,
+            140523932
+          ]
+        ],
+        "disappeared": [
+          [
+            587276,
+            140516121
+          ],
+          [
+            589674,
+            140520932
+          ],
+          [
+            590217,
+            140522265
+          ],
+          [
+            590528,
+            140522777
+          ],
+          [
+            590708,
+            140523289
+          ],
+          [
+            590709,
+            140523289
+          ]
+        ]
+      },
+      {
+        "start": 1793141246.089841,
+        "end": 1793141248.091954,
+        "dt": 2.0004999269731343,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.6198450613673292,
+          "monitor": 0.02499375247448908,
+          "unrelated": 0.3999000395918253
+        },
+        "system_busy_fraction": 0.08123425692695219,
+        "disk_bytes_per_second": 495492.1450558552,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 7,
+        "missed": [],
+        "appeared": [
+          [
+            591154,
+            140523955
+          ],
+          [
+            591175,
+            140523964
+          ],
+          [
+            591185,
+            140523978
+          ],
+          [
+            591190,
+            140524027
+          ],
+          [
+            591210,
+            140524057
+          ],
+          [
+            591215,
+            140524061
+          ],
+          [
+            591242,
+            140524069
+          ]
+        ],
+        "disappeared": [
+          [
+            588181,
+            140518425
+          ],
+          [
+            589719,
+            140521026
+          ],
+          [
+            589822,
+            140521501
+          ],
+          [
+            590273,
+            140522420
+          ],
+          [
+            590276,
+            140522421
+          ],
+          [
+            590642,
+            140522951
+          ],
+          [
+            590650,
+            140522970
+          ],
+          [
+            590660,
+            140523033
+          ],
+          [
+            590664,
+            140523034
+          ],
+          [
+            590686,
+            140523049
+          ],
+          [
+            590743,
+            140523548
+          ]
+        ]
+      },
+      {
+        "start": 1793141248.091954,
+        "end": 1793141250.093469,
+        "dt": 2.0005001870449632,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.024993749225216244,
+          "unrelated": 0.20994749349181643
+        },
+        "system_busy_fraction": 0.05436832181018225,
+        "disk_bytes_per_second": 1222350.2981082397,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            99
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 8,
+        "missed": [],
+        "appeared": [
+          [
+            591287,
+            140524236
+          ],
+          [
+            591313,
+            140524240
+          ],
+          [
+            591322,
+            140524313
+          ],
+          [
+            591323,
+            140524313
+          ],
+          [
+            591324,
+            140524313
+          ],
+          [
+            591325,
+            140524313
+          ],
+          [
+            591326,
+            140524313
+          ],
+          [
+            591327,
+            140524313
+          ]
+        ],
+        "disappeared": [
+          [
+            579914,
+            140499226
+          ],
+          [
+            588342,
+            140518681
+          ],
+          [
+            588956,
+            140519705
+          ],
+          [
+            590021,
+            140521753
+          ],
+          [
+            590214,
+            140522265
+          ],
+          [
+            590551,
+            140522882
+          ],
+          [
+            590578,
+            140522885
+          ]
+        ]
+      },
+      {
+        "start": 1793141250.093469,
+        "end": 1793141252.093627,
+        "dt": 2.000613700132817,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.034989263542158505,
+          "unrelated": 0.23492791235449278
+        },
+        "system_busy_fraction": 0.019092331768388093,
+        "disk_bytes_per_second": 0.0,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 3,
+        "missed": [],
+        "appeared": [
+          [
+            591330,
+            140524398
+          ],
+          [
+            591369,
+            140524516
+          ],
+          [
+            591370,
+            140524516
+          ]
+        ],
+        "disappeared": [
+          [
+            589794,
+            140521398
+          ],
+          [
+            589828,
+            140521515
+          ],
+          [
+            589829,
+            140521515
+          ],
+          [
+            591154,
+            140523955
+          ]
+        ]
+      },
+      {
+        "start": 1793141252.093627,
+        "end": 1793141254.094945,
+        "dt": 2.0005236878059804,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02999214673923874,
+          "unrelated": 0.17495418931222598
+        },
+        "system_busy_fraction": 0.02631578947368418,
+        "disk_bytes_per_second": 442252.1989581188,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 12,
+        "missed": [],
+        "appeared": [
+          [
+            591372,
+            140524569
+          ],
+          [
+            591373,
+            140524572
+          ],
+          [
+            591374,
+            140524572
+          ],
+          [
+            591375,
+            140524572
+          ],
+          [
+            591376,
+            140524572
+          ],
+          [
+            591377,
+            140524573
+          ],
+          [
+            591378,
+            140524573
+          ],
+          [
+            591379,
+            140524574
+          ],
+          [
+            591380,
+            140524574
+          ],
+          [
+            591431,
+            140524591
+          ],
+          [
+            591490,
+            140524675
+          ],
+          [
+            591491,
+            140524680
+          ]
+        ],
+        "disappeared": [
+          [
+            588513,
+            140519449
+          ],
+          [
+            590661,
+            140523033
+          ],
+          [
+            590662,
+            140523033
+          ],
+          [
+            590795,
+            140523577
+          ],
+          [
+            591088,
+            140523662
+          ],
+          [
+            591096,
+            140523673
+          ],
+          [
+            591215,
+            140524061
+          ]
+        ]
+      },
+      {
+        "start": 1793141254.094945,
+        "end": 1793141256.094596,
+        "dt": 2.0006242701783776,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.024992199057718097,
+          "unrelated": 0.20993447208483199
+        },
+        "system_busy_fraction": 0.01470128245229907,
+        "disk_bytes_per_second": 1150616.8521062457,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 7,
+        "missed": [],
+        "appeared": [
+          [
+            591515,
+            140524805
+          ],
+          [
+            591516,
+            140524825
+          ],
+          [
+            591517,
+            140524825
+          ],
+          [
+            591518,
+            140524825
+          ],
+          [
+            591519,
+            140524825
+          ],
+          [
+            591520,
+            140524825
+          ],
+          [
+            591521,
+            140524825
+          ]
+        ],
+        "disappeared": [
+          [
+            519321,
+            140350337
+          ],
+          [
+            569096,
+            140472192
+          ],
+          [
+            577541,
+            140494463
+          ],
+          [
+            577550,
+            140494476
+          ],
+          [
+            577588,
+            140494558
+          ],
+          [
+            588492,
+            140519193
+          ],
+          [
+            590029,
+            140521805
+          ],
+          [
+            590526,
+            140522777
+          ],
+          [
+            591322,
+            140524313
+          ],
+          [
+            591324,
+            140524313
+          ]
+        ]
+      },
+      {
+        "start": 1793141256.094596,
+        "end": 1793141258.09422,
+        "dt": 2.0005693989805877,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029991461446213095,
+          "unrelated": 0.26992315301591785
+        },
+        "system_busy_fraction": 0.035076730347635476,
+        "disk_bytes_per_second": 356250.57564269763,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 8,
+        "missed": [],
+        "appeared": [
+          [
+            591580,
+            140524977
+          ],
+          [
+            591588,
+            140524986
+          ],
+          [
+            591601,
+            140525081
+          ],
+          [
+            591619,
+            140525085
+          ],
+          [
+            591620,
+            140525085
+          ],
+          [
+            591621,
+            140525085
+          ],
+          [
+            591622,
+            140525085
+          ],
+          [
+            591623,
+            140525088
+          ]
+        ],
+        "disappeared": [
+          [
+            588421,
+            140518943
+          ],
+          [
+            590130,
+            140522009
+          ],
+          [
+            590134,
+            140522009
+          ],
+          [
+            591175,
+            140523964
+          ],
+          [
+            591185,
+            140523978
+          ],
+          [
+            591242,
+            140524069
+          ],
+          [
+            591373,
+            140524572
+          ],
+          [
+            591375,
+            140524572
+          ]
+        ]
+      },
+      {
+        "start": 1793141258.09422,
+        "end": 1793141260.097879,
+        "dt": 2.0005661689210683,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.009997169956535986,
+          "monitor": 0.029991509869607955,
+          "unrelated": 0.19494481415245174
+        },
+        "system_busy_fraction": 0.014392991239048802,
+        "disk_bytes_per_second": 0.0,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 2,
+        "missed": [
+          {
+            "pid": 585997,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 591099,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 591323,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 591326,
+            "error": "FileNotFoundError"
+          },
+          {
+            "pid": 591520,
+            "error": "FileNotFoundError"
+          }
+        ],
+        "appeared": [
+          [
+            591643,
+            140525158
+          ],
+          [
+            591644,
+            140525174
+          ]
+        ],
+        "disappeared": [
+          [
+            585997,
+            140512537
+          ],
+          [
+            590210,
+            140522158
+          ],
+          [
+            590211,
+            140522174
+          ],
+          [
+            591099,
+            140523801
+          ],
+          [
+            591323,
+            140524313
+          ],
+          [
+            591326,
+            140524313
+          ],
+          [
+            591520,
+            140524825
+          ]
+        ]
+      },
+      {
+        "start": 1793141260.097879,
+        "end": 1793141262.111496,
+        "dt": 2.000529437093064,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.6298332714518238,
+          "monitor": 0.0349907373028791,
+          "unrelated": 0.24493516112015368
+        },
+        "system_busy_fraction": 0.055992450456118226,
+        "disk_bytes_per_second": 835362.8639568265,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 15,
+        "missed": [],
+        "appeared": [
+          [
+            591650,
+            140525337
+          ],
+          [
+            591651,
+            140525337
+          ],
+          [
+            591652,
+            140525337
+          ],
+          [
+            591655,
+            140525437
+          ],
+          [
+            591656,
+            140525437
+          ],
+          [
+            591657,
+            140525437
+          ],
+          [
+            591658,
+            140525437
+          ],
+          [
+            591659,
+            140525437
+          ],
+          [
+            591660,
+            140525437
+          ],
+          [
+            591661,
+            140525437
+          ],
+          [
+            591662,
+            140525437
+          ],
+          [
+            591663,
+            140525437
+          ],
+          [
+            591664,
+            140525437
+          ],
+          [
+            591665,
+            140525437
+          ],
+          [
+            591666,
+            140525437
+          ]
+        ],
+        "disappeared": []
+      },
+      {
+        "start": 1793141262.111496,
+        "end": 1793141264.109603,
+        "dt": 2.0006736619398,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.02998989847341,
+          "unrelated": 0.23991918778728
+        },
+        "system_busy_fraction": 0.07003768844221103,
+        "disk_bytes_per_second": 4997484.692384005,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 27,
+        "missed": [],
+        "appeared": [
+          [
+            591674,
+            140525545
+          ],
+          [
+            591675,
+            140525545
+          ],
+          [
+            591676,
+            140525545
+          ],
+          [
+            591677,
+            140525545
+          ],
+          [
+            591725,
+            140525597
+          ],
+          [
+            591726,
+            140525597
+          ],
+          [
+            591727,
+            140525597
+          ],
+          [
+            591730,
+            140525597
+          ],
+          [
+            591731,
+            140525603
+          ],
+          [
+            591733,
+            140525604
+          ],
+          [
+            591734,
+            140525605
+          ],
+          [
+            591760,
+            140525608
+          ],
+          [
+            591777,
+            140525670
+          ],
+          [
+            591778,
+            140525670
+          ],
+          [
+            591779,
+            140525670
+          ],
+          [
+            591837,
+            140525689
+          ],
+          [
+            591838,
+            140525689
+          ],
+          [
+            591840,
+            140525710
+          ],
+          [
+            591841,
+            140525711
+          ],
+          [
+            591842,
+            140525711
+          ],
+          [
+            591843,
+            140525711
+          ],
+          [
+            591844,
+            140525711
+          ],
+          [
+            591845,
+            140525711
+          ],
+          [
+            591846,
+            140525711
+          ],
+          [
+            591847,
+            140525711
+          ],
+          [
+            591848,
+            140525711
+          ],
+          [
+            591849,
+            140525711
+          ]
+        ],
+        "disappeared": [
+          [
+            590177,
+            140522044
+          ],
+          [
+            590277,
+            140522421
+          ],
+          [
+            590744,
+            140523548
+          ],
+          [
+            591287,
+            140524236
+          ],
+          [
+            591313,
+            140524240
+          ],
+          [
+            591372,
+            140524569
+          ],
+          [
+            591376,
+            140524572
+          ],
+          [
+            591377,
+            140524573
+          ],
+          [
+            591379,
+            140524574
+          ],
+          [
+            591431,
+            140524591
+          ],
+          [
+            591490,
+            140524675
+          ],
+          [
+            591491,
+            140524680
+          ]
+        ]
+      },
+      {
+        "start": 1793141264.109603,
+        "end": 1793141266.101638,
+        "dt": 2.000653902068734,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029990194674830193,
+          "unrelated": 0.23992155739864154
+        },
+        "system_busy_fraction": 0.054631083202511754,
+        "disk_bytes_per_second": 4940208.793624935,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            100
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 7,
+        "missed": [],
+        "appeared": [
+          [
+            591853,
+            140525846
+          ],
+          [
+            591868,
+            140525849
+          ],
+          [
+            591869,
+            140525849
+          ],
+          [
+            591870,
+            140525849
+          ],
+          [
+            591883,
+            140525850
+          ],
+          [
+            591891,
+            140525856
+          ],
+          [
+            591910,
+            140525884
+          ]
+        ],
+        "disappeared": [
+          [
+            590213,
+            140522265
+          ],
+          [
+            590532,
+            140522855
+          ],
+          [
+            590562,
+            140522884
+          ],
+          [
+            591327,
+            140524313
+          ],
+          [
+            591650,
+            140525337
+          ],
+          [
+            591651,
+            140525337
+          ],
+          [
+            591734,
+            140525605
+          ],
+          [
+            591760,
+            140525608
+          ]
+        ]
+      },
+      {
+        "start": 1793141266.101638,
+        "end": 1793141268.098575,
+        "dt": 2.000656290911138,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.03498851867659918,
+          "unrelated": 0.31489666808939265
+        },
+        "system_busy_fraction": 0.053969250078443665,
+        "disk_bytes_per_second": 388992.3539268078,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            100
+          ],
+          [
+            "card5",
+            100
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            0
+          ],
+          [
+            "card9",
+            0
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 8,
+        "missed": [],
+        "appeared": [
+          [
+            591922,
+            140525938
+          ],
+          [
+            591984,
+            140525990
+          ],
+          [
+            591985,
+            140525994
+          ],
+          [
+            591988,
+            140526084
+          ],
+          [
+            592016,
+            140526107
+          ],
+          [
+            592018,
+            140526109
+          ],
+          [
+            592019,
+            140526109
+          ],
+          [
+            592020,
+            140526109
+          ]
+        ],
+        "disappeared": [
+          [
+            481872,
+            140291040
+          ],
+          [
+            514532,
+            140339578
+          ],
+          [
+            530005,
+            140376866
+          ],
+          [
+            552148,
+            140433275
+          ],
+          [
+            555960,
+            140442744
+          ],
+          [
+            566608,
+            140465785
+          ],
+          [
+            566948,
+            140466672
+          ],
+          [
+            576789,
+            140492914
+          ],
+          [
+            576790,
+            140492914
+          ],
+          [
+            576802,
+            140493058
+          ],
+          [
+            577303,
+            140493741
+          ],
+          [
+            577312,
+            140493759
+          ],
+          [
+            577326,
+            140493772
+          ],
+          [
+            577358,
+            140493938
+          ],
+          [
+            577587,
+            140494558
+          ],
+          [
+            577674,
+            140494767
+          ],
+          [
+            583132,
+            140505113
+          ],
+          [
+            591378,
+            140524573
+          ],
+          [
+            591580,
+            140524977
+          ],
+          [
+            591588,
+            140524986
+          ],
+          [
+            591620,
+            140525085
+          ],
+          [
+            591623,
+            140525088
+          ],
+          [
+            591725,
+            140525597
+          ],
+          [
+            591853,
+            140525846
+          ],
+          [
+            591883,
+            140525850
+          ]
+        ]
+      },
+      {
+        "start": 1793141268.098575,
+        "end": 1793141270.097238,
+        "dt": 2.000558947911486,
+        "flags": {
+          "other_gpu": true,
+          "unrelated_cpu": false,
+          "disk": false,
+          "gap": false
+        },
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.024993015103203165,
+          "unrelated": 0.244931548011391
+        },
+        "system_busy_fraction": 0.015341264871634341,
+        "disk_bytes_per_second": 2411869.945165687,
+        "other_gpu": [
+          [
+            "card0",
+            0
+          ],
+          [
+            "card1",
+            0
+          ],
+          [
+            "card3",
+            0
+          ],
+          [
+            "card4",
+            99
+          ],
+          [
+            "card5",
+            99
+          ],
+          [
+            "card6",
+            0
+          ],
+          [
+            "card7",
+            0
+          ],
+          [
+            "card8",
+            100
+          ],
+          [
+            "card9",
+            99
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 6,
+        "missed": [],
+        "appeared": [
+          [
+            592040,
+            140526186
+          ],
+          [
+            592041,
+            140526194
+          ],
+          [
+            592044,
+            140526268
+          ],
+          [
+            592045,
+            140526268
+          ],
+          [
+            592046,
+            140526271
+          ],
+          [
+            592049,
+            140526313
+          ]
+        ],
+        "disappeared": []
+      }
+    ]
+  },
+  "thresholds": {
+    "other_gpu_percent": 0,
+    "unrelated_cpu_cores": 1,
+    "disk_bytes_per_second": 104857600,
+    "sample_gap_seconds": 3
+  },
+  "artifacts": {
+    "00-q1-0-before.stderr": "cbe9ab5f5b31b91fbc3b8676680f18267d744713484ca514d5957f090f6fb0b5",
+    "00-q1-0-before.stdout": "5c37fc97ae20652e3d32d90cf483348535614e23ef3b498b0b6e22a8c4ed6d19",
+    "01-q1-0-after.stderr": "0b2c14068f87b7baedf2f8b16ebbff38ce4269baae6fb3803344d7354ff2a0d0",
+    "01-q1-0-after.stdout": "417f0157e703a5cb2eef412266ea9e8a8df555d1b0d28662a2df13b147e556c4",
+    "02-q1-0-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "02-q1-0-mx.stdout": "901f31ebe70f407cb6420b1216d1f2e23cc79715b90711a79809132086c433ce",
+    "03-q1-0-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "03-q1-0-mx.stdout": "869d5c5bc1cd8fb03d3a939f19e05ec33b941945e16c5024f5922d70a591dded",
+    "04-q1-0-after.stderr": "84e353d77554d02c2ae29d0ada369898fc669fe339e808a48ab10b78045e6f91",
+    "04-q1-0-after.stdout": "4df65051c2ec284836b63118a95b4b61eda7d9f0ec53bc7d8111aff0ca2f2de6",
+    "05-q1-0-before.stderr": "b80481a3ca64618c6367aab8ff2c157d8e7100249097dc5695a912a13bb90918",
+    "05-q1-0-before.stdout": "60360ce01705300753341f06a56ce700edade347493595c66e693510a24e6db8",
+    "06-q2-0-before.stderr": "6ba206c138b149f0f629d88a5df75e1498be56efffb656319414a5f41dbb1207",
+    "06-q2-0-before.stdout": "bba455e7c186246e134188b79d5b5067f8fee5e2f44f82563fe986d3d2ff5a8a",
+    "07-q2-0-after.stderr": "300dcab84438a2f687ec0191b1e90be5e3a3736d64738cbf8b032de4e522bf5d",
+    "07-q2-0-after.stdout": "6a5b345a1c55d107a30b82182e6bfa81e3d0d73ad872d895b7df840915c9cd2e",
+    "08-q2-0-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "08-q2-0-mx.stdout": "1f0e64e8387909c47263a291235bd6287ddda27f5b1f540c06909b84c4d30d53",
+    "09-q2-0-mx.stderr": "75bc945d25951c5598fdf993c08ec2ad22e88c8458e64495d5ba1bf4bfc85dd8",
+    "09-q2-0-mx.stdout": "100a120b715568492c065fcb100bb2d884d9e907519a39c6f637a0e8a0a60f18",
+    "10-q2-0-after.stderr": "4fd278f5dd32625ae6197dc9f89620a5bd5c4c1c306dacb6e73bc665946a0053",
+    "10-q2-0-after.stdout": "55b73c94b601283ebe8f0b723eb17a76cea70a7af5d2280384ca96fdc723f39f",
+    "11-q2-0-before.stderr": "fef814fcfe73750b65790f3097adda36f2de6484224229698547151b02f45ec7",
+    "11-q2-0-before.stdout": "f13ef32c6bf61ddc89c15bba4eb19f7b077f92e699390eafd76572d3254581e3",
+    "activity.jsonl": "5d62b16a5833c457e4c3fa11bb889ccecac8eb22418010d0e567ef24b89c7020",
+    "compiler.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compiler.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b",
+    "device.stderr": "fca8589427807acbf70841549ac0cbf54fdcefa47d84442da51b5b0284027ff8",
+    "device.stdout": "5bdf1ddc070815643c7f0eb1fb11931fc283299783b64b37694be16e502540bb",
+    "execution.json": "6612552f5e65de322b78923e9df2d3b7bbe5e5e0dd7bb088cb544f2c4c1c5cd2",
+    "llmx-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "llmx-version.stdout": "ecfec599f98aa4e95fe5e6b42a4f0da9beeb5caa0d65d33781ef1b21c085fab9",
+    "monitor.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitor.stop": "a11c3d917a2149a4b548217038bc8f2dd2130a1966e0c7af5c4225d81f25a8c3",
+    "mx-ldd.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mx-ldd.stdout": "5dacae367807663292feaab284e12353bc485cc4b29767c92bb8ab3a29bb14a2",
+    "mx-version.stderr": "9d14b1456729dfea87fd0034212d9c6fa5b8ce765ea44be6290e16e9e33be86f",
+    "mx-version.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "operator-cpu.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "operator-cpu.stdout": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61",
+    "operator-vulkan.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "operator-vulkan.stdout": "6a9cbc85d5b427bd2243a8d1f213cf31929e25f62c9a468eada3eca29898957e",
+    "trial-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "trial-version.stdout": "dfc96bf6966665c7bd1b32a3540df55d48965dfb28219ca9f9ec72e2f0c074e6"
+  },
+  "summary_helper_sha256": "aaf8ff34e4110e7c541e2eb26c3c14b11a62d94ae73a3567e2f9823a14cf6a0a",
+  "raw_directory": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-int16-screen-v2",
+  "interpretation": "Q1 shared integer rows and tiles improve prefill and decode. Q2 unchanged-path control is stable. Both decode rates remain below matched mx Vulkan. Native CPU/Vulkan operators pass; focused model, split, depth and final qualification remain open. Every planned sample and all contention flags are retained."
+}

@@ -1,0 +1,21 @@
+{
+  "scope": "Full Markdown delta-applicability review after completed Q1 memory sizing",
+  "previous_catalog": "docs\\benchmarks\\q1-trace-checkpoint-review-20261028.json",
+  "previous_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+  "pages": 154,
+  "unchanged_carried": 153,
+  "changed_pages": {
+    "docs/STATUS.md": "5a27a360758388fff3cee5ad4b02ef25a7f6c340db33d71944f7d22ee024fd05"
+  },
+  "review": [
+    "Prior semantic review carries for unchanged153 pages. No runtime, public flag, support status or precision-policy delta.",
+    "STATUS preserves original estimate and distinguishes synthetic allocation measurement from actual independent correctness reference.",
+    "Actual reference still running. No completion, qualification or merge claim."
+  ],
+  "checks": {
+    "docs": "PASS:0 findings,21 planted faults",
+    "dead-code": "PASS:7 listed findings,19 planted faults",
+    "log_sha256": "8e15995a81ec43cfeaf2a559cb5c31693176e50b835c2133c33acad65e733278"
+  },
+  "evidence_sha256": "54d7d6cad5417238df06367eb4403ff141365a98075a85b218a95801c790b182"
+}

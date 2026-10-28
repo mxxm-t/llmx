@@ -1,0 +1,895 @@
+{
+  "status": "USER APPROVED, 2026-10-29: eight exact canonical short-test exceptions for the pinned MI50 file. Original comparisons remain failed; every other existing criterion is unchanged.",
+  "scope": "Pinned Qwen3-0.6B-Q2_0 GGUF and retained MI50/RADV default arithmetic only. Five canonical ranking cells and three canonical continuous-NLL cells are approved named exceptions. Selected-policy short comparisons remain diagnostics.",
+  "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+  "canonical_short_ledger": [
+    {
+      "cell": "rank-capital-kvf16",
+      "kind": "ranking",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "94f365a7e39fa319a59e2574505a27b0c1ec93ed8be52badaf3647351bf80628",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "prompt": "The capital of France is",
+      "token_ids": [
+        785,
+        6722,
+        315,
+        9625,
+        374
+      ],
+      "arms": [
+        {
+          "arm": "candidate-q2-canonical",
+          "retained_stdout_sha256": "2d15941983317b8f02bd7726e7e1069406d1c3f59d7e5c8c9288c58726e69d2f",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          }
+        },
+        {
+          "arm": "main-q4",
+          "retained_stdout_sha256": "c7bef6838218d1b06bb4fb1e402aae98dea70c2a4c73261967971030e558a42e",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          }
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "rank-code-kvf16",
+      "kind": "ranking",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "112e64874b13450a883953ed1857fcc26a79ad1eaedcbd87d73d703abe5025c2",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "prompt": "def add(a, b):",
+      "token_ids": [
+        750,
+        912,
+        2877,
+        11,
+        293,
+        1648
+      ],
+      "arms": [
+        {
+          "arm": "candidate-q2-canonical",
+          "retained_stdout_sha256": "29d05b7d87c5bbc71b8a8c179356e188544d1fbd72d9e2de824cb5b566b02e23",
+          "original_F32": {
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": false
+          }
+        },
+        {
+          "arm": "main-q4",
+          "retained_stdout_sha256": "2923064dd432675d0c2b6e2c99f33ea2570e5039c35f75c280d9f295960adde7",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          }
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "rank-colors-kvf16",
+      "kind": "ranking",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "05bd7f4e3666d5e78ab894b0c9d7c6e2732f095ef7fbffa89d66b278f43c3725",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "prompt": "The three primary colors are red,",
+      "token_ids": [
+        785,
+        2326,
+        6028,
+        7987,
+        525,
+        2518,
+        11
+      ],
+      "arms": [
+        {
+          "arm": "candidate-q2-canonical",
+          "retained_stdout_sha256": "f2472ef51d532d83b618298527e2513b22930822f021b93be82c8388a45b76ad",
+          "original_F32": {
+            "top1_exact": false,
+            "top5_overlap": 3,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          }
+        },
+        {
+          "arm": "main-q4",
+          "retained_stdout_sha256": "51a09329c0a37c3e7a67e7f30e6eecc20449431f352b416fef2d9c7af37dbdca",
+          "original_F32": {
+            "top1_exact": false,
+            "top5_overlap": 3,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": false,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          }
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "rank-colors-kvf32",
+      "kind": "ranking",
+      "KV": "f32",
+      "exact_selected_reference_scores_sha256": "a690fc3a7d52051a0372d51534b51487221ff318a34ea0ccd2821d071f868e25",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "prompt": "The three primary colors are red,",
+      "token_ids": [
+        785,
+        2326,
+        6028,
+        7987,
+        525,
+        2518,
+        11
+      ],
+      "arms": [
+        {
+          "arm": "candidate-q2-canonical",
+          "retained_stdout_sha256": "faa4635f67ad7e0756b332a5e5641efd4da99efb36e1d911c41da089fcd1909f",
+          "original_F32": {
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          }
+        },
+        {
+          "arm": "main-q4",
+          "retained_stdout_sha256": "5c37cc2b7a6edaf4026ce2b2d94ef838318f52aedfe8e76a13b0325c9de460a6",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": false
+          }
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "rank-rome-kvf16",
+      "kind": "ranking",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "cba73055130e6117953039df5e5bdac3efb1715ee5a763e0baf15357b1f268d5",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+      "token_ids": [
+        785,
+        6722,
+        315,
+        9625,
+        374,
+        12095,
+        13,
+        576,
+        6722,
+        315,
+        15344,
+        374,
+        21718,
+        13,
+        576,
+        6722,
+        315
+      ],
+      "arms": [
+        {
+          "arm": "candidate-q2-canonical",
+          "retained_stdout_sha256": "e6e0ae5d78ddffaa81d22d7eb602005e4b665339e68fb67b12e753459a955231",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 3,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          }
+        },
+        {
+          "arm": "main-q4",
+          "retained_stdout_sha256": "d99517c3f9270064edd134f4089daca2b7846548537b54a189d89434e95e1c02",
+          "original_F32": {
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function": false
+          },
+          "exact_selected_diagnostic": {
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function": true
+          }
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "nll-kvf16-batched",
+      "kind": "nll",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "ac12bf6db82760b8a5268f057155c19215774d6bf160933e70de3dc06ecae237",
+      "acceptance_decision": null,
+      "existing_continuous_bound": 0.01,
+      "original_F32_reference_mean_nll": 17.564098403680923,
+      "exact_selected_reference_mean_nll": 17.57517011380123,
+      "arms": [
+        {
+          "arm": "main-q4",
+          "stdout_sha256": "3c9d4878a083adb5170c22a8e941b85e445ec5971effb739643d6ccde684d86e",
+          "runtime_loss_sha256": "d8d795b781043f4968cc9526f402abd1830f6d730a4ad2f121f04bb11861ba9c",
+          "runtime_mean_nll": 17.57261986457792,
+          "delta_from_exact_selected_HF": -0.002550249223311596,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": 0.008521460896997013
+        },
+        {
+          "arm": "candidate-q4",
+          "stdout_sha256": "3c9d4878a083adb5170c22a8e941b85e445ec5971effb739643d6ccde684d86e",
+          "runtime_loss_sha256": "d8d795b781043f4968cc9526f402abd1830f6d730a4ad2f121f04bb11861ba9c",
+          "runtime_mean_nll": 17.57261986457792,
+          "delta_from_exact_selected_HF": -0.002550249223311596,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": 0.008521460896997013
+        },
+        {
+          "arm": "candidate-q2",
+          "stdout_sha256": "3c9d4878a083adb5170c22a8e941b85e445ec5971effb739643d6ccde684d86e",
+          "runtime_loss_sha256": "d8d795b781043f4968cc9526f402abd1830f6d730a4ad2f121f04bb11861ba9c",
+          "runtime_mean_nll": 17.57261986457792,
+          "delta_from_exact_selected_HF": -0.002550249223311596,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": 0.008521460896997013
+        }
+      ],
+      "proposed_canonical_exception": false
+    },
+    {
+      "cell": "nll-kvf32-batched",
+      "kind": "nll",
+      "KV": "f32",
+      "exact_selected_reference_scores_sha256": "ad80538285acc66cbe168c7fab10f7b92576f9bbce1f563a2d936a17aa13a91f",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "existing_continuous_bound": 0.01,
+      "original_F32_reference_mean_nll": 17.564098403680923,
+      "exact_selected_reference_mean_nll": 17.548300595159706,
+      "arms": [
+        {
+          "arm": "main-q4",
+          "stdout_sha256": "4fd46477d16771a5157323b128c6d68c5f028b0fa6949a5896b6cd0a773467dc",
+          "runtime_precision": "CLI mean at nine decimals; per-target runtime losses not captured",
+          "runtime_mean_nll": 17.544304012,
+          "delta_from_exact_selected_HF": -0.003996583159704414,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": -0.019794391680921564
+        },
+        {
+          "arm": "candidate-q4",
+          "stdout_sha256": "4fd46477d16771a5157323b128c6d68c5f028b0fa6949a5896b6cd0a773467dc",
+          "runtime_precision": "CLI mean at nine decimals; per-target runtime losses not captured",
+          "runtime_mean_nll": 17.544304012,
+          "delta_from_exact_selected_HF": -0.003996583159704414,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": -0.019794391680921564
+        },
+        {
+          "arm": "candidate-q2",
+          "stdout_sha256": "4fd46477d16771a5157323b128c6d68c5f028b0fa6949a5896b6cd0a773467dc",
+          "runtime_precision": "CLI mean at nine decimals; per-target runtime losses not captured",
+          "runtime_mean_nll": 17.544304012,
+          "delta_from_exact_selected_HF": -0.003996583159704414,
+          "within_existing_continuous_NLL_bound_diagnostic_only": true,
+          "delta_from_original_F32_golden": -0.019794391680921564
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "nll-kvf16-singleton",
+      "kind": "nll",
+      "KV": "f16",
+      "exact_selected_reference_scores_sha256": "570518f64acee81b9333f600fc33bacdafda32449db1e45dcc8283235f9c9268",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "existing_continuous_bound": 0.01,
+      "original_F32_reference_mean_nll": 17.564098403680923,
+      "exact_selected_reference_mean_nll": 17.563423025130458,
+      "arms": [
+        {
+          "arm": "main-q4",
+          "stdout_sha256": "e7847bf0df52c7144b6ea59adbe38efbe84982add8b2e79be9902ea4d59e67e4",
+          "runtime_loss_sha256": "42d81097eef262caf5221e6f2dbd27ff1c121ad6513501ee5736bf07c962e4b8",
+          "runtime_mean_nll": 17.58520719739771,
+          "delta_from_exact_selected_HF": 0.021784172267253155,
+          "within_existing_continuous_NLL_bound_diagnostic_only": false,
+          "delta_from_original_F32_golden": 0.0211087937167882
+        },
+        {
+          "arm": "candidate-q4",
+          "stdout_sha256": "e7847bf0df52c7144b6ea59adbe38efbe84982add8b2e79be9902ea4d59e67e4",
+          "runtime_loss_sha256": "42d81097eef262caf5221e6f2dbd27ff1c121ad6513501ee5736bf07c962e4b8",
+          "runtime_mean_nll": 17.58520719739771,
+          "delta_from_exact_selected_HF": 0.021784172267253155,
+          "within_existing_continuous_NLL_bound_diagnostic_only": false,
+          "delta_from_original_F32_golden": 0.0211087937167882
+        },
+        {
+          "arm": "candidate-q2",
+          "stdout_sha256": "a8321c433ded1f45d1c36f0ea9a6abf85ed477f4a4fe908935c977ca5204bfd4",
+          "runtime_loss_sha256": "0602ffcaca46da2fbe2b25d77075f8c8211fd5e1d6dc767a6b1364da93ed18ee",
+          "runtime_mean_nll": 17.594695801872177,
+          "delta_from_exact_selected_HF": 0.031272776741719355,
+          "within_existing_continuous_NLL_bound_diagnostic_only": false,
+          "delta_from_original_F32_golden": 0.0305973981912544
+        }
+      ],
+      "proposed_canonical_exception": true,
+      "approved_canonical_exception": true
+    },
+    {
+      "cell": "nll-kvf32-singleton",
+      "kind": "nll",
+      "KV": "f32",
+      "existing_continuous_bound": 0.01,
+      "original_F32_reference_mean_nll": 17.564098403680923,
+      "exact_selected_reference_status": "Not generated; no new selected-policy HF variant for this cell.",
+      "acceptance_decision": {
+        "status": "user-approved exact-cell exception",
+        "date": "2026-10-29",
+        "original_comparison": "failed; result and measured values preserved"
+      },
+      "proposed_canonical_exception": true,
+      "arms": [
+        {
+          "arm": "candidate-q2",
+          "stdout_sha256": "02a5ca1f97590068aa70444e6c18e261474877c1c659b807d041a71be4370cb4",
+          "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424",
+          "runtime_precision": "CLI mean at nine decimals; per-target losses not captured",
+          "runtime_mean_nll": 17.551664531,
+          "delta_from_original_F32_golden": -0.012433872680922775,
+          "passes_original_continuous_NLL_bound": false
+        },
+        {
+          "arm": "main-q4",
+          "stdout_sha256": "3c3c18888050b408112c8ac24bab54f6416b57c2bd238cc662ae76806f77f9a4",
+          "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424",
+          "runtime_precision": "CLI mean at nine decimals; per-target losses not captured",
+          "runtime_mean_nll": 17.550828436,
+          "delta_from_original_F32_golden": -0.013269967680923145,
+          "passes_original_continuous_NLL_bound": false
+        }
+      ],
+      "approved_canonical_exception": true
+    }
+  ],
+  "code6": {
+    "scope": "One pinned six-token code case, four baseline/observer calls already captured. Offline all-layer matrix localization and exact first-coordinate emitted-order replay. No new model/HF runs or policy changes.",
+    "acceptance_decision": null,
+    "all_layer_report_sha256": "f8bcef25cb6ec6301f80c960dbcc405656bb7c45f27363a65b0a096d654960aa",
+    "first_coordinate_report_sha256": "a3d75e661e10fcf2f2f0620c93174a6e5bea33ed855ebd8d49fcdc3ad1dd790c",
+    "exact_replay_execution_sha256": "e336039f178bd5cf04dfa5e76cd2f33f5406d1e351c66e836579ca50c6889732",
+    "capture_receipt_sha256": "93a9f200f872d708b30aaf5f7d4425b7d2d84f3dc1448ce0b36b89ad8dbe05e2",
+    "activation_blocks": 75328,
+    "activation_code_scale_scaled_sum_mismatch_blocks": 0,
+    "GPU_weight_edge_samples": 788,
+    "all_GPU_weight_edge_samples_match": true,
+    "projections_per_arm": 197,
+    "first_coordinate": {
+      "q2": {
+        "replay_word": "c08c25c7",
+        "observed_word": "c08c25c7",
+        "byte_exact": true,
+        "replay_value": -4.379611492156982,
+        "observed_value": -4.379611492156982,
+        "independent_double": -4.379611479980667
+      },
+      "q4": {
+        "replay_word": "c08c25cc",
+        "observed_word": "c08c25cc",
+        "byte_exact": true,
+        "replay_value": -4.379613876342773,
+        "observed_value": -4.379613876342773,
+        "independent_double": -4.379611479980667
+      }
+    },
+    "layerwise_post_FFN_residual_max_abs_Q2_minus_Q4": [
+      {
+        "layer": 0,
+        "max_abs": 0.00010156631469726562
+      },
+      {
+        "layer": 1,
+        "max_abs": 0.0004515647888183594
+      },
+      {
+        "layer": 2,
+        "max_abs": 0.0760040283203125
+      },
+      {
+        "layer": 3,
+        "max_abs": 0.07563018798828125
+      },
+      {
+        "layer": 4,
+        "max_abs": 0.07498931884765625
+      },
+      {
+        "layer": 5,
+        "max_abs": 0.0750274658203125
+      },
+      {
+        "layer": 6,
+        "max_abs": 0.07437896728515625
+      },
+      {
+        "layer": 7,
+        "max_abs": 0.07382965087890625
+      },
+      {
+        "layer": 8,
+        "max_abs": 0.07308197021484375
+      },
+      {
+        "layer": 9,
+        "max_abs": 0.0730438232421875
+      },
+      {
+        "layer": 10,
+        "max_abs": 0.0724334716796875
+      },
+      {
+        "layer": 11,
+        "max_abs": 0.0679168701171875
+      },
+      {
+        "layer": 12,
+        "max_abs": 0.07173752784729004
+      },
+      {
+        "layer": 13,
+        "max_abs": 0.07074165344238281
+      },
+      {
+        "layer": 14,
+        "max_abs": 0.08424568176269531
+      },
+      {
+        "layer": 15,
+        "max_abs": 0.09238624572753906
+      },
+      {
+        "layer": 16,
+        "max_abs": 0.10776662826538086
+      },
+      {
+        "layer": 17,
+        "max_abs": 0.13158607482910156
+      },
+      {
+        "layer": 18,
+        "max_abs": 0.18088102340698242
+      },
+      {
+        "layer": 19,
+        "max_abs": 0.21626567840576172
+      },
+      {
+        "layer": 20,
+        "max_abs": 0.3595294952392578
+      },
+      {
+        "layer": 21,
+        "max_abs": 0.4608612060546875
+      },
+      {
+        "layer": 22,
+        "max_abs": 0.4890761375427246
+      },
+      {
+        "layer": 23,
+        "max_abs": 0.7209386825561523
+      },
+      {
+        "layer": 24,
+        "max_abs": 0.9695119857788086
+      },
+      {
+        "layer": 25,
+        "max_abs": 1.6709098815917969
+      },
+      {
+        "layer": 26,
+        "max_abs": 2.119924545288086
+      },
+      {
+        "layer": 27,
+        "max_abs": 9.946578979492188
+      }
+    ],
+    "final_logits_max_abs_Q2_Q4": 0.32268404960632324,
+    "matrix_error_diagnostics": {
+      "q2": {
+        "max_absolute_error_vs_same_input_double": 3.4350528380855394e-05,
+        "existing_row_expression_diagnostic_exceedances": 0,
+        "K23_expression_diagnostic_exceedances_not_a_transferred_gate": 0
+      },
+      "q4": {
+        "max_absolute_error_vs_same_input_double": 0.00014687396287627053,
+        "existing_row_expression_diagnostic_exceedances": 0,
+        "K23_expression_diagnostic_exceedances_not_a_transferred_gate": 0
+      }
+    },
+    "independent_verdict": "The first different raw Q product follows the actual emitted arithmetic exactly in both arms, with Q2 closer to the same-input independent double result. Every measured matrix product remains close to its own exact captured operands while residual differences grow across layers. This closes the localized allegation that Q2-specific code6 matrix arithmetic is producing a large erroneous operation on these operands. It does not prove every nonmatrix operator or waive the failed HF short/NLL gates.",
+    "remaining_scope": "Norm/attention/KV intermediate operands were bracketed but not independently captured or replayed in this code case. No all-operator or end-to-end pass follows from the diagnostic; existing failed exact short/NLL cases remain reported."
+  },
+  "new_Q2_defect_assessment": "No specific remaining NEW-Q2 implementation defect is supported by the measured evidence. Correct tiny/operator controls, exact all-layer quantization, small same-input matrix errors, and exact first-divergence replay support arithmetic sensitivity. Shared nonmatrix operations have not been exhaustively replayed; their mere existence is not evidence for another defect or a new mandatory gate. End-to-end failed rankings and NLL remain observable product differences.",
+  "reference_sensitivity": {
+    "exact_F16_HF_batched_minus_singleton_mean_NLL": 0.011747088670773564,
+    "older_approximate_helper_HF_batch_singleton_difference": 0.0237900000688,
+    "method_note": "Old helper used division and one HF thread; exact helper uses fixed-scale/Newton arithmetic and four threads. These are separate retained controls, not a claim that the helper alone caused every difference."
+  },
+  "evidence_pins": {
+    "build-low-bits-dev/q2-code6-observe-v3/run/execution.json": "93a9f200f872d708b30aaf5f7d4425b7d2d84f3dc1448ce0b36b89ad8dbe05e2",
+    "build-low-bits-dev/q2-code6-offline-v1/manifest.json": "088ff61f7d311d3da9e11f1959eda4e310060d74ce1eaf95a3eb8247b6af0d7b",
+    "build-low-bits-dev/q2-short-exact-replay-v1/comparison.json": "89dd80bc7504b151e835c31f9127162dc9674ca4616f75060b9310b18910a4c8",
+    "build-low-bits-dev/q2-short-exact-replay-v1/fixtures.json": "4128315b9d1f2032c4f7f9c8e6dd7f85b208eadcc05c76bc2b52deea46e5e1fa",
+    "build-low-bits-dev/q2-depth-default-v3/depth-selected-summary.json": "ae760a5de0c48fbd7b2f148f11a61c3069fa770342cd20b624adfab4c6a791dd",
+    "build-low-bits-dev/q2-depth-default-v3/quality-summary-v1/summary.json": "fc625a06e5c49d0d1d3253ce47df30d80679cb2bbd0794c45133cfe33f62e0a3",
+    "build-low-bits-dev/q2-depth-default-v3/candidate-equivalence.json": "9f4b2c4b99984569b3cf02fb9249fa57881f9e3e88892ea523f7f7bf59cbd569",
+    "docs/benchmarks/q1-chat-q2-f32-control-20261028.json": "40d7b681ccdad1ecbc4903c75fb82161c4e1baf124124b65b922b4e239deaf4c",
+    "docs/benchmarks/q2-short-exception-proposal-20261028.json": "26624d535dc5355dd373bfb1db9e33729d3a2c5de639fe6ba29a51755e769ba2",
+    "docs/benchmarks/q2-six-short-policy-20261028.json": "82f2981057fa8c2061a44f31ba1f38346219c1383e3acdce0cdce407a387f825",
+    "docs/benchmarks/q1-q2-candidate-inventory-20261027.json": "0d8ff8caa9dedd411f978bdfabc552db55ce440e6e656712f33e647343f1bdbb",
+    "docs/benchmarks/q2-first-token-hf-control-20261027.json": "49deb6b3dc3213bc8972abdf10e408a295eb67595572cbe9a507637fb314746f",
+    "docs/benchmarks/q1-q2-matched-vulkan-screen-20261027.json": "f129830f06a5ed6f32d4c6a32e98f708c5decdb724c9a3dda38ddce090a66d11"
+  },
+  "documentation_review": {
+    "checkpoint": "dbf8c7eaba2a629af0c7bcacdf87ab2c05911a08",
+    "catalog_count": 155,
+    "changed_pages": [
+      "docs/STATUS.md",
+      "docs/Q1-Q2.md",
+      "docs/benchmarks/q2-short-disposition-proposal-20261029.md"
+    ],
+    "catalog_path": "build-low-bits-dev/q2-code6-docs-review-v1/catalog.json",
+    "catalog_sha256": "4a1b4a1c0b551f01904e01863ca42829dfbaff9422490fe3fddbd280dc23e344",
+    "scope": "Current documentation-only delta; unchanged pages carry prior review, not a fresh reread."
+  },
+  "validation": {
+    "command": "python -X utf8 tests/run_tests.py --exe build-low-bits-windows-cluster32-20261028/Release/llmx.exe --only docs,dead-code",
+    "exit_code": 0,
+    "docs": "PASS: 0 findings, 21 planted faults",
+    "dead_code": "PASS: 7 pre-existing listed findings, 19 planted faults",
+    "log_path": "build-low-bits-dev/q2-code6-docs-review-v1/eight-cell-docs-dead-code.log",
+    "log_sha256": "e63bcb7a658229683954cbdd7adb6391ff2ef0b502bb0d70065db1f7c84276a6",
+    "git_diff_check": "passed; only expected LF/CRLF warnings",
+    "post_check_clarification": "This check covers the completed eight-cell proposal and all recorded default NLL results. Only this validation receipt metadata was added after the successful check.",
+    "executable_sha256": "a9f51dd5c06aca9839d2cd50bbcbebf69333e17f9f41e108227fde38ae71c60d",
+    "test_owner_pins": {
+      "tests/docs_check.py": "f3ebcdea44285c11f11ef81fb345829d90ae49c22de3848374c12027664240f8",
+      "tests/dead_code.py": "7199020e5b194d7a164253e84c951ba852524c63a2d1bc8235d610028ac7a292",
+      "tests/run_tests.py": "2e983d73939a13b9333302ef63718ab8a6c79079dcded9eadf623492521a1e8a"
+    }
+  },
+  "NLL_coverage": {
+    "default_MI50": "All 16 existing canonical NLL cells measured across F16/F32 KV: 12 window passes, F16 batched continuous pass, three continuous failures.",
+    "default_MI50_unmeasured": [],
+    "explicit_F32_matrices_F32_KV": "Both continuous and all six windowed canonical schedules pass; separate precision coverage.",
+    "disposition": "Eight user-approved exact canonical exceptions: five ranking and three continuous NLL. Original failures remain failures; all other existing criteria remain unchanged."
+  },
+  "approval_scope": "Explicit user approval dated 2026-10-29 for these eight exact-file MI50 exceptions only; separate from generic dtype-family budget approval.",
+  "missing_NLL_bundle": {
+    "path": "build-low-bits-dev/q2-missing-nll-v1/plan.json",
+    "sha256": "b96fe25f4d3457eda4755114485ac4d264f136b152c4bbb0f8de8d225027cf57",
+    "scope": "Completed the existing 13 missing cells; no new HF or policy."
+  },
+  "completed_missing_NLL": {
+    "scope": "Existing canonical schedules, no new HF, reference or policy. All 13 primary cells complete; the failed F32-KV singleton also measured on exact-value main/Q4.",
+    "receipt_sha256": "46c2068bbca6632e5b4229756317adc0bb123217b247f1d9717402b053adf8ce",
+    "report_sha256": "f83b3e1d0cef06bdfca38aa3e9d027e9f240a51f99e0273f958ab282943e6cf4",
+    "plan_sha256": "b96fe25f4d3457eda4755114485ac4d264f136b152c4bbb0f8de8d225027cf57",
+    "original_reference_sha256": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010",
+    "shared_check_owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "removed": true,
+    "unchanged": true,
+    "cells": [
+      {
+        "cell": "kvf16-c64-chunks4-batched",
+        "runtime_mean_nll": 17.572294716,
+        "original_F32_HF_mean_nll": 17.561276687354525,
+        "signed_delta": 0.011018028645473521,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "35274f3c9f4a72f7143d9a62aa6dca2a9ab15288765e20b9e001eb0739ff352e",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf16-c64-chunks4-per-token",
+        "runtime_mean_nll": 17.571441111,
+        "original_F32_HF_mean_nll": 17.561276687354525,
+        "signed_delta": 0.010164423645473875,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "7b4ec496faaeec161c8de3c8f9d70e8b8ef9e878e2787deb7d17f5efed4fff90",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf16-c64-chunks2-batched",
+        "runtime_mean_nll": 17.442277546,
+        "original_F32_HF_mean_nll": 17.43456253105743,
+        "signed_delta": 0.007715014942569098,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "1aae1fe82181bd21a77bd8022565f1827635220c51342e8434b2e5ed24a0e073",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf16-c64-chunks2-per-token",
+        "runtime_mean_nll": 17.438667118,
+        "original_F32_HF_mean_nll": 17.43456253105743,
+        "signed_delta": 0.004104586942570876,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "f2f88c6649c38a60a28974bd7d157eff1ddc24dc8b2bbfba186adb3b4c8d786c",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf16-c123-chunks2-batched",
+        "runtime_mean_nll": 17.418162465,
+        "original_F32_HF_mean_nll": 17.429086046750264,
+        "signed_delta": -0.010923581750262201,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "acc5e8316010ed0069bf564fb5e3a96f059e4e0965b1878c18a975a1e0bb73a6",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf16-c123-chunks2-per-token",
+        "runtime_mean_nll": 17.441794704,
+        "original_F32_HF_mean_nll": 17.429086046750264,
+        "signed_delta": 0.012708657249735467,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "9e0ec53a557929529e9870ab338308a3c0a41523219a977e9c8c85ca5695e3d3",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c0-chunks1-per-token",
+        "runtime_mean_nll": 17.551664531,
+        "original_F32_HF_mean_nll": 17.564098403680923,
+        "signed_delta": -0.012433872680922775,
+        "bound": 0.01,
+        "passed": false,
+        "stdout_sha256": "02a5ca1f97590068aa70444e6c18e261474877c1c659b807d041a71be4370cb4",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c64-chunks4-batched",
+        "runtime_mean_nll": 17.554614802,
+        "original_F32_HF_mean_nll": 17.561276687354525,
+        "signed_delta": -0.0066618853545250545,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "ed5b3c2038d35927a3dda0371f184104d3c051e40db07ff2cf14c133cc521022",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c64-chunks4-per-token",
+        "runtime_mean_nll": 17.559105115,
+        "original_F32_HF_mean_nll": 17.561276687354525,
+        "signed_delta": -0.0021715723545234766,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "80c1f387071015795f93b879a6d5e265373a48de4e0e5f756162ceeb31beca52",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c64-chunks2-batched",
+        "runtime_mean_nll": 17.425368134,
+        "original_F32_HF_mean_nll": 17.43456253105743,
+        "signed_delta": -0.009194397057431303,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "1ebaaeb9c529dfa3d2f62613572e5e39103d855e1d0c73df770446029ef76b0f",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c64-chunks2-per-token",
+        "runtime_mean_nll": 17.432640257,
+        "original_F32_HF_mean_nll": 17.43456253105743,
+        "signed_delta": -0.0019222740574313946,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "d00c3065f3e443d813680e3f8faa453a63c22e6f5c91ed535aac6a1fa69de1aa",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c123-chunks2-batched",
+        "runtime_mean_nll": 17.432805951,
+        "original_F32_HF_mean_nll": 17.429086046750264,
+        "signed_delta": 0.0037199042497348955,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "8785bfde445eae98d65c64b0e1d6d0eb8896667815b4fb836dcea0990084f3e7",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      },
+      {
+        "cell": "kvf32-c123-chunks2-per-token",
+        "runtime_mean_nll": 17.423733118,
+        "original_F32_HF_mean_nll": 17.429086046750264,
+        "signed_delta": -0.00535292875026272,
+        "bound": 0.02,
+        "passed": true,
+        "stdout_sha256": "0c1e6f854aca834dff08010187099ceb698d5c732d38045a12af1fd880fd355f",
+        "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424"
+      }
+    ],
+    "max_window_absolute_delta": 0.012708657249735467,
+    "main_Q4_control": {
+      "arm": "main-q4",
+      "stdout_sha256": "3c3c18888050b408112c8ac24bab54f6416b57c2bd238cc662ae76806f77f9a4",
+      "stderr_sha256": "4a532573d6b15fde0eef9aa8dd71e49dee2b497ebfd5631fcdadfab5798f4424",
+      "runtime_precision": "CLI mean at nine decimals; per-target losses not captured",
+      "runtime_mean_nll": 17.550828436,
+      "delta_from_original_F32_golden": -0.013269967680923145,
+      "passes_original_continuous_NLL_bound": false
+    }
+  },
+  "provenance_assessment": {
+    "NANI_repo_revision": "b3d33231297d7b999d94fb262c223b7562675b1c",
+    "layout": "Type 42, 64 values/18 bytes, leading F16 scale, two-bit fields in little-field order mapping code minus one. All 196 body tensor extents fit this geometry. Independent spec, runtime and retained mx source agree.",
+    "mx_source": {
+      "root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/source",
+      "ggml/src/ggml-common.h": "3ac6eed12695ceea1acd18f556845023a45f92f6ce0530c18c70bb10450207ea",
+      "ggml/src/ggml-quants.c": "a0c6788d6ba59591851076afc7ded230f640d6853721674fd6a9863e01cffdbc"
+    },
+    "mx_evidence_scope": "Matched benchmarks consumed the same model SHA; not an independent mx PPL or full-logit oracle.",
+    "quality": "Original file-exact HF NLL 17.564098 / PPL 42,461,078 is poor on the fixed excerpt. PPL alone does not prove mathematical ill-conditioning; separate rounding/shape/operator experiments establish sensitivity.",
+    "gap": "Publisher training/quantization procedure provenance and an independent mx PPL comparison are not established. No affirmative format-mismatch evidence.",
+    "Bonsai": "Existing verified payload 6d0ecb3d... from revision 983b5dec... is refused for actual YaRN factor 4 / original context 8192 metadata. It is a separate unsupported architecture configuration, not a replacement that clears this file; metadata is not stripped."
+  },
+  "proposal_sha256": "e93bd8efc9dc41ba9df51f5dacec8c15e05275278cd026e609c4dc8b86d3ac50",
+  "approval": {
+    "authority": "explicit user approval",
+    "date": "2026-10-29",
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "platform": "Retained MI50/RADV environment only",
+    "matrix_policy": "Retained default block-int16 execution, including Q6_K head; KV type and schedule fixed per cell",
+    "approved_cells": [
+      {
+        "cell": "rank-capital-kvf16",
+        "KV": "f16",
+        "retained_Q2_stdout_sha256": "2d15941983317b8f02bd7726e7e1069406d1c3f59d7e5c8c9288c58726e69d2f",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "rank-code-kvf16",
+        "KV": "f16",
+        "retained_Q2_stdout_sha256": "29d05b7d87c5bbc71b8a8c179356e188544d1fbd72d9e2de824cb5b566b02e23",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "rank-colors-kvf16",
+        "KV": "f16",
+        "retained_Q2_stdout_sha256": "f2472ef51d532d83b618298527e2513b22930822f021b93be82c8388a45b76ad",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "rank-colors-kvf32",
+        "KV": "f32",
+        "retained_Q2_stdout_sha256": "faa4635f67ad7e0756b332a5e5641efd4da99efb36e1d911c41da089fcd1909f",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "rank-rome-kvf16",
+        "KV": "f16",
+        "retained_Q2_stdout_sha256": "e6e0ae5d78ddffaa81d22d7eb602005e4b665339e68fb67b12e753459a955231",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "nll-kvf32-batched",
+        "KV": "f32",
+        "retained_Q2_stdout_sha256": "4fd46477d16771a5157323b128c6d68c5f028b0fa6949a5896b6cd0a773467dc",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "nll-kvf16-singleton",
+        "KV": "f16",
+        "retained_Q2_stdout_sha256": "a8321c433ded1f45d1c36f0ea9a6abf85ed477f4a4fe908935c977ca5204bfd4",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      },
+      {
+        "cell": "nll-kvf32-singleton",
+        "KV": "f32",
+        "retained_Q2_stdout_sha256": "02a5ca1f97590068aa70444e6c18e261474877c1c659b807d041a71be4370cb4",
+        "representation": "Retained CLI stdout: top-ten IDs/six-decimal logits for ranking, or mean NLL at nine decimals and exact counters for NLL."
+      }
+    ],
+    "final_candidate_inheritance": "Final candidate outputs must match the approved retained CLI output artifacts in their recorded form and precision. Changed outputs require renewed review before inheriting this exception. This decision alone establishes no final-candidate identity.",
+    "original_failure_preservation": "Original references, failure results, values and output hashes remain unchanged. Accepted exceptions are not passes under the original criteria.",
+    "all_other_criteria": "Unchanged; no other file/platform/policy/cell/failure or numerical limit is covered.",
+    "merge_approval": false,
+    "quality_disposition_complete": false,
+    "later_fixture_request": "A separate Q2 quality fixture was requested by the owner/coordinator after approval. That work remains open and does not expand the historical eight exact-file exceptions."
+  },
+  "approval_delta_validation": "Documentation decision metadata only. Prior validation/documentation-review receipts remain historical; no checks were run for this approval-only update, as instructed."
+}

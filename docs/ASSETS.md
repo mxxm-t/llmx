@@ -319,8 +319,10 @@ Models are kept in the LM Studio model directory:
 C:\Users\Marko\.lmstudio\models\
 ```
 
-llmx decodes **F32 / F16 / BF16 / Q4_0 / Q4_1 / Q5_0 / Q5_1 / Q8_0 / Q2_K / Q3_K / Q4_K / Q5_K / Q6_K / IQ1_S / IQ1_M / IQ2_XXS / IQ2_XS / IQ2_S / IQ3_XXS / IQ3_S / IQ4_NL / IQ4_XS / TQ1_0 / TQ2_0 / MXFP4** tensors (see
-`docs/src/quant-quant.md`). The [README support matrix](../README.md#quantization-types) separates CPU and Vulkan inference from quantize writers. GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
+The [quant registry](src/quant-quant.md) lists the implemented tensor decoders.
+The [README support matrix](../README.md#quantization-types) separates qualified CPU and Vulkan inference from quantize writers.
+Q1_0 and Q2_0 decoding is in development and has not completed inference qualification (see [Q1-Q2](Q1-Q2.md)).
+GGUF metadata inspection recognizes 35 storage layouts independently of these decoders; metadata recognition does not make a type executable.
 IQ2_XXS, IQ2_XS and IQ3_XXS have published read-only CPU/Vulkan inference support; completed qualification and remaining follow-ups are recorded in [STATUS](STATUS.md).
 TQ1_0 and TQ2_0 support read-only CPU/Vulkan inference, with completed applicable qualification and the approved scoped default Vulkan chat baseline exception in PRECISION. The [candidate inventory](benchmarks/tq-candidate-headers-20261024.json) records their revisions, verified complete payload hashes and companion tensor types.
 IQ2_S and IQ3_S have read-only CPU/Vulkan inference support; the recorded scope and evidence are in [STATUS](STATUS.md). The pinned Bartowski Qwen3-0.6B IQ2_M file combines IQ2_S, IQ3_S, Q5_K and F32 tensors; IQ2_M is a preset name, not a storage type. Its complete type inventory, file-exact HF and raw/chat 16K checks are recorded there.
@@ -487,7 +489,9 @@ The file is local and not hosted; regenerate it and compare the digest.
 
 #### File-exact HF references
 
-`python tools/gen_baseline.py file-exact --weights-gguf FILE --output-dir DIR` loads the pinned `Qwen/Qwen3-0.6B` reference, replaces every parameter with the file's own tensors as the numpy spec decoder reads them, and writes logit and PPL goldens in the format of `tests/data`, labelled with the file's name, SHA-256, repository and tensor types.
+`python tools/gen_baseline.py file-exact --weights-gguf FILE --output-dir DIR` constructs the reference from the pinned `Qwen/Qwen3-0.6B` config and tokenizer, replaces every parameter with the file's own tensors as the numpy spec decoder reads them, and writes logit and PPL goldens in the format of `tests/data`, labelled with the file's name, SHA-256, repository and tensor types.
+Qwen3 and Qwen3-MoE file-exact references do not load the original checkpoint weights. Their `weights.tensors_equal_to_reference` field is null because no checkpoint-weight equality comparison was made; GGUF tensor coverage and identity checks remain required.
+The [loader proof](benchmarks/q1-q2-file-exact-config-proof-20261027.json) first checks original parameter and buffer bytes, configuration and topology, then compares both HF constructions with equal parameter storage alignment. Its retained clone/restore diagnostic shows CPU output sensitivity to storage alignment with identical weights; the equal-alignment control belongs only to the proof harness. Original mismatches remain recorded, and no existing golden or numerical budget changes.
 It runs on the CPU in float32 with eager attention.
 For Qwen3 file-exact references, the GGUF owns output topology: an explicit `output.weight` creates an independent HF head, and its absence ties the head to the embedding, regardless of the original checkpoint configuration. Every resulting parameter must be replaced by an independently decoded file tensor. The shared weight loader also accepts a redundant head on an already tied model only after verifying decoded shape and binary32 bits, including zero signs; it marks that case `tied_output_verified` and refuses a mismatch.
 `python -X utf8 tests/baseline.py --file-exact DIR --model FILE` then holds llmx on that file to the Q8_0 fixture's bounds, since the format's loss is on both sides.
@@ -522,7 +526,7 @@ The Q8_0 file's goldens given the Q4_0 file are refused by SHA-256.
 
 ### Generating pinned HF references
 
-`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
+`tools/gen_baseline.py` accepts `all`, `tokenizer`, `logits`, `perplexity`, `f32`, `moe`, `moe-q8`, `int8`, `mxfp4`, `q1-q2`, `q2-k`, `q3-k`, `q5-0`, `q5-1`, `iq4-nl`, `iq4-xs`, `tokenizer-qwen35`, `qwen35-tiny`, `qwen35-mtp`, `qwen4exp-tiny`, `tensor-split`, `tensor-split-moe`, `qwen35` or `file-exact` (default `all`).
 `moe-q8` writes the goldens of the Q8_0 model of `tests/moe.py`, needs numpy, accepts only `--output-dir` and is not part of `all`.
 Real-model modes default to `Qwen/Qwen3-0.6B` at commit `c1899de289a04d12100db370d81485cdf75e47ca`.
 Both model and tokenizer loaders receive that revision.

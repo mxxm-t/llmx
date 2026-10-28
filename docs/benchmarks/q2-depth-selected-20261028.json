@@ -1,0 +1,370 @@
+{
+  "scope": "Completed default Q2 MI50/RADV selected-policy raw/chat16K depth gates only. No merge, broad qualification, short-case exception, reference change or tolerance increase.",
+  "status": "Both selected-policy depth checks PASS under unchanged hf_depth_top1 at0.1.",
+  "model": {
+    "file": "Qwen3-0.6B-Q2_0.gguf",
+    "sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+  },
+  "candidate": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-two-row-cluster32-v1/rig-out",
+    "CLI_sha256": "c0a668057928cca2646baa337c94ec1b84cdad397ef431a501bacf9676741006",
+    "library_sha256": "608e2afde63e90f7f7966a5d2bb904177a3c645d482badd96caa9fe5fa2e8278",
+    "source_dir": "source",
+    "build_dir": "build"
+  },
+  "policy": {
+    "matrix_inputs": "Independent exact Vulkan block-int16 reconstruction for196Q2_0bodyLinears andQ6_Khead; fixed scale, reciprocal and half-away tie math; exact GGUF-decoded weights; F32sums.",
+    "KV": "F16 at each cache write; F32norm/RoPE/residual/softmax retained.",
+    "schedule": "Predeclared prompt512/continuation1/head1, fixed histories; no per-position reference choice.",
+    "witnesses": "512 completed phase/position captures per raw/chat input, effectiveF16 andblock-int16."
+  },
+  "acceptance": {
+    "owner": {
+      "path": "tests\\common.py",
+      "sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+    },
+    "function": "hf_depth_top1",
+    "margin": 0.1,
+    "rule": "Exact HFfirst; acceptedtie only HFsecond with HFgap<=.1; otherwise miss. No maximum-logit-error acceptance threshold.",
+    "positions_each": 512
+  },
+  "cells": [
+    {
+      "variant": "raw",
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "positions": [
+        16383,
+        16894
+      ],
+      "counts": {
+        "exact": 504,
+        "accepted-tie": 8,
+        "miss": 0
+      },
+      "passed": true,
+      "largest_accepted_tie_HF_gap": 0.040599822998046875,
+      "max_absolute_logit_difference_diagnostic_only": 0.6232125759124756,
+      "reference_seconds_diagnostic_only": 2674.6404321193695,
+      "reference_peak_bytes": 8746582016,
+      "reference_receipt": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-raw/supervisor.json",
+        "sha256": "09a02bb99e653ca271fb8d5df2924d011f5a946135e5179588de8f6b1da67d5a"
+      },
+      "reference_report": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-raw/report.json",
+        "sha256": "a87db1631826b8a6eb4a3ff52f727dade9aa83b0d1f49f48c200101fac035abe"
+      },
+      "reference_scores": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-raw/scores.f32",
+        "sha256": "29da33389e6f35e88d48851aca0872029f6956b832965c92d4cab4b029508066"
+      },
+      "comparison": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/selected-raw-comparison.json",
+        "sha256": "1b55b67a97ee8f0fb947dd2639667afed61a7ba3d623231b856375c875c67166"
+      },
+      "capture_scores": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/raw.f32",
+        "sha256": "0c4ab958bd2b764ad6df71c5e0490c1848ca34f70404fcbed1ce197ba6120f39"
+      },
+      "capture_stdout": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/raw.stdout",
+        "sha256": "93e03f3e345c40b9e93a6f07ff255c3b8fb05bc13d062da5ea9238a927f56412"
+      },
+      "capture_witnesses": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/raw.stderr",
+        "sha256": "b022e645442079c95fe97738aeb3876f60050c2c6b6233f8b93ec595e7f0c106"
+      },
+      "matrix_modules_each_phase": 197,
+      "matrix_calls_per_body_module": {
+        "prefill": 32,
+        "decode": 511
+      },
+      "head_calls": {
+        "prefill": 1,
+        "decode": 511
+      },
+      "cache_layers": 28,
+      "cache_writes_per_layer": {
+        "calls": 543,
+        "rows": 16895
+      },
+      "scheduling": {
+        "CPU": "12-15",
+        "supervisor": {
+          "path": "build-low-bits-dev/q2-depth-default-v3/supervise.py",
+          "sha256": "f10f2dd4f3a9ef686710b0e63fb2f6fe65ad607d854843fb912fb164628acc06"
+        }
+      }
+    },
+    {
+      "variant": "chat",
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "positions": [
+        16383,
+        16894
+      ],
+      "counts": {
+        "exact": 498,
+        "accepted-tie": 14,
+        "miss": 0
+      },
+      "passed": true,
+      "largest_accepted_tie_HF_gap": 0.03973674774169922,
+      "max_absolute_logit_difference_diagnostic_only": 1.3527812957763672,
+      "reference_seconds_diagnostic_only": 2622.751523256302,
+      "reference_peak_bytes": 8704126976,
+      "reference_receipt": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-chat/supervisor.json",
+        "sha256": "26c58cd0af7ebbe6635f93ebf0d9f257fb71df495eaa75263a2b75c1d9675c98"
+      },
+      "reference_report": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-chat/report.json",
+        "sha256": "99f83a6c97cbcef714e9fa31a3aa7c8eef75319896c655d6bc12f3ab033f9a2e"
+      },
+      "reference_scores": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/MI50-selected-chat/scores.f32",
+        "sha256": "2b3052fb6e74659c4a695d1b1efb0cd33335c9f75630696e0cf1ab169c4bf5e0"
+      },
+      "comparison": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/selected-chat-comparison.json",
+        "sha256": "c829faa2e6bcf5660f412009df100ce3ea9b24206853f3bda2f196636be8ebdf"
+      },
+      "capture_scores": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/chat.f32",
+        "sha256": "3a5750dd386cf67c1dd2f9ec61a1147110fcc3b6f4593d81a6694b8317691042"
+      },
+      "capture_stdout": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/chat.stdout",
+        "sha256": "93e03f3e345c40b9e93a6f07ff255c3b8fb05bc13d062da5ea9238a927f56412"
+      },
+      "capture_witnesses": {
+        "path": "build-low-bits-dev/q2-depth-default-v3/capture/chat.stderr",
+        "sha256": "b022e645442079c95fe97738aeb3876f60050c2c6b6233f8b93ec595e7f0c106"
+      },
+      "matrix_modules_each_phase": 197,
+      "matrix_calls_per_body_module": {
+        "prefill": 32,
+        "decode": 511
+      },
+      "head_calls": {
+        "prefill": 1,
+        "decode": 511
+      },
+      "cache_layers": 28,
+      "cache_writes_per_layer": {
+        "calls": 543,
+        "rows": 16895
+      },
+      "scheduling": {
+        "scope": "Root-authorized scheduling only; fixed producer, policy, limits and guards unchanged. At most two owned HF cells.",
+        "original_cpuset": "12-15",
+        "final_cpuset": "8-11",
+        "host_topology": {
+          "0": {
+            "physical_package_id": "0",
+            "core_id": "0",
+            "thread_siblings_list": "0,8"
+          },
+          "1": {
+            "physical_package_id": "0",
+            "core_id": "4",
+            "thread_siblings_list": "1,9"
+          },
+          "2": {
+            "physical_package_id": "0",
+            "core_id": "8",
+            "thread_siblings_list": "2,10"
+          },
+          "3": {
+            "physical_package_id": "0",
+            "core_id": "12",
+            "thread_siblings_list": "3,11"
+          },
+          "4": {
+            "physical_package_id": "0",
+            "core_id": "16",
+            "thread_siblings_list": "4,12"
+          },
+          "5": {
+            "physical_package_id": "0",
+            "core_id": "20",
+            "thread_siblings_list": "5,13"
+          },
+          "6": {
+            "physical_package_id": "0",
+            "core_id": "24",
+            "thread_siblings_list": "6,14"
+          },
+          "7": {
+            "physical_package_id": "0",
+            "core_id": "28",
+            "thread_siblings_list": "7,15"
+          },
+          "8": {
+            "physical_package_id": "0",
+            "core_id": "0",
+            "thread_siblings_list": "0,8"
+          },
+          "9": {
+            "physical_package_id": "0",
+            "core_id": "4",
+            "thread_siblings_list": "1,9"
+          },
+          "10": {
+            "physical_package_id": "0",
+            "core_id": "8",
+            "thread_siblings_list": "2,10"
+          },
+          "11": {
+            "physical_package_id": "0",
+            "core_id": "12",
+            "thread_siblings_list": "3,11"
+          },
+          "12": {
+            "physical_package_id": "0",
+            "core_id": "16",
+            "thread_siblings_list": "4,12"
+          },
+          "13": {
+            "physical_package_id": "0",
+            "core_id": "20",
+            "thread_siblings_list": "5,13"
+          },
+          "14": {
+            "physical_package_id": "0",
+            "core_id": "24",
+            "thread_siblings_list": "6,14"
+          },
+          "15": {
+            "physical_package_id": "0",
+            "core_id": "28",
+            "thread_siblings_list": "7,15"
+          }
+        },
+        "supervisor_sha256": "da8db363878708ee79732ccff4221d7a150a3b9b505cc383ad657fb0bc25deba",
+        "original_supervisor_sha256": "f10f2dd4f3a9ef686710b0e63fb2f6fe65ad607d854843fb912fb164628acc06",
+        "owned_containers_before_launch": [
+          {
+            "cid": "d1f1727a1841",
+            "name": "/llmx-xdev-q2-depth-mi50-selected-raw",
+            "cap": 16106127360,
+            "current": 7697014784,
+            "unused": 8409112576
+          }
+        ],
+        "actual_hostconfig": {
+          "CpusetCpus": "8-11",
+          "NanoCpus": 4000000000,
+          "Memory": 16106127360,
+          "MemorySwap": 16106127360
+        }
+      }
+    }
+  ],
+  "pins": {
+    "plan.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/plan.json",
+      "sha256": "d169aeb9bc232b68259048674bbf7c06db83aa6c75002a24ee7e97c1aa3c85ec"
+    },
+    "payload-hashes.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/payload-hashes.json",
+      "sha256": "598af5cc274e4b9f46dae1037879292b01b339e20c742b1137582ace617bd436"
+    },
+    "candidate-pins.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/candidate-pins.json",
+      "sha256": "8c512f5289017fad80c15aeacfe3a80539155a65b1e41f2d51a45c86cc7ee6b3"
+    },
+    "candidate-equivalence.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/candidate-equivalence.json",
+      "sha256": "9f4b2c4b99984569b3cf02fb9249fa57881f9e3e88892ea523f7f7bf59cbd569"
+    },
+    "candidate-build-receipt.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/candidate-build-receipt.json",
+      "sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6"
+    },
+    "policy-map.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/policy-map.json",
+      "sha256": "4a38f97f6f4c0497be5f575eac83e8fb61b2c323444caf57f935748226a860f3"
+    },
+    "reference_policy.py": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/reference_policy.py",
+      "sha256": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8"
+    },
+    "produce-reference.py": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/produce-reference.py",
+      "sha256": "b26b422716a258004ed1d1e43aea483c52a0d088f6a3dc8b35479f3bdf044b1e"
+    },
+    "cache_owner.py": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/cache_owner.py",
+      "sha256": "a4547e4bfa7449c3396db819b03fa9bc40c0693a35eb580bb9e7ad9416d4e566"
+    },
+    "hf-source-proof.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/hf-source-proof.json",
+      "sha256": "fe66bb99a2090ad3cee71a4a741962d0e34a74349b4c37c563a3a36698e28ac4"
+    },
+    "control-review.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/control-review.json",
+      "sha256": "00090f8056dc156dab74f0bcab339f1db022b8e82a2a4f9908564f1cba945573"
+    },
+    "inputs/complete.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/inputs/complete.json",
+      "sha256": "ac7b449bb3430a3facf785e55fd25b2a71a0a1c866723c047acbca3f337ea0bf"
+    },
+    "input-math/report.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/input-math/report.json",
+      "sha256": "e3c9077534c542ca7fecad99ae6a52152cd46ab908b6e010c9dcaecc4a0e6290"
+    },
+    "controls/report.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/controls/report.json",
+      "sha256": "1919680bc47cd14a72db73bc76162712a5143010691ad8ad1e19882559c3effc"
+    },
+    "capture/execution.json": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/capture/execution.json",
+      "sha256": "cae4dcadd0440d776506aa411f7acba7acb9fc9e170338e634ec32c0363ee7ee"
+    },
+    "capture.cpp": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/capture.cpp",
+      "sha256": "a9d74c387038b0d9c3dcd24360330b9e8679a2da964d6896f85f85dd6f578d79"
+    },
+    "compare-depth.py": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/compare-depth.py",
+      "sha256": "57d8000132e592a864b10ef502fc329d834fc6cc2a1552b7dcb7229c47420673"
+    },
+    "supervise-chat-cpu8-11.py": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/supervise-chat-cpu8-11.py",
+      "sha256": "da8db363878708ee79732ccff4221d7a150a3b9b505cc383ad657fb0bc25deba"
+    },
+    "supervise-chat-cpu8-11.diff": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/supervise-chat-cpu8-11.diff",
+      "sha256": "ecf08985d7b02e641945f65b3419805ad6e26baf815a071c17afa92627bbbd44"
+    }
+  },
+  "remaining": {
+    "F32_quality_raw": "Running under frozen originalF32 policy andproducer, CPU12-15,4threads,15GiB,10800s.",
+    "F32_quality_chat": "Not launched; scheduling-only supervisor frozen for8-11; held for root memory coordination.",
+    "short_rankings_and_NLL": "Canonical default-precision failures remain failed and unapproved. Old selected-short/NLL references use approximate division-based inputhelper; do not relabel them exact.",
+    "short_exception_proposal": {
+      "path": "docs\\benchmarks\\q2-short-exception-proposal-20261028.json",
+      "sha256": "26624d535dc5355dd373bfb1db9e33729d3a2c5de639fe6ba29a51755e769ba2"
+    },
+    "other_checks": "This artifact establishes no other operator, split, identity, performance, CPU or Radeon result.",
+    "Q1_MI50": "Existing Q1 depth evidence remains a comparison to its pinned older division-based reconstruction producer, not a claim of byte-exact device-input reconstruction. Owner review remains pending; no Q1 runtime failure or rerun is inferred by this Q2 result."
+  },
+  "timing_caveats": {
+    "purpose": "Elapsed times are diagnostic only; references overlapped on disjoint physical cores and other authorized correctness/build work may coexist.",
+    "raw_owned_pauses": [
+      {
+        "path": "build-low-bits-dev\\q2-hf-control-disposition-v1\\raw-reference-pause.json",
+        "sha256": "95bc7856489bd69efa36ad6ea8af7c10ca247a695fee2ff706f3ef9a8550dd06"
+      },
+      {
+        "path": "build-low-bits-dev\\q2-hf-control-disposition-v1\\raw-reference-screen-pause.json",
+        "sha256": "e870f670b4d522e35493a28af90677a5b78bc7984afeeb795dd401a6844a9b53"
+      }
+    ]
+  }
+}

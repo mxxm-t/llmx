@@ -3,6 +3,7 @@
 #ifndef LLMX_QDECODE_GLSL
 #define LLMX_QDECODE_GLSL
 #include "tq.glsl"
+#include "low_bits.glsl"
 
 int fp4_value(uint code) {
     int magnitude = int(code & 7u);
@@ -238,6 +239,7 @@ float quantized_at(uint type, uint row, uint width, uint column) {
     if (type == TYPE_Q3_K) return q3_k_at(o, j);
     uint scale = o + (type == TYPE_Q6_K ? 208u : 0u);
     float d = half_at(QBYTE(scale), QBYTE(scale + 1u));
+    if (type == TYPE_Q1_0 || type == TYPE_Q2_0) return low_bits_at(type, o, j, d);
     if (type == TYPE_Q8_0) return d * float(int(QBYTE(o + 2u + j) << 24u) >> 24);
     if (type == TYPE_Q4_0) return q4_0_exact(o, j, d);
     if (type == TYPE_Q5_0) return q5_0_at(o, j, d);

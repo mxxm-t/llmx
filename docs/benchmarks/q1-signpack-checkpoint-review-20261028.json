@@ -1,0 +1,28 @@
+{
+  "scope": "Full Markdown applicability review after discarded Q1 packed-sign trial and exact depth-input/render checks",
+  "previous_catalog": "docs/benchmarks/q1-trace-checkpoint-review-20261028.json",
+  "previous_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+  "pages": 154,
+  "unchanged_carried": 153,
+  "changed_pages": {
+    "docs/STATUS.md": "8474ee2e43f9703201d48764f859d4f31bae4afef03397afc66182ddda893962"
+  },
+  "runtime": "Trial removed, all201 runtime/config files match retained halfword build. No CLI, support, source-owner or precision-policy change.",
+  "review": [
+    "STATUS replaces experiment plan with measured null result, CPU/disk contention and all retained samples. Old mx target measurements remain explicitly separate.",
+    "Exact runtime rendering proves only template/tokenizer parity; full-depth correctness remains open.",
+    "Shape-based reference memory estimate is explicitly analytical. A planned bounded memory-only probe is not correctness evidence and does not lower full-reference guards."
+  ],
+  "checks": {
+    "dead-code": "PASS:7 listed findings,19 planted faults",
+    "docs": "PASS:0 findings,21 planted faults"
+  },
+  "artifacts": {
+    "q1-signpack-screen-20261028.json": "339a4c99d9ad4ad6a5f73ca78ca890dae88f5cbc4b58d031bfee339be764f7fe",
+    "q1-depth-input-render-20261028.json": "3188c708143dea022b94daf183fe8e537dc0fffe0cbb484e05dc4803b167f53d"
+  },
+  "limitations": [
+    "Unchanged pages carry prior semantic review, with current-delta applicability checked, not a new line-by-line read.",
+    "No full numerical rerun required for a discarded experiment and diagnostic-only checkpoint. Quant landing remains incomplete."
+  ]
+}

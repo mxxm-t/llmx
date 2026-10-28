@@ -1,0 +1,1335 @@
+{
+  "scope": "Completed exact-method Q2 short/NLL diagnostics and original-F32 raw depth quality companion. No numerical policy change or qualification exception.",
+  "short_diagnostic": {
+    "scope": "Verified exact-method short/NLL diagnostic checkpoint and one bounded, unlaunched code-case localization proposal. No runtime, numerical limit or gate amendment.",
+    "status": "Completed eight diagnostic references. Canonical original-F32 failures remain failures; no short-case exception approved.",
+    "pins": {
+      "plan.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/plan.json",
+        "sha256": "021c5a5a30bda44031e13adcf73877be062243e9aa45ed65b95c44fcc5b18933"
+      },
+      "payload-hashes.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/payload-hashes.json",
+        "sha256": "f7f740801a8d101bc4007df4ca5ac2c7092874d01041d2ca81fb5fc2a5848a96"
+      },
+      "bundle-manifest.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/bundle-manifest.json",
+        "sha256": "5e57bf68a4a925a61994b1d8ab16d490d0e58dc2c37043c937f4c2e2cdf19b73"
+      },
+      "fixtures.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/fixtures.json",
+        "sha256": "4128315b9d1f2032c4f7f9c8e6dd7f85b208eadcc05c76bc2b52deea46e5e1fa"
+      },
+      "retained-index.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/retained-index.json",
+        "sha256": "6fba4702ecdc98ea55a84b1b8e9d2f17ea4fe3a14db6f48ba39b05171b7247ab"
+      },
+      "reference_policy.py": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/reference_policy.py",
+        "sha256": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8"
+      },
+      "cache_owner.py": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/cache_owner.py",
+        "sha256": "a4547e4bfa7449c3396db819b03fa9bc40c0693a35eb580bb9e7ad9416d4e566"
+      },
+      "policy-map.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/policy-map.json",
+        "sha256": "4a38f97f6f4c0497be5f575eac83e8fb61b2c323444caf57f935748226a860f3"
+      },
+      "root-review.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/root-review.json",
+        "sha256": "529a6f4b219f07f32812471ea5c4f8d5d91e73f7054d4d99b7b411aabb0dad3c"
+      },
+      "out/supervisor.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/supervisor.json",
+        "sha256": "2639f0ba76a59983c2df64a4276312eb3e0bbb95f5e52d6a4735e452a68157bc"
+      },
+      "out/report.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/report.json",
+        "sha256": "f76de61efd192a1f0d81e396b5cb2bcffe74769711a72f0007060f9dd751a55e"
+      },
+      "comparison.json": {
+        "path": "build-low-bits-dev/q2-short-exact-replay-v1/comparison.json",
+        "sha256": "89dd80bc7504b151e835c31f9127162dc9674ca4616f75060b9310b18910a4c8"
+      }
+    },
+    "reference_outputs": {
+      "rank-capital-kvf16": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/rank-capital-kvf16.scores.f32",
+          "sha256": "94f365a7e39fa319a59e2574505a27b0c1ec93ed8be52badaf3647351bf80628"
+        }
+      },
+      "rank-code-kvf16": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/rank-code-kvf16.scores.f32",
+          "sha256": "112e64874b13450a883953ed1857fcc26a79ad1eaedcbd87d73d703abe5025c2"
+        }
+      },
+      "rank-colors-kvf16": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/rank-colors-kvf16.scores.f32",
+          "sha256": "05bd7f4e3666d5e78ab894b0c9d7c6e2732f095ef7fbffa89d66b278f43c3725"
+        }
+      },
+      "rank-colors-kvf32": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/rank-colors-kvf32.scores.f32",
+          "sha256": "a690fc3a7d52051a0372d51534b51487221ff318a34ea0ccd2821d071f868e25"
+        }
+      },
+      "rank-rome-kvf16": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/rank-rome-kvf16.scores.f32",
+          "sha256": "cba73055130e6117953039df5e5bdac3efb1715ee5a763e0baf15357b1f268d5"
+        }
+      },
+      "nll-kvf16-batched": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf16-batched.scores.f32",
+          "sha256": "ac12bf6db82760b8a5268f057155c19215774d6bf160933e70de3dc06ecae237"
+        },
+        "losses": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf16-batched.nll.f64",
+          "sha256": "09772e8f7df2a2e0def16481363271adeff6bcca019168af0583cf4f6c9ac6cf"
+        }
+      },
+      "nll-kvf32-batched": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf32-batched.scores.f32",
+          "sha256": "ad80538285acc66cbe168c7fab10f7b92576f9bbce1f563a2d936a17aa13a91f"
+        },
+        "losses": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf32-batched.nll.f64",
+          "sha256": "4e337d3bba7f355b76dfbb4a4f23fc42878390925d89a55288fa210547f1a266"
+        }
+      },
+      "nll-kvf16-singleton": {
+        "scores": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf16-singleton.scores.f32",
+          "sha256": "570518f64acee81b9333f600fc33bacdafda32449db1e45dcc8283235f9c9268"
+        },
+        "losses": {
+          "path": "build-low-bits-dev/q2-short-exact-replay-v1/out/nll-kvf16-singleton.nll.f64",
+          "sha256": "1c9cc48d1125aa0d2127a35eac36c651f289c86b598a3eca50a62d98f644b9b7"
+        }
+      }
+    },
+    "external_supervisor": {
+      "path": "build-low-bits-dev/q2-short-exact-replay-schedule-v3/supervise-cpu8-11.py",
+      "sha256": "c9ee9a2de97a0b839f64a353fb6c1549936a15f92cc2ef90952bd5ab3bf188b7"
+    },
+    "external_consumer": {
+      "path": "build-low-bits-dev/q2-short-exact-replay-schedule-v1/compare-fixed.py",
+      "sha256": "c04ddd7969af6ac6a050d246a899a6e824e74bca6f53c9e4ce6f505b3205fb41"
+    },
+    "execution": {
+      "seconds": 105.15693998336792,
+      "peak_bytes": 4232179712,
+      "removed": true,
+      "unchanged": true,
+      "CPU": "8-11",
+      "threads": 4,
+      "memory_GiB": 8,
+      "deadline_seconds": 900,
+      "gate_acceptance": null
+    },
+    "method_notes": [
+      "Exact matrix/cache owners are the frozen Q2 depth v3 copies. Only fixtures/schedules changed.",
+      "Older short/NLL references used division-based reconstruction and one HF thread; current frozen producer uses four. Differences cannot be attributed solely to helper correction.",
+      "Batched NLL uses 247 body/head rows and 246 targets; singleton feeds 246 body/head rows and scores 246 targets.",
+      "F32-KV batched runtime evidence contains nine-decimal CLI means, not per-target arrays.",
+      "Original sealed payload is unchanged. Missing n_tokens was corrected in a separate offline consumer. Five Windows prerequisite paths were normalized only by an external reviewed supervisor; initial preflight failures created no container or inference."
+    ],
+    "results": [
+      {
+        "case": "rank-capital-kvf16",
+        "kind": "ranking",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "candidate-q2-canonical",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          },
+          {
+            "arm": "main-q4",
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-5 overlap 4/5 below bound 5"
+          }
+        ]
+      },
+      {
+        "case": "rank-code-kvf16",
+        "kind": "ranking",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "candidate-q2-canonical",
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-1 40604, HF 54200"
+          },
+          {
+            "arm": "main-q4",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          }
+        ]
+      },
+      {
+        "case": "rank-colors-kvf16",
+        "kind": "ranking",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "candidate-q2-canonical",
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-5 overlap 4/5 below bound 5"
+          },
+          {
+            "arm": "main-q4",
+            "top1_exact": false,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-1 103971, HF 102644"
+          },
+          {
+            "arm": "candidate-q4",
+            "top1_exact": false,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-1 103971, HF 102644"
+          },
+          {
+            "arm": "candidate-q2",
+            "top1_exact": true,
+            "top5_overlap": 4,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-5 overlap 4/5 below bound 5"
+          }
+        ]
+      },
+      {
+        "case": "rank-colors-kvf32",
+        "kind": "ranking",
+        "KV": "f32",
+        "runtime_comparisons": [
+          {
+            "arm": "candidate-q2-canonical",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          },
+          {
+            "arm": "main-q4",
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-1 102563, HF 102644"
+          },
+          {
+            "arm": "candidate-q4",
+            "top1_exact": false,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": false,
+            "failure": "top-1 102563, HF 102644"
+          },
+          {
+            "arm": "candidate-q2",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          }
+        ]
+      },
+      {
+        "case": "rank-rome-kvf16",
+        "kind": "ranking",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "candidate-q2-canonical",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          },
+          {
+            "arm": "main-q4",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          },
+          {
+            "arm": "candidate-q4",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          },
+          {
+            "arm": "candidate-q2",
+            "top1_exact": true,
+            "top5_overlap": 5,
+            "passes_existing_ranking_function_diagnostic": true,
+            "failure": null
+          }
+        ]
+      },
+      {
+        "case": "nll-kvf16-batched",
+        "kind": "nll",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "main-q4",
+            "runtime_mean_nll": 17.57261986457792,
+            "delta_from_exact_selected_HF": -0.002550249223311596,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          },
+          {
+            "arm": "candidate-q4",
+            "runtime_mean_nll": 17.57261986457792,
+            "delta_from_exact_selected_HF": -0.002550249223311596,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          },
+          {
+            "arm": "candidate-q2",
+            "runtime_mean_nll": 17.57261986457792,
+            "delta_from_exact_selected_HF": -0.002550249223311596,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          }
+        ],
+        "exact_selected_HF_mean_nll": 17.57517011380123
+      },
+      {
+        "case": "nll-kvf32-batched",
+        "kind": "nll",
+        "KV": "f32",
+        "runtime_comparisons": [
+          {
+            "arm": "main-q4",
+            "runtime_mean_nll": 17.544304012,
+            "delta_from_exact_selected_HF": -0.003996583159704414,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          },
+          {
+            "arm": "candidate-q4",
+            "runtime_mean_nll": 17.544304012,
+            "delta_from_exact_selected_HF": -0.003996583159704414,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          },
+          {
+            "arm": "candidate-q2",
+            "runtime_mean_nll": 17.544304012,
+            "delta_from_exact_selected_HF": -0.003996583159704414,
+            "within_existing_continuous_NLL_bound_diagnostic_only": true
+          }
+        ],
+        "exact_selected_HF_mean_nll": 17.548300595159706
+      },
+      {
+        "case": "nll-kvf16-singleton",
+        "kind": "nll",
+        "KV": "f16",
+        "runtime_comparisons": [
+          {
+            "arm": "main-q4",
+            "runtime_mean_nll": 17.58520719739771,
+            "delta_from_exact_selected_HF": 0.021784172267253155,
+            "within_existing_continuous_NLL_bound_diagnostic_only": false
+          },
+          {
+            "arm": "candidate-q4",
+            "runtime_mean_nll": 17.58520719739771,
+            "delta_from_exact_selected_HF": 0.021784172267253155,
+            "within_existing_continuous_NLL_bound_diagnostic_only": false
+          },
+          {
+            "arm": "candidate-q2",
+            "runtime_mean_nll": 17.594695801872177,
+            "delta_from_exact_selected_HF": 0.031272776741719355,
+            "within_existing_continuous_NLL_bound_diagnostic_only": false
+          }
+        ],
+        "exact_selected_HF_mean_nll": 17.563423025130458
+      }
+    ],
+    "HF_only_F16_NLL_shape_spread": {
+      "batched_mean": 17.57517011380123,
+      "singleton_mean": 17.563423025130458,
+      "absolute_difference": 0.011747088670773564,
+      "existing_continuous_bound_for_context": 0.01,
+      "interpretation": "Demonstrates reference shape sensitivity; not an error allowance or gate pass."
+    },
+    "code_case": {
+      "text": "def add(a, b):",
+      "token_ids": [
+        750,
+        912,
+        2877,
+        11,
+        293,
+        1648
+      ],
+      "tokens": 6,
+      "KV": "f16",
+      "HF_top_two_ids": [
+        54200,
+        40604
+      ],
+      "HF_top_two_logits": [
+        14.44029426574707,
+        14.08871841430664
+      ],
+      "HF_top_two_gap": 0.3515758514404297,
+      "Q2_top1": 40604,
+      "main_Q4_top1": 54200,
+      "retained_runtime_evidence": "Only complete block-int16 policy witnesses, CLI top-ten outputs and receipts exist for this six-token case; no code-specific normalized inputs, packed twins, per-projection outputs or dispatch specialization trace was retained."
+    },
+    "source_review": {
+      "pinned_snapshots": {
+        "src/backends/vulkan/vulkan_twins.hpp": {
+          "snapshot": {
+            "path": "build-low-bits-dev/q2-rome-head-cut-v1/source/src/backends/vulkan/vulkan_twins.hpp",
+            "sha256": "c92568b176e6f0466e3022a283b5b5c947671e1c1fdb5b223be8e0d78b92c4a3"
+          },
+          "normalized_LF_sha256": "948be6abd758f63e2b3f20a58756159479ffa4857b18c981e414cffce2349caf",
+          "frozen_owner_match": true
+        },
+        "src/backends/vulkan/shaders/matmul_row_one.glsl": {
+          "snapshot": {
+            "path": "build-low-bits-dev/q2-rome-head-cut-v1/source/src/backends/vulkan/shaders/matmul_row_one.glsl",
+            "sha256": "c9b821513e2f3e775d861061bfc2a9e4cef8ec3d41e04b78ba85cec6b1b102e9"
+          },
+          "normalized_LF_sha256": "c9b821513e2f3e775d861061bfc2a9e4cef8ec3d41e04b78ba85cec6b1b102e9",
+          "frozen_owner_match": true
+        },
+        "src/backends/vulkan/shaders/matmul_row.glsl": {
+          "snapshot": {
+            "path": "build-low-bits-dev/q2-rome-head-cut-v1/source/src/backends/vulkan/shaders/matmul_row.glsl",
+            "sha256": "95f8416489bf6eee83fc5fee62628d56cba9399db2083683a144d47ec0844584"
+          },
+          "normalized_LF_sha256": "95f8416489bf6eee83fc5fee62628d56cba9399db2083683a144d47ec0844584",
+          "frozen_owner_match": true
+        },
+        "src/backends/vulkan/shaders/xquant.glsl": {
+          "snapshot": {
+            "path": "build-low-bits-dev/q2-rome-head-cut-v1/source/src/backends/vulkan/shaders/xquant.glsl",
+            "sha256": "657c7f3d2323a2732770aeb98e99ff7046513f5bff94719d2d692d1091206a76"
+          },
+          "normalized_LF_sha256": "b3feb72f931d9ff32b56aac69341f352eff5112f169d002a568477b0ce465145",
+          "frozen_owner_match": true
+        },
+        "src/backends/device_profile.hpp": {
+          "snapshot": {
+            "path": "build-low-bits-dev/q2-rome-head-cut-v1/source/src/backends/device_profile.hpp",
+            "sha256": "4a260d00431bc5f772193e172ec4a2e484040f6cbf06c3ae2aa6a85f062f85a5"
+          },
+          "normalized_LF_sha256": "c561c29e1181545b0593ab8082a0512ec837fe1950c37b336882b17561119dc3",
+          "frozen_owner_match": true
+        }
+      },
+      "shared_activation_owner": "vulkan_twins.hpp row_twin() routes both integer-dot formats through twin(); cache identity depends on input buffer/offset/element count and twin layout, not weight format. Same input bytes should therefore give the same packed int16 codes and scale/sum table.",
+      "expected_arithmetic_difference": "Q2 forms a centered integer sum and fma(RNE(dw*dx),float(sum),acc). Q4_0 computes the uncentered nibble dot and precise d*(dx*dot-8*ds), then acc+=term; ds itself is a rounded scaled integer sum. Float centering/cancellation and accumulation differ even for byte-exact decoded weights and equal activation twins. Q4 agreement with HF does not establish greater accuracy.",
+      "emitted_order_scope": "The prior 170-entry replay verifies Q2 emitted arithmetic for Rome17. Code6 has only a generic policy witness, and no corresponding Q4 machine-order audit is retained. Do not infer actual code6 specialization or Q4 FMA/rounding from source alone."
+    },
+    "single_next_localization": {
+      "status": "Proposal only; no new capture, model forward, variant or build launched.",
+      "earliest_unmeasured_boundary": "For code6, equality of the layer-0 normalized input and the actual packed block-int16 twin consumed by the first Q/K/V products, followed by the unrounded product outputs before K/V F16 cache writes. The existing evidence does not identify a particular divergent code layer or coordinate.",
+      "bounded_measurement": "One code6 fixture only, Q2 and its exact-value Q4 control, unchanged F16 matrix/F16 KV policy. Capture normalized F32 inputs, actual packed int16 words plus dx/ds, actual kernel/specialization/cluster dispatch, and first-layer Q/K/V outputs before cache rounding. Use one baseline and one observer capture per arm solely to verify observation preserves full logits: at most four six-token forwards. No other prompts, seeds, cache types or HF variants.",
+      "operator_analysis": "Verify identical original inputs and packed twins first. Replay only the first relevant differing operator coordinate using independent GGUF-decoded weights and the actual emitted integer/F32 order. Use the validated exact-arithmetic helper for byte-exact prediction and one independent double dot of the same reconstructed F32 inputs as a diagnostic error metric. Do not replace the whole-model HF reference with double or select by agreement.",
+      "interpretation": [
+        "Different normalized inputs point upstream; different twins from identical inputs localize input packing/reuse.",
+        "A Q2 product that disagrees with its emitted-order prediction localizes an implementation, dispatch or float-mode defect.",
+        "If Q2 and Q4 each match their distinct emitted arithmetic, their difference is expected rounding; compare each to the same double operator oracle and existing operator bound.",
+        "A clean first boundary closes only that localized suspicion. It does not erase the final code top-one failure or automatically authorize a walk through later layers."
+      ],
+      "resources": "Reuse the existing diagnostic native-capture envelope: each stage at most 4 GiB and 300 seconds, one admitted GPU4/5, production/render exclusions and 2 GiB host reserve plus live unused caps. Any scratch-only helper build is separately reviewed within its existing 4 GiB/300 s envelope. No cap expansion or automatic rerun.",
+      "unchanged_gates": "Original short top-one/top-five/NLL criteria remain. Both selected 16K depth gates already pass; no 512-position rerun is proposed."
+    },
+    "independent_verdict": "Reference/arithmetic sensitivity is demonstrated, including shared main/Q4 and HF-only failures. Rome localization is resolved and exact selected Rome now agrees. Code F16 remains a Q2-specific numerical suspicion because main Q4 agrees with exact HF, but its passing rank is not an arithmetic oracle. Current evidence neither proves a source bug nor proves complete Q2 correctness."
+  },
+  "short_scratch_record": {
+    "path": "build-low-bits-dev/q2-short-exact-diagnostic-v1/record.json",
+    "sha256": "57ba040f858744b216725aa6f7e97d106178dc354f51e3fd04f1eb247ba43d60"
+  },
+  "raw_depth_quality": {
+    "scope": "Required quality information beside the passing selected-policy raw depth gate; not a second depth gate or application of the short NLL limit.",
+    "arms": {
+      "original_F32_HF": {
+        "mean_nll": 18.655014209287227,
+        "mean_nll_delta_from_original_F32_HF": 0.0
+      },
+      "selected_policy_HF": {
+        "mean_nll": 18.66441945629786,
+        "mean_nll_delta_from_original_F32_HF": 0.009405247010633389,
+        "descriptive_top1_counts": {
+          "exact": 482,
+          "accepted-tie": 20,
+          "miss": 10
+        }
+      },
+      "runtime_selected_policy": {
+        "mean_nll": 18.664799413944266,
+        "mean_nll_delta_from_original_F32_HF": 0.009785204657038804,
+        "descriptive_top1_counts": {
+          "exact": 484,
+          "accepted-tie": 18,
+          "miss": 10
+        }
+      }
+    },
+    "selected_raw_counts": {
+      "exact": 504,
+      "accepted-tie": 8,
+      "miss": 0
+    },
+    "comparison": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/quality-raw-comparison.json",
+      "sha256": "74910239f391e72ed1e77ceea3c2d3d4fba0cd8c48241848f8929cba08281d51"
+    },
+    "reference_receipt": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/F32-quality-raw/supervisor.json",
+      "sha256": "889f24a94d461c073ab8a4388fb0b278edbe875ae3df695bde77ccdc079a89ac"
+    },
+    "reference_report": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/F32-quality-raw/report.json",
+      "sha256": "c35074e51f47619a4b9d943dce142ed1ad36c20f5978d62d87a21429a55487fa"
+    },
+    "reference_scores": {
+      "path": "build-low-bits-dev/q2-depth-default-v3/F32-quality-raw/scores.f32",
+      "sha256": "944658ade50f6f14b7ff9629f353330c35eab0a1d178eef120af39acf00b0cfa"
+    },
+    "runtime_minus_selected_HF_mean_nll": 0.0003799576464054155,
+    "seconds_diagnostic_only": 2626.70738196373,
+    "peak_bytes": 8793071616
+  },
+  "state_at_checkpoint": {
+    "quality_chat": "Running on the frozen original-F32 producer; prior memory-admission failure is preserved. Root-owned timing pauses are separate timing caveats, not numerical reruns.",
+    "code_localization": "Bounded code6 observation preparation only; no new diagnostic build or capture yet.",
+    "Q1_MI50": "Passed counts remain scoped to the pinned older division-based producer pending owner review; captures retained for any eventual exact-reference reuse.",
+    "canonical_short_NLL": "Original-F32 failures remain failed and unapproved. Exact selected-policy short outputs are diagnostics and do not replace those goldens."
+  },
+  "markdown_review": {
+    "baseline_commit": "7d41d16a7e92959bc535fed5e938c52f262d234c",
+    "pages": 154,
+    "changed_pages": [
+      "docs/Q1-Q2.md",
+      "docs/STATUS.md"
+    ],
+    "scope": "Reviewed the complete tracked Markdown catalog for applicability of this evidence-only delta. Runtime/source/test/CLI/precision files are unchanged; numerical statements changed only in STATUS and Q1-Q2. Unchanged pages carry prior review, not a fresh line-by-line reread. External URLs were not fetched.",
+    "prior_catalog": {
+      "path": "docs/benchmarks/q12-arithmetic-checkpoint-review-20261028.json",
+      "sha256": "85e5f98028252c348bd46e4ba1519848034fbfc06bfc2868805da395c971bb05"
+    },
+    "catalog": [
+      {
+        "path": "AGENTS.md",
+        "LF_sha256": "4b2df497e9e6c32eda81539f680665fef957922dca6372915cb06b98c21a0379",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "README.md",
+        "LF_sha256": "9c125f6a10dff0eb12073376add58393ad2d4bb7fbcf1581586c1ad20a97c1bc",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/ADDING-AN-ARCHITECTURE.md",
+        "LF_sha256": "4cdd1d0d8d3bdfc8699705afc936451631c5119f4c89de233e1f0540543a7db9",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "LF_sha256": "f528bd40d1c00e5717826ea5922b58fdb6d79f25cdccb689ab93c7056c2b2ad3",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/ASSETS.md",
+        "LF_sha256": "afd2bbd278485638fd7521682ec6ba1194ab039c9b22be376455b1e7194b2892",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/BUILD.md",
+        "LF_sha256": "1ed31c84d73e04c0df7666dff1ae8eb0932691098c8e4a894f45d31311b5bd38",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/CACHE-PLAN.md",
+        "LF_sha256": "3ffa8f0bbe27cfe26557c72bc6a8c590a10b2d5a3b7b95d7e983c17c86de5fec",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/CI.md",
+        "LF_sha256": "07c5b8f85251b907ca2d2434bc8a3f0d30bc1e291400c70a0980a58eb30e1707",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/DEVICE-EXECUTION.md",
+        "LF_sha256": "4f4883cc33d900cf0003f05da62c91cce8ccf86589d403e17ea817f5fe4e1f43",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/DISK-TIER.md",
+        "LF_sha256": "e34a58581c3edfa5d10c44ffdb5a4dce7a99c54124038b7e47698040b35b97ef",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/EXECUTION.md",
+        "LF_sha256": "87ca90e3f18f2c4b9744131e5841cd1253ca3d9711cc2f5f673aac911199e6a9",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/KV-CACHE.md",
+        "LF_sha256": "94c91938315aea1cb6a827b146dd5b1b9d296b350169046abb554249c85f4009",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/MULTI-DEVICE.md",
+        "LF_sha256": "19c1acaf49d58e4706de345abbd779bd890d4921ffe5ffc52cb6e9937fc71743",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/OPERATING.md",
+        "LF_sha256": "90600aad901e179e226d91ad316544eef6f3ac69d3952c907f9168aaff0a3d48",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/PRECISION.md",
+        "LF_sha256": "e10b79dbaf125c9d604b97fe6ba28cc373fa5181e0f50dccfa37b9e35ab2ce77",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/Q1-Q2.md",
+        "LF_sha256": "339bd1ecdc1369b91ccc80c0ac0fd07a61a4aed2e0b1cc926a7c72ae65f5975c",
+        "disposition": "Reviewed and updated short/quality status against pinned evidence"
+      },
+      {
+        "path": "docs/QWEN35.md",
+        "LF_sha256": "9f77feb034a600e64e1b7fc14a2f0d03844565f523a5a18956bc305cc54357a1",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/QWEN38-FLASH.md",
+        "LF_sha256": "f7f971da14d4c12c3932ddc7ddd6e3222c44da501f02620b9da4636fc8364c1f",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/ROADMAP.md",
+        "LF_sha256": "fb48e68b30db0ad09356b19fcf9f31f34f188255f529ee18a254e74db4665541",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/ROCM.md",
+        "LF_sha256": "d50e15a10f814bf7dd2c65577fdecc5a33515d59fe98b1ae356f57528aa89643",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/SERVER.md",
+        "LF_sha256": "dfee20cbe665c23e4a03af1995d26f4642dcbd9ddeb1fe306ca84c209752ad90",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/SPECULATIVE.md",
+        "LF_sha256": "81588a2749f2aafd75e1af47d3bdbb5981b6d5757653d882f8ba3f921555ab30",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/STATUS-2026-09.md",
+        "LF_sha256": "01bafe18cbf19fb295389c99f68ee13f76e8a2181fe429b03b4dbc1d23b32196",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/STATUS.md",
+        "LF_sha256": "79c5a71a1affc3cf51611274089444dc6836fd19700a3593190fd871b7ceb08d",
+        "disposition": "Reviewed and updated short/quality status against pinned evidence"
+      },
+      {
+        "path": "docs/TENSOR-SPLIT.md",
+        "LF_sha256": "d66cdbe639ae5c28ef4a742a4948cd05d61d72bc70af7cd074614faff370e272",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/USAGE.md",
+        "LF_sha256": "3da335fe894ccfcfa83ea330e0f07f216030e6a6d5ddab92d9657caed9cdd7ee",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/VISION.md",
+        "LF_sha256": "ea802d339d988c1df3fff13cf8b988fce793c2b8bf669c32e28cc9b96094a9c0",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/VULKAN.md",
+        "LF_sha256": "f1116eedb4a909d36c6b46986f92a27d8882fd1ec2e38a1b42d8dce9860ca66c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/attention-coverage-20260925/README.md",
+        "LF_sha256": "f76f422a386c181e9d6ada0618bbf741a5b1d21e623c8137ba5120ace8e702cc",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/backend-audit-20260925/README.md",
+        "LF_sha256": "c31bd5cb16c603473b83f00d2c992b8d2a2149fc045c48ced91016f07d5711fd",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/README.md",
+        "LF_sha256": "1816e5fbf3f0f7a5929dcba66c5091bac737a5180a49bf3172fd804912f3642b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/cli-analysis-20260925T023611951658Z/summary.md",
+        "LF_sha256": "fd6091e66d5387f2402a94b1ef6f0b4e8535215125e71c09a32abd278abf2da1",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-final-perf-20260925/review/common-analysis-20260925T022107018446Z/summary.md",
+        "LF_sha256": "3cbeb4a6fe43324de5860d3639f93cc8ce54ae155a0881eabe8166ae8627b7e7",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-current-20260925/strict-chat/README.md",
+        "LF_sha256": "f6aa16822344c2cde32e23a05c1ec7e5a795f383195aa761f844e298db699457",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-activation-range-perf-20260924/raw-completion/README.md",
+        "LF_sha256": "d5849714c7dfd07384026b36f1d3b9d5108a3ba3a1f6089dd9e18d3f7d4ff374",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/cpu-kernels-cleanup-20260926/README.md",
+        "LF_sha256": "55cf162127e60dab392cef524218ce74a6336445c3f710327be6fca672616dd6",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/dtype-cpu-final-20261002.md",
+        "LF_sha256": "a0239685cced515d81181eccfe1f8d8e5b41d6651ae7f74d2a3de4bc2f2a403c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/dtype-execution-history-20261002.md",
+        "LF_sha256": "80df9317f83558eba7c8e44def91b167269cf092853fe53790d244f7b227c50f",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/expert-types-20261002.md",
+        "LF_sha256": "8bf0d1af369049ca4361a260c51f18837416b62b201e3253c21883757236f9a0",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/iq3-development-notes-20261023.md",
+        "LF_sha256": "df961768043c90bd1ec9df7ec927237a4ca852f80c40ca30ad54646400dcea5d",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/iq4-xs-split-f32-policy-proposal-20261021.md",
+        "LF_sha256": "3a72991ed17cd8191210646224eb34befbd67fd5419a8aeaa3922d936b0b139e",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/README.md",
+        "LF_sha256": "22b947b75145958162dce32a628b76acc411c6d94ff5f91f6dd452fe739bb5eb",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/micro-tables.md",
+        "LF_sha256": "894f9f5dd0be187a857638d54905a39f83f35b2da8fbb58a4098c38da58ed547",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/prototype-tables.md",
+        "LF_sha256": "bb69f4da9a31081afb5b3669c05fb631927f047ff1207baafbbb093cad9b1b68",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/kquant-decode-columns-20260929/server-tables.md",
+        "LF_sha256": "cb639556775c60128b36e1560d8e7e6d96892dfe2b30403ef7047768e76b21f0",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/nvfp4-default-reference-proposal-20261025.md",
+        "LF_sha256": "e2939f92b95031ac1f86200268e9756793ec92912661d27067421cb4464781fa",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/nvfp4-mx-dispatch-witness-20261025.md",
+        "LF_sha256": "3ba3d6fca1bfa3924562c2b49255003bbcebe067f8171c41c50b224bc355186b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/q1-q2-f32-proposal-20261027.md",
+        "LF_sha256": "32d5f51d3460d84b94dd75cfd3bae5e64b5a0acd834f60aa7ed55b422a64676e",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/q1-q2-split-f32-proposal-20261027.md",
+        "LF_sha256": "a8def20087d87a48239afb5af90201896f8eeab4784809a74144f7c16ec79cd5",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/q3-bf16-policy-proposal-20261021.md",
+        "LF_sha256": "23be581bbedd617003a54e0f28a598f1071a48d835d566c9287e624cc6fe74af",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/restore-submit-drain-20261017.md",
+        "LF_sha256": "d8202db52eeb58969b446a86f5e1919afef194874cc55cc44275589b06628201",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/rocm-attention-20261010/README.md",
+        "LF_sha256": "5310a798e86bf01928eeb365a6bff89824f79c5c74aae93a6fc61c1424ccfbc7",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/rocm-combined-20261010/README.md",
+        "LF_sha256": "13af8271b7d56903f07939ed5eef7f8d0f26bf84973fd7c80d241310c2a0362e",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/rocm-controls-20261009/README.md",
+        "LF_sha256": "f2cf049f98ed030dc376df16c8b08f26ec843f0b3c59f113abe7d7451d294dbd",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/rocm-model-budget-20261010/README.md",
+        "LF_sha256": "ef7a831e833723880c4b27cb059d9156887effef9bfd9a4633381a89c3606529",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/rocm-q8-compute-20261010/README.md",
+        "LF_sha256": "0e77e6a61c70466613e39ae88b499e8a5fad429495e2cfab7b06578484a21326",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/README.md",
+        "LF_sha256": "9aef0ea39e8e1908796387dad0b0de6987852c2c8a59886a40b1fe28732724af",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/server-investigation-20260929/micro/microtab.md",
+        "LF_sha256": "5f11e225938e769bab2d4ef7427a4678a3038ed3e2e372a0197a53d734862bd4",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/storage-types-20261002.md",
+        "LF_sha256": "7451bfdafbe2e1c3df937765e6771f5a8cc918f44dd47fff1aad0d0985f3d34c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/tq-block16-reference-proposal-20261024.md",
+        "LF_sha256": "b4cce0de42d2f479ed946599fbc34e740b3f2683e933a3b40dd5d5d95cc09d48",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/tq-existing-main-exception-proposal-20261025.md",
+        "LF_sha256": "ec0b782e28a0179d38f5b7351e82275bf80ee52cf9845503f72332f65719b1b3",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/benchmarks/vulkan-weight-dispatch-20261002/report.md",
+        "LF_sha256": "64cbc0ebe67b9a8c0713186179384c3d24f0460e6e43eee33b0afb9a18164360",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/research/qwen38-runtime-patterns-20261014.md",
+        "LF_sha256": "7f03fc17dfdad40257b12693df123e665a9044a31f0fb3f03a1fafdaaaa2f4f9",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/research/rocm-20261009.md",
+        "LF_sha256": "9261882766449416c479f431b43bf61195390f8aeb1ef080610514ae5837c040",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-backend.md",
+        "LF_sha256": "b665b57279396db71b7204d0b517b53fde50a7414e7dbedd004078e98e580824",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-cpu-placement.md",
+        "LF_sha256": "c57891c2757fffa55d621ef34b9ff598fadac343802c5d5c2d9f0f0185883612",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-cpu-q8_dots.md",
+        "LF_sha256": "fc51128bc187f83cb10c5a2da8efd1da17b40a799a82544f17ab4bbb0a42a876",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-cpu.md",
+        "LF_sha256": "f68eabd2baf6ca76f4cde112c03bdbe7884c3e46cdcb363962e541bb4216ca7a",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-device_profile.md",
+        "LF_sha256": "1a7c0502acaf420303c716f7585b4224fb78e0a0d22552dcca6652f8305276f0",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-devices.md",
+        "LF_sha256": "9c16a88b484e8957f4ff0d199c545343b58d95a3b8f4769ec478efef62007c8b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-kv_storage.md",
+        "LF_sha256": "56a110f8f8e066b138ed44049d46741b0d7cf6edb69578a97bc9ff70db36e66b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/backends-vulkan.md",
+        "LF_sha256": "9c05dac154e2ede5bee43a472ea709bafeba3936b0ac270b5375b9ff8664830a",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/cli-main.md",
+        "LF_sha256": "60d577c64bf7b15e093b4dc40669048a62a71e3d527005a56f16bc02898e41f3",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/config.md",
+        "LF_sha256": "b1128e8bdf3fd7c6bfa29e0084dfb9814ccac4f2fa1ead508e5afac371cf95e1",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-bf16.md",
+        "LF_sha256": "bf54de4c4c7bdafc7310f1ed9f98dab10af1a1549a77b0f50ade1a149c1f734c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-cgroup.md",
+        "LF_sha256": "79e2f2957421911a91ad00a933a773153ae4df45ae6f65a980a57e22d8bf69da",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-cpus.md",
+        "LF_sha256": "2c9209ffd0665996e411a353af046dbea29575011aa233a391a869d9e9f7bf65",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-crc32c.md",
+        "LF_sha256": "54dd13ca0130e4cbedede7a2dc49c8be096f539a52560dba3e83add956f85f72",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-file_sync.md",
+        "LF_sha256": "41b88eab84f544ce66f7fd8925548dfb9df2a8bc4dfd7570eb8c78aa0e006361",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-fp16.md",
+        "LF_sha256": "b53d4deba7f5feca3a3fa9552276608470743e43e1ab26564c773e850f771886",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-host_memory.md",
+        "LF_sha256": "949b45b77d86d97ca9daddd7dd9a992385f58042c4078a0ab0e41f21126761f4",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-job_threads.md",
+        "LF_sha256": "39554be7015d616786ad30f742b83fe89e9b9fefe954cd502d3dca1492159589",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-json.md",
+        "LF_sha256": "bde1dc89debf3bcffcaed5e45cb8a8e365c9dfc4a29836e039053c36975e984e",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-list.md",
+        "LF_sha256": "1391886c08239a59d10a5a81e13ed1c45a884c372906836f04f9855985d62568",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-sha.md",
+        "LF_sha256": "24d42a4ba2c9c7d77689e85e205bcd413d7a625eb5d07e685e60a5c5fc32508c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/core-utf8.md",
+        "LF_sha256": "2390a228a9499299f81eac3ff6725308b6744f4ca25ee06fc1060d29ae9c9e04",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-file_digest.md",
+        "LF_sha256": "bad02cc472ee680c859fd6f865dee2c3bb3a7fc6772f524f967844b5fcb9d09d",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-file_reader.md",
+        "LF_sha256": "0928968bc1ad76ded3fdd9a63dc5e1028964b35d6f1cb1afb28f3206d36718d8",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-file_writer.md",
+        "LF_sha256": "bfcdbfc464337125049d50843d14515e0c8ce75724d157bde3d0079a8ac7493d",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-format.md",
+        "LF_sha256": "85860e6b8f0a9aec9c80d7bee619df443d949286f70a6b2895c270b912bb9baa",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-gguf.md",
+        "LF_sha256": "f906b9faf068e84d5763eb7f6d7530218ee10dd13b045286a01bec94cf049e2a",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-mapped_file.md",
+        "LF_sha256": "d383b77a0799508acd00d2c8bf7532687dc91ee733f93897d26bb7cf0d5e3de6",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-output_file.md",
+        "LF_sha256": "0c36716e9ebc2ed556ec06d18d1b2388531e0ddd0966cde56681473c7935df83",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-raw_convert.md",
+        "LF_sha256": "034dd82e33cfb34eca95ccc456745c042613941449ca5a5ed2952b2046b51fed",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/format-weight_scales.md",
+        "LF_sha256": "de9cee5c73809c6364f7ab15523adc296b93aca749a7e46a0c5f689f41c8feb8",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/hub.md",
+        "LF_sha256": "1170ff98a3cdb8fa9cd4072ae8e205556f26de8ddbfb9125046ebbe7419bb80c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/image-image.md",
+        "LF_sha256": "cc612973f80db83c8e02b5237791e570f4297df73e2c2187c258230858cdd63b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/image-inflate.md",
+        "LF_sha256": "56e0b88164578d87b8b9f06f73a2bafb06115f1dd29748f400173c99a2d54f3e",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/image-jpeg.md",
+        "LF_sha256": "c60a5c6ea960855cd7f84e3099d5ce190b28292a1ac1189265f8d7136fea74d6",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/image-png.md",
+        "LF_sha256": "e4a87ce27b252b023b7379c642724740b48cb85bbdda143397751345c324f18c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/image-raster.md",
+        "LF_sha256": "3adf7aa9ecb97a9cd28f7cda3a0aad03b5904f2089d541e7f866d8bccfcffba9",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-chat.md",
+        "LF_sha256": "0680a851be59cf202c126b7b5794dd3ee9cf70cc17669844aec89d286e2186f3",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-generate.md",
+        "LF_sha256": "5a648d0b2ee1e3ed4057b7cc2569bb2ee262413d6d28a7c2bc452786e03cafc3",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-load.md",
+        "LF_sha256": "eac7766d888331c976a79911358912f4c62a2e0a436b211709112897eb21f2de",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-logprobs.md",
+        "LF_sha256": "e1cbe986343c3229b75c7e3d6b208409e6c60dbf2a3eeee730516b3e5f0f0f67",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-media.md",
+        "LF_sha256": "3cdef3dfbf0abc4b6dc200acd9fb1271d576b2e2e62ffd417ba442014f356e67",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-pair.md",
+        "LF_sha256": "dc90fce58ef1315a946e059e159d34e26c435d42050a55e8c8ee4496087fc43b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-perplexity.md",
+        "LF_sha256": "84ead8b6068ec1aaa94d2b70fa52c6a568a06e40448ae05ffc0b4b4db865b772",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-read_ring.md",
+        "LF_sha256": "0bfb49732384818a80b8208923be7ef3cb19b5212196868d0219d5a7d9a9ffd0",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-sampler.md",
+        "LF_sha256": "b7f3976caf8624296040554508771f38e391b77424aab9777392d5ccbc4eee91",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/inference-spec.md",
+        "LF_sha256": "a367d193b0af0253ddcdb0cb8524bad1334467aa2621a0d367c67fd03f0f0c22",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-blocks.md",
+        "LF_sha256": "8c7ed5b8836915f01a22bffae010eec79b219525218aaa72546a459ae4db0377",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-metadata.md",
+        "LF_sha256": "03d851d17fb45171110df860b6bfbb306ddf0b75a6cd054dce628ab7ac80318b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3.md",
+        "LF_sha256": "1d7d890720ffd00d00d3aef61a4e0b86fc67fe94a0e07c9293c57f0165d4c37a",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-qwen35.md",
+        "LF_sha256": "81438ea5273028d0b350fbf8c93564e281fc347e31a9d91c77e5b94c535943c1",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-qwen3vl_vision.md",
+        "LF_sha256": "952e5b45c9f73c50a2c7f5edf6b080c47d45a894e95595c138a75f9323482563",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-qwen4exp.md",
+        "LF_sha256": "97063916855a2362f3c4b217a41cba46f8fbcc3eb382a94f127f64e358cbf007",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-arch-registry.md",
+        "LF_sha256": "9e21e275a5214976da63dcba14d892393e4a494a8f61f92b9bf465a2751ec161",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-architecture.md",
+        "LF_sha256": "d395b74b039a8b7fd3b45af579a09713b9c0a9f55e774a7c172305c8353e938f",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-encoder.md",
+        "LF_sha256": "8e42d7031e7288effda663ef607256c17924b607e8ae07462894132a9236ed12",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-history.md",
+        "LF_sha256": "c7d7b934ab2f16a9c28c2b695556a51fb29870b7dc5ca8ec4b14ad22336055c2",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-kv_cache.md",
+        "LF_sha256": "f3d0466bef4ddb21fd7c96f1998ca0a5be3a7c5a3a27f86897bda3e3c9e5af3c",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-layer_split.md",
+        "LF_sha256": "36727579b21c445816276f7576d4b6ebede0aeef8ace02ca2a4e22b33d5cc049",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-passes.md",
+        "LF_sha256": "51e577354a5a8c900d7e89ce32458cc9c97dafa41c541176fe640ba0e2173634",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-place.md",
+        "LF_sha256": "af8ecd1e621c707ac17afed56479af21d3d104d2fce882d95b7b92d332e1cb2b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-runtime.md",
+        "LF_sha256": "443e229d6b7bc0181a2c4828856f5ce821f5585fb583271a6ab7d273989ea031",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-shard.md",
+        "LF_sha256": "c6d37dc84e924c9013a0e09ccc6745eedd9ab8bf2e5fd4cc215a249858cac09b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-stage_lanes.md",
+        "LF_sha256": "d1cb4e5ab919b2bf39e03f86b3e7b819ee23d167ebbaf3ffe5eb6448943ae914",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-weight_rows.md",
+        "LF_sha256": "71f012b05ebe1a5e5c834442871447b63bd6a2e91ab5a5cc8e219ba157b86b3d",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/model-weights.md",
+        "LF_sha256": "03e04d474044110569898679044120d5e5330dcf92d086e83359ad61f3b34e97",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-fp4.md",
+        "LF_sha256": "ef5c8615eb93925305a2c3f7b2f191750201d053d5fe67eecf8a3bb4518adbcd",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq-signs.md",
+        "LF_sha256": "7ac15ab363f3614c04d763127cb88e8d60a0dbdcc56347f849f203552c4ee69d",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq1-grid.md",
+        "LF_sha256": "fa1ac93421fd14e1c9b00fd2068d38f1d14458ed828d9352f6cc96715a109413",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq1.md",
+        "LF_sha256": "fecb1029cd5ea1ddefc1acc8e658db851dc71c85a12f591e891f1e87ec099f54",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-s-grid.md",
+        "LF_sha256": "0792fa102983012dc584fe96e1e9a9e3a2903a17e8ecec3fc9d4e6b6e0f2de81",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-s.md",
+        "LF_sha256": "dfd22153cf7bbbc8d0ae4359c035b98d148bb76547ad0b6e5e3bd19630759724",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs-grid.md",
+        "LF_sha256": "e1566aab6d6f91dcda9ada88b145b5b16dc8a96571a9cd1a3c123d39e8d4926f",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-xs.md",
+        "LF_sha256": "5b08d72729b7ba59b4e5801d248378826738e8f6e6dff3f6d105d067b8fccb41",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs-grid.md",
+        "LF_sha256": "afa819cdbefef54125b3d928435e8d59028a8025a0bf80bbf3cf7791459610a1",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq2-xxs.md",
+        "LF_sha256": "4d7f58cc0a5e4b878d36afc820e1b4a42e8d456a2b4eed600cb9668c2be01417",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq3-s-grid.md",
+        "LF_sha256": "6b13cce4d011a02b3a0af5a095c02877aa25bd8a876cbf337ae75bc6cc418302",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq3-s.md",
+        "LF_sha256": "f597b20008596351fc7a724b90999e99eb128c35b0051d3e38a101abe8674894",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs-grid.md",
+        "LF_sha256": "d256cd702f852f8a422e9941a3b86e0863f3323b4427becf6d98d10ae33aa5c4",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-iq3-xxs.md",
+        "LF_sha256": "545b5604bd2f977d5dea6e7477addb820567c7bc5c38862a03b6c92b23de20df",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-k_quants.md",
+        "LF_sha256": "14a88271e6d69bbb28e64afa7cbdd793c4d3dc7f1398e2de93c77c96c48a8a23",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-low_bits.md",
+        "LF_sha256": "122f4b2babec40879e965e3265fe0123347a042a458d0cf3b07646e89b1745bb",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-mxfp4.md",
+        "LF_sha256": "034d245d2db07b703b70a6853f5f35904de667331728947a31485a991cbbe8e8",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-nvfp4.md",
+        "LF_sha256": "9868b607a07028ec10afdb47ca6d23c93e3be8809e04c527f0cd46d0d757e912",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-quant.md",
+        "LF_sha256": "1186ae845c04e7d3a86cef4f3f019483e11a78246ca3681b9b36d22bd0dd4e5b",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-tq.md",
+        "LF_sha256": "7302c02bdedb3dad3c968c166fc4e3d9e9a050d30a7bdb3c967e5753ad71bce7",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/quant-types.md",
+        "LF_sha256": "2a8d465a69d869bf710c562800cad125656bd676aeb379702f31a108b83104eb",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/server.md",
+        "LF_sha256": "37d49c72d3963a2210ad6e136f9ebc30d089ce2f86954fbfb27abb1de4cc5dc4",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "docs/src/tokenizer-tokenizer.md",
+        "LF_sha256": "b220dae40ed08304ded6792f26e8c4a179ae58385fd64b0f1fabdc8d1800a382",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      },
+      {
+        "path": "tools/health_dashboard/README.md",
+        "LF_sha256": "534a2aaee2e3c483bf4b4bb0d64dc6c9d952370a556f9435a24ac150a92a88b7",
+        "disposition": "Unchanged; prior semantic review carried for this documentation-only delta"
+      }
+    ]
+  },
+  "checkpoint_checks": {
+    "status": "PASS",
+    "command": [
+      "python",
+      "-X",
+      "utf8",
+      "tests/run_tests.py",
+      "--exe",
+      "build-low-bits-windows-cluster32-20261028/Release/llmx.exe",
+      "--only",
+      "docs,dead-code"
+    ],
+    "help_binary_sha256": "a9f51dd5c06aca9839d2cd50bbcbebf69333e17f9f41e108227fde38ae71c60d",
+    "help_binary_version": "llmx 0.1.0+g70cf89ba7c73.dirty numerics e208afc2bbbcbd1c",
+    "scope": "Documentation and dead-code components only; unchanged runtime numerical evidence is not rerun or promoted.",
+    "dead_code": "PASS: seven existing listed findings, 19 planted faults",
+    "docs": "PASS: zero findings, 21 planted faults",
+    "log": {
+      "path": "build-low-bits-dev/q2-short-exact-diagnostic-v1/docs-dead-code.log",
+      "encoding": "UTF-16 from PowerShell redirection; raw bytes preserved",
+      "sha256": "ac11b243ac58f63bc626bff80b70a812f01c89d7665c0de0b9626a6b8834a300"
+    }
+  }
+}

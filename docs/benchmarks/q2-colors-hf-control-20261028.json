@@ -1,0 +1,630 @@
+{
+  "scope": "Independent seven-token Q2 colors input/cache diagnostic. Not a short-gate pass, reference qualification or numerical-limit amendment.",
+  "status": "Complete; independent block16/F32-KV input reconstruction reproduces rank reversal in both full and singleton shapes.",
+  "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+  "weights_provenance": {
+    "file": "model.gguf",
+    "sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "bytes": 345218560,
+    "repo": null,
+    "revision": null,
+    "types": {
+      "F32": 113,
+      "Q2_0": 196,
+      "Q4_K": 1,
+      "Q6_K": 1
+    },
+    "decoder": "tests/spec_decode.py, numpy form",
+    "tensors": 311,
+    "tensors_equal_to_reference": null
+  },
+  "plan": {
+    "scope": "Seven-token colors diagnostic only; no reference or acceptance-limit changes. One loaded exact-decoded Q2 model,8 full/singleton-cache policy passes plus1 direct-F32/full-cache bit control.",
+    "text": "The three primary colors are red,",
+    "ids": [
+      785,
+      2326,
+      6028,
+      7987,
+      525,
+      2518,
+      11
+    ],
+    "repo": "Qwen/Qwen3-0.6B",
+    "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "layers": 28,
+    "roles": {
+      "self_attn.q_proj": [
+        "attn_q",
+        1024,
+        2048
+      ],
+      "self_attn.k_proj": [
+        "attn_k",
+        1024,
+        1024
+      ],
+      "self_attn.v_proj": [
+        "attn_v",
+        1024,
+        1024
+      ],
+      "self_attn.o_proj": [
+        "attn_output",
+        2048,
+        1024
+      ],
+      "mlp.gate_proj": [
+        "ffn_gate",
+        1024,
+        3072
+      ],
+      "mlp.up_proj": [
+        "ffn_up",
+        1024,
+        3072
+      ],
+      "mlp.down_proj": [
+        "ffn_down",
+        3072,
+        1024
+      ]
+    },
+    "head": {
+      "hf_module": "lm_head",
+      "GGUF": "output.weight",
+      "shape": [
+        1024,
+        151936
+      ],
+      "type": 14
+    },
+    "embedding": {
+      "GGUF": "token_embd.weight",
+      "shape": [
+        1024,
+        151936
+      ],
+      "type": 12,
+      "policy": "lookup, no Linear-input hook"
+    },
+    "all_linears": 197,
+    "source_runtime_map": "196Q2 body Linear modules and explicitQ6_K output head are block-int16 on current MI50 F16. Norms/RoPE/residual/softmax remain F32. Both arms use the same one loaded model; no weight/layout normalization.",
+    "rounding": "Existing reference_policy.reconstruct with half away from zero,32767 levels,32-value blocks; ordinary-range only; invalid/extreme inputs refuse.",
+    "KV": "Old q2-hf-cache-control.py RoundedCache.update: K after normalization/RoPE and V round F16 then widen before cache returns them to attention. F32 cache unchanged.",
+    "modes": [
+      "full7",
+      "cached1"
+    ],
+    "head_rows": "logits_to_keep=1 aligns final head with CLI last-position class. Full body7rows/head1; cached body/head1 per step. Both keep all final-vocab values; per-step cached rows retained.",
+    "self_controls": "Record full-vs-cached final-vector max error/top1/scores for each arm without arbitrary new numerical bounds. Assert direct-F32 equals full-F32-cache only, as old proven method; do not assert full versus singleton exact. Prior report/vector differences remain diagnostic because loader/storage/head batching may differ.",
+    "prior": {
+      "root": "released-q2-cache-control-v1/cache-control",
+      "files": {
+        "report.json": "2344fde049df49d993f7dd449a92b7795aa96fda68a5f649bc329b9bfdd05ae3",
+        "3-f16.bin": "f5b9425c349f9433e5235dd00134214ab7d4e69632c2ca910d3b66f3e66f71bb",
+        "3-f32.bin": "8c5422e99d24728d214e5750b749a91922206abfbb6cf2475434ed5d9df13f09"
+      },
+      "producer_sha256": "2133d047c06dd5f37b6c4f9998760a35bd94cd88285895c88a3ee8e02b58ab58"
+    },
+    "prior_exact_scores": {
+      "index": 3,
+      "text": "The three primary colors are red,",
+      "ids": [
+        785,
+        2326,
+        6028,
+        7987,
+        525,
+        2518,
+        11
+      ],
+      "f32_cache_direct_bit_equal": true,
+      "f32": {
+        "sha256": "8c5422e99d24728d214e5750b749a91922206abfbb6cf2475434ed5d9df13f09",
+        "top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "top_logits": [
+          16.548032760620117,
+          16.48619842529297,
+          15.232659339904785,
+          14.985950469970703,
+          14.861383438110352,
+          14.46402645111084,
+          14.352106094360352,
+          14.335819244384766,
+          14.101097106933594,
+          13.972893714904785
+        ]
+      },
+      "f16": {
+        "sha256": "f5b9425c349f9433e5235dd00134214ab7d4e69632c2ca910d3b66f3e66f71bb",
+        "top_ids": [
+          102644,
+          102563,
+          99532,
+          103971,
+          31235,
+          102272,
+          117884,
+          26177,
+          109677,
+          24562
+        ],
+        "top_logits": [
+          15.775797843933105,
+          15.352205276489258,
+          15.105742454528809,
+          15.100776672363281,
+          14.610390663146973,
+          14.610055923461914,
+          14.458183288574219,
+          14.086063385009766,
+          14.063861846923828,
+          13.99917221069336
+        ]
+      },
+      "max_abs_cache_effect": 1.6537132263183594
+    },
+    "limits": {
+      "CPU": "3",
+      "cores": 1,
+      "memory": "8g",
+      "deadline_seconds": 600,
+      "host_reserve_bytes": 2147483648,
+      "network": "none",
+      "GPU": false,
+      "admission": "Serialized after root timing completion: require10GiB host available before8GiB cap, retain2GiB reserve throughout. Root build already terminal."
+    },
+    "status": "Prepared only; root review and launch authorization pending."
+  },
+  "execution": {
+    "seconds": 30.667916536331177,
+    "passed_process": true,
+    "removed": true,
+    "inputs_unchanged": true,
+    "exit_code": 0,
+    "OOMKilled": false,
+    "limits": {
+      "cpu": "3",
+      "cpus": 1,
+      "memory": "8g",
+      "deadline_seconds": 600,
+      "host_reserve_bytes": 2147483648
+    }
+  },
+  "module_and_cache_coverage": "All197 Linear names and shapes matched196 Q2_0 body matrices plus explicit Q6_K head. Each body saw7rows per arm; full head1row, cached head7singleton rows. All28 KV layers wrote7rows. Q4_K embedding remains lookup. Norms/RoPE/residual/softmax remain F32. Cache rounding applies post-RoPE K and V.",
+  "scores": [
+    {
+      "tag": "f32-kvf32-full7",
+      "top_ids": [
+        102563,
+        102644,
+        99532,
+        103971,
+        117884,
+        109677,
+        31235,
+        102272,
+        99346,
+        26177
+      ],
+      "top_logits": [
+        16.54802703857422,
+        16.4862003326416,
+        15.232654571533203,
+        14.985952377319336,
+        14.861381530761719,
+        14.464027404785156,
+        14.352104187011719,
+        14.335817337036133,
+        14.101097106933594,
+        13.972892761230469
+      ],
+      "scores": {
+        "102563": 16.54802703857422,
+        "102644": 16.4862003326416,
+        "103971": 14.985952377319336
+      },
+      "top1_gap": 0.06182670593261719,
+      "logits_sha256": "f7d9beda89724ce19787cca0c562d1c0975356be32bd4bfade8320526e839529"
+    },
+    {
+      "tag": "f32-kvf32-cached1",
+      "top_ids": [
+        102563,
+        102644,
+        99532,
+        103971,
+        117884,
+        109677,
+        31235,
+        102272,
+        99346,
+        26177
+      ],
+      "top_logits": [
+        16.546735763549805,
+        16.4858341217041,
+        15.232898712158203,
+        14.986202239990234,
+        14.861076354980469,
+        14.4636812210083,
+        14.352367401123047,
+        14.336383819580078,
+        14.101009368896484,
+        13.973299026489258
+      ],
+      "scores": {
+        "102563": 16.546735763549805,
+        "102644": 16.4858341217041,
+        "103971": 14.986202239990234
+      },
+      "top1_gap": 0.060901641845703125,
+      "logits_sha256": "fae8988f4b301a34b63a756928b2000562fe165e6b8ff5c92533ebffa191d163"
+    },
+    {
+      "tag": "f32-kvf16-full7",
+      "top_ids": [
+        102644,
+        102563,
+        99532,
+        103971,
+        31235,
+        102272,
+        117884,
+        26177,
+        109677,
+        24562
+      ],
+      "top_logits": [
+        15.775799751281738,
+        15.352208137512207,
+        15.105741500854492,
+        15.100776672363281,
+        14.610391616821289,
+        14.610061645507812,
+        14.458186149597168,
+        14.086066246032715,
+        14.063862800598145,
+        13.999170303344727
+      ],
+      "scores": {
+        "102563": 15.352208137512207,
+        "102644": 15.775799751281738,
+        "103971": 15.100776672363281
+      },
+      "top1_gap": 0.42359161376953125,
+      "logits_sha256": "84ef5c0916e56aa687256f93614eff4a16466a52881bdd818156d9fe76c8206f"
+    },
+    {
+      "tag": "f32-kvf16-cached1",
+      "top_ids": [
+        102644,
+        102563,
+        103971,
+        99532,
+        102272,
+        31235,
+        117884,
+        26177,
+        109677,
+        99908
+      ],
+      "top_logits": [
+        15.72408390045166,
+        15.218061447143555,
+        15.15372085571289,
+        15.107288360595703,
+        14.7055082321167,
+        14.69552230834961,
+        14.464754104614258,
+        14.121208190917969,
+        14.021915435791016,
+        14.014686584472656
+      ],
+      "scores": {
+        "102563": 15.218061447143555,
+        "102644": 15.72408390045166,
+        "103971": 15.15372085571289
+      },
+      "top1_gap": 0.5060224533081055,
+      "logits_sha256": "90940eb1c3c540eee11f365a68b2f7f3ed6e9398c3ed68ed46f5aa08f455026b"
+    },
+    {
+      "tag": "block16-kvf32-full7",
+      "top_ids": [
+        102644,
+        102563,
+        99532,
+        103971,
+        117884,
+        109677,
+        31235,
+        102272,
+        99346,
+        26177
+      ],
+      "top_logits": [
+        16.496469497680664,
+        16.41936492919922,
+        15.203646659851074,
+        15.078668594360352,
+        14.868034362792969,
+        14.472545623779297,
+        14.430980682373047,
+        14.396110534667969,
+        14.063796997070312,
+        13.999794960021973
+      ],
+      "scores": {
+        "102563": 16.41936492919922,
+        "102644": 16.496469497680664,
+        "103971": 15.078668594360352
+      },
+      "top1_gap": 0.07710456848144531,
+      "logits_sha256": "652bd8aa89a82576e4c6aa859e21814968b80d46e96601bea1170c50698323af"
+    },
+    {
+      "tag": "block16-kvf32-cached1",
+      "top_ids": [
+        102644,
+        102563,
+        99532,
+        103971,
+        117884,
+        109677,
+        31235,
+        102272,
+        99346,
+        26177
+      ],
+      "top_logits": [
+        16.457935333251953,
+        16.45273780822754,
+        15.210000038146973,
+        15.033361434936523,
+        14.827640533447266,
+        14.474088668823242,
+        14.39605712890625,
+        14.369184494018555,
+        14.07832145690918,
+        14.006668090820312
+      ],
+      "scores": {
+        "102563": 16.45273780822754,
+        "102644": 16.457935333251953,
+        "103971": 15.033361434936523
+      },
+      "top1_gap": 0.0051975250244140625,
+      "logits_sha256": "42a97582f04b40966cfd3e6878e3b679eddbea080cf704cd8ffc0d4fbc465b43"
+    },
+    {
+      "tag": "block16-kvf16-full7",
+      "top_ids": [
+        102644,
+        103971,
+        99532,
+        102272,
+        31235,
+        102563,
+        117884,
+        99908,
+        24562,
+        26177
+      ],
+      "top_logits": [
+        15.385120391845703,
+        15.348727226257324,
+        15.055240631103516,
+        14.901735305786133,
+        14.865982055664062,
+        14.843515396118164,
+        14.297332763671875,
+        14.254525184631348,
+        14.077611923217773,
+        14.03248405456543
+      ],
+      "scores": {
+        "102563": 14.843515396118164,
+        "102644": 15.385120391845703,
+        "103971": 15.348727226257324
+      },
+      "top1_gap": 0.036393165588378906,
+      "logits_sha256": "6a10e4292843212f176c3f967820462d5fb2fee00edf787cb8ae0d250d415d01"
+    },
+    {
+      "tag": "block16-kvf16-cached1",
+      "top_ids": [
+        102644,
+        103971,
+        99532,
+        102563,
+        102272,
+        31235,
+        117884,
+        99908,
+        26177,
+        24562
+      ],
+      "top_logits": [
+        15.668472290039062,
+        15.219910621643066,
+        15.19736099243164,
+        15.196269989013672,
+        14.794746398925781,
+        14.708553314208984,
+        14.440402030944824,
+        14.141639709472656,
+        14.027599334716797,
+        14.018129348754883
+      ],
+      "scores": {
+        "102563": 15.196269989013672,
+        "102644": 15.668472290039062,
+        "103971": 15.219910621643066
+      },
+      "top1_gap": 0.4485616683959961,
+      "logits_sha256": "dbaf8a95e6c932b93d4e557ac7753efbe51881108d419d18ee952c068bb05f7d"
+    }
+  ],
+  "self_controls": {
+    "direct_F32_full_cache_exact": true,
+    "full_vs_singleton": [
+      {
+        "inputs": "f32",
+        "KV": "f32",
+        "full_vs_singleton_max_error": 0.0015947818756103516,
+        "top1_same": true,
+        "full_top1": 102563,
+        "singleton_top1": 102563
+      },
+      {
+        "inputs": "f32",
+        "KV": "f16",
+        "full_vs_singleton_max_error": 0.2436232566833496,
+        "top1_same": true,
+        "full_top1": 102644,
+        "singleton_top1": 102644
+      },
+      {
+        "inputs": "block16",
+        "KV": "f32",
+        "full_vs_singleton_max_error": 0.10800313949584961,
+        "top1_same": true,
+        "full_top1": 102644,
+        "singleton_top1": 102644
+      },
+      {
+        "inputs": "block16",
+        "KV": "f16",
+        "full_vs_singleton_max_error": 0.6067447662353516,
+        "top1_same": true,
+        "full_top1": 102644,
+        "singleton_top1": 102644
+      }
+    ],
+    "interpretation": "Top1 agrees across shapes for each policy. Large vector differences remain, especially selected inputs/cache; no arbitrary new numerical bound or full numeric self-identity asserted."
+  },
+  "prior_comparisons": [
+    {
+      "cache": "f32",
+      "prior_sha256": "8c5422e99d24728d214e5750b749a91922206abfbb6cf2475434ed5d9df13f09",
+      "new_sha256": "f7d9beda89724ce19787cca0c562d1c0975356be32bd4bfade8320526e839529",
+      "byte_equal": false,
+      "max_error": 1.1324882507324219e-05,
+      "note": "Preserve differences; original loader/storage/head batching may differ."
+    },
+    {
+      "cache": "f16",
+      "prior_sha256": "f5b9425c349f9433e5235dd00134214ab7d4e69632c2ca910d3b66f3e66f71bb",
+      "new_sha256": "84ef5c0916e56aa687256f93614eff4a16466a52881bdd818156d9fe76c8206f",
+      "byte_equal": false,
+      "max_error": 1.1444091796875e-05,
+      "note": "Preserve differences; original loader/storage/head batching may differ."
+    }
+  ],
+  "runtime_short_scores": [
+    {
+      "case": "q2-0-auto-kv-f16",
+      "top_ids": [
+        102644,
+        103971,
+        99532,
+        102272,
+        31235,
+        102563,
+        117884,
+        99908,
+        26177,
+        24562
+      ],
+      "top_logits": [
+        15.323982,
+        15.302896,
+        15.040975,
+        14.947504,
+        14.848505,
+        14.809505,
+        14.2883,
+        14.269188,
+        14.108654,
+        14.068143
+      ],
+      "top1_gap": 0.021086000000000382,
+      "winner_over_F32_HF_top1": 0.5144770000000012
+    },
+    {
+      "case": "q2-0-auto-kv-f32",
+      "top_ids": [
+        102644,
+        102563,
+        99532,
+        103971,
+        117884,
+        109677,
+        31235,
+        102272,
+        99346,
+        26177
+      ],
+      "top_logits": [
+        16.517857,
+        16.452503,
+        15.22814,
+        15.019866,
+        14.873686,
+        14.465541,
+        14.376127,
+        14.351162,
+        14.069456,
+        13.974998
+      ],
+      "top1_gap": 0.06535399999999925,
+      "winner_over_F32_HF_top1": 0.06535399999999925
+    }
+  ],
+  "interpretation": "F32/F32 keeps102563; block16/F32 chooses102644 in both HF execution shapes, as current Vulkan F32-KV capture does. Input narrowing alone can change this ranking; F16 cache changes it even under F32 inputs, reproducing retained prior evidence. This supports sensitivity attribution, not complete kernel correctness, exact candidate/HF equality, halfword causation or a short-gate waiver. Existing Q2 short failures and unrun depth gates remain open.",
+  "limitations": "Ordinary-range independent mathematical reconstruction, not an instruction-level GPU reciprocal/reduction emulator. Prior full-vector differences about1.14e-5 are preserved, not treated as exact cross-loader identity.",
+  "receipt_sha256": "d0fb121f04dc74cdefb89328b5700bb7c5e5a6af2474e3321f936a3ed3d48a5e",
+  "report_sha256": "9ef132aefb142981bf03d9adcad9471ba8895a40c60787c66cc9b01c3e566303",
+  "files": {
+    "f32-direct.bin": "f7d9beda89724ce19787cca0c562d1c0975356be32bd4bfade8320526e839529",
+    "stdout.log": "16f47fdd69dbff9e11b65994fd1ea3368cb9b81a12e4b2719f32131b78a6d0d0",
+    "f32-kvf16-full7.bin": "84ef5c0916e56aa687256f93614eff4a16466a52881bdd818156d9fe76c8206f",
+    "f32-kvf32-cached1-steps.bin": "6ae4bad083ebbe0dc3acb550b44054ff80c33e4c626d08127c5d00780c2071cf",
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f32-kvf32-cached1.bin": "fae8988f4b301a34b63a756928b2000562fe165e6b8ff5c92533ebffa191d163",
+    "block16-kvf32-cached1.bin": "42a97582f04b40966cfd3e6878e3b679eddbea080cf704cd8ffc0d4fbc465b43",
+    "f32-kvf32-full7-steps.bin": "f7d9beda89724ce19787cca0c562d1c0975356be32bd4bfade8320526e839529",
+    "report.json": "9ef132aefb142981bf03d9adcad9471ba8895a40c60787c66cc9b01c3e566303",
+    "block16-kvf32-cached1-steps.bin": "f5b3932a9bafc277eb654979902ff8588fd129ceaa3ff0910ff5ed6731311089",
+    "block16-kvf16-full7-steps.bin": "6a10e4292843212f176c3f967820462d5fb2fee00edf787cb8ae0d250d415d01",
+    "f32-kvf16-cached1.bin": "90940eb1c3c540eee11f365a68b2f7f3ed6e9398c3ed68ed46f5aa08f455026b",
+    "f32-kvf32-full7.bin": "f7d9beda89724ce19787cca0c562d1c0975356be32bd4bfade8320526e839529",
+    "block16-kvf16-cached1.bin": "dbaf8a95e6c932b93d4e557ac7753efbe51881108d419d18ee952c068bb05f7d",
+    "block16-kvf16-cached1-steps.bin": "6abbc816001a9d06326ff628fb5440eca9290f27d0a738b4fb1af47a5c039407",
+    "block16-kvf16-full7.bin": "6a10e4292843212f176c3f967820462d5fb2fee00edf787cb8ae0d250d415d01",
+    "block16-kvf32-full7.bin": "652bd8aa89a82576e4c6aa859e21814968b80d46e96601bea1170c50698323af",
+    "f32-kvf16-full7-steps.bin": "84ef5c0916e56aa687256f93614eff4a16466a52881bdd818156d9fe76c8206f",
+    "block16-kvf32-full7-steps.bin": "652bd8aa89a82576e4c6aa859e21814968b80d46e96601bea1170c50698323af",
+    "f32-kvf16-cached1-steps.bin": "ffb5ca661a20e369378480fe3027edaf7091f632613ee479abfa57e99fda53ce"
+  },
+  "prepared_source_sha256": {
+    "run.py": "85b8b0798fcff333f9fcdbc1aaf113e9f426804e07e0659e66ac84a8dfd2a947",
+    "reference_policy.py": "2e32fdef6e2be9d42aa07ac0f745ec1c33203267c31897cd8a531f92abafa2dc",
+    "supervise.py": "a116f39381ae8b077581f046ed475c5ecf267c782259298908006ac79e25f557",
+    "plan.json": "9223c4be4c5669f61bc3fa1b94e3015851a7cca997d1e449bb8826b3e8cced04"
+  }
+}

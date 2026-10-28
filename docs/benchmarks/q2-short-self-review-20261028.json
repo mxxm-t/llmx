@@ -1,0 +1,1204 @@
+{
+  "scope": "Local retained-array diagnostics only. Same shared short ranking function and thresholds both directions; no alternate reference selection or gate amendment.",
+  "source_report_sha256": "3825117b6bdf9b964b768d6c9f58132182e9004115dce332a9e6ccff8aeedd00",
+  "rules": {
+    "owner": "tests/common.py::check_logits + tests/baseline.py::FILE_EXACT_BOUNDS",
+    "top1": "exact",
+    "top5": "unchanged5/5 requirement with existing limited boundary tie handling",
+    "not_depth": "No HF depth top-two0.1 exception applied."
+  },
+  "matrix": [
+    {
+      "prompt_index": 0,
+      "prompt": "The capital of France is",
+      "tokens": 5,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.9842367172241211,
+        "reference_fifth_sixth_gap": 0.10189342498779297,
+        "candidate_top1_gap": 0.8135051727294922,
+        "candidate_fifth_sixth_gap": 0.23469829559326172,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.8135051727294922,
+        "reference_fifth_sixth_gap": 0.23469829559326172,
+        "candidate_top1_gap": 0.9842367172241211,
+        "candidate_fifth_sixth_gap": 0.10189342498779297,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          223,
+          252,
+          73916,
+          34811,
+          7942,
+          239,
+          141816,
+          91978,
+          95689,
+          46085
+        ],
+        "scores": [
+          13.063521385192871,
+          12.07928466796875,
+          11.992177963256836,
+          11.891677856445312,
+          11.81442928314209,
+          11.712535858154297,
+          11.371334075927734,
+          11.365177154541016,
+          11.311359405517578,
+          11.137141227722168
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          223,
+          73916,
+          252,
+          34811,
+          7942,
+          239,
+          95689,
+          141816,
+          91978,
+          137174
+        ],
+        "scores": [
+          12.98222541809082,
+          12.168720245361328,
+          12.139314651489258,
+          11.935321807861328,
+          11.87570858001709,
+          11.641010284423828,
+          11.462273597717285,
+          11.386573791503906,
+          11.321833610534668,
+          11.27781867980957
+        ]
+      },
+      "full_array_sha256": "9f9412225e08eed97d96ea71fdad30ecb4f4390fa9e5ab9079f85449e9fc439e",
+      "cached_array_sha256": "09f88f9d0ed7d13c37d64d91e15d56ad0f02a9af2519e10530030fdb4402535a"
+    },
+    {
+      "prompt_index": 0,
+      "prompt": "The capital of France is",
+      "tokens": 5,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-5 overlap 4/5 below bound 5",
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 0.3461637496948242,
+        "reference_fifth_sixth_gap": 0.05456352233886719,
+        "candidate_top1_gap": 0.6994295120239258,
+        "candidate_fifth_sixth_gap": 0.04227638244628906,
+        "missing_from_reference_top5": [
+          226
+        ],
+        "extra_in_candidate_top5": [
+          7942
+        ]
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 0.6994295120239258,
+        "reference_fifth_sixth_gap": 0.04227638244628906,
+        "candidate_top1_gap": 0.3461637496948242,
+        "candidate_fifth_sixth_gap": 0.05456352233886719,
+        "missing_from_reference_top5": [
+          7942
+        ],
+        "extra_in_candidate_top5": [
+          226
+        ]
+      },
+      "full_top10": {
+        "ids": [
+          223,
+          252,
+          34811,
+          239,
+          226,
+          95689,
+          7942,
+          73916,
+          107,
+          6796
+        ],
+        "scores": [
+          14.932904243469238,
+          14.586740493774414,
+          14.178915023803711,
+          13.323090553283691,
+          12.630295753479004,
+          12.575732231140137,
+          12.407041549682617,
+          12.329978942871094,
+          12.314568519592285,
+          12.259889602661133
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          223,
+          252,
+          34811,
+          239,
+          7942,
+          107,
+          226,
+          73916,
+          95689,
+          233
+        ],
+        "scores": [
+          14.45488166809082,
+          13.755452156066895,
+          13.416969299316406,
+          12.981228828430176,
+          12.227923393249512,
+          12.185647010803223,
+          12.158649444580078,
+          11.931035995483398,
+          11.90999984741211,
+          11.860858917236328
+        ]
+      },
+      "full_array_sha256": "4e6b520938fdddd4002e4ded6261f55191caa815e9e00a436eb54bbcf0b35bfd",
+      "cached_array_sha256": "ed1367b0cd79c52691bf23f5cbebca2e0cbe3f74c59c679ff6b1fdebf9663c68"
+    },
+    {
+      "prompt_index": 1,
+      "prompt": "Machine learning is",
+      "tokens": 3,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.4453763961791992,
+        "reference_fifth_sixth_gap": 0.013489723205566406,
+        "candidate_top1_gap": 0.4447641372680664,
+        "candidate_fifth_sixth_gap": 0.008135795593261719,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.4447641372680664,
+        "reference_fifth_sixth_gap": 0.008135795593261719,
+        "candidate_top1_gap": 0.4453763961791992,
+        "candidate_fifth_sixth_gap": 0.013489723205566406,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          109938,
+          104464,
+          100358,
+          28404,
+          135382,
+          97815,
+          101633,
+          109141,
+          99346,
+          99768
+        ],
+        "scores": [
+          13.327555656433105,
+          12.882179260253906,
+          12.351758003234863,
+          12.321146965026855,
+          12.174379348754883,
+          12.160889625549316,
+          11.967702865600586,
+          11.358360290527344,
+          11.347286224365234,
+          11.337133407592773
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          109938,
+          104464,
+          100358,
+          28404,
+          135382,
+          97815,
+          101633,
+          109141,
+          99346,
+          99768
+        ],
+        "scores": [
+          13.319265365600586,
+          12.87450122833252,
+          12.351190567016602,
+          12.325462341308594,
+          12.167644500732422,
+          12.15950870513916,
+          11.960420608520508,
+          11.355729103088379,
+          11.347225189208984,
+          11.341604232788086
+        ]
+      },
+      "full_array_sha256": "51df6f0ababb26db0a6fd23ad0dff350671a87da51622ade7666c81ac5ca5b1a",
+      "cached_array_sha256": "e7436c9c8effcda3ec134adbd707edb90b0e1da81f408dedd478cf07d3a8080a"
+    },
+    {
+      "prompt_index": 1,
+      "prompt": "Machine learning is",
+      "tokens": 3,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.45754051208496094,
+        "reference_fifth_sixth_gap": 0.00017547607421875,
+        "candidate_top1_gap": 0.45125579833984375,
+        "candidate_fifth_sixth_gap": 0.01202392578125,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.45125579833984375,
+        "reference_fifth_sixth_gap": 0.01202392578125,
+        "candidate_top1_gap": 0.45754051208496094,
+        "candidate_fifth_sixth_gap": 0.00017547607421875,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          109938,
+          104464,
+          100358,
+          28404,
+          97815,
+          135382,
+          101633,
+          109141,
+          99768,
+          99346
+        ],
+        "scores": [
+          13.249814987182617,
+          12.792274475097656,
+          12.317726135253906,
+          12.30550765991211,
+          12.10093879699707,
+          12.100763320922852,
+          11.857677459716797,
+          11.327232360839844,
+          11.277875900268555,
+          11.255645751953125
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          109938,
+          104464,
+          100358,
+          28404,
+          97815,
+          135382,
+          101633,
+          109141,
+          99768,
+          99346
+        ],
+        "scores": [
+          13.269094467163086,
+          12.817838668823242,
+          12.321664810180664,
+          12.309587478637695,
+          12.118942260742188,
+          12.106918334960938,
+          11.883831024169922,
+          11.340431213378906,
+          11.295267105102539,
+          11.274275779724121
+        ]
+      },
+      "full_array_sha256": "639268506472b36b1748240bddc38774789f309932d4e67ca5ff188758821b66",
+      "cached_array_sha256": "d838161a2044c3d30679592f318c50a3d96beb9bbd94c079d45b2676ed26c569"
+    },
+    {
+      "prompt_index": 2,
+      "prompt": "def add(a, b):",
+      "tokens": 6,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.4896869659423828,
+        "reference_fifth_sixth_gap": 0.04124164581298828,
+        "candidate_top1_gap": 0.4481334686279297,
+        "candidate_fifth_sixth_gap": 0.032088279724121094,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.4481334686279297,
+        "reference_fifth_sixth_gap": 0.032088279724121094,
+        "candidate_top1_gap": 0.4896869659423828,
+        "candidate_fifth_sixth_gap": 0.04124164581298828,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          54200,
+          40604,
+          31090,
+          86524,
+          100287,
+          5483,
+          90691,
+          73594,
+          10006,
+          119160
+        ],
+        "scores": [
+          14.47259521484375,
+          13.982908248901367,
+          13.428726196289062,
+          13.128995895385742,
+          12.72420597076416,
+          12.682964324951172,
+          12.289037704467773,
+          12.176249504089355,
+          12.082942962646484,
+          12.009822845458984
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          54200,
+          40604,
+          31090,
+          86524,
+          100287,
+          5483,
+          90691,
+          73594,
+          10006,
+          119160
+        ],
+        "scores": [
+          14.478693008422852,
+          14.030559539794922,
+          13.42280387878418,
+          13.107786178588867,
+          12.701693534851074,
+          12.669605255126953,
+          12.292734146118164,
+          12.22845458984375,
+          12.104085922241211,
+          12.050209045410156
+        ]
+      },
+      "full_array_sha256": "72fc8cc697fafb1e4f7e63a317390757ffbc99267ff8d054ea2ec99c97b89d6f",
+      "cached_array_sha256": "e4c72fdf4de45727ff6c7ef88884dfecb3be557a4f5c424371b2b2563ecaf9c4"
+    },
+    {
+      "prompt_index": 2,
+      "prompt": "def add(a, b):",
+      "tokens": 6,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-1 54200, HF 40604",
+        "top1_equal": false,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.09874725341796875,
+        "reference_fifth_sixth_gap": 0.0897989273071289,
+        "candidate_top1_gap": 0.19321060180664062,
+        "candidate_fifth_sixth_gap": 0.20148849487304688,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-1 40604, HF 54200",
+        "top1_equal": false,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.19321060180664062,
+        "reference_fifth_sixth_gap": 0.20148849487304688,
+        "candidate_top1_gap": 0.09874725341796875,
+        "candidate_fifth_sixth_gap": 0.0897989273071289,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          40604,
+          54200,
+          31090,
+          100287,
+          86524,
+          5483,
+          73594,
+          54704,
+          10006,
+          59444
+        ],
+        "scores": [
+          14.260225296020508,
+          14.161478042602539,
+          13.40976333618164,
+          12.936315536499023,
+          12.914328575134277,
+          12.824529647827148,
+          12.209918022155762,
+          12.090719223022461,
+          12.059141159057617,
+          12.057121276855469
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          54200,
+          40604,
+          31090,
+          86524,
+          100287,
+          5483,
+          73594,
+          90691,
+          119160,
+          10006
+        ],
+        "scores": [
+          14.34718132019043,
+          14.153970718383789,
+          13.377032279968262,
+          13.055145263671875,
+          13.029854774475098,
+          12.82836627960205,
+          12.299430847167969,
+          12.113555908203125,
+          12.076578140258789,
+          12.033883094787598
+        ]
+      },
+      "full_array_sha256": "e7c0f70d7ae4239926203341e67499b5885664ec24c1d10de68e6b04b5cd0df1",
+      "cached_array_sha256": "e21a188f0148807af64a86c9afa38d7bf469e55e247db62014a318b43a8c5fdd"
+    },
+    {
+      "prompt_index": 3,
+      "prompt": "The three primary colors are red,",
+      "tokens": 7,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.07710456848144531,
+        "reference_fifth_sixth_gap": 0.3954887390136719,
+        "candidate_top1_gap": 0.0051975250244140625,
+        "candidate_fifth_sixth_gap": 0.35355186462402344,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.0051975250244140625,
+        "reference_fifth_sixth_gap": 0.35355186462402344,
+        "candidate_top1_gap": 0.07710456848144531,
+        "candidate_fifth_sixth_gap": 0.3954887390136719,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          102644,
+          102563,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "scores": [
+          16.496469497680664,
+          16.41936492919922,
+          15.203646659851074,
+          15.078668594360352,
+          14.868034362792969,
+          14.472545623779297,
+          14.430980682373047,
+          14.396110534667969,
+          14.063796997070312,
+          13.999794960021973
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          102644,
+          102563,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "scores": [
+          16.457935333251953,
+          16.45273780822754,
+          15.210000038146973,
+          15.033361434936523,
+          14.827640533447266,
+          14.474088668823242,
+          14.39605712890625,
+          14.369184494018555,
+          14.07832145690918,
+          14.006668090820312
+        ]
+      },
+      "full_array_sha256": "652bd8aa89a82576e4c6aa859e21814968b80d46e96601bea1170c50698323af",
+      "cached_array_sha256": "42a97582f04b40966cfd3e6878e3b679eddbea080cf704cd8ffc0d4fbc465b43"
+    },
+    {
+      "prompt_index": 3,
+      "prompt": "The three primary colors are red,",
+      "tokens": 7,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 0.036393165588378906,
+        "reference_fifth_sixth_gap": 0.022466659545898438,
+        "candidate_top1_gap": 0.4485616683959961,
+        "candidate_fifth_sixth_gap": 0.08619308471679688,
+        "missing_from_reference_top5": [
+          31235
+        ],
+        "extra_in_candidate_top5": [
+          102563
+        ]
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-5 overlap 4/5 below bound 5",
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 0.4485616683959961,
+        "reference_fifth_sixth_gap": 0.08619308471679688,
+        "candidate_top1_gap": 0.036393165588378906,
+        "candidate_fifth_sixth_gap": 0.022466659545898438,
+        "missing_from_reference_top5": [
+          102563
+        ],
+        "extra_in_candidate_top5": [
+          31235
+        ]
+      },
+      "full_top10": {
+        "ids": [
+          102644,
+          103971,
+          99532,
+          102272,
+          31235,
+          102563,
+          117884,
+          99908,
+          24562,
+          26177
+        ],
+        "scores": [
+          15.385120391845703,
+          15.348727226257324,
+          15.055240631103516,
+          14.901735305786133,
+          14.865982055664062,
+          14.843515396118164,
+          14.297332763671875,
+          14.254525184631348,
+          14.077611923217773,
+          14.03248405456543
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          102644,
+          103971,
+          99532,
+          102563,
+          102272,
+          31235,
+          117884,
+          99908,
+          26177,
+          24562
+        ],
+        "scores": [
+          15.668472290039062,
+          15.219910621643066,
+          15.19736099243164,
+          15.196269989013672,
+          14.794746398925781,
+          14.708553314208984,
+          14.440402030944824,
+          14.141639709472656,
+          14.027599334716797,
+          14.018129348754883
+        ]
+      },
+      "full_array_sha256": "6a10e4292843212f176c3f967820462d5fb2fee00edf787cb8ae0d250d415d01",
+      "cached_array_sha256": "dbaf8a95e6c932b93d4e557ac7753efbe51881108d419d18ee952c068bb05f7d"
+    },
+    {
+      "prompt_index": 4,
+      "prompt": "In 1969, humans first walked on the",
+      "tokens": 12,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.1387786865234375,
+        "reference_fifth_sixth_gap": 0.10129451751708984,
+        "candidate_top1_gap": 0.12563133239746094,
+        "candidate_fifth_sixth_gap": 0.11337566375732422,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.12563133239746094,
+        "reference_fifth_sixth_gap": 0.11337566375732422,
+        "candidate_top1_gap": 0.1387786865234375,
+        "candidate_fifth_sixth_gap": 0.10129451751708984,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          111512,
+          107278,
+          322,
+          16250,
+          90554,
+          106589,
+          32089,
+          48606,
+          73146,
+          1722
+        ],
+        "scores": [
+          10.406011581420898,
+          10.267232894897461,
+          10.138033866882324,
+          10.068899154663086,
+          9.910453796386719,
+          9.809159278869629,
+          9.798270225524902,
+          9.760534286499023,
+          9.726442337036133,
+          9.721841812133789
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          111512,
+          107278,
+          322,
+          16250,
+          90554,
+          106589,
+          32089,
+          48606,
+          73146,
+          1722
+        ],
+        "scores": [
+          10.420622825622559,
+          10.294991493225098,
+          10.147093772888184,
+          10.099954605102539,
+          9.939732551574707,
+          9.826356887817383,
+          9.815040588378906,
+          9.771150588989258,
+          9.739777565002441,
+          9.73408317565918
+        ]
+      },
+      "full_array_sha256": "35ce85eace67801169a21088d6adc8aca77774d0fd8ef6236777698c5cde45b1",
+      "cached_array_sha256": "e3f905381f85f01e3c89e9e9ceacca7f11f73840ac05ddd23cace69ac300094c"
+    },
+    {
+      "prompt_index": 4,
+      "prompt": "In 1969, humans first walked on the",
+      "tokens": 12,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.09044837951660156,
+        "reference_fifth_sixth_gap": 0.0842437744140625,
+        "candidate_top1_gap": 0.060370445251464844,
+        "candidate_fifth_sixth_gap": 0.05473041534423828,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 0.060370445251464844,
+        "reference_fifth_sixth_gap": 0.05473041534423828,
+        "candidate_top1_gap": 0.09044837951660156,
+        "candidate_fifth_sixth_gap": 0.0842437744140625,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          111512,
+          107278,
+          322,
+          16250,
+          90554,
+          106589,
+          32089,
+          73146,
+          48606,
+          101308
+        ],
+        "scores": [
+          10.521117210388184,
+          10.430668830871582,
+          10.196462631225586,
+          10.150123596191406,
+          10.119829177856445,
+          10.035585403442383,
+          9.926321029663086,
+          9.838790893554688,
+          9.826175689697266,
+          9.81734848022461
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          111512,
+          107278,
+          322,
+          16250,
+          90554,
+          106589,
+          32089,
+          73146,
+          101308,
+          48606
+        ],
+        "scores": [
+          10.500436782836914,
+          10.44006633758545,
+          10.20290756225586,
+          10.171075820922852,
+          10.122055053710938,
+          10.0673246383667,
+          10.004682540893555,
+          9.861684799194336,
+          9.840517044067383,
+          9.836856842041016
+        ]
+      },
+      "full_array_sha256": "e6560091280a818ca8356a808ed5d89f7365cbd4c0af2159e6f1ee74f334d077",
+      "cached_array_sha256": "1100109f75cc66f5688a1e57b7e475d97ab7ea25b07f2e077dced6d5138833a3"
+    },
+    {
+      "prompt_index": 5,
+      "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+      "tokens": 17,
+      "KV": "f32",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 1.7447147369384766,
+        "reference_fifth_sixth_gap": 0.10099601745605469,
+        "candidate_top1_gap": 1.6574859619140625,
+        "candidate_fifth_sixth_gap": 0.12288665771484375,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 5,
+        "reference_top1_gap": 1.6574859619140625,
+        "reference_fifth_sixth_gap": 0.12288665771484375,
+        "candidate_top1_gap": 1.7447147369384766,
+        "candidate_fifth_sixth_gap": 0.10099601745605469,
+        "missing_from_reference_top5": [],
+        "extra_in_candidate_top5": []
+      },
+      "full_top10": {
+        "ids": [
+          5845,
+          124131,
+          9075,
+          13596,
+          20002,
+          97595,
+          11797,
+          31657,
+          5553,
+          41479
+        ],
+        "scores": [
+          14.214361190795898,
+          12.469646453857422,
+          12.060356140136719,
+          11.845317840576172,
+          11.448193550109863,
+          11.347197532653809,
+          11.323501586914062,
+          11.270805358886719,
+          11.187021255493164,
+          11.07748794555664
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          5845,
+          124131,
+          9075,
+          13596,
+          20002,
+          97595,
+          31657,
+          11797,
+          5553,
+          100157
+        ],
+        "scores": [
+          14.274616241455078,
+          12.617130279541016,
+          12.11041259765625,
+          11.894832611083984,
+          11.51521110534668,
+          11.392324447631836,
+          11.333515167236328,
+          11.297224044799805,
+          11.272530555725098,
+          11.140406608581543
+        ]
+      },
+      "full_array_sha256": "ef71f351e334831121d6bd27282c4dc0e4d0c10802494f7660f11ec7fa545689",
+      "cached_array_sha256": "166836a70312ee62425a509d9267a5bdc5a7a7eed15acc491a1080a0bd2cc061"
+    },
+    {
+      "prompt_index": 5,
+      "prompt": "The capital of France is Paris. The capital of Italy is Rome. The capital of",
+      "tokens": 17,
+      "KV": "f16",
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 2.005812644958496,
+        "reference_fifth_sixth_gap": 0.07898616790771484,
+        "candidate_top1_gap": 2.025425910949707,
+        "candidate_fifth_sixth_gap": 0.0002288818359375,
+        "missing_from_reference_top5": [
+          20002
+        ],
+        "extra_in_candidate_top5": [
+          124131
+        ]
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-5 overlap 4/5 below bound 5",
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 2.025425910949707,
+        "reference_fifth_sixth_gap": 0.0002288818359375,
+        "candidate_top1_gap": 2.005812644958496,
+        "candidate_fifth_sixth_gap": 0.07898616790771484,
+        "missing_from_reference_top5": [
+          124131
+        ],
+        "extra_in_candidate_top5": [
+          20002
+        ]
+      },
+      "full_top10": {
+        "ids": [
+          5845,
+          9075,
+          13596,
+          817,
+          20002,
+          124131,
+          41479,
+          5553,
+          11797,
+          31657
+        ],
+        "scores": [
+          14.479965209960938,
+          12.474152565002441,
+          12.157600402832031,
+          11.752535820007324,
+          11.72236156463623,
+          11.643375396728516,
+          11.563141822814941,
+          11.083785057067871,
+          10.994161605834961,
+          10.878171920776367
+        ]
+      },
+      "cached_top10": {
+        "ids": [
+          5845,
+          9075,
+          13596,
+          124131,
+          817,
+          20002,
+          41479,
+          5553,
+          97595,
+          31657
+        ],
+        "scores": [
+          14.55253791809082,
+          12.527112007141113,
+          12.25571060180664,
+          12.059538841247559,
+          11.655921936035156,
+          11.655693054199219,
+          11.337743759155273,
+          11.175298690795898,
+          11.14829158782959,
+          11.109493255615234
+        ]
+      },
+      "full_array_sha256": "9e0de308d3f38df8959e0f2005903f835c8dbaf0baa28616620c61a614a12431",
+      "cached_array_sha256": "6957e0ccc20c2f3df62e446c922db44c0caa7e00cf0c6e9ac07b675733c12469"
+    }
+  ],
+  "Rome_F16_KV": {
+    "candidate_top10": {
+      "ids": [
+        5845,
+        13596,
+        9075,
+        817,
+        41479,
+        20002,
+        124131,
+        31657,
+        11797,
+        22382
+      ],
+      "scores": [
+        14.266698,
+        12.306498,
+        12.279286,
+        11.890882,
+        11.565712,
+        11.53777,
+        11.528488,
+        11.003613,
+        10.964218,
+        10.939884
+      ]
+    },
+    "full_HF_top10": {
+      "ids": [
+        5845,
+        9075,
+        13596,
+        817,
+        20002,
+        124131,
+        41479,
+        5553,
+        11797,
+        31657
+      ],
+      "scores": [
+        14.479965209960938,
+        12.474152565002441,
+        12.157600402832031,
+        11.752535820007324,
+        11.72236156463623,
+        11.643375396728516,
+        11.563141822814941,
+        11.083785057067871,
+        10.994161605834961,
+        10.878171920776367
+      ]
+    },
+    "cached_HF_top10": {
+      "ids": [
+        5845,
+        9075,
+        13596,
+        124131,
+        817,
+        20002,
+        41479,
+        5553,
+        97595,
+        31657
+      ],
+      "scores": [
+        14.55253791809082,
+        12.527112007141113,
+        12.25571060180664,
+        12.059538841247559,
+        11.655921936035156,
+        11.655693054199219,
+        11.337743759155273,
+        11.175298690795898,
+        11.14829158782959,
+        11.109493255615234
+      ]
+    },
+    "candidate_vs_fixed_full_HF": "top-5 overlap 4/5 below bound 5",
+    "lost_boundary_tokens": [
+      20002
+    ],
+    "extra_tokens": [
+      41479
+    ],
+    "full_HF_lost_minus_extra": [
+      {
+        "lost": 20002,
+        "extra": 41479,
+        "gap": 0.15921974182128906
+      }
+    ],
+    "HF_self_comparison": {
+      "cached_as_candidate_vs_full_reference": {
+        "ranking_function_matches": true,
+        "failure": null,
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 2.005812644958496,
+        "reference_fifth_sixth_gap": 0.07898616790771484,
+        "candidate_top1_gap": 2.025425910949707,
+        "candidate_fifth_sixth_gap": 0.0002288818359375,
+        "missing_from_reference_top5": [
+          20002
+        ],
+        "extra_in_candidate_top5": [
+          124131
+        ]
+      },
+      "full_as_candidate_vs_cached_reference": {
+        "ranking_function_matches": false,
+        "failure": "top-5 overlap 4/5 below bound 5",
+        "top1_equal": true,
+        "top5_overlap": 4,
+        "reference_top1_gap": 2.025425910949707,
+        "reference_fifth_sixth_gap": 0.0002288818359375,
+        "candidate_top1_gap": 2.005812644958496,
+        "candidate_fifth_sixth_gap": 0.07898616790771484,
+        "missing_from_reference_top5": [
+          124131
+        ],
+        "extra_in_candidate_top5": [
+          20002
+        ]
+      }
+    }
+  },
+  "summary": {
+    "cached_vs_full_matches": 10,
+    "full_vs_cached_matches": 9,
+    "cells": 12,
+    "top1_equal": 11
+  },
+  "no_new_workload": true,
+  "array_verification": "All24 retained full-vocabulary F32 array hashes match report; every reported top10 score equals its actual F32 array entry. No new HF or runtime execution.",
+  "prior_findings": [
+    {
+      "artifact": "build-low-bits-dev/q2-layered-control.stdout.txt",
+      "sha256": "23ec9c1a35d353a6a09ef2b63edda915fe6780fbf57a2d8d6db73427c962b401",
+      "finding": "Independent one-module-at-a-time F32 decoder/control sees every file parameter and correctly uses explicit untied output head. France final vector SHA c5f7dc49... equals old full/cache F32 control. Original parameter-name and file/config mismatch preflight refusals are retained; topology mismatch was corrected before the final forward. This is a5-token F32 control, not F16-cache or Rome qualification."
+    },
+    {
+      "artifact": "build-low-bits-dev/released-q2-cache-control-v1/report.json",
+      "sha256": "2344fde049df49d993f7dd449a92b7795aa96fda68a5f649bc329b9bfdd05ae3",
+      "finding": "Old independent HF direct versus full F32-cache vectors are exact for France/colors. F16-cache rounding changes colors top1 and France top5. No new discovery or gate amendment is claimed from repeating that mechanism."
+    },
+    {
+      "artifact": "build-low-bits-dev/released-q2-cache-control-v1/comparison.json",
+      "sha256": "6e8122aaf6063ecfacbef3410fb828348b53de72db22b5a8ec98e5ec1e83b51d",
+      "finding": "Old cache-rounded HF comparison is not exact runtime reproduction: colors top10 differ on CPU/GPU, max top10 value discrepancies reach0.2266 CPU and0.252 GPU across the two prompts. The source-derived cache interpretation supported sensitivity attribution only."
+    },
+    {
+      "artifact": "docs/benchmarks/q1-q2-released-progress-20261027.json",
+      "sha256": "2efbaf4dcc2edb60d7f630fbe36b1001b0fdd85c4eda7d200a9714ca55b04c7f",
+      "finding": "Historical wider-F32/default-F16-cache short failures clear with F32 KV, and logical-F16 HF cache reproduces rank changes. It explicitly leaves default-cache qualification unresolved; no scoped TQ allowance applies."
+    }
+  ],
+  "defect_assessment": "Concrete unresolved results: current canonical short rankings fail; fixed full selected-policy Rome top5 fails; and HF full/singleton selected-policy self-ranking is not stable under the same unchanged short function, including def-add top1 disagreement. Retained data does not localize these to a remaining decoder, loader, halfword-address or cache-hook implementation defect. It also does not rule one out or qualify a reference; do not replace canonical goldens, select another HF shape, or relax thresholds. Previously identified Q2 tall-ID/Q1 float-guard defects were fixed separately.",
+  "workloads_paused": "No new workloads prepared or launched by this follow-up. Await further root direction."
+}

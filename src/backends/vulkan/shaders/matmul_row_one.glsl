@@ -31,6 +31,27 @@
                     acc[c] = fma(weight, x[XCOL(c) * p.nin + first + k], acc[c]);
             }
         }
+#elif defined(LLMX_FLOAT_X) && (defined(LLMX_Q1_0) || defined(LLMX_Q2_0))
+#ifdef LLMX_Q1_0
+        const uint block = Q1_0_BLOCK, packed_type = TYPE_Q1_0;
+#else
+        const uint block = Q2_0_BLOCK, packed_type = TYPE_Q2_0;
+#endif
+        // Q1's two vectors share one packed byte and scale; Q2 keeps its four-value traversal.
+        const uint vectors = packed_type == TYPE_Q1_0 ? 2u : 1u;
+        uint n4 = p.nin / 4u;
+        for (uint i = vectors * l; i < n4; i += vectors * p.cluster) {
+            uint j = 4u * i, o = (wrow * (p.nin / block) + j / block) * block_bytes(packed_type);
+            float d = half_at(QBYTE(o), QBYTE(o + 1u));
+            [[unroll]] for (uint v = 0u; v < vectors; ++v) {
+                vec4 weights = low_bits_four(packed_type, o, j % block + 4u * v, d);
+                for (uint c = 0u; c < ncols; ++c) {
+                    // Round each product before cancellation; a contracted dot can leave a large residual.
+                    precise vec4 products = weights * xt4[XCOL(c) * n4 + i + v];
+                    acc[c] += (products.x + products.y) + (products.z + products.w);
+                }
+            }
+        }
 #elif defined(LLMX_FLOAT_X)
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
         // These 256-value rows use a whole subgroup; unrolling within a block reuses its metadata without changing any lane's FMA order.

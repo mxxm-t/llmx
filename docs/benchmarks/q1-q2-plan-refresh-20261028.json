@@ -1,0 +1,22 @@
+{
+  "scope": "Correct stale current-checkpoint pointer in the Q1/Q2 feature plan",
+  "prior_catalog": "docs\\benchmarks\\q1-trace-checkpoint-review-20261028.json",
+  "prior_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+  "pages": 154,
+  "unchanged_carried": 152,
+  "changed_pages": {
+    "docs/Q1-Q2.md": "b1136a95ac0f13dca641165392412107855e860085e4df1d61fb7bef05dfb525",
+    "docs/STATUS.md": "f7155d9b55c7ca8f95b48ffc2e7caac931d124e8f4f4ef6f900049611860da67"
+  },
+  "review": [
+    "Q1/Q2 plan now labels prior float-path measurements historical and points to the active packed-halfword integer implementation.",
+    "Read-only quant support remains unqualified. Q1 decode deficit, Q2 ranking failures and depth/split/landing work remain explicit.",
+    "Existing uncommitted same-feature narrative was checked against retained benchmark records and published test commands. No runtime, flag or numerical policy changes.",
+    "STATUS records this correction;152 unchanged pages carry prior semantic review with current-delta applicability."
+  ],
+  "checks": {
+    "docs": "PASS:0 findings,21 planted faults",
+    "dead-code": "PASS:7 listed findings,19 planted faults",
+    "log_sha256": "319721c9f48cf22b1ca0da6ff1aef066649fc855cb92144a6be4b92fd226bdee"
+  }
+}

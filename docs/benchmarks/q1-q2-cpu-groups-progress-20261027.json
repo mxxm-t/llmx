@@ -1,0 +1,2026 @@
+{
+  "status": "completed, see each group and HF result",
+  "scope": "Widths2/4 against retained width1, retaining strict HF failures separately. No new tolerance or acceptance exception.",
+  "tool_sha256": "7329febf12efa448b8ab45ba23684759d8a542fe157eb988e6d574a867755a92",
+  "calls_planned": 10,
+  "calls": [
+    {
+      "family": "q1-0",
+      "fixture": "dense-untied",
+      "width": 2,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-dense-untied-w2",
+        "cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "2"
+      ],
+      "model_sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788",
+      "started": 1793121936.0200443,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          210,
+          145,
+          39,
+          145,
+          19,
+          64,
+          62,
+          38,
+          175,
+          67,
+          29,
+          39,
+          29,
+          62,
+          194,
+          175,
+          67,
+          72,
+          106,
+          62,
+          188,
+          72,
+          106,
+          62,
+          194,
+          222,
+          39,
+          145,
+          194,
+          222,
+          119,
+          222,
+          119,
+          222,
+          110,
+          62,
+          94,
+          140,
+          41,
+          140,
+          72,
+          72,
+          67,
+          147,
+          176,
+          72,
+          194,
+          38,
+          62,
+          15,
+          188,
+          162,
+          107,
+          120,
+          188,
+          116,
+          254,
+          211,
+          116,
+          176,
+          147,
+          249,
+          232,
+          19
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "ef94c770d62536c574d577ff415f3f8dff71ce9f3e0972b28ac19d8104fdc872",
+        "decode": "ef94c770d62536c574d577ff415f3f8dff71ce9f3e0972b28ac19d8104fdc872",
+        "greedy": "dc08c5422feab9d8bca258bfb056262c318c10da3495942be57f6456a442adf9"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.5735626220703125e-05,
+            "cpu_nll": 16.48303302124668,
+            "device_nll": 16.483030950335117,
+            "nll_delta": 2.0709115631234454e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.5735626220703125e-05,
+            "cpu_nll": 16.48303302124668,
+            "device_nll": 16.483030950335117,
+            "nll_delta": 2.0709115631234454e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 47,
+            "first_near_tie": 47,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 dense-untied batched 'a'/HF logit error: 0.00002575"
+      },
+      "seconds": 0.544363260269165
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-untied",
+      "width": 4,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-untied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-dense-untied-w4",
+        "cpu,cpu,cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "4"
+      ],
+      "model_sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788",
+      "started": 1793121936.5809247,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          210,
+          145,
+          39,
+          145,
+          19,
+          64,
+          62,
+          38,
+          175,
+          67,
+          29,
+          39,
+          29,
+          62,
+          194,
+          175,
+          67,
+          72,
+          106,
+          62,
+          188,
+          72,
+          106,
+          62,
+          194,
+          222,
+          39,
+          145,
+          194,
+          222,
+          119,
+          222,
+          119,
+          222,
+          110,
+          62,
+          94,
+          140,
+          41,
+          140,
+          72,
+          72,
+          67,
+          147,
+          176,
+          72,
+          194,
+          38,
+          62,
+          15,
+          188,
+          162,
+          107,
+          120,
+          188,
+          116,
+          254,
+          211,
+          116,
+          176,
+          147,
+          249,
+          232,
+          19
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "a24252986db703543f8a44d942280e15cc012651f167b5366ada5ea9c414e61e",
+        "decode": "a24252986db703543f8a44d942280e15cc012651f167b5366ada5ea9c414e61e",
+        "greedy": "50b9de40ad911e68492318bb9681a4e541a8c1cb531573760d5bc0c2dd75f6e0"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.621246337890625e-05,
+            "cpu_nll": 16.48303302124668,
+            "device_nll": 16.483029959281463,
+            "nll_delta": 3.0619652164887157e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.621246337890625e-05,
+            "cpu_nll": 16.48303302124668,
+            "device_nll": 16.483029959281463,
+            "nll_delta": 3.0619652164887157e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 47,
+            "first_near_tie": 47,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 dense-untied batched 'a'/HF logit error: 0.00002146"
+      },
+      "seconds": 0.55588698387146
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-tied",
+      "width": 2,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-dense-tied-w2",
+        "cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "2"
+      ],
+      "model_sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c",
+      "started": 1793121937.1504536,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          139,
+          163,
+          235,
+          130,
+          132,
+          123,
+          154,
+          235,
+          235,
+          235,
+          235,
+          235,
+          235,
+          235,
+          130,
+          97,
+          250,
+          97,
+          142,
+          97,
+          97,
+          97,
+          78,
+          142,
+          97,
+          78,
+          142,
+          97,
+          78,
+          142,
+          132,
+          97,
+          78,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          92,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          40,
+          11,
+          250,
+          87,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          253,
+          213
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "f7f241963657dfef2c541efd2e351c55d8bd13d32d8d40109016da8fa402c152",
+        "decode": "f7f241963657dfef2c541efd2e351c55d8bd13d32d8d40109016da8fa402c152",
+        "greedy": "ee2a905b67aedd981a1c9bc58fa55c222f1f14e4abcbc3c1a7cce8a601d5609e"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 12,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 2.1457672119140625e-05,
+            "cpu_nll": 18.672617846167565,
+            "device_nll": 18.67261994050278,
+            "nll_delta": 2.09433521547453e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 12,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 2.1457672119140625e-05,
+            "cpu_nll": 18.672617846167565,
+            "device_nll": 18.67261994050278,
+            "nll_delta": 2.09433521547453e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 53,
+            "first_near_tie": 53,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 dense-tied batched 'a'/HF logit error: 0.00002337"
+      },
+      "seconds": 0.5484306812286377
+    },
+    {
+      "family": "q1-0",
+      "fixture": "dense-tied",
+      "width": 4,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-dense-tied\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-dense-tied-w4",
+        "cpu,cpu,cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "4"
+      ],
+      "model_sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c",
+      "started": 1793121937.7099864,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          139,
+          163,
+          235,
+          130,
+          132,
+          123,
+          154,
+          235,
+          235,
+          235,
+          235,
+          235,
+          235,
+          235,
+          130,
+          97,
+          250,
+          97,
+          142,
+          97,
+          97,
+          97,
+          78,
+          142,
+          97,
+          78,
+          142,
+          97,
+          78,
+          142,
+          132,
+          97,
+          78,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          92,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          28,
+          78,
+          40,
+          11,
+          250,
+          87,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          213,
+          253,
+          213
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "8c0c19e156685e530d901543eca748bdb0dbd3b59448cbfcd4e9b86c712b561b",
+        "decode": "8c0c19e156685e530d901543eca748bdb0dbd3b59448cbfcd4e9b86c712b561b",
+        "greedy": "ca5ddf995f504aefe4c109e8859e059a8dc2dc710f55f84511ca5016441b3e05"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 12,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.621246337890625e-05,
+            "cpu_nll": 18.672617846167565,
+            "device_nll": 18.67262083616058,
+            "nll_delta": 2.9899930140686592e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 12,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.621246337890625e-05,
+            "cpu_nll": 18.672617846167565,
+            "device_nll": 18.67262083616058,
+            "nll_delta": 2.9899930140686592e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 53,
+            "first_near_tie": 53,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 dense-tied batched 'a'/HF logit error: 0.00002575"
+      },
+      "seconds": 0.5691301822662354
+    },
+    {
+      "family": "q1-0",
+      "fixture": "moe",
+      "width": 2,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-moe-w2",
+        "cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "2"
+      ],
+      "model_sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c",
+      "started": 1793121938.3056395,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "qwen3moe",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          155,
+          116,
+          98,
+          106,
+          138,
+          164,
+          218,
+          189,
+          102,
+          88,
+          147,
+          200,
+          206,
+          147,
+          4,
+          179,
+          7,
+          88,
+          7,
+          88,
+          88,
+          88,
+          187,
+          227,
+          138,
+          208,
+          16,
+          155,
+          7,
+          259,
+          102,
+          58,
+          216,
+          213,
+          215,
+          7,
+          88,
+          194,
+          102,
+          187,
+          31,
+          192,
+          132,
+          126,
+          138,
+          76,
+          25,
+          17,
+          187,
+          202,
+          137,
+          216,
+          103,
+          98,
+          216,
+          155,
+          213,
+          102,
+          19,
+          17,
+          155,
+          202,
+          137,
+          137
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "2a8c1d0d3022c99897031b1ca4411c1f676ffd4658f1efccc11e43e451cc5c47",
+        "decode": "3238c180f94ff25cbbc3e61828216e71f153d19be9a04eb2a5befa7e62a639ca",
+        "greedy": "f349e6f650f022ab09a4dff0e581f75e93792bc94b75b88fe56220036a0fdfc2"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 2.193450927734375e-05,
+            "cpu_nll": 18.57421316379023,
+            "device_nll": 18.574213288700182,
+            "nll_delta": 1.2490995260350246e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.6450881958007812e-05,
+            "cpu_nll": 18.574215210056906,
+            "device_nll": 18.574214334933192,
+            "nll_delta": 8.751237139392742e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 15,
+            "first_near_tie": 15,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 moe batched 'a'/HF logit error: 0.00003052"
+      },
+      "seconds": 1.0647552013397217
+    },
+    {
+      "family": "q1-0",
+      "fixture": "moe",
+      "width": 4,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q1-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q1-0-moe-w4",
+        "cpu,cpu,cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "4"
+      ],
+      "model_sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c",
+      "started": 1793121939.383393,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "qwen3moe",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          41
+        ],
+        "greedy": [
+          155,
+          116,
+          98,
+          106,
+          138,
+          164,
+          218,
+          189,
+          102,
+          88,
+          147,
+          200,
+          206,
+          147,
+          4,
+          179,
+          7,
+          88,
+          7,
+          88,
+          88,
+          88,
+          187,
+          227,
+          138,
+          208,
+          16,
+          155,
+          7,
+          259,
+          102,
+          58,
+          216,
+          213,
+          215,
+          7,
+          88,
+          194,
+          102,
+          187,
+          31,
+          192,
+          132,
+          126,
+          138,
+          76,
+          25,
+          17,
+          187,
+          202,
+          137,
+          216,
+          103,
+          98,
+          216,
+          155,
+          213,
+          102,
+          19,
+          17,
+          155,
+          202,
+          137,
+          137
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "ec0666faf247bc50879de14d3c571298ba5eb84c1569ec2cef587e2ad7255857",
+        "decode": "ce99abc148ec1a73f864095e6f3dc4ce78293c052dc9abb09be1ffe0659aae8a",
+        "greedy": "53c27ca042a525774e7ec1f90cea27484a87241c988792378374f192e3641b57"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 3.0517578125e-05,
+            "cpu_nll": 18.57421316379023,
+            "device_nll": 18.57421442711568,
+            "nll_delta": 1.263325451361652e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.9073486328125e-05,
+            "cpu_nll": 18.574215210056906,
+            "device_nll": 18.57421459786535,
+            "nll_delta": 6.121915561152491e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 15,
+            "first_near_tie": 15,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q1-0 moe batched 'a'/HF logit error: 0.00002193"
+      },
+      "seconds": 1.5792245864868164
+    },
+    {
+      "family": "q2-0",
+      "fixture": "moe",
+      "width": 2,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q2-0-moe-w2",
+        "cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "2"
+      ],
+      "model_sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91",
+      "started": 1793121940.9881382,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "qwen3moe",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          42
+        ],
+        "greedy": [
+          124,
+          212,
+          151,
+          136,
+          201,
+          70,
+          197,
+          182,
+          124,
+          197,
+          182,
+          28,
+          124,
+          28,
+          141,
+          69,
+          178,
+          52,
+          142,
+          96,
+          160,
+          257,
+          222,
+          116,
+          83,
+          66,
+          208,
+          216,
+          35,
+          14,
+          111,
+          111,
+          178,
+          40,
+          111,
+          83,
+          156,
+          111,
+          23,
+          257,
+          28,
+          122,
+          152,
+          98,
+          8,
+          74,
+          27,
+          28,
+          122,
+          40,
+          66,
+          79,
+          36,
+          119,
+          156,
+          116,
+          35,
+          128,
+          171,
+          42,
+          80,
+          105,
+          14,
+          111
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "4f5746b7eeb81e2ce5a8ccd7e10a00b71d9ae911091bb559b4e75027b8071340",
+        "decode": "21512786a98092f6ed99d3b7593e0ea437a8157128cb667cb9921e478f718e86",
+        "greedy": "a3658ec68c9e67fbd00fab4c1cbbe115c684396a4842b1d4d4df392f9b8153af"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 5.543231964111328e-05,
+            "cpu_nll": 20.086193078844925,
+            "device_nll": 20.08619199495227,
+            "nll_delta": 1.0838926556289152e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 3.719329833984375e-05,
+            "cpu_nll": 20.08618843901296,
+            "device_nll": 20.086189148512776,
+            "nll_delta": 7.094998153434062e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 9,
+            "first_near_tie": 9,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q2-0 moe batched 'a'/HF logit error: 0.00002289"
+      },
+      "seconds": 1.0904831886291504
+    },
+    {
+      "family": "q2-0",
+      "fixture": "moe",
+      "width": 4,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\packed.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-single-cpu-controls\\q2-0-moe\\prompt.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q2-0-moe-w4",
+        "cpu,cpu,cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "4"
+      ],
+      "model_sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91",
+      "started": 1793121942.136141,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "qwen3moe",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          42
+        ],
+        "greedy": [
+          124,
+          212,
+          151,
+          136,
+          201,
+          70,
+          197,
+          182,
+          124,
+          197,
+          182,
+          28,
+          124,
+          28,
+          141,
+          69,
+          178,
+          52,
+          142,
+          96,
+          160,
+          257,
+          222,
+          116,
+          83,
+          66,
+          208,
+          216,
+          35,
+          14,
+          111,
+          111,
+          178,
+          40,
+          111,
+          83,
+          156,
+          111,
+          23,
+          257,
+          28,
+          122,
+          152,
+          98,
+          8,
+          74,
+          27,
+          28,
+          122,
+          40,
+          66,
+          79,
+          36,
+          119,
+          156,
+          116,
+          35,
+          128,
+          171,
+          42,
+          80,
+          105,
+          14,
+          111
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "be06476c185090425802a815f1cc6acf41febb6a37883b77c5660009bdfd00f3",
+        "decode": "1619bfdc1d6099b02e95c79b773c89edab6027406f41f8ab3e86630b56e19e81",
+        "greedy": "12c878dcecd59fd87858d1f947f94329faa1c541903b2f0c8078a23bc2701590"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 4.8160552978515625e-05,
+            "cpu_nll": 20.086193078844925,
+            "device_nll": 20.086192802510542,
+            "nll_delta": 2.76334382931509e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 4.38690185546875e-05,
+            "cpu_nll": 20.08618843901296,
+            "device_nll": 20.086189700613875,
+            "nll_delta": 1.2616009144039708e-06,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 9,
+            "first_near_tie": 9,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q2-0 moe batched 'a'/HF logit error: 0.00002575"
+      },
+      "seconds": 1.0821857452392578
+    },
+    {
+      "family": "q2-0",
+      "fixture": "dense-tied",
+      "width": 2,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\approved-run\\dense-tied.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\approved-run\\f32-text-last.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q2-0-dense-tied-w2",
+        "cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "2"
+      ],
+      "model_sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+      "started": 1793121943.2368443,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          42
+        ],
+        "greedy": [
+          249,
+          249,
+          249,
+          9,
+          131,
+          131,
+          131,
+          131,
+          131,
+          241,
+          131,
+          131,
+          243,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          89,
+          89,
+          89,
+          89,
+          40,
+          89,
+          2,
+          162,
+          203,
+          89,
+          108,
+          229,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          8,
+          16,
+          229,
+          131,
+          8,
+          16,
+          229,
+          89,
+          16,
+          229,
+          89,
+          213,
+          258,
+          16,
+          229,
+          131
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "a91437d4d4b5d1d4c717afb46c24222abb9ce4977f870aa7bceb97df929cbd13",
+        "decode": "a91437d4d4b5d1d4c717afb46c24222abb9ce4977f870aa7bceb97df929cbd13",
+        "greedy": "fca90fe9358fd7ae6ee12827113e31845ae16e99b99b55f3ea8a9a3985c54a79"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.8596649169921875e-05,
+            "cpu_nll": 20.64037274764224,
+            "device_nll": 20.640373603040732,
+            "nll_delta": 8.5539849337124e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.8596649169921875e-05,
+            "cpu_nll": 20.64037274764224,
+            "device_nll": 20.640373603040732,
+            "nll_delta": 8.5539849337124e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 22,
+            "first_near_tie": 22,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q2-0 dense-tied batched 'a'/HF logit error: 0.00002575"
+      },
+      "seconds": 0.5502824783325195
+    },
+    {
+      "family": "q2-0",
+      "fixture": "dense-tied",
+      "width": 4,
+      "argv": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx-model-logits.exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\approved-run\\dense-tied.gguf",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\approved-run\\f32-text-last.ids",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\q2-split\\remaining-cpu-groups\\q2-0-dense-tied-w4",
+        "cpu,cpu,cpu,cpu",
+        "f32",
+        "3",
+        "0",
+        "-",
+        "4"
+      ],
+      "model_sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d",
+      "started": 1793121943.8041263,
+      "exit_code": 0,
+      "metadata": {
+        "version": "0.1.0+g9fbb6029e1a5.dirty",
+        "architecture": "",
+        "vocab": 260,
+        "tokens": [
+          97,
+          98,
+          99,
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106,
+          107,
+          108,
+          109
+        ],
+        "storage_types": [
+          0,
+          8,
+          42
+        ],
+        "greedy": [
+          249,
+          249,
+          249,
+          9,
+          131,
+          131,
+          131,
+          131,
+          131,
+          241,
+          131,
+          131,
+          243,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          89,
+          89,
+          89,
+          89,
+          40,
+          89,
+          2,
+          162,
+          203,
+          89,
+          108,
+          229,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          131,
+          8,
+          16,
+          229,
+          131,
+          8,
+          16,
+          229,
+          89,
+          16,
+          229,
+          89,
+          213,
+          258,
+          16,
+          229,
+          131
+        ],
+        "dtype": "f16",
+        "matrix_paths": {
+          "batched": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "decode": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ],
+          "greedy": [
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ],
+            [
+              "f32"
+            ]
+          ]
+        }
+      },
+      "row_sha256": {
+        "batched": "e3515f02ceccd3111f179ffb779e1688a105661672d69fae88f319fd63eebf9f",
+        "decode": "e3515f02ceccd3111f179ffb779e1688a105661672d69fae88f319fd63eebf9f",
+        "greedy": "07694f96fa74e7e6004312ede3152abd1233ce6a95fe0d40876962b540c155a3"
+      },
+      "group_checks": {
+        "batched": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.5735626220703125e-05,
+            "cpu_nll": 20.64037274764224,
+            "device_nll": 20.640371923332093,
+            "nll_delta": 8.243101454752377e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "decode": {
+          "passed": true,
+          "result": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 1.5735626220703125e-05,
+            "cpu_nll": 20.64037274764224,
+            "device_nll": 20.640371923332093,
+            "nll_delta": 8.243101454752377e-07,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": true
+          }
+        },
+        "greedy": {
+          "passed": true,
+          "result": {
+            "matched_prefix": 64,
+            "checked_steps": 22,
+            "first_near_tie": 22,
+            "first_divergence": null,
+            "agrees_until_tie": true
+          }
+        }
+      },
+      "hf": {
+        "passed": false,
+        "error": "q2-0 dense-tied batched 'a'/HF logit error: 0.00002193"
+      },
+      "seconds": 0.5661990642547607
+    }
+  ],
+  "execution_sha256": "2d32871071deb93c9ad807410eb86fa61857850273384e2e3f63a8abdaac0c4e",
+  "runner_sha256": "eaa54f012738337eeaa7e74465345b23a55be1d4c015f9189552d9969cb50d89",
+  "source_sha256_after": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/tensor_split.py": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+    "tests/data/dtype_budget.json": "35d3b06f8293263307135d11d8fd44cb7188e4eecd837101eded9b10baf3cd06"
+  },
+  "interpretation": "All ten CPU width2/4 group-reference comparisons pass. Independent HF remains failed at the original strict limits for these unapproved fixtures. Group consistency alone is not correctness proof."
+}

@@ -1,0 +1,149 @@
+{
+  "schema": "llmx.q1-released-split-evidence.v1",
+  "date": "2026-10-28",
+  "scope": "Boole-1.7B-Q1_0 released-file file-exact HF checks on MI50 physical GPUs 4/5, with layer2 and TP2 placement and F16/F32 KV. This closes these split cells for this pinned model and candidate; it is not full Q1 or merge qualification.",
+  "result": "pass",
+  "container_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "device": {
+    "backend": "Vulkan RADV",
+    "physical_gpus": [4, 5],
+    "vulkan_indices": [0, 1],
+    "reported_device_name": "AMD Instinct MI60 / MI50 (RADV VEGA20)",
+    "pci_bus_by_physical_gpu": {"4": "0000:89:00.0", "5": "0000:8c:00.0"}
+  },
+  "candidate": {
+    "runtime": "q1-two-row-cluster32-v1",
+    "build_receipt_sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6",
+    "cli_sha256": "c0a668057928cca2646baa337c94ec1b84cdad397ef431a501bacf9676741006",
+    "vulkan_library_sha256": "608e2afde63e90f7f7966a5d2bb904177a3c645d482badd96caa9fe5fa2e8278",
+    "tests_baseline_sha256": "ccb7f9ca7475f8c1d0d1961dd2b53102234169ae7c374353c0a18abf0fd61063",
+    "tests_common_sha256": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5"
+  },
+  "model": {
+    "name": "Boole-1.7B-Q1_0.gguf",
+    "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "bytes": 292142912
+  },
+  "references": {
+    "generated": false,
+    "producer_supervisor_sha256": "236672bf322c67b5ff723fadf4a7dcf4a13d8152cc8bb60e2747f58eee2f9206",
+    "baseline_logits.json": "7ae3b19be20b3203f73b74ebf6b2a6d4dd0b052224b6ab66899298ebb1378d83",
+    "baseline_perplexity.json": "b250fece73ee120e97868d170b8713b49a0cd5b202a2214c908d57391768c846",
+    "consumer": "Pinned tests/baseline.py --file-exact; each golden is checked against the exact model SHA."
+  },
+  "policy": {
+    "dtype_request": "auto",
+    "effective_dtype": "f16",
+    "actual_q1_matrix_path": "block-int16",
+    "matrix_path_witnesses_per_cell": 14,
+    "each_matrix_witness": {
+      "dtype": "f16",
+      "devices": [["block-int16"], ["block-int16"]]
+    },
+    "load_mode": "direct",
+    "cache_cases": ["f16", "f32"],
+    "references_or_limits_changed": false
+  },
+  "limits": {
+    "top1": "all six prompts match",
+    "top5_set_overlap_minimum": 5,
+    "continuous_nll": 0.01,
+    "window_nll": 0.02
+  },
+  "cells": [
+    {
+      "placement": "layer2",
+      "physical_gpus": [4, 5],
+      "layer_shares": "1,1",
+      "tensor_width": 1,
+      "cache": "f16",
+      "status": "pass",
+      "cli_calls": 15,
+      "matrix_calls": 14,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_continuous_nll_delta": 0.00005,
+      "max_window_nll_delta": 0.000049,
+      "stdout_sha256": "b77d7b74798a25f2d0b12baecf19ff842ee31db859aea69682d691324c65652c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "placement": "layer2",
+      "physical_gpus": [4, 5],
+      "layer_shares": "1,1",
+      "tensor_width": 1,
+      "cache": "f32",
+      "status": "pass",
+      "cli_calls": 15,
+      "matrix_calls": 14,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_continuous_nll_delta": 0.00001,
+      "max_window_nll_delta": 0.000013,
+      "stdout_sha256": "f0aac1c431a0fc56f99443244e14ee2b5d90e71d66ee1ecee09244edf1d8eb93",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "placement": "tp2",
+      "physical_gpus": [4, 5],
+      "layer_shares": null,
+      "tensor_width": 2,
+      "cache": "f16",
+      "status": "pass",
+      "cli_calls": 15,
+      "matrix_calls": 14,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_continuous_nll_delta": 0.000032,
+      "max_window_nll_delta": 0.000061,
+      "stdout_sha256": "eed3e87c5ffb3989f53380438de8fbff72f6bfb7de7063aeff16118b34cb51bd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "placement": "tp2",
+      "physical_gpus": [4, 5],
+      "layer_shares": null,
+      "tensor_width": 2,
+      "cache": "f32",
+      "status": "pass",
+      "cli_calls": 15,
+      "matrix_calls": 14,
+      "ranking": {"top1": "6/6", "top5_set": "6/6", "exact_top5_order": "6/6"},
+      "nll_checks": 8,
+      "max_continuous_nll_delta": 0.000019,
+      "max_window_nll_delta": 0.000015,
+      "stdout_sha256": "3302cae2c5b32b0b6638f88868b71d804bddd0f46ef398a4c7014088db1f5922",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "execution": {
+    "raw_output_directory": "build-low-bits-dev/q1-released-split-v1/out",
+    "plan_sha256": "5487e72100dd412c7271c7dca9a452b1616c22013603edc01dc0a06ac3f5cf59",
+    "execute_json_sha256": "359e4cdc3f9583c9658f2a776d29af58e8207643ca3cf0699cf7a139c6b1731f",
+    "execution_json_sha256": "15f3448a57c5012a5ac4eba2282a4784beceafe274838033e9718f1ef553e415",
+    "calls_jsonl_sha256": "0b2d9cfc3ff85c301ea324d9f90633251768e2fbba93d31915f48b7b26e4ec27",
+    "supervisor_json_sha256": "af8d1b7186c1bc82a36f2df7bedb503c389967d00d34b38a14407b31f65f0395",
+    "device_map_sha256": "0ce11031d6f6b84fdfe4d4f3d3b4c7ae10d975c1ae898717058b565f8ed7901a",
+    "cli_calls": 60,
+    "successful_exit_codes": 60,
+    "matrix_path_witnesses": 56,
+    "raw_stdout_stderr_hashes_checked": true,
+    "supervisor_output_files_hash_checked": 137,
+    "candidate_source_and_build_unchanged": true,
+    "container_exit_code": 0,
+    "container_oom_killed": false,
+    "container_removed": true,
+    "container_cleanup_exit_code": 0,
+    "container_seconds": 220.69839882850647,
+    "container_memory_cap_bytes": 4294967296,
+    "container_cpu_set": "12-15",
+    "minimum_host_available_bytes": 30134226944,
+    "physical_gpus": [4, 5],
+    "gpu_use_percent_at_preflight": 0,
+    "gpu_vram_used_bytes_at_preflight_each": 10932224
+  },
+  "not_established": [
+    "Final MI50 raw/chat 16K acceptance pending fixed-scale HF reference reconstruction precision review.",
+    "Other released files, other device paths, performance, full-suite, and final landing qualification."
+  ]
+}

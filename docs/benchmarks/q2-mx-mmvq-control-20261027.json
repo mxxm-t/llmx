@@ -1,0 +1,356 @@
+{
+  "scope": "Q2 mx default versus disabled MMVQ P128/G256 diagnostic. No llmx comparison.",
+  "execution_sha256": "24e18f49db76c55228020e2ac95a56fed9dba515f8d79217278093884bb87ca5",
+  "activity_sha256": "f7c7756b1c5302513b3326b80ecfff0a5e025b3f6425adfeeb79966db7bf4a67",
+  "summary_helper_sha256": "aaf8ff34e4110e7c541e2eb26c3c14b11a62d94ae73a3567e2f9823a14cf6a0a",
+  "device": {
+    "physical": 8,
+    "pci": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130"
+  },
+  "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "pins": {
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/build-v1/build-pair-v1/candidate-build/llmx": "d3fa44017ee9e2195af066b9f782be598083ab896b1c905fc5552892796c02dd",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/llama-bench": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0.6.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0.26.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0.26.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0.26.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-common.so.0": "4616de1b97a100e3726fbbe27b6d0029dd3968d14ec2990aa43e88b0d42f791f",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-base.so.0": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml.so.0": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0.26.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so.0": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-vulkan.so.0": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama.so.0.6.0": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/mx-matched-v1/build/bin/libllama-bench-impl.so": "debea6a1da948375ce974bbf6f0b3161e69c2d15b17de3668a2393002f051724",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b"
+  },
+  "version": {
+    "default": "",
+    "disabled": ""
+  },
+  "settings": {
+    "cpu_set": "12-15",
+    "p": 128,
+    "g": 256,
+    "threads": 4,
+    "ubatch": 512,
+    "context": 40960,
+    "kv": "f16/f16",
+    "order": [
+      "default",
+      "disabled",
+      "disabled",
+      "default"
+    ]
+  },
+  "thresholds": {
+    "other_gpu_percent": 0,
+    "unrelated_cpu_cores": 1,
+    "disk_bytes_per_second": 104857600,
+    "sample_gap_seconds": 3
+  },
+  "matrix": [
+    {
+      "family": "q2-0",
+      "phase": "pp",
+      "arms": {
+        "default": {
+          "samples": [
+            3738.357936,
+            3834.86772
+          ],
+          "mean": 3786.6128280000003
+        },
+        "disabled": {
+          "samples": [
+            3540.645406,
+            3421.137175
+          ],
+          "mean": 3480.8912904999997
+        }
+      },
+      "default_over_disabled": 1.0878285220611088,
+      "diagnostic_only": true
+    },
+    {
+      "family": "q2-0",
+      "phase": "tg",
+      "arms": {
+        "default": {
+          "samples": [
+            334.654848,
+            336.881162
+          ],
+          "mean": 335.768005
+        },
+        "disabled": {
+          "samples": [
+            330.484449,
+            331.42534
+          ],
+          "mean": 330.9548945
+        }
+      },
+      "default_over_disabled": 1.0145431011294501,
+      "diagnostic_only": true
+    }
+  ],
+  "calls": [
+    {
+      "index": 0,
+      "family": "q2-0",
+      "arm": "default",
+      "command": [
+        "env",
+        "-u",
+        "GGML_VK_DISABLE_MMVQ",
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793134852.935955,
+      "end": 1793134867.27362,
+      "rates": {
+        "pp": 3738.357936,
+        "tg": 334.654848
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 6,
+          "disk": 0,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 1.5644614029336528,
+        "benchmark_cpu_cores_mean": 0.11808704527401388,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 8,
+        "missed_process_intervals": 0,
+        "disk_MiB_per_second_max": 80.55490272424579
+      }
+    },
+    {
+      "index": 1,
+      "family": "q2-0",
+      "arm": "disabled",
+      "command": [
+        "env",
+        "GGML_VK_DISABLE_MMVQ=1",
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793134867.2740815,
+      "end": 1793134880.7583234,
+      "rates": {
+        "pp": 3540.645406,
+        "tg": 330.484449
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 8,
+          "disk": 0,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 2.211165281833201,
+        "benchmark_cpu_cores_mean": 0.07998168531489357,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 8,
+        "missed_process_intervals": 3,
+        "disk_MiB_per_second_max": 5.837640204134362
+      }
+    },
+    {
+      "index": 2,
+      "family": "q2-0",
+      "arm": "disabled",
+      "command": [
+        "env",
+        "GGML_VK_DISABLE_MMVQ=1",
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793134880.758687,
+      "end": 1793134894.5957792,
+      "rates": {
+        "pp": 3421.137175,
+        "tg": 331.42534
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 8,
+          "disk": 0,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 2.1768490546820343,
+        "benchmark_cpu_cores_mean": 0.08685145592080085,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 8,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 5.677876853587498
+      }
+    },
+    {
+      "index": 3,
+      "family": "q2-0",
+      "arm": "default",
+      "command": [
+        "env",
+        "-u",
+        "GGML_VK_DISABLE_MMVQ",
+        "/mx/bin/llama-bench",
+        "-m",
+        "/models/Qwen3-0.6B-Q2_0.gguf",
+        "-p",
+        "128",
+        "-n",
+        "256",
+        "-r",
+        "1",
+        "-t",
+        "4",
+        "-ngl",
+        "99",
+        "-b",
+        "4096",
+        "-ub",
+        "512",
+        "-ctk",
+        "f16",
+        "-ctv",
+        "f16",
+        "-fa",
+        "1",
+        "-lm",
+        "dio",
+        "-o",
+        "json"
+      ],
+      "start": 1793134894.596176,
+      "end": 1793134908.331957,
+      "rates": {
+        "pp": 3834.86772,
+        "tg": 336.881162
+      },
+      "status": "passed",
+      "activity": {
+        "intervals": 8,
+        "flags": {
+          "other_gpu": 8,
+          "unrelated_cpu": 6,
+          "disk": 0,
+          "gap": 0
+        },
+        "unrelated_cpu_cores_mean": 1.7994032648472476,
+        "benchmark_cpu_cores_mean": 0.09309715842040839,
+        "unknown_gpu_intervals": 0,
+        "unknown_process_cpu_intervals": 8,
+        "missed_process_intervals": 1,
+        "disk_MiB_per_second_max": 4.904800341817758
+      }
+    }
+  ],
+  "monitor_samples": 31,
+  "limitations": [
+    "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero.",
+    "Other jobs were active on separate GPUs. Every planned sample is retained.",
+    "Disk traffic is aggregate physical-device traffic and includes benchmark loading.",
+    "Unrelated CPU means use overlapping monitoring intervals, not phase-only windows.",
+    "Only two samples per arm. Q2 mx prefill variation needs follow-up.",
+    "P4096, main/layout controls and completed-path profile witnesses remain pending.",
+    "Only GGML_VK_DISABLE_MMVQ differs. Exact source reads this into mmvq_mode. No pipeline-name dispatch witness captured."
+  ],
+  "gate_passed": false,
+  "decision": "Default versus disabled decode differs about1.45%; MMVQ alone does not explain the much larger llmx gap. Prefill varies between arms and is not attributed to a specific dispatch. Retain all samples and activity."
+}

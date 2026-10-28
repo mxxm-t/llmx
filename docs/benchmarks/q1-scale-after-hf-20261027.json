@@ -1,0 +1,97 @@
+{
+  "scope": "Focused q1-scale-after-v1 F32 numerical development screen; existing HF consumer bounds; not a full correctness or performance gate.",
+  "passed": 101,
+  "failed": 1,
+  "failed_calls": [
+    {
+      "index": 50,
+      "cell": "singleGPU",
+      "model": "q1-0-moe",
+      "mode": "perplexity",
+      "thread_count": 4,
+      "ubatch": null,
+      "text": null,
+      "context": 16,
+      "started_utc_epoch": 1793138078.873115,
+      "timeout_seconds": 60,
+      "exit_code": 0,
+      "seconds": 0.07766056060791016,
+      "stdout": "/out/results/singleGPU-q1-0-moe-t4-c16.stdout",
+      "stderr": "/out/results/singleGPU-q1-0-moe-t4-c16.stderr",
+      "stdout_sha256": "02ecc0a05e147717413e7565ba41c836db8dd05f2bbceeef2933ef8a8b72358d",
+      "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "bounds": {
+        "logit": 0.0001020159912109375,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "f32_device_witness": {
+        "expected_devices": 1,
+        "observed_devices": 1,
+        "paths_per_device": [
+          [
+            "f32"
+          ]
+        ],
+        "qualified": true
+      },
+      "observed_nll_error": 1.0036744235719652e-05,
+      "hf_nll": 18.574219666744234,
+      "actual_nll": 18.57420963,
+      "numerical_passed": false,
+      "passed": false,
+      "failure": "NLL error 1.00367442357e-05 exceeds strict bound 1e-05"
+    }
+  ],
+  "exe_sha256": "19886a5d48a1841dddc068b6040e37d9c01804900c2feb7b0d130fc7ef91d9a8",
+  "version": "llmx 0.1.0+unknown numerics 90f6be599459068c",
+  "budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+  "models": {
+    "q1-0-dense-untied": {
+      "path": "/source/models/q1-0-dense-untied.gguf",
+      "sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788"
+    },
+    "q1-0-dense-tied": {
+      "path": "/source/models/q1-0-dense-tied.gguf",
+      "sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c"
+    },
+    "q1-0-moe": {
+      "path": "/source/models/q1-0-moe.gguf",
+      "sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c"
+    },
+    "q2-0-dense-untied": {
+      "path": "/source/models/q2-0-dense-untied.gguf",
+      "sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df"
+    },
+    "q2-0-dense-tied": {
+      "path": "/source/models/q2-0-dense-tied.gguf",
+      "sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d"
+    },
+    "q2-0-moe": {
+      "path": "/source/models/q2-0-moe.gguf",
+      "sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+    }
+  },
+  "sources": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+    "tests/tokenizer.py": "36f2d640af01e689d64940a9f757b6751828e37b61673f75fe0b28b451155efd",
+    "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+    "tests/data/dtype_budget.json": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+    "tests/data/baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+    "tests/data/baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75",
+    "build-low-bits-dev/gpu-split-v1/results-v3/report.json": "3d1987b67402f5793874489ad930ffc234a06bb46cf550ffaf6012ff93c19c1a"
+  },
+  "container_removed": true,
+  "execution_sha256": "9173b6df39162c0282b9845879eceb21fe7273e5cae3450c8eb5e833aa3d7e9c",
+  "supervisor_sha256": "24d997fb387cea55f5e5d050145743eda73875cf8e00e3569f7fe78fd81ed85d",
+  "raw_directory": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-scale-after-hf-v1",
+  "decision": "Not qualified: preserve the one NLL failure and all results. Restore Q1 eight-value sign-bit/scaled-weight implementation while continuing the independent Q2 tile improvement. No numerical limit changed. Scale-after-sum can be reconsidered with stronger independent evidence, not treated as automatically lossless."
+}

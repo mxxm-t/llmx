@@ -1,0 +1,692 @@
+{
+  "scope": "Fixed Rome17 internal layer0 observation and exact-runtime-input projection control. No reference amendment or end-to-end acceptance.",
+  "checkpoint_parent": "589395c80",
+  "receipt_sha256": "ca1d7012e5364d157904adde9e7f6508711d7d0cba3f75d338b0a88e1ecd4b50",
+  "seconds": 130.52887153625488,
+  "completed": true,
+  "inputs_unchanged": true,
+  "runtime_capture_identity": true,
+  "hf_prior_replay_identity": true,
+  "stages": [
+    {
+      "tag": "build",
+      "seconds": 93.57074046134949,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "baseline",
+      "seconds": 3.0444653034210205,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "runtime",
+      "seconds": 1.9729804992675781,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "hf",
+      "seconds": 23.99984836578369,
+      "exit_code": 0,
+      "removed": true
+    },
+    {
+      "tag": "offline",
+      "seconds": 5.009631633758545,
+      "exit_code": 0,
+      "removed": true
+    }
+  ],
+  "path": [
+    {
+      "dtype": "f16",
+      "devices": [
+        [
+          "block-int16"
+        ]
+      ]
+    }
+  ],
+  "KV": "f16/f16",
+  "boundaries": [
+    {
+      "boundary": "norm-input",
+      "shape": [
+        17,
+        1024
+      ],
+      "runtime_sha256": "b50b89ad18140ecd01cdba39a792073737439870cd4b896ce324ce36a5469481",
+      "hf_sha256": "e6a896c7673dcbc725d722ee6fa3e7e988151a896c575e210260be3497014078",
+      "exact_values": 10966,
+      "elements": 17408,
+      "max_abs": 4.76837158203125e-07,
+      "rms_difference": 1.4305646312051082e-08,
+      "max_index": [
+        5,
+        27
+      ]
+    },
+    {
+      "boundary": "q",
+      "shape": [
+        17,
+        2048
+      ],
+      "runtime_sha256": "a377a1e2ecc765b0b7bb66a07e8b728783034de99115d56ee1903afcebb24a66",
+      "hf_sha256": "8296a71fe570db4e7926a19d3c92df7cf83338c8f20e8af284721fc023fedc97",
+      "exact_values": 5729,
+      "elements": 34816,
+      "max_abs": 4.4405460357666016e-06,
+      "rms_difference": 2.7473662078334476e-07,
+      "max_index": [
+        6,
+        306
+      ]
+    },
+    {
+      "boundary": "k",
+      "shape": [
+        17,
+        1024
+      ],
+      "runtime_sha256": "759b36ca6948e3f56e3e3fcbfa7efcffa5f0ac97b703d10b7cf47c1b764637d4",
+      "hf_sha256": "4a6e094f3dc41f7ec6bf2c867560644fd63e4db4027769abc14634bd9a1c9a17",
+      "exact_values": 2767,
+      "elements": 17408,
+      "max_abs": 4.5299530029296875e-06,
+      "rms_difference": 2.8073925376819726e-07,
+      "max_index": [
+        10,
+        544
+      ]
+    },
+    {
+      "boundary": "v",
+      "shape": [
+        17,
+        1024
+      ],
+      "runtime_sha256": "955bce8c6df3b3087d29c884abfbfd9ecbc343e973b22c876fd18412fa9af3f6",
+      "hf_sha256": "59a6474fd6327c234483f2256c8eea15dd4acc45c135051f52c2c7bed482ff1d",
+      "exact_values": 2476,
+      "elements": 17408,
+      "max_abs": 1.6391277313232422e-06,
+      "rms_difference": 2.2758372646826503e-07,
+      "max_index": [
+        10,
+        280
+      ]
+    },
+    {
+      "boundary": "context",
+      "shape": [
+        17,
+        2048
+      ],
+      "runtime_sha256": "add3b7b52d556519f7eb783bba197bf62d71c781c19e9c8cd965f17526fc9d3f",
+      "hf_sha256": "b9f8554547dcc939cf1507783a7f209c29716953d92e0b6801d47ab1daee0774",
+      "exact_values": 4577,
+      "elements": 34816,
+      "max_abs": 0.0001220703125,
+      "rms_difference": 1.9233042530326823e-06,
+      "max_index": [
+        0,
+        1627
+      ]
+    }
+  ],
+  "exact_input_replay": {
+    "scope": "Replay only layer-0 Q/K/V projections on the captured runtime RMSNorm input.",
+    "complete": true,
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "fixture_sha256": "c771bf4d36eff577ff9b458a2c869f7f8ab64a165d3920dc9308b685aa6aea2e",
+    "runtime_norm_input_sha256": "b50b89ad18140ecd01cdba39a792073737439870cd4b896ce324ce36a5469481",
+    "hf_end_to_end_norm_input_sha256": "e6a896c7673dcbc725d722ee6fa3e7e988151a896c575e210260be3497014078",
+    "runtime_norm_input_matches_hf_end_to_end": false,
+    "runtime_input_values": 17408,
+    "hf_end_to_end_input_values": 17408,
+    "hf_end_to_end_input_finite": true,
+    "selected_reconstructed_input_sha256": "50ece40d526ed9a185fd51daa7454e28b056f03ce85b6d935f99d550d8b2f074",
+    "source_pins": {
+      "spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "reference_policy.py": "2e32fdef6e2be9d42aa07ac0f745ec1c33203267c31897cd8a531f92abafa2dc"
+    },
+    "torch_version": "2.5.1+cpu",
+    "numpy_version": "2.2.6",
+    "rounding": "half away from zero",
+    "weight_decode": "tests/spec_decode.py GGUF.decode (Q2_0 type 42)",
+    "scope_note": "no model construction, tokenizer load, or model forward",
+    "projections": [
+      {
+        "module": "model.layers.0.self_attn.q_proj",
+        "gguf_tensor": "blk.0.attn_q.weight",
+        "tensor_type": 42,
+        "tensor_shape": [
+          1024,
+          2048
+        ],
+        "raw_weight_sha256": "e51da5d6678af79b213a6b2c3735815e06ad931c61f5ef814a5a12b41acafc50",
+        "decoded_weight_sha256": "5eac6fdaf81f7b29ad220087aafd5542dea7148d261e52f62828444049deccd5",
+        "captured_runtime_sha256": "a377a1e2ecc765b0b7bb66a07e8b728783034de99115d56ee1903afcebb24a66",
+        "captured_hf_end_to_end_sha256": "8296a71fe570db4e7926a19d3c92df7cf83338c8f20e8af284721fc023fedc97",
+        "f32_vs_float64": {
+          "elements": 34816,
+          "exact_float32_values": 7764,
+          "max_abs": 7.160078894230537e-07,
+          "rms": 3.692619137043663e-08,
+          "max_index": [
+            3,
+            779
+          ]
+        },
+        "outputs": {
+          "f32": {
+            "sha256": "ce60aeda09f058ee51159c91242bcb60e2c077c63593a16cd4aa9c80ba5f8395",
+            "runtime_vs_oracle": {
+              "elements": 34816,
+              "exact_float32_values": 6473,
+              "max_abs": 3.337860107421875e-06,
+              "rms": 2.238368533654157e-07,
+              "max_index": [
+                6,
+                1419
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 34816,
+              "exact_float32_values": 22690,
+              "max_abs": 4.410743713378906e-06,
+              "rms": 2.278748814887385e-07,
+              "max_index": [
+                6,
+                306
+              ]
+            }
+          },
+          "f64": {
+            "sha256": "b98dec254b87577bba3d4a48000c30286314bfa620d4a234e5980c473b21e4e6",
+            "runtime_vs_oracle": {
+              "elements": 34816,
+              "exact_float32_values": 10968,
+              "max_abs": 3.3689602787490003e-06,
+              "rms": 2.2131286024603643e-07,
+              "max_index": [
+                6,
+                1419
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 34816,
+              "exact_float32_values": 6397,
+              "max_abs": 4.485745193960611e-06,
+              "rms": 2.295355824950036e-07,
+              "max_index": [
+                6,
+                306
+              ]
+            }
+          }
+        }
+      },
+      {
+        "module": "model.layers.0.self_attn.k_proj",
+        "gguf_tensor": "blk.0.attn_k.weight",
+        "tensor_type": 42,
+        "tensor_shape": [
+          1024,
+          1024
+        ],
+        "raw_weight_sha256": "18970f1fee310c056f2344103b9360dcb6c4c08845db1b3581432502afca507e",
+        "decoded_weight_sha256": "a0f744c4b86b442fe1bfc58d83cc083bbf729e7b0c30e770cd3c65f430afebd1",
+        "captured_runtime_sha256": "759b36ca6948e3f56e3e3fcbfa7efcffa5f0ac97b703d10b7cf47c1b764637d4",
+        "captured_hf_end_to_end_sha256": "4a6e094f3dc41f7ec6bf2c867560644fd63e4db4027769abc14634bd9a1c9a17",
+        "f32_vs_float64": {
+          "elements": 17408,
+          "exact_float32_values": 3774,
+          "max_abs": 6.881257377244765e-07,
+          "rms": 4.500880893696788e-08,
+          "max_index": [
+            0,
+            544
+          ]
+        },
+        "outputs": {
+          "f32": {
+            "sha256": "d79cb5ec0b8b36da568c77e0d292773b02dce8199b111fe4e28cb7c988a97116",
+            "runtime_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 3216,
+              "max_abs": 4.5299530029296875e-06,
+              "rms": 2.3896173512351346e-07,
+              "max_index": [
+                10,
+                544
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 11221,
+              "max_abs": 4.291534423828125e-06,
+              "rms": 2.2797189827817462e-07,
+              "max_index": [
+                6,
+                24
+              ]
+            }
+          },
+          "f64": {
+            "sha256": "211e0514ceb4856764693d0a11d15484d8c560d06dddd0993a48109fd29b35d2",
+            "runtime_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 5603,
+              "max_abs": 4.6432861395828695e-06,
+              "rms": 2.3480787183936042e-07,
+              "max_index": [
+                10,
+                544
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 3083,
+              "max_abs": 4.103998435311951e-06,
+              "rms": 2.2967474097901837e-07,
+              "max_index": [
+                6,
+                24
+              ]
+            }
+          }
+        }
+      },
+      {
+        "module": "model.layers.0.self_attn.v_proj",
+        "gguf_tensor": "blk.0.attn_v.weight",
+        "tensor_type": 42,
+        "tensor_shape": [
+          1024,
+          1024
+        ],
+        "raw_weight_sha256": "0bab071ed02261b0879d5545cba1268bcf1410711eefc2f4f38eaf7c0d946813",
+        "decoded_weight_sha256": "d905e41c095b754355fb80d26c50b61fa5ea0c5b90e951390dddd1d1cfaba1a3",
+        "captured_runtime_sha256": "955bce8c6df3b3087d29c884abfbfd9ecbc343e973b22c876fd18412fa9af3f6",
+        "captured_hf_end_to_end_sha256": "59a6474fd6327c234483f2256c8eea15dd4acc45c135051f52c2c7bed482ff1d",
+        "f32_vs_float64": {
+          "elements": 17408,
+          "exact_float32_values": 3492,
+          "max_abs": 1.8090611320076277e-07,
+          "rms": 2.04045642750299e-08,
+          "max_index": [
+            3,
+            874
+          ]
+        },
+        "outputs": {
+          "f32": {
+            "sha256": "69a045a263623c977168f578a8197fb5a557a51c50294df19682f32db8fcf43a",
+            "runtime_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 2872,
+              "max_abs": 1.6391277313232422e-06,
+              "rms": 2.1148735988787206e-07,
+              "max_index": [
+                10,
+                280
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 11222,
+              "max_abs": 1.9669532775878906e-06,
+              "rms": 1.7556153035948058e-07,
+              "max_index": [
+                6,
+                192
+              ]
+            }
+          },
+          "f64": {
+            "sha256": "064dde9a74feb79c379c555b8023d42d9c03a213e0f35c87183622f150540691",
+            "runtime_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 4662,
+              "max_abs": 1.648664040843073e-06,
+              "rms": 2.1027056483365435e-07,
+              "max_index": [
+                10,
+                280
+              ]
+            },
+            "hf_end_to_end_vs_oracle": {
+              "elements": 17408,
+              "exact_float32_values": 2864,
+              "max_abs": 1.94114954865654e-06,
+              "rms": 1.7617243270951114e-07,
+              "max_index": [
+                6,
+                192
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "existing_operator_bound": {
+    "scope": "Apply existing low_bits.cpp close bound to actual Rome17 layer0 Q/K/V products on exact runtime inputs, independently reconstructed and decoded, accumulated in F64. Not an end-to-end gate or new tolerance.",
+    "owner": "tests/low_bits.cpp close",
+    "owner_sha256": "1dfbf134b0ca715eee9a82853398e0d5ea4498bdff1b30553019637e36de713f",
+    "bound": "2e-5 * max(1, abs(want))",
+    "producer_sha256": "dce77a0a457414fde6baea53a284634a48fcb26eede19cb101ed655de14bc5e7",
+    "rows": [
+      {
+        "role": "q",
+        "elements": 34816,
+        "failures": 0,
+        "max_abs": 3.3689602787490003e-06,
+        "max_normalized": 3.0977639724483197e-06,
+        "worst_fraction_of_existing_bound": 0.15488819862241598
+      },
+      {
+        "role": "k",
+        "elements": 17408,
+        "failures": 0,
+        "max_abs": 4.6432861395828695e-06,
+        "max_normalized": 2.6896222564687378e-06,
+        "worst_fraction_of_existing_bound": 0.1344811128234369
+      },
+      {
+        "role": "v",
+        "elements": 17408,
+        "failures": 0,
+        "max_abs": 1.648664040843073e-06,
+        "max_normalized": 1.648664040843073e-06,
+        "worst_fraction_of_existing_bound": 0.08243320204215365
+      }
+    ],
+    "passed": true
+  },
+  "artifact_hashes": {
+    "hf/layer-23-2.f32": "a9e7c5e62e6316b19080038fea48fbc8fc98cb7d3cc706fc8dfc24b33ac653d3",
+    "hf/layer-24-1.f32": "ce72557f63c62ce75c2b829d43188d10a39cfeb3fad0157fb19a1c9b3c4b060c",
+    "hf/layer-3-1.f32": "d67510433235339cf9d37d97c0ed21742295a1f110779992bf227e6f2b8a4fe7",
+    "hf/layer-14-2.f32": "94c759115f75e772512a86bd50ecca874607ffc5d7ab889ee528bc4db45ffa12",
+    "hf/layer-8-2.f32": "598f2665cdb658758e9daf295e92b1584cf219c9ce9690d9764a156b80492bdc",
+    "hf/layer-4-2.f32": "3087d4e82d1ba379d0f7d75d1fbd70524ef615f41c0fd1d0cb93e0d22174a93f",
+    "hf/layer-18-2.f32": "bdc368aa239ff95f4c832d2d24e7fc951e2fefad011e43d795b486b3f53357d2",
+    "hf/layer-13-1.f32": "a0e4b07df0492502b8682073061685ae659b00b05ef3a7ce8a7e2437a3a7f9ac",
+    "hf/hf-input.f32": "9d1a0291076961383914376700faea70b1c3313a7571c8c0fc6a2e6ff6cadd80",
+    "hf/layer-22-2.f32": "b5000b3de81e9163e6177429e4587422b1a56b8667f0691b16b5fbd6e66ca540",
+    "hf/layer-25-1.f32": "befa14edc646ea923dd937b0dbecb37765c78de30c00f45b8ab64a40fff3a66d",
+    "hf/layer-2-1.f32": "261594586f6afce4d652cee2e4df1d06f8096516b988494db336d2b91cfa8d06",
+    "hf/layer-9-2.f32": "da564c1a9fcd15e5203a17f5dfecc86d72793e22a137912bff31edef7d84d804",
+    "hf/layer-15-2.f32": "7ecbb78b30f15e416bf92b2be1cc42fb7492ca8cde84ebaf39b5581e7f9b824c",
+    "hf/layer-19-2.f32": "40859552f2dd18450503468600fa7053e4d1ccb447fb6070c0d009215aeec94c",
+    "hf/layer-5-2.f32": "f44f6b7d6dac230298a980a1284c419e4a5298089b8d0b53f65ae8b9f813c303",
+    "hf/layer-12-1.f32": "acdf320aaf48df1e1ad530a03eb9267b4b67906e9b9b0d1fd7c24861726b74c0",
+    "hf/layer-21-2.f32": "f125258b1ecbf3dd68a19d457e13d8574788c67f17b3faa1a00b265396960b57",
+    "hf/hf-logits.f32": "d4b7701e791027074bf7fce038e44a4de53c0870c38dede9649b67a07ed1b8d9",
+    "hf/layer-26-1.f32": "586b0b7f6b954c549b62dbd8c7bc266addff506344b99176808d79e5ce0eda2b",
+    "hf/layer-16-2.f32": "0ccb02f90a8e20c38644e1cd120803eee066a87f553ade7347e6f1dfad37303e",
+    "hf/layer-1-1.f32": "e2b0857238f2e170dd2e35dff85fc054e69d335598466ffb54f0e4bd1b77e9b8",
+    "hf/layer-11-1.f32": "5c3d6ecf3cd77c50a0e8e2932d584cedf9bea9f74f83f5003284cdf820d1258d",
+    "hf/layer-6-2.f32": "e40ef6ed7df85d569129e79cbb06c34d3d1217c23d44e2d51963a05ef4ccdee4",
+    "hf/layer-20-2.f32": "45b9aee9a1669a9bf42cc8cc6749a61afc61b1baa853675743f66e7c8fe2a4d4",
+    "hf/layer-27-1.f32": "43c75f054cc25b9db02a99fefb6993d5224e9d9791bb8d48a588c3f37bed0336",
+    "hf/layer-17-2.f32": "ce42ce4cf7a10671fc8eb5b81f08f8bea5f8188e0301338a9d9110c6476aeadb",
+    "hf/layer-0-1.f32": "ff6d6690d9b21074a8ead2b14f3867ba36a2fa3a7b1f951fac28edff80ca2e1b",
+    "hf/layer-10-1.f32": "66ed73a3c2712621085eae3456f0db330610c884233230ed019ee2cfccef0f65",
+    "hf/layer-7-2.f32": "c8256e700577714f3b84e60a82768af7616ddd4ca2f54cb9c213ae0e4136d4b2",
+    "hf/layer-20-1.f32": "d3ed70a0aa76d426946d8ff621ba725e856091261b1b4f81aaee3a1f9c1f403a",
+    "hf/layer-27-2.f32": "a9f762e5c6a703eba00fe27039b3968aff2e4663cc98dd20f22c7d5fc47b8636",
+    "hf/layer-0-2.f32": "6b927976cd7130d1fc4ac9ce0ddfad985f5966c59bb60a27382609597415a365",
+    "hf/layer-17-1.f32": "668e1350b5c596adc78ada1c61c09f2778a973976142f2da7c71bd3ff50e1bd6",
+    "hf/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "hf/layer-7-1.f32": "1ed2404fdf40d59b6675f0e1b03dd1fdbeb1dfaa1f3257cb3621d4bd7c4e39fe",
+    "hf/report.json": "d9d1dcef3e3d57fb8c2e0bda215eeaef032f394fd4b263e43ccb51f4bff664b4",
+    "hf/layer-10-2.f32": "3cbb378d728288156ef1120a236c94d1c1bbff1213cdb459a15b90aff66fab1f",
+    "hf/layer-21-1.f32": "47d100e5b131e258795f20cca7d874e3784c980c4adb8df24395b2389450d1df",
+    "hf/layer-26-2.f32": "872b990a38dc74925778036f4f8c5201bc21c7fc8097c6598a637c07839bedf9",
+    "hf/layer-1-2.f32": "f4fb8731dd491019d19d4c61d48766a2136b6aa9dc728d35f87d3185850475e5",
+    "hf/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "hf/layer-16-1.f32": "446015593b4f33e0425fdca498fbb326259758d8bb540bd5b18dba4881c7477a",
+    "hf/layer-6-1.f32": "a1aef22b8f2431cfcc7d8b86604881a19704810aed208309f6f9ce3824ba8581",
+    "hf/layer-11-2.f32": "0e40989276acd7a03b8685202a66878b718b6dba99b6937d0b297d400dc1f5c2",
+    "hf/attn0-hf-k.f32": "4a6e094f3dc41f7ec6bf2c867560644fd63e4db4027769abc14634bd9a1c9a17",
+    "hf/layer-22-1.f32": "509ca2bd11389529f148e7db7672b7dd24d02811ccf72c9abfe72715c57d96cd",
+    "hf/layer-25-2.f32": "25de1857dc5a5606daec6469d348e177a9ee81ef3715a0697cda0acb4a5c870a",
+    "hf/layer-9-1.f32": "023624106af4991445ddd809ebc2cb61fb5a8afa21205098b6da08ba540e59d8",
+    "hf/layer-15-1.f32": "af6c1d18704d7c10e38d751061b9030a51f42b9c8fe7ac894cda53cf321efe15",
+    "hf/layer-2-2.f32": "1b7f1921e7cfeb2c1b13d55b8c39e9aea792e06f03e8a7b2a91e8a9a3512c56b",
+    "hf/layer-12-2.f32": "266e3a47932feae2da1964dcd7dd4ec580456c6e3b2780ac8291418f497f33ba",
+    "hf/attn0-hf-norm-input.f32": "e6a896c7673dcbc725d722ee6fa3e7e988151a896c575e210260be3497014078",
+    "hf/layer-19-1.f32": "51917fdaceae4d6c9f3a62170cb998cc4e6222b0da989500720ed0d4483ebb45",
+    "hf/layer-5-1.f32": "0f6d1c92f0167ae46aa69e8ea89175f1706a0bd2a7b726696380a6a746ee6645",
+    "hf/layer-23-1.f32": "52cd157c75955b0740ec3949535e11d49ba8bb0936a4811ab401bc98f5d902e0",
+    "hf/layer-24-2.f32": "7d4976d2327a4b344078d3449d965fdfc73f7a412157600e3c7cb440faf1a96f",
+    "hf/layer-14-1.f32": "28ff25628c606bf43b63efbf38a56e42742e4af6dd6f6572bc1caca5000e1575",
+    "hf/layer-8-1.f32": "152719c74c349de0168406769c4b373a5d046846cc5d93c3998e19a43f9f49eb",
+    "hf/hf-rounded.f32": "becbe572518db536ab9e0199b5655d2add03be819f442349c1af311d1a200d8e",
+    "hf/layer-3-2.f32": "bc02bee4a5931b558ba035f3ac9e9e9f2af3322e151d48cef0635e5bfaefea0e",
+    "hf/layer-13-2.f32": "6ebd10463e5bf7dfe7fa6561b704d9faffdbc98f573c7d0ca1b127ee2f1e36fb",
+    "hf/attn0-hf-v.f32": "59a6474fd6327c234483f2256c8eea15dd4acc45c135051f52c2c7bed482ff1d",
+    "hf/attn0-hf-q.f32": "8296a71fe570db4e7926a19d3c92df7cf83338c8f20e8af284721fc023fedc97",
+    "hf/attn0-hf-context.f32": "b9f8554547dcc939cf1507783a7f209c29716953d92e0b6801d47ab1daee0774",
+    "hf/layer-4-1.f32": "d45df49c2604ac46661b5304acf86c2a2770c0a3ac8263df432317cb611ccc3c",
+    "hf/layer-18-1.f32": "af51d1d4859a412e302321a8e3a45accc10f1947dea31658dd615cff8a42ebe1",
+    "offline/attn0-runtime-context.f32": "add3b7b52d556519f7eb783bba197bf62d71c781c19e9c8cd965f17526fc9d3f",
+    "offline/attn0-hf-k.f32": "4a6e094f3dc41f7ec6bf2c867560644fd63e4db4027769abc14634bd9a1c9a17",
+    "offline/attn0-oracle-v-f64.f64": "064dde9a74feb79c379c555b8023d42d9c03a213e0f35c87183622f150540691",
+    "offline/attn0-oracle-v-f32.f32": "69a045a263623c977168f578a8197fb5a557a51c50294df19682f32db8fcf43a",
+    "offline/attn0-hf-v.f32": "59a6474fd6327c234483f2256c8eea15dd4acc45c135051f52c2c7bed482ff1d",
+    "offline/attn0-oracle-k-f32.f32": "d79cb5ec0b8b36da568c77e0d292773b02dce8199b111fe4e28cb7c988a97116",
+    "offline/attn0-hf-q.f32": "8296a71fe570db4e7926a19d3c92df7cf83338c8f20e8af284721fc023fedc97",
+    "offline/attn0-runtime-norm-input.f32": "b50b89ad18140ecd01cdba39a792073737439870cd4b896ce324ce36a5469481",
+    "offline/attn0-oracle-k-f64.f64": "211e0514ceb4856764693d0a11d15484d8c560d06dddd0993a48109fd29b35d2",
+    "offline/qkv-replay.json": "dce77a0a457414fde6baea53a284634a48fcb26eede19cb101ed655de14bc5e7",
+    "offline/attn0-oracle-q-f32.f32": "ce60aeda09f058ee51159c91242bcb60e2c077c63593a16cd4aa9c80ba5f8395",
+    "offline/attn0-runtime-q.f32": "a377a1e2ecc765b0b7bb66a07e8b728783034de99115d56ee1903afcebb24a66",
+    "offline/attn0-runtime-v.f32": "955bce8c6df3b3087d29c884abfbfd9ecbc343e973b22c876fd18412fa9af3f6",
+    "offline/first-attention-analysis.json": "13aa0ae563e2d5a6a5943d6a92f2345a063defb5b041bc5900935b3f70b45eb3",
+    "offline/attn0-oracle-q-f64.f64": "b98dec254b87577bba3d4a48000c30286314bfa620d4a234e5980c473b21e4e6",
+    "offline/stdout.log": "ba467ce1deb086023c24b3d361864dc59df7133bcd5d5aea9feb5096a3c06dd1",
+    "offline/attn0-runtime-k.f32": "759b36ca6948e3f56e3e3fcbfa7efcffa5f0ac97b703d10b7cf47c1b764637d4",
+    "offline/attn0-hf-norm-input.f32": "e6a896c7673dcbc725d722ee6fa3e7e988151a896c575e210260be3497014078",
+    "offline/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "offline/attn0-hf-context.f32": "b9f8554547dcc939cf1507783a7f209c29716953d92e0b6801d47ab1daee0774",
+    "runtime/layer-22-1.f32": "120f92b01cd59f117a30ea303a516584b63a8396874b0db218119ecbb92d0ffc",
+    "runtime/layer-8-0.f32": "5ecc956058baede0915c9038fdce62b6685a42f71227dcd9bd6c6604bf923817",
+    "runtime/layer-17-0.f32": "7cdd6067c69d43fe940828b1a45a5be711043376d0533ef4f9fb54fd2d11f2f7",
+    "runtime/layer-25-2.f32": "a056721046f88cf8879216777a9ec4e3a35d4f1f5c951d791236e843ec2eec5d",
+    "runtime/layer-4-0.f32": "1bbda531144f4eb10f755a9dc11b641d826745ada0b8e673b9733ac7a7a6aad6",
+    "runtime/layer-15-1.f32": "f97e9f3fa853713012bd2581b698bb1533ad9bc3239002e9bf77950d728a6ad5",
+    "runtime/layer-6-1.f32": "cec41c3f1e8cd4b921ccf51c785c1d6c767abb03d16997fe561b2750fab67495",
+    "runtime/layer-12-2.f32": "575ebf8c34baf49ad3f4709ea48c5852a7cb83e39a803cafdde28f1cb855c6c5",
+    "runtime/layer-20-0.f32": "57796a4abdce69a395a8f0061ce28743a0e3c68f1a44f52b3d37de776d792216",
+    "runtime/layer-1-2.f32": "044ed0bc212290ed7a994bbb1094df88f934cb3d2990c0af82072c9a4e6574d9",
+    "runtime/layer-19-1.f32": "70e8aec27d1d217d41df9fef6c2ff3c5544af145de319134e63e3c9aac2aa0d6",
+    "runtime/layer-9-0.f32": "ef56be17923320d5e8073a03ec7403e0b1123ad1d01db54cbd2c1ba5c27b6224",
+    "runtime/layer-23-1.f32": "371f2fb851eb3e99f1abb8bcf3758c61b1b4c9ed04111f607a9c9732f17c8d8f",
+    "runtime/layer-24-2.f32": "d0e03e9efd47c6df12e3d3fc2aa3a50954dc6055ce78dc1c0a60025f6747ab41",
+    "runtime/layer-16-0.f32": "7ac0a20600a96d9659dc2206d3f6c9345e12ee9f5ff0a2c201598020500ac977",
+    "runtime/layer-5-0.f32": "94c1a863e0c408782d0545226927395a6ed084fa4dbd45c1b6262dd3f6478cd2",
+    "runtime/layer-14-1.f32": "8acfbc870fce5c03b9a38740faee6317323a4efb1672868ec399d4c6add85283",
+    "runtime/layer-7-1.f32": "6bbc81d1c3a6f7466928f0aa9b4bdb1d9f907abfa2bac728bf00b450bedfcdcf",
+    "runtime/layer-21-0.f32": "3c9c25a6b5e76cf08628e6f226efccb1354fd2180a9513f85d689713fc832434",
+    "runtime/layer-13-2.f32": "4c4f6fa42813273f9ea39d0a4590bc1b87821367189c1fe302b7183a4446c39e",
+    "runtime/layer-18-1.f32": "ed0a015f656517e69b596f46caf2c865ac8fd22a548217479e80fd0287292df3",
+    "runtime/layer-0-2.f32": "f7964c4e490b20e8ee76969f4f3c1be93bd3253ac6451d99d631c0ccfd643b04",
+    "runtime/layer-19-0.f32": "e5af2e443c67d126856c9752937a628aa9cafb9e2db48159d4512e568dbc49e7",
+    "runtime/attn0-runtime-norm-input.f32": "b50b89ad18140ecd01cdba39a792073737439870cd4b896ce324ce36a5469481",
+    "runtime/layer-20-1.f32": "86bb1d85a42de521682e8581a08d35b5965d52c1085fe4113dd66423aa04627f",
+    "runtime/layer-6-0.f32": "1fda3f4fa15c28980f996eb0053a499ed664bd8665b5acf69bd8094e2a732292",
+    "runtime/layer-27-2.f32": "fe6816c8e5c80a85b03e98086ec6930cab22e527ed1508755aa0996ca3e74547",
+    "runtime/layer-15-0.f32": "df46700c0357de58ec28d3e6c8a0c4d50e58ea17608999200b5c2fc8aeab72d4",
+    "runtime/layer-4-1.f32": "65de5c63c26e5ad7e6aa47ec3c4f3e70b604bcb64cf4c3573238da1e659ee62c",
+    "runtime/layer-17-1.f32": "c049399980c4523452dc80fd0f41bddcc2edc48507b5c8c5a5978b83db256f3a",
+    "runtime/layer-3-2.f32": "1bbda531144f4eb10f755a9dc11b641d826745ada0b8e673b9733ac7a7a6aad6",
+    "runtime/layer-8-1.f32": "cffec3661df1d7f1c81d199b1708aa80b281fb2f5567ab057fe7b60dbe34770d",
+    "runtime/layer-22-0.f32": "95388fd0a713dbcd90e352ce23e0997e139a24fea9bbc71c29a173b8d9577fdf",
+    "runtime/layer-10-2.f32": "738629f401a72ed7410cc1348428cafae456fbd84ef1c568ccaa56cda3af3a6e",
+    "runtime/layer-18-0.f32": "4d04b04ed4d7847306af18952dec9972108b668a01125f43d8ec191d53f86211",
+    "runtime/layer-21-1.f32": "c4de0218ab749bbc34ee4b5262a7620928f6d8fe5b542c24586b6b9d9a282505",
+    "runtime/layer-7-0.f32": "09bbe735e469806daa8a03638683fe672a6659e449b56a9c04fd73623f755aed",
+    "runtime/layer-14-0.f32": "4c4f6fa42813273f9ea39d0a4590bc1b87821367189c1fe302b7183a4446c39e",
+    "runtime/layer-26-2.f32": "844ff9efe140e682746734225c6ccde107394e829e20a32e4667666657fee2ff",
+    "runtime/layer-5-1.f32": "bd2c275d2ec73a947abbdf8a65c6ee02acc4211a808f4d1cf6ab9aec68e7eaff",
+    "runtime/layer-16-1.f32": "aab1ff2aad1d6dc39d37fedc067f9b77b53fa86f3039b89c0a0954226fc75530",
+    "runtime/layer-2-2.f32": "1bc82f8e7f98e67c3e9c5548b0f948f63e21b00a0e7653815ee8f4e3a4246e67",
+    "runtime/layer-11-2.f32": "dbd4aeaa0623d5cdf5f5bc2819ab879bcb1e8a1c0a0c02c58924d495537ea0e9",
+    "runtime/layer-23-0.f32": "dd933ff5fc4d0050273d4783549ec71bba8410597e8e87c6e44ea4df36cb6c94",
+    "runtime/layer-9-1.f32": "4f299cea21297bebc6d3b41b96c2ca069b284c637caf648eeddd55a11ac8ac50",
+    "runtime/layer-21-2.f32": "95388fd0a713dbcd90e352ce23e0997e139a24fea9bbc71c29a173b8d9577fdf",
+    "runtime/layer-13-0.f32": "575ebf8c34baf49ad3f4709ea48c5852a7cb83e39a803cafdde28f1cb855c6c5",
+    "runtime/layer-0-0.f32": "08af09c13b7270f25784714649ee84205ad8832e08f0446747f5d4d3c762c42f",
+    "runtime/attn0-runtime-k.f32": "759b36ca6948e3f56e3e3fcbfa7efcffa5f0ac97b703d10b7cf47c1b764637d4",
+    "runtime/layer-26-1.f32": "29d22ac0ddb4eb16d539f4b3be7150d3b7896ba0e84659cdb9dd43eb55112733",
+    "runtime/layer-24-0.f32": "1e537e7faeafabb78e0c7e0957b1a96d7389327ef1724576219982009cf7e223",
+    "runtime/layer-16-2.f32": "7cdd6067c69d43fe940828b1a45a5be711043376d0533ef4f9fb54fd2d11f2f7",
+    "runtime/layer-5-2.f32": "1fda3f4fa15c28980f996eb0053a499ed664bd8665b5acf69bd8094e2a732292",
+    "runtime/layer-11-1.f32": "25090cefc3d8eebddf6ffa4e4005972803b726d398e9acdf4e5c2d83a3f12637",
+    "runtime/layer-9-2.f32": "dfbe3b01711fceb2969cbc9d93e7e3cd26923a72a1fbdd559d9c0446e4986cc0",
+    "runtime/layer-2-1.f32": "6e143344705e5e2e2def6bacd20ab31b7de4e03a74a3cef49b227535f65953a3",
+    "runtime/layer-12-0.f32": "dbd4aeaa0623d5cdf5f5bc2819ab879bcb1e8a1c0a0c02c58924d495537ea0e9",
+    "runtime/layer-20-2.f32": "3c9c25a6b5e76cf08628e6f226efccb1354fd2180a9513f85d689713fc832434",
+    "runtime/layer-1-0.f32": "f7964c4e490b20e8ee76969f4f3c1be93bd3253ac6451d99d631c0ccfd643b04",
+    "runtime/runtime.f32": "ec3a30c753494488a34eb2dc252fd7b9eed5bc4d350b7ca1094b876dd937aaab",
+    "runtime/layer-27-1.f32": "6914fcc8984801e9e6913521d7b1af44959c8d65f861d2d8efb9326b57203501",
+    "runtime/layer-17-2.f32": "4d04b04ed4d7847306af18952dec9972108b668a01125f43d8ec191d53f86211",
+    "runtime/layer-25-0.f32": "d0e03e9efd47c6df12e3d3fc2aa3a50954dc6055ce78dc1c0a60025f6747ab41",
+    "runtime/layer-4-2.f32": "94c1a863e0c408782d0545226927395a6ed084fa4dbd45c1b6262dd3f6478cd2",
+    "runtime/layer-8-2.f32": "ef56be17923320d5e8073a03ec7403e0b1123ad1d01db54cbd2c1ba5c27b6224",
+    "runtime/layer-10-1.f32": "41261e52d5d8e3b62f813d2f8d577f4aeb3b1e6332e203e547d8ae023b8e82c1",
+    "runtime/layer-3-1.f32": "18c5ccde84cc275226583bb704983c6bca242c34b19fb1c94b72c97b5c61e39c",
+    "runtime/layer-2-0.f32": "044ed0bc212290ed7a994bbb1094df88f934cb3d2990c0af82072c9a4e6574d9",
+    "runtime/attn0-runtime-v.f32": "955bce8c6df3b3087d29c884abfbfd9ecbc343e973b22c876fd18412fa9af3f6",
+    "runtime/attn0-runtime-context.f32": "add3b7b52d556519f7eb783bba197bf62d71c781c19e9c8cd965f17526fc9d3f",
+    "runtime/layer-11-0.f32": "738629f401a72ed7410cc1348428cafae456fbd84ef1c568ccaa56cda3af3a6e",
+    "runtime/layer-23-2.f32": "1e537e7faeafabb78e0c7e0957b1a96d7389327ef1724576219982009cf7e223",
+    "runtime/attn0-runtime-q.f32": "a377a1e2ecc765b0b7bb66a07e8b728783034de99115d56ee1903afcebb24a66",
+    "runtime/layer-24-1.f32": "944ad5fdd5e2daff07735242e0139368b94c8eea08cee6c6ad1ffe08ed2fc64b",
+    "runtime/stderr.log": "7553b611c89809ff033961905f6ce72250507bb001028a00e37c3c60eee5c348",
+    "runtime/layer-7-2.f32": "5ecc956058baede0915c9038fdce62b6685a42f71227dcd9bd6c6604bf923817",
+    "runtime/layer-14-2.f32": "df46700c0357de58ec28d3e6c8a0c4d50e58ea17608999200b5c2fc8aeab72d4",
+    "runtime/layer-26-0.f32": "a056721046f88cf8879216777a9ec4e3a35d4f1f5c951d791236e843ec2eec5d",
+    "runtime/runtime-input.f32": "85dd9c52dcc520c4bda28e7006a12ca4eaaf8ad4e82cacced6143b6eac2e8083",
+    "runtime/layer-18-2.f32": "e5af2e443c67d126856c9752937a628aa9cafb9e2db48159d4512e568dbc49e7",
+    "runtime/layer-0-1.f32": "b8d795691e81e9fde1970dd1c4089016c72d67b047906da0c352efeaa4b5ca8b",
+    "runtime/layer-13-1.f32": "1a7b5a7067462daf6b427e2c2c7077a55c2fef7c3ece6139c6647414cef1097e",
+    "runtime/layer-3-0.f32": "1bc82f8e7f98e67c3e9c5548b0f948f63e21b00a0e7653815ee8f4e3a4246e67",
+    "runtime/layer-22-2.f32": "dd933ff5fc4d0050273d4783549ec71bba8410597e8e87c6e44ea4df36cb6c94",
+    "runtime/layer-10-0.f32": "dfbe3b01711fceb2969cbc9d93e7e3cd26923a72a1fbdd559d9c0446e4986cc0",
+    "runtime/layer-25-1.f32": "ba46432b50a97c642285e0066e6c5c4fc72d19f6235a8bfe2ecc715a00b9fdce",
+    "runtime/layer-6-2.f32": "09bbe735e469806daa8a03638683fe672a6659e449b56a9c04fd73623f755aed",
+    "runtime/layer-27-0.f32": "844ff9efe140e682746734225c6ccde107394e829e20a32e4667666657fee2ff",
+    "runtime/layer-15-2.f32": "7ac0a20600a96d9659dc2206d3f6c9345e12ee9f5ff0a2c201598020500ac977",
+    "runtime/layer-1-1.f32": "921a2f578cca520871a9f05781d4c88a186fd66154737eb81bdbcf73249c87c1",
+    "runtime/layer-19-2.f32": "57796a4abdce69a395a8f0061ce28743a0e3c68f1a44f52b3d37de776d792216",
+    "runtime/layer-12-1.f32": "4026eac048627b3659ef650e99388e3af6264a1ff5721711bb12e0179dad21f0",
+    "runtime/stdout.log": "c0128cf16806c7e975a0d618a2b71e74cfae6a1d37c5468bb0e0f16087648b70",
+    "build/probe.compile.stderr": "356dc3723973736768f2230bed24143080912e4844563a30842283b7d297d97b",
+    "build/stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build/build-report.json": "7fdae4d4c0cb455101c45a9a481b1755da51ac88b6e7f2873402395384ecd82d",
+    "build/native-probe": "ada7968b15ec6be82041b95cfc8a54f657770d60808be9ddca08cec63164f69c",
+    "build/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build/baseline.compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build/native-baseline": "6685d38ac541fc5f132ccb8976f755a8d1aacf9859056d7336723bc34af1c233",
+    "build/baseline.compile.stderr": "5e3c89c31ce35dac54964ef9a0eef03681bf125891aa4f917b135b8f63399477",
+    "build/probe.compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "baseline/layer-17-1.f32": "c049399980c4523452dc80fd0f41bddcc2edc48507b5c8c5a5978b83db256f3a",
+    "baseline/layer-0-0.f32": "08af09c13b7270f25784714649ee84205ad8832e08f0446747f5d4d3c762c42f",
+    "baseline/layer-22-0.f32": "95388fd0a713dbcd90e352ce23e0997e139a24fea9bbc71c29a173b8d9577fdf",
+    "baseline/layer-10-2.f32": "738629f401a72ed7410cc1348428cafae456fbd84ef1c568ccaa56cda3af3a6e",
+    "baseline/layer-19-0.f32": "e5af2e443c67d126856c9752937a628aa9cafb9e2db48159d4512e568dbc49e7",
+    "baseline/layer-20-1.f32": "86bb1d85a42de521682e8581a08d35b5965d52c1085fe4113dd66423aa04627f",
+    "baseline/layer-5-2.f32": "1fda3f4fa15c28980f996eb0053a499ed664bd8665b5acf69bd8094e2a732292",
+    "baseline/layer-9-2.f32": "dfbe3b01711fceb2969cbc9d93e7e3cd26923a72a1fbdd559d9c0446e4986cc0",
+    "baseline/layer-27-2.f32": "fe6816c8e5c80a85b03e98086ec6930cab22e527ed1508755aa0996ca3e74547",
+    "baseline/layer-15-0.f32": "df46700c0357de58ec28d3e6c8a0c4d50e58ea17608999200b5c2fc8aeab72d4",
+    "baseline/layer-2-1.f32": "6e143344705e5e2e2def6bacd20ab31b7de4e03a74a3cef49b227535f65953a3",
+    "baseline/layer-1-0.f32": "f7964c4e490b20e8ee76969f4f3c1be93bd3253ac6451d99d631c0ccfd643b04",
+    "baseline/layer-16-1.f32": "aab1ff2aad1d6dc39d37fedc067f9b77b53fa86f3039b89c0a0954226fc75530",
+    "baseline/layer-11-2.f32": "dbd4aeaa0623d5cdf5f5bc2819ab879bcb1e8a1c0a0c02c58924d495537ea0e9",
+    "baseline/layer-23-0.f32": "dd933ff5fc4d0050273d4783549ec71bba8410597e8e87c6e44ea4df36cb6c94",
+    "baseline/layer-18-0.f32": "4d04b04ed4d7847306af18952dec9972108b668a01125f43d8ec191d53f86211",
+    "baseline/layer-4-2.f32": "94c1a863e0c408782d0545226927395a6ed084fa4dbd45c1b6262dd3f6478cd2",
+    "baseline/layer-21-1.f32": "c4de0218ab749bbc34ee4b5262a7620928f6d8fe5b542c24586b6b9d9a282505",
+    "baseline/layer-8-2.f32": "ef56be17923320d5e8073a03ec7403e0b1123ad1d01db54cbd2c1ba5c27b6224",
+    "baseline/layer-3-1.f32": "18c5ccde84cc275226583bb704983c6bca242c34b19fb1c94b72c97b5c61e39c",
+    "baseline/layer-14-0.f32": "4c4f6fa42813273f9ea39d0a4590bc1b87821367189c1fe302b7183a4446c39e",
+    "baseline/layer-26-2.f32": "844ff9efe140e682746734225c6ccde107394e829e20a32e4667666657fee2ff",
+    "baseline/layer-15-1.f32": "f97e9f3fa853713012bd2581b698bb1533ad9bc3239002e9bf77950d728a6ad5",
+    "baseline/layer-2-0.f32": "044ed0bc212290ed7a994bbb1094df88f934cb3d2990c0af82072c9a4e6574d9",
+    "baseline/layer-12-2.f32": "575ebf8c34baf49ad3f4709ea48c5852a7cb83e39a803cafdde28f1cb855c6c5",
+    "baseline/layer-20-0.f32": "57796a4abdce69a395a8f0061ce28743a0e3c68f1a44f52b3d37de776d792216",
+    "baseline/layer-19-1.f32": "70e8aec27d1d217d41df9fef6c2ff3c5544af145de319134e63e3c9aac2aa0d6",
+    "baseline/layer-22-1.f32": "120f92b01cd59f117a30ea303a516584b63a8396874b0db218119ecbb92d0ffc",
+    "baseline/layer-7-2.f32": "5ecc956058baede0915c9038fdce62b6685a42f71227dcd9bd6c6604bf923817",
+    "baseline/layer-17-0.f32": "7cdd6067c69d43fe940828b1a45a5be711043376d0533ef4f9fb54fd2d11f2f7",
+    "baseline/layer-25-2.f32": "a056721046f88cf8879216777a9ec4e3a35d4f1f5c951d791236e843ec2eec5d",
+    "baseline/layer-0-1.f32": "b8d795691e81e9fde1970dd1c4089016c72d67b047906da0c352efeaa4b5ca8b",
+    "baseline/layer-3-0.f32": "1bc82f8e7f98e67c3e9c5548b0f948f63e21b00a0e7653815ee8f4e3a4246e67",
+    "baseline/layer-14-1.f32": "8acfbc870fce5c03b9a38740faee6317323a4efb1672868ec399d4c6add85283",
+    "baseline/layer-21-0.f32": "3c9c25a6b5e76cf08628e6f226efccb1354fd2180a9513f85d689713fc832434",
+    "baseline/layer-13-2.f32": "4c4f6fa42813273f9ea39d0a4590bc1b87821367189c1fe302b7183a4446c39e",
+    "baseline/layer-18-1.f32": "ed0a015f656517e69b596f46caf2c865ac8fd22a548217479e80fd0287292df3",
+    "baseline/layer-6-2.f32": "09bbe735e469806daa8a03638683fe672a6659e449b56a9c04fd73623f755aed",
+    "baseline/layer-23-1.f32": "371f2fb851eb3e99f1abb8bcf3758c61b1b4c9ed04111f607a9c9732f17c8d8f",
+    "baseline/layer-1-1.f32": "921a2f578cca520871a9f05781d4c88a186fd66154737eb81bdbcf73249c87c1",
+    "baseline/layer-24-2.f32": "d0e03e9efd47c6df12e3d3fc2aa3a50954dc6055ce78dc1c0a60025f6747ab41",
+    "baseline/layer-16-0.f32": "7ac0a20600a96d9659dc2206d3f6c9345e12ee9f5ff0a2c201598020500ac977",
+    "baseline/layer-8-0.f32": "5ecc956058baede0915c9038fdce62b6685a42f71227dcd9bd6c6604bf923817",
+    "baseline/layer-14-2.f32": "df46700c0357de58ec28d3e6c8a0c4d50e58ea17608999200b5c2fc8aeab72d4",
+    "baseline/layer-26-0.f32": "a056721046f88cf8879216777a9ec4e3a35d4f1f5c951d791236e843ec2eec5d",
+    "baseline/stderr.log": "7553b611c89809ff033961905f6ce72250507bb001028a00e37c3c60eee5c348",
+    "baseline/layer-18-2.f32": "e5af2e443c67d126856c9752937a628aa9cafb9e2db48159d4512e568dbc49e7",
+    "baseline/runtime.f32": "ec3a30c753494488a34eb2dc252fd7b9eed5bc4d350b7ca1094b876dd937aaab",
+    "baseline/layer-4-0.f32": "1bbda531144f4eb10f755a9dc11b641d826745ada0b8e673b9733ac7a7a6aad6",
+    "baseline/layer-13-1.f32": "1a7b5a7067462daf6b427e2c2c7077a55c2fef7c3ece6139c6647414cef1097e",
+    "baseline/layer-6-1.f32": "cec41c3f1e8cd4b921ccf51c785c1d6c767abb03d16997fe561b2750fab67495",
+    "baseline/layer-11-0.f32": "738629f401a72ed7410cc1348428cafae456fbd84ef1c568ccaa56cda3af3a6e",
+    "baseline/layer-23-2.f32": "1e537e7faeafabb78e0c7e0957b1a96d7389327ef1724576219982009cf7e223",
+    "baseline/layer-1-2.f32": "044ed0bc212290ed7a994bbb1094df88f934cb3d2990c0af82072c9a4e6574d9",
+    "baseline/layer-24-1.f32": "944ad5fdd5e2daff07735242e0139368b94c8eea08cee6c6ad1ffe08ed2fc64b",
+    "baseline/layer-9-0.f32": "ef56be17923320d5e8073a03ec7403e0b1123ad1d01db54cbd2c1ba5c27b6224",
+    "baseline/layer-27-0.f32": "844ff9efe140e682746734225c6ccde107394e829e20a32e4667666657fee2ff",
+    "baseline/layer-15-2.f32": "7ac0a20600a96d9659dc2206d3f6c9345e12ee9f5ff0a2c201598020500ac977",
+    "baseline/stdout.log": "c0128cf16806c7e975a0d618a2b71e74cfae6a1d37c5468bb0e0f16087648b70",
+    "baseline/layer-19-2.f32": "57796a4abdce69a395a8f0061ce28743a0e3c68f1a44f52b3d37de776d792216",
+    "baseline/layer-12-1.f32": "4026eac048627b3659ef650e99388e3af6264a1ff5721711bb12e0179dad21f0",
+    "baseline/layer-5-0.f32": "94c1a863e0c408782d0545226927395a6ed084fa4dbd45c1b6262dd3f6478cd2",
+    "baseline/layer-22-2.f32": "dd933ff5fc4d0050273d4783549ec71bba8410597e8e87c6e44ea4df36cb6c94",
+    "baseline/layer-10-0.f32": "dfbe3b01711fceb2969cbc9d93e7e3cd26923a72a1fbdd559d9c0446e4986cc0",
+    "baseline/layer-7-1.f32": "6bbc81d1c3a6f7466928f0aa9b4bdb1d9f907abfa2bac728bf00b450bedfcdcf",
+    "baseline/layer-25-1.f32": "ba46432b50a97c642285e0066e6c5c4fc72d19f6235a8bfe2ecc715a00b9fdce",
+    "baseline/layer-0-2.f32": "f7964c4e490b20e8ee76969f4f3c1be93bd3253ac6451d99d631c0ccfd643b04",
+    "baseline/layer-24-0.f32": "1e537e7faeafabb78e0c7e0957b1a96d7389327ef1724576219982009cf7e223",
+    "baseline/layer-16-2.f32": "7cdd6067c69d43fe940828b1a45a5be711043376d0533ef4f9fb54fd2d11f2f7",
+    "baseline/layer-6-0.f32": "1fda3f4fa15c28980f996eb0053a499ed664bd8665b5acf69bd8094e2a732292",
+    "baseline/layer-11-1.f32": "25090cefc3d8eebddf6ffa4e4005972803b726d398e9acdf4e5c2d83a3f12637",
+    "baseline/layer-4-1.f32": "65de5c63c26e5ad7e6aa47ec3c4f3e70b604bcb64cf4c3573238da1e659ee62c",
+    "baseline/layer-21-2.f32": "95388fd0a713dbcd90e352ce23e0997e139a24fea9bbc71c29a173b8d9577fdf",
+    "baseline/layer-13-0.f32": "575ebf8c34baf49ad3f4709ea48c5852a7cb83e39a803cafdde28f1cb855c6c5",
+    "baseline/layer-3-2.f32": "1bbda531144f4eb10f755a9dc11b641d826745ada0b8e673b9733ac7a7a6aad6",
+    "baseline/runtime-input.f32": "85dd9c52dcc520c4bda28e7006a12ca4eaaf8ad4e82cacced6143b6eac2e8083",
+    "baseline/layer-26-1.f32": "29d22ac0ddb4eb16d539f4b3be7150d3b7896ba0e84659cdb9dd43eb55112733",
+    "baseline/layer-8-1.f32": "cffec3661df1d7f1c81d199b1708aa80b281fb2f5567ab057fe7b60dbe34770d",
+    "baseline/layer-17-2.f32": "4d04b04ed4d7847306af18952dec9972108b668a01125f43d8ec191d53f86211",
+    "baseline/layer-25-0.f32": "d0e03e9efd47c6df12e3d3fc2aa3a50954dc6055ce78dc1c0a60025f6747ab41",
+    "baseline/layer-10-1.f32": "41261e52d5d8e3b62f813d2f8d577f4aeb3b1e6332e203e547d8ae023b8e82c1",
+    "baseline/layer-7-0.f32": "09bbe735e469806daa8a03638683fe672a6659e449b56a9c04fd73623f755aed",
+    "baseline/layer-12-0.f32": "dbd4aeaa0623d5cdf5f5bc2819ab879bcb1e8a1c0a0c02c58924d495537ea0e9",
+    "baseline/layer-20-2.f32": "3c9c25a6b5e76cf08628e6f226efccb1354fd2180a9513f85d689713fc832434",
+    "baseline/layer-5-1.f32": "bd2c275d2ec73a947abbdf8a65c6ee02acc4211a808f4d1cf6ab9aec68e7eaff",
+    "baseline/layer-27-1.f32": "6914fcc8984801e9e6913521d7b1af44959c8d65f861d2d8efb9326b57203501",
+    "baseline/layer-2-2.f32": "1bc82f8e7f98e67c3e9c5548b0f948f63e21b00a0e7653815ee8f4e3a4246e67",
+    "baseline/layer-9-1.f32": "4f299cea21297bebc6d3b41b96c2ca069b284c637caf648eeddd55a11ac8ac50"
+  },
+  "bound_consumer_result_sha256": "58ca035d6c0d590bc979a20999aa8ce2c98f1a22bf33f5b1679dad366cf7ee7c",
+  "interpretation": "Layer0 RMSNorm differs by up to4.768e-7. Q/K/V on exact runtime inputs all satisfy the existing native accumulation bound versus independently decoded double dots. Their maximum absolute errors are3.369e-6/4.643e-6/1.649e-6. End-to-end attention context differs by1.221e-4. This excludes a demonstrated Q2 projection violation at these actual inputs, not every possible local defect or the remaining short NLL/rank failures."
+}

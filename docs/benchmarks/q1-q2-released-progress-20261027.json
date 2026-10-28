@@ -1,0 +1,2447 @@
+{
+  "date": "2026-10-27",
+  "status": "incomplete; no merge or additional allowance",
+  "scope": "Released Q2 short independent HF checks and explicit KV attribution controls; Q1 split MoE main control.",
+  "reference": {
+    "argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-q2-short-hf-20261027",
+      "--read-only",
+      "--network",
+      "none",
+      "--tmpfs",
+      "/tmp:rw,size=1g",
+      "--cpuset-cpus",
+      "3",
+      "--cpus",
+      "1",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/venv:/venv:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-bf16-calibration-v1/overlay:/overlay:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-short-v2/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf:/model.gguf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q5-file-reference:/assets:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-short-v2:/out",
+      "-e",
+      "PYTHONPATH=/overlay",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "HF_HOME=/assets/hf-cache",
+      "-e",
+      "HF_HUB_CACHE=/assets/hf-cache/hub",
+      "-e",
+      "TOKENIZERS_PARALLELISM=false",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+      "/venv/bin/python",
+      "-B",
+      "-u",
+      "/w/tools/gen_baseline.py",
+      "file-exact",
+      "--weights-gguf",
+      "/model.gguf",
+      "--repo",
+      "Qwen/Qwen3-0.6B",
+      "--revision",
+      "c1899de289a04d12100db370d81485cdf75e47ca",
+      "--output-dir",
+      "/out/goldens",
+      "--threads",
+      "1"
+    ],
+    "started": 1793123750.746436,
+    "status": "pass",
+    "source_manifest_sha256": "324be939bbacf216f0035cad2cf01db2a4b96f7e213b143f8435912a29660dac",
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "memory_samples": [
+      {
+        "at": 1793123751.0757465,
+        "available_bytes": 26293731328
+      },
+      {
+        "at": 1793123753.076137,
+        "available_bytes": 26232655872
+      },
+      {
+        "at": 1793123755.076719,
+        "available_bytes": 26074030080
+      },
+      {
+        "at": 1793123757.077294,
+        "available_bytes": 25201762304
+      },
+      {
+        "at": 1793123759.0778718,
+        "available_bytes": 23996989440
+      },
+      {
+        "at": 1793123761.078454,
+        "available_bytes": 22617395200
+      },
+      {
+        "at": 1793123763.079138,
+        "available_bytes": 21402529792
+      },
+      {
+        "at": 1793123765.0798533,
+        "available_bytes": 20827262976
+      },
+      {
+        "at": 1793123767.080536,
+        "available_bytes": 20249214976
+      },
+      {
+        "at": 1793123769.081248,
+        "available_bytes": 19514638336
+      },
+      {
+        "at": 1793123771.0820174,
+        "available_bytes": 18960363520
+      },
+      {
+        "at": 1793123773.0826879,
+        "available_bytes": 18243702784
+      },
+      {
+        "at": 1793123775.0833964,
+        "available_bytes": 18099580928
+      },
+      {
+        "at": 1793123777.0840738,
+        "available_bytes": 17698488320
+      },
+      {
+        "at": 1793123779.0846817,
+        "available_bytes": 17804750848
+      },
+      {
+        "at": 1793123781.0853584,
+        "available_bytes": 17850978304
+      },
+      {
+        "at": 1793123783.086132,
+        "available_bytes": 17876545536
+      },
+      {
+        "at": 1793123785.0867932,
+        "available_bytes": 17898696704
+      },
+      {
+        "at": 1793123787.087532,
+        "available_bytes": 17919115264
+      },
+      {
+        "at": 1793123789.0882003,
+        "available_bytes": 17913647104
+      },
+      {
+        "at": 1793123791.0887825,
+        "available_bytes": 17802899456
+      },
+      {
+        "at": 1793123793.0894043,
+        "available_bytes": 19113816064
+      }
+    ],
+    "support_files": {
+      "fixtures.json": "fe77caf81d7f34690d18ad2a859406f99d127c6a9ef2a51088e3dc21b7a9aa4e",
+      "wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c"
+    },
+    "scope": "Independent released-file short HF reference, no candidate comparisons.",
+    "cid": "8b7133a4457b3282b4e0028e57b80cab5313b3017a27e3bc607ed2f4de2b295d",
+    "docker_start_pid": 3765972,
+    "exit_code": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-27T17:55:51.107999699Z",
+      "FinishedAt": "2026-10-27T17:56:33.800575095Z"
+    },
+    "outputs": {
+      "goldens/baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010",
+      "goldens/baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4"
+    },
+    "removed": true,
+    "seconds": 44.58285427093506,
+    "log_sha256": "4303b1e88fb9d6855e9f63b87e8147ac1a2f19446c55ff4e145d69f74c5200a4"
+  },
+  "reference_files": {
+    "baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+    "baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010"
+  },
+  "consumers": {
+    "consumer-cpu": {
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "--device",
+        "cpu",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\released-q2-short-v2",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf"
+      ],
+      "started": 1793123927.960055,
+      "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+      "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+      "source_hashes": {
+        "tests/baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57"
+      },
+      "reference_hashes": {
+        "baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+        "baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010"
+      },
+      "status": "fail",
+      "exit_code": 1,
+      "seconds": 4.121196031570435,
+      "stdout": "file-exact-logits[Qwen3-0.6B-Q2_0.gguf]: 4/6 prompts agree, 2 differ:\n    The capital of France is\n      top-5 overlap 4/5 below bound 5\n    The three primary colors are red,\n      top-1 102644, HF 102563\n",
+      "stdout_sha256": "c18e9ef65c363d2bb9154d601951ed41be4fd2aa1238ffcace17ec1c82f86225"
+    },
+    "consumer-vulkan-0": {
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\released-q2-short-v2",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf"
+      ],
+      "started": 1793123960.0346305,
+      "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+      "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+      "source_hashes": {
+        "tests/baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57"
+      },
+      "reference_hashes": {
+        "baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+        "baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010"
+      },
+      "status": "fail",
+      "exit_code": 1,
+      "seconds": 6.36809229850769,
+      "stdout": "file-exact-logits[Qwen3-0.6B-Q2_0.gguf]: 4/6 prompts agree, 2 differ:\n    The capital of France is\n      top-5 overlap 4/5 below bound 5\n    The three primary colors are red,\n      top-1 102644, HF 102563\n",
+      "stdout_sha256": "c18e9ef65c363d2bb9154d601951ed41be4fd2aa1238ffcace17ec1c82f86225"
+    },
+    "consumer-cpu-cache-f32": {
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "--device",
+        "cpu",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\released-q2-short-v2",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf"
+      ],
+      "started": 1793124286.244366,
+      "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+      "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+      "source_hashes": {
+        "tests/baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57"
+      },
+      "reference_hashes": {
+        "baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+        "baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010"
+      },
+      "status": "pass",
+      "cache_request": "f32",
+      "exit_code": 0,
+      "seconds": 86.60337495803833,
+      "stdout": "file-exact-logits[Qwen3-0.6B-Q2_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=0 chunks=1 batched]: PPL 42458000.0000 vs HF 42461078.0494, NLL delta 0.000072 <= 0.010  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=0 chunks=1 per-token]: PPL 42457800.0000 vs HF 42461078.0494, NLL delta 0.000078 <= 0.010  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=4 batched]: PPL 42343800.0000 vs HF 42341433.8126, NLL delta 0.000056 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=4 per-token]: PPL 42343700.0000 vs HF 42341433.8126, NLL delta 0.000053 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=2 batched]: PPL 37306200.0000 vs HF 37302187.5765, NLL delta 0.000107 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=2 per-token]: PPL 37306300.0000 vs HF 37302187.5765, NLL delta 0.000110 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=123 chunks=2 batched]: PPL 37102500.0000 vs HF 37098461.0932, NLL delta 0.000108 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=123 chunks=2 per-token]: PPL 37102300.0000 vs HF 37098461.0932, NLL delta 0.000104 <= 0.020  [ok]\n",
+      "stdout_sha256": "de05513cff420813f9ca13242c5aa13637c1603fbd7555100266955784603b4c"
+    },
+    "consumer-vulkan-0-cache-f32": {
+      "argv": [
+        "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-X",
+        "utf8",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\tests\\baseline.py",
+        "--exe",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\released-q2-short-v2",
+        "--model",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf"
+      ],
+      "started": 1793124392.9046822,
+      "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+      "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+      "source_hashes": {
+        "tests/baseline.py": "42bc6cdb5536de0abace3dcdcf3f8017fb06a6f66fbf28df029f0f4c03d9ad25",
+        "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+        "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57"
+      },
+      "reference_hashes": {
+        "baseline_logits.json": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+        "baseline_perplexity.json": "317c0604e278dc7d9c17cfa0d923feb2173fc5e1725da084ef53053127b86010"
+      },
+      "status": "pass",
+      "cache_request": "f32",
+      "exit_code": 0,
+      "seconds": 34.53830671310425,
+      "stdout": "file-exact-logits[Qwen3-0.6B-Q2_0.gguf]: top-1 6/6, top-5 set >=5 6/6, exact order 6/6  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=0 chunks=1 batched]: PPL 42458000.0000 vs HF 42461078.0494, NLL delta 0.000072 <= 0.010  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=0 chunks=1 per-token]: PPL 42459000.0000 vs HF 42461078.0494, NLL delta 0.000049 <= 0.010  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=4 batched]: PPL 42344200.0000 vs HF 42341433.8126, NLL delta 0.000065 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=4 per-token]: PPL 42343800.0000 vs HF 42341433.8126, NLL delta 0.000056 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=2 batched]: PPL 37307800.0000 vs HF 37302187.5765, NLL delta 0.000150 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=64 chunks=2 per-token]: PPL 37306200.0000 vs HF 37302187.5765, NLL delta 0.000107 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=123 chunks=2 batched]: PPL 37103000.0000 vs HF 37098461.0932, NLL delta 0.000123 <= 0.020  [ok]\nfile-exact-ppl[Qwen3-0.6B-Q2_0.gguf c=123 chunks=2 per-token]: PPL 37101800.0000 vs HF 37098461.0932, NLL delta 0.000090 <= 0.020  [ok]\n",
+      "stdout_sha256": "139309447f894f48cb15ac7302cef4b5c05853dca59fdd24707f63ee93bb5731"
+    }
+  },
+  "released_q2_results": {
+    "default_f16_kv": {
+      "cpu": "4/6 prompt checks pass",
+      "radeon_vii": "4/6 prompt checks pass",
+      "failure": "first prompt top-5 overlap4/5; fourth prompt top-1 differs",
+      "nll": "not run by consumer after prompt failure"
+    },
+    "f32_kv": {
+      "cpu": {
+        "top1": 6,
+        "top5": 6,
+        "prompts": 6,
+        "nll_checks": 8,
+        "max_nll_delta_printed": 0.00011
+      },
+      "radeon_vii": {
+        "top1": 6,
+        "top5": 6,
+        "prompts": 6,
+        "nll_checks": 8,
+        "max_nll_delta_printed": 0.00015
+      },
+      "limits": {
+        "top1": "exact",
+        "top5": "5/5 with existing boundary tie rule",
+        "continuous_nll": 0.01,
+        "window_nll": 0.02
+      }
+    }
+  },
+  "policy_controls": {
+    "scope": "Fixed two-prompt dtype/cache diagnostic; original default-policy failures remain open.",
+    "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+    "golden_sha256": "c4ed9c1c092a8e3278870d84c5150573177b4c8c9b841ed48cc88db56afad2c4",
+    "planned_calls": 16,
+    "calls": [
+      {
+        "label": "cpu-auto-f16-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124080.79019,
+        "dtype_request": "auto",
+        "cache": "f16",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.6564071178436279,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          95689,
+          239,
+          7942,
+          6796,
+          137174,
+          141816
+        ],
+        "logits": [
+          13.830538,
+          13.658185,
+          13.170679,
+          12.86969,
+          12.485975,
+          12.294395,
+          12.260038,
+          12.203435,
+          12.087412,
+          11.958773
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "passed": false,
+        "error": "top-5 overlap 4/5 below bound 5"
+      },
+      {
+        "label": "cpu-auto-f16-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124081.4475977,
+        "dtype_request": "auto",
+        "cache": "f16",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.4753115177154541,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          102644,
+          102563,
+          99532,
+          103971,
+          117884,
+          102272,
+          31235,
+          109677,
+          26177,
+          24562
+        ],
+        "logits": [
+          15.928396,
+          15.578787,
+          15.204554,
+          15.022495,
+          14.559933,
+          14.544014,
+          14.473849,
+          14.082888,
+          14.021124,
+          13.938384
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "passed": false,
+        "error": "top-1 102644, HF 102563"
+      },
+      {
+        "label": "cpu-auto-f32-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124081.9239104,
+        "dtype_request": "auto",
+        "cache": "f32",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.5464203357696533,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "logits": [
+          13.334704,
+          12.466221,
+          12.341845,
+          12.179815,
+          11.949049,
+          11.932824,
+          11.632198,
+          11.53828,
+          11.403922,
+          11.354603
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "check": {
+          "top1": 223,
+          "top5_overlap": 5,
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            239,
+            7942,
+            95689,
+            141816,
+            137174,
+            46085
+          ],
+          "top_logits": [
+            13.334704,
+            12.466221,
+            12.341845,
+            12.179815,
+            11.949049,
+            11.932824,
+            11.632198,
+            11.53828,
+            11.403922,
+            11.354603
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "cpu-auto-f32-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124082.4713314,
+        "dtype_request": "auto",
+        "cache": "f32",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.5949440002441406,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); cpu native: block-int16 (Q4/Q5/Q6/MXFP4 decode, wide K-quant and routed Q4/Q5/Q6 prompts), f32 (other products, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "logits": [
+          16.545847,
+          16.485262,
+          15.232294,
+          14.986527,
+          14.861174,
+          14.463395,
+          14.352915,
+          14.336808,
+          14.10058,
+          13.973663
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "check": {
+          "top1": 102563,
+          "top5_overlap": 5,
+          "top_ids": [
+            102563,
+            102644,
+            99532,
+            103971,
+            117884,
+            109677,
+            31235,
+            102272,
+            99346,
+            26177
+          ],
+          "top_logits": [
+            16.545847,
+            16.485262,
+            15.232294,
+            14.986527,
+            14.861174,
+            14.463395,
+            14.352915,
+            14.336808,
+            14.10058,
+            13.973663
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "cpu-f32-f16-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124083.0672748,
+        "dtype_request": "f32",
+        "cache": "f16",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.5744071006774902,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          95689,
+          239,
+          7942,
+          6796,
+          137174,
+          141816
+        ],
+        "logits": [
+          13.830461,
+          13.65819,
+          13.170306,
+          12.869514,
+          12.48595,
+          12.294277,
+          12.26004,
+          12.203222,
+          12.087366,
+          11.958957
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "passed": false,
+        "error": "top-5 overlap 4/5 below bound 5"
+      },
+      {
+        "label": "cpu-f32-f16-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124083.641682,
+        "dtype_request": "f32",
+        "cache": "f16",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.5202009677886963,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          102644,
+          102563,
+          99532,
+          103971,
+          117884,
+          102272,
+          31235,
+          109677,
+          26177,
+          24562
+        ],
+        "logits": [
+          15.928504,
+          15.578802,
+          15.204543,
+          15.02247,
+          14.560135,
+          14.543917,
+          14.473855,
+          14.083104,
+          14.02107,
+          13.938281
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "passed": false,
+        "error": "top-1 102644, HF 102563"
+      },
+      {
+        "label": "cpu-f32-f32-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124084.1638834,
+        "dtype_request": "f32",
+        "cache": "f32",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.5128653049468994,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "logits": [
+          13.334684,
+          12.466127,
+          12.341829,
+          12.179929,
+          11.948957,
+          11.932784,
+          11.632119,
+          11.538253,
+          11.403879,
+          11.35455
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "check": {
+          "top1": 223,
+          "top5_overlap": 5,
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            239,
+            7942,
+            95689,
+            141816,
+            137174,
+            46085
+          ],
+          "top_logits": [
+            13.334684,
+            12.466127,
+            12.341829,
+            12.179929,
+            11.948957,
+            11.932784,
+            11.632119,
+            11.538253,
+            11.403879,
+            11.35455
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "cpu-f32-f32-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "cpu",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124084.6777482,
+        "dtype_request": "f32",
+        "cache": "f32",
+        "device": "cpu",
+        "exit_code": 0,
+        "seconds": 0.4929654598236084,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); cpu native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "logits": [
+          16.54566,
+          16.485334,
+          15.23233,
+          14.986477,
+          14.860991,
+          14.463297,
+          14.352762,
+          14.336613,
+          14.1006,
+          13.973785
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "check": {
+          "top1": 102563,
+          "top5_overlap": 5,
+          "top_ids": [
+            102563,
+            102644,
+            99532,
+            103971,
+            117884,
+            109677,
+            31235,
+            102272,
+            99346,
+            26177
+          ],
+          "top_logits": [
+            16.54566,
+            16.485334,
+            15.23233,
+            14.986477,
+            14.860991,
+            14.463297,
+            14.352762,
+            14.336613,
+            14.1006,
+            13.973785
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "vulkan-0-auto-f16-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124085.1717138,
+        "dtype_request": "auto",
+        "cache": "f16",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 1.016695261001587,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          95689,
+          239,
+          7942,
+          6796,
+          137174,
+          141816
+        ],
+        "logits": [
+          14.132852,
+          13.954956,
+          13.447067,
+          12.899729,
+          12.719568,
+          12.500112,
+          12.362562,
+          12.356363,
+          12.137623,
+          12.127899
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "passed": false,
+        "error": "top-5 overlap 4/5 below bound 5"
+      },
+      {
+        "label": "vulkan-0-auto-f16-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124086.189411,
+        "dtype_request": "auto",
+        "cache": "f16",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 0.8649742603302002,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          102644,
+          102563,
+          103971,
+          99532,
+          31235,
+          102272,
+          117884,
+          26177,
+          109677,
+          99908
+        ],
+        "logits": [
+          15.759302,
+          15.315312,
+          15.125828,
+          15.095657,
+          14.651641,
+          14.649986,
+          14.48695,
+          14.109518,
+          14.042982,
+          13.9989
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "passed": false,
+        "error": "top-1 102644, HF 102563"
+      },
+      {
+        "label": "vulkan-0-auto-f32-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124087.0550995,
+        "dtype_request": "auto",
+        "cache": "f32",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 0.9324603080749512,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "logits": [
+          13.335789,
+          12.466965,
+          12.343166,
+          12.179506,
+          11.950424,
+          11.932762,
+          11.631577,
+          11.537975,
+          11.404032,
+          11.352964
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "check": {
+          "top1": 223,
+          "top5_overlap": 5,
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            239,
+            7942,
+            95689,
+            141816,
+            137174,
+            46085
+          ],
+          "top_logits": [
+            13.335789,
+            12.466965,
+            12.343166,
+            12.179506,
+            11.950424,
+            11.932762,
+            11.631577,
+            11.537975,
+            11.404032,
+            11.352964
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "vulkan-0-auto-f32-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "auto",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124087.9885597,
+        "dtype_request": "auto",
+        "cache": "f32",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 1.0185737609863281,
+        "matrix_report": "dtype: auto -> f16 (model declares bf16); vulkan:0 native: f32 (Q1_0/Q2_0), f16 (NVFP4 tile inputs), block-int16 (quantized rows except Q2_K/Q3_K; TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS rows on lookup-dot profiles), f32 (Q2_K/Q3_K, TQ1_0/TQ2_0/IQ1_S/IQ1_M/IQ2_XXS/IQ2_XS/IQ3_XXS/IQ2_S/IQ3_S/IQ4_NL/IQ4_XS fallback rows, tiles, F32 weights, routers)\r\nmatrix-paths: {\"dtype\":\"f16\",\"devices\":[[\"f32\",\"block-int16\"]]}\r\n",
+        "ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "logits": [
+          16.548153,
+          16.486191,
+          15.232887,
+          14.985512,
+          14.861275,
+          14.4637,
+          14.35178,
+          14.335665,
+          14.101234,
+          13.972806
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "check": {
+          "top1": 102563,
+          "top5_overlap": 5,
+          "top_ids": [
+            102563,
+            102644,
+            99532,
+            103971,
+            117884,
+            109677,
+            31235,
+            102272,
+            99346,
+            26177
+          ],
+          "top_logits": [
+            16.548153,
+            16.486191,
+            15.232887,
+            14.985512,
+            14.861275,
+            14.4637,
+            14.35178,
+            14.335665,
+            14.101234,
+            13.972806
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "vulkan-0-f32-f16-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124089.009672,
+        "dtype_request": "f32",
+        "cache": "f16",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 0.9568071365356445,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          95689,
+          239,
+          7942,
+          6796,
+          137174,
+          141816
+        ],
+        "logits": [
+          14.132856,
+          13.954895,
+          13.44701,
+          12.899687,
+          12.719581,
+          12.500085,
+          12.362751,
+          12.356207,
+          12.137421,
+          12.127858
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "passed": false,
+        "error": "top-5 overlap 4/5 below bound 5"
+      },
+      {
+        "label": "vulkan-0-f32-f16-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f16",
+          "--cache-type-v",
+          "f16",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124089.9684744,
+        "dtype_request": "f32",
+        "cache": "f16",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 1.0396058559417725,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          102644,
+          102563,
+          103971,
+          99532,
+          31235,
+          102272,
+          117884,
+          26177,
+          109677,
+          99908
+        ],
+        "logits": [
+          15.759199,
+          15.315154,
+          15.125892,
+          15.095395,
+          14.651539,
+          14.649971,
+          14.486888,
+          14.109527,
+          14.042993,
+          13.998896
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "passed": false,
+        "error": "top-1 102644, HF 102563"
+      },
+      {
+        "label": "vulkan-0-f32-f32-0",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The capital of France is",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124091.0090792,
+        "dtype_request": "f32",
+        "cache": "f32",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 0.9865059852600098,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "logits": [
+          13.335688,
+          12.466946,
+          12.343016,
+          12.179504,
+          11.950302,
+          11.932682,
+          11.63151,
+          11.537918,
+          11.403922,
+          11.353065
+        ],
+        "hf_top_ids": [
+          223,
+          252,
+          34811,
+          73916,
+          239,
+          7942,
+          95689,
+          141816,
+          137174,
+          46085
+        ],
+        "hf_top_logits": [
+          13.337,
+          12.4697,
+          12.3451,
+          12.1813,
+          11.9512,
+          11.9336,
+          11.634,
+          11.5391,
+          11.4055,
+          11.3553
+        ],
+        "check": {
+          "top1": 223,
+          "top5_overlap": 5,
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            239,
+            7942,
+            95689,
+            141816,
+            137174,
+            46085
+          ],
+          "top_logits": [
+            13.335688,
+            12.466946,
+            12.343016,
+            12.179504,
+            11.950302,
+            11.932682,
+            11.63151,
+            11.537918,
+            11.403922,
+            11.353065
+          ]
+        },
+        "passed": true
+      },
+      {
+        "label": "vulkan-0-f32-f32-1",
+        "argv": [
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-vulkan\\Release\\llmx.exe",
+          "logits",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\model-cache\\models--NANI-Nithin--Qwen3-0.6B-GGUF\\snapshots\\b3d33231297d7b999d94fb262c223b7562675b1c\\Qwen3-0.6B-Q2_0.gguf",
+          "The three primary colors are red,",
+          "--top",
+          "10",
+          "--device",
+          "vulkan:0",
+          "--dtype",
+          "f32",
+          "--cache-type-k",
+          "f32",
+          "--cache-type-v",
+          "f32",
+          "--threads",
+          "4"
+        ],
+        "started": 1793124091.9965854,
+        "dtype_request": "f32",
+        "cache": "f32",
+        "device": "vulkan:0",
+        "exit_code": 0,
+        "seconds": 0.9701576232910156,
+        "matrix_report": "dtype: f32 -> f32 (model declares bf16); vulkan:0 native: f32\r\nmatrix-paths: {\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}\r\n",
+        "ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "logits": [
+          16.548084,
+          16.486046,
+          15.232996,
+          14.985613,
+          14.861345,
+          14.463692,
+          14.351744,
+          14.335814,
+          14.101383,
+          13.972911
+        ],
+        "hf_top_ids": [
+          102563,
+          102644,
+          99532,
+          103971,
+          117884,
+          109677,
+          31235,
+          102272,
+          99346,
+          26177
+        ],
+        "hf_top_logits": [
+          16.548,
+          16.4862,
+          15.2327,
+          14.986,
+          14.8614,
+          14.464,
+          14.3521,
+          14.3358,
+          14.1011,
+          13.9729
+        ],
+        "check": {
+          "top1": 102563,
+          "top5_overlap": 5,
+          "top_ids": [
+            102563,
+            102644,
+            99532,
+            103971,
+            117884,
+            109677,
+            31235,
+            102272,
+            99346,
+            26177
+          ],
+          "top_logits": [
+            16.548084,
+            16.486046,
+            15.232996,
+            14.985613,
+            14.861345,
+            14.463692,
+            14.351744,
+            14.335814,
+            14.101383,
+            13.972911
+          ]
+        },
+        "passed": true
+      }
+    ]
+  },
+  "hf_cache_control": {
+    "scope": "Two fixed failing prompts, independent HF F16 KV rounding versus F32 KV. Diagnostic only; no allowance or golden changes.",
+    "weights": {
+      "file": "model.gguf",
+      "sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "bytes": 345218560,
+      "repo": null,
+      "revision": null,
+      "types": {
+        "F32": 113,
+        "Q2_0": 196,
+        "Q4_K": 1,
+        "Q6_K": 1
+      },
+      "decoder": "tests/spec_decode.py, numpy form",
+      "tensors": 311,
+      "tensors_equal_to_reference": 113
+    },
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "producer_sha256": "2133d047c06dd5f37b6c4f9998760a35bd94cd88285895c88a3ee8e02b58ab58",
+    "cases": [
+      {
+        "index": 0,
+        "text": "The capital of France is",
+        "ids": [
+          785,
+          6722,
+          315,
+          9625,
+          374
+        ],
+        "f32_cache_direct_bit_equal": true,
+        "f32": {
+          "sha256": "c5f7dc49b16d20c3681679887600051c28612574ef202e67ac45986c80996177",
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            239,
+            7942,
+            95689,
+            141816,
+            137174,
+            46085
+          ],
+          "top_logits": [
+            13.33703899383545,
+            12.469650268554688,
+            12.345115661621094,
+            12.181292533874512,
+            11.951177597045898,
+            11.933578491210938,
+            11.633964538574219,
+            11.53912353515625,
+            11.405523300170898,
+            11.355264663696289
+          ]
+        },
+        "f16": {
+          "sha256": "e5f8d33e2b09328006d16a5a1c9878f14decc6417cb8c2887945d3d7476b1425",
+          "top_ids": [
+            223,
+            252,
+            34811,
+            73916,
+            95689,
+            239,
+            7942,
+            6796,
+            137174,
+            141816
+          ],
+          "top_logits": [
+            13.956194877624512,
+            13.70298957824707,
+            13.209692001342773,
+            12.841638565063477,
+            12.596915245056152,
+            12.34505558013916,
+            12.341313362121582,
+            12.20699691772461,
+            12.059178352355957,
+            12.035200119018555
+          ]
+        },
+        "max_abs_cache_effect": 2.490482807159424
+      },
+      {
+        "index": 3,
+        "text": "The three primary colors are red,",
+        "ids": [
+          785,
+          2326,
+          6028,
+          7987,
+          525,
+          2518,
+          11
+        ],
+        "f32_cache_direct_bit_equal": true,
+        "f32": {
+          "sha256": "8c5422e99d24728d214e5750b749a91922206abfbb6cf2475434ed5d9df13f09",
+          "top_ids": [
+            102563,
+            102644,
+            99532,
+            103971,
+            117884,
+            109677,
+            31235,
+            102272,
+            99346,
+            26177
+          ],
+          "top_logits": [
+            16.548032760620117,
+            16.48619842529297,
+            15.232659339904785,
+            14.985950469970703,
+            14.861383438110352,
+            14.46402645111084,
+            14.352106094360352,
+            14.335819244384766,
+            14.101097106933594,
+            13.972893714904785
+          ]
+        },
+        "f16": {
+          "sha256": "f5b9425c349f9433e5235dd00134214ab7d4e69632c2ca910d3b66f3e66f71bb",
+          "top_ids": [
+            102644,
+            102563,
+            99532,
+            103971,
+            31235,
+            102272,
+            117884,
+            26177,
+            109677,
+            24562
+          ],
+          "top_logits": [
+            15.775797843933105,
+            15.352205276489258,
+            15.105742454528809,
+            15.100776672363281,
+            14.610390663146973,
+            14.610055923461914,
+            14.458183288574219,
+            14.086063385009766,
+            14.063861846923828,
+            13.99917221069336
+          ]
+        },
+        "max_abs_cache_effect": 1.6537132263183594
+      }
+    ]
+  },
+  "hf_cache_control_execution": {
+    "argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-q2-cache-hf-20261027",
+      "--read-only",
+      "--network",
+      "none",
+      "--tmpfs",
+      "/tmp:rw,size=1g",
+      "--cpuset-cpus",
+      "3",
+      "--cpus",
+      "1",
+      "--memory",
+      "8g",
+      "--memory-swap",
+      "8g",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "core=0",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/venv:/venv:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-bf16-calibration-v1/overlay:/overlay:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-cache-control-v1/source:/w:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-cache-control-v1/payload.py:/payload.py:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-short-v2/goldens:/goldens:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Qwen3-0.6B-Q2_0.gguf:/model.gguf:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q5-file-reference:/assets:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q2-cache-control-v1:/out",
+      "-e",
+      "PYTHONPATH=/overlay",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-e",
+      "HF_HUB_OFFLINE=1",
+      "-e",
+      "TRANSFORMERS_OFFLINE=1",
+      "-e",
+      "HF_HOME=/assets/hf-cache",
+      "-e",
+      "HF_HUB_CACHE=/assets/hf-cache/hub",
+      "-e",
+      "TOKENIZERS_PARALLELISM=false",
+      "-e",
+      "OMP_NUM_THREADS=1",
+      "-e",
+      "MKL_NUM_THREADS=1",
+      "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+      "/venv/bin/python",
+      "-B",
+      "-u",
+      "/payload.py"
+    ],
+    "started": 1793124375.3537018,
+    "status": "pass",
+    "source_manifest_sha256": "324be939bbacf216f0035cad2cf01db2a4b96f7e213b143f8435912a29660dac",
+    "model_sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+    "memory_samples": [
+      {
+        "at": 1793124375.7495713,
+        "available_bytes": 25223806976
+      },
+      {
+        "at": 1793124377.7499878,
+        "available_bytes": 25045336064
+      },
+      {
+        "at": 1793124379.750526,
+        "available_bytes": 25098211328
+      },
+      {
+        "at": 1793124381.751113,
+        "available_bytes": 23637663744
+      },
+      {
+        "at": 1793124383.7517748,
+        "available_bytes": 21436952576
+      },
+      {
+        "at": 1793124385.7524393,
+        "available_bytes": 20873216000
+      },
+      {
+        "at": 1793124387.7530806,
+        "available_bytes": 21061230592
+      },
+      {
+        "at": 1793124389.7537217,
+        "available_bytes": 21118894080
+      },
+      {
+        "at": 1793124391.7544796,
+        "available_bytes": 21050011648
+      },
+      {
+        "at": 1793124393.7551947,
+        "available_bytes": 21617352704
+      }
+    ],
+    "support_files": {
+      "fixtures.json": "fe77caf81d7f34690d18ad2a859406f99d127c6a9ef2a51088e3dc21b7a9aa4e",
+      "wiki.test.raw": "4f3e427e4aff23acff917a8a51aeae21bf12832256e26914c8fc250dcef4103c"
+    },
+    "scope": "Independent two-prompt HF F16 KV diagnostic, no acceptance changes.",
+    "cid": "ad3d89bc5106bf86bcb004ebbe34cc2048c129a26e2ac535656d64a391af1a5d",
+    "docker_start_pid": 3799602,
+    "exit_code": 0,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-27T18:06:15.789468062Z",
+      "FinishedAt": "2026-10-27T18:06:34.573594955Z"
+    },
+    "outputs": {
+      "cache-control/0-f16.bin": "e5f8d33e2b09328006d16a5a1c9878f14decc6417cb8c2887945d3d7476b1425",
+      "cache-control/0-f32.bin": "c5f7dc49b16d20c3681679887600051c28612574ef202e67ac45986c80996177",
+      "cache-control/report.json": "2344fde049df49d993f7dd449a92b7795aa96fda68a5f649bc329b9bfdd05ae3",
+      "cache-control/3-f32.bin": "8c5422e99d24728d214e5750b749a91922206abfbb6cf2475434ed5d9df13f09",
+      "cache-control/3-f16.bin": "f5b9425c349f9433e5235dd00134214ab7d4e69632c2ca910d3b66f3e66f71bb"
+    },
+    "removed": true,
+    "seconds": 20.650442838668823,
+    "log_sha256": "a6e799649382b25bb9edb3f18100885235194ad05dca007eaab5e65053489e02"
+  },
+  "hf_cache_control_vs_llmx": [
+    {
+      "label": "cpu-auto-f16-0",
+      "top10_equal": true,
+      "max_top10_logit_error": 0.12565687762451105
+    },
+    {
+      "label": "cpu-auto-f16-1",
+      "top10_equal": false,
+      "max_top10_logit_error": 0.22658172351074235
+    },
+    {
+      "label": "cpu-f32-f16-0",
+      "top10_equal": true,
+      "max_top10_logit_error": 0.12573387762451205
+    },
+    {
+      "label": "cpu-f32-f16-1",
+      "top10_equal": false,
+      "max_top10_logit_error": 0.22659672351074178
+    },
+    {
+      "label": "vulkan-0-auto-f16-0",
+      "top10_equal": true,
+      "max_top10_logit_error": 0.25196642175292894
+    },
+    {
+      "label": "vulkan-0-auto-f16-1",
+      "top10_equal": false,
+      "max_top10_logit_error": 0.041250336853027036
+    },
+    {
+      "label": "vulkan-0-f32-f16-0",
+      "top10_equal": true,
+      "max_top10_logit_error": 0.2519054217529302
+    },
+    {
+      "label": "vulkan-0-f32-f16-1",
+      "top10_equal": false,
+      "max_top10_logit_error": 0.04114833685302699
+    }
+  ],
+  "cache_interpretation": "Changing only KV storage to F32 clears both failing prompts on CPU/Vulkan. Independent HF rounding K/V to F16 reproduces the failing top-1 and top-5 membership changes. F32 cached HF equals direct HF bit for bit. This attributes sensitivity to KV rounding, but does not show identical full logits or qualify default-cache results; top-10 value differences up to0.252 remain.",
+  "q1_split_moe_main_control": {
+    "scope": "Q1 split MoE, one MI50, independent F32 decoded weights; no allowance changes.",
+    "source_execution": {
+      "model_sha256": "3eba16cd01bdbc50686cd9f32fe5ce76df013f9cc7e9effce4fe6e6a52f62333",
+      "preflight": {
+        "card0": {
+          "GPU use (%)": "71",
+          "PCI Bus": "0000:03:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "30276767744"
+        },
+        "card1": {
+          "GPU use (%)": "80",
+          "PCI Bus": "0000:44:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "29294342144"
+        },
+        "card2": {
+          "GPU use (%)": "99",
+          "PCI Bus": "0000:83:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32223105024"
+        },
+        "card3": {
+          "GPU use (%)": "99",
+          "PCI Bus": "0000:86:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "32223440896"
+        },
+        "card4": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:89:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "21458444288"
+        },
+        "card5": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:8C:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "20013518848"
+        },
+        "card6": {
+          "GPU use (%)": "100",
+          "PCI Bus": "0000:C3:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "20275654656"
+        },
+        "card7": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C6:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "21220245504"
+        },
+        "card8": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:C9:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10932224"
+        },
+        "card9": {
+          "GPU use (%)": "0",
+          "PCI Bus": "0000:CC:00.0",
+          "VRAM Total Memory (B)": "34342961152",
+          "VRAM Total Used Memory (B)": "10919936"
+        }
+      },
+      "node": "/dev/dri/renderD130",
+      "calls": [
+        {
+          "arm": "main",
+          "argv": [
+            "docker",
+            "create",
+            "--init",
+            "--name",
+            "llmx-xdev-q1-maincontrol-main",
+            "--network",
+            "none",
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,size=512m",
+            "-e",
+            "MESA_SHADER_CACHE_DIR=/tmp/mesa",
+            "--cpuset-cpus",
+            "2",
+            "--cpus",
+            "1",
+            "--memory",
+            "4g",
+            "--memory-swap",
+            "4g",
+            "--ulimit",
+            "core=0",
+            "--device",
+            "/dev/dri/renderD130",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/build-v1/build-pair-v1/main-build:/build:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/q1-moe-f32-control.gguf:/model.gguf:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/attempt-v3/out/results/ids.txt:/ids.txt:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/main-f32-control-v1:/out",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/build/llmx-model-logits",
+            "/model.gguf",
+            "/ids.txt",
+            "/out/main",
+            "vulkan:0",
+            "f32",
+            "3",
+            "0",
+            "-",
+            "1"
+          ],
+          "binary_sha256": "8c841e71167666d6ad27c693bb7ce452939da51e0072a0ecbc4ad40d735f895f",
+          "started": 1793124626.4747505,
+          "cid": "416fd813b668f1a4e557791750ef00e449a5a93324b0d1a25299badafa4828d2",
+          "exit_code": 0,
+          "state": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-27T18:10:26.603973436Z",
+            "FinishedAt": "2026-10-27T18:10:27.255705862Z"
+          },
+          "removed": true,
+          "seconds": 1.0953333377838135
+        },
+        {
+          "arm": "candidate",
+          "argv": [
+            "docker",
+            "create",
+            "--init",
+            "--name",
+            "llmx-xdev-q1-maincontrol-candidate",
+            "--network",
+            "none",
+            "--read-only",
+            "--tmpfs",
+            "/tmp:rw,size=512m",
+            "-e",
+            "MESA_SHADER_CACHE_DIR=/tmp/mesa",
+            "--cpuset-cpus",
+            "2",
+            "--cpus",
+            "1",
+            "--memory",
+            "4g",
+            "--memory-swap",
+            "4g",
+            "--ulimit",
+            "core=0",
+            "--device",
+            "/dev/dri/renderD130",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/build-v1/build-pair-v1/candidate-build:/build:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/q1-moe-f32-control.gguf:/model.gguf:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/attempt-v3/out/results/ids.txt:/ids.txt:ro",
+            "-v",
+            "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/gpu-split-v1/main-f32-control-v1:/out",
+            "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+            "/build/llmx-model-logits",
+            "/model.gguf",
+            "/ids.txt",
+            "/out/candidate",
+            "vulkan:0",
+            "f32",
+            "3",
+            "0",
+            "-",
+            "1"
+          ],
+          "binary_sha256": "78a3653fcf3aa76ea2985665882bcf4ea5d7a8b6eb2c0e7de90f80bdc93c7760",
+          "started": 1793124627.5884318,
+          "cid": "a1b4ecb644f9c10fcd2c555800d54eab5a71f5806322bbec4ad0b225623a2e2f",
+          "exit_code": 0,
+          "state": {
+            "Status": "exited",
+            "Running": false,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 0,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-10-27T18:10:27.696477604Z",
+            "FinishedAt": "2026-10-27T18:10:28.36367061Z"
+          },
+          "removed": true,
+          "seconds": 1.028031349182129
+        }
+      ],
+      "scope": "Q1 split MoE NLL diagnostic, independently decoded F32 weights on main and candidate. No bound changes.",
+      "files": {
+        "main.greedy.bin": "5dba3f88999257573c6240e7cfba93ada7ae54b29793a8a3f956c429d01aa8e1",
+        "candidate.stdout": "3848f34554e2d151f2b7729265debf9358423c148bab37cb14cf2e38494c4cc5",
+        "candidate.decode.bin": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+        "main.batched.bin": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+        "main.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "candidate.batched.bin": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+        "main.decode.bin": "f4da5ab2e28893f2a62f4123377860dc274290fe1f3e2af68d2cf0fdf8380b06",
+        "main.stdout": "3848f34554e2d151f2b7729265debf9358423c148bab37cb14cf2e38494c4cc5",
+        "candidate.greedy.bin": "5dba3f88999257573c6240e7cfba93ada7ae54b29793a8a3f956c429d01aa8e1"
+      }
+    },
+    "results": [
+      {
+        "arm": "main",
+        "nll": 18.574213855873822,
+        "reference_nll": 18.574219666744234,
+        "nll_error": 5.810870412403801e-06,
+        "nll_limit": 1e-05,
+        "nll_passed": true,
+        "max_endpoint_logit_error": 4.100799560546875e-05,
+        "batched_equal_to_packed": false
+      },
+      {
+        "arm": "candidate",
+        "nll": 18.574213855873822,
+        "reference_nll": 18.574219666744234,
+        "nll_error": 5.810870412403801e-06,
+        "nll_limit": 1e-05,
+        "nll_passed": true,
+        "max_endpoint_logit_error": 4.100799560546875e-05,
+        "batched_equal_to_packed": false
+      }
+    ],
+    "main_candidate_phase_byte_equal": {
+      "batched": true,
+      "decode": true,
+      "greedy": true
+    }
+  },
+  "q1_control_interpretation": "Main and candidate with the same independently decoded F32 control give identical batched/decode/greedy bytes and NLL error5.8108704124e-6. Packed Q1 GPU error1.0133473882e-5 fails1e-5; the F32 control does not reproduce that NLL failure. It remains open.",
+  "remaining": [
+    "Q1 released file reference and qualification",
+    "Q1 packed GPU split NLL failure",
+    "unapproved split F32 logit identities",
+    "default-cache released Q2 disposition",
+    "BF16 split qualification",
+    "16K raw/chat independent HF",
+    "matched mx Vulkan and layout-controlled performance",
+    "applicable final integration and hosted checks"
+  ],
+  "original_startup_failure": "released-q2-short-v1 lacked tests/data/fixtures.json before loading. Its terminal failure was retained, and v2 adds fixtures.json/wiki.test.raw in a separate source copy. No frozen source changed."
+}

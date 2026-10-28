@@ -4980,6 +4980,24 @@ int main(int argc, char** argv) {
         require(std::memcmp(window.data(), kept.data(), 64) == 0, "work before sync not retired");
         checks += 2;
 
+        // Reusing the ring after a newer wait must still expose fresh writes; two host waiters retire older tickets too.
+        for (size_t round = 0; round < 32; ++round) {
+            const size_t offset = 64 * round;
+            b->copy(*visible, offset, *adopted, 4096 + offset, 64);
+            const backend::Ticket first = b->submit();
+            b->copy(*visible, 2048 + offset, *adopted, 8192 + offset, 64);
+            const backend::Ticket next = b->submit();
+            std::thread newer([&] { b->wait(next); });
+            b->wait(first);
+            newer.join();
+            require(b->done(first) && b->done(next), "a retired ticket is not done");
+            b->wait(first);
+            require(std::memcmp((const uint8_t*)visible->host_ptr() + offset, kept.data() + 4096 + offset, 64) == 0 &&
+                    std::memcmp((const uint8_t*)visible->host_ptr() + 2048 + offset, kept.data() + 8192 + offset, 64) == 0,
+                    "a newer wait left a reused ring slot's copy incomplete");
+            checks += 2;
+        }
+
         // A command buffer opened with no dispatch running is submitted after its first 8 dispatches, one opened behind running dispatches after the profile's 64.
         {
             const size_t big = size_t(16) << 20;

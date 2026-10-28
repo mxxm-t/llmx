@@ -1,0 +1,69 @@
+{
+  "schema": "windows-main-selected-cpu-identity-evidence-v1",
+  "status": "pass",
+  "scope": "Windows CPU execution only; Radeon phase remains pending.",
+  "capture": {
+    "device": "cpu",
+    "prompt": "Explain how a small community can share a limited public garden fairly, and give three practical steps.",
+    "configuration": {"dtype_policy":"auto (binary default)","effective_dtype":"f16","kv_k":"f16","kv_v":"f16","ubatch":8,"cpu_experts":0,"threads":6,"prompt_tokens_per_model":20,"greedy_steps_per_model":64},
+    "result": {"models":7,"full_vocab_payload_pairs":21,"byte_identical_pairs":21,"greedy_ids_compared":448,"output_bytes_written_on_resume":982052864,"reused_main_payload_bytes":63205376,"aggregate_payload_bytes":1045258240},
+    "comparison_record": {
+      "path": "scratch/allreduce-20261028/windows-identity/cpu-resume-v1/execution.json",
+      "sha256": "3d263db2282d36500759ec8b6ae2cc6e327b4948308b5a8c92f84c5a0a02ab71"
+    },
+    "payload_layout": "Per model: <model-file>/main|selected.{batched,decode,greedy}.bin; first Qwen3-0.6B-Q8_0 main files were reused from the retained initial CPU attempt. Per-phase byte lengths and hashes are in comparison_record."
+  },
+  "sources": {
+    "main": {
+      "worktree": "worktrees/ar-main-20261028",
+      "commit": "9d00fb0a5b21bd8c68a1cef55bb3e0134147f1ee",
+      "build_receipt": {"path":"worktrees/ar-main-20261028/build-identity/build-receipt.json","sha256":"595c067115cb9473ccd4e9871b9683b26a66c947f3bf67910d07826ce247cd16"},
+      "cli": {"path":"worktrees/ar-main-20261028/build-identity/Release/llmx.exe","sha256":"7b5e833edb256aa27a89426743dd95cd61ac33bcc4bffa66c51c4377021a5679"},
+      "model_logits": {"path":"worktrees/ar-main-20261028/build-identity/Release/llmx-model-logits.exe","sha256":"b2d8347c289f1b808b7c8580d69ebd7abe64750bef6cb98eeadd6894a88835dc"},
+      "version": "llmx 0.1.0+g9d00fb0a5b21 numerics 0a82006ec5283643",
+      "source_sha256": {
+        "src/backends/vulkan/vulkan_backend.cpp":"4ee47643178d350b82eec1cba42fae340ca2e55c9be28b53ec6697ee140613b6",
+        "src/backends/vulkan/vulkan_collective.hpp":"97410e7a09d39915a0135a1aff7d7b4025d323b082fd8e64b499f89417e1afba",
+        "tests/backend_vulkan.cpp":"2124c5eaf09facc1a73e83ff61b8e4af742b380707915ffdf3b274d2bde5b2f8",
+        "tools/model_logits.cpp":"e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c"
+      }
+    },
+    "selected": {
+      "worktree": "worktrees/vulkan-shared-timeline-20261028",
+      "commit": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+      "build_receipt": {"path":"worktrees/vulkan-shared-timeline-20261028/build-landing-review-20261028/build.json","sha256":"f5083a1d86471c66538cb579dbe9401ad41d308cbe86816fbbf212abc618ec50"},
+      "suite_tools_receipt": {"path":"worktrees/vulkan-shared-timeline-20261028/build-landing-review-20261028/suite-tools.json","sha256":"07b9866bc6049df57202ea02844271f996c9a1c2d2ecb8d4fc436a9602ece53d"},
+      "cli": {"path":"worktrees/vulkan-shared-timeline-20261028/build-cache-win/Release/llmx.exe","sha256":"c4c8a63bd2a67546dba36625b6200564ea3b43c95c4f33be60f6d01dded18c72"},
+      "model_logits": {"path":"worktrees/vulkan-shared-timeline-20261028/build-cache-win/Release/llmx-model-logits.exe","sha256":"8f094f9d217fa119c4b79fa2c7747e80b9591dae7b7fcfd63bbe01c8ead4413f"},
+      "version": "llmx 0.1.0+g94c1680faa9a numerics 3a22beee5cbffa92",
+      "source_sha256": {
+        "src/backends/vulkan/vulkan_backend.cpp":"0736b556d26669eb8b357e7f53a4a2fda41725b8dd708dc224b514014afb2d54",
+        "src/backends/vulkan/vulkan_collective.hpp":"0f870d745d74d8e5f836583482c088750516a07cda23de468ec2d8b821c4f4af",
+        "tests/backend_vulkan.cpp":"f7227669c1c3dad4bcbde9cb1c8d1a40598eaefaf069f4e41df8e06d1749c50f",
+        "tools/model_logits.cpp":"e6a0a3cb0ff76f2fc886d8b8f303000eb37a34b5e44f6c533800a813625bd64c"
+      }
+    }
+  },
+  "fixtures": {
+    "manifest_path": "worktrees/ar-main-20261028/tests/data/fixtures.json",
+    "manifest_sha256": "fe77caf81d7f34690d18ad2a859406f99d127c6a9ef2a51088e3dc21b7a9aa4e",
+    "cache_root": "C:/Users/Marko/.cache/huggingface/hub",
+    "models": [
+      {"file":"Qwen3-0.6B-Q8_0.gguf","repo":"Qwen/Qwen3-0.6B-GGUF","revision":"23749fefcc72300e3a2ad315e1317431b06b590a","path":"C:/Users/Marko/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf","sha256":"9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031","bytes":639446688,"matrix_paths":{"batched":[["f32"]],"decode":[["f32"]],"greedy":[["f32"]]}},
+      {"file":"Qwen3-0.6B-Q4_0.gguf","repo":"unsloth/Qwen3-0.6B-GGUF","revision":"50968a4468ef4233ed78cd7c3de230dd1d61a56b","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf","sha256":"33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb","bytes":382156480,"matrix_paths":{"batched":[["f32"]],"decode":[["block-int16"]],"greedy":[["f32","block-int16"]]}},
+      {"file":"Qwen3-0.6B-Q5_K_M.gguf","repo":"unsloth/Qwen3-0.6B-GGUF","revision":"50968a4468ef4233ed78cd7c3de230dd1d61a56b","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf","sha256":"03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a","bytes":444415680,"matrix_paths":{"batched":[["f32"]],"decode":[["block-int16"]],"greedy":[["f32","block-int16"]]}},
+      {"file":"Qwen3-0.6B-Q4_K_M.gguf","repo":"unsloth/Qwen3-0.6B-GGUF","revision":"50968a4468ef4233ed78cd7c3de230dd1d61a56b","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf","sha256":"ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a","bytes":396705472,"matrix_paths":{"batched":[["f32"]],"decode":[["block-int16"]],"greedy":[["f32","block-int16"]]}},
+      {"file":"Qwen3-0.6B-UD-Q8_K_XL.gguf","repo":"unsloth/Qwen3-0.6B-GGUF","revision":"50968a4468ef4233ed78cd7c3de230dd1d61a56b","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-UD-Q8_K_XL.gguf","sha256":"523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad","bytes":844288704,"matrix_paths":{"batched":[["f32"]],"decode":[["f32"]],"greedy":[["f32"]]}},
+      {"file":"Qwen3.5-0.8B-Q8_0.gguf","repo":"unsloth/Qwen3.5-0.8B-GGUF","revision":"6ab461498e2023f6e3c1baea90a8f0fe38ab64d0","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q8_0.gguf","sha256":"0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c","bytes":811843840,"matrix_paths":{"batched":[["f32"]],"decode":[["f32"]],"greedy":[["f32"]]}},
+      {"file":"Qwen3.5-0.8B-Q4_K_M.gguf","repo":"unsloth/Qwen3.5-0.8B-GGUF","revision":"6ab461498e2023f6e3c1baea90a8f0fe38ab64d0","path":"C:/Users/Marko/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q4_K_M.gguf","sha256":"bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517","bytes":532517120,"matrix_paths":{"batched":[["f32"]],"decode":[["f32","block-int16"]],"greedy":[["f32","block-int16"]]}}
+    ]
+  },
+  "preserved_harness_attempt": {
+    "path": "scratch/allreduce-20261028/windows-identity/cpu/execution.json",
+    "sha256": "0f8852650cda2df1135dff7d6764adf1ca824ea31c731f457617a0cc79e32804",
+    "status": "failure before numerical comparison: CLI full version string was compared to helper LLMX_VERSION_STRING",
+    "first_main_capture_reused": true,
+    "first_main_capture_path": "scratch/allreduce-20261028/windows-identity/cpu/Qwen3-0.6B-Q8_0.gguf"
+  },
+  "coverage_limit": "This evidence establishes only Windows CPU main-versus-selected byte identity for these seven pinned gate files, this prompt, f16 KV, and the recorded default arithmetic dtype/path witnesses. Radeon comparison is still pending; this is not a complete landing gate."
+}

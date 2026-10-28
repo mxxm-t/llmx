@@ -6,6 +6,9 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#if !defined(_WIN32)
+#include <fcntl.h>
+#endif
 #include "backends/vulkan/vulkan_buffer.hpp"
 #include "backends/vulkan/vulkan_device.hpp"
 #include "core/job_threads.hpp"
@@ -237,21 +240,31 @@ private:
         try {
             for (; prepared < W; ++prepared) {
                 std::vector<VkSemaphore> signals;
-                for (size_t t = 0; t < W; ++t)
-                    if (t != prepared) signals.push_back(signal_[prepared][t]);
+                if (signal_[prepared]) signals.push_back(signal_[prepared]);
                 work[prepared] = members_[prepared]->prepare(signals);
             }
             threads_->run(W, [&](size_t m) {
                 const Device& from = *members_[m]->device();
                 result[m] = work[m].queue(from);
                 if (result[m] != VK_SUCCESS) return;
+                if (W == 1) return;
+                const size_t first = m ? 0 : 1;
+                VkSemaphoreGetFdInfoKHR gi{};
+                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+                gi.semaphore = signal_[m];
+                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+                int& fd = files.fd[m * W + first];
+                check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
+                // A sync file is an immutable fence; each peer takes its own descriptor, including -1 for a completed signal.
                 for (size_t t = 0; t < W; ++t) {
-                    if (t == m) continue;
-                    VkSemaphoreGetFdInfoKHR gi{};
-                    gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-                    gi.semaphore = signal_[m][t];
-                    gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-                    check(from.get_semaphore_fd(from.device, &gi, &files.fd[m * W + t]), "vkGetSemaphoreFdKHR");
+                    if (t == m || t == first || fd < 0) continue;
+#if !defined(_WIN32)
+                    const int copy = fcntl(fd, F_DUPFD_CLOEXEC, 3);
+                    if (copy < 0) throw std::runtime_error("vulkan: duplicating a sync file failed");
+                    files.fd[m * W + t] = copy;
+#else
+                    throw std::runtime_error("vulkan: sync files require POSIX descriptors");
+#endif
                 }
             });
         } catch (...) {
@@ -284,14 +297,15 @@ private:
 
     void make_semaphores() {
         const size_t W = members_.size();
-        signal_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
+        signal_.assign(W, VK_NULL_HANDLE);
         wait_.assign(W, std::vector<VkSemaphore>(W, VK_NULL_HANDLE));
-        for (size_t m = 0; m < W; ++m)
+        for (size_t m = 0; m < W; ++m) {
+            if (W > 1) signal_[m] = semaphore(*members_[m]->device(), true);
             for (size_t t = 0; t < W; ++t) {
                 if (t == m) continue;
-                signal_[m][t] = semaphore(*members_[m]->device(), true);
                 wait_[t][m] = semaphore(*members_[t]->device(), false);
             }
+        }
     }
     static VkSemaphore semaphore(const Device& d, bool exported) {
         VkExportSemaphoreCreateInfo ex{};
@@ -308,10 +322,10 @@ private:
     void release() noexcept {
         for (VulkanBackend* m : members_) m->sync();
         for (size_t a = 0; a < signal_.size(); ++a)
-            for (size_t b = 0; b < signal_[a].size(); ++b) {
-                if (signal_[a][b]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, signal_[a][b], nullptr);
+            if (signal_[a]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, signal_[a], nullptr);
+        for (size_t a = 0; a < wait_.size(); ++a)
+            for (size_t b = 0; b < wait_[a].size(); ++b)
                 if (wait_[a][b]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, wait_[a][b], nullptr);
-            }
         signal_.clear();
         wait_.clear();
     }
@@ -328,7 +342,8 @@ private:
     size_t share_align_ = 1;   // the members' largest storage-buffer offset alignment, in floats
     std::vector<std::vector<std::shared_ptr<VulkanBuffer>>> gather_[2];  // [parity][owner][sender]: the owner's gather rows for that sender's share, where a sum may take two shots
     std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
-    std::vector<std::vector<VkSemaphore>> signal_, wait_;          // [member][peer]: what member signals to the peer; what member waits on from the peer
+    std::vector<VkSemaphore> signal_;                  // one binary signal per source, exported once for every peer
+    std::vector<std::vector<VkSemaphore>> wait_;        // [member][peer]: what member waits on from the peer
 };
 
 // A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files, under any PCI root complexes; none where a device lacks them, as on Windows.

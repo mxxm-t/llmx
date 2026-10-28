@@ -1,0 +1,571 @@
+{
+  "scope": "Stock libdrm C opportunity microprobe, not Mesa/AR speedup. Fixed positive signaled sync-file; separate completed-fd-equivalent Signal path. Create/import/destroy versus8handle reset/import.1000warmup then ABBA50000ops,bulk C wall/getrusage clocks. Separate stopped100op ioctl counts. No GPUcommands. Real Mesa cache mutex/allocator costs absent.",
+  "result": "Complete; pooling deferred in favor of direct submission timings",
+  "execution_sha256": "ad26509a00ba0229c46a2b91676fefe0a054cc1dbf9ac442a856ff5bd3accfb9",
+  "rig_artifacts": "/zpool1/llmx-xdev-ar-20261028-v3/native-syncobj-v1",
+  "pins": {
+    "/zpool1/llmx-xdev-ar-20261028-v3/out/native-syncobj": "c03207f6e8085039ae6ec143c00865e0fe0a89e3e7ee23b8740e2b1005fc9a7e",
+    "/zpool1/llmx-xdev-ar-20261028-v3/input/native-syncobj.c": "5bc6502efef3e54e0e7345daabc227f8e6bf7f2a1f18a5f5eaed9378ebf91184",
+    "/zpool1/llmx-xdev-ar-20261028-v3/out/libllmx-vulkan-selected.a": "5f9340f41c47c6c5060825d5bea5cfa7dcbf8f510c0de5cb39a9df134e88e7ac",
+    "/usr/bin/strace": "69f88291a4e47f258b8e32b089c919a247509f063ef3d6afe5389939051102b3",
+    "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+    "/tmp/xdev-ar-input/run-native-syncobj.py": "d6678323c529c591513644f73ac07b20dfaa04098504b568b77a4d790a0bccb0"
+  },
+  "runtime_libdrm": "eb7a0ac1a08aa514ed9615c137d72b4b5b84dc252aa2da30b6ae712ec6378e00  /lib/x86_64-linux-gnu/libdrm.so.2",
+  "libdrm_packages": "libdrm-amdgpu1:amd64\t2.4.124-2\nlibdrm2:amd64\t2.4.124-2\n",
+  "measurements": {
+    "matrix": [
+      {
+        "case": "sync_file_import",
+        "arms": {
+          "create": {
+            "samples": [
+              {
+                "case": "sync_file_import",
+                "arm": "create",
+                "block": "0",
+                "iterations": "50000",
+                "wall_ns": "143220941",
+                "cpu_ns": "142153000",
+                "wall_ns_per_op": "2864.418820",
+                "cpu_ns_per_op": "2843.060000",
+                "begin_mono_ns": "1480652205521617",
+                "end_mono_ns": "1480652348742558"
+              },
+              {
+                "case": "sync_file_import",
+                "arm": "create",
+                "block": "3",
+                "iterations": "50000",
+                "wall_ns": "143564163",
+                "cpu_ns": "143538000",
+                "wall_ns_per_op": "2871.283260",
+                "cpu_ns_per_op": "2870.760000",
+                "begin_mono_ns": "1480652564376075",
+                "end_mono_ns": "1480652707940238"
+              }
+            ],
+            "mean_wall_ns_per_op": 2867.85104,
+            "mean_cpu_ns_per_op": 2856.91
+          },
+          "reuse": {
+            "samples": [
+              {
+                "case": "sync_file_import",
+                "arm": "reuse",
+                "block": "1",
+                "iterations": "50000",
+                "wall_ns": "104363675",
+                "cpu_ns": "104343000",
+                "wall_ns_per_op": "2087.273500",
+                "cpu_ns_per_op": "2086.860000",
+                "begin_mono_ns": "1480652348757879",
+                "end_mono_ns": "1480652453121554"
+              },
+              {
+                "case": "sync_file_import",
+                "arm": "reuse",
+                "block": "2",
+                "iterations": "50000",
+                "wall_ns": "111218730",
+                "cpu_ns": "111188000",
+                "wall_ns_per_op": "2224.374600",
+                "cpu_ns_per_op": "2223.760000",
+                "begin_mono_ns": "1480652453137365",
+                "end_mono_ns": "1480652564356095"
+              }
+            ],
+            "mean_wall_ns_per_op": 2155.82405,
+            "mean_cpu_ns_per_op": 2155.3100000000004
+          }
+        },
+        "native_wall_delta_ns_per_payload": 712.0269899999998,
+        "native_cpu_delta_ns_per_payload": 701.5999999999995,
+        "reuse_wall_change_percent": -24.827893083317175,
+        "optimistic_cpu_us_reduction_at2_and12objects": {
+          "2": 1.403199999999999,
+          "12": 8.419199999999993
+        }
+      },
+      {
+        "case": "completed_fd_signal",
+        "arms": {
+          "create": {
+            "samples": [
+              {
+                "case": "completed_fd_signal",
+                "arm": "create",
+                "block": "0",
+                "iterations": "50000",
+                "wall_ns": "172562600",
+                "cpu_ns": "172344000",
+                "wall_ns_per_op": "3451.252000",
+                "cpu_ns_per_op": "3446.880000",
+                "begin_mono_ns": "1480652714035128",
+                "end_mono_ns": "1480652886597728"
+              },
+              {
+                "case": "completed_fd_signal",
+                "arm": "create",
+                "block": "3",
+                "iterations": "50000",
+                "wall_ns": "168897775",
+                "cpu_ns": "168824000",
+                "wall_ns_per_op": "3377.955500",
+                "cpu_ns_per_op": "3376.480000",
+                "begin_mono_ns": "1480653151317121",
+                "end_mono_ns": "1480653320214896"
+              }
+            ],
+            "mean_wall_ns_per_op": 3414.60375,
+            "mean_cpu_ns_per_op": 3411.6800000000003
+          },
+          "reuse": {
+            "samples": [
+              {
+                "case": "completed_fd_signal",
+                "arm": "reuse",
+                "block": "1",
+                "iterations": "50000",
+                "wall_ns": "132166966",
+                "cpu_ns": "132026000",
+                "wall_ns_per_op": "2643.339320",
+                "cpu_ns_per_op": "2640.520000",
+                "begin_mono_ns": "1480652886603588",
+                "end_mono_ns": "1480653018770554"
+              },
+              {
+                "case": "completed_fd_signal",
+                "arm": "reuse",
+                "block": "2",
+                "iterations": "50000",
+                "wall_ns": "132513187",
+                "cpu_ns": "132289000",
+                "wall_ns_per_op": "2650.263740",
+                "cpu_ns_per_op": "2645.780000",
+                "begin_mono_ns": "1480653018787334",
+                "end_mono_ns": "1480653151300521"
+              }
+            ],
+            "mean_wall_ns_per_op": 2646.8015299999997,
+            "mean_cpu_ns_per_op": 2643.15
+          }
+        },
+        "native_wall_delta_ns_per_payload": 767.8022200000005,
+        "native_cpu_delta_ns_per_payload": 768.5300000000002,
+        "reuse_wall_change_percent": -22.485836606956234,
+        "optimistic_cpu_us_reduction_at2_and12objects": {
+          "2": 1.5370600000000003,
+          "12": 9.222360000000002
+        }
+      }
+    ],
+    "counts": [
+      {
+        "tag": "count-import-create",
+        "command": [
+          "/ar/out/native-syncobj",
+          "/dev/dri/renderD128",
+          "count",
+          "import",
+          "create"
+        ],
+        "identity": {
+          "pid": 3724854,
+          "start_ticks": 148065345,
+          "state": "T",
+          "exe_sha256": "c03207f6e8085039ae6ec143c00865e0fe0a89e3e7ee23b8740e2b1005fc9a7e",
+          "cgroup": "0::/system.slice/docker-b7ac3b55ed13787e6d1c985009681cdf52ceab4ba288546d96c6272cde3a3d39.scope\n",
+          "tracer": 0
+        },
+        "capture_start": 1793216660.2083707,
+        "capture_end": 1793216660.218744,
+        "ioctls": 300,
+        "errors": 0,
+        "exit": 0,
+        "tracer_exit": -2
+      },
+      {
+        "tag": "count-import-reuse",
+        "command": [
+          "/ar/out/native-syncobj",
+          "/dev/dri/renderD128",
+          "count",
+          "import",
+          "reuse"
+        ],
+        "identity": {
+          "pid": 3724889,
+          "start_ticks": 148065364,
+          "state": "T",
+          "exe_sha256": "c03207f6e8085039ae6ec143c00865e0fe0a89e3e7ee23b8740e2b1005fc9a7e",
+          "cgroup": "0::/system.slice/docker-b7ac3b55ed13787e6d1c985009681cdf52ceab4ba288546d96c6272cde3a3d39.scope\n",
+          "tracer": 0
+        },
+        "capture_start": 1793216660.3931546,
+        "capture_end": 1793216660.403474,
+        "ioctls": 200,
+        "errors": 0,
+        "exit": 0,
+        "tracer_exit": -2
+      },
+      {
+        "tag": "count-signal-create",
+        "command": [
+          "/ar/out/native-syncobj",
+          "/dev/dri/renderD128",
+          "count",
+          "signal",
+          "create"
+        ],
+        "identity": {
+          "pid": 3724964,
+          "start_ticks": 148065376,
+          "state": "T",
+          "exe_sha256": "c03207f6e8085039ae6ec143c00865e0fe0a89e3e7ee23b8740e2b1005fc9a7e",
+          "cgroup": "0::/system.slice/docker-b7ac3b55ed13787e6d1c985009681cdf52ceab4ba288546d96c6272cde3a3d39.scope\n",
+          "tracer": 0
+        },
+        "capture_start": 1793216660.5162237,
+        "capture_end": 1793216660.5265357,
+        "ioctls": 300,
+        "errors": 0,
+        "exit": 0,
+        "tracer_exit": -2
+      },
+      {
+        "tag": "count-signal-reuse",
+        "command": [
+          "/ar/out/native-syncobj",
+          "/dev/dri/renderD128",
+          "count",
+          "signal",
+          "reuse"
+        ],
+        "identity": {
+          "pid": 3725018,
+          "start_ticks": 148065388,
+          "state": "T",
+          "exe_sha256": "c03207f6e8085039ae6ec143c00865e0fe0a89e3e7ee23b8740e2b1005fc9a7e",
+          "cgroup": "0::/system.slice/docker-b7ac3b55ed13787e6d1c985009681cdf52ceab4ba288546d96c6272cde3a3d39.scope\n",
+          "tracer": 0
+        },
+        "capture_start": 1793216660.6374576,
+        "capture_end": 1793216660.6477757,
+        "ioctls": 200,
+        "errors": 0,
+        "exit": 0,
+        "tracer_exit": -2
+      }
+    ],
+    "runtime_libdrm": "eb7a0ac1a08aa514ed9615c137d72b4b5b84dc252aa2da30b6ae712ec6378e00  /lib/x86_64-linux-gnu/libdrm.so.2",
+    "execution_sha256": "ad26509a00ba0229c46a2b91676fefe0a054cc1dbf9ac442a856ff5bd3accfb9",
+    "verified_files": 21,
+    "scope": "One ABBA sequence per payload case;8 total50000-operation batches plus1000warmups perarm/case. C bulk wall/getrusage clocks only. Native state/snapshot controls pass. Separate trace counts confirm3vs2ioctls/op; tracer durations not performance.",
+    "interpretation": "Native opportunity estimate only: no Mesa cache mutex/metadata overhead and no AR, GPU execution, CS/BO/VM or Vk allocator work measured. Delta times object count is optimistic aggregate CPU opportunity, not completed-time saving or driver/AR speedup. Both fixed cases use completed fences; pending GPU-wait reuse still needs driver qualification."
+  },
+  "activity": {
+    "batches": [
+      {
+        "case": "sync_file_import",
+        "arm": "create",
+        "block": "0",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "sync_file_import",
+        "arm": "reuse",
+        "block": "1",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "sync_file_import",
+        "arm": "reuse",
+        "block": "2",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "sync_file_import",
+        "arm": "create",
+        "block": "3",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "completed_fd_signal",
+        "arm": "create",
+        "block": "0",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "completed_fd_signal",
+        "arm": "reuse",
+        "block": "1",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "completed_fd_signal",
+        "arm": "reuse",
+        "block": "2",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 6,
+        "unknown_gpu_intervals": 0
+      },
+      {
+        "case": "completed_fd_signal",
+        "arm": "create",
+        "block": "3",
+        "covered": true,
+        "flags": {
+          "cpu": 0,
+          "disk": 0,
+          "other_gpu": 0,
+          "gap": 0
+        },
+        "unknown_process_cpu_observations": 9,
+        "unknown_gpu_intervals": 0
+      }
+    ],
+    "samples": 4,
+    "intervals": [
+      {
+        "start_mono": 1480649.168183607,
+        "end_mono": 1480651.171301416,
+        "seconds": 2.0031178088393062,
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.0199688704396162,
+          "unrelated": 0.1797198339565458
+        },
+        "disk_bytes_s": 519382.33258624154,
+        "other_gpu": [
+          [
+            "0000:c6:00.0",
+            0
+          ],
+          [
+            "0000:c9:00.0",
+            0
+          ],
+          [
+            "0000:cc:00.0",
+            0
+          ],
+          [
+            "0000:83:00.0",
+            0
+          ],
+          [
+            "0000:86:00.0",
+            0
+          ],
+          [
+            "0000:89:00.0",
+            0
+          ],
+          [
+            "0000:8c:00.0",
+            0
+          ],
+          [
+            "0000:03:00.0",
+            0
+          ],
+          [
+            "0000:44:00.0",
+            0
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 3,
+        "missed": [],
+        "flags": {
+          "cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "start_mono": 1480651.171301416,
+        "end_mono": 1480653.171943666,
+        "seconds": 2.0006422500591725,
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.029990369341757823,
+          "unrelated": 0.22992616495347667
+        },
+        "disk_bytes_s": 2286881.625070489,
+        "other_gpu": [
+          [
+            "0000:c6:00.0",
+            0
+          ],
+          [
+            "0000:c9:00.0",
+            0
+          ],
+          [
+            "0000:cc:00.0",
+            0
+          ],
+          [
+            "0000:83:00.0",
+            0
+          ],
+          [
+            "0000:86:00.0",
+            0
+          ],
+          [
+            "0000:89:00.0",
+            0
+          ],
+          [
+            "0000:8c:00.0",
+            0
+          ],
+          [
+            "0000:03:00.0",
+            0
+          ],
+          [
+            "0000:44:00.0",
+            0
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 6,
+        "missed": [],
+        "flags": {
+          "cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      },
+      {
+        "start_mono": 1480653.171943666,
+        "end_mono": 1480655.172570917,
+        "seconds": 2.0006272511091083,
+        "cpu_cores": {
+          "benchmark": 0.0,
+          "monitor": 0.01999372945551191,
+          "unrelated": 0.2999059418326786
+        },
+        "disk_bytes_s": 42994.51582113281,
+        "other_gpu": [
+          [
+            "0000:c6:00.0",
+            0
+          ],
+          [
+            "0000:c9:00.0",
+            0
+          ],
+          [
+            "0000:cc:00.0",
+            0
+          ],
+          [
+            "0000:83:00.0",
+            0
+          ],
+          [
+            "0000:86:00.0",
+            0
+          ],
+          [
+            "0000:89:00.0",
+            0
+          ],
+          [
+            "0000:8c:00.0",
+            0
+          ],
+          [
+            "0000:03:00.0",
+            0
+          ],
+          [
+            "0000:44:00.0",
+            0
+          ]
+        ],
+        "unknown_gpu": [],
+        "unknown_process_cpu": 3,
+        "missed": [],
+        "flags": {
+          "cpu": false,
+          "disk": false,
+          "other_gpu": false,
+          "gap": false
+        }
+      }
+    ],
+    "thresholds": {
+      "unrelated_cpu_cores": 1,
+      "disk_bytes_per_second": 104857600,
+      "other_gpu_percent": 0,
+      "sample_gap_seconds": 3
+    },
+    "unknown_process_cpu_observations": 12,
+    "missed_process_observations": 0,
+    "unknown_gpu_intervals": 0,
+    "interpretation": "All planned batches retained. Per-batch times are C CLOCK_MONOTONIC on the same kernel; alignment against runner clocks checked. Monitor2second intervals can span multiple short batches; flags cannot isolate activity within one batch. Unknown process observations are not zero activity."
+  },
+  "limit": "Native CPU cost only. Real Mesa mutex/metadata costs are absent. Summed CPU savings are not collective wall-time savings. No private driver change or production change was made."
+}

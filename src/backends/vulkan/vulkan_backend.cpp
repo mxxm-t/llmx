@@ -805,20 +805,30 @@ public:
 
     void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
 
+    // Only a successful Vulkan wait advances this timeline's known completion; another waiting thread may advance it too.
+    void remember_completed(Ticket t) noexcept {
+        Ticket before = completed_ticket_.load(std::memory_order_relaxed);
+        while (before < t && !completed_ticket_.compare_exchange_weak(before, t, std::memory_order_release, std::memory_order_relaxed)) {}
+    }
+
     // A wait of no time; anything but a timeout is left to the wait that follows.
     bool done(Ticket t) noexcept override {
         if (t == 0 || t > last_ticket_) return true;
+        if (t <= completed_ticket_.load(std::memory_order_acquire)) return true;
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
         wi.pSemaphores = &timeline_;
         wi.pValues = &t;
-        return dev_->fn.vkWaitSemaphores(dev_->device, &wi, 0) != VK_TIMEOUT;
+        const VkResult r = dev_->fn.vkWaitSemaphores(dev_->device, &wi, 0);
+        if (r == VK_SUCCESS) remember_completed(t);
+        return r != VK_TIMEOUT;
     }
 
     // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
     void wait_for(Ticket t) noexcept {
         if (t == 0 || t > last_ticket_) return;
+        if (t <= completed_ticket_.load(std::memory_order_acquire)) return;
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
@@ -830,6 +840,7 @@ public:
                          dev_->caps.device.c_str(), vk_result_name(r));
             std::abort();
         }
+        remember_completed(t);
     }
 
     // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
@@ -1633,6 +1644,7 @@ private:
     uint32_t ring_index_ = 0;
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
+    std::atomic<Ticket> completed_ticket_{0};   // the greatest ticket a successful Vulkan wait confirmed
     std::atomic<Ticket> last_ticket_{0};   // atomic for a wait made from another thread while this one records (Backend::wait)
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call

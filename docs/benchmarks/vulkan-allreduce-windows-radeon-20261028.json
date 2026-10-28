@@ -1,0 +1,1062 @@
+{
+  "scope": "Windows Radeon selected runtime qualification. Original full-suite failure retained; affected MXFP4 component rerun once without source or binary changes. Not overall merge readiness.",
+  "source_commit": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+  "main_commit": "9d00fb0a5b21bd8c68a1cef55bb3e0134147f1ee",
+  "full_suite": {
+    "receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-shared-timeline-20261028\\build-landing-review-20261028\\radeon-suite.json",
+    "sha256": "3e090d445ed2c09b9fa7054601157637355489e73a71edcbe6ad2c6738bf5403",
+    "log_sha256": "a51e6da7641f4cc6ec7ecfe2f6df3ae6ff1ce5038c926f2a122e6ed2a22012dd",
+    "exit": 1,
+    "components": [
+      {
+        "name": "dead-code",
+        "status": "PASS"
+      },
+      {
+        "name": "docs",
+        "status": "PASS"
+      },
+      {
+        "name": "arch-boundary",
+        "status": "PASS"
+      },
+      {
+        "name": "version",
+        "status": "PASS"
+      },
+      {
+        "name": "cli",
+        "status": "PASS"
+      },
+      {
+        "name": "reference-generator",
+        "status": "PASS"
+      },
+      {
+        "name": "reference-consumer",
+        "status": "PASS"
+      },
+      {
+        "name": "device-reference",
+        "status": "PASS"
+      },
+      {
+        "name": "roundtrip",
+        "status": "PASS"
+      },
+      {
+        "name": "raw-blocks",
+        "status": "PASS"
+      },
+      {
+        "name": "perf",
+        "status": "PASS"
+      },
+      {
+        "name": "tokenizer",
+        "status": "PASS"
+      },
+      {
+        "name": "perplexity",
+        "status": "PASS"
+      },
+      {
+        "name": "f32",
+        "status": "PASS"
+      },
+      {
+        "name": "half-weights",
+        "status": "PASS"
+      },
+      {
+        "name": "moe",
+        "status": "PASS"
+      },
+      {
+        "name": "int8",
+        "status": "PASS"
+      },
+      {
+        "name": "mxfp4",
+        "status": "FAIL"
+      },
+      {
+        "name": "q5-0",
+        "status": "PASS"
+      },
+      {
+        "name": "q2-k",
+        "status": "PASS"
+      },
+      {
+        "name": "q3-k",
+        "status": "PASS"
+      },
+      {
+        "name": "q5-1",
+        "status": "PASS"
+      },
+      {
+        "name": "iq4-nl",
+        "status": "PASS"
+      },
+      {
+        "name": "iq4-xs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq3-s",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-s",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-xxs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-xs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq3-xxs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq1",
+        "status": "PASS"
+      },
+      {
+        "name": "tq1-0",
+        "status": "PASS"
+      },
+      {
+        "name": "tq2-0",
+        "status": "PASS"
+      },
+      {
+        "name": "nvfp4",
+        "status": "PASS"
+      },
+      {
+        "name": "qwen35",
+        "status": "PASS"
+      },
+      {
+        "name": "vision",
+        "status": "PASS"
+      },
+      {
+        "name": "image",
+        "status": "PASS"
+      },
+      {
+        "name": "split",
+        "status": "PASS"
+      },
+      {
+        "name": "tensor-split",
+        "status": "PASS"
+      },
+      {
+        "name": "decode-probe",
+        "status": "PASS"
+      },
+      {
+        "name": "drafters",
+        "status": "PASS"
+      },
+      {
+        "name": "shards",
+        "status": "PASS"
+      },
+      {
+        "name": "server",
+        "status": "PASS"
+      },
+      {
+        "name": "server-load",
+        "status": "PASS"
+      },
+      {
+        "name": "chat",
+        "status": "PASS"
+      },
+      {
+        "name": "threads",
+        "status": "PASS"
+      },
+      {
+        "name": "baseline",
+        "status": "PASS"
+      }
+    ],
+    "failure": "vkCreateInstance returned VK_ERROR_INCOMPATIBLE_DRIVER: vulkan: the loader has no driver. No numerical comparison failure reported for that call. Root cause unproven."
+  },
+  "focused_mxfp4": {
+    "receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-shared-timeline-20261028\\build-landing-review-20261028\\mxfp4-loader-focused-v1\\execution.json",
+    "sha256": "ad22e495718515993dc6ad226735e64aec9965a0006104da75020c09ea6b0dc3",
+    "exit": 0,
+    "recorded_calls": 289,
+    "nonzero_calls": 0,
+    "loader_debug": "error,warn",
+    "warnings_or_errors": 0,
+    "source_change": false,
+    "note": "All MXFP4 dense/tied/MoE and prompt-boundary HF comparisons passed. Original failure is not erased."
+  },
+  "radeon_identity": {
+    "receipt": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\windows-identity\\radeon\\execution.json",
+    "sha256": "3338b7b93ad9847ef64c123ea0495b9ce9ab0c526ccb559d429cecaf6075cddf",
+    "models": 7,
+    "payload_pairs": 21,
+    "matching_greedy_ids": 448,
+    "before_after_source_and_binary_checks": true,
+    "arms": {
+      "main": {
+        "cli": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\ar-main-20261028\\build-identity\\Release\\llmx.exe",
+          "sha256_before": "7b5e833edb256aa27a89426743dd95cd61ac33bcc4bffa66c51c4377021a5679",
+          "sha256_after": "7b5e833edb256aa27a89426743dd95cd61ac33bcc4bffa66c51c4377021a5679"
+        },
+        "tool": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\ar-main-20261028\\build-identity\\Release\\llmx-model-logits.exe",
+          "sha256_before": "b2d8347c289f1b808b7c8580d69ebd7abe64750bef6cb98eeadd6894a88835dc",
+          "sha256_after": "b2d8347c289f1b808b7c8580d69ebd7abe64750bef6cb98eeadd6894a88835dc"
+        },
+        "version": "llmx 0.1.0+g9d00fb0a5b21 numerics 0a82006ec5283643",
+        "cli_version_parts": {
+          "version": "0.1.0+g9d00fb0a5b21",
+          "numerics": "0a82006ec5283643"
+        }
+      },
+      "selected": {
+        "cli": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-shared-timeline-20261028\\build-cache-win\\Release\\llmx.exe",
+          "sha256_before": "c4c8a63bd2a67546dba36625b6200564ea3b43c95c4f33be60f6d01dded18c72",
+          "sha256_after": "c4c8a63bd2a67546dba36625b6200564ea3b43c95c4f33be60f6d01dded18c72"
+        },
+        "tool": {
+          "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-shared-timeline-20261028\\build-cache-win\\Release\\llmx-model-logits.exe",
+          "sha256_before": "8f094f9d217fa119c4b79fa2c7747e80b9591dae7b7fcfd63bbe01c8ead4413f",
+          "sha256_after": "8f094f9d217fa119c4b79fa2c7747e80b9591dae7b7fcfd63bbe01c8ead4413f"
+        },
+        "version": "llmx 0.1.0+g94c1680faa9a numerics 3a22beee5cbffa92",
+        "cli_version_parts": {
+          "version": "0.1.0+g94c1680faa9a",
+          "numerics": "3a22beee5cbffa92"
+        }
+      }
+    },
+    "model_comparisons": [
+      {
+        "file": "Qwen3-0.6B-Q8_0.gguf",
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "comparison": {
+          "architecture": "qwen3",
+          "vocab": 151936,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            7281,
+            11,
+            10339,
+            3170,
+            1817,
+            3019,
+            374,
+            2989,
+            369,
+            279,
+            3942,
+            311,
+            1896,
+            624,
+            16141,
+            1447,
+            32,
+            2613,
+            3942,
+            646,
+            4332,
+            264,
+            7199,
+            584,
+            13551,
+            14138,
+            553,
+            24931,
+            2326,
+            14976,
+            7354,
+            13,
+            5512,
+            11,
+            3070,
+            33400,
+            287,
+            264,
+            584,
+            13551,
+            438,
+            264,
+            6094,
+            5101,
+            334,
+            25351,
+            429,
+            678,
+            10826,
+            614,
+            2615,
+            311,
+            432,
+            13,
+            10440,
+            11,
+            3070,
+            724,
+            1677,
+            76009,
+            2615,
+            334,
+            3363,
+            8241
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "a85d7f792ba6da4460735ef7909e7107b27ff2287c96978003016c4bc4eda2ff"
+            },
+            {
+              "phase": "decode",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "a85d7f792ba6da4460735ef7909e7107b27ff2287c96978003016c4bc4eda2ff"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 38895616,
+              "byte_identical": true,
+              "sha256": "118dbc0ad75c8277a5773d96d35715c07767ee7a827c9b017ef00e7f90fe10df"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_0.gguf",
+        "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+        "comparison": {
+          "architecture": "qwen3",
+          "vocab": 151936,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            7281,
+            11,
+            10339,
+            3170,
+            432,
+            374,
+            2989,
+            311,
+            614,
+            264,
+            584,
+            13551,
+            369,
+            279,
+            3942,
+            11,
+            323,
+            2968,
+            2326,
+            14976,
+            7354,
+            369,
+            279,
+            3942,
+            311,
+            1896,
+            311,
+            1281,
+            432,
+            264,
+            2393,
+            624,
+            16141,
+            1447,
+            32,
+            2613,
+            3942,
+            646,
+            4332,
+            264,
+            7199,
+            584,
+            13551,
+            14138,
+            553,
+            22573,
+            429,
+            279,
+            13551,
+            374,
+            15614,
+            311,
+            678,
+            3613,
+            11,
+            22136,
+            44309,
+            1927,
+            11,
+            323,
+            85544,
+            264,
+            5530,
+            315
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "22946e64329805ce0831ae9a7d94c61b852800df3a8bb784b23e2b632de2e35f"
+            },
+            {
+              "phase": "decode",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "22946e64329805ce0831ae9a7d94c61b852800df3a8bb784b23e2b632de2e35f"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 38895616,
+              "byte_identical": true,
+              "sha256": "79babfd339db0693eaa7a93f3c19ebb2c6e0e414f1d48e39dc6ed6a4692dbe7e"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q5_K_M.gguf",
+        "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+        "comparison": {
+          "architecture": "qwen3",
+          "vocab": 151936,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            7281,
+            11,
+            10339,
+            3170,
+            279,
+            3942,
+            1265,
+            387,
+            6398,
+            304,
+            279,
+            9115,
+            1882,
+            11,
+            323,
+            1128,
+            525,
+            279,
+            7567,
+            315,
+            3432,
+            264,
+            584,
+            13551,
+            369,
+            279,
+            3942,
+            30,
+            22406,
+            11,
+            10339,
+            1246,
+            279,
+            3942,
+            646,
+            387,
+            6398,
+            304,
+            279,
+            9115,
+            1882,
+            11,
+            323,
+            1128,
+            525,
+            279,
+            7567,
+            315,
+            3432,
+            264,
+            584,
+            13551,
+            369,
+            279,
+            3942,
+            1939,
+            32313,
+            11,
+            1077,
+            594,
+            21403,
+            419,
+            3405,
+            13
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "99a36294a3cc862ddd1d0089c884966b178f1f92552063ed69565829f9acf57c"
+            },
+            {
+              "phase": "decode",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "99a36294a3cc862ddd1d0089c884966b178f1f92552063ed69565829f9acf57c"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 38895616,
+              "byte_identical": true,
+              "sha256": "40776ca4c467151547d9ed20f27788ca243078fa71a7c0df1220d5236e5ee677"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-Q4_K_M.gguf",
+        "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+        "comparison": {
+          "architecture": "qwen3",
+          "vocab": 151936,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            7281,
+            11,
+            10339,
+            3170,
+            1817,
+            315,
+            1493,
+            7354,
+            374,
+            2989,
+            311,
+            279,
+            3942,
+            13,
+            22406,
+            11,
+            10339,
+            3170,
+            279,
+            13551,
+            374,
+            2989,
+            311,
+            279,
+            3942,
+            13,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760,
+            760
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "630731d5ac37e5b5bfd113068de8d3733a2f4cd2833e7bd08f2b8769eb3f84cd"
+            },
+            {
+              "phase": "decode",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "630731d5ac37e5b5bfd113068de8d3733a2f4cd2833e7bd08f2b8769eb3f84cd"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 38895616,
+              "byte_identical": true,
+              "sha256": "a08ae03fc7fc86d2b765ecfa01ea5835e5c071b591d510a376770d0bfa876c84"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+        "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+        "comparison": {
+          "architecture": "qwen3",
+          "vocab": 151936,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            7281,
+            11,
+            10339,
+            3170,
+            1817,
+            3019,
+            374,
+            2989,
+            369,
+            279,
+            3942,
+            624,
+            785,
+            4226,
+            1265,
+            387,
+            304,
+            264,
+            14311,
+            624,
+            16141,
+            510,
+            32,
+            2613,
+            3942,
+            646,
+            4332,
+            264,
+            7199,
+            584,
+            13551,
+            14138,
+            553,
+            22573,
+            6144,
+            2615,
+            11,
+            22136,
+            3942,
+            21587,
+            11,
+            323,
+            85544,
+            12158,
+            68506,
+            5270,
+            13,
+            14822,
+            220,
+            16,
+            374,
+            311,
+            5695,
+            264,
+            17821,
+            2615,
+            4842,
+            429,
+            6147,
+            678,
+            10826,
+            311,
+            990,
+            279
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "f32",
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "d4e6ea1ce48f6c84ccd1da8746718bc5de335a02e47366d129ce1578c6efcfbf"
+            },
+            {
+              "phase": "decode",
+              "bytes": 12154880,
+              "byte_identical": true,
+              "sha256": "d4e6ea1ce48f6c84ccd1da8746718bc5de335a02e47366d129ce1578c6efcfbf"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 38895616,
+              "byte_identical": true,
+              "sha256": "8abbe55f152a6fbf97ac48378cd80ce7933bbcd15c3ad3b266629a0cc58fb60e"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q8_0.gguf",
+        "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+        "comparison": {
+          "architecture": "qwen35",
+          "vocab": 248320,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            271,
+            16,
+            13,
+            2972,
+            34167,
+            279,
+            5614,
+            332,
+            1317,
+            14168,
+            11227,
+            3254,
+            421,
+            1396,
+            4314,
+            314,
+            279,
+            3809,
+            20539,
+            449,
+            5951,
+            3202,
+            314,
+            279,
+            13159,
+            725,
+            4802,
+            318,
+            1619,
+            11,
+            3433,
+            11,
+            321,
+            2373,
+            8,
+            1973,
+            6611,
+            68170,
+            466,
+            30184,
+            13,
+            695,
+            17,
+            13,
+            2972,
+            27382,
+            1386,
+            279,
+            6007,
+            16988,
+            332,
+            1317,
+            561,
+            16988,
+            369,
+            348,
+            24974,
+            2528,
+            9,
+            310,
+            279,
+            13159,
+            725,
+            7328
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 19865600,
+              "byte_identical": true,
+              "sha256": "3cc478787c99951e2ed0121edcfe262ef3c570c0193bc545aec52095b176da1e"
+            },
+            {
+              "phase": "decode",
+              "bytes": 19865600,
+              "byte_identical": true,
+              "sha256": "3cc478787c99951e2ed0121edcfe262ef3c570c0193bc545aec52095b176da1e"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 63569920,
+              "byte_identical": true,
+              "sha256": "8a0403c2df89b3e661e4ca276850677c18355c6651703ebf1bb7bdf824aa3017"
+            }
+          ]
+        }
+      },
+      {
+        "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+        "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+        "comparison": {
+          "architecture": "qwen35",
+          "vocab": 248320,
+          "prompt_tokens": 20,
+          "greedy_steps": 64,
+          "greedy_ids": [
+            271,
+            16,
+            13,
+            2972,
+            34167,
+            279,
+            5614,
+            332,
+            1317,
+            561,
+            16050,
+            369,
+            310,
+            15936,
+            279,
+            13159,
+            725,
+            6973,
+            4802,
+            318,
+            12615,
+            11,
+            18483,
+            11,
+            7141,
+            11,
+            854,
+            8,
+            748,
+            421,
+            1396,
+            4314,
+            20539,
+            264,
+            6415,
+            4191,
+            11,
+            15029,
+            314,
+            1331,
+            466,
+            11600,
+            13,
+            695,
+            17,
+            13,
+            2972,
+            27382,
+            1386,
+            279,
+            6007,
+            16988,
+            332,
+            1317,
+            14168,
+            2022,
+            303,
+            411,
+            2193,
+            3254,
+            348,
+            24974,
+            2528,
+            9
+          ],
+          "dtype": "f16",
+          "matrix_paths": {
+            "batched": [
+              [
+                "block-int16"
+              ]
+            ],
+            "decode": [
+              [
+                "block-int16"
+              ]
+            ],
+            "greedy": [
+              [
+                "block-int16"
+              ]
+            ]
+          },
+          "comparisons": [
+            {
+              "phase": "batched",
+              "bytes": 19865600,
+              "byte_identical": true,
+              "sha256": "3701069c7505a0b8668deff388ca3c1ceabb10494a233b2e6cdad66c20f90d9c"
+            },
+            {
+              "phase": "decode",
+              "bytes": 19865600,
+              "byte_identical": true,
+              "sha256": "3701069c7505a0b8668deff388ca3c1ceabb10494a233b2e6cdad66c20f90d9c"
+            },
+            {
+              "phase": "greedy",
+              "bytes": 63569920,
+              "byte_identical": true,
+              "sha256": "e5318cf7176016a2984e6d38b024022463be0ae1fc4d35c801298925c1775543"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "remaining": [
+    "Linux device suite",
+    "focused Linux TP2/TP4 checks",
+    "hosted CI",
+    "final docs and merge audit"
+  ]
+}

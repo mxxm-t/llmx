@@ -1,0 +1,645 @@
+{
+  "scope": "Private RADV research checkpoint. No llmx runtime change, host driver replacement, model gate or new ROCm comparison.",
+  "native_driver_timing": {
+    "scope": "Diagnostic, not an optimization. Matched private Debian Mesa 25.0.7-2+deb13u1 source, all nine package patches, same compiler/build options and frozen selected helper binary. 120 warmups then 100 measured tiny collectives per process; all eight planned calls retained. No host or production driver replacement.",
+    "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\driver-timing-screen-v1",
+    "rig_artifacts": "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/screen-v1",
+    "input_hashes": {
+      "execution.json": "297dbc6865e5f8345368ac13ef640779b3faaa5d3f65cc31293a052dbac75f19",
+      "timing-summary.json": "a3b43cf03ea6ef6bca77ee27b032b3473d1690e892d7e61ced9665b73c2e3c78",
+      "activity-summary.json": "8ab7e1504448b6fb0e6dbafc1d3440239ab70eee4a192e529ccb335120cc5267"
+    },
+    "performance": [
+      {
+        "ranks": 2,
+        "all_call_p50_us": {
+          "base": [
+            156.515,
+            158.264
+          ],
+          "instrumented": [
+            171.145,
+            153.564
+          ]
+        },
+        "mean_of_call_p50_us": {
+          "base": 157.3895,
+          "instrumented": 162.3545
+        },
+        "instrumentation_change_percent": 3.1545941755962037
+      },
+      {
+        "ranks": 4,
+        "all_call_p50_us": {
+          "base": [
+            264.609,
+            261.239
+          ],
+          "instrumented": [
+            251.908,
+            262.438
+          ]
+        },
+        "mean_of_call_p50_us": {
+          "base": 262.924,
+          "instrumented": 257.173
+        },
+        "instrumentation_change_percent": -2.1873240936544303
+      }
+    ],
+    "phase_table": [
+      {
+        "ranks": 2,
+        "phase": "producer",
+        "per_rank_per_process_median_range_us": {
+          "driver_ns": [
+            19.081,
+            25.751
+          ],
+          "driver_pre_ns": [
+            0.13,
+            0.251
+          ],
+          "bo_ns": [
+            0.1,
+            0.23
+          ],
+          "native_ns": [
+            18.331,
+            24.62
+          ],
+          "winsys_other_ns": [
+            0.3,
+            0.66
+          ],
+          "driver_post_ns": [
+            0.04,
+            0.07
+          ]
+        },
+        "counter_values": {
+          "bo_count": [
+            7
+          ],
+          "global_bo_count": [
+            0
+          ],
+          "ib_count": [
+            2
+          ],
+          "ib_bytes": [
+            416
+          ],
+          "app_waits": [
+            0
+          ],
+          "app_signals": [
+            2
+          ],
+          "chunks": [
+            5
+          ]
+        }
+      },
+      {
+        "ranks": 2,
+        "phase": "consumer",
+        "per_rank_per_process_median_range_us": {
+          "driver_ns": [
+            20.561,
+            31.711
+          ],
+          "driver_pre_ns": [
+            0.11,
+            0.41
+          ],
+          "bo_ns": [
+            0.1,
+            0.4
+          ],
+          "native_ns": [
+            19.88,
+            30.231
+          ],
+          "winsys_other_ns": [
+            0.33,
+            0.62
+          ],
+          "driver_post_ns": [
+            0.06,
+            0.08
+          ]
+        },
+        "counter_values": {
+          "bo_count": [
+            8
+          ],
+          "global_bo_count": [
+            0
+          ],
+          "ib_count": [
+            2
+          ],
+          "ib_bytes": [
+            384
+          ],
+          "app_waits": [
+            1
+          ],
+          "app_signals": [
+            1
+          ],
+          "chunks": [
+            6
+          ]
+        }
+      },
+      {
+        "ranks": 4,
+        "phase": "producer",
+        "per_rank_per_process_median_range_us": {
+          "driver_ns": [
+            22.311,
+            32.241
+          ],
+          "driver_pre_ns": [
+            0.17,
+            0.6
+          ],
+          "bo_ns": [
+            0.09,
+            0.41
+          ],
+          "native_ns": [
+            21.51,
+            30.601
+          ],
+          "winsys_other_ns": [
+            0.26,
+            0.83
+          ],
+          "driver_post_ns": [
+            0.04,
+            0.07
+          ]
+        },
+        "counter_values": {
+          "bo_count": [
+            9
+          ],
+          "global_bo_count": [
+            0
+          ],
+          "ib_count": [
+            2
+          ],
+          "ib_bytes": [
+            640
+          ],
+          "app_waits": [
+            0
+          ],
+          "app_signals": [
+            2
+          ],
+          "chunks": [
+            5
+          ]
+        }
+      },
+      {
+        "ranks": 4,
+        "phase": "consumer",
+        "per_rank_per_process_median_range_us": {
+          "driver_ns": [
+            25.791,
+            34.121
+          ],
+          "driver_pre_ns": [
+            0.1,
+            0.43
+          ],
+          "bo_ns": [
+            0.09,
+            0.26
+          ],
+          "native_ns": [
+            24.861,
+            32.671
+          ],
+          "winsys_other_ns": [
+            0.43,
+            0.75
+          ],
+          "driver_post_ns": [
+            0.04,
+            0.2
+          ]
+        },
+        "counter_values": {
+          "bo_count": [
+            10
+          ],
+          "global_bo_count": [
+            0
+          ],
+          "ib_count": [
+            2
+          ],
+          "ib_bytes": [
+            384
+          ],
+          "app_waits": [
+            3
+          ],
+          "app_signals": [
+            1
+          ],
+          "chunks": [
+            6
+          ]
+        }
+      }
+    ],
+    "validation": {
+      "verified_artifact_files": 21,
+      "all_output_checks_pass": true,
+      "measured_records_per_instrumented_process": {
+        "TP2": 400,
+        "TP4": 800
+      },
+      "measured_records_total": 2400,
+      "dropped_records": 0,
+      "non_single_native_call_records": 0,
+      "records_outside_completed_windows": 0
+    },
+    "monitoring": {
+      "coverage": "8/8",
+      "flagged_calls": {
+        "unrelated_cpu": 0,
+        "other_gpu": 0,
+        "disk": 0,
+        "gap": 0
+      },
+      "unknown_process_cpu_observations": 136,
+      "missed_process_observations": 1
+    },
+    "finding": "User-space BO-list building is sub-microsecond per submission. The ac/libdrm-plus-native-CS call dominates the measured driver callback. Its elapsed duration may include blocked time; it is not pure kernel CPU, and parallel rank durations cannot be summed into collective wall. Generic Vulkan conversion, availability checks and temporary-sync cleanup are outside this callback. Prior GPU timestamp measurements are separate instrumented results.",
+    "next": "One isolated same-instrumented-driver RADV_PERFTEST empty/localbos screen, eight fixed ABBA calls at TP2/TP4. Existing Mesa allocator permits VM_ALWAYS_VALID only for NO_INTERPROCESS_SHARING allocations and omits local BOs from explicit CS residency. Exported peer allocations retain ordinary sharing and synchronization. Record actual handle-count reduction and native latency; no driver rebuild or product knob. If no benefit, targeted kernel phases remain the next diagnostic."
+  },
+  "localbos_instrumented": {
+    "identities": {
+      "image": "sha256:505a09b31013687000f0a13c5eb452dd2881b28ae8b3ce326f30b541b1a75403",
+      "physical": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "pci": [
+        "0000:c3:00.0",
+        "0000:c6:00.0",
+        "0000:c9:00.0",
+        "0000:cc:00.0"
+      ],
+      "warmups": 120,
+      "iterations": 100,
+      "bytes": 20480,
+      "order": [
+        "off",
+        "localbos",
+        "localbos",
+        "off"
+      ],
+      "pins": {
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/out/ar-driver-timing": "291b194e6e9dc5e7c60909bb970ffa1456056244a9be3e37fe35a948f1090dad",
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/ar-driver-timing.cpp": "f4dac74b622a15383c9cb2f53e2fa814e5dfa47f76e92c54f56c6ce1b4a35e88",
+        "/zpool1/llmx-xdev-ar-20261028-v3/out/libllmx-vulkan-selected.a": "5f9340f41c47c6c5060825d5bea5cfa7dcbf8f510c0de5cb39a9df134e88e7ac",
+        "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "/tmp/xdev-ar-input/run-driver-localbos.py": "e200491d1c7d81db4bfd933b6ae61195e35965e6dd20518c031ccf170679e3b1",
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/instrumented/lib/libvulkan_radeon.so": "b5b7ba81d3d958b2ad164c4d9f26323670b42ae63116d3b346988c209ade1989",
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/instrumented/radeon_icd.x86_64.json": "e8d9501ad4a602427697f90527bdfb22a35778e17e7fe8dca2f611b48cd8a834"
+      },
+      "off_inside_dso_pin": "b5b7ba81d3d958b2ad164c4d9f26323670b42ae63116d3b346988c209ade1989  /private-radv/lib/libvulkan_radeon.so",
+      "localbos_inside_dso_pin": "b5b7ba81d3d958b2ad164c4d9f26323670b42ae63116d3b346988c209ade1989  /private-radv/lib/libvulkan_radeon.so",
+      "off_driver_environment": "{\"RADV_PERFTEST\": \"\", \"VK_DRIVER_FILES\": \"/private-radv/radeon_icd.x86_64.json\", \"XDG_CACHE_HOME\": \"/tmp/cache\"}\n",
+      "localbos_driver_environment": "{\"RADV_PERFTEST\": \"localbos\", \"VK_DRIVER_FILES\": \"/private-radv/radeon_icd.x86_64.json\", \"XDG_CACHE_HOME\": \"/tmp/cache\"}\n"
+    },
+    "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\driver-localbos-v1",
+    "rig_artifacts": "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/localbos-v1",
+    "hashes": {
+      "execution.json": "fac6187e02ed90d3fc074cb2c7399f1b81cdc8632ca1c89b57a3c0d259a3befc",
+      "timing-summary.json": "1a0a7c0e42276394483dda27f53b3d85e09e36edb0476503ad5e0ca225fbc7ae",
+      "activity-summary.json": "36760eb9e2f03b5ce11058e85e80a9c7a371d5080d2d7c2623ea5704c0aedf7b"
+    },
+    "performance": [
+      {
+        "ranks": 2,
+        "all_call_p50_us": {
+          "off": [
+            150.225,
+            155.784
+          ],
+          "localbos": [
+            137.984,
+            135.924
+          ]
+        },
+        "mean_of_call_p50_us": {
+          "off": 153.0045,
+          "localbos": 136.954
+        },
+        "localbos_change_percent": -10.490214340101112
+      },
+      {
+        "ranks": 4,
+        "all_call_p50_us": {
+          "off": [
+            236.517,
+            276.348
+          ],
+          "localbos": [
+            239.327,
+            228.407
+          ]
+        },
+        "mean_of_call_p50_us": {
+          "off": 256.4325,
+          "localbos": 233.86700000000002
+        },
+        "localbos_change_percent": -8.799781618944547
+      }
+    ],
+    "activation": {
+      "TP2": {
+        "producer_handles": [
+          7,
+          4
+        ],
+        "consumer_handles": [
+          8,
+          4
+        ]
+      },
+      "TP4": {
+        "producer_handles": [
+          9,
+          6
+        ],
+        "consumer_handles": [
+          10,
+          6
+        ]
+      },
+      "global_handles": [
+        0
+      ],
+      "ib_counts_and_bytes_unchanged": true
+    },
+    "validation": {
+      "files_verified": 21,
+      "output_calls": 8,
+      "measured_native_records": 4800,
+      "all_ranges_exact": true,
+      "drops": 0,
+      "retries_or_multiple_native_calls": 0,
+      "records_outside_completed_windows": 0
+    },
+    "monitoring": {
+      "coverage": "8/8",
+      "flags": {
+        "unrelated_cpu": 0,
+        "other_gpu": 0,
+        "disk": 0,
+        "gap": 0
+      },
+      "unknown_process_cpu_observations": 124,
+      "missed_process_observations": 0
+    },
+    "pause_receipt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\localbos-pause-v1.json",
+      "sha256": "95bc7856489bd69efa36ad6ea8af7c10ca247a695fee2ff706f3ef9a8550dd06"
+    },
+    "decision": "Mechanism advances to uninstrumented four-size screen. TP2 on samples are below both off samples; TP4 overlaps and is provisional. No model qualification yet."
+  },
+  "source_contract": {
+    "allocator": "Mesa25.0.7 radv_amdgpu_bo.c:493-500 requires NO_INTERPROCESS_SHARING before VM_ALWAYS_VALID. Shared/exported allocations remain outside this policy. radv_radeon_winsys.h radv_buffer_is_resident omits is_local BOs from explicit CS buffer lists. Existing RADV_PERFTEST localbos is scoped to owned containers only; no product environment knob is added.",
+    "source_archives": {
+      "mesa_25.0.7.orig.tar.xz": "592272df3cf01e85e7db300c449df5061092574d099da275d19e97ef0510f8a6",
+      "mesa_25.0.7-2+deb13u1.debian.tar.xz": "7ea51db6f4c6a39d28269975b7f652e37333a283819557c5901cbd3eccee446a"
+    },
+    "patches": "All nine Debian package patches applied to both private builds. Source archive checksums match DSC; DSC signature was not independently verified.",
+    "timing_patch_sha256": "541fe7b73e86a913e7492abef43f8fe4ed4697e4890e33c0f63158f4813d7623"
+  },
+  "next": "Review one short matched actual-model decode screen at TP2/TP4, same selected executable and same private baseline DSO off/localbos. Selected application cache/fanout landing qualification proceeds independently. No new transport variant, full driver gate or product environment knob.",
+  "localbos_uninstrumented": {
+    "raw_artifacts": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\driver-localbos-screen-v1",
+    "rig_artifacts": "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/localbos-screen-v1",
+    "hashes": {
+      "execution.json": "cf1ec984f188a35b34a261534e69e767596dc2c7b08030e85980d1754e8acf42",
+      "summary.json": "402216530a7ee180cf2eb03f669577901da15d419f1cd449c7c65e90280a733d",
+      "activity-summary.json": "a18e7f9f81d6e12600777a02a1c09cb58b1d25457418e8f1ff93a799d6578bbc"
+    },
+    "identities": {
+      "image": "sha256:505a09b31013687000f0a13c5eb452dd2881b28ae8b3ce326f30b541b1a75403",
+      "pci": [
+        "0000:c3:00.0",
+        "0000:c6:00.0",
+        "0000:c9:00.0",
+        "0000:cc:00.0"
+      ],
+      "pins": {
+        "/zpool1/llmx-xdev-ar-20261028-v3/merge-reference-screen-v2/bin/ar-selected": "ca715529522f17b507920e96c0c2527637897a6d95ffbe1f0f3ff3cdcdb46211",
+        "/zpool1/llmx-xdev-ar-20261028-v3/merge-reference-screen-v2/config/ar-constant.cpp": "197ad076670e91a0561666b7a9794bf2e409880887eab7d082bc49a7823db04e",
+        "/zpool1/llmx-xdev-ar-20261028-v3/out/libllmx-vulkan-selected.a": "5f9340f41c47c6c5060825d5bea5cfa7dcbf8f510c0de5cb39a9df134e88e7ac",
+        "/opt/claude-work/llmx-p2-x-mxfp4-cpu/monitor_activity.py": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf",
+        "/tmp/xdev-ar-input/run-driver-localbos-screen.py": "0c8264be1e1ed1752e7bf9c0763e5848a43091c8eedfcbfaabbb69ac357d74c3",
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/base/lib/libvulkan_radeon.so": "6c27e8b934a1f5a9774764372cb3e61d9811ab4e80aee8447855c097243e9c09",
+        "/zpool1/llmx-xdev-ar-20261028-v3/driver-timing-v1/base/radeon_icd.x86_64.json": "e8d9501ad4a602427697f90527bdfb22a35778e17e7fe8dca2f611b48cd8a834"
+      },
+      "off_inside_dso_pin": "6c27e8b934a1f5a9774764372cb3e61d9811ab4e80aee8447855c097243e9c09  /private-radv/lib/libvulkan_radeon.so",
+      "localbos_inside_dso_pin": "6c27e8b934a1f5a9774764372cb3e61d9811ab4e80aee8447855c097243e9c09  /private-radv/lib/libvulkan_radeon.so",
+      "off_driver_environment": "{\"RADV_PERFTEST\": \"\", \"VK_DRIVER_FILES\": \"/private-radv/radeon_icd.x86_64.json\", \"XDG_CACHE_HOME\": \"/tmp/cache\"}\n",
+      "localbos_driver_environment": "{\"RADV_PERFTEST\": \"localbos\", \"VK_DRIVER_FILES\": \"/private-radv/radeon_icd.x86_64.json\", \"XDG_CACHE_HOME\": \"/tmp/cache\"}\n"
+    },
+    "performance": [
+      {
+        "ranks": 2,
+        "bytes": 20480,
+        "p50_us_samples": {
+          "off": [
+            168.886,
+            152.765
+          ],
+          "localbos": [
+            137.154,
+            155.405
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 160.82549999999998,
+          "localbos": 146.27949999999998
+        },
+        "change_percent": -9.044585591215315
+      },
+      {
+        "ranks": 2,
+        "bytes": 163840,
+        "p50_us_samples": {
+          "off": [
+            171.265,
+            161.685
+          ],
+          "localbos": [
+            153.115,
+            168.515
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 166.475,
+          "localbos": 160.815
+        },
+        "change_percent": -3.399909896380837
+      },
+      {
+        "ranks": 2,
+        "bytes": 1310720,
+        "p50_us_samples": {
+          "off": [
+            299.479,
+            282.098
+          ],
+          "localbos": [
+            271.038,
+            281.718
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 290.7885,
+          "localbos": 276.37800000000004
+        },
+        "change_percent": -4.955663652448417
+      },
+      {
+        "ranks": 2,
+        "bytes": 10485760,
+        "p50_us_samples": {
+          "off": [
+            1344.31,
+            1283.308
+          ],
+          "localbos": [
+            1265.457,
+            1266.198
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 1313.809,
+          "localbos": 1265.8275
+        },
+        "change_percent": -3.6520909812613467
+      },
+      {
+        "ranks": 4,
+        "bytes": 20480,
+        "p50_us_samples": {
+          "off": [
+            266.218,
+            248.857
+          ],
+          "localbos": [
+            266.748,
+            229.787
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 257.5375,
+          "localbos": 248.26749999999998
+        },
+        "change_percent": -3.5994758044945008
+      },
+      {
+        "ranks": 4,
+        "bytes": 163840,
+        "p50_us_samples": {
+          "off": [
+            385.501,
+            261.078
+          ],
+          "localbos": [
+            262.548,
+            256.298
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 323.2895,
+          "localbos": 259.423
+        },
+        "change_percent": -19.755203927130317
+      },
+      {
+        "ranks": 4,
+        "bytes": 1310720,
+        "p50_us_samples": {
+          "off": [
+            646.2,
+            646.579
+          ],
+          "localbos": [
+            662.94,
+            644.489
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 646.3895,
+          "localbos": 653.7145
+        },
+        "change_percent": 1.1332176652003145
+      },
+      {
+        "ranks": 4,
+        "bytes": 10485760,
+        "p50_us_samples": {
+          "off": [
+            3953.117,
+            3952.988
+          ],
+          "localbos": [
+            3933.157,
+            3958.038
+          ]
+        },
+        "mean_of_p50_us": {
+          "off": 3953.0525,
+          "localbos": 3945.5975
+        },
+        "change_percent": -0.18858843893421184
+      }
+    ],
+    "validation": {
+      "files_verified": 21,
+      "output_calls": 8,
+      "output_checks": 32,
+      "all_pass": true
+    },
+    "monitoring": {
+      "coverage": "8/8",
+      "flags": {
+        "unrelated_cpu": 2,
+        "other_gpu": 1,
+        "disk": 0,
+        "gap": 0
+      },
+      "unknown_process_cpu_observations": 274,
+      "missed_process_observations": 1,
+      "caveat": "CPU-flagged TP2 final off and TP4 first off share max1.139352 cores. Raw other-GPU flag on TP2 final off belongs to interval1793219857.99249..1793219859.99391, spanning own TP4 start1793219858.96116; c9/cc endpoint68/65percent does not establish unrelated competition. Retain every sample."
+    },
+    "pause_receipt": {
+      "path": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\scratch\\allreduce-20261028\\localbos-screen-pause-v1.json",
+      "sha256": "e870f670b4d522e35493a28af90677a5b78bc7984afeeb795dd401a6844a9b53",
+      "paused_seconds": 22.5449672,
+      "resumed_running": true
+    },
+    "decision": "TP2 tiny gain agrees with prior instrumented activation. TP4 changes are modest/mixed; the apparent19.76percent160KiB gain is inflated by off385.501 versus261.078us scatter, and1.25MiB regresses1.13percent. No blanket stable TP4 gain or real-model claim. Private driver mechanism is promising enough for a short fixed model performance question before broader qualification."
+  }
+}

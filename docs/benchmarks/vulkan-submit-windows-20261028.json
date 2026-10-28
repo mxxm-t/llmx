@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-28",
+  "scope": "Clean Windows selected-runtime build and Radeon native backend check; device suite and remaining landing gates are separate.",
+  "tested_revision": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+  "source_sha256": {
+    "src/backends/vulkan/vulkan_backend.cpp": "0736b556d26669eb8b357e7f53a4a2fda41725b8dd708dc224b514014afb2d54",
+    "src/backends/vulkan/vulkan_collective.hpp": "0f870d745d74d8e5f836583482c088750516a07cda23de468ec2d8b821c4f4af",
+    "tests/backend_vulkan.cpp": "f7227669c1c3dad4bcbde9cb1c8d1a40598eaefaf069f4e41df8e06d1749c50f"
+  },
+  "build": {
+    "start": 1793220172.6690748,
+    "revision": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+    "source_sha256": {
+      "src/backends/vulkan/vulkan_backend.cpp": "0736b556d26669eb8b357e7f53a4a2fda41725b8dd708dc224b514014afb2d54",
+      "src/backends/vulkan/vulkan_collective.hpp": "0f870d745d74d8e5f836583482c088750516a07cda23de468ec2d8b821c4f4af",
+      "tests/backend_vulkan.cpp": "f7227669c1c3dad4bcbde9cb1c8d1a40598eaefaf069f4e41df8e06d1749c50f"
+    },
+    "command": [
+      "cmake",
+      "--build",
+      "build-cache-win",
+      "--config",
+      "Release",
+      "--target",
+      "llmx",
+      "llmx-backend-vulkan-test",
+      "--clean-first",
+      "--parallel",
+      "2"
+    ],
+    "exit": 0,
+    "end": 1793220305.0301476,
+    "llmx.exe": {
+      "sha256": "c4c8a63bd2a67546dba36625b6200564ea3b43c95c4f33be60f6d01dded18c72",
+      "mtime": 1793220291.9297361,
+      "bytes": 12024320
+    },
+    "llmx-backend-vulkan-test.exe": {
+      "sha256": "f430ffe329136e000a04fac8e4cbcfdff316e9163a0cf3f7d9aa7e0d2eb9dbbb",
+      "mtime": 1793220304.9532044,
+      "bytes": 10225152
+    },
+    "llmx-vulkan.lib": {
+      "sha256": "ef1e0fc12511d1ac3c6fd882457bbd5b634ce747059564c219d25aa8e42c76be",
+      "mtime": 1793220265.0948124,
+      "bytes": 12465182
+    }
+  },
+  "native_test": {
+    "start": 1793220369.701948,
+    "exe_sha256": "c4c8a63bd2a67546dba36625b6200564ea3b43c95c4f33be60f6d01dded18c72",
+    "version": "llmx 0.1.0+g94c1680faa9a numerics 3a22beee5cbffa92",
+    "command": [
+      "ctest",
+      "--test-dir",
+      "build-cache-win",
+      "-C",
+      "Release",
+      "-R",
+      "^backend-vulkan$",
+      "--output-on-failure"
+    ],
+    "end": 1793220461.0477216,
+    "exit": 0
+  },
+  "native_result": {
+    "device": "AMD Radeon VII",
+    "driver": "AMD proprietary driver 26.5.2",
+    "ctest_seconds": 90.74,
+    "storage_submission_checks": 135,
+    "kernel_outputs_compared": 51899392,
+    "posix_sync_file_fanout_exercised": false
+  },
+  "suite_tools": {
+    "started": 1793220487.5103924,
+    "command": [
+      "cmake",
+      "--build",
+      "build-cache-win",
+      "--config",
+      "Release",
+      "--target",
+      "llmx-model-logits",
+      "llmx-decode-probe",
+      "llmx-drafter-pack",
+      "llmx-cpu-f32-check",
+      "llmx-encode-image",
+      "llmx-split-check",
+      "llmx-server-spec-test",
+      "llmx-arch-qwen4exp-test",
+      "llmx-qwen4exp-model-test",
+      "--parallel",
+      "2"
+    ],
+    "exit": 0,
+    "finished": 1793220594.8992097,
+    "binaries": {
+      "llmx-model-logits": "8f094f9d217fa119c4b79fa2c7747e80b9591dae7b7fcfd63bbe01c8ead4413f",
+      "llmx-decode-probe": "419789a0c04f2b714060b19a564447a2d907cbc550b29c872bd5b71873c6c2ac",
+      "llmx-drafter-pack": "aed2c0ab3efe3b226d7faedcec159914609673a68e87f5d6c93de6c5ab18bdec",
+      "llmx-cpu-f32-check": "873de3b974a80eec2b99068f184c7aef69cd4d75df97bd5fc818f96af8ffab17",
+      "llmx-encode-image": "3c04fed7b0f32ee4d897bae846018078bf31ce79fe972ea6426a195df2f1f86a",
+      "llmx-split-check": "6cb4ecc91b215fd37204f97622397a7efba3d7c769fdec871a77db5ae3f6abc9",
+      "llmx-server-spec-test": "d90fecbec3c6bc526cee3f8b13fcbdf2e62ad695f703b65a6f2a11d2694a27ba",
+      "llmx-arch-qwen4exp-test": "c3c154badee470c471ba1122b83482d7b9ad3a9f3e4e8e212ea4b610948f8c43",
+      "llmx-qwen4exp-model-test": "70de37b66bf926a4ffbf6608b5a86cf4c31235b7f4f1f3904c93891ec453a7d2"
+    }
+  },
+  "artifact_root": "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\vulkan-shared-timeline-20261028\\build-landing-review-20261028",
+  "files": {
+    "backend-vulkan-ctest.log": "fba1745c5cc451d6e361524c3436d6fad826f5650e28c6a96cd4891a8f2c5ad6",
+    "backend-vulkan.json": "1f22acdcab67ef07d082e3a41854a1bb4be98e23111a6318d35ed83fb3cbbb9b",
+    "backend-vulkan.log": "c66ba96d82d37a8ca907b247eb122016cef6d6d281e274b9976fdaa97f7df201",
+    "build.json": "f5083a1d86471c66538cb579dbe9401ad41d308cbe86816fbbf212abc618ec50",
+    "build.log": "58767b5bb82784bac53eaa7e434d3545926ceb9ed39b247bc49a9f50d1717782",
+    "suite-tools.json": "07b9866bc6049df57202ea02844271f996c9a1c2d2ecb8d4fc436a9602ece53d",
+    "suite-tools.log": "52c17090f80adc8c19cc6457828c438908207cb9bd6e407c1002a0fa8b307ff9"
+  },
+  "carry_forward": "Landing preparation changes documentation and squashes history only. Runtime, native test, shader, build configuration and fixture sources match the tested development tree. Each binary retains its own version and hash; no private driver policy is enabled on Windows."
+}

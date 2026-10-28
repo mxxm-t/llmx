@@ -1,0 +1,439 @@
+{
+  "scope": "Completed ordinary Linux Vulkan suite and focused TP2/TP4 checks, using unchanged selected runtime/test/fixture inputs. No performance claim. Hosted/final merge audit remains separate.",
+  "tested_source": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+  "landing_source_equivalent": "c2ed9a0e7d44960423e9d8c4b610586efe4bc8ea",
+  "base_image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+  "test_image": "sha256:0830e8d21d46acb8c80a6f18a7e914d8d5fac397823002878254af5fa5a91b6f",
+  "numpy_version": "2.2.4",
+  "existing_packages_unchanged": 214,
+  "runtime_file_hashes_unchanged": 23,
+  "test_image_proof": {
+    "path": "scratch\\allreduce-20261028\\linux-test-image-v1\\provision.json",
+    "sha256": "b17ff7c53914674acb2d71555ddf1c6b0fc0cb1409177fd8e2edb1294caa6e7a"
+  },
+  "suite": {
+    "receipt_path": "scratch\\allreduce-20261028\\linux-selected-device-suite-v1\\execution.json",
+    "receipt_sha256": "90dc38f4d9557022358ba7b98923d29f1a58a57ec35e092fe54b866b24c1a66e",
+    "log_path": "scratch\\allreduce-20261028\\linux-selected-device-suite-v1\\suite.log",
+    "log_sha256": "954ee61ce2663451e85b035ff2465553d20998ec3e321869fa540c5e0c38e185",
+    "components": [
+      {
+        "name": "dead-code",
+        "status": "PASS"
+      },
+      {
+        "name": "docs",
+        "status": "PASS"
+      },
+      {
+        "name": "arch-boundary",
+        "status": "PASS"
+      },
+      {
+        "name": "version",
+        "status": "PASS"
+      },
+      {
+        "name": "cli",
+        "status": "PASS"
+      },
+      {
+        "name": "reference-generator",
+        "status": "PASS"
+      },
+      {
+        "name": "reference-consumer",
+        "status": "PASS"
+      },
+      {
+        "name": "device-reference",
+        "status": "PASS"
+      },
+      {
+        "name": "roundtrip",
+        "status": "PASS"
+      },
+      {
+        "name": "raw-blocks",
+        "status": "PASS"
+      },
+      {
+        "name": "perf",
+        "status": "PASS"
+      },
+      {
+        "name": "tokenizer",
+        "status": "PASS"
+      },
+      {
+        "name": "perplexity",
+        "status": "PASS"
+      },
+      {
+        "name": "f32",
+        "status": "PASS"
+      },
+      {
+        "name": "half-weights",
+        "status": "PASS"
+      },
+      {
+        "name": "moe",
+        "status": "PASS"
+      },
+      {
+        "name": "int8",
+        "status": "PASS"
+      },
+      {
+        "name": "mxfp4",
+        "status": "PASS"
+      },
+      {
+        "name": "q5-0",
+        "status": "PASS"
+      },
+      {
+        "name": "q2-k",
+        "status": "PASS"
+      },
+      {
+        "name": "q3-k",
+        "status": "PASS"
+      },
+      {
+        "name": "q5-1",
+        "status": "PASS"
+      },
+      {
+        "name": "iq4-nl",
+        "status": "PASS"
+      },
+      {
+        "name": "iq4-xs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq3-s",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-s",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-xxs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq2-xs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq3-xxs",
+        "status": "PASS"
+      },
+      {
+        "name": "iq1",
+        "status": "PASS"
+      },
+      {
+        "name": "tq1-0",
+        "status": "PASS"
+      },
+      {
+        "name": "tq2-0",
+        "status": "PASS"
+      },
+      {
+        "name": "nvfp4",
+        "status": "PASS"
+      },
+      {
+        "name": "qwen35",
+        "status": "PASS"
+      },
+      {
+        "name": "vision",
+        "status": "PASS"
+      },
+      {
+        "name": "image",
+        "status": "PASS"
+      },
+      {
+        "name": "split",
+        "status": "PASS"
+      },
+      {
+        "name": "tensor-split",
+        "status": "PASS"
+      },
+      {
+        "name": "decode-probe",
+        "status": "PASS"
+      },
+      {
+        "name": "drafters",
+        "status": "PASS"
+      },
+      {
+        "name": "shards",
+        "status": "PASS"
+      },
+      {
+        "name": "server",
+        "status": "PASS"
+      },
+      {
+        "name": "server-load",
+        "status": "PASS"
+      },
+      {
+        "name": "chat",
+        "status": "PASS"
+      },
+      {
+        "name": "threads",
+        "status": "PASS"
+      },
+      {
+        "name": "baseline",
+        "status": "PASS"
+      }
+    ],
+    "source_before": {
+      "files": 1062,
+      "sha256": "c9dcd791b8870b24e09405a3209447e21b1bd263224a3094816fe741652bcdd2"
+    },
+    "source_after": {
+      "files": 1062,
+      "sha256": "c9dcd791b8870b24e09405a3209447e21b1bd263224a3094816fe741652bcdd2"
+    },
+    "binaries": {
+      "llmx": "3399368b94a2965ecc9543f39bef97f59b060ea0e3793ef280fd7d087fd8ee73",
+      "llmx-backend-vulkan-test": "3038c66a2f20c33d245f811c1ffb3dbbb3baadd9f7bc83d11fcb066fd7dd69b2",
+      "llmx-cpu-f32-check": "a014a6bd6da07cb63e72f7eebe80460f0068168ea76c07060b425c3c8b04590f",
+      "llmx-split-check": "f2cb9010510863f7e6372d6d15a706639fefebf53323d708cde91f712209369d",
+      "llmx-encode-image": "3a9f13db694bc0c38fc6d28a33f96e2544c83f71cf6715099d5c9998e85a7b27",
+      "llmx-decode-probe": "1458de9ec9905148aace989732db37d683d8b37fc95ead4c3de13bef49280a08",
+      "llmx-drafter-pack": "4674e99d37ee349e036085ae5368d02856bb34681d4052326157ac21afd70189",
+      "llmx-model-logits": "7bbc5816133ef5c4c917701e9af1d701427e7dd7687bf2f0bf96b7ddfff8d229",
+      "llmx-server-spec-test": "764d4baa4d4766164da06e7d09ccd1d872947d4ea311a301ac349ef1feaea646",
+      "llmx-arch-qwen4exp-test": "e983c8dc2834334340441b0e4ae18e5dcfa0b034216a5a0be1d76a2e162ea6de",
+      "llmx-qwen4exp-model-test": "76ad11154b04a7c7c32e2911f01309d700ba69fec6ff80c2928087864f12c245"
+    },
+    "seconds_diagnostic": 1191.6889824867249,
+    "pci": "0000:c3:00.0",
+    "corrections": [
+      {
+        "path": "scratch\\allreduce-20261028\\linux-selected-device-suite-v1\\cpuset-correction-v1.json",
+        "sha256": "3089488727b5543cd164b4a008edd398d6494e63028559f73dbfa0495c0f5692",
+        "record": {
+          "container": "2c8d49c8b51e5052d331aba60200de880c8fba7f3f72def4f33be92b11235cbe",
+          "time": 1793222917.2553372,
+          "before": "4-7",
+          "after": "8-11",
+          "reason": "Move correctness suite away from physical cores used by quality-raw at logical12-15. No restart or test-input change, no performance claim.",
+          "topology": {
+            "4": [
+              0,
+              16
+            ],
+            "5": [
+              0,
+              20
+            ],
+            "6": [
+              0,
+              24
+            ],
+            "7": [
+              0,
+              28
+            ],
+            "8": [
+              0,
+              0
+            ],
+            "9": [
+              0,
+              4
+            ],
+            "10": [
+              0,
+              8
+            ],
+            "11": [
+              0,
+              12
+            ],
+            "12": [
+              0,
+              16
+            ],
+            "13": [
+              0,
+              20
+            ],
+            "14": [
+              0,
+              24
+            ],
+            "15": [
+              0,
+              28
+            ]
+          }
+        }
+      },
+      {
+        "path": "scratch\\allreduce-20261028\\linux-selected-device-suite-v1\\admission-correction-v1.json",
+        "sha256": "3f97ad0e9a1afe151576c4e86a3c3a8c082000a2fb29f01c0d054236115354c7",
+        "record": {
+          "time": 1793223998.4485135,
+          "jobs": [
+            {
+              "id": "2c8d49c8b51e5052d331aba60200de880c8fba7f3f72def4f33be92b11235cbe",
+              "name": "llmx-xdev-ar-selected-device-suite-v1",
+              "cap": 4294967296,
+              "used": 685268992,
+              "remaining": 3609698304
+            },
+            {
+              "id": "031f78f201ad4ebb144b819eddfff137a193efd270f4693c3d3c71524e4a0465",
+              "name": "llmx-xdev-q2-depth-f32-quality-raw",
+              "cap": 16106127360,
+              "used": 7400148992,
+              "remaining": 8705978368
+            }
+          ],
+          "available": 26480566272,
+          "required_remaining_caps_and_host_reserve": 14463160320,
+          "safe_now": true,
+          "correction": "Original suite admission name filter covered selected-mi50 references but missed the active f32-quality reference. This audit includes both. Retain initial omission; current check cannot retroactively prove the earlier admission."
+        }
+      }
+    ]
+  },
+  "focused_tensor": {
+    "receipt_path": "scratch\\allreduce-20261028\\linux-selected-tensor-v1\\execution.json",
+    "receipt_sha256": "b3a4c91bce35cad9fc38bbc443ae932cad49e70b3956134edb8d697892503724",
+    "files": {
+      "vulkaninfo.log": "d20b18bf6ca18737b4fc7d265c07b683283ab8362f787895c3941c8803849eb2",
+      "tp4.log": "6e89f4f0c946420ec925c74e718419a21e66bce1d3ad6f6c1e6633dd54e71dd5",
+      "tp2.log": "da9b0153178b8189ca6df86729537344371e0b48c7187ecc80ec2d9940ba8c99"
+    },
+    "cases": [
+      {
+        "width": 2,
+        "devices": "vulkan:0,vulkan:1",
+        "pci": [
+          "0000:89:00.0",
+          "0000:8c:00.0"
+        ],
+        "command": [
+          "python3",
+          "-B",
+          "-u",
+          "-X",
+          "utf8",
+          "/ar/landing-selected-v1/src/tests/run_tests.py",
+          "--exe",
+          "/ar/landing-selected-v1/bin/llmx",
+          "--device",
+          "vulkan:0,vulkan:1",
+          "--tensor-width",
+          "2",
+          "--only",
+          "tensor-split",
+          "--require-tools",
+          "--no-perf-floor"
+        ],
+        "started": 1793224016.8971653,
+        "completed": true,
+        "exit": 0,
+        "ended": 1793224094.168111,
+        "named_width_witness": true,
+        "component_status": [
+          [
+            "tensor-split",
+            "PASS"
+          ]
+        ],
+        "no_skip": true
+      },
+      {
+        "width": 4,
+        "devices": "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+        "pci": [
+          "0000:89:00.0",
+          "0000:8c:00.0",
+          "0000:c6:00.0",
+          "0000:c9:00.0"
+        ],
+        "command": [
+          "python3",
+          "-B",
+          "-u",
+          "-X",
+          "utf8",
+          "/ar/landing-selected-v1/src/tests/run_tests.py",
+          "--exe",
+          "/ar/landing-selected-v1/bin/llmx",
+          "--device",
+          "vulkan:0,vulkan:1,vulkan:2,vulkan:3",
+          "--tensor-width",
+          "4",
+          "--only",
+          "tensor-split",
+          "--require-tools",
+          "--no-perf-floor"
+        ],
+        "started": 1793224094.1685276,
+        "completed": true,
+        "exit": 0,
+        "ended": 1793224172.9801364,
+        "named_width_witness": true,
+        "component_status": [
+          [
+            "tensor-split",
+            "PASS"
+          ]
+        ],
+        "no_skip": true
+      }
+    ],
+    "source_before": {
+      "files": 1062,
+      "sha256": "c9dcd791b8870b24e09405a3209447e21b1bd263224a3094816fe741652bcdd2"
+    },
+    "source_after": {
+      "files": 1062,
+      "sha256": "c9dcd791b8870b24e09405a3209447e21b1bd263224a3094816fe741652bcdd2"
+    },
+    "binaries": {
+      "llmx": "3399368b94a2965ecc9543f39bef97f59b060ea0e3793ef280fd7d087fd8ee73",
+      "llmx-backend-vulkan-test": "3038c66a2f20c33d245f811c1ffb3dbbb3baadd9f7bc83d11fcb066fd7dd69b2",
+      "llmx-cpu-f32-check": "a014a6bd6da07cb63e72f7eebe80460f0068168ea76c07060b425c3c8b04590f",
+      "llmx-split-check": "f2cb9010510863f7e6372d6d15a706639fefebf53323d708cde91f712209369d",
+      "llmx-encode-image": "3a9f13db694bc0c38fc6d28a33f96e2544c83f71cf6715099d5c9998e85a7b27",
+      "llmx-decode-probe": "1458de9ec9905148aace989732db37d683d8b37fc95ead4c3de13bef49280a08",
+      "llmx-drafter-pack": "4674e99d37ee349e036085ae5368d02856bb34681d4052326157ac21afd70189",
+      "llmx-model-logits": "7bbc5816133ef5c4c917701e9af1d701427e7dd7687bf2f0bf96b7ddfff8d229",
+      "llmx-server-spec-test": "764d4baa4d4766164da06e7d09ccd1d872947d4ea311a301ac349ef1feaea646",
+      "llmx-arch-qwen4exp-test": "e983c8dc2834334340441b0e4ae18e5dcfa0b034216a5a0be1d76a2e162ea6de",
+      "llmx-qwen4exp-model-test": "76ad11154b04a7c7c32e2911f01309d700ba69fec6ff80c2928087864f12c245"
+    },
+    "actual_pci_order": [
+      "0000:89:00.0",
+      "0000:8c:00.0",
+      "0000:c6:00.0",
+      "0000:c9:00.0"
+    ]
+  },
+  "limitations": [
+    "Single-device suite tensor-split component runs CPU groups; separate focused runs reach the named Vulkan groups.",
+    "Runtime performance evidence is retained in earlier matched model/server records; these correctness timings do not establish speed."
+  ]
+}

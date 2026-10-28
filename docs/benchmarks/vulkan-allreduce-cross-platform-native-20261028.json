@@ -1,0 +1,108 @@
+{
+  "schema": "windows-cpu-linux-native-qualification-evidence-v1",
+  "scope": "Windows CPU main-versus-selected identity plus Linux MI50 selected native Vulkan backend test. This does not establish the full device suite, Radeon identity, hosted checks, or merge readiness.",
+  "candidate": {
+    "tested_source_commit": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+    "landing_commit": "c2ed9a0e7d44960423e9d8c4b610586efe4bc8ea",
+    "carry_check": "Tracked src/ and tests/ are identical from tested commit 94c1680 to landing c2ed9a0; later Windows-evidence documentation is outside runtime/native source scope."
+  },
+  "windows_cpu": {
+    "evidence": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/windows-main-selected-cpu-identity-evidence-v1.json",
+      "sha256": "f1b8d27ffd9f558d5988103a35bd64380d8a4c80438c1babddacb58255705fee"
+    },
+    "execution": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/windows-identity/cpu-resume-v1/execution.json",
+      "sha256": "3d263db2282d36500759ec8b6ae2cc6e327b4948308b5a8c92f84c5a0a02ab71"
+    },
+    "result": "Seven pinned non-vision gate models; 21/21 full-vocabulary batched, per-token, and greedy payload pairs byte-identical; 448 greedy IDs equal. Effective dtype f16, F16 KV, six CPU threads; exact per-model matrix path witnesses are in the linked evidence and execution records.",
+    "build_receipts": {
+      "main": {
+        "path": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/ar-main-20261028/build-identity/build-receipt.json",
+        "sha256": "595c067115cb9473ccd4e9871b9683b26a66c947f3bf67910d07826ce247cd16"
+      },
+      "selected": {
+        "path": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-shared-timeline-20261028/build-landing-review-20261028/build.json",
+        "sha256": "f5083a1d86471c66538cb579dbe9401ad41d308cbe86816fbbf212abc618ec50"
+      },
+      "selected_suite_tools": {
+        "path": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/vulkan-shared-timeline-20261028/build-landing-review-20261028/suite-tools.json",
+        "sha256": "07b9866bc6049df57202ea02844271f996c9a1c2d2ecb8d4fc436a9602ece53d"
+      }
+    },
+    "fixture_manifest": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/worktrees/ar-main-20261028/tests/data/fixtures.json",
+      "sha256": "fe77caf81d7f34690d18ad2a859406f99d127c6a9ef2a51088e3dc21b7a9aa4e"
+    },
+    "preserved_setup_failure": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/windows-identity/cpu/execution.json",
+      "sha256": "0f8852650cda2df1135dff7d6764adf1ca824ea31c731f457617a0cc79e32804",
+      "disposition": "Harness compared full CLI version text to helper LLMX_VERSION_STRING before comparison; retained. Its completed first main capture was reused by the corrected CPU resume."
+    }
+  },
+  "linux_native": {
+    "host_record": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-build-v1/host.json",
+      "sha256": "d0abf249f8742705e0ffe9fad1da3cbc97e45720034226fc5ee1421dc0cd0f6a"
+    },
+    "build_record": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-build-v1/build.json",
+      "sha256": "8b376af2b0c5b71ecf851a31313138e6be78fcfff47c2d808f609010a6c05e2f"
+    },
+    "execution_record": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-native-v1/execution.json",
+      "sha256": "8c8f2579f64fb4553a209efcce9f2e8f3da8e94a69a0b36edda896edc5915bbe"
+    },
+    "ctest_xml": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-native-v1/ctest.xml",
+      "sha256": "a3f29e255e99a2c39acae374f40d0e4bf276f0e7e7494a8971a12472017524f9",
+      "tests": 1,
+      "failures": 0,
+      "skipped": 0
+    },
+    "last_test_log": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-native-v1/LastTest.log",
+      "sha256": "a736a70c0564310ab73e5d5a3ae8c3e9b802d82a5111e9448dff30112446f0a7"
+    },
+    "ctest_log": {
+      "path": "C:/Users/Marko/Desktop/Projects/llmx/scratch/allreduce-20261028/linux-selected-native-v1/ctest.log",
+      "sha256": "0b36edd6d554f8e8da105c0f0ac106adaf381bfcc883e128220066a9ddf354d2"
+    },
+    "result": {
+      "exit": 0,
+      "three_device_witness": true,
+      "no_skips_or_failures": true,
+      "storage_and_submission_checks": 160,
+      "kernel_outputs_against_cpu": 52250032,
+      "ctest_elapsed_seconds": 62.232,
+      "timing_is_performance_evidence": false
+    },
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "gpu_driver": "AMD Instinct MI60 / MI50 (RADV VEGA20); radv Mesa 25.0.7-2+deb13u1; Vulkan identity 4098:26273; driver build/version tokens 104857607 f7b7964597088d469422e31f4cce98ed",
+    "exposed_render_nodes": [
+      "/dev/dri/renderD128",
+      "/dev/dri/renderD129",
+      "/dev/dri/renderD130",
+      "/dev/dri/renderD131"
+    ],
+    "tested_native_binary": {
+      "path": "/zpool1/llmx-xdev-ar-20261028-v3/landing-selected-v1/bin/llmx-backend-vulkan-test",
+      "sha256": "3038c66a2f20c33d245f811c1ffb3dbbb3baadd9f7bc83d11fcb066fd7dd69b2"
+    },
+    "source": {
+      "commit": "94c1680faa9a160ec0441222a2aa994f805f37a3",
+      "build_receipt_sha256": "8b376af2b0c5b71ecf851a31313138e6be78fcfff47c2d808f609010a6c05e2f",
+      "files": {
+        "src/backends/vulkan/vulkan_backend.cpp": "0736b556d26669eb8b357e7f53a4a2fda41725b8dd708dc224b514014afb2d54",
+        "src/backends/vulkan/vulkan_collective.hpp": "0f870d745d74d8e5f836583482c088750516a07cda23de468ec2d8b821c4f4af",
+        "tests/backend_vulkan.cpp": "f7227669c1c3dad4bcbde9cb1c8d1a40598eaefaf069f4e41df8e06d1749c50f"
+      }
+    }
+  },
+  "remaining_scope": [
+    "Linux strict device suite",
+    "Windows Radeon full suite",
+    "Windows Radeon byte identity",
+    "hosted checks and final merge review"
+  ]
+}

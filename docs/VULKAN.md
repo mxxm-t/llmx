@@ -234,6 +234,17 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   1024-square matvec a quarter of its time (17.1 to 13.2 us) and the 8B
   shapes 313 to 373 GB/s.
 
+  **Q1_0 one-column integer decode.** The row owner selects its two-row
+  specialization only when the Q1_0 integer-dot kernel is selected, the call
+  has one input column and at least two total output rows, including grouped
+  projections. Multi-column calls, other Q1_0 paths and every other quant type
+  retain their existing dispatch. The two rows share
+  activation loads while keeping each row's dot and reduction order and its
+  independent row-and-column range-repair vote. In an odd row tail, inactive reads
+  clamp to the final live row and are not stored. Native identity and matched
+  timing evidence are recorded in [STATUS](STATUS.md) and the
+  [Q1 two-row screen](benchmarks/q1-two-row-matched-20261028.json).
+
   **Integer activations.** On a device whose profile does not prefer the integer dot, every quantized row meets the activations as
   signed 16-bit values in blocks of 32, each block scaled so its largest
   magnitude is 32767, with the block's scale `d` and `d` times its sum

@@ -1,0 +1,981 @@
+{
+  "title": "Q1_0/Q2_0 BF16 split group recheck",
+  "date": "2026-10-27",
+  "status": "offline recheck complete; 17/18 shared-checker CPU/group comparisons pass; Q2 tied TP2 NLL comparison remains failed",
+  "scope": "Retained output only; no inference/build/tests; no common.py or thresholds changed.",
+  "source_run": "build-low-bits-dev/bf16-raw-v1/results/attempt-20261027T191618Z-545c10c3d4/capture-v2-out/results/execution.json",
+  "hash_verification": {
+    "raw_files_checked": 72,
+    "full_capture_tree_files_checked": 123,
+    "capture_tree_hashes_match_final_receipt": true,
+    "captures_jsonl_sha256": "114ab7f69f393829b3f77ebb586ab79660a7ca915c9b6bedf4c562b3f1195967",
+    "execution_sha256": "aeee9ccb064623521d0887a1e7c83f3bfa22a0d4049df813a8d1c326523cac94",
+    "final_receipt_sha256": "4378b1938c579d9973a76c76910fa0a43b30010756fe530acbc041f8f13658b6"
+  },
+  "original_result_preserved": {
+    "artifact": "docs/benchmarks/q1-q2-bf16-raw-captures-20261027.json",
+    "original_local_runner_group_count": "13/18 passing under the scratch wrapper matched_prefix==64 predicate",
+    "recheck_reason": "That scratch predicate was stricter than the existing common.check_device_greedy contract."
+  },
+  "recheck_rule": {
+    "batched_decode": "shared common.check_device_rows with its unchanged top1/top5 and mean-NLL rules",
+    "greedy": "shared common.check_device_greedy must return without error and agrees_until_tie=true; no separate matched_prefix==64 requirement",
+    "near_tie_margin": 0.1,
+    "group_count": 18,
+    "passes": 17,
+    "failures": 1
+  },
+  "comparisons": [
+    {
+      "cell": "cpu2",
+      "model": "q1-0-dense-tied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.06498527526855469,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.690858774234815,
+          "nll_delta": 0.007566852013184189,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.06498527526855469,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.690858774234815,
+          "nll_delta": 0.007566852013184189,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 4,
+        "first_near_tie": 4,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu2",
+      "model": "q1-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411909103393555,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.483798415126035,
+          "nll_delta": 0.004661207386664756,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411909103393555,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.483798415126035,
+          "nll_delta": 0.004661207386664756,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 47,
+        "first_near_tie": 47,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu2",
+      "model": "q1-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.08368682861328125,
+          "cpu_nll": 18.569142274088794,
+          "device_nll": 18.572165393028698,
+          "nll_delta": 0.0030231189399039238,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.10888385772705078,
+          "cpu_nll": 18.573350336606456,
+          "device_nll": 18.568640908307803,
+          "nll_delta": 0.004709428298653506,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 15,
+        "first_near_tie": 15,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu2",
+      "model": "q2-0-dense-tied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.03578841686248779,
+          "cpu_nll": 20.633240763482863,
+          "device_nll": 20.632860503770626,
+          "nll_delta": 0.0003802597122373186,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.03578841686248779,
+          "cpu_nll": 20.633240763482863,
+          "device_nll": 20.632860503770626,
+          "nll_delta": 0.0003802597122373186,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 64,
+        "first_near_tie": null,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu2",
+      "model": "q2-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04897665977478027,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.55325544023951,
+          "nll_delta": 0.0004926764400359218,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04897665977478027,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.55325544023951,
+          "nll_delta": 0.0004926764400359218,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 3,
+        "first_near_tie": 3,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu2",
+      "model": "q2-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.046389102935791016,
+          "cpu_nll": 20.07784839506533,
+          "device_nll": 20.07458985236519,
+          "nll_delta": 0.0032585427001414757,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.046869754791259766,
+          "cpu_nll": 20.07758896192559,
+          "device_nll": 20.0750822939011,
+          "nll_delta": 0.002506668024487624,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 9,
+        "first_near_tie": 9,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu4",
+      "model": "q1-0-dense-tied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04860401153564453,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.696241004826582,
+          "nll_delta": 0.0021846214214171766,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04860401153564453,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.696241004826582,
+          "nll_delta": 0.0021846214214171766,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 4,
+        "first_near_tie": 4,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu4",
+      "model": "q1-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.06553459167480469,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.475902339968314,
+          "nll_delta": 0.0032348677710558604,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.06553459167480469,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.475902339968314,
+          "nll_delta": 0.0032348677710558604,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 47,
+        "first_near_tie": 47,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu4",
+      "model": "q1-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.054290771484375,
+          "cpu_nll": 18.569142274088794,
+          "device_nll": 18.57072511930643,
+          "nll_delta": 0.0015828452176371854,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.05515623092651367,
+          "cpu_nll": 18.573350336606456,
+          "device_nll": 18.571877029991274,
+          "nll_delta": 0.0014733066151819685,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 49,
+        "checked_steps": 15,
+        "first_near_tie": 15,
+        "first_divergence": 49,
+        "agrees_until_tie": true
+      },
+      "passed": true,
+      "first_mismatch": {
+        "step": 49,
+        "matching_prefix_tokens": 49,
+        "cpu_top1": 7,
+        "cpu_top2": 88,
+        "cpu_margin": 0.008312225341796875,
+        "group_top1": 88,
+        "group_top2": 7,
+        "group_margin": 0.0058536529541015625
+      }
+    },
+    {
+      "cell": "cpu4",
+      "model": "q2-0-dense-tied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.03833770751953125,
+          "cpu_nll": 20.633240763482863,
+          "device_nll": 20.632066613258225,
+          "nll_delta": 0.001174150224638737,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.03833770751953125,
+          "cpu_nll": 20.633240763482863,
+          "device_nll": 20.632066613258225,
+          "nll_delta": 0.001174150224638737,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 64,
+        "first_near_tie": null,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu4",
+      "model": "q2-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04897665977478027,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.554183574348553,
+          "nll_delta": 0.0014208105490780554,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.04897665977478027,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.554183574348553,
+          "nll_delta": 0.0014208105490780554,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 3,
+        "first_near_tie": 3,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "cpu4",
+      "model": "q2-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.046389102935791016,
+          "cpu_nll": 20.07784839506533,
+          "device_nll": 20.075142747993247,
+          "nll_delta": 0.00270564707208365,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.048609018325805664,
+          "cpu_nll": 20.07758896192559,
+          "device_nll": 20.074680157023383,
+          "nll_delta": 0.00290880490220502,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 9,
+        "first_near_tie": 9,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "tp2",
+      "model": "q1-0-dense-tied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07724428176879883,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.69463491772127,
+          "nll_delta": 0.0037907085267292473,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 12,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07724428176879883,
+          "cpu_nll": 18.698425626248,
+          "device_nll": 18.69463491772127,
+          "nll_delta": 0.0037907085267292473,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 4,
+        "checked_steps": 4,
+        "first_near_tie": 4,
+        "first_divergence": 4,
+        "agrees_until_tie": true
+      },
+      "passed": true,
+      "first_mismatch": {
+        "step": 4,
+        "matching_prefix_tokens": 4,
+        "cpu_top1": 132,
+        "cpu_top2": 110,
+        "cpu_margin": 0.03382396697998047,
+        "group_top1": 110,
+        "group_top2": 132,
+        "group_margin": 0.0050506591796875
+      }
+    },
+    {
+      "cell": "tp2",
+      "model": "q1-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411956787109375,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.478758542058173,
+          "nll_delta": 0.0003786656811968214,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07411956787109375,
+          "cpu_nll": 16.47913720773937,
+          "device_nll": 16.478758542058173,
+          "nll_delta": 0.0003786656811968214,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 47,
+        "first_near_tie": 47,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    },
+    {
+      "cell": "tp2",
+      "model": "q1-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.07635879516601562,
+          "cpu_nll": 18.569142274088794,
+          "device_nll": 18.569614929153555,
+          "nll_delta": 0.00047265506476179553,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.08559632301330566,
+          "cpu_nll": 18.573350336606456,
+          "device_nll": 18.569614929153555,
+          "nll_delta": 0.0037354074529005743,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 15,
+        "checked_steps": 15,
+        "first_near_tie": 15,
+        "first_divergence": 15,
+        "agrees_until_tie": true
+      },
+      "passed": true,
+      "first_mismatch": {
+        "step": 15,
+        "matching_prefix_tokens": 15,
+        "cpu_top1": 179,
+        "cpu_top2": 106,
+        "cpu_margin": 0.021570205688476562,
+        "group_top1": 106,
+        "group_top2": 179,
+        "group_margin": 0.012126922607421875
+      }
+    },
+    {
+      "cell": "tp2",
+      "model": "q2-0-dense-tied",
+      "phases": {
+        "batched": {
+          "criteria_passed": false,
+          "failure": "ValueError: device mean NLL differs from CPU by 0.0185273743, bound 0.01",
+          "diagnostic": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 0.09041881561279297,
+            "cpu_nll": 20.633240763482863,
+            "device_nll": 20.651768137753024,
+            "nll_delta": 0.01852737427016038,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": false
+          }
+        },
+        "decode": {
+          "criteria_passed": false,
+          "failure": "ValueError: device mean NLL differs from CPU by 0.0185273743, bound 0.01",
+          "diagnostic": {
+            "rows": 13,
+            "scored": 12,
+            "top1_checked": 13,
+            "min_top5_overlap": 5,
+            "max_logit_gap": 0.09041881561279297,
+            "cpu_nll": 20.633240763482863,
+            "device_nll": 20.651768137753024,
+            "nll_delta": 0.01852737427016038,
+            "top1_fail_positions": [],
+            "top5_fail_positions": [],
+            "criteria_passed": false
+          }
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 64,
+        "first_near_tie": null,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": false
+    },
+    {
+      "cell": "tp2",
+      "model": "q2-0-dense-untied",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.12600421905517578,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.544722320260146,
+          "nll_delta": 0.00804044353932909,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.12600421905517578,
+          "cpu_nll": 18.552762763799475,
+          "device_nll": 18.544722320260146,
+          "nll_delta": 0.00804044353932909,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 14,
+        "checked_steps": 3,
+        "first_near_tie": 3,
+        "first_divergence": 14,
+        "agrees_until_tie": true
+      },
+      "passed": true,
+      "first_mismatch": {
+        "step": 14,
+        "matching_prefix_tokens": 14,
+        "cpu_top1": 227,
+        "cpu_top2": 55,
+        "cpu_margin": 0.1304311752319336,
+        "group_top1": 55,
+        "group_top2": 227,
+        "group_margin": 0.026165008544921875
+      }
+    },
+    {
+      "cell": "tp2",
+      "model": "q2-0-moe",
+      "phases": {
+        "batched": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.1109619140625,
+          "cpu_nll": 20.07784839506533,
+          "device_nll": 20.07451243934945,
+          "nll_delta": 0.003335955715879635,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        },
+        "decode": {
+          "rows": 13,
+          "scored": 12,
+          "top1_checked": 13,
+          "min_top5_overlap": 5,
+          "max_logit_gap": 0.1109619140625,
+          "cpu_nll": 20.07758896192559,
+          "device_nll": 20.07451243934945,
+          "nll_delta": 0.0030765225761371084,
+          "top1_fail_positions": [],
+          "top5_fail_positions": [],
+          "criteria_passed": true
+        }
+      },
+      "greedy": {
+        "matched_prefix": 64,
+        "checked_steps": 9,
+        "first_near_tie": 9,
+        "first_divergence": null,
+        "agrees_until_tie": true
+      },
+      "passed": true
+    }
+  ],
+  "remaining_failure": {
+    "cell": "tp2",
+    "model": "q2-0-dense-tied",
+    "failure": "shared common.check_device_rows mean-NLL delta exceeds existing fixed 0.01 CPU/device criterion in batched and decode",
+    "batched_decode_diagnostic": {
+      "cpu_nll": 20.633240763482863,
+      "device_nll": 20.651768137753024,
+      "nll_delta": 0.01852737427016038,
+      "max_logit_gap": 0.09041881561279297
+    },
+    "limit": 0.01,
+    "greedy": {
+      "matched_prefix": 64,
+      "checked_steps": 64,
+      "first_near_tie": null,
+      "first_divergence": null,
+      "agrees_until_tie": true
+    }
+  },
+  "q2_tied_direct_hf": {
+    "fixture": "q2-0-dense-tied",
+    "cpu1": {
+      "actual_matrix_paths": {
+        "batched": [
+          [
+            "bf16"
+          ]
+        ],
+        "decode": [
+          [
+            "bf16"
+          ]
+        ],
+        "greedy": [
+          [
+            "bf16"
+          ]
+        ]
+      },
+      "bf16_witness": {
+        "batched": {
+          "expected_devices": 1,
+          "observed_devices": 1,
+          "paths_per_device": [
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        },
+        "decode": {
+          "expected_devices": 1,
+          "observed_devices": 1,
+          "paths_per_device": [
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        },
+        "greedy": {
+          "expected_devices": 1,
+          "observed_devices": 1,
+          "paths_per_device": [
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        }
+      },
+      "max_text_endpoint_error": 0.13180041313171387,
+      "text_logit_bound": 0.5837039947509766,
+      "context16_hf_nll": {
+        "actual": 20.63324076348286,
+        "reference": 20.640379966254276,
+        "error": 0.007139202771416109,
+        "bound": 0.14389011978391864,
+        "passed": true
+      },
+      "held_to_hf": [
+        0.13180041313171387,
+        0.007139202771416109
+      ],
+      "capture_hf_passed": true
+    },
+    "tp2": {
+      "actual_matrix_paths": {
+        "batched": [
+          [
+            "bf16"
+          ],
+          [
+            "bf16"
+          ]
+        ],
+        "decode": [
+          [
+            "bf16"
+          ],
+          [
+            "bf16"
+          ]
+        ],
+        "greedy": [
+          [
+            "bf16"
+          ],
+          [
+            "bf16"
+          ]
+        ]
+      },
+      "bf16_witness": {
+        "batched": {
+          "expected_devices": 2,
+          "observed_devices": 2,
+          "paths_per_device": [
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        },
+        "decode": {
+          "expected_devices": 2,
+          "observed_devices": 2,
+          "paths_per_device": [
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        },
+        "greedy": {
+          "expected_devices": 2,
+          "observed_devices": 2,
+          "paths_per_device": [
+            [
+              "bf16"
+            ],
+            [
+              "bf16"
+            ]
+          ],
+          "bf16_on_every_device": true
+        }
+      },
+      "max_text_endpoint_error": 0.13954520225524902,
+      "text_logit_bound": 0.5837039947509766,
+      "context16_hf_nll": {
+        "actual": 20.651768137753024,
+        "reference": 20.640379966254276,
+        "error": 0.011388171498747823,
+        "bound": 0.14389011978391864,
+        "passed": true
+      },
+      "held_to_hf": [
+        0.13954520225524902,
+        0.011388171498747823
+      ],
+      "capture_hf_passed": true
+    },
+    "frozen_budget": {
+      "family": "q2-0",
+      "dtype": "bf16",
+      "text_logit_bound": 0.5837039947509766,
+      "context16_nll_bound": 0.14389011978391864,
+      "source": "tests/data/dtype_budget.json q2-0.bf16"
+    },
+    "conclusion": "CPU1 and TP2 both pass their BF16 HF family budget. The CPU1-to-TP2 group NLL comparison is separate and fails its fixed 0.01 criterion."
+  },
+  "policy_notes": {
+    "greedy_contract": "tests/common.py:171-194 returns agrees_until_tie and does not compare cross-device logits after divergent token histories. The CPU1/group wrapper in scratch cpu_groups.py previously added matched_prefix==64; that extra predicate is removed in the scratch harness only.",
+    "q2_untied": "TP2 first diverges at step 14 after a first CPU near-tie at step 3. At the first differing row, histories through the preceding 14 tokens match; CPU top gap is 0.130431 (>0.1), yet the existing shared helper has already latched the earlier near-tie and returns agrees_until_tie=true. This is the current helper?s explicit policy; the post-divergence histories are not cross-logit compared.",
+    "nll_threshold": "The 0.01 CPU/device mean-NLL condition is fixed in common.check_device_rows; source does not say it is F32-derived, and it is not the BF16-to-HF bound."
+  }
+}

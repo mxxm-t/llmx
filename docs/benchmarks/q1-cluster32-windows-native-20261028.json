@@ -1,0 +1,53 @@
+{
+  "scope": "Fresh Windows cluster32 build, low-bits native CPU check and low-bits native Radeon VII Vulkan check. Operator evidence only; not model HF, depth, full-suite or performance qualification.",
+  "runtime_revision": "70cf89ba7c735a709af342985dc92d804014b8b1",
+  "version": "llmx 0.1.0+g70cf89ba7c73.dirty numerics e208afc2bbbcbd1c",
+  "build": {
+    "configure_exit": 0,
+    "build_exit": 0,
+    "seconds": 117.20295119285583,
+    "llmx_exe_sha256": "a9f51dd5c06aca9839d2cd50bbcbebf69333e17f9f41e108227fde38ae71c60d",
+    "low_bits_test_exe_sha256": "ea3b2f72363fb566f2579894ef57886a70ab1163d6bade4a12b570d7cd77c30f",
+    "version_log_sha256": "ae58f8e8c2c70b1a51c558fb98d25dfd25ccd9e42ab57085cf3b56d9b0522139",
+    "build_log_sha256": "9ca6839c0e49d163a9db3c185b2437ee9e6ae7971711822c6ebdfd5ca892bc21"
+  },
+  "source_input_audit": {
+    "frozen_candidate_receipt": "build-low-bits-dev/q1-two-row-cluster32-v1/build-receipt.json",
+    "frozen_candidate_receipt_sha256": "036e2a2b73f0158d6c53e96e4770b234aa9671d77e5aabb3c5f3ed29a88538d6",
+    "frozen_candidate_pins_sha256": "67e57567490197b1fa004c4b5e5870c6552481786c1164e240088370a031e752",
+    "comparison": "Windows build input hashes were checked against the frozen cluster32 receipt. The explicitly checked source differences are limited to the shader comment dropping the word isolated and the native test omitting its rig-only shader-representation dump and fstream include.",
+    "shader_comment_delta": "One comment drops the word isolated; exact transformation checked.",
+    "native_test_delta": "Only the rig-only shader-representation text dump and its fstream include are absent; exact transformation checked before building.",
+    "runtime_source_unchanged_during_build": true,
+    "limit": "This records the checked input correspondence and the two benign source differences; it does not claim byte-identical Windows and frozen source trees or full cross-platform behavior equivalence."
+  },
+  "dirty_version_note": "Documentation-only commit ff691e609c3230b4bbc3c7f990242d73a2df6a53 landed during compilation. The executable embeds g70cf89ba7c73.dirty; recorded runtime source hashes remained unchanged.",
+  "native_cpu": {
+    "passed": true,
+    "scope": "Independent Q1_0/Q2_0 blocks, finite scales, alignment and guards.",
+    "log_sha256": "991ff4b2ecee5bd0ff315e1fedfd22d8d9ed29f005017dd4b53ebcdd584d2189"
+  },
+  "native_vulkan": {
+    "passed": true,
+    "device": "AMD Radeon VII",
+    "scope": "Q1_0/Q2_0 embeddings, dense/logits/additive operators, dtype policies and row/tile witnesses.",
+    "q1_q2_row_tile_dispatches_witnessed": true,
+    "seconds": 1.6301202774047852,
+    "report_sha256": "3d62ccd3838bd658b6404a81bd073d1d9092fed1cf17f4b7945ab8d70752bc03",
+    "log_sha256": "9748eb82b54ee44cc3a3046139ae07d79fe843a9473015027ee9131cee564b23"
+  },
+  "gpu_preflight": {
+    "device": "AMD Radeon VII",
+    "observed_3d_utilization_percent": 1,
+    "report_sha256": "0e1e8823a667a0ac14ad4adba197df668de4cd30dc3a0ede757cba019434c60f",
+    "interpretation": "Background activity is retained. This is a correctness run, and no timing result is claimed."
+  },
+  "execution_receipt_sha256": "3785a61531cd129d533faf3da38faabbb09fd3420043f2df7e80881d68607673",
+  "remaining": [
+    "other-device model qualification",
+    "released-model checks",
+    "raw/chat depth",
+    "full suite and landing gates",
+    "final performance qualification"
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "schema": "llmx.q1.radeon-depth-evidence.v1",
+  "date": "2026-10-28",
+  "scope": "Radeon VII Q1_0 Boole-1.7B depth capture, raw and chat, compared to the existing independent CPU-default-cache HF references.",
+  "qualification_limit": "This establishes these two 512-position depth comparisons for the pinned runtime, model, inputs, cache policy, and Radeon capture path. It makes no performance, all-model, full-suite, or general backend qualification claim.",
+  "device": {
+    "name": "AMD Radeon VII",
+    "index": 0,
+    "driver": "AMD proprietary driver 26.5.2"
+  },
+  "runtime": {
+    "version": "llmx 0.1.0+g70cf89ba7c73.dirty numerics e208afc2bbbcbd1c",
+    "executable_sha256": "a9f51dd5c06aca9839d2cd50bbcbebf69333e17f9f41e108227fde38ae71c60d",
+    "vulkan_library_sha256": "898a2829df2f14ec800b2d4c57408d63073d859c577208208d6d4c74f07f2760",
+    "build_execution_sha256": "3785a61531cd129d533faf3da38faabbb09fd3420043f2df7e80881d68607673"
+  },
+  "model": {
+    "name": "Boole-1.7B-Q1_0.gguf",
+    "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+    "inventory": "198 Q1_0 tensors, 113 F32 tensors; 197 Q1_0 matrix/head tensors and Q1_0 embedding"
+  },
+  "inputs": {
+    "manifest_sha256": "5eaa4798e402d63b31f32f741b1f7af0728ebdf4e253933054ca7cca985c92a0",
+    "prompt_tokens": 16384,
+    "continuation_targets": 512,
+    "positions": 512,
+    "vocabulary": 151936,
+    "full_score_bytes_per_variant": 311164928
+  },
+  "compared_policy": {
+    "reference": "CPU-default-cache HF",
+    "policy_map_sha256": "47498695b0c52f32dbcef1be8a3c657885ff182888d22b3721bf5a7487404bf0",
+    "reference_arithmetic": "F32 model operations and F32 inputs for all 197 linear matrix paths; exact decoded Q1_0 values as F32 weights",
+    "reference_cache": "Post-RoPE K/V converted to F16 and widened in cache storage",
+    "radeon_effective_dtype": "f16 (request omitted/auto)",
+    "radeon_actual_matrix_paths": "f32 for all 197 linear matrices in prefill and decode, witnessed at all 512 positions",
+    "radeon_kv_cache": "f16/f16",
+    "ubatch": 512,
+    "depth_rule": "tests/common.py::hf_depth_top1, unchanged; margin 0.1",
+    "depth_rule_source_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "helper": {
+    "binary_sha256": "9733db67fc89ca572f71df9e2d6cb2a33ade25269802fd637e00940446950e87",
+    "build_receipt_sha256": "8792d3d7c5e883d8a7d5f2b4d8f2293c3f4a30ff510c1c43091e962bb75cd2ff",
+    "capture_source_sha256": "aa732ae3de67f96c673de0823970ea39b785bff26e9a07405bb83d1c0fcbc49e"
+  },
+  "variants": {
+    "raw": {
+      "result": "pass",
+      "counts": {"exact": 512, "accepted_tie": 0, "miss": 0},
+      "maximum_absolute_logit_difference_diagnostic": 0.015026092529296875,
+      "reference_report_sha256": "607ad8d408f01dee1372f75f1ac36086ddd4933ef6be1a17deb7bd7ab1e23172",
+      "reference_scores_sha256": "ec6124e58b3014bcd56ed79f0949c1622eaacdbf0e5a5669f6efc8721057a1df",
+      "capture_plan_sha256": "1b26ffab1451557fce168d1d610bbc915e91287117a2457f93fc6a2c18dd806a",
+      "capture_execution_sha256": "e6ed7d8c953bc522595229184c58e3a97d526853950ee1489991e168d5acd8e3",
+      "capture_scores_sha256": "53f53e1b022a8ecee061b2e3290505882c0d71e3988d297f7189c78ac334e944",
+      "comparison_sha256": "6eae7e7579a1ac48267bb2d63b24ae94d7510ed3bae8d509f313aed5f82e5af4",
+      "comparison_source_sha256": "c0eb1247a6993a7fe44d7c1535ea05a3b4485a11eb9b4b610c28efac3e081d0c"
+    },
+    "chat": {
+      "result": "pass",
+      "counts": {"exact": 512, "accepted_tie": 0, "miss": 0},
+      "maximum_absolute_logit_difference_diagnostic": 0.07002830505371094,
+      "reference_report_sha256": "7963544a0592d609f94db24e0f32aeb7fb62b1200a2b1a3c6d3a589ed3d3dba9",
+      "reference_scores_sha256": "02a14d58080267e9197f31c1ba93a0c4aa3eae1289ff47f1066ab7c3695f1150",
+      "capture_plan_sha256": "0b3b1ad791fad83b0732b3d436940b2e05b6663b924c7861d85aed9ce1d3806e",
+      "capture_execution_sha256": "adef641cd2665595efe3662b8a482bee52c7fbe4ae9372c156469ba6eae2e80e",
+      "capture_scores_sha256": "dd573ca62ad03addd7a4f32a8c0f9b7f5de5f363925cb1a29bbe881e3064f814",
+      "comparison_sha256": "39c3fdfdc18af99c3b011d490c6a851f2cf08eaa756e7b9f7eb6b072e83b9759",
+      "comparison_source_sha256": "536c8575eb97d876cc9efb39c4c02fde75f126d3fd715925a0331f9a9d8aef13"
+    }
+  },
+  "activity_note": "GPU activity was recorded by each capture supervisor. Background desktop, game, and video decode activity was present in the sampling window; no performance claim is made.",
+  "detailed_comparisons": {
+    "raw": "build-low-bits-dev/q1-radeon-depth-v1/evidence/raw-comparison-v1.json",
+    "chat": "build-low-bits-dev/q1-radeon-depth-v1/evidence/chat-comparison-v1.json"
+  }
+}

@@ -84,6 +84,7 @@ void main() {
                 v = scaled;
             }
             else if (p.type == TYPE_Q2_K) v = q2_k_at(o, k);
+            else if (p.type == TYPE_Q1_0) v = low_bits_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_Q3_K) v = q3_k_at(o, k);
             else if (p.type == TYPE_Q4_0) v = q4_0_exact(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));
             else if (p.type == TYPE_Q5_0) v = q5_0_at(o, k, half_at(QBYTE(o), QBYTE(o + 1u)));

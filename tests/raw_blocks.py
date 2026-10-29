@@ -597,6 +597,34 @@ def tq2_block(qs, d):
     return bytes(qs) + struct.pack("<H", d)
 
 
+def q1_0_block(d, codes):
+    assert len(codes) == 128 and all(c in (0, 1) for c in codes)
+    packed = bytes(sum(codes[8 * b + bit] << bit for bit in range(8)) for b in range(16))
+    return struct.pack("<H", d) + packed
+
+
+
+# Q1_0 fields are checked from the selected codes and scale bits, independently of spec_decode's readers.
+def check_low_bits():
+    for type_id, builder, block_values, code_count, code_value in (
+            (sd.Q1_0, q1_0_block, 128, 2, lambda c: 1 if c else -1),
+):
+        expected_type = "Q1_0"
+        assert sd.TYPES[type_id] == (expected_type, block_values, 18)
+        payload, expected = bytearray(), []
+        for d in HALVES:
+            for shift in range(code_count):
+                codes = [(i + shift) % code_count for i in range(block_values)]
+                payload.extend(builder(d, codes))
+                expected.extend(cell(lambda h, d=d, c=c: h(d) * code_value(c)) for c in codes)
+        got = sd.decode(type_id, payload, len(expected))
+        assert_values(sd.type_name(type_id), expected, got)
+        assert_numpy_matches(sd.type_name(type_id), type_id, payload, len(expected))
+        assert len(payload) == len(HALVES) * code_count * 18
+        print("raw-blocks: %s official geometry, all packed positions/codes, signed-zero and scale edges [ok]"
+              % sd.type_name(type_id))
+
+
 def tq1_expected(qs, qh, d):
     out = []
     for fields, digits in ((qs[:32], 5), (qs[32:], 5), (qh, 4)):
@@ -772,7 +800,7 @@ def random_blocks(rng, type_id, count):
     """`count` random blocks of `type_id`, with every f16 scale and min finite."""
     _, _, size = sd.TYPES[type_id]
     halves = {sd.Q8_0: (0,), sd.Q4_0: (0,), sd.Q4_1: (0, 2), sd.IQ4_NL: (0,), sd.IQ4_XS: (0,), sd.IQ3_S: (0,), sd.Q4_K: (0, 2),
-              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,), sd.IQ1_S: (0,), sd.TQ1_0: (52,), sd.TQ2_0: (64,)}.get(type_id, ())
+              sd.Q5_K: (0, 2), sd.Q6_K: (208,), sd.Q2_K: (80, 82), sd.Q3_K: (108,), sd.IQ3_XXS: (0,), sd.IQ1_S: (0,), sd.TQ1_0: (52,), sd.TQ2_0: (64,), sd.Q1_0: (0,)}.get(type_id, ())
     out = bytearray()
     for _ in range(count):
         block = bytearray(rng.getrandbits(8) for _ in range(size))
@@ -943,6 +971,7 @@ def run(require=False):
     """The checks above; without numpy the numpy form's are skipped, or with `require` fail."""
     rng = random.Random(20260925)
     check_16bit()
+    check_low_bits()
     check_q5_0(random.Random(20261020))
     check_q5_1(rng)
     check_iq4(rng)

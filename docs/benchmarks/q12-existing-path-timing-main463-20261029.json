@@ -1,0 +1,68 @@
+{
+  "scope": "Completed bounded existing-path timing screen on main 463 versus the selected 28e candidate. One ABBA round, 20 calls total; no extra runs or performance threshold.",
+  "builds": {
+    "main": {
+      "revision": "46375e9686bd",
+      "version": "llmx 0.1.0+g46375e9686bd numerics b3adfc792471a74f",
+      "cli_sha256": "b57e47b6b0f7ac521e09f99347f4084e9537639fe6c722d195626f067d0a073d"
+    },
+    "selected": {
+      "revision": "28e97f5e3d26",
+      "version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2",
+      "cli_sha256": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3"
+    },
+    "identity_receipt_sha256": "640f291ae1ea8b4245c0884603f0100b7fd9342e87407ea7b087dd1e1ae79ac0",
+    "plan_sha256": "4bc44beb9d548ce29ace40a96322f2c407ec030aeb1734eba297a6d165e4a49a",
+    "payload_sha256": "90974c9a5ceef7c9ffb1d9598b62b7af888bf8f1c351a1c416e4ac9c88ca7f4f"
+  },
+  "method": {
+    "order_per_path": ["main", "selected", "selected", "main"],
+    "call_count": 20,
+    "all_calls_exit_zero_and_valid": true,
+    "models": [
+      { "cell": "cpu-q8 and mi50-0", "file": "Qwen3-0.6B-Q8_0.gguf", "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031", "bytes": 639446688 },
+      { "cell": "mi50-1", "file": "Qwen3-0.6B-Q4_0.gguf", "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb", "bytes": 382156480 },
+      { "cell": "mi50-2", "file": "Qwen3-0.6B-Q5_K_M.gguf", "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a", "bytes": 444415680 },
+      { "cell": "mi50-3", "file": "Qwen3.5-0.8B-Q8_0.gguf", "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c", "bytes": 811843840 }
+    ],
+    "flags": "bench --p 128 --n 128 --r 1 --threads 4 --ubatch 512 --seqs 1 --depth 0 --dtype auto --cache-type-k f16 --cache-type-v f16 --load-mode direct --drafter off; MI50 target PCI 0000:c9:00.0. CPU used cpuset 8-9, quota 2, four runtime threads."
+  },
+  "throughput_tok_s": [
+    { "cell": "cpu-q8", "phase": "pp128", "main_samples": [101.66, 134.77], "selected_samples": [125.45, 127.92], "main_mean": 118.215, "selected_mean": 126.685, "selected_change_percent": 7.164911390263495 },
+    { "cell": "cpu-q8", "phase": "tg128", "main_samples": [14.57, 16.99], "selected_samples": [16.51, 17.12], "main_mean": 15.78, "selected_mean": 16.815, "selected_change_percent": 6.558935361216744 },
+    { "cell": "mi50-0 q8", "phase": "pp128", "main_samples": [6534.88, 6566.01], "selected_samples": [6523.55, 6392.81], "selected_change_percent": -1.408530260157892 },
+    { "cell": "mi50-0 q8", "phase": "tg128", "main_samples": [399.19, 399.44], "selected_samples": [402.3, 388.68], "selected_change_percent": -0.9578903872882294 },
+    { "cell": "mi50-1 q4", "phase": "pp128", "main_samples": [5862.34, 5814.13], "selected_samples": [5846.01, 5837.2], "selected_change_percent": 0.05772292482228991 },
+    { "cell": "mi50-1 q4", "phase": "tg128", "main_samples": [351.24, 351.17], "selected_samples": [346.25, 350.14], "selected_change_percent": -0.857049301689905 },
+    { "cell": "mi50-2 q5_k_m", "phase": "pp128", "main_samples": [5946.34, 5925.72], "selected_samples": [5944.02, 5818.47], "selected_change_percent": -0.9229232332046866 },
+    { "cell": "mi50-2 q5_k_m", "phase": "tg128", "main_samples": [352.79, 350.63], "selected_samples": [353.59, 354.65], "selected_change_percent": 0.6852236217337992 },
+    { "cell": "mi50-3 qwen3.5-q8", "phase": "pp128", "main_samples": [5491.89, 5496.96], "selected_samples": [5490.25, 5478.4], "selected_change_percent": -0.18382269300245557 },
+    { "cell": "mi50-3 qwen3.5-q8", "phase": "tg128", "main_samples": [340.7, 352.61], "selected_samples": [345.28, 344.12], "selected_change_percent": -0.5639612871586985 }
+  ],
+  "monitoring": {
+    "activity_jsonl_sha256": "7d66f6955b1d0f52a666756e5d93bdabdf793af741cb05b52e362cdc4f7811ac",
+    "samples": 64,
+    "calls_flagged": { "unrelated_cpu": 20, "disk": 20, "other_gpu": 20, "sample_gap": 0 },
+    "unrelated_cpu_cores_mean": 2.55586609903115,
+    "unrelated_cpu_cores_max": 4.475742977457565,
+    "system_busy_fraction_mean": 0.25527393286513195,
+    "disk_bytes_per_second_mean": 152427006.14622146,
+    "disk_bytes_per_second_max": 1211470779.6446228,
+    "unknown_process_cpu_observations": 865,
+    "missed_process_observations": 55,
+    "gpu_activity": "Other cards PCI c3, c6, 89 and 8c were active during the window; target c9 was nonzero in 10/64 samples. Aggregate disk activity includes the benchmark's own model loading.",
+    "limitations": "Short-lived processes may fall between samples; process CPU was unknown in 865 observations and 55 process observations were missed. No activity flag removed or replaced a call."
+  },
+  "artifact_verification": {
+    "execution_json_sha256": "a52c66470fe06d06723f15e8f0d8b82ae2400411d66eafc2699e2ac35ca21110",
+    "summary_json_sha256": "ab09cb17de7c83bd73d19e1711b3fa4e3e615370f52b7011025a199389ac9c5d",
+    "summary_pins_execution": true,
+    "execution_file_hashes_verified": 51,
+    "execution_files_all_match": true,
+    "monitor_exit": 0,
+    "container_removed": true,
+    "source_and_models_unchanged": true,
+    "outputs": "scratch/q12-landing-20261029/existing-path-perf-main463-v1/out/"
+  },
+  "interpretation": "The screen is complete, but not a blanket performance pass. The initially slow main CPU PP sample (101.66 tok/s) is retained alongside the second main sample (134.77). CPU deltas change sign relative to earlier repeats; MI50 deltas are mixed and small. All calls were activity-flagged, only two samples per arm/cell were collected, and no layout-perturbed control was included. Do not claim a general speedup, regression, or significance from this screen."
+}

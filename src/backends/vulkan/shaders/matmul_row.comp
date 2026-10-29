@@ -58,7 +58,7 @@ void main() {
 // Column c's X column and output row: consecutive from col0, or a grouped chunk's entries.
 #define XCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] / p.per : col0 + (c))
 #define OCOL(c) (GROUPED ? tab[p.order0 + g_first + (c)] : out0 + (c))
-#if defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT)
+#if defined(LLMX_Q4) || defined(LLMX_K4) || defined(LLMX_K5) || defined(LLMX_KQUANT) || (defined(LLMX_Q1_0) && defined(LLMX_LOW_BITS_DOT))
 // Row r0 + r's sum for a column, by the cluster's first lane.
 #define ROW_STORE2(c, r, s) \
                 if (l == 0u && r <= rlast) { \

@@ -1,0 +1,62 @@
+{
+  "scope": "Combined CPU-default Q1 raw and chat depth comparison checkpoint. This records those cells and final confirmation of the chat capture only; CPU, Radeon, split, full-suite, performance, and landing qualification remain open.",
+  "policy": {
+    "requested_dtype": "auto",
+    "effective_dtype": "f16",
+    "matrix_path_dtype": "f32",
+    "matrix_path_reason": "Q1 has no integer-dot path",
+    "cache_k": "f16",
+    "cache_v": "f16",
+    "acceptance_rule": "unchanged 0.1 rule"
+  },
+  "cells": {
+    "raw": {
+      "result": "pass",
+      "exact_top1": 512,
+      "accepted_ties": 0,
+      "misses": 0,
+      "comparison": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/cpu-default-raw.json",
+      "comparison_sha256": "d50a903a74378f4ced77b9853eaa1c6e935762342afaaed00db5787ba1c04dff",
+      "launch": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/cpu-default-raw-launch-v2.json",
+      "launch_sha256": "ac12d337f56978feda9d729cfcd4c1abe1750b585b7a98a7b3076a8d114b44ee",
+      "launch_exit": 0,
+      "reference_receipt_sha256": "ad1a61eb140724c313c4c188996829e145770910f3d5cab6354f90ced98975dc",
+      "capture_execution_sha256_before": "6a387f247006d1564e83cd354263acf33357b589911b7daefc38100a167138a6",
+      "capture_execution_sha256_after": "0ed024e18a0632f6d658cb97ade83f4e616f5b8be36a9e2f48003045833f1b81",
+      "dated_record_retained": "docs/benchmarks/q1-cpu-default-raw-depth-20261028.json"
+    },
+    "chat": {
+      "result": "pass",
+      "exact_top1": 512,
+      "accepted_ties": 0,
+      "misses": 0,
+      "comparison": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/cpu-default-chat.json",
+      "comparison_sha256": "687aaf88ccd85375e0d0eb31a0f7fb91164051fd9e358064116b88d8b8cac300",
+      "launch": "build-low-bits-dev/q1-two-row-cluster32-compare-v1/cpu-default-chat-launch-v2.json",
+      "launch_sha256": "7b12c7053ec3ba03f1025c86595db2c16dcebdff54e5e94e4f0b756737a037e5",
+      "launch_exit": 0,
+      "reference_receipt_sha256": "4f17bb7d002abac66810fe7ffe6e285f084f1820dee999e4dfcb7e4a5464e24e",
+      "capture_execution_sha256_before": "15c0571ba9af259f8e1ab6ea97b007848bf3ee8f225682c3b873c0227cc31f8e",
+      "capture_execution_sha256_after": "15c0571ba9af259f8e1ab6ea97b007848bf3ee8f225682c3b873c0227cc31f8e"
+    }
+  },
+  "final_capture_confirmation": {
+    "path": "q1-depth-prereq-v1/cpu-default-runtime-depth-retry3-v1/out-retry3/execution.json",
+    "sha256": "15c0571ba9af259f8e1ab6ea97b007848bf3ee8f225682c3b873c0227cc31f8e",
+    "complete": true,
+    "unchanged": true,
+    "source_and_build_match_frozen_receipt": true,
+    "verification_note": "Root verified the frozen source/build receipt, final capture completion and unchanged before/after identities. This confirms capture provenance; it does not expand the qualification scope."
+  },
+  "comparison_inputs": {
+    "consumer_sha256": "1d50bc572a2f11709cbb8cb216c18ef56d714b456dd1bb943db3f187c0629361",
+    "rule_owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916"
+  },
+  "retained_failures_and_limits": {
+    "retry2_prefill_refusal": "Retained as a metadata mismatch: it expected auto to resolve to F32.",
+    "initial_raw_comparison_launch": "Stopped before comparison on a receipt-path error. Corrected v2 consumer uses the plan's candidate rig_root and build_receipt entries.",
+    "reference_regenerated": false,
+    "acceptance_rule_changed": false,
+    "inference_replayed_for_comparison": false
+  }
+}

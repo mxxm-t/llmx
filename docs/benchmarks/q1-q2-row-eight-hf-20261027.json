@@ -1,0 +1,498 @@
+{
+  "scope": "Focused row-eight-v1 precision/split numerical development screen; existing HF consumer bounds; not a full correctness or performance gate.",
+  "passed": false,
+  "checks": 216,
+  "passed_checks": 212,
+  "failed_checks": [
+    {
+      "index": 61,
+      "cell": "singleGPU-f32",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "thread_count": 4,
+      "ubatch": 1,
+      "text": "ab",
+      "context": null,
+      "argv": [
+        "/b/llmx",
+        "logits",
+        "/source/models/q2-0-moe.gguf",
+        "ab",
+        "--top",
+        "260",
+        "--threads",
+        "4",
+        "--ubatch",
+        "1",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "f32",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "started_utc_epoch": 1793131431.9901993,
+      "timeout_seconds": 60,
+      "exit_code": 0,
+      "seconds": 0.08311223983764648,
+      "stdout": "/out/results/061-singleGPU-f32-q2-0-moe-t4-u1.stdout",
+      "stderr": "/out/results/061-singleGPU-f32-q2-0-moe-t4-u1.stderr",
+      "stdout_sha256": "6a23d95fac619225fc884ab52014afa841bfb2ef4ae43bed2e68dbc4792ca51a",
+      "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "matrix_path_witness_lines": [
+        "{\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}"
+      ],
+      "bounds": {
+        "logit": 9.82012939453125e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "dtype_device_witness": {
+        "expected_devices": 1,
+        "observed_devices": 1,
+        "paths_per_device": [
+          [
+            "f32"
+          ]
+        ],
+        "qualified": true
+      },
+      "failure": "061-singleGPU-f32-q2-0-moe-t4-u1/HF logit error: 0.00010002",
+      "observed_max_logit_error": 0.00010002330017089278,
+      "numerical_passed": false,
+      "passed": false
+    },
+    {
+      "index": 66,
+      "cell": "singleGPU-f32",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "thread_count": 4,
+      "ubatch": 16,
+      "text": "ab",
+      "context": null,
+      "argv": [
+        "/b/llmx",
+        "logits",
+        "/source/models/q2-0-moe.gguf",
+        "ab",
+        "--top",
+        "260",
+        "--threads",
+        "4",
+        "--ubatch",
+        "16",
+        "--device",
+        "vulkan:0",
+        "--dtype",
+        "f32",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "started_utc_epoch": 1793131432.4502025,
+      "timeout_seconds": 60,
+      "exit_code": 0,
+      "seconds": 0.09350156784057617,
+      "stdout": "/out/results/066-singleGPU-f32-q2-0-moe-t4-u16.stdout",
+      "stderr": "/out/results/066-singleGPU-f32-q2-0-moe-t4-u16.stderr",
+      "stdout_sha256": "6a23d95fac619225fc884ab52014afa841bfb2ef4ae43bed2e68dbc4792ca51a",
+      "stderr_sha256": "9ffb62f4582dce5fa092c34796f05811897659b6d8d67b26abade0c3d065818a",
+      "matrix_path_witness_lines": [
+        "{\"dtype\":\"f32\",\"devices\":[[\"f32\"]]}"
+      ],
+      "bounds": {
+        "logit": 9.82012939453125e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ]
+        ]
+      },
+      "dtype_device_witness": {
+        "expected_devices": 1,
+        "observed_devices": 1,
+        "paths_per_device": [
+          [
+            "f32"
+          ]
+        ],
+        "qualified": true
+      },
+      "failure": "066-singleGPU-f32-q2-0-moe-t4-u16/HF logit error: 0.00010002",
+      "observed_max_logit_error": 0.00010002330017089278,
+      "numerical_passed": false,
+      "passed": false
+    },
+    {
+      "index": 133,
+      "cell": "layer2-f32",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "thread_count": 4,
+      "ubatch": 1,
+      "text": "ab",
+      "context": null,
+      "argv": [
+        "/b/llmx",
+        "logits",
+        "/source/models/q2-0-moe.gguf",
+        "ab",
+        "--top",
+        "260",
+        "--threads",
+        "4",
+        "--ubatch",
+        "1",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--dtype",
+        "f32",
+        "--layer-shares",
+        "1,1",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "started_utc_epoch": 1793131442.0971532,
+      "timeout_seconds": 60,
+      "exit_code": 0,
+      "seconds": 0.1479179859161377,
+      "stdout": "/out/results/133-layer2-f32-q2-0-moe-t4-u1.stdout",
+      "stderr": "/out/results/133-layer2-f32-q2-0-moe-t4-u1.stderr",
+      "stdout_sha256": "6a23d95fac619225fc884ab52014afa841bfb2ef4ae43bed2e68dbc4792ca51a",
+      "stderr_sha256": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+      "matrix_path_witness_lines": [
+        "{\"dtype\":\"f32\",\"devices\":[[\"f32\"],[\"f32\"]]}"
+      ],
+      "bounds": {
+        "logit": 9.82012939453125e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ]
+      },
+      "dtype_device_witness": {
+        "expected_devices": 2,
+        "observed_devices": 2,
+        "paths_per_device": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ],
+        "qualified": true
+      },
+      "failure": "133-layer2-f32-q2-0-moe-t4-u1/HF logit error: 0.00010002",
+      "observed_max_logit_error": 0.00010002330017089278,
+      "numerical_passed": false,
+      "passed": false
+    },
+    {
+      "index": 138,
+      "cell": "layer2-f32",
+      "model": "q2-0-moe",
+      "dtype": "f32",
+      "mode": "logits",
+      "thread_count": 4,
+      "ubatch": 16,
+      "text": "ab",
+      "context": null,
+      "argv": [
+        "/b/llmx",
+        "logits",
+        "/source/models/q2-0-moe.gguf",
+        "ab",
+        "--top",
+        "260",
+        "--threads",
+        "4",
+        "--ubatch",
+        "16",
+        "--device",
+        "vulkan:0,vulkan:1",
+        "--dtype",
+        "f32",
+        "--layer-shares",
+        "1,1",
+        "--cache-type-k",
+        "f32",
+        "--cache-type-v",
+        "f32"
+      ],
+      "started_utc_epoch": 1793131442.8843167,
+      "timeout_seconds": 60,
+      "exit_code": 0,
+      "seconds": 0.1442725658416748,
+      "stdout": "/out/results/138-layer2-f32-q2-0-moe-t4-u16.stdout",
+      "stderr": "/out/results/138-layer2-f32-q2-0-moe-t4-u16.stderr",
+      "stdout_sha256": "6a23d95fac619225fc884ab52014afa841bfb2ef4ae43bed2e68dbc4792ca51a",
+      "stderr_sha256": "6cfb673006bbe258aad8c2892e8bdfed58a7a7d6d0f263ddfb6ea121f0787798",
+      "matrix_path_witness_lines": [
+        "{\"dtype\":\"f32\",\"devices\":[[\"f32\"],[\"f32\"]]}"
+      ],
+      "bounds": {
+        "logit": 9.82012939453125e-05,
+        "nll": 1e-05
+      },
+      "matrix_paths": {
+        "dtype": "f32",
+        "devices": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ]
+      },
+      "dtype_device_witness": {
+        "expected_devices": 2,
+        "observed_devices": 2,
+        "paths_per_device": [
+          [
+            "f32"
+          ],
+          [
+            "f32"
+          ]
+        ],
+        "qualified": true
+      },
+      "failure": "138-layer2-f32-q2-0-moe-t4-u16/HF logit error: 0.00010002",
+      "observed_max_logit_error": 0.00010002330017089278,
+      "numerical_passed": false,
+      "passed": false
+    }
+  ],
+  "results": [
+    {
+      "cell": "singleGPU-f32",
+      "model": "q1-0-dense-untied",
+      "call_start": 0,
+      "calls_expected": 12,
+      "call_end": 12,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-f32",
+      "model": "q1-0-dense-tied",
+      "call_start": 12,
+      "calls_expected": 12,
+      "call_end": 24,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-f32",
+      "model": "q1-0-moe",
+      "call_start": 24,
+      "calls_expected": 12,
+      "call_end": 36,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-f32",
+      "model": "q2-0-dense-untied",
+      "call_start": 36,
+      "calls_expected": 12,
+      "call_end": 48,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-f32",
+      "model": "q2-0-dense-tied",
+      "call_start": 48,
+      "calls_expected": 12,
+      "call_end": 60,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "singleGPU-f32",
+      "model": "q2-0-moe",
+      "call_start": 60,
+      "calls_expected": 12,
+      "call_end": 72,
+      "calls_completed": 12,
+      "status": "complete with retained failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q1-0-dense-untied",
+      "call_start": 72,
+      "calls_expected": 12,
+      "call_end": 84,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q1-0-dense-tied",
+      "call_start": 84,
+      "calls_expected": 12,
+      "call_end": 96,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q1-0-moe",
+      "call_start": 96,
+      "calls_expected": 12,
+      "call_end": 108,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q2-0-dense-untied",
+      "call_start": 108,
+      "calls_expected": 12,
+      "call_end": 120,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q2-0-dense-tied",
+      "call_start": 120,
+      "calls_expected": 12,
+      "call_end": 132,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "layer2-f32",
+      "model": "q2-0-moe",
+      "call_start": 132,
+      "calls_expected": 12,
+      "call_end": 144,
+      "calls_completed": 12,
+      "status": "complete with retained failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q1-0-dense-untied",
+      "call_start": 144,
+      "calls_expected": 12,
+      "call_end": 156,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q1-0-dense-tied",
+      "call_start": 156,
+      "calls_expected": 12,
+      "call_end": 168,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q1-0-moe",
+      "call_start": 168,
+      "calls_expected": 12,
+      "call_end": 180,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q2-0-dense-untied",
+      "call_start": 180,
+      "calls_expected": 12,
+      "call_end": 192,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q2-0-dense-tied",
+      "call_start": 192,
+      "calls_expected": 12,
+      "call_end": 204,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    },
+    {
+      "cell": "TP2-f32",
+      "model": "q2-0-moe",
+      "call_start": 204,
+      "calls_expected": 12,
+      "call_end": 216,
+      "calls_completed": 12,
+      "status": "complete without observed failures"
+    }
+  ],
+  "nll_checks": 36,
+  "exe_sha256": "7be002cd0f0ca8d95e158b6b0f58994f4956c8591e8ec07f8da143b39a08278b",
+  "version": "llmx 0.1.0+unknown numerics 8215fde17cf00226",
+  "budget_sha256": "05e3d34c0a073c867c6f66a28353eacba60b4e0ef6312244ae5a60ad9f4d4eb0",
+  "models": {
+    "q1-0-dense-untied": {
+      "path": "/source/models/q1-0-dense-untied.gguf",
+      "sha256": "0c88c62515a63e258892ab2640458093b7b0532330711ae04469eab55bf2e788"
+    },
+    "q1-0-dense-tied": {
+      "path": "/source/models/q1-0-dense-tied.gguf",
+      "sha256": "7b4b85ee38596ffed4c68fec5e71f7eec0f3724679f51a5f55e67aaa697f5c8c"
+    },
+    "q1-0-moe": {
+      "path": "/source/models/q1-0-moe.gguf",
+      "sha256": "71c79764212cfadb9de9d584ef913c0c1e221930fbe54587434cf0631d59f90c"
+    },
+    "q2-0-dense-untied": {
+      "path": "/source/models/q2-0-dense-untied.gguf",
+      "sha256": "5d10a39a4067ae0493ae9d1152d027e81f00c153338e3033a4dd9a1c863e27df"
+    },
+    "q2-0-dense-tied": {
+      "path": "/source/models/q2-0-dense-tied.gguf",
+      "sha256": "255e28110356ae3c9a00b71078877f8989b464a5558e0839baa1b5f87143821d"
+    },
+    "q2-0-moe": {
+      "path": "/source/models/q2-0-moe.gguf",
+      "sha256": "b944d8a0a856238f32112fd6ebba89173564cfd95dc6e516a46f5b515411cf91"
+    }
+  },
+  "bounds_changed": false,
+  "container_removed": true,
+  "raw_directory": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/row-eight-hf-v1",
+  "artifacts": {
+    "execution.json": "0f4a3e616fee20ba62cc290ac2c345a8f0f2be1041611cc8d12e22f877a63adb",
+    "supervisor.json": "16222f9080699a665999259162aa6e350dfcf0f5545808641464fbda7b5fc92b"
+  },
+  "decision": "Retain failed traversal experiment. Test activation reuse with the passing four-value arithmetic order."
+}

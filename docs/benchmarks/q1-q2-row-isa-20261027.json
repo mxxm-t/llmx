@@ -1,0 +1,33 @@
+{
+  "scope": "Actual RADV MI50 final shader instruction capture of frozen four-value Q1/Q2 rows. Diagnostic test only, original runtime/libraries/shaders unchanged.",
+  "receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/row-four-isa-v1/out/execution.json",
+  "receipt_sha256": "e16bfcb7778fd03f1b3649df92bf4b63d88c2c91517eaa3d4b19a096b6f3db79",
+  "runtime_sha256": "dedef34a6714b2a1e60289a4335195aa47736c79da6c16e4438b5743562b77bf",
+  "isa_files": {
+    "matmul_row_q2_0_1col.txt": {
+      "sha256": "07974d5a4e58e3f54d665c037434da6e3c1c05c61f1c562778e44f1f5d5fa075",
+      "assembly_lines": 269
+    },
+    "matmul_row_q1_0_1col.txt": {
+      "sha256": "6f9155412dde8a490444cb938622c8d1fa4646ae9cb00c680be4e7e07fb4792e",
+      "assembly_lines": 267
+    }
+  },
+  "whole_shader_static_counts": {
+    "matmul_row_q2_0_1col.txt": {
+      "v_cvt_f32_i32": 4,
+      "v_mul_f32": 14,
+      "v_xor_b32": 5,
+      "v_bfi_b32": 4
+    },
+    "matmul_row_q1_0_1col.txt": {
+      "v_cvt_f32_i32": 4,
+      "v_mul_f32": 14,
+      "v_xor_b32": 5,
+      "v_bfi_b32": 4
+    }
+  },
+  "q1_hot_loop": "Four v_cvt_f32_i32, four scale v_mul_f32, four activation v_mul_f32, sign selection/repair and unchanged pairwise F32 adds remain in final assembly. The scale is v12; weight products at source text lines959,965,970,981. Whole-shader multiply count also includes address division code.",
+  "next": "Q1-only sign-bit decode experiment. Independent finite-scale math control passes126976 scale/code pairs. No speed or full correctness claim from instruction counts.",
+  "frozen_unchanged": true
+}

@@ -1,0 +1,124 @@
+{
+  "scope": "Q1 fixed raw/chat16K input freeze and exact frozen-runtime chat rendering. No HF forwards or candidate depth acceptance.",
+  "model_sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+  "input_manifest_sha256": "5eaa4798e402d63b31f32f741b1f7af0728ebdf4e253933054ca7cca985c92a0",
+  "input_receipt_sha256": "1c3e4e3aed21cb61656bafe71d7dd67f3f569d344e506848d93b78786b7fed98",
+  "render_receipt_sha256": "d88d8da3fecec234fa9bced15e35c133ab3db09afef650cc18fff028ecc98384",
+  "render_report_sha256": "10fb4f797e7b0ac5a015ee87e20fd999a7d1f71df16437af666790137d3613b0",
+  "cases": {
+    "raw": {
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "score_tokens": 16895,
+      "score_positions": [
+        16383,
+        16894
+      ],
+      "continuation_corpus_start": 16384,
+      "input_u32le_sha256": "9acae76cae017a4821f8e9f276dbeffd10d3834206ed9e94d97e420a3e30bf86",
+      "HF_whole_equals_HF_chunks_equals_CLI_chunks": true
+    },
+    "chat": {
+      "prompt_tokens": 16384,
+      "continuation_targets": 512,
+      "score_tokens": 16895,
+      "score_positions": [
+        16383,
+        16894
+      ],
+      "continuation_corpus_start": 16359,
+      "input_u32le_sha256": "f5bfc26c4f3e47f24aa8875f7ab09bebf41f20c3d1c0d0eb11d124813bec6ff5",
+      "HF_whole_equals_HF_chunks_equals_CLI_chunks": true
+    }
+  },
+  "input_seconds": 8.748657941818237,
+  "render_seconds": 12.571430444717407,
+  "template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+  "template_kwargs": {},
+  "runtime_render_result": {
+    "passed": true,
+    "render_bytes_equal": true,
+    "whole_token_ids_equal": true,
+    "tokens": 16384,
+    "payload_mapped": false,
+    "forward_calls": 0
+  },
+  "render_source_pins": {
+    "src/tokenizer/tokenizer.hpp": "ab41a30aa337a52ec7a5c10175f8e3169d8f6ff4817e298f403a849557a78427",
+    "src/format/gguf.hpp": "3d0d7309f7553fe035da873b1ed172c5387123fbf770b5b3dd2fb2e561dd501d",
+    "src/quant/types.hpp": "9ff946cc2a5329bb2a17cde7a64ff98064f6d6f64e773b39c5ce93907e22010f",
+    "src/core/host_memory.hpp": "ad0442286ba4e734f86aaf3faaefb2fc6b5d82693e99168da4c3c11da15f256d",
+    "src/core/cgroup.hpp": "0e35c64b32002666695b895019631fe0387617add365197d84063254fdcde487",
+    "src/format/output_file.hpp": "5868fe405446eb8ba5b5727fb6a9de0fc529710de2ad3945e8fc4daf17f92f70",
+    "src/format/mapped_file.hpp": "4cad089853f3f9cd53c363c89c808e61e9809bb70b2b3b35a692687a36e1f963",
+    "src/format/format.hpp": "c4d6014b21e7e8b6e543e71dd6becb3763109420f6cc9bf345765bdb43282d53",
+    "src/core/utf8.hpp": "ae50f03c84fa6264d8f780e659bf3007a3fd0c2ace5efd987395dbc7b2b0af51",
+    "src/inference/chat.hpp": "2822be80df501ce942981dad0f1a279e9ffd99c96f3012c19f4c51f64413820c",
+    "src/core/json.hpp": "bf7d5f7509e63ebce76a1aa2839e3978253a8cd12893ce0eadee3203ab384529"
+  },
+  "render_binary_sha256": "b18e1275c833f259648bfd3f5abd004c0711c1a75845861fa9563f3b83adf4d0",
+  "outputs": {
+    "render_bytes": "8e0f2976f8adecc708d4c3fb8916b23c39796bf2034df9fbae24d55c99f68ba1",
+    "whole_token_ids": "d5ff76845a241f5f360d1dc36679caa45a45c827e3bcb01d8b23638f38571346"
+  },
+  "containers_removed": true,
+  "inputs_unchanged": true,
+  "reference_memory": {
+    "scope": "Analytical sizing, not a measured full-reference peak and not a numerical allowance. No rig or HF execution.",
+    "control_evidence": {
+      "receipt_sha256": "5909e120a17541b4648a1508b8bb70bca0a99229d70fa3dfe51413fd954e7acf",
+      "completed": true,
+      "cap_GiB": 12,
+      "OOMKilled": false,
+      "duration_seconds": 184.81938815116882,
+      "peak_RSS_or_cgroup_memory_peak": "Not recorded. Host MemAvailable samples include unrelated machine activity and cannot establish process peak. Successful 12 GiB cap provides an empirical admission ceiling for this prior 80-token workload only."
+    },
+    "exact_shapes": {
+      "parameters": 2031739904,
+      "parameter_bytes": 8126959616,
+      "largest_loader_decoded_tensor_bytes": 1244659712,
+      "layers": 28,
+      "query_heads": 16,
+      "KV_heads": 8,
+      "head_dim": 128,
+      "prompt_chunk": 512,
+      "final_cached_tokens": 16895,
+      "vocab": 151936,
+      "head_rows_per_call": 1
+    },
+    "F32_cache_bytes_at80": 18350080,
+    "F32_cache_bytes_at16384": 3758096384,
+    "F32_cache_bytes_at16895": 3875307520,
+    "increment_from80_to16895_GiB": 3.592071533203125,
+    "attention_derivation": "One eager score tensor at last prefill chunk: 1 x 16 query heads x 512 queries x 16384 keys x 4 bytes = 512 MiB. Conservative three-score accounting covers matmul/scaling/mask/softmax lifetimes; actual simultaneous lifetime depends on pinned eager implementation and allocator. Repeated K/V after GQA expansion contributes 256 MiB for the active layer, not 28 times that. DynamicCache concatenation can transiently retain old and new active-layer K/V. F16 logical cache is rounded then widened, so HF storage is F32.",
+    "peak_terms_bytes": {
+      "decoded_parameters": 8126959616,
+      "final_F32_HF_KV_cache": 3875307520,
+      "cache_growth_extra_current_layer_K_and_V_conservative": 138403840,
+      "current_layer_repeated_K_and_V_at_prefill_end": 268435456,
+      "three_simultaneous_attention_score_sized_buffers_conservative": 1610612736,
+      "two_causal_mask_sized_buffers": 67108864,
+      "other_live_projection_MLP_hook_temporaries_allowance": 134217728,
+      "resident_entire_output_memmap_conservative": 311164928,
+      "packed_GGUF_and_metadata_allowance": 536870912,
+      "Python_Torch_BLAS_allocator_fragmentation_and_unaccounted_scratch_allowance": 3221225472
+    },
+    "sum_of_terms_GiB": 17.034175872802734,
+    "proposed_cap_GiB": 20,
+    "margin_against_analytical_sum_GiB": 2.9658241271972656,
+    "empirical_cross_check": "Start from the prior successful 12 GiB control ceiling; add 3.592 GiB cache growth, about 1.9 GiB conservative attention/cache scratch growth and 0.25 GiB output-page growth. This suggests roughly 17.7 GiB before an extra safety margin, consistent with retaining 20 GiB. This is conservative sizing, not proof of the actual RSS or a claim every term peaks simultaneously.",
+    "loader_note": "Config-only model allocates final independent head topology from the outset. Existing exhaustive loader copies each independently decoded tensor into its parameter one at a time. Model plus largest decoded tensor is 8.728 GiB before imports/decoder temporary arrays; the successful identical 80-token loader already ran under 12 GiB. No unused original checkpoint is loaded.",
+    "limitations": [
+      "The pinned transformers 4.55.2 eager source/allocator peak was not instrumented in the completed run; temporary counts here are conservative shape-derived allowances, not a measurement.",
+      "The probe compile container has no Transformers dependency. Before an expensive reference, retain the actual reference process peak/cgroup memory.peak alongside per-phase progress; never treat system-memory deltas as process peak."
+    ],
+    "host_admission": {
+      "latest_root_observed_available_bytes": 19155144704,
+      "latest_root_observed_available_GiB": 17.839618682861328,
+      "required_available_bytes": 23622320128,
+      "decision": "Below the unchanged 22 GiB admission guard. Do not launch full references or lower the 20 GiB cap to current availability."
+    },
+    "possible_separate_128_chunk_variant": "If later evidence shows prompt attention scratch pressure, a separately pinned prefill128 producer could reduce each score tensor from512 to128 MiB and active hook temporary sizes by4x. Cache and parameter storage are unchanged. Keep phase boundary16384, head1, continuation1, declared map and cache policy fixed; record changed HF layout and preserve the512 attempt. No automatic fallback, policy selection by agreement, or reduced admission is authorized here."
+  },
+  "next": "Actual depth phase/head/cache dispatch witness and full reference generation. Analytical memory estimate is not an RSS measurement; no full reference cell started."
+}

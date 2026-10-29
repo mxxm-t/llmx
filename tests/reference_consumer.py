@@ -831,6 +831,59 @@ class LayeredConsumer(unittest.TestCase):
 
 
 class MXFP4Consumer(unittest.TestCase):
+    def test_raw_capture_uses_the_same_exact_fixture_allowance(self):
+        import tensor_split
+        fixture = {"name": "controlled", "config": {}, "weights_sha256": "weights", "packed_sha256": "packed",
+                   "cases": [{"text": "a", "logits": [0.00005] + [0.0] * 259}],
+                   "perplexity": [{"context": 16, "mean_nll": math.log(260)}]}
+        allowance = {k: fixture[k] for k in ("name", "config", "weights_sha256", "packed_sha256")}
+        allowance.update(family="test", max_reference_logit_error=0.00004)
+        data = json.dumps({"f32_reference_allowances": [allowance]})
+        rows = {phase: [[0.0] * 260 for _ in range(13)] for phase in ("batched", "decode")}
+        meta = {"dtype": "f32", "matrix_paths": {phase: [["f32"]] for phase in rows}}
+        with patch("builtins.open", unittest.mock.mock_open(read_data=data)):
+            self.assertEqual(tensor_split.held_to_hf("controlled", meta, rows, fixture, family="test"), (0.00005, 0.0))
+            with self.assertRaises(AssertionError):
+                tensor_split.held_to_hf("strict", meta, rows, fixture)
+            changed = dict(fixture, packed_sha256="different")
+            with self.assertRaises(AssertionError):
+                tensor_split.held_to_hf("different weights", meta, rows, changed, family="test")
+
+    def test_low_bits_reference_allowances_are_exact_and_f32_only(self):
+        directory = Path(common.ROOT) / "tests/data"
+        tight = {"logit": 2e-5, "nll": 1e-5}
+        approved = {("q1-0", False, "dense-untied"): 5.647804260253906e-5,
+                    ("q1-0", False, "dense-tied"): 5.647804260253906e-5,
+                    ("q1-0", True, "dense-untied"): 0.0001020159912109375,
+                    ("q1-0", True, "dense-tied"): 0.0001020159912109375,
+                    ("q1-0", True, "moe"): 0.0001020159912109375}
+        for family in ("q1-0",):
+            for split in (False, True):
+                path = directory / ("baseline_" + family.replace("-", "_") + ("_split" if split else "") + ".json")
+                for golden in json.loads(path.read_text())["fixtures"]:
+                    expected = {"logit": approved.get((family, split, golden["name"]), 2e-5), "nll": 1e-5}
+                    for dtype in ("f32", "f16", "bf16", "int8"):
+                        self.assertEqual(common.hf_bounds(dtype, [["f32"], ["f32"]], family, golden), expected)
+                    for key in ("name", "config", "weights_sha256", "packed_sha256"):
+                        changed = dict(golden, **{key: "changed"})
+                        self.assertEqual(common.hf_bounds("f32", [["f32"]], family, changed), tight)
+                    for name, fixture in ((None, golden), ("other", golden), (family, None)):
+                        self.assertEqual(common.hf_bounds("f32", [["f32"]], name, fixture), tight)
+                    witness = 'matrix-paths: {"dtype":"f32","devices":[["f32"]]}\n'
+                    self.assertEqual(common.hf_execution(witness, family, golden), expected)
+                    with self.assertRaises(AssertionError):
+                        common.hf_logit_error("low bits", {0: expected["logit"] * 1.01}, [0.0], bound=expected["logit"])
+                    budget = json.loads((directory / "dtype_budget.json").read_text())
+                    budget.setdefault("families", {})[family] = {"dtypes": {"bf16": {"logit_budget": 0.1, "nll_budget": 0.01}}}
+                    with patch("builtins.open", unittest.mock.mock_open(read_data=json.dumps(budget))):
+                        self.assertEqual(common.hf_bounds("bf16", [["bf16"]], family, golden), {"logit": 0.1, "nll": 0.01})
+                    with self.assertRaises(AssertionError):
+                        common.hf_bounds("f32", [[]], family, golden)
+        import low_bits
+        with patch.object(low_bits, "run_family", return_value=True) as run:
+            self.assertTrue(low_bits.run())
+        self.assertEqual(run.call_args_list, [unittest.mock.call("q1-0", "Q1_0", low_bits.fixture_q1, family="q1-0")])
+
     def test_q3_family_changes_only_witnessed_bf16(self):
         doc = json.loads((Path(common.ROOT) / "tests/data/dtype_budget.json").read_text())
         family = doc["families"]["q3-k"]

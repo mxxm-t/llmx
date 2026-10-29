@@ -1,5 +1,12 @@
 # llmx - Development Status
 
+## Q1_0 standalone support (2026-10-29, branch feat/q1-only-main3a)
+
+- **Goal:** land Q1_0 read support alone on public main `3a5e3d5bd`, retaining the reviewed CPU and Vulkan paths and independent references.
+- **Done:** Q1-only runtime, tests and docs extracted from combined runtime `28e97f5e3` and source `ff31be45b`; metadata-only type 42 preserved. Named `kQ1TwoRows` variant 7 and grouped/two-row/batch identity controls retained. Python byte-compile, dead-code, 54 reference-consumer tests, 88 reference-generator tests plus the new Q1 selector test, and independent raw Q1 block checks pass. Fresh-binary docs reports zero findings and catches 21 planted faults. The fresh MSVC/Vulkan product is `0.1.0+g98850a0fd022`, numerics `701e183c34df0358`, SHA256 `8e076f4d7cddafff42d536e7010d087ff601321da48803c6063df88fdf068ac1`; subsequent cleanup changes only tests/docs and removes an accidentally tracked configure log, preserving runtime source. Focused native CPU and Radeon VII tests pass (0.26 and 1.44 seconds); CPU tiny-HF passes 150 full-logit cases and 12 NLL checks, largest logit/NLL errors 0.00002059/0.00000419. The final all-target Windows build and focused device HF are in progress. Windows CI retains all steps with a 120-minute job budget after run 40900162723 exhausted 60 minutes in Plain after CMake tests passed.
+- **Left:** complete the fresh all-target Windows build, full CPU CTest/suite and MI50/Linux and Radeon VII/Windows checks, and hosted CI including Windows Plain; retain exact final-source identities. This branch is prepared for a single-commit fast-forward only after those checks pass.
+- **Gotchas:** combined-build results are historical evidence, not final-source gates. Q2_0 execution remains separate; pre-existing metadata-only type 42 is preserved. The accepted Q1 P4096 repeat is 2222.657 versus mx Vulkan 1313.901 tok/s (+69.165 percent), TG 249.487 versus 249.490, three samples per arm ([repeat record](benchmarks/q1-p4096-repeat-main28e-20261029.json)). Do not launch competing rig work.
+
 ## The encoder's products on a wide float tile (2026-10-29, branch perf/image-encode-products on main 80cbf1da0, step 2 of perf/image-encode, the owner's approval of the order and F2DEV's DECIDED of 2026-10-27 09:33, lands by fast-forward as one commit)
 
 - **Goal:** the vision encoder's products of BF16 weights, the larger gap to the references (their F32 SGEMM runs at about twice llmx's rate on an MI50), faster on both cards with the rows unchanged.

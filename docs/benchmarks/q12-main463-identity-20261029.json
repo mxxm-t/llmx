@@ -1,0 +1,141 @@
+{
+  "schema": "llmx.q12-main463-identity.v1",
+  "date": "2026-10-29",
+  "scope": "CPU and MI50 Vulkan byte-identity comparison of the seven frozen non-vision fixtures, using identical token IDs and fixed inference settings.",
+  "result": "pass",
+  "compared_revisions": {
+    "main": "46375e9686bda4edad127194f271015f46cec155",
+    "selected": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+    "main_version": "llmx 0.1.0+g46375e9686bd numerics b3adfc792471a74f",
+    "selected_version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2"
+  },
+  "execution": {
+    "report": "main463-identity-v2-execution.json",
+    "sha256": "640f291ae1ea8b4245c0884603f0100b7fd9342e87407ea7b087dd1e1ae79ac0",
+    "plan_sha256": "a2e540db32357f15697f0d8444e50fa98a4620c69509c0c4a75fc90a2b696b1e",
+    "payload_sha256": "4c80918423e6e69dbf6136c5d333cc0537b8a7c6d019988ba4db699c87aa3dbe",
+    "review_sha256": "f187508c0190b56ec770e5c09843349a16bde6a4086828badf4553d1b0a85a49",
+    "complete": true,
+    "unchanged": true,
+    "seconds": 155.29147338867188,
+    "containers_removed": true,
+    "exit_codes": [
+      0,
+      0
+    ]
+  },
+  "settings": {
+    "prompt_tokens": 20,
+    "greedy_steps": 64,
+    "kv_k": "f16",
+    "kv_v": "f16",
+    "dtype": "auto",
+    "ubatch": 8,
+    "cpu_experts": 0
+  },
+  "fixtures": [
+    {
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+      "bytes": 639446688
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_0.gguf",
+      "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb",
+      "bytes": 382156480
+    },
+    {
+      "file": "Qwen3-0.6B-Q5_K_M.gguf",
+      "sha256": "03c6e2127d155b89c21a512954010486b1e00e1a9eebdfad650d03b53ab4c74a",
+      "bytes": 444415680
+    },
+    {
+      "file": "Qwen3-0.6B-Q4_K_M.gguf",
+      "sha256": "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a",
+      "bytes": 396705472
+    },
+    {
+      "file": "Qwen3-0.6B-UD-Q8_K_XL.gguf",
+      "sha256": "523982b2bb2ce75857aa0de6763c41e46ef2be5f79c26867f73be143f2ba8bad",
+      "bytes": 844288704
+    },
+    {
+      "file": "Qwen3.5-0.8B-Q8_0.gguf",
+      "sha256": "0ad885ffd4bb022fc4f0d33a3308fa108ef8613159d3b3a67e23abca056b7a6c",
+      "bytes": 811843840
+    },
+    {
+      "file": "Qwen3.5-0.8B-Q4_K_M.gguf",
+      "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+      "bytes": 532517120
+    }
+  ],
+  "phases": [
+    {
+      "report": "main463-identity-v2-cpu.json",
+      "sha256": "f4ccb49883b63609fbcc879363f0acb142ed33dddbfb1db3e0616665f9579d30",
+      "status": "pass",
+      "device": "cpu",
+      "cpuset_cpus": "8-9",
+      "cpu_quota": "2",
+      "tool_threads": 6,
+      "dtype_policy": "auto (binary default)",
+      "kv_k": "f16",
+      "kv_v": "f16",
+      "ubatch": 8,
+      "fixture_count": 7,
+      "payload_comparisons": 21,
+      "byte_identical_payload_comparisons": 21,
+      "greedy_ids_compared": 448,
+      "bytes_compared": 522629120,
+      "source_unchanged": true,
+      "model_hashes_unchanged": true,
+      "source_hashes_unchanged": true
+    },
+    {
+      "report": "main463-identity-v2-mi50.json",
+      "sha256": "e4bc3130cf53b3484f2e75b8497f3268982a6ffa79f415b3594d3b3c9e3c7e13",
+      "status": "pass",
+      "device": "vulkan:0",
+      "cpuset_cpus": "8-9",
+      "cpu_quota": "2",
+      "tool_threads": 6,
+      "dtype_policy": "auto (binary default)",
+      "kv_k": "f16",
+      "kv_v": "f16",
+      "ubatch": 8,
+      "fixture_count": 7,
+      "payload_comparisons": 21,
+      "byte_identical_payload_comparisons": 21,
+      "greedy_ids_compared": 448,
+      "bytes_compared": 522629120,
+      "source_unchanged": true,
+      "model_hashes_unchanged": true,
+      "gpu_identity": {
+        "pci": "0000:89:00.0",
+        "node": "/dev/dri/renderD134",
+        "vendor": "0x1002",
+        "device": "0x66a1",
+        "busy": 0,
+        "vram_used": 10932224,
+        "performance_level": "auto"
+      },
+      "source_hashes_unchanged": true
+    }
+  ],
+  "identity_totals": {
+    "payload_comparisons": 42,
+    "byte_identical": true,
+    "greedy_ids_compared": 896
+  },
+  "retained_v1_failure": {
+    "report": "main463-identity-v1-failure.json",
+    "sha256": "73c9fef57ba82627c14ed69993b6cc9a5df0f7d3f8a4180638287ca07217dda6",
+    "valid_captures": 0,
+    "note": "The initial v1 runner failure is retained; v2 is the passing continuation."
+  },
+  "limitations": [
+    "This evidence is pinned to the 463 main and 28e selected binaries; it is not a complete qualification of the combined 3a integration tree.",
+    "Identity only; no performance claim. CPU used a two-CPU cpuset with a six-thread tool setting."
+  ]
+}

@@ -1,0 +1,1020 @@
+{
+  "scope": "Completed Qwen3/Qwen3MoE file-exact loader construction proof, including refused harness attempts and HF CPU storage sensitivity diagnostics; not runtime or released-model qualification.",
+  "versions": {
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2"
+  },
+  "old_generator_sha256": "954de12e079a2eb8ac9378ba99b4f82e767a6d8198936420f3ff4756bd83eb6c",
+  "new_generator_sha256": "5528683a93fb748c6fe7158df9f2326765d7cc93e14195303a211487c9b3eeb7",
+  "product_change": "Only Qwen3/Qwen3MoE file-exact constructs F32/eager HF from pinned config/tokenizer before exhaustive GGUF parameter replacement; normal checkpoint and qwen35 loading remain unchanged. Config-only checkpoint-equality counter is null.",
+  "harness_changes": {
+    "v2": "Explicit architecture and omission of exactly the shared writer unused.weight Q8 zero padding probe; every actual tensor name/shape/type/raw payload/order and other metadata checked unchanged.",
+    "v3_v4": "One-case layout/state/trace diagnostics and controlled clone/restore; no reference acceptance change.",
+    "v5": "Original parameter/buffer bytes/config/eval/topology/aliases checked equal first; BOTH arms use64-byte-aligned parameter storage for like-for-like outputs; bytes/ties/buffers preserved and original storages restored."
+  },
+  "attempts": [
+    {
+      "version": 1,
+      "status": "fail",
+      "report": {
+        "path": "build-low-bits-dev/file-exact-config-v1/report.json",
+        "sha256": "b1ec1ec95e06d1974ac035066ccac1af848e5c27bdc22b6797ee6ac6f64bf396"
+      },
+      "driver_sha256": "3630d6c7b1d42b15a93b5a53bbb1e11f802333f91fd273e424c1244a1550861b",
+      "output_manifest_verification": {
+        "locally_verified": 0,
+        "not_locally_collected": 42
+      },
+      "cases": [
+        {
+          "name": "q1-0-dense-untied",
+          "passed": false,
+          "fixture_weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+          "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0",
+          "gguf_sha256": "aef15c43c15fa32cd5acaf4746b57b6af7a8d4001a0a96d7304e3f01909280ce",
+          "failure": "SystemExit: /out/results/q1-0-dense-untied/fixture.gguf holds a None model; file-exact references map qwen3, qwen3moe, qwen35 and qwen35moe tensors only"
+        },
+        {
+          "name": "q1-0-dense-tied",
+          "passed": false,
+          "fixture_weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+          "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d",
+          "gguf_sha256": "8d26c87296d124fef03e6ba3a0f264f1a90b8adbbb7a8b1293959e9d5446c2dd",
+          "failure": "SystemExit: /out/results/q1-0-dense-tied/fixture.gguf holds a None model; file-exact references map qwen3, qwen3moe, qwen35 and qwen35moe tensors only"
+        },
+        {
+          "name": "q1-0-moe",
+          "passed": false,
+          "fixture_weights_sha256": "5f303b88fc298b5eaf8fdc10467b6527688ef4d5e1a2b07469fad7c43566dce3",
+          "packed_sha256": "3ba7bf5dc7f91f78235841c7f39cdaf342f2cee1dc6c11778acf8c75966f7966",
+          "gguf_sha256": "8e1641539f98d2cd7fd65aedb1c2fa6ff2e273c66d648736b0fee0a26c7111c7",
+          "failure": "ValueError: GGUF tensor unused.weight has no HF Qwen3 parameter"
+        },
+        {
+          "name": "q2-0-dense-untied",
+          "passed": false,
+          "fixture_weights_sha256": "f8df740f5b2239f6491722f2ed795f16e464d820f0fe453dff82d39032e42f04",
+          "packed_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7",
+          "gguf_sha256": "33a7574c7bd7f1d242ec2f19441015905242b4460fbeb5261f366dc8ba0b0f56",
+          "failure": "SystemExit: /out/results/q2-0-dense-untied/fixture.gguf holds a None model; file-exact references map qwen3, qwen3moe, qwen35 and qwen35moe tensors only"
+        },
+        {
+          "name": "q2-0-dense-tied",
+          "passed": false,
+          "fixture_weights_sha256": "ce6a4f12518c46b00ce793b43c143bbbeec6ad94be44bf2f5f2253c032acab60",
+          "packed_sha256": "52c5e5f09d1d72be60c71fd4989d74f46dc2107047a6ff8086483224d7c44bca",
+          "gguf_sha256": "7b8696bbae14e691bf96c28196511e714d17682ff7fab678f53e2e1097d5c3a7",
+          "failure": "SystemExit: /out/results/q2-0-dense-tied/fixture.gguf holds a None model; file-exact references map qwen3, qwen3moe, qwen35 and qwen35moe tensors only"
+        },
+        {
+          "name": "q2-0-moe",
+          "passed": false,
+          "fixture_weights_sha256": "4eb508447acf7fa633449be683d49fefb571b2d7bda9474e9751090ef9ac5a26",
+          "packed_sha256": "a1a37eb77e4eeba773962cdcd880e63e8a15678a8705f43724695e1488136be2",
+          "gguf_sha256": "5ee68e583210fb46abf82d15792ee45dcabc0a6fec98d3b989e7cc07813a243b",
+          "failure": "ValueError: GGUF tensor unused.weight has no HF Qwen3 parameter"
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "status": "fail",
+      "report": {
+        "path": "build-low-bits-dev/file-exact-config-v2/out/results/report.json",
+        "sha256": "a7cebdf52d9e034ed851ae4f34a4b2be79753392b7f4b13bd83d1d0a9ab301d5"
+      },
+      "driver_sha256": "7df99fedec17fb125cebe9527c1fcc6d85e56ad0aae92375b57523447a29d3f7",
+      "supervisor": {
+        "path": "build-low-bits-dev/file-exact-config-v2/out/supervisor.json",
+        "sha256": "7ba0b4f0153423813fb148c0f36c40e06a7150e5cdcec6b65d56fcaf2fde9103",
+        "status": "fail",
+        "exit_code": 1,
+        "removed": true,
+        "seconds": 31.31567926099524
+      },
+      "output_manifest_verification": {
+        "locally_verified": 96,
+        "not_locally_collected": 0
+      },
+      "cases": [
+        {
+          "name": "q1-0-dense-untied",
+          "passed": false,
+          "fixture_weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+          "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0",
+          "gguf_sha256": "444d61cf6cc55031c357bd019a43e558777b007d045646ae978db07f39bcbfb8",
+          "parameters_equal": true,
+          "outputs_equal": false,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "3b4fda520fde5ab056d1acfa04770c10b83f38ebf34c57c58ec10ee3c48a91aa",
+          "original_output_sha256": {
+            "old": "d1f2b720d1a0d5c077b7adab679ec494d8d460c9af90faaeb4cb72216624a22d",
+            "new": "5bd86031a56dbdbc1b990a2e0d273c31f6fee00debedeab6ceaf09aafe0d8310"
+          },
+          "differing_outputs": [
+            {
+              "name": "batched-logits-a",
+              "values": 257,
+              "differing_values": 238,
+              "max_abs_difference": 5.7220458984375e-06
+            },
+            {
+              "name": "cached-logits-a",
+              "values": 257,
+              "differing_values": 238,
+              "max_abs_difference": 5.7220458984375e-06
+            },
+            {
+              "name": "cached-logits-ab",
+              "values": 514,
+              "differing_values": 491,
+              "max_abs_difference": 1.1444091796875e-05
+            },
+            {
+              "name": "cached-logits-abc",
+              "values": 771,
+              "differing_values": 734,
+              "max_abs_difference": 1.1444091796875e-05
+            },
+            {
+              "name": "cached-logits-abcdefg",
+              "values": 1799,
+              "differing_values": 1716,
+              "max_abs_difference": 1.1682510375976562e-05
+            },
+            {
+              "name": "cached-logits-abcdefghijklm",
+              "values": 3341,
+              "differing_values": 3192,
+              "max_abs_difference": 1.430511474609375e-05
+            },
+            {
+              "name": "cached-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 1.9318951949287566e-07
+            },
+            {
+              "name": "cached-nll-c16",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 1.0901098193016878e-06
+            }
+          ]
+        },
+        {
+          "name": "q1-0-dense-tied",
+          "passed": true,
+          "fixture_weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+          "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d",
+          "gguf_sha256": "f2ac8e9ce2c945db68d24cf2e961d23fbbaa8d0e00425e9873595649bec378a4",
+          "parameters_equal": true,
+          "outputs_equal": true,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "6c41d7b7d748651e3553a8852da86f9a34c011525fdeb4d35cf751052576bbad",
+          "original_output_sha256": {
+            "old": "fc27a4fdd0869703474f3662b9b2937d44a4c855e1522aab8470cea894b6ed67",
+            "new": "fc27a4fdd0869703474f3662b9b2937d44a4c855e1522aab8470cea894b6ed67"
+          },
+          "differing_outputs": []
+        },
+        {
+          "name": "q1-0-moe",
+          "passed": false,
+          "fixture_weights_sha256": "5f303b88fc298b5eaf8fdc10467b6527688ef4d5e1a2b07469fad7c43566dce3",
+          "packed_sha256": "3ba7bf5dc7f91f78235841c7f39cdaf342f2cee1dc6c11778acf8c75966f7966",
+          "gguf_sha256": "fca8f0300b00593883332268508500ee579f21dd69affe833976474fea1165ee",
+          "parameters_equal": true,
+          "outputs_equal": false,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "f8a443636b2cf738e28f7506952fc5aab19a6b1951a135188cd640c45c881ca6",
+          "original_output_sha256": {
+            "old": "543a4c46c18dabaed6c56debfb9e3cd6f9c4b64da20c3334a4c656c4931a808f",
+            "new": "38aaa7ec67b51de397caeed747ea1e72329e49fc770c169aeb86cad900196102"
+          },
+          "differing_outputs": [
+            {
+              "name": "batched-logits-a",
+              "values": 257,
+              "differing_values": 246,
+              "max_abs_difference": 8.58306884765625e-06
+            },
+            {
+              "name": "batched-logits-ab",
+              "values": 514,
+              "differing_values": 457,
+              "max_abs_difference": 7.62939453125e-06
+            },
+            {
+              "name": "batched-logits-abc",
+              "values": 771,
+              "differing_values": 683,
+              "max_abs_difference": 3.814697265625e-06
+            },
+            {
+              "name": "batched-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 9.377687959499781e-07
+            },
+            {
+              "name": "cached-logits-a",
+              "values": 257,
+              "differing_values": 246,
+              "max_abs_difference": 8.58306884765625e-06
+            },
+            {
+              "name": "cached-logits-ab",
+              "values": 514,
+              "differing_values": 498,
+              "max_abs_difference": 1.049041748046875e-05
+            },
+            {
+              "name": "cached-logits-abc",
+              "values": 771,
+              "differing_values": 751,
+              "max_abs_difference": 1.049041748046875e-05
+            },
+            {
+              "name": "cached-logits-abcdefg",
+              "values": 1799,
+              "differing_values": 1750,
+              "max_abs_difference": 1.8596649169921875e-05
+            },
+            {
+              "name": "cached-logits-abcdefghijklm",
+              "values": 3341,
+              "differing_values": 3244,
+              "max_abs_difference": 1.8596649169921875e-05
+            },
+            {
+              "name": "cached-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 6.494518896005275e-07
+            },
+            {
+              "name": "cached-nll-c16",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 2.245425671176804e-06
+            }
+          ]
+        },
+        {
+          "name": "q2-0-dense-untied",
+          "passed": false,
+          "fixture_weights_sha256": "f8df740f5b2239f6491722f2ed795f16e464d820f0fe453dff82d39032e42f04",
+          "packed_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7",
+          "gguf_sha256": "9dcd3e3df1fe52c7e2f627cff2379f30dd420571724ca7e81498c5aaf0e3acdb",
+          "parameters_equal": true,
+          "outputs_equal": false,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "e493eab664a35b0bf58c03a94e3c1683894d63bf7915d11453498a8885018ef8",
+          "original_output_sha256": {
+            "old": "dbca76759286ec892ff86b93dcb7af5f63f56571d4383aa772945c218992154e",
+            "new": "ac21d3942c3138b486d9adcd8d089a7c445d191afc2a55b11de5a90c821cf9a2"
+          },
+          "differing_outputs": [
+            {
+              "name": "batched-logits-a",
+              "values": 257,
+              "differing_values": 239,
+              "max_abs_difference": 5.982816219329834e-06
+            },
+            {
+              "name": "cached-logits-a",
+              "values": 257,
+              "differing_values": 239,
+              "max_abs_difference": 5.982816219329834e-06
+            },
+            {
+              "name": "cached-logits-ab",
+              "values": 514,
+              "differing_values": 476,
+              "max_abs_difference": 5.982816219329834e-06
+            },
+            {
+              "name": "cached-logits-abc",
+              "values": 771,
+              "differing_values": 722,
+              "max_abs_difference": 6.4373016357421875e-06
+            },
+            {
+              "name": "cached-logits-abcdefg",
+              "values": 1799,
+              "differing_values": 1692,
+              "max_abs_difference": 1.1920928955078125e-05
+            },
+            {
+              "name": "cached-logits-abcdefghijklm",
+              "values": 3341,
+              "differing_values": 3151,
+              "max_abs_difference": 1.1920928955078125e-05
+            },
+            {
+              "name": "cached-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 1.2139553504653122e-06
+            },
+            {
+              "name": "cached-nll-c16",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 7.329459030813723e-07
+            }
+          ]
+        },
+        {
+          "name": "q2-0-dense-tied",
+          "passed": true,
+          "fixture_weights_sha256": "ce6a4f12518c46b00ce793b43c143bbbeec6ad94be44bf2f5f2253c032acab60",
+          "packed_sha256": "52c5e5f09d1d72be60c71fd4989d74f46dc2107047a6ff8086483224d7c44bca",
+          "gguf_sha256": "34a41d9c7be4f9a358a78a54a4225cb241820d58f4f99d5eb561ed806f51170b",
+          "parameters_equal": true,
+          "outputs_equal": true,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "d445b5dd08723ef02f8a0afecc5d7c72ced9e8841949719fed6ec96afc50a2df",
+          "original_output_sha256": {
+            "old": "b499b7e4f9fbe7a225942c5eddce7bebd91f57f899ba2cc3b66b6eca1bd25a4a",
+            "new": "b499b7e4f9fbe7a225942c5eddce7bebd91f57f899ba2cc3b66b6eca1bd25a4a"
+          },
+          "differing_outputs": []
+        },
+        {
+          "name": "q2-0-moe",
+          "passed": false,
+          "fixture_weights_sha256": "4eb508447acf7fa633449be683d49fefb571b2d7bda9474e9751090ef9ac5a26",
+          "packed_sha256": "a1a37eb77e4eeba773962cdcd880e63e8a15678a8705f43724695e1488136be2",
+          "gguf_sha256": "c017e2d0272840d91b2b90a3c68df8a9a88746086cfafde6f546b500c08e35e8",
+          "parameters_equal": true,
+          "outputs_equal": false,
+          "topology_equal": true,
+          "execution_equal": true,
+          "provenance_correct": true,
+          "original_parameter_sha256": "be9586b6025b8076fb0b55bf9a7861deab75dea80974047905cd874f38f03c6d",
+          "original_output_sha256": {
+            "old": "d54260027eac29a2347164688e3694054f5ef475554f56df86905414be87168f",
+            "new": "8b07731b84441025bad41153b6d4560ddb8f2f130706c0024c411d4d72334b91"
+          },
+          "differing_outputs": [
+            {
+              "name": "batched-logits-a",
+              "values": 257,
+              "differing_values": 243,
+              "max_abs_difference": 9.059906005859375e-06
+            },
+            {
+              "name": "batched-logits-ab",
+              "values": 514,
+              "differing_values": 245,
+              "max_abs_difference": 2.86102294921875e-06
+            },
+            {
+              "name": "batched-logits-abc",
+              "values": 771,
+              "differing_values": 246,
+              "max_abs_difference": 2.86102294921875e-06
+            },
+            {
+              "name": "batched-logits-abcdefg",
+              "values": 1799,
+              "differing_values": 233,
+              "max_abs_difference": 3.0994415283203125e-06
+            },
+            {
+              "name": "batched-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 1.8398043266643072e-07
+            },
+            {
+              "name": "cached-logits-a",
+              "values": 257,
+              "differing_values": 243,
+              "max_abs_difference": 9.059906005859375e-06
+            },
+            {
+              "name": "cached-logits-ab",
+              "values": 514,
+              "differing_values": 486,
+              "max_abs_difference": 9.059906005859375e-06
+            },
+            {
+              "name": "cached-logits-abc",
+              "values": 771,
+              "differing_values": 733,
+              "max_abs_difference": 9.59634780883789e-06
+            },
+            {
+              "name": "cached-logits-abcdefg",
+              "values": 1799,
+              "differing_values": 1729,
+              "max_abs_difference": 1.52587890625e-05
+            },
+            {
+              "name": "cached-logits-abcdefghijklm",
+              "values": 3341,
+              "differing_values": 3203,
+              "max_abs_difference": 1.52587890625e-05
+            },
+            {
+              "name": "cached-nll-c4",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 2.5318743599456184e-06
+            },
+            {
+              "name": "cached-nll-c16",
+              "values": 1,
+              "differing_values": 1,
+              "max_abs_difference": 4.94000950368445e-07
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "version": 3,
+      "status": "diagnostic_complete; original bit-equivalence remains unqualified",
+      "report": {
+        "path": "build-low-bits-dev/file-exact-config-v3/out/results/report.json",
+        "sha256": "d5c9b784e320400285146c1789fa65308c31a0a2e2cb8ef4d469b1a2a8b5d589"
+      },
+      "driver_sha256": "4adb0f530e1f71f0f6e4f5f20ab3bdafd1eb959e7e5dbacfee02b9373f03c3b6",
+      "supervisor": {
+        "path": "build-low-bits-dev/file-exact-config-v3/out/supervisor.json",
+        "sha256": "e01a1a4391ccab20128ef0f82ff13ca128a5f47f5a8103b64966613b05bad6a0",
+        "status": "diagnostic_complete",
+        "exit_code": 0,
+        "removed": true,
+        "seconds": 5.283361128065735
+      },
+      "output_manifest_verification": {
+        "locally_verified": 16,
+        "not_locally_collected": 0
+      },
+      "config_equal": true,
+      "all_modules_eval": true,
+      "parameters_names_equal": true,
+      "buffers_names_equal": true,
+      "baseline_output_equal": false,
+      "trace_value_differences": [
+        "model.layers.0.self_attn.q_proj",
+        "model.layers.0.self_attn.q_norm",
+        "model.layers.0.self_attn.k_proj",
+        "model.layers.0.self_attn.k_norm",
+        "model.layers.0.self_attn.v_proj",
+        "model.layers.0.self_attn.o_proj",
+        "model.layers.0.self_attn",
+        "model.layers.0.post_attention_layernorm",
+        "model.layers.0.mlp.gate_proj",
+        "model.layers.0.mlp.act_fn",
+        "model.layers.0.mlp.up_proj",
+        "model.layers.0.mlp.down_proj",
+        "model.layers.0.mlp",
+        "model.layers.0",
+        "model.layers.1.input_layernorm",
+        "model.layers.1.self_attn.q_proj",
+        "model.layers.1.self_attn.q_norm",
+        "model.layers.1.self_attn.k_proj",
+        "model.layers.1.self_attn.k_norm",
+        "model.layers.1.self_attn.v_proj",
+        "model.layers.1.self_attn.o_proj",
+        "model.layers.1.self_attn",
+        "model.layers.1.post_attention_layernorm",
+        "model.layers.1.mlp.gate_proj",
+        "model.layers.1.mlp.act_fn",
+        "model.layers.1.mlp.up_proj",
+        "model.layers.1.mlp.down_proj",
+        "model.layers.1.mlp",
+        "model.layers.1",
+        "model.norm",
+        "lm_head",
+        "lm_head.input"
+      ],
+      "parameter_and_buffer_values_equal": true,
+      "parameter_address_mod64": {
+        "old": [
+          8
+        ],
+        "new": [
+          0
+        ]
+      },
+      "buffers_and_rotary_equal": true,
+      "repeats_and_traces_preserve_baseline": {
+        "old": true,
+        "new": true
+      },
+      "restoration_preserves_baseline": {
+        "old": true,
+        "new": true
+      },
+      "head_clone_outputs_equal": false
+    },
+    {
+      "version": 4,
+      "status": "diagnostic_complete; original bit-equivalence remains unqualified",
+      "report": {
+        "path": "build-low-bits-dev/file-exact-config-v4/out/results/report.json",
+        "sha256": "54e1dc9ce5539d415f14033cc46d8ed43b37a60fc098b90a79c6ff86bb7ddb2a"
+      },
+      "driver_sha256": "490d97ef6cf7251141898637568a9b23e1caadc2eac6ec8fd799cb76854fc622",
+      "supervisor": {
+        "path": "build-low-bits-dev/file-exact-config-v4/out/supervisor.json",
+        "sha256": "1c538226a6e679efca201b09a02901b923f845d8bc4fefa9d0df4c3778e15147",
+        "status": "diagnostic_complete",
+        "exit_code": 0,
+        "removed": true,
+        "seconds": 7.3113430589437485
+      },
+      "output_manifest_verification": {
+        "locally_verified": 18,
+        "not_locally_collected": 0
+      },
+      "config_equal": true,
+      "all_modules_eval": true,
+      "parameters_names_equal": true,
+      "buffers_names_equal": true,
+      "baseline_output_equal": false,
+      "trace_value_differences": [
+        "model.layers.0.self_attn.q_proj",
+        "model.layers.0.self_attn.q_norm",
+        "model.layers.0.self_attn.k_proj",
+        "model.layers.0.self_attn.k_norm",
+        "model.layers.0.self_attn.v_proj",
+        "model.layers.0.self_attn.o_proj",
+        "model.layers.0.self_attn",
+        "model.layers.0.post_attention_layernorm",
+        "model.layers.0.mlp.gate_proj",
+        "model.layers.0.mlp.act_fn",
+        "model.layers.0.mlp.up_proj",
+        "model.layers.0.mlp.down_proj",
+        "model.layers.0.mlp",
+        "model.layers.0",
+        "model.layers.1.input_layernorm",
+        "model.layers.1.self_attn.q_proj",
+        "model.layers.1.self_attn.q_norm",
+        "model.layers.1.self_attn.k_proj",
+        "model.layers.1.self_attn.k_norm",
+        "model.layers.1.self_attn.v_proj",
+        "model.layers.1.self_attn.o_proj",
+        "model.layers.1.self_attn",
+        "model.layers.1.post_attention_layernorm",
+        "model.layers.1.mlp.gate_proj",
+        "model.layers.1.mlp.act_fn",
+        "model.layers.1.mlp.up_proj",
+        "model.layers.1.mlp.down_proj",
+        "model.layers.1.mlp",
+        "model.layers.1",
+        "model.norm",
+        "lm_head",
+        "lm_head.input"
+      ],
+      "parameter_and_buffer_values_equal": true,
+      "parameter_address_mod64": {
+        "old": [
+          8
+        ],
+        "new": [
+          0
+        ]
+      },
+      "buffers_and_rotary_equal": true,
+      "repeats_and_traces_preserve_baseline": {
+        "old": true,
+        "new": true
+      },
+      "restoration_preserves_baseline": {
+        "old": true,
+        "new": true
+      },
+      "baseline_matches_v3": {
+        "old": true,
+        "new": true
+      },
+      "all_parameter_clone_outputs_equal": true,
+      "clone_trace_value_differences": [],
+      "aliases_and_buffers_preserved": {
+        "old": true,
+        "new": true
+      }
+    },
+    {
+      "version": 5,
+      "status": "pass",
+      "report": {
+        "path": "build-low-bits-dev/file-exact-config-v5/out/results/report.json",
+        "sha256": "0017084dd001ee136a8e453bd89bef7196e3b4640a378b63fdb50afa4be80e29"
+      },
+      "driver_sha256": "4579d66e4cee44772a3326152940c4451f3a6667e884cbfa6d21fde59614ff40",
+      "supervisor": {
+        "path": "build-low-bits-dev/file-exact-config-v5/out/supervisor.json",
+        "sha256": "582f1d66e132978f63cb0b71133d5d1bf027def72cb5545724fd9812f552368f",
+        "status": "pass",
+        "exit_code": 0,
+        "removed": true,
+        "seconds": 33.305773911997676
+      },
+      "output_manifest_verification": {
+        "locally_verified": 204,
+        "not_locally_collected": 0
+      },
+      "cases": [
+        {
+          "name": "q1-0-dense-untied",
+          "fixture_weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+          "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0",
+          "gguf_sha256": "444d61cf6cc55031c357bd019a43e558777b007d045646ae978db07f39bcbfb8",
+          "gguf_tied": false,
+          "checkpoint_config_tied": true,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 25,
+              "buffers": 1,
+              "original_address_mod64": [
+                8
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "3b4fda520fde5ab056d1acfa04770c10b83f38ebf34c57c58ec10ee3c48a91aa",
+              "output_sha256": "5bd86031a56dbdbc1b990a2e0d273c31f6fee00debedeab6ceaf09aafe0d8310",
+              "tensors_equal_to_reference": 25
+            },
+            "new": {
+              "parameters": 25,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "3b4fda520fde5ab056d1acfa04770c10b83f38ebf34c57c58ec10ee3c48a91aa",
+              "output_sha256": "5bd86031a56dbdbc1b990a2e0d273c31f6fee00debedeab6ceaf09aafe0d8310",
+              "tensors_equal_to_reference": null
+            }
+          }
+        },
+        {
+          "name": "q1-0-dense-tied",
+          "fixture_weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+          "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d",
+          "gguf_sha256": "f2ac8e9ce2c945db68d24cf2e961d23fbbaa8d0e00425e9873595649bec378a4",
+          "gguf_tied": true,
+          "checkpoint_config_tied": false,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 24,
+              "buffers": 1,
+              "original_address_mod64": [
+                48
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [
+                [
+                  "lm_head.weight",
+                  "model.embed_tokens.weight"
+                ]
+              ],
+              "original_storage_restored": true,
+              "parameter_sha256": "6c41d7b7d748651e3553a8852da86f9a34c011525fdeb4d35cf751052576bbad",
+              "output_sha256": "fc27a4fdd0869703474f3662b9b2937d44a4c855e1522aab8470cea894b6ed67",
+              "tensors_equal_to_reference": 24
+            },
+            "new": {
+              "parameters": 24,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [
+                [
+                  "lm_head.weight",
+                  "model.embed_tokens.weight"
+                ]
+              ],
+              "original_storage_restored": true,
+              "parameter_sha256": "6c41d7b7d748651e3553a8852da86f9a34c011525fdeb4d35cf751052576bbad",
+              "output_sha256": "fc27a4fdd0869703474f3662b9b2937d44a4c855e1522aab8470cea894b6ed67",
+              "tensors_equal_to_reference": null
+            }
+          }
+        },
+        {
+          "name": "q1-0-moe",
+          "fixture_weights_sha256": "5f303b88fc298b5eaf8fdc10467b6527688ef4d5e1a2b07469fad7c43566dce3",
+          "packed_sha256": "3ba7bf5dc7f91f78235841c7f39cdaf342f2cee1dc6c11778acf8c75966f7966",
+          "gguf_sha256": "fca8f0300b00593883332268508500ee579f21dd69affe833976474fea1165ee",
+          "gguf_tied": false,
+          "checkpoint_config_tied": true,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 45,
+              "buffers": 1,
+              "original_address_mod64": [
+                8
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "f8a443636b2cf738e28f7506952fc5aab19a6b1951a135188cd640c45c881ca6",
+              "output_sha256": "38aaa7ec67b51de397caeed747ea1e72329e49fc770c169aeb86cad900196102",
+              "tensors_equal_to_reference": 45
+            },
+            "new": {
+              "parameters": 45,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "f8a443636b2cf738e28f7506952fc5aab19a6b1951a135188cd640c45c881ca6",
+              "output_sha256": "38aaa7ec67b51de397caeed747ea1e72329e49fc770c169aeb86cad900196102",
+              "tensors_equal_to_reference": null
+            }
+          }
+        },
+        {
+          "name": "q2-0-dense-untied",
+          "fixture_weights_sha256": "f8df740f5b2239f6491722f2ed795f16e464d820f0fe453dff82d39032e42f04",
+          "packed_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7",
+          "gguf_sha256": "9dcd3e3df1fe52c7e2f627cff2379f30dd420571724ca7e81498c5aaf0e3acdb",
+          "gguf_tied": false,
+          "checkpoint_config_tied": true,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 25,
+              "buffers": 1,
+              "original_address_mod64": [
+                8
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "e493eab664a35b0bf58c03a94e3c1683894d63bf7915d11453498a8885018ef8",
+              "output_sha256": "ac21d3942c3138b486d9adcd8d089a7c445d191afc2a55b11de5a90c821cf9a2",
+              "tensors_equal_to_reference": 25
+            },
+            "new": {
+              "parameters": 25,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "e493eab664a35b0bf58c03a94e3c1683894d63bf7915d11453498a8885018ef8",
+              "output_sha256": "ac21d3942c3138b486d9adcd8d089a7c445d191afc2a55b11de5a90c821cf9a2",
+              "tensors_equal_to_reference": null
+            }
+          }
+        },
+        {
+          "name": "q2-0-dense-tied",
+          "fixture_weights_sha256": "ce6a4f12518c46b00ce793b43c143bbbeec6ad94be44bf2f5f2253c032acab60",
+          "packed_sha256": "52c5e5f09d1d72be60c71fd4989d74f46dc2107047a6ff8086483224d7c44bca",
+          "gguf_sha256": "34a41d9c7be4f9a358a78a54a4225cb241820d58f4f99d5eb561ed806f51170b",
+          "gguf_tied": true,
+          "checkpoint_config_tied": false,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 24,
+              "buffers": 1,
+              "original_address_mod64": [
+                48
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [
+                [
+                  "lm_head.weight",
+                  "model.embed_tokens.weight"
+                ]
+              ],
+              "original_storage_restored": true,
+              "parameter_sha256": "d445b5dd08723ef02f8a0afecc5d7c72ced9e8841949719fed6ec96afc50a2df",
+              "output_sha256": "b499b7e4f9fbe7a225942c5eddce7bebd91f57f899ba2cc3b66b6eca1bd25a4a",
+              "tensors_equal_to_reference": 24
+            },
+            "new": {
+              "parameters": 24,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [
+                [
+                  "lm_head.weight",
+                  "model.embed_tokens.weight"
+                ]
+              ],
+              "original_storage_restored": true,
+              "parameter_sha256": "d445b5dd08723ef02f8a0afecc5d7c72ced9e8841949719fed6ec96afc50a2df",
+              "output_sha256": "b499b7e4f9fbe7a225942c5eddce7bebd91f57f899ba2cc3b66b6eca1bd25a4a",
+              "tensors_equal_to_reference": null
+            }
+          }
+        },
+        {
+          "name": "q2-0-moe",
+          "fixture_weights_sha256": "4eb508447acf7fa633449be683d49fefb571b2d7bda9474e9751090ef9ac5a26",
+          "packed_sha256": "a1a37eb77e4eeba773962cdcd880e63e8a15678a8705f43724695e1488136be2",
+          "gguf_sha256": "c017e2d0272840d91b2b90a3c68df8a9a88746086cfafde6f546b500c08e35e8",
+          "gguf_tied": false,
+          "checkpoint_config_tied": true,
+          "passed": true,
+          "original_state_checks": {
+            "original_parameters_equal": true,
+            "original_buffers_equal": true,
+            "original_configs_equal": true,
+            "original_topologies_equal": true,
+            "original_eval_equal": true
+          },
+          "logical_pairs": {
+            "logit_arrays": 10,
+            "nll_scalars": 4,
+            "all_exact": true
+          },
+          "arms": {
+            "old": {
+              "parameters": 45,
+              "buffers": 1,
+              "original_address_mod64": [
+                8
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "be9586b6025b8076fb0b55bf9a7861deab75dea80974047905cd874f38f03c6d",
+              "output_sha256": "8b07731b84441025bad41153b6d4560ddb8f2f130706c0024c411d4d72334b91",
+              "tensors_equal_to_reference": 45
+            },
+            "new": {
+              "parameters": 45,
+              "buffers": 1,
+              "original_address_mod64": [
+                0
+              ],
+              "aligned_address_mod64": [
+                0
+              ],
+              "parameter_aliases": [],
+              "original_storage_restored": true,
+              "parameter_sha256": "be9586b6025b8076fb0b55bf9a7861deab75dea80974047905cd874f38f03c6d",
+              "output_sha256": "8b07731b84441025bad41153b6d4560ddb8f2f130706c0024c411d4d72334b91",
+              "tensors_equal_to_reference": null
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "result": {
+    "models": 6,
+    "logit_array_pairs": 60,
+    "nll_scalar_pairs": 24,
+    "logical_pairs": 84,
+    "exact_pairs": 84,
+    "original_storage_restored_in_both_arms": true
+  },
+  "interpretation": "V2 original output mismatch is retained. V4 all-parameter cloning removed every traced/output difference in one case, while restoring original storage reproduced both original baselines. This identifies independent HF CPU storage sensitivity, not different decoded parameter weights. V5 proves exact loader agreement across six tiny fixtures with equal storage layout in BOTH arms, not byte identity for arbitrary original allocations.",
+  "unchanged": [
+    "Frozen goldens",
+    "Numerical budgets",
+    "Runtime/shader implementation",
+    "Shared fixture weights and blocks",
+    "Exhaustive parameter replacement and qwen35 safety checks"
+  ],
+  "limitations": [
+    "Tiny fixtures only; no released-model or long-context qualification.",
+    "V1 raw outputs were not locally collected; its complete report and recorded output hashes remain preserved.",
+    "No claim that arbitrary checkpoint-backed and fresh HF allocations produce identical final bits."
+  ],
+  "local_regression_tests": {
+    "tests": 84,
+    "seconds": 113.262,
+    "result": "pass",
+    "log": {
+      "path": "build-low-bits-dev/file-exact-config-v1/reference-generator-full.log",
+      "sha256": "91b1a2c5ef37a663b9e83361f9b576989636d6378a9b220dcdbd3cb532022d99"
+    },
+    "scope": "Focused generator/consumer reference discovery, including exact compact-container comparisons; separate from actual HF numerical proof."
+  },
+  "checkpoint_provenance": "Locally generated tiny HF checkpoints hold the existing fixture weights; each saved config tie flag is deliberately inverted relative to its GGUF. The local fixture tokenizer serves the loader harness, not released-tokenizer qualification. Product Hub repository/revision pinning is unchanged.",
+  "execution_environment": {
+    "image": "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+    "cpu_set": "12",
+    "cpus": 1,
+    "memory_GiB": 4,
+    "network": "none",
+    "gpus": 0,
+    "deadline_seconds": 600,
+    "host_reserve_GiB": 2,
+    "source_and_prepared_mounts": "read-only"
+  }
+}

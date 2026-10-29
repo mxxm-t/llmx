@@ -80,7 +80,8 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         ci.stage.pName = "main";
         // The tile kernels take their row count as specialization constant 0 and the row kernels their column count.
         const bool tile = is_tile_kernel(id);
-        const bool tall_tile = id == K_MATMUL_TILE_Q5_TALL || id == K_MATMUL_TILE_Q50_TALL || id == K_MATMUL_TILE_Q5I8_TALL || id == K_MATMUL_TILE_Q50I8_TALL || id == K_MATMUL_TILE_IQ4_TALL || id == K_MATMUL_TILE_IQ4_XS_TALL || id == K_MATMUL_TILE_WF16_TALL || id == K_MATMUL_TILE_WF16_BF16_TALL ||
+        const bool tall_tile = id == K_MATMUL_TILE_Q1_0_DOT_TALL || id == K_MATMUL_TILE_Q1_0_TALL || id == K_MATMUL_TILE_Q1_0_BF16_TALL ||
+                               id == K_MATMUL_TILE_Q5_TALL || id == K_MATMUL_TILE_Q50_TALL || id == K_MATMUL_TILE_Q5I8_TALL || id == K_MATMUL_TILE_Q50I8_TALL || id == K_MATMUL_TILE_IQ4_TALL || id == K_MATMUL_TILE_IQ4_XS_TALL || id == K_MATMUL_TILE_WF16_TALL || id == K_MATMUL_TILE_WF16_BF16_TALL ||
                                id == K_MATMUL_TILE_IQ1_S_DOT_TALL || id == K_MATMUL_TILE_IQ1_M_DOT_TALL || id == K_MATMUL_TILE_IQ1_S_TALL || id == K_MATMUL_TILE_IQ1_M_TALL || id == K_MATMUL_TILE_IQ1_S_BF16_TALL || id == K_MATMUL_TILE_IQ1_M_BF16_TALL ||
                                id == K_MATMUL_TILE_WBF16_TALL || id == K_MATMUL_TILE_WBF16_BF16_TALL || id == K_MATMUL_TILE_Q8MX_TALL || id == K_MATMUL_TILE_MXFP4_TALL || id == K_MATMUL_TILE_MXFP4_BF16_TALL || (id == K_MATMUL_TILE_IQ3_XXS_DOT_TALL || id == K_MATMUL_TILE_IQ2_XXS_DOT_TALL || id == K_MATMUL_TILE_IQ2_XS_DOT_TALL) || id == K_MATMUL_TILE_TQ1_0_DOT_TALL || id == K_MATMUL_TILE_TQ2_0_DOT_TALL || id == K_MATMUL_TILE_IQ2_S_DOT_TALL || id == K_MATMUL_TILE_IQ3_S_DOT_TALL || (id == K_MATMUL_TILE_IQ3_XXS_TALL || id == K_MATMUL_TILE_IQ2_XXS_TALL || id == K_MATMUL_TILE_IQ2_XS_TALL) || id == K_MATMUL_TILE_TQ1_0_TALL || id == K_MATMUL_TILE_TQ2_0_TALL || id == K_MATMUL_TILE_IQ2_S_TALL || (id == K_MATMUL_TILE_IQ3_XXS_BF16_TALL || id == K_MATMUL_TILE_IQ2_XXS_BF16_TALL || id == K_MATMUL_TILE_IQ2_XS_BF16_TALL) || id == K_MATMUL_TILE_TQ1_0_BF16_TALL || id == K_MATMUL_TILE_TQ2_0_BF16_TALL || id == K_MATMUL_TILE_IQ2_S_BF16_TALL || id == K_MATMUL_TILE_IQ3_S_TALL || id == K_MATMUL_TILE_IQ3_S_BF16_TALL || id == K_MATMUL_TILE_TALL || id == K_MATMUL_TILE_BF16_TALL || id == K_MATMUL_TILE_Q_TALL || id == K_MATMUL_TILE_Q8_TALL ||
                                id == K_MATMUL_TILE_QI8_TALL || id == K_MATMUL_TILE_Q8I8_TALL || id == K_MATMUL_TILE_NVFP4_TALL || id == K_MATMUL_TILE_NVFP4_F16_TALL || id == K_MATMUL_TILE_NVFP4_BF16_TALL;
@@ -95,9 +96,9 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         // The entries go in constant order.
         const bool twin8 = variant == 1 && !tile && !is_row_kernel(id);
         // Constant 14 keeps a fused kernel's row products; a diagnostic backend also builds each fused kernel without them (role_free_).
-        // Constant 15 fixes NVFP4's format independently of the fused role control, and 16 is a Q8_0 decode build's halves.
+        // Constant 15 fixes NVFP4 and low-bit tile formats independently of the fused role control, and 16 is a Q8_0 decode build's halves.
         uint32_t spec_data[11] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
-                                  (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span, 1u, (is_nvfp4_tile(id) || id == K_MATMUL_ROW_NVFP4) ? uint32_t(quant::GGML_TYPE_NVFP4) : UINT32_MAX,
+                                  (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span, 1u, (is_nvfp4_tile(id) || id == K_MATMUL_ROW_NVFP4) ? uint32_t(quant::GGML_TYPE_NVFP4) : low_bits_tile_type(id),
                                   vec ? vb.halves : 1u};
         const uint32_t spec_ids[11] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
         VkSpecializationMapEntry entries[11];

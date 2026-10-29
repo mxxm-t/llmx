@@ -1,0 +1,221 @@
+{
+  "scope": "Focused final affected-device suite on the actual 28e candidate. This records the selected 16 components only; it is not a full repository suite or final qualification.",
+  "candidate": {
+    "revision": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+    "build_receipt_sha256": "b1c74b4e5c4901ecfb40024111095e6335c7125f8595a1dd62cb5bec9ecdd27d",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "source_unchanged": true,
+    "frozen_build_and_generated_outputs_unchanged": true
+  },
+  "suite": {
+    "status": "PASS",
+    "components_passed": 16,
+    "components_total": 16,
+    "internal_skips": 0,
+    "component_results": [
+      {
+        "name": "device-reference",
+        "status": "PASS"
+      },
+      {
+        "name": "f32",
+        "status": "PASS"
+      },
+      {
+        "name": "half-weights",
+        "status": "PASS"
+      },
+      {
+        "name": "moe",
+        "status": "PASS"
+      },
+      {
+        "name": "low-bits",
+        "status": "PASS"
+      },
+      {
+        "name": "qwen35",
+        "status": "PASS"
+      },
+      {
+        "name": "vision",
+        "status": "PASS"
+      },
+      {
+        "name": "image",
+        "status": "PASS"
+      },
+      {
+        "name": "split",
+        "status": "PASS"
+      },
+      {
+        "name": "tensor-split",
+        "status": "PASS"
+      },
+      {
+        "name": "decode-probe",
+        "status": "PASS"
+      },
+      {
+        "name": "drafters",
+        "status": "PASS"
+      },
+      {
+        "name": "server",
+        "status": "PASS"
+      },
+      {
+        "name": "server-load",
+        "status": "PASS"
+      },
+      {
+        "name": "chat",
+        "status": "PASS"
+      },
+      {
+        "name": "baseline",
+        "status": "PASS"
+      }
+    ],
+    "argv": [
+      "docker",
+      "create",
+      "--init",
+      "--name",
+      "llmx-xdev-q12-final-affected28e-suite-v1",
+      "--network",
+      "none",
+      "--cpuset-cpus",
+      "8-9",
+      "--cpus",
+      "2",
+      "--memory",
+      "4g",
+      "--memory-swap",
+      "4g",
+      "--pids-limit",
+      "512",
+      "--ulimit",
+      "core=0",
+      "-e",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/integration-main463-20261029/candidate/source:/source:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/integration-main463-20261029/candidate/build:/out:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/final-affected-device-suite-main28e-v1:/prepared:ro",
+      "-v",
+      "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/final-affected-device-suite-main28e-v1/out/tools:/tools:ro",
+      "--mount",
+      "type=bind,src=/opt/claude-work/llmx-vulkan-mi50/models/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf,dst=/root/.cache/huggingface/hub/models--Qwen--Qwen3-0.6B-GGUF/snapshots/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf,readonly",
+      "--mount",
+      "type=bind,src=/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_0.gguf,readonly",
+      "--mount",
+      "type=bind,src=/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q5_K_M.gguf,readonly",
+      "--mount",
+      "type=bind,src=/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-Q4_K_M.gguf,readonly",
+      "--mount",
+      "type=bind,src=/opt/claude-work/llmx-vulkan-mi50/models/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-UD-Q8_K_XL.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3-0.6B-GGUF/snapshots/50968a4468ef4233ed78cd7c3de230dd1d61a56b/Qwen3-0.6B-UD-Q8_K_XL.gguf,readonly",
+      "--mount",
+      "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q8_0.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q8_0.gguf,readonly",
+      "--mount",
+      "type=bind,src=/zpool1/llmx-xdev-quant-20261020/q5-tile-isolation-b4c381c8d/gate-models/Qwen3.5-0.8B-Q4_K_M.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q4_K_M.gguf,readonly",
+      "--mount",
+      "type=bind,src=/zpool1/models/vision/Qwen3.5-0.8B-gguf/mmproj-BF16.gguf,dst=/root/.cache/huggingface/hub/models--unsloth--Qwen3.5-0.8B-GGUF/snapshots/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/mmproj-BF16.gguf,readonly",
+      "--device",
+      "/dev/dri/renderD130",
+      "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+      "python3",
+      "-B",
+      "-u",
+      "-X",
+      "utf8",
+      "/source/tests/run_tests.py",
+      "--exe",
+      "/tools/llmx",
+      "--device",
+      "vulkan:0",
+      "--require-baseline",
+      "--require-tools",
+      "--require-device-types",
+      "Q1_0,Q2_0",
+      "--no-perf-floor",
+      "--only",
+      "device-reference,f32,half-weights,moe,low-bits,qwen35,vision,image,split,tensor-split,decode-probe,drafters,server,server-load,chat,baseline"
+    ],
+    "seconds": 806.8956327438354,
+    "helper_seconds": 129.31196641921997,
+    "suite_seconds": 670.1856055259705,
+    "fixture_manifest_sha256": "ca9eff7dbfb5434c4b2f49738cf7625e02acf0e7f1753c86880fdad6787cd1d4",
+    "helper_report_sha256": "ada6151ffe5c470ef3be052b4ca71f53a13da165ad2744951f2ccfdd4dc745df",
+    "recorded_output_hash_count": 37,
+    "recorded_output_hashes": {
+      "helpers.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "suite.log": "6f5fe40ea41a4aa97a2b22bff005edfaacbfcc0cdb1f952c23994321ebdc0e85",
+      "tools/llmx-split-check": "ce980a29e39b46703ab3d1c8ccfd37fb86e7112b39cdd97945e738e56fcf3a17",
+      "tools/llmx-split-check.link.d": "56cb57e39c96a64c2f017b91b927d6f37fe0e981be9a134ec1a4c77fd172cad6",
+      "tools/llmx-split-check.o": "2cd8dae22373a4251643e0d90e69220cb46224411275f095906c344c14b76c4d",
+      "tools/llmx-encode-image": "9fc22ac49977ad44c9135a400593b1495fc683706298c0e9541ae1e6cda8c5b6",
+      "tools/llmx-split-check-link.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-decode-probe-link.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-decode-probe-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/compiler-version.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b",
+      "tools/llmx-drafter-pack-link.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-encode-image-link.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-version.stdout": "f87399513e876ac8b968a366cdddbc8a0a89c96b8640b8c853c8e22daeab3ea9",
+      "tools/llmx-decode-probe.o": "75c6a5eb1b9cbc555ba4ffda4dd5d8f8ba6e8a5c029602321b9e22b827815312",
+      "tools/llmx-drafter-pack-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-encode-image-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-decode-probe.link.d": "4c199a2b231810db45c60828bf7f9a13bc5c91afe732b9f60edc42302d82ba95",
+      "tools/llmx-split-check-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-decode-probe": "fb2ee9f5233a0f5b3c28f369e3017093e6111a15ca4be6063e82c7a74787e066",
+      "tools/build-report.json": "ada6151ffe5c470ef3be052b4ca71f53a13da165ad2744951f2ccfdd4dc745df",
+      "tools/llmx-decode-probe-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-decode-probe-link.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-drafter-pack-link.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-encode-image.o": "214246cbb9212883b87a6e5baaf9f8e2a9f6f5c6926d35bc8aded01c3fab6973",
+      "tools/compiler-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-drafter-pack.o": "32796cdd0e53b7b67d40b28d64d92ac9cc2f6092b406b7867d4a49acababbc4f",
+      "tools/llmx-split-check-link.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-encode-image.link.d": "bae5630025fa231e2f8114881dc34a70d6a6501939ec03c7ee599ee2907d47cb",
+      "tools/llmx-encode-image-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-split-check-compile.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-drafter-pack.link.d": "87530fe1649f7037435360637d5b3a9547b80a86b16c164660d9667895552625",
+      "tools/llmx-drafter-pack": "4674e99d37ee349e036085ae5368d02856bb34681d4052326157ac21afd70189",
+      "tools/llmx-encode-image-link.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3",
+      "tools/llmx-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "tools/llmx-model-logits": "1713f9db1699784e1dc1c7d17886260cfe2d34bc12f6333e825220b76d86f022",
+      "tools/llmx-drafter-pack-compile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "containers_removed": {
+      "helpers": true,
+      "suite": true
+    },
+    "stage_exit_codes": {
+      "helpers": 0,
+      "suite": 0
+    },
+    "cpu_affinity": {
+      "helpers": "8-9",
+      "suite": "8-9"
+    }
+  },
+  "device": {
+    "pci": "0000:c9:00.0",
+    "render_node": "/dev/dri/renderD130",
+    "initial_gpu_busy_percent": 0,
+    "initial_vram_used_bytes": 10932224
+  },
+  "artifacts": {
+    "execution_path": "scratch/q12-landing-20261029/final-affected-device-suite-main28e-v1/execution.json",
+    "execution_sha256": "dacf43c4ec77e432574f22cb9647ac4e93b876f1a2924166c7fbd120bde5aac0",
+    "suite_log_path": "scratch/q12-landing-20261029/final-affected-device-suite-main28e-v1/suite.log",
+    "suite_log_sha256": "6f5fe40ea41a4aa97a2b22bff005edfaacbfcc0cdb1f952c23994321ebdc0e85",
+    "plan_sha256": "93988f57dc92e5d1b878ef46af1c96b37ea9af9e1caf32b905f4c960784e0af9",
+    "payload_sha256": "f6f91503aa6ebb7c3c069fcdcee6a9514ee2245bdc498dbb863332ce72c0a29e"
+  },
+  "interpretation": "This receipt records the completed focused affected-device suite at the actual 28e candidate: 16/16 selected components passed, no internal skips, and the helper and suite containers were removed. Current qualification and performance status is maintained in docs/STATUS.md."
+}

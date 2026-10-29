@@ -1,0 +1,52 @@
+{
+  "schema": "llmx.q12.main3a.scheduler-test.v1",
+  "date": "2026-10-29",
+  "scope": "Corrected server-passes-cpu zero-duration final-slice test on the main-3a integration tree.",
+  "tree": {
+    "branch": "integrate/q12-main3a-20261029",
+    "base_checkpoint": "d1e74a9369de907c36c336ca8cf2dac097b2873e",
+    "main_runtime": "3a5e3d5bd"
+  },
+  "build": {
+    "directory": "build-checkpoint",
+    "log": "build-checkpoint/build.log",
+    "log_sha256": "5e9b114439c9d29f065c8d2c928ae8c273bd60b5cd1366ff69fe12f95ae0f41a",
+    "target": "llmx-server-passes-cpu-test",
+    "executable": "build-checkpoint/Release/llmx-server-passes-cpu-test.exe",
+    "executable_sha256": "0ebb35eb0ae388f9a764f19bdf7f29bf1647758d6df1cc310c92d54dea3f0fa2",
+    "test_source": "tests/server_passes_cpu.cpp",
+    "test_source_sha256": "c92bc011c933e165fe16e87fd216cb3bda8e15fa20e84a62e6494ce95b1b72c2"
+  },
+  "ctest": {
+    "name": "server-passes-cpu",
+    "result": "pass",
+    "passed": 1,
+    "failed": 0,
+    "duration_seconds": 364.69,
+    "checks": 368509,
+    "session": 94981,
+    "session_exit": 0,
+    "log": "build-checkpoint/Testing/Temporary/LastTest.log",
+    "log_sha256": "9f9d5741b75056b57c21df181829c52f274248f89288ac3212082300f5216db1"
+  },
+  "interpretation": "The corrected test accepts a zero-millisecond completed CPU slice while retaining its nonempty-row and single-piece assertions. This is the focused test result only; full-suite and final qualification remain pending.",
+  "docs_dead_code": {
+    "status": "pass",
+    "components": [
+      "docs",
+      "dead-code"
+    ],
+    "command": "python tests/run_tests.py --exe <q12-main463 build-vulkan/Release/llmx.exe> --only docs,dead-code",
+    "executable": "../q12-main463-20261029/build-vulkan/Release/llmx.exe",
+    "executable_sha256": "143895587f720beafc53d315cb8ae69b861806ef2e7843bf4a9be66aacd8d5e0",
+    "docs_findings": 0,
+    "docs_planted_faults": 21,
+    "dead_code_findings": 13,
+    "dead_code_expected_findings": 13,
+    "dead_code_planted_faults": 19,
+    "runner_sha256": "afa6c769555a8008cbb1b33e2ecb70a8a66f01af921f377792b7918fb31c924d",
+    "docs_check_sha256": "f3ebcdea44285c11f11ef81fb345829d90ae49c22de3848374c12027664240f8",
+    "dead_code_sha256": "7199020e5b194d7a164253e84c951ba852524c63a2d1bc8235d610028ac7a292",
+    "scope": "These documentation/static checks passed on the current source tree; this is not the full suite or a runtime rebuild."
+  }
+}

@@ -3,7 +3,7 @@
 Run this ONCE on a machine with the HF tooling, then commit the output.
 tests/baseline.py only reads the committed JSON, so running the test suite never needs torch, transformers, or network access -- llmx stays dependency-free at runtime and the suite stays self-contained.
 
-    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
+    python tools/gen_baseline.py [all|tokenizer|logits|perplexity|f32|moe|moe-q8|int8|mxfp4|nvfp4|q1-0|q2-k|q3-k|q5-0|q5-1|iq4-nl|iq4-xs|iq3-s|iq2-s|iq2-xxs|iq2-xs|iq3-xxs|tokenizer-qwen35|qwen35-tiny|qwen35-mtp|qwen4exp-tiny|tensor-split|tensor-split-moe|image-decode|vision-tiny|image-tiny|image-qwen4exp]
     python tools/gen_baseline.py qwen35 --model Qwen3.5-0.8B|Qwen3.5-4B [--output-dir DIR]
     python tools/gen_baseline.py file-exact --weights-gguf FILE.gguf --output-dir DIR
     python tools/gen_baseline.py vision-file-exact --weights-gguf MMPROJ.gguf --checkpoint DIR [--output-dir DIR]
@@ -14,6 +14,7 @@ The GGUF arguments are labels, not proof of the converted model's provenance.
 Real-model logits/PPL use CPU float32 eager attention and --threads (default 6).
 qwen35 writes the logit, chat and PPL goldens of a pinned Qwen3.5 checkpoint (QWEN35_MODELS) into tests/data/<its directory>, and is not part of all.
 file-exact writes the logit and PPL goldens of the reference model holding a qwen3, qwen3moe or qwen35 GGUF file's own weights, every tensor decoded to f32 by tests/spec_decode.py and, for qwen35, the converter's changes undone, so llmx can be held on that file to Q8_0-class bounds.
+Qwen3 and Qwen3MoE file-exact construction reads only the pinned HF config and tokenizer, with checkpoint equality recorded as null; qwen35 retains its pinned checkpoint checks.
 The independent synthetic f32, moe, mxfp4, q2-k, q3-k, iq4-nl, iq4-xs, iq2-xxs, iq2-xs and iq3-xxs fixtures use one thread; only --output-dir applies to those modes.
 moe-q8 writes the goldens of tests/moe.py's Q8_0 model, HF holding each variant's file's own weights as tests/spec_decode.py decodes them, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
 int8 writes the goldens of tests/int8.py's 512-token Q8_0 fixtures, HF float32 holding each fixture's file's own weights at its own seed, with one thread; it needs numpy, takes only --output-dir, and is not part of all.
@@ -252,7 +253,7 @@ def load_reference(args):
         file = spec_decode.GGUF(args.weights_gguf)
         if file.value("general.architecture") == "qwen3moe":
             qwen3moe_environment()
-        # The file owns head topology; the checkpoint only supplies the architecture.
+        # The file owns head topology; the pinned config supplies the architecture.
         # load_gguf_weights must replace every resulting parameter, including an explicit head.
         topology["tie_word_embeddings"] = not any(t.name == "output.weight" for t in file.tensors)
     import torch
@@ -260,12 +261,17 @@ def load_reference(args):
     from transformers import AutoModelForCausalLM, AutoTokenizer
     torch.set_num_threads(args.threads)
     tok = AutoTokenizer.from_pretrained(args.repo, revision=args.revision)
-    model = AutoModelForCausalLM.from_pretrained(
-        args.repo, revision=args.revision, torch_dtype=torch.float32,
-        attn_implementation="eager", **topology)
+    if args.weights_gguf:
+        from transformers import AutoConfig
+        config = AutoConfig.from_pretrained(args.repo, revision=args.revision, **topology)
+        model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.float32, attn_implementation="eager")
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            args.repo, revision=args.revision, torch_dtype=torch.float32,
+            attn_implementation="eager")
     model.cpu().eval()
     if args.weights_gguf:
-        load_gguf_weights(args, torch, model)
+        load_gguf_weights(args, torch, model, reference_checkpoint=False)
     return torch, transformers, tok, model
 
 
@@ -406,8 +412,9 @@ def gguf_state(path, numpy=True):
     return state, types
 
 
-def load_gguf_weights(args, torch, model):
-    """Replace every parameter of `model` with the GGUF file's own weights, one tensor at a time, and record in args.weights which file they came from."""
+def load_gguf_weights(args, torch, model, *, reference_checkpoint=True):
+    """Replace every parameter of `model` with the GGUF file's own weights, one tensor at a time, and record in args.weights which file they came from.
+    Config-only construction has no checkpoint equality measurement, recorded as null."""
     from baseline import pinned_fixture
     from baseline_8b import file_sha256
     name = os.path.basename(args.weights_gguf)
@@ -436,7 +443,7 @@ def load_gguf_weights(args, torch, model):
                 tied_output = tensor
                 continue
             # How many tensors are bit for bit the reference checkpoint's, as those of a file converted without rounding are.
-            same = torch.equal(params[key], tensor)
+            same = reference_checkpoint and torch.equal(params[key], tensor)
             # A qwen35 file whose dt_bias is not the checkpoint's has its V heads in another order than the tiled one (docs/QWEN35.md).
             if key.endswith("linear_attn.dt_bias") and not same:
                 raise SystemExit("%s: %s is not the reference's in the tiled V-head order" % (name, key))
@@ -455,7 +462,7 @@ def load_gguf_weights(args, torch, model):
     args.weights = {"file": name, "sha256": sha256, "bytes": os.path.getsize(args.weights_gguf),
                     "repo": pinned["repo"] if pinned else None, "revision": pinned["revision"] if pinned else None,
                     "types": dict(sorted(types.items())), "decoder": "tests/spec_decode.py, numpy form",
-                    "tensors": len(loaded), "tensors_equal_to_reference": equal}
+                    "tensors": len(loaded), "tensors_equal_to_reference": equal if reference_checkpoint else None}
     if tied_output is not None:
         args.weights["tied_output_verified"] = True
 
@@ -954,6 +961,7 @@ def gen_block_family(kind, label, fixture, output_dir):
             config, weights, packed = fixture(tied, moe, split=split)
             model = tiny_block_model(config, weights, tied, moe)
             fixtures.append(block_reference(label, name, model, config, weights, packed, moe, torch))
+            del model, weights, packed
         path = os.path.join(output_dir, "baseline_%s%s.json" % (label.lower(), "_split" if split else ""))
         _write(path, {"_comment": "Generated by tools/gen_baseline.py %s from independently spec-decoded raw blocks." % kind,
                       "torch_version": torch.__version__, "transformers_version": transformers.__version__,
@@ -1027,6 +1035,12 @@ def gen_tq(output_dir=OUT_DIR):
     from tq import fixture_tq1, fixture_tq2
     for label, fixture in (("TQ1_0", fixture_tq1), ("TQ2_0", fixture_tq2)):
         gen_block_family("tq", label, fixture, output_dir)
+
+
+def gen_q1(output_dir=OUT_DIR):
+    from low_bits import fixture_q1
+    for label, fixture in (("Q1_0", fixture_q1),):
+        gen_block_family("q1-0", label, fixture, output_dir)
 
 
 def gen_nvfp4(output_dir=OUT_DIR):
@@ -1685,6 +1699,7 @@ FIXED_KINDS = {
     "iq3-xxs": "uses fixed synthetic raw blocks and one thread",
     "iq1": "uses fixed synthetic raw blocks and one thread",
     "tq": "uses fixed synthetic raw blocks and one thread",
+    "q1-0": "uses fixed synthetic raw blocks and one thread",
     "nvfp4": "uses fixed synthetic raw blocks and one thread",
     "tokenizer-qwen35": "reads its own pinned tokenizer files",
     "qwen35-tiny": "uses fixed synthetic weights and one thread",
@@ -1699,7 +1714,7 @@ FIXED_KINDS = {
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Generate independent pinned HF reference fixtures on CPU.")
-    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
+    parser.add_argument("kind", nargs="?", default="all", choices=("all", "tokenizer", "logits", "perplexity", "f32", "moe", "moe-q8", "int8", "mxfp4", "nvfp4", "q1-0", "q2-k", "q3-k", "q5-0", "q5-1", "iq4-nl", "iq4-xs", "iq3-s", "iq2-s", "iq2-xxs", "iq2-xs", "iq3-xxs", "iq1", "tq", "tokenizer-qwen35", "qwen35-tiny", "qwen35-mtp", "qwen4exp-tiny", "tensor-split", "tensor-split-moe", "qwen35", "file-exact", "image-decode", "vision-tiny", "vision-file-exact", "image-tiny", "image-qwen4exp"))
     parser.add_argument("--repo", default=TOKENIZER_REPO, help="HF model/tokenizer repository")
     parser.add_argument("--revision", help="full 40-character HF commit SHA (required for another repository)")
     parser.add_argument("--output-dir", help="fixture directory (required for another model/revision)")
@@ -1842,6 +1857,8 @@ def main(argv=None):
         gen_iq1(args.output_dir)
     if args.kind == "tq":
         gen_tq(args.output_dir)
+    if args.kind == "q1-0":
+        gen_q1(args.output_dir)
     if args.kind == "nvfp4":
         gen_nvfp4(args.output_dir)
     if args.kind == "tokenizer-qwen35":

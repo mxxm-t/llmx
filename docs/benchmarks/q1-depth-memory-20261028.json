@@ -1,0 +1,112 @@
+{
+  "scope": "Memory-only allocation measurement and explicit full-reference resource revision, not numerical acceptance",
+  "probe": {
+    "seconds": 180.1605954170227,
+    "container": "6516c87888381c6c2d165c51357a48407a7bf1721111be15a1c1b6183ca64fd4",
+    "removed": true,
+    "unchanged": true,
+    "state": {
+      "Status": "exited",
+      "Running": false,
+      "Paused": false,
+      "Restarting": false,
+      "OOMKilled": false,
+      "Dead": false,
+      "Pid": 0,
+      "ExitCode": 0,
+      "Error": "",
+      "StartedAt": "2026-10-28T00:33:36.122494374Z",
+      "FinishedAt": "2026-10-28T00:36:35.592027076Z"
+    },
+    "phases": [
+      {
+        "unix": 1793147672.4362702,
+        "phase": "after-load",
+        "cgroup_current_bytes": 8475643904,
+        "cgroup_peak_bytes": 11044040704,
+        "VmRSS": "8313692 kB",
+        "VmHWM": "10816952 kB",
+        "ru_maxrss_KiB": 10816952
+      },
+      {
+        "unix": 1793147686.384983,
+        "phase": "after-zero-history",
+        "cgroup_current_bytes": 12164628480,
+        "cgroup_peak_bytes": 12359610368,
+        "VmRSS": "11909184 kB",
+        "VmHWM": "12099584 kB",
+        "ru_maxrss_KiB": 12099584
+      },
+      {
+        "unix": 1793147686.3908758,
+        "phase": "before-append512",
+        "cgroup_current_bytes": 12165607424,
+        "cgroup_peak_bytes": 12359610368,
+        "VmRSS": "11910328 kB",
+        "VmHWM": "12099584 kB",
+        "ru_maxrss_KiB": 12099584
+      },
+      {
+        "unix": 1793147793.7659426,
+        "phase": "after-append512-before-head1",
+        "cgroup_current_bytes": 12398460928,
+        "cgroup_peak_bytes": 13750206464,
+        "VmRSS": "12136896 kB",
+        "VmHWM": "13455620 kB",
+        "ru_maxrss_KiB": 13455620
+      },
+      {
+        "unix": 1793147793.836393,
+        "phase": "after-head1",
+        "cgroup_current_bytes": 12397395968,
+        "cgroup_peak_bytes": 13750206464,
+        "VmRSS": "12136920 kB",
+        "VmHWM": "13455620 kB",
+        "ru_maxrss_KiB": 13455620
+      }
+    ],
+    "minimum_host_available_bytes": 4807311360
+  },
+  "resource_revision": {
+    "report_sha256": "5d0bbb8a844668829e702d8ce7ec846ec1f5f588f7300f17f568af4fec66298a",
+    "receipt_sha256": "599733f4e5353f9890086c6eaa9b0f85fd1b2c37435d86400b5bb12f6f638ff5",
+    "probe_peak_bytes": 13750206464,
+    "remaining_KV_bytes": 117211136,
+    "score_mapping_bytes": 311164928,
+    "unmeasured_margin_bytes": 1927544832,
+    "limitation": "Synthetic zero history measures allocation shapes, not correctness. Prior-chunk allocator fragmentation remains unmeasured. Preserve OOM/timeout without automatic retry or resource increase."
+  },
+  "limits": {
+    "CPU": "3",
+    "cores": 1,
+    "memory_GiB": 15,
+    "host_admission_GiB": 17,
+    "ongoing_reserve_GiB": 2,
+    "deadline_seconds_per_cell": 10800,
+    "free_disk_GiB": 4
+  },
+  "numerical_policy": "Unchanged frozen512-row prompt, singleton continuation, one-row head, selected block-int16 inputs with logical F16 KV. Original F32 companion remains required.",
+  "artifacts": {
+    "memory-probe-v1\\out\\memory-samples.jsonl": "0447716c21fd82cf71174cfeb38f06f1662d943f51bcff4c7131cf559abbdaa8",
+    "memory-probe-v1\\out\\report.json": "5d0bbb8a844668829e702d8ce7ec846ec1f5f588f7300f17f568af4fec66298a",
+    "memory-probe-v1\\out\\stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "memory-probe-v1\\out\\stdout.log": "3f524eea8c4c784bbedc590cbc59bc3d25ea931f2d9e78cbaa1ad45b291bbd8e",
+    "memory-probe-v1\\out\\supervisor.json": "599733f4e5353f9890086c6eaa9b0f85fd1b2c37435d86400b5bb12f6f638ff5",
+    "full-depth-v2\\launch.py": "dc9febdc0b232db9f0db063f7e5a1a87e7a70113064f9d3dce88e0f5fc3b555f",
+    "full-depth-v2\\next-plan.json": "cbaf59fb86ffab8d91c74d1d5559e75300181e88ba973b46b0964517cbf87291",
+    "full-depth-v2\\payload-hashes.json": "1395e5aec5e0f016230f561442a9e1d5c97d683a48b67b6b573f8597d97ae3da",
+    "full-depth-v2\\produce-reference.py": "5ec0c8428e94e313302b4df1b96c45820fdfc083a7f922123d2af9cb9af8c75d",
+    "full-depth-v2\\supervise.py": "5e53629e0f234df26c2e09e01decbbf094859988e68d8b42da347cc02572c4e7"
+  },
+  "live_run": {
+    "stage": "MI50-selected-raw",
+    "started_UTC": "2026-10-28T00:44:02.570870372Z",
+    "cid": "191ef8bc708445249ff9146249dcfa805a98228ded348e445442fc783824fa13",
+    "state_at_record": "running, not yet accepted"
+  },
+  "limitations": [
+    "Synthetic zero history is not correctness evidence.",
+    "Prior-chunk allocator fragmentation unmeasured.",
+    "No automatic retries, cap increase or changed numerical budget."
+  ]
+}

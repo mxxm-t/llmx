@@ -278,6 +278,10 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
     const VkDescriptorBufferInfo xqi = row_twin(X, plan, nbatch * nin, dtype);
     size_t rows = 0;
     for (const Projection* pr : live) rows += pr->rows;
+    if (plan.kernel == K_MATMUL_ROW_Q1_0_DOT && nbatch == 1 && rows >= 2) {
+        row_dispatch(plan, live, X, xqi, nin, 1, 0, 1, accumulate, kQ1TwoRows);
+        return;
+    }
     for_each_column_chunk(plan.kernel, nbatch, nin, rows, [&](size_t col0, size_t ncols, int variant) {
         row_dispatch(plan, live, X, xqi, nin, nbatch, col0, ncols, accumulate, ncols == 1 && paired_build(plan.kernel, nin) ? kVecPaired : variant);
     });
@@ -370,6 +374,7 @@ inline VulkanBackend::RowPlan VulkanBackend::row_plan(uint32_t type, size_t nin,
     if (dtype == Dtype::int8 && dev_->profile.prefer_integer_dot && format.int8_row != K_COUNT) kernel = format.int8_row;
     if (kernel == K_MATMUL_ROW_K4_DOT || kernel == K_MATMUL_ROW_K5_DOT || kernel == K_MATMUL_ROW_K4_I8 || kernel == K_MATMUL_ROW_K5_I8)
         cluster = std::min(cluster, std::max(lanes, dev_->profile.k45_row_lanes));
+    if (kernel == K_MATMUL_ROW_Q1_0_DOT) cluster = std::min(cluster, 32u);
     // Where the integer dot is native, Q8_0 rows take the integer dot over the 16-bit twin (shaders/matmul_vec_q8.comp).
     if (dtype == Dtype::f16 && type == quant::GGML_TYPE_Q8_0 && dev_->profile.prefer_integer_dot) kernel = K_MATMUL_VEC_Q8;
     return RowPlan{kernel, type, wide, cluster};

@@ -16,6 +16,7 @@
 #include "quant/iq1.hpp"
 #include "quant/mxfp4.hpp"
 #include "quant/nvfp4.hpp"
+#include "quant/low_bits.hpp"
 #include "quant/tq.hpp"
 #include "quant/types.hpp"
 
@@ -244,6 +245,8 @@ private:
           { *storage_type(GGML_TYPE_MXFP4), nullptr, dequantize_row_mxfp4 } },
         { GGML_TYPE_NVFP4,
           { *storage_type(GGML_TYPE_NVFP4), nullptr, dequantize_row_nvfp4 } },
+        { GGML_TYPE_Q1_0,
+          { *storage_type(GGML_TYPE_Q1_0), nullptr, dequantize_row_q1_0 } },
         { GGML_TYPE_TQ1_0,
           { *storage_type(GGML_TYPE_TQ1_0), nullptr, dequantize_row_tq1_0 } },
         { GGML_TYPE_TQ2_0,

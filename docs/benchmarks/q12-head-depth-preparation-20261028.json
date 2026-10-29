@@ -1,0 +1,83 @@
+{
+  "scope": "Prepared Q2 Rome output-head diagnostic and Q1 depth consumer; no model qualification or runtime change",
+  "root_review": {
+    "scope": "Root review of prepared diagnostic, no model execution",
+    "source_ownership": "isolated copy/header overlay; tracked runtime and frozen library unchanged",
+    "syntax": {
+      "compiler": "MSVC cl via Visual Studio18 Community vcvars64",
+      "command": "check-syntax.cmd",
+      "exit_code": 0,
+      "log_sha256": "5e22eaef537e31294427b5005535f6ca9ae5f4bd03dd00ee25b4efdb91c66f4a",
+      "known_warning": "existing passes.hpp C4456",
+      "setup_note": "vcvars emitted vswhere lookup warning but cl /Zs executed and returned0"
+    },
+    "correction": "Explicit Memory::device argument for CpuBackend::alloc, preserving original default semantics",
+    "prior_failure_sha256": "ef2c012ea278fcd178db017db850455e6d17138115993411e0a73c949ffd23ca",
+    "plan_sha256": "d840660794c48770051d363c26cd3718af57b03926962d51f85c80ad0e629f78",
+    "payload_sha256": "4186ea4b27c59e77bc8f9dab8d107e278220b6e8fd2e09e80d8e4d268bc576f4",
+    "checked": [
+      "final-only head RowRun{1,1} matches model/passes.hpp",
+      "full151936x1024 head geometry",
+      "post-norm read before head twin production",
+      "captured and replayed logit byte controls",
+      "independent spec-decoded two-row double diagnostics",
+      "existing Q6 head CPU comparison kept separate from HF correctness",
+      "fresh output guards",
+      "HF eager/eval/F32 and197-module/28-cache coverage"
+    ]
+  },
+  "runner": {
+    "supervisor_sha256": "4cb51deb5cc6f3f643dfceedacb8b37a62039d127f9a9dee41006a2004c31718",
+    "launcher_sha256": "53145a6f8d9c717c45b38d9ae23cf9eac7c132575d53a0b58c011804e3b6a5eb",
+    "pins_sha256": "1bc706d609908e4c78ce0cf867e2a13103cdbe0d5b5fa7314d93e229b51a428d",
+    "syntax": "Python source and embedded build code checked; Linux linking/execution pending"
+  },
+  "consumer_selfcheck": {
+    "scope": "Synthetic depth-consumer checks only, no model qualification",
+    "consumer_sha256": "9eea2b32d817607857099eab7ab6680b9fe6a6bb2d735d95d20fd460de446ccb",
+    "classification_counts": {
+      "exact": 1,
+      "accepted-tie": 1,
+      "miss": 2
+    },
+    "rejected": [
+      "nan",
+      "shape",
+      "wrong_second",
+      "position",
+      "gap"
+    ],
+    "rule_owner": "tests/common.py:hf_depth_top1",
+    "rule_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "runtime_or_limits_changed": false
+  },
+  "rig_read_only_preflight": {
+    "prior_Rome_stdout": "e6e0ae5d78ddffaa81d22d7eb602005e4b665339e68fb67b12e753459a955231",
+    "prior_HF_report": "3825117b6bdf9b964b768d6c9f58132182e9004115dce332a9e6ccff8aeedd00",
+    "prior_HF_full_array": "9e0de308d3f38df8959e0f2005903f835c8dbaf0baa28616620c61a614a12431",
+    "HF_metadata_paths_exist": true,
+    "new_runner_destination_exists": false
+  },
+  "limits": [
+    "Prepared only; no HF/Vulkan comparison made.",
+    "No numerical limits, reference choices, runtime or production changes.",
+    "The live Q1 raw reference is incomplete; its progress is not correctness acceptance."
+  ],
+  "markdown_review": {
+    "prior_catalog": "docs/benchmarks/q1-trace-checkpoint-review-20261028.json",
+    "prior_sha256": "1757adc84dda81c5c08d11cbd7046f438651eb8761d2aac12404e96d8ae03b36",
+    "latest_correction": "docs/benchmarks/q1-q2-plan-refresh-20261028.json",
+    "scope": "Recheck changed STATUS and carry unchanged pages for diagnostic-only delta; no new per-source or usage contract.",
+    "pages": 154,
+    "unchanged_carried": 153,
+    "changed_pages": {
+      "docs/STATUS.md": "a039f1ddd7cd830edc183e4177206bb9e02a142995cec5b5af629de0c9ef8586"
+    }
+  },
+  "checks": {
+    "docs": "PASS:0 findings,21 planted faults",
+    "dead-code": "PASS:7 listed findings,19 planted faults",
+    "log_sha256": "3c260f724f542d6023b87a626a0f28af20ac6a0f3dd9b415fd93b238b80a18c3",
+    "initial_invocation": "Refused missing default root executable before checks; rerun names existing build-low-bits-vulkan/Release/llmx.exe. These components inspect source/docs, not inference behavior."
+  }
+}

@@ -1,0 +1,417 @@
+{
+  "scope": "Q1/Q2 focused qualification after the user-approved three-fixture F32 amendment. No merge or full correctness claim.",
+  "approval": "2026-10-27: ok then i agree; correctness must be proven.",
+  "ordinary_q1": [
+    {
+      "device": "cpu",
+      "receipt": {
+        "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+        "sources": {
+          "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+          "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+          "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+          "tests/data/dtype_budget.json": "35d3b06f8293263307135d11d8fd44cb7188e4eecd837101eded9b10baf3cd06",
+          "tests/data/baseline_q1_0.json": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e"
+        },
+        "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+        "started": 1793120470.384829,
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\approved-q1-hf.py",
+          "--device",
+          "cpu",
+          "--worker"
+        ],
+        "exit_code": 0,
+        "seconds": 10.093166589736938
+      },
+      "rows": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 2.059e-05,
+          "logit_bound": 5.647804260253906e-05,
+          "max_nll_error_printed": 3.16e-06,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 1.624e-05,
+          "logit_bound": 5.647804260253906e-05,
+          "max_nll_error_printed": 3.25e-06,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 1.622e-05,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 4.19e-06,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log_sha256": "f3d8a55c815580e7afd47455948a02acab395e61043c944a719cc736640d3917"
+    },
+    {
+      "device": "vulkan-0",
+      "receipt": {
+        "binary_sha256": "4e52b580447cd302b4973bf0086fad0bd7272b388c348267c02914163d8ee831",
+        "sources": {
+          "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+          "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+          "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+          "tests/data/dtype_budget.json": "35d3b06f8293263307135d11d8fd44cb7188e4eecd837101eded9b10baf3cd06",
+          "tests/data/baseline_q1_0.json": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e"
+        },
+        "version": "llmx 0.1.0+g9fbb6029e1a5.dirty numerics c8a2801c42f120dc",
+        "started": 1793120541.6773834,
+        "argv": [
+          "C:\\Users\\Marko\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+          "-X",
+          "utf8",
+          "-u",
+          "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\approved-q1-hf.py",
+          "--device",
+          "vulkan:0",
+          "--worker"
+        ],
+        "exit_code": 0,
+        "seconds": 61.302212715148926
+      },
+      "rows": [
+        {
+          "fixture": "dense-untied",
+          "max_logit_error_printed": 1.605e-05,
+          "logit_bound": 5.647804260253906e-05,
+          "max_nll_error_printed": 2.85e-06,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "dense-tied",
+          "max_logit_error_printed": 2.024e-05,
+          "logit_bound": 5.647804260253906e-05,
+          "max_nll_error_printed": 4.84e-06,
+          "nll_bound": 1e-05
+        },
+        {
+          "fixture": "moe",
+          "max_logit_error_printed": 1.733e-05,
+          "logit_bound": 2e-05,
+          "max_nll_error_printed": 2.19e-06,
+          "nll_bound": 1e-05
+        }
+      ],
+      "log_sha256": "d1a3decacb1c4c7242144ed004516b51c344e1f6bda039f5ff642fe0243794d8"
+    }
+  ],
+  "remaining": [
+    "Q2 split dense-tied strict failure, not covered by the approved allowance",
+    "Remaining split fixtures and device placement checks",
+    "Prospective BF16 reference and runtime checks",
+    "Pinned released-file HF and raw/chat 16K checks",
+    "Matched mx Vulkan speed and existing-path regression",
+    "Applicable integration and hosted CI"
+  ],
+  "q2_split": {
+    "result_sha256": "658007253308ba616f4ab7f6f6731460cfc0c904e1ed398c87592570a55d72d8",
+    "prepared_sha256": "89e2e9bf05ba490a630b1413935700e0489dc9131ed113339f61489be01fa08c",
+    "status": "failed",
+    "captures": [
+      {
+        "fixture": "dense-untied",
+        "width": 1,
+        "status": "validated",
+        "max_hf_logit_error": 3.0517578125e-05,
+        "hf_nll_error": 1.5389636196516676e-06,
+        "row_file_sha256": {
+          "batched": "1b46a4ee41c1cc867c6c627cda2d857b291de30b469f12d8910814236caa879e",
+          "decode": "1b46a4ee41c1cc867c6c627cda2d857b291de30b469f12d8910814236caa879e",
+          "greedy": "8e3846dee9c5599d97f633e578d3cfb3b3eee500dfd3f3b7f171b77428f2d3c0"
+        }
+      },
+      {
+        "fixture": "dense-untied",
+        "width": 2,
+        "status": "validated",
+        "max_hf_logit_error": 2.5987625122070312e-05,
+        "hf_nll_error": 1.2193846181673962e-06,
+        "row_file_sha256": {
+          "batched": "7e08c8bb0cf35b05d49fa8f3f5c09e81fdd040175825b5bd9abc4c044038733a",
+          "decode": "7e08c8bb0cf35b05d49fa8f3f5c09e81fdd040175825b5bd9abc4c044038733a",
+          "greedy": "20581f2ab6e0f3a253e5e09f80a68aa3cc714d176749c1bec1e7ead40f585e11"
+        }
+      },
+      {
+        "fixture": "dense-untied",
+        "width": 4,
+        "status": "validated",
+        "max_hf_logit_error": 2.6702880859375e-05,
+        "hf_nll_error": 1.1680136360325832e-06,
+        "row_file_sha256": {
+          "batched": "f4d561a0798fb91778f7ee1c182e0ee7637ab592bb345f44d0c7c1259a714431",
+          "decode": "f4d561a0798fb91778f7ee1c182e0ee7637ab592bb345f44d0c7c1259a714431",
+          "greedy": "f4ad719d13eb2aad8071a8d929bbf1e776ff4d199e6594f2778072b684399492"
+        }
+      },
+      {
+        "fixture": "dense-tied",
+        "width": 1,
+        "status": "failed",
+        "error": "Q2_0 dense-tied width 1 batched 'a'/HF logit error: 0.00002384",
+        "row_file_sha256": {
+          "batched": "37f38d18fba4a426ef6b923ec1891a73e7fca265f092c28a782c2bef6e68d970",
+          "decode": "37f38d18fba4a426ef6b923ec1891a73e7fca265f092c28a782c2bef6e68d970",
+          "greedy": "b02d9857c539832b8bd197b5f062c7fc78eb50074f4c5a24803ac27f386e8666"
+        }
+      }
+    ]
+  },
+  "q2_split_tied_main_control": {
+    "result_sha256": "b8bc8ae3edb8d3d7e253117b309b8232299702e8e8586bdf237cf5b0222bcc66",
+    "main_tool_sha256": "702484e90a7a714cabbc6d5a2ab1d781028f0855b3d03eb3d2fb6a7db8dcaf01",
+    "candidate_tool_sha256": "7329febf12efa448b8ab45ba23684759d8a542fe157eb988e6d574a867755a92",
+    "decoded_weights_sha256": "5614b1c4e056ee065da031c450d73d31e4cc3afc333adcd09a027e9240b48d1c",
+    "settings": {
+      "devices": "cpu",
+      "cache": "f32",
+      "ubatch": 3,
+      "threads": 0,
+      "load_mode": "-",
+      "width": 1,
+      "context_length": 128,
+      "prompt_rows": 13,
+      "greedy_rows": 64
+    },
+    "scope": "One retained packed capture versus one independently decoded F32 capture on main 9d00fb0a5. This does not qualify all operations.",
+    "phases": {
+      "batched": {
+        "byte_identical": true,
+        "main_max_hf_error": 2.4318695068359375e-05,
+        "candidate_max_hf_error": 2.4318695068359375e-05
+      },
+      "decode": {
+        "byte_identical": false,
+        "main_max_hf_error": 2.288818359375e-05,
+        "candidate_max_hf_error": 2.4318695068359375e-05
+      },
+      "greedy": {
+        "byte_identical": false,
+        "main_max_hf_error": null,
+        "candidate_max_hf_error": null
+      }
+    }
+  },
+  "linux_build": {
+    "receipt_sha256": "3d04c99a77f66987ce586429321d4725d6db3e635629130cc68abc2e3ea90f40",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "arms": [
+      {
+        "arm": "candidate",
+        "revision": "9fbb6029e1a50e291bda2f2df845c92fb64c8144",
+        "passed": true,
+        "binaries": {
+          "llmx": "d3fa44017ee9e2195af066b9f782be598083ab896b1c905fc5552892796c02dd",
+          "llmx-low-bits-test": "8d011a5575dcc3f33f0867a53897944628e66b6cfce660049be6549a86da347b",
+          "llmx-model-logits": "78a3653fcf3aa76ea2985665882bcf4ea5d7a8b6eb2c0e7de90f80bdc93c7760",
+          "llmx-split-check": "f71b1e9c235304aa9a346a5988fb57d7d9c1350ae1b922312f79f36dc07de20c"
+        },
+        "compile_log_sha256": "79bcb08139e8f8f06bd7b6768cc2e9be84a56f85e1df76e25dda2eb85be73ade",
+        "seconds": 325.5204424858093
+      },
+      {
+        "arm": "main",
+        "revision": "9d00fb0a5b21bd8c68a1cef55bb3e0134147f1ee",
+        "passed": true,
+        "binaries": {
+          "llmx": "c1b8b31cd00fd669e5fe617a711b9eb5e4f9627d01924bf95979de361a126076",
+          "llmx-model-logits": "8c841e71167666d6ad27c693bb7ce452939da51e0072a0ecbc4ad40d735f895f"
+        },
+        "compile_log_sha256": "9c40275e35b86ab962c4fd43a9397aa9cce1e2a9fcd64820173a234e511975e3",
+        "seconds": 255.56248688697815
+      }
+    ],
+    "delta": "Both source archives predate the test-bound data/consumer changes only. Runtime and native operator test sources are unchanged."
+  },
+  "linux_native": {
+    "physical_card": 8,
+    "bus": "0000:c9:00.0",
+    "node": "/dev/dri/renderD130",
+    "preflight": {
+      "card0": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:03:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "30276276224"
+      },
+      "card1": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:44:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "29293457408"
+      },
+      "card2": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:83:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32222384128"
+      },
+      "card3": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:86:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32222146560"
+      },
+      "card4": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:89:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "21337149440"
+      },
+      "card5": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:8C:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "21337149440"
+      },
+      "card6": {
+        "GPU use (%)": "100",
+        "PCI Bus": "0000:C3:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "20997165056"
+      },
+      "card7": {
+        "GPU use (%)": "100",
+        "PCI Bus": "0000:C6:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "20997165056"
+      },
+      "card8": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C9:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card9": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:CC:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      }
+    },
+    "binary_sha256": "8d011a5575dcc3f33f0867a53897944628e66b6cfce660049be6549a86da347b",
+    "calls": [
+      {
+        "mode": "cpu",
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--name",
+          "llmx-xdev-q12-native-cpu",
+          "--network",
+          "none",
+          "--read-only",
+          "--tmpfs",
+          "/tmp:rw,size=512m",
+          "--cpuset-cpus",
+          "2",
+          "--cpus",
+          "1",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--ulimit",
+          "core=0",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/build-v1/build-pair-v1/candidate-build:/out:ro",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "/out/llmx-low-bits-test"
+        ],
+        "started": 1793121110.1342304,
+        "cid": "359c7b76f431f549e9e8f10302d92037a94166afc6cb6ed5de4a58439ed65533",
+        "exit_code": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-27T17:11:50.237599619Z",
+          "FinishedAt": "2026-10-27T17:11:50.455839884Z"
+        },
+        "log_sha256": "4395d4f51f226a143edf4b5cf1effd6b2876dc42a37d76c6651afc7390939f61",
+        "seconds": 0.5704948902130127
+      },
+      {
+        "mode": "vulkan",
+        "argv": [
+          "docker",
+          "create",
+          "--init",
+          "--name",
+          "llmx-xdev-q12-native-vulkan",
+          "--network",
+          "none",
+          "--read-only",
+          "--tmpfs",
+          "/tmp:rw,size=512m",
+          "--cpuset-cpus",
+          "2",
+          "--cpus",
+          "1",
+          "--memory",
+          "4g",
+          "--memory-swap",
+          "4g",
+          "--ulimit",
+          "core=0",
+          "-v",
+          "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/build-v1/build-pair-v1/candidate-build:/out:ro",
+          "--device",
+          "/dev/dri/renderD130",
+          "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+          "/out/llmx-low-bits-test",
+          "--vulkan"
+        ],
+        "started": 1793121110.7050838,
+        "cid": "2d94f28b8f3bd4383e11999e95828996902b35ea1c87a07373c34fa638d9c4c2",
+        "exit_code": 0,
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 0,
+          "Error": "",
+          "StartedAt": "2026-10-27T17:11:50.812440088Z",
+          "FinishedAt": "2026-10-27T17:11:51.439172071Z"
+        },
+        "log_sha256": "5005729a57e397f6e3a085bdd715206a2f07fb15b2d5d2de3f865291aa69963c",
+        "seconds": 0.9781906604766846
+      }
+    ]
+  },
+  "consumer_tests": {
+    "count": 17,
+    "result": "PASS",
+    "log_sha256": "7fa3cdcc15e5da2486d545e32929e1d387ea8b08d5dec3d5a8017d10bd7662ab",
+    "note": "PowerShell returned status1 for redirected unittest stderr; the preserved unittest output reports all17tests OK."
+  },
+  "source_sha256": {
+    "tests/common.py": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "tests/tensor_split.py": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+    "tests/reference_consumer.py": "9a8b9d090af47e85200e38fe8d50410d0a29eaa63ee3bc351a2d864d234e0314",
+    "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+    "tests/block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests/data/dtype_budget.json": "35d3b06f8293263307135d11d8fd44cb7188e4eecd837101eded9b10baf3cd06"
+  }
+}

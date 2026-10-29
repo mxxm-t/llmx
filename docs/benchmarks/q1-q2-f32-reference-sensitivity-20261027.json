@@ -1,0 +1,5697 @@
+{
+  "plan": {
+    "scope": "Independent HF F32 full versus cached-forward diagnostic. No llmx output read, no acceptance limits installed.",
+    "families": {
+      "Q1_0": [
+        12345,
+        0,
+        1,
+        2,
+        3
+      ],
+      "Q2_0": [
+        12346,
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "variants": [
+      "dense-untied",
+      "dense-tied",
+      "moe"
+    ],
+    "split_shapes": [
+      false,
+      true
+    ],
+    "texts": [
+      "a",
+      "ab",
+      "abc",
+      "abcdefg",
+      "abcdefghijklm"
+    ],
+    "models_planned": 60,
+    "final_logit_pairs_planned": 300,
+    "torch": "2.5.1+cpu",
+    "transformers": "4.55.2",
+    "sources": {
+      "tests/low_bits.py": "4419d10335138d18f13e759cbb35824f31de37e3c6cef83f05313321e0339a9b",
+      "tests/spec_decode.py": "4c57f82ca3dde2529695d0599aac1fba81d4f93882cac7c8d050479f6a3ffa57",
+      "tests/raw_blocks.py": "b5421029f366d3485db94f2a758590221440ee9b92bf2c88b59410661790d1d5",
+      "tests/block_fixture.py": "41d7a15d186e9c8768cc27b71d29b1dd7a5c60f86b220e12269d6f229dd81b05",
+      "tests/f32.py": "cb304a2d06e66638b090774c05bda3c12c107b043179ad056872a1538acf598c",
+      "tools/gen_baseline.py": "954de12e079a2eb8ac9378ba99b4f82e767a6d8198936420f3ff4756bd83eb6c",
+      "tools/calibrate_dtype.py": "d911cc414d18341a1e0a941bce76eedc60a2dd5464e9970a1405e1fda6260f33",
+      "build-low-bits-dev/low-bits-reference-sweep.py": "d4f8d4981f0c1b64915694e98052bd46e7e664956edd97ed6809791f9da923c8"
+    }
+  },
+  "status": "complete",
+  "runs": [
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "d3d69c5b9257ac54f9fbffde26e538a6779582b2ef17e0ac9b62e4d9510268da",
+      "packed_sha256": "bddcf50b4cac634f303f8911bcdf64a54508be604ceea2233a2b9d148b3a0be0",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.1920928955078125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.5735626220703125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.5735626220703125e-05,
+      "raw_file": "Q1_0-ordinary-dense-untied-12345.f32.bin",
+      "raw_sha256": "f53ae20bb30859f79324e73439e8dbbc4b31183aead3fadbf644ba97a15a30ed"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "d3c681712b53cf4d388d7780c5c9ed41bb070cfecd884c8d6b71181dcd75a816",
+      "packed_sha256": "38c615d068cc26e8795367575afd9f459b0f1eafeddf349bebcd1d2e5b668082",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 4.76837158203125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.3649463653564453e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.2874603271484375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.3649463653564453e-05,
+      "raw_file": "Q1_0-ordinary-dense-untied-0.f32.bin",
+      "raw_sha256": "32911487828c1b59d067856820aa4b59b487c3a7a232399e3c63e15ff68ae90e"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "1a966adbdc8d9c10255b1104fbfb8c142ecac50c07e20943733da4c8c4362187",
+      "packed_sha256": "cccf37646e59995155395a0da1578d73c88e8a67302bfe467d71fa4864367ee7",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.09808349609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.552436828613281e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.552436828613281e-05,
+      "raw_file": "Q1_0-ordinary-dense-untied-1.f32.bin",
+      "raw_sha256": "5eec2026300ef30979f979e97a2f3dee951751bf619eb11a997921fcbceb2b69"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "bd547c20702f405667d61f335d610fee8478ac5cf268661dc9f9e8e2e386384f",
+      "packed_sha256": "79f06961176b0ae7eaf7381dc1191c5756d4ba4cb0bcdc2ba282ec57f8432336",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.0967254638671875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.430511474609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.3589859008789062e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.430511474609375e-05,
+      "raw_file": "Q1_0-ordinary-dense-untied-2.f32.bin",
+      "raw_sha256": "47f935694b71d236bb93fb6d5f48513502c233a67c85917be222f454ebf0536b"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "0725ff1b4dccb03604b03e59c69c4f007ec4dd0c3a5dbfa9e35d8377139796a1",
+      "packed_sha256": "1f3fbaa0bad1737f89ea9291c25c33cd67fe9af98b3ea03a39588b341badd323",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.2516975402832031e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.2516975402832031e-05,
+      "raw_file": "Q1_0-ordinary-dense-untied-3.f32.bin",
+      "raw_sha256": "13033b5ed301109c0341439241445f45e682f56459af53e61446e00b10a7fb57"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "3460e4429dd8809e492f681b41e8436a924b362405c1961c6ca089fd7680c67f",
+      "packed_sha256": "708a7f370cfede958e6171ce72c78296a17dfc3d1d66fb1f61f4decd1a12d89d",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.0013580322265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.621246337890625e-05,
+      "raw_file": "Q1_0-ordinary-dense-tied-12345.f32.bin",
+      "raw_sha256": "992b5213e0e7056f9e4981165784fcacbd02b01bd70f6b44bedea37f3ecce8da"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "ffcef5891302cec0390546aced49e4b2f3084b45786fe170c71f7c94ea818f6b",
+      "packed_sha256": "cfa3b0f861f20cd7a11d83e88e278809f76036ba949f0c72a643eb72d7edd450",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.331371307373047e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.913309097290039e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0609626770019531e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.913309097290039e-05,
+      "raw_file": "Q1_0-ordinary-dense-tied-0.f32.bin",
+      "raw_sha256": "4049956ae4bb1259567f0d7a26cfe5777cefed9f178c827793eea2274107c4f4"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "94d2f6b6c5f3bb0e43859058c31bd7ae2dcb83f39ddd22452fef70ce2d6f417a",
+      "packed_sha256": "19f3a4b90b40675bd8e2f06c41bbbd6e90bd22b1d0fc8620e8fc0a18563b30a8",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 9.059906005859375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.33514404296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.647804260253906e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.647804260253906e-05,
+      "raw_file": "Q1_0-ordinary-dense-tied-1.f32.bin",
+      "raw_sha256": "0e1ca42934a578655fd0bd726e1b7499780ae875f823299eca134e1cb80d2180"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "346176f7a02b5ad07bde49bf8dcc71d2358ae681a964907aae266610dbab171b",
+      "packed_sha256": "5ac94dc2f40b036ad428ba4d4ba294280c91140666b95da2b2e04a020a29194c",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.0967254638671875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.1444091796875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.5974044799804688e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.5974044799804688e-05,
+      "raw_file": "Q1_0-ordinary-dense-tied-2.f32.bin",
+      "raw_sha256": "08f70cb865269e35dbb67c131390bdd5690edb53882a41c5dac22f49294f2d4c"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "84fdbc5232a49c2b8ef2d260cc42ef717494ca4cdf280530f4fe0720114ecfd9",
+      "packed_sha256": "0a8d12dd047ada23551564e9c0e468346ebba32ba2b3a8bd1faa7fed24581e64",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.887580871582031e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.5735626220703125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.5735626220703125e-05,
+      "raw_file": "Q1_0-ordinary-dense-tied-3.f32.bin",
+      "raw_sha256": "b4d68dd6afeef712ffce8265ef336cc9b3f086133aec3879b383dd50911a273f"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "5f303b88fc298b5eaf8fdc10467b6527688ef4d5e1a2b07469fad7c43566dce3",
+      "packed_sha256": "3ba7bf5dc7f91f78235841c7f39cdaf342f2cee1dc6c11778acf8c75966f7966",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.6570091247558594e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.002716064453125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 8.344650268554688e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.002716064453125e-05,
+      "raw_file": "Q1_0-ordinary-moe-12345.f32.bin",
+      "raw_sha256": "0086c9e54d549321ff4b447cc13fa5f65808c230b85f81892f170230c63104d7"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "ad786559e97059de857dc175a521e4654997975effc0107cf36bda908a0a0b52",
+      "packed_sha256": "17a4d0e5f8fa813b14a0495e25dd8ddd878e9470f3d710d86e92152eb8cb2605",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.9604644775390625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.106231689453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.2159347534179688e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.193450927734375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.193450927734375e-05,
+      "raw_file": "Q1_0-ordinary-moe-0.f32.bin",
+      "raw_sha256": "897f46d8fa9d36d7dd3427a6d4ff6b7bc6637ae83f0915e384e330b1961c8dca"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "ff7575b86e9e1b453f56c346a97ff3a904bd02d9a41865c9f16b683dcdaf9c76",
+      "packed_sha256": "9a58c4c59ef7712e9843c80358e7ad8f3ccfc6aabaf57782a140f45a253f848a",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.811981201171875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.811981201171875e-05,
+      "raw_file": "Q1_0-ordinary-moe-1.f32.bin",
+      "raw_sha256": "2742870beb518b966f967222f754997332cb280ba8695c84dcf7f1354f4f84ec"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "3dfc283cc162a13dff0dcf33506aeb27b31e7d1948258b017eaf7ab8f68d04d3",
+      "packed_sha256": "7fc786d384d4aaf1046ba5a18c08e6835d91feb56b8ee8abb437586cfb381c74",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.2278556823730469e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 9.59634780883789e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.3828277587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.659989356994629e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.659989356994629e-05,
+      "raw_file": "Q1_0-ordinary-moe-2.f32.bin",
+      "raw_sha256": "c6921b7e755758cd0cdcca9f8ceaf76a0fa7b07fbadd9a1fd659e4db284015de"
+    },
+    {
+      "family": "Q1_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "535ffc12affb898e70246367d94559a9b7fdb8493783a22d31aa0962c07a27fc",
+      "packed_sha256": "7aa7e6f42e32f4c5d0b77f3bbe671245948210ddc409e93ec75b43462abfea66",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.3232231140136719e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.1324882507324219e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.6480684280395508e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.6480684280395508e-05,
+      "raw_file": "Q1_0-ordinary-moe-3.f32.bin",
+      "raw_sha256": "e691659eb7c87feec22aa75fe2e0495d9dc79fee6be112dc81ad2c5a58859ea3"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "abf76c4bc24e4f542085bdceda2f4d618bcb6594616b5e3443c6b49f8c479540",
+      "packed_sha256": "9ea2d7b0b62ef71d8ba1aaeefb1fddeb9be29bb7c88e4db0f0032292acff7e07",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.52587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.3126602172851562e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.47955322265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 4.5180320739746094e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 4.5180320739746094e-05,
+      "raw_file": "Q1_0-split-dense-untied-12345.f32.bin",
+      "raw_sha256": "53ca9a0e7217f8db927f8b865acd71a71562fb5dda67bc09d4c4ce33d7f270f3"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "080a27f272d25ad5c87f974f8419b927e4ff3115aa5cb7d69bad0de65b85c8b1",
+      "packed_sha256": "53f45940eb5027a8b69a37946ba974b90514e3f1efaa154e573005507b025b98",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.3245811462402344e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.910064697265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.0994415283203125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.910064697265625e-05,
+      "raw_file": "Q1_0-split-dense-untied-0.f32.bin",
+      "raw_sha256": "fadad52aee2898c4d941868239bec59c276bebad1e7e3d8bd4600dc9b4a7609b"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "e40681f3ef3731b2ec7b759ec036c00bdb4a71d3c94414226ec799319f6397fb",
+      "packed_sha256": "706ed3ac3a6e2c39b3498b2e9c9e0346cdeb43f5ca6b3889aae8eff059c7f3f6",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.6450881958007812e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.3365020751953125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.35140323638916e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.0517578125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.0517578125e-05,
+      "raw_file": "Q1_0-split-dense-untied-1.f32.bin",
+      "raw_sha256": "8ff51a0c3f11d76f6b681239fda81665c2927dd65e0b7586501aca614440d29d"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "824af172f04ba0396213430cff268243b909d0f98c27e95c14b657eda295caa3",
+      "packed_sha256": "263439a0cefe89f2c69f556dd4ad1d3d09e6e8cf3e5df8f6dd7742a9cb0ca2f6",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.52587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.4066696166992188e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.0517578125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.0040740966796875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.0517578125e-05,
+      "raw_file": "Q1_0-split-dense-untied-2.f32.bin",
+      "raw_sha256": "1ebf41b72dcfda0a7f43a39ea83ebd85df399a4ee1714328ff559569b8bfba91"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "8b8e8d8cb4efc042b6d335e6a3e039c5c8b7db6b384fed481054abf930904c03",
+      "packed_sha256": "2084b16adc844c8b79ac21911f89ab16bc10626d3aecdf68030ced73aeca3d7e",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.8835067749023438e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.7404556274414062e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.814697265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.814697265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.814697265625e-05,
+      "raw_file": "Q1_0-split-dense-untied-3.f32.bin",
+      "raw_sha256": "19edf8c92fd0e5fa3d4506c01c635bef3afd470a72529b42bf62f37181dbe400"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "2b926e365c04f407537b2876661e3eeadee1727a30bfd1233f940713c40a0491",
+      "packed_sha256": "3a357f60c3225847a123a151115e1c004db05dc87630eb275ea69b88633fcadc",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.7239322662353516e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.814697265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.814697265625e-05,
+      "raw_file": "Q1_0-split-dense-tied-12345.f32.bin",
+      "raw_sha256": "a9ce6446067114e04cd6b00564a5da3900c6e7a1397c9bcf4693be56b1ba22bd"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "aa42717ae020009afbb782b33a6664333e014afb75951d8f107204cbda4d560b",
+      "packed_sha256": "428b4bb022e5f59070066ecff940127d1cb03899073e7fbd6a417802b1f37486",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.7642974853515625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.0308961868286133e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.7298927307128906e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.0308961868286133e-05,
+      "raw_file": "Q1_0-split-dense-tied-0.f32.bin",
+      "raw_sha256": "68a16b02343172ef49bac637c875e3b99a6e75639878a1ac38942d2f7054aeaa"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "df78b8a5aaad474ac63078e820b802abea5670bf7ddd4d0de69429d014064f8b",
+      "packed_sha256": "dd2f0ef592c26c3a96134b0c6bc41f101bf713fd6a4f5b351e07297ea52bf361",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.52587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.0503997802734375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.384185791015625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.3126602172851562e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.384185791015625e-05,
+      "raw_file": "Q1_0-split-dense-tied-1.f32.bin",
+      "raw_sha256": "82ad36219b93e9282bc232977f4eb83f8b083728d6c14749dfc62a3cb2c7b226"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "ba96f1abdcffc9a8e430f0ed6af5d9b66fe4dcb9d083c05f0a6d5609c79a7288",
+      "packed_sha256": "85530f3bf97dc84b7616cae721570d9c9fd1dce53f1691a3e47d7c833b6f85d5",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.193450927734375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.4543533325195312e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.719329833984375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.0994415283203125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.719329833984375e-05,
+      "raw_file": "Q1_0-split-dense-tied-2.f32.bin",
+      "raw_sha256": "936974e4b75dcdf5a0a39a76baeb8e78283b28261fd9a4f732cd1277f5b75ba5"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "0809b168376088179e6009a512f84591a096d8366279f7c3db09194253edea3f",
+      "packed_sha256": "5048886e145a560b5f670e958b35dc39bb46c80b037f0ddf9b58526e01b47afe",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.288818359375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.71661376953125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 4.00543212890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 4.00543212890625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 4.00543212890625e-05,
+      "raw_file": "Q1_0-split-dense-tied-3.f32.bin",
+      "raw_sha256": "db247b45ee7bb36acdd4c591240b5fbcec988c6f226285e268f61c5ea81bf9df"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 12345,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "103812d799c4f104be5b55367ee5d002a10c22bba61464fa76fd2479b72a314e",
+      "packed_sha256": "5b45d07862e813b719e366a0f4bd281f180e72a55e2548e2c60f108bac850654",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.430511474609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.09808349609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 5.245208740234375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.910064697265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 5.245208740234375e-05,
+      "raw_file": "Q1_0-split-moe-12345.f32.bin",
+      "raw_sha256": "3d01cfb90a37d753731625b4404ea7a7e5c066beaa92bd6ff63aa4141c5ff66c"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "4946930522b73f66993de4b1a02fa264b401c2e41d6261030a5befc66aeed99e",
+      "packed_sha256": "490b506f487b16e54705b8eff0027bb2394f579bc03e1d51e527ac2437956656",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.765655517578125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.384185791015625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 5.340576171875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.8088688850402832e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 5.340576171875e-05,
+      "raw_file": "Q1_0-split-moe-0.f32.bin",
+      "raw_sha256": "3e199d42b430aa08bc88540968a2745fe2101bbb86675555007e61b825bbdb0e"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "c38a256c1337a5c7e8d3b569582684d08acf1b15bdd4b9c0c9a7435a158669c6",
+      "packed_sha256": "dfe5d1f3fc14e681923319276717b43da64a9e674372f0a9519fa1cfef703285",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.3126602172851562e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.09808349609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.5987625122070312e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 4.2319297790527344e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 4.2319297790527344e-05,
+      "raw_file": "Q1_0-split-moe-1.f32.bin",
+      "raw_sha256": "1e6046cbaa3cea5b22c71b68beaa8d0f1f874b25acac2bd8f2b1c6a08f5cc71f"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "3452ae4aade4fe73199eeb74232bad171d41b2a43b4c44a1db6236cdddd3f001",
+      "packed_sha256": "37017d274c75c04972cd1b560292cbeaa952f0e2e656b9633924957ab584a539",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 3.075599670410156e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 3.552436828613281e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.528594970703125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.173683166503906e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 5.173683166503906e-05,
+      "raw_file": "Q1_0-split-moe-2.f32.bin",
+      "raw_sha256": "1546636f49f6e423aae0e8793bcdb0368e87faa4854c69dc44216a19e5949993"
+    },
+    {
+      "family": "Q1_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "59c55456e949fa2f6435ba23ab346db9f5019f381fc3bbec279a1d1ddf751876",
+      "packed_sha256": "8e1b97ab40ad933f1e2ed804d593b305c1074cac5197763c891826134e4ade01",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.9073486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.20159912109375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.765655517578125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 5.841255187988281e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 8.20159912109375e-05,
+      "raw_file": "Q1_0-split-moe-3.f32.bin",
+      "raw_sha256": "b1b395933e5f5f28c469bc512ece0289cf0bfef37abba32a12dd5581a7952607"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "f8df740f5b2239f6491722f2ed795f16e464d820f0fe453dff82d39032e42f04",
+      "packed_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.4781951904296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.4781951904296875e-05,
+      "raw_file": "Q2_0-ordinary-dense-untied-12346.f32.bin",
+      "raw_sha256": "ff82230c40c44550b1d58aa02f75ebe576b25d430bf07a657fe41683ab8d34cb"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "c4147b9965ab1284f6b9538e796e1efc924a30a096a476d77cf55dd37bc2a763",
+      "packed_sha256": "340e4e4e01cfb529d873acac801187acdbe3189fa7755257c656defa7a8afd03",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 9.5367431640625e-06,
+      "raw_file": "Q2_0-ordinary-dense-untied-0.f32.bin",
+      "raw_sha256": "16e594950120a52debc9070dd0056909210a721347c8fd53f9c32ec4b16f25c8"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "81f06a569fee0c982f60a573a2e7e8ca4b707f4c34bb153f56a603d7909cc034",
+      "packed_sha256": "7d2a9fb3c191b0e1d7c3da06237d1ad5111ddfb12ad98557447fd0561f075325",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.52587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.1444091796875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.52587890625e-05,
+      "raw_file": "Q2_0-ordinary-dense-untied-1.f32.bin",
+      "raw_sha256": "f74ea76e42e75c633f2debec11f6b07419e4ab05668077149ed1103423893994"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "1a433c80f513a7523e04740f40b028936644902237443c161e93461022cdb507",
+      "packed_sha256": "f2794e5315b417b0deb329c418342ed1b56b6c9cf2514dc04eba058755c03bf5",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.344650268554688e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.7220458984375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 8.344650268554688e-06,
+      "raw_file": "Q2_0-ordinary-dense-untied-2.f32.bin",
+      "raw_sha256": "08f2b2bd4cd1e1c90e5c90fe110da9723f078933e263a7ae89ced312a80d0728"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-untied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "4e1679d87a1babc90f2e9f70e1d1ce8b9724e9dc7568d253ca869bdc62402d49",
+      "packed_sha256": "9096a6fa1e0f98f9ddac7b1a1eb669257ed3d52c44d2afffc55d2ce44c64da51",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 8.821487426757812e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 8.58306884765625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.2636184692382812e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.2636184692382812e-05,
+      "raw_file": "Q2_0-ordinary-dense-untied-3.f32.bin",
+      "raw_sha256": "dc49a12d766d3699b34cf0f11f461e2d297e27bcd2dd86abc68b3abfc65d7ff2"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "ce6a4f12518c46b00ce793b43c143bbbeec6ad94be44bf2f5f2253c032acab60",
+      "packed_sha256": "52c5e5f09d1d72be60c71fd4989d74f46dc2107047a6ff8086483224d7c44bca",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.4836273193359375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 4.76837158203125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.7642974853515625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.7642974853515625e-05,
+      "raw_file": "Q2_0-ordinary-dense-tied-12346.f32.bin",
+      "raw_sha256": "8a677f57e2018e8794911d57c627b12f88edcde45c500ad02b160d3b312164de"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "7abda65f0cded80c1f00db5f4bbd3d55b9ed33697177d97ce6060b8c1107171e",
+      "packed_sha256": "aafb96006bc350ce7dba7ceb7dc0799b9059d6175a5c7ae50d5a3140f9d24fca",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.67572021484375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.0013580322265625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0728836059570312e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.0728836059570312e-05,
+      "raw_file": "Q2_0-ordinary-dense-tied-0.f32.bin",
+      "raw_sha256": "d03497768c01720856a1215425c5d70fb67d3613e34fbc0fc40dd0568f902f5d"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "c1935485e3f55298169b9589fc886c3e7b2c7062066c6036d3624d9b9f98e431",
+      "packed_sha256": "2b8bf8d786fc7f9fdb83c7bde118bc3e403022469f7d56a8b5b9480cd29b49ef",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.1861324310302734e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0013580322265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.1861324310302734e-05,
+      "raw_file": "Q2_0-ordinary-dense-tied-1.f32.bin",
+      "raw_sha256": "b62a90b5b694d4dc6ce99389956f15431e5f9a77b344d09ba4d5085a120bf309"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "043d1a3253a05dd203f88b56dee4aceb54e4a0fb6e165a35ac2c4ef006d7b9b5",
+      "packed_sha256": "7a1ac6be1cfa63a12d2e54a88b5516e8bf4cace199f4303c94472a2c1c23b3fd",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 9.059906005859375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 5.7220458984375e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.049041748046875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 6.198883056640625e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.049041748046875e-05,
+      "raw_file": "Q2_0-ordinary-dense-tied-2.f32.bin",
+      "raw_sha256": "ff0e75203a995b8a62740a0332ef3e271474f639404144d4b0698813ff63ffc0"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "dense-tied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16
+      },
+      "weights_sha256": "801fc051fc94c16a04d162267d7f692f9c402745ed68eb0c6b073832077a027f",
+      "packed_sha256": "c2a08f53d6bad7d8e3b18b58a0ea1ada5122c00b84ac82c198108276487957f2",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 8.106231689453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.5974044799804688e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.5974044799804688e-05,
+      "raw_file": "Q2_0-ordinary-dense-tied-3.f32.bin",
+      "raw_sha256": "aab6a9508d60de064248a02a86097c5f53c8fcaf03688b0b29f922f257696f20"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "4eb508447acf7fa633449be683d49fefb571b2d7bda9474e9751090ef9ac5a26",
+      "packed_sha256": "a1a37eb77e4eeba773962cdcd880e63e8a15678a8705f43724695e1488136be2",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.2874603271484375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 6.4373016357421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.002716064453125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0013580322265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.002716064453125e-05,
+      "raw_file": "Q2_0-ordinary-moe-12346.f32.bin",
+      "raw_sha256": "1ae83b9eeae4bf5200969ea9b12128f9d814b12d85cff50dee00a378fa24cfae"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "d5dd80e5cc8190bf749476e0d40a52b3ceffdf713bcf8ac34ffe05fa74fdb018",
+      "packed_sha256": "626984cbd2b5141c6a75c36ee5c26a2c2f128680094b133808cbe6efd606c680",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.430511474609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.0371208190917969e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.4066696166992188e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.0967254638671875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.430511474609375e-05,
+      "raw_file": "Q2_0-ordinary-moe-0.f32.bin",
+      "raw_sha256": "721e2573683adb7a640de59ec6ab2bb6f8ed081dd46d89bb5e970ab94f92bb56"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "44d408eccb1966e201a666d4a825d33d18638964819bafeb706bcb5018f1388c",
+      "packed_sha256": "30d82e48c75dd84bd09b1c1227dc178ad5ca2cd463bb9afbafca16cf9af175dc",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.152557373046875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.1920928955078125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.239776611328125e-05,
+      "raw_file": "Q2_0-ordinary-moe-1.f32.bin",
+      "raw_sha256": "55d38ed8443a68669f44edc0ae35f22ab0570b1bd21ae0b1451d54f20a249b9b"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "9de586f934f91e7275796ce3f16ccb479300ec29fa2fdcbe4a8396cef8598ac6",
+      "packed_sha256": "8562c60fb9416b52d160e682264e001e8542f3369c76871153dfd18f5581790f",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 9.5367431640625e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.2040138244628906e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 1.1205673217773438e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.2040138244628906e-05,
+      "raw_file": "Q2_0-ordinary-moe-2.f32.bin",
+      "raw_sha256": "1afcf4c8b0000dddffd369583ed982d016a59d9d77e59cd8b0de24dc889fee62"
+    },
+    {
+      "family": "Q2_0",
+      "split": false,
+      "fixture": "moe",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 256,
+        "feed_forward_length": 768,
+        "attention.head_count": 2,
+        "attention.head_count_kv": 1,
+        "attention.key_length": 128,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 2,
+        "expert_feed_forward_length": 768
+      },
+      "weights_sha256": "d808e7269fbd28e9d1ffd399403e67a0b25edf27dcbd559fbe850b1becd0dfd7",
+      "packed_sha256": "3f77522d80861cede0975b7fe5039f765b4e4467b5693d7a77794974fdd9d694",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 6.4373016357421875e-06,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.7404556274414062e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 7.62939453125e-06,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 1.7404556274414062e-05,
+      "raw_file": "Q2_0-ordinary-moe-3.f32.bin",
+      "raw_sha256": "50b21d1340c3c2c8c00fef5a3392f24e97bf18e4024c6cb962bff0205301e41e"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "f247ae83c4f3b82eea0b04e38811e118825f1639ad3ca221313db385c85780e6",
+      "packed_sha256": "733c90dc2a43c1b1af8e59393601e2535763752793b9848655d2026681212a23",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.09808349609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.990795135498047e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.6702880859375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.063678741455078e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.063678741455078e-05,
+      "raw_file": "Q2_0-split-dense-untied-12346.f32.bin",
+      "raw_sha256": "9720a22176f3b314e9e07f4ebf513479c64dc2408029ec734337286a9c36fc6e"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "5ac36b738d73b024f4ee698e5d2a2cdc059322c1b97e20aec15c503f21995fc2",
+      "packed_sha256": "1dd16c2009aba614867579ec1142169433f0ae205755638004ec089aa34cb455",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.7642974853515625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.71661376953125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.4318695068359375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.86102294921875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.86102294921875e-05,
+      "raw_file": "Q2_0-split-dense-untied-0.f32.bin",
+      "raw_sha256": "7e9b55eea3138ec72115a9c5bdaf1c2f41e9c5fe6232692450c6a05f57cb65cd"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "2143518794c89b6a007f684d115d7b03eeb591f71035644ce998c5bd11e196ac",
+      "packed_sha256": "b8a05ebc31069eabea02912bde6beeb63939bf8634cbc80db51d57f31366bb41",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.002716064453125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.6702880859375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.4332275390625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.2901763916015625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.4332275390625e-05,
+      "raw_file": "Q2_0-split-dense-untied-1.f32.bin",
+      "raw_sha256": "f8b6c715dce30dad02acd68341a646c77f405fd453db6c580b825498fe23929d"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "96b047a440493ba5d7754620c67e6e3b55edee7d25b9998213f1d1fa0a889b25",
+      "packed_sha256": "78ec1848bcb244319f04e058b1b5d463efb342b05a6b0128dff1de8421278edb",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.3113021850585938e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.33514404296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.7179718017578125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.384185791015625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.7179718017578125e-05,
+      "raw_file": "Q2_0-split-dense-untied-2.f32.bin",
+      "raw_sha256": "37d45d22ad8666e3f6e5dd62ebe7b728dbe8c3673ce7f1301484203f13ae7a14"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-untied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "cffb485ec5766c796b1a23cce849bf2c1b82141f561b9990268229ad0b29d122",
+      "packed_sha256": "4c92bd22b9540da5cb349d605978366d8c4559b6b2d9c6155ba4d091208d284e",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.621246337890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.09808349609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.574920654296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.6702880859375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.6702880859375e-05,
+      "raw_file": "Q2_0-split-dense-untied-3.f32.bin",
+      "raw_sha256": "eba5ea0f1f848a78893b238bf2a7699e8a1656d7a62bb034074cb63c5ee3f362"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "5614b1c4e056ee065da031c450d73d31e4cc3afc333adcd09a027e9240b48d1c",
+      "packed_sha256": "fc7b4611e96d493131d09416a807191985d8d977931baeace77145b6b0c1cc8a",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.0967254638671875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.33514404296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.574920654296875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.288818359375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.574920654296875e-05,
+      "raw_file": "Q2_0-split-dense-tied-12346.f32.bin",
+      "raw_sha256": "342f7e094a8bcc5605395bf9bc3eb9178e832bab2ce2790a5ad14f6eb75e05ef"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "f1fcc03573b9c255e805120fe3fac4cae40cd708a5d9d0b0a2362d9effdede0c",
+      "packed_sha256": "ee924335c0497adcffee65ca0423897d8d53d121409bb75788902624420a2caa",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.1444091796875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.6927719116210938e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.002716064453125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.814697265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.814697265625e-05,
+      "raw_file": "Q2_0-split-dense-tied-0.f32.bin",
+      "raw_sha256": "bef237496bc00757a620b4b44bffed741130f256927903f0f606daf0e19eca00"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "2a2a5d5ee1dd3ac68a20e1ee4d9761fcc0684ef3f047108f32556804e9e7d4ca",
+      "packed_sha256": "19be7818051558044afe4d68b1fc45d3feb9b9725227ca413e2f87a0c173dac0",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.8596649169921875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.6689300537109375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.9087066650390625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.6716461181640625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.6716461181640625e-05,
+      "raw_file": "Q2_0-split-dense-tied-1.f32.bin",
+      "raw_sha256": "2819c068d122a57ce9b5887c63f8ea6cda97d63f5774b8e2a510fa7dd1700848"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "0936a42ff8d6bf8c13aacde11f432c668c23df9f696a29f79a00793383465742",
+      "packed_sha256": "e0965c7b46a42ef4e0649b204cea1973c9220787ef288edd03b44a63754d8f95",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.430511474609375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.239776611328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.0279159545898438e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.0623207092285156e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 3.0279159545898438e-05,
+      "raw_file": "Q2_0-split-dense-tied-2.f32.bin",
+      "raw_sha256": "7d3a4f217c000bf182db98a4fa313592dc6b044fcdb3165cca7d1d093e635a8b"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "dense-tied",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16
+      },
+      "weights_sha256": "8b4140f6e6b04c391720683270567c05ddcba182d7dfddd0bd663c0cca70bda4",
+      "packed_sha256": "0cfa82521803ba6fa4a1ab3a3f738cfd4cff3efcde2d42fa87cc5d4c759a4da1",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.52587890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 2.384185791015625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.193450927734375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.7179718017578125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 2.7179718017578125e-05,
+      "raw_file": "Q2_0-split-dense-tied-3.f32.bin",
+      "raw_sha256": "1f5c4b1c043acdb66b6b0c6651c910b8b70862eb9ba077a86e84f7ee33c90ea2"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 12346,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "248bcbf034738dffb8632321b0de13de97da19e2de4c0a5f0d73ef2fbc7db22f",
+      "packed_sha256": "667ff515cc5cff1c7bcf5dd4531f2f16a90b5185fb399ba51bfbf8605bef71dc",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.956390380859375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.200241088867188e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 3.427267074584961e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.62396240234375e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 7.200241088867188e-05,
+      "raw_file": "Q2_0-split-moe-12346.f32.bin",
+      "raw_sha256": "7edb7bce6dbf468c070d0792910434fef999fa9c6e2e5a3cf34ad5a389158200"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 0,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "c3db153569d3d10cd4d8ae18699acb81e4dba076386d0b94f95f4a8b5821207e",
+      "packed_sha256": "6671946cde23110182bc5261aa1433a42041af9b38c3a5debf0bd2853524aaeb",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 4.100799560546875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 1.9550323486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 5.3763389587402344e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.86102294921875e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 5.3763389587402344e-05,
+      "raw_file": "Q2_0-split-moe-0.f32.bin",
+      "raw_sha256": "2abd9c1405151df71bf3df7524658f9882880115d5ed1f8f18469dd9acd43dba"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 1,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "217bdd80d75b846f2b40021e5a2729135ff3a3d0fca449d4e5634d04f60362a6",
+      "packed_sha256": "42dbbdb1a36eb00094afb65ec6cd0a208a29fdebcc373cbd2ceba80398a1032a",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 1.9550323486328125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 7.82012939453125e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.1219253540039062e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 3.528594970703125e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 7.82012939453125e-05,
+      "raw_file": "Q2_0-split-moe-1.f32.bin",
+      "raw_sha256": "aa1d28552d301651b8db952dc91906f3c8888fc4178c12a6e2ee011f7489fe1a"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 2,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "26ca75ba9002d021c0385f833f6b72fa684ebe6e8f623af0ab8b7b3345040bcc",
+      "packed_sha256": "238a250fdaa3182ea90fe5ecafffa75d8465ec964d23b39e1f413f0bd4057011",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 5.53131103515625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 3.337860107421875e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 2.4557113647460938e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 6.198883056640625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 6.198883056640625e-05,
+      "raw_file": "Q2_0-split-moe-2.f32.bin",
+      "raw_sha256": "81b345609e3f8425edecd4db2238c45008c5eaab47b94fecc75e5c3df507a02d"
+    },
+    {
+      "family": "Q2_0",
+      "split": true,
+      "fixture": "moe",
+      "seed": 3,
+      "config": {
+        "block_count": 2,
+        "embedding_length": 1024,
+        "feed_forward_length": 1024,
+        "attention.head_count": 4,
+        "attention.head_count_kv": 2,
+        "attention.key_length": 256,
+        "context_length": 16,
+        "expert_count": 4,
+        "expert_used_count": 4,
+        "expert_feed_forward_length": 1024
+      },
+      "weights_sha256": "51e2142dd560102f0bfb85aa6527e0e1288fae991c12e42ad32b111baa06db16",
+      "packed_sha256": "80974d22126571c7e5ed065355fbf461e10b4b97931ed3df406e8ee3715b38b0",
+      "cases": [
+        {
+          "text": "a",
+          "logit_error": 0.0,
+          "routing_stable": true
+        },
+        {
+          "text": "ab",
+          "logit_error": 2.193450927734375e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abc",
+          "logit_error": 3.4332275390625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefg",
+          "logit_error": 4.00543212890625e-05,
+          "routing_stable": true
+        },
+        {
+          "text": "abcdefghijklm",
+          "logit_error": 2.47955322265625e-05,
+          "routing_stable": true
+        }
+      ],
+      "routing_stable": true,
+      "status": "routing_stable",
+      "max_logit_error": 4.00543212890625e-05,
+      "raw_file": "Q2_0-split-moe-3.f32.bin",
+      "raw_sha256": "3469d4e10517b2714581752638dfd4e2cd1869e672950edf193b604cd5635d19"
+    }
+  ],
+  "summary": {
+    "Q1_0": {
+      "models": 30,
+      "routing_changed": 0,
+      "max_stable_discrepancy": 8.20159912109375e-05
+    },
+    "Q2_0": {
+      "models": 30,
+      "routing_changed": 0,
+      "max_stable_discrepancy": 7.82012939453125e-05
+    }
+  },
+  "producer_source": "import array\nimport gc\nimport hashlib\nimport json\nfrom pathlib import Path\nimport sys\n\nroot = Path(__file__).resolve().parents[1]\nsys.path[:0] = [str(root/'tests'), str(root/'tools')]\nimport calibrate_dtype as calibration\nimport gen_baseline as generator\nfrom block_fixture import VARIANTS, packed_hash\nfrom f32 import TEXTS, weight_hash\nfrom low_bits import fixture_q1, fixture_q2\n\nout = root/'build-low-bits-dev/reference-sweep'\nout.mkdir(exist_ok=True)\ntorch, transformers = generator.qwen3moe_environment()\ntorch.set_num_threads(1)\nsources = ['tests/low_bits.py','tests/spec_decode.py','tests/raw_blocks.py','tests/block_fixture.py',\n           'tests/f32.py','tools/gen_baseline.py','tools/calibrate_dtype.py',\n           'build-low-bits-dev/low-bits-reference-sweep.py']\npins = {p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sources}\nplan = {'scope':'Independent HF F32 full versus cached-forward diagnostic. No llmx output read, no acceptance limits installed.',\n        'families':{'Q1_0':[12345,*calibration.SEEDS],'Q2_0':[12346,*calibration.SEEDS]},\n        'variants':[x[0] for x in VARIANTS], 'split_shapes':[False,True], 'texts':TEXTS,\n        'models_planned':60,'final_logit_pairs_planned':300,'torch':torch.__version__,\n        'transformers':transformers.__version__,'sources':pins}\npath = out/'report.json'\nif path.exists():\n    report = json.loads(path.read_text())\n    assert report['plan']==plan, 'resume inputs differ'\nelse:\n    report = {'plan':plan,'status':'running','runs':[]}\n    path.write_text(json.dumps(report,indent=2)+'\\n',encoding='ascii')\n\ndef save():\n    path.write_text(json.dumps(report,indent=2)+'\\n',encoding='ascii')\n\ndef routes(trace):\n    result = {}\n    for call in trace:\n        result.setdefault(call['router'],[]).extend(call['experts'])\n    return result\n\ndone = {(r['family'],r['split'],r['fixture'],r['seed']) for r in report['runs']}\nfor family,fixture,own_seed in [('Q1_0',fixture_q1,12345),('Q2_0',fixture_q2,12346)]:\n    for split in [False,True]:\n        golden = json.loads((root/('tests/data/baseline_'+family.lower()+('_split' if split else '')+'.json')).read_text())\n        for name,tied,moe in VARIANTS:\n            for seed in [own_seed,*calibration.SEEDS]:\n                key = family,split,name,seed\n                if key in done:\n                    continue\n                config,weights,packed = fixture(tied,moe,seed,split=split)\n                row = {'family':family,'split':split,'fixture':name,'seed':seed,'config':config,\n                       'weights_sha256':weight_hash(weights),'packed_sha256':packed_hash(packed),\n                       'cases':[],'routing_stable':True}\n                model = generator.tiny_block_model(config,weights,tied,moe)\n                del weights,packed\n                original = next(f for f in golden['fixtures'] if f['name']==name)\n                if seed == own_seed:\n                    assert row['weights_sha256']==original['weights_sha256'] and row['packed_sha256']==original['packed_sha256']\n                trace = []\n                hooks = calibration.routing_hooks(model,trace)\n                raw = array.array('f')\n                try:\n                    with torch.inference_mode():\n                        for index,text in enumerate(TEXTS):\n                            ids = torch.tensor([list(text.encode('ascii'))])\n                            trace.clear()\n                            full = model(ids,use_cache=False).logits[0,-1]\n                            original_routes = routes(trace)\n                            if seed==own_seed:\n                                assert torch.equal(full,torch.tensor(original['cases'][index]['logits']))\n                            trace.clear()\n                            cache = None\n                            for pos in range(ids.shape[1]):\n                                result = model(ids[:,pos:pos+1],past_key_values=cache,use_cache=True)\n                                cache = result.past_key_values\n                            final = result.logits[0,-1]\n                            assert torch.isfinite(full).all() and torch.isfinite(final).all()\n                            stable = original_routes==routes(trace)\n                            raw.extend(full.tolist())\n                            raw.extend(final.tolist())\n                            row['cases'].append({'text':text,'logit_error':float((full-final).abs().max()),'routing_stable':stable})\n                            row['routing_stable'] &= stable\n                            del cache,result,full,final\n                finally:\n                    for hook in hooks:\n                        hook.remove()\n                row['status'] = 'routing_stable' if row['routing_stable'] else 'routing_changed'\n                row['max_logit_error'] = max(c['logit_error'] for c in row['cases'])\n                raw_path = out/('%s-%s-%s-%d.f32.bin' % (family,'split' if split else 'ordinary',name,seed))\n                raw_path.write_bytes(raw.tobytes())\n                row['raw_file'] = raw_path.name\n                row['raw_sha256'] = hashlib.sha256(raw_path.read_bytes()).hexdigest()\n                report['runs'].append(row)\n                save()\n                print(family,split,name,seed,row['status'],row['max_logit_error'],flush=True)\n                del model,raw\n                gc.collect()\nassert len(report['runs'])==60\nreport['status']='complete'\nreport['summary']={family:{'models':sum(r['family']==family for r in report['runs']),\n                           'routing_changed':sum(r['family']==family and not r['routing_stable'] for r in report['runs']),\n                           'max_stable_discrepancy':max(r['max_logit_error'] for r in report['runs'] if r['family']==family and r['routing_stable'])}\n                   for family in ['Q1_0','Q2_0']}\nsave()\nprint(json.dumps(report['summary']),flush=True)\n",
+  "golden_pins_recorded_after_execution": {
+    "baseline_q1_0.json": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e",
+    "baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+    "baseline_q2_0.json": "51e0e6c86f18dbdf20bcf7bbc2d20ac75cd1ed16769e96ad88cc1d5b807c6b6f",
+    "baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75"
+  },
+  "routing_scope": "Dense models have no routers. Split MoE uses every expert, so selected-set stability is guaranteed there. Only the ten ordinary MoE models exercise top-k selected-set agreement. This is not a routing-margin robustness test.",
+  "execution": [
+    {
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\low-bits-reference-sweep.py"
+      ],
+      "timeout_seconds": 900,
+      "minimum_available_bytes": 2147483648,
+      "samples": [
+        {
+          "unix": 1793116152.5394652,
+          "available_bytes": 4670513152
+        },
+        {
+          "unix": 1793116153.5494125,
+          "available_bytes": 4525047808
+        },
+        {
+          "unix": 1793116154.5584507,
+          "available_bytes": 4471693312
+        },
+        {
+          "unix": 1793116155.5691955,
+          "available_bytes": 4412518400
+        },
+        {
+          "unix": 1793116156.581558,
+          "available_bytes": 4462596096
+        },
+        {
+          "unix": 1793116157.590052,
+          "available_bytes": 4430856192
+        },
+        {
+          "unix": 1793116158.6004229,
+          "available_bytes": 4340776960
+        },
+        {
+          "unix": 1793116159.6138246,
+          "available_bytes": 4344893440
+        },
+        {
+          "unix": 1793116160.6262376,
+          "available_bytes": 4301922304
+        },
+        {
+          "unix": 1793116161.636217,
+          "available_bytes": 4298739712
+        },
+        {
+          "unix": 1793116162.6522381,
+          "available_bytes": 4245598208
+        },
+        {
+          "unix": 1793116163.6605022,
+          "available_bytes": 4205129728
+        },
+        {
+          "unix": 1793116164.6694572,
+          "available_bytes": 4224614400
+        },
+        {
+          "unix": 1793116165.6944516,
+          "available_bytes": 4212723712
+        },
+        {
+          "unix": 1793116166.7070842,
+          "available_bytes": 4205113344
+        },
+        {
+          "unix": 1793116167.7406976,
+          "available_bytes": 4067651584
+        },
+        {
+          "unix": 1793116168.754731,
+          "available_bytes": 4318240768
+        },
+        {
+          "unix": 1793116169.764967,
+          "available_bytes": 4340068352
+        },
+        {
+          "unix": 1793116170.7793705,
+          "available_bytes": 4310986752
+        },
+        {
+          "unix": 1793116171.7886949,
+          "available_bytes": 4433887232
+        },
+        {
+          "unix": 1793116172.7981665,
+          "available_bytes": 4461035520
+        },
+        {
+          "unix": 1793116173.8110423,
+          "available_bytes": 4444905472
+        },
+        {
+          "unix": 1793116174.8212721,
+          "available_bytes": 4428763136
+        },
+        {
+          "unix": 1793116175.8388968,
+          "available_bytes": 4442755072
+        },
+        {
+          "unix": 1793116176.8528588,
+          "available_bytes": 4412649472
+        },
+        {
+          "unix": 1793116177.8619108,
+          "available_bytes": 4429803520
+        },
+        {
+          "unix": 1793116178.8710725,
+          "available_bytes": 4408860672
+        },
+        {
+          "unix": 1793116179.8863657,
+          "available_bytes": 4392943616
+        },
+        {
+          "unix": 1793116180.9085429,
+          "available_bytes": 4370518016
+        },
+        {
+          "unix": 1793116181.9180229,
+          "available_bytes": 4391542784
+        },
+        {
+          "unix": 1793116182.92627,
+          "available_bytes": 4348067840
+        },
+        {
+          "unix": 1793116183.9361298,
+          "available_bytes": 4349992960
+        },
+        {
+          "unix": 1793116184.9457352,
+          "available_bytes": 4332163072
+        },
+        {
+          "unix": 1793116185.9541366,
+          "available_bytes": 4315131904
+        },
+        {
+          "unix": 1793116186.9643357,
+          "available_bytes": 3925118976
+        },
+        {
+          "unix": 1793116187.9745839,
+          "available_bytes": 4283432960
+        },
+        {
+          "unix": 1793116189.0033216,
+          "available_bytes": 4264345600
+        },
+        {
+          "unix": 1793116190.0197983,
+          "available_bytes": 4186742784
+        },
+        {
+          "unix": 1793116191.0295045,
+          "available_bytes": 4231446528
+        },
+        {
+          "unix": 1793116192.041996,
+          "available_bytes": 4172288000
+        },
+        {
+          "unix": 1793116193.051372,
+          "available_bytes": 4191186944
+        },
+        {
+          "unix": 1793116194.0644042,
+          "available_bytes": 4165947392
+        },
+        {
+          "unix": 1793116195.0790088,
+          "available_bytes": 4140032000
+        },
+        {
+          "unix": 1793116196.0868607,
+          "available_bytes": 4120518656
+        },
+        {
+          "unix": 1793116197.1033502,
+          "available_bytes": 4120207360
+        },
+        {
+          "unix": 1793116198.1271887,
+          "available_bytes": 4064743424
+        },
+        {
+          "unix": 1793116199.1370244,
+          "available_bytes": 4046848000
+        },
+        {
+          "unix": 1793116200.145041,
+          "available_bytes": 4049780736
+        },
+        {
+          "unix": 1793116201.1579723,
+          "available_bytes": 4050862080
+        },
+        {
+          "unix": 1793116202.1658392,
+          "available_bytes": 2490556416
+        },
+        {
+          "unix": 1793116203.1774259,
+          "available_bytes": 2610429952
+        },
+        {
+          "unix": 1793116204.194209,
+          "available_bytes": 3986804736
+        },
+        {
+          "unix": 1793116205.2052174,
+          "available_bytes": 3906678784
+        },
+        {
+          "unix": 1793116206.22411,
+          "available_bytes": 3843796992
+        },
+        {
+          "unix": 1793116207.2335947,
+          "available_bytes": 3837440000
+        },
+        {
+          "unix": 1793116208.2421737,
+          "available_bytes": 3799334912
+        },
+        {
+          "unix": 1793116209.2526886,
+          "available_bytes": 3785383936
+        },
+        {
+          "unix": 1793116210.2660055,
+          "available_bytes": 3777400832
+        },
+        {
+          "unix": 1793116211.2787223,
+          "available_bytes": 3704360960
+        },
+        {
+          "unix": 1793116212.2878878,
+          "available_bytes": 3710066688
+        },
+        {
+          "unix": 1793116213.309345,
+          "available_bytes": 3531935744
+        },
+        {
+          "unix": 1793116214.3223736,
+          "available_bytes": 3549278208
+        },
+        {
+          "unix": 1793116215.3355312,
+          "available_bytes": 3548205056
+        },
+        {
+          "unix": 1793116216.3452961,
+          "available_bytes": 3483054080
+        },
+        {
+          "unix": 1793116217.35596,
+          "available_bytes": 2766012416
+        },
+        {
+          "unix": 1793116218.3668382,
+          "available_bytes": 3141423104
+        },
+        {
+          "unix": 1793116219.376168,
+          "available_bytes": 2167705600
+        },
+        {
+          "unix": 1793116220.3854368,
+          "available_bytes": 3562926080
+        },
+        {
+          "unix": 1793116221.3973258,
+          "available_bytes": 3524644864
+        },
+        {
+          "unix": 1793116222.409199,
+          "available_bytes": 3629355008
+        },
+        {
+          "unix": 1793116223.4190881,
+          "available_bytes": 3566100480
+        },
+        {
+          "unix": 1793116224.4277372,
+          "available_bytes": 3563311104
+        },
+        {
+          "unix": 1793116225.4412286,
+          "available_bytes": 3547353088
+        },
+        {
+          "unix": 1793116226.453261,
+          "available_bytes": 3739951104
+        },
+        {
+          "unix": 1793116227.4626207,
+          "available_bytes": 3711291392
+        },
+        {
+          "unix": 1793116228.4867246,
+          "available_bytes": 3619799040
+        },
+        {
+          "unix": 1793116229.498486,
+          "available_bytes": 3677843456
+        },
+        {
+          "unix": 1793116230.5116081,
+          "available_bytes": 3764076544
+        },
+        {
+          "unix": 1793116231.5264232,
+          "available_bytes": 3680301056
+        },
+        {
+          "unix": 1793116232.537749,
+          "available_bytes": 3702521856
+        },
+        {
+          "unix": 1793116233.545951,
+          "available_bytes": 2668855296
+        },
+        {
+          "unix": 1793116234.5550475,
+          "available_bytes": 3710779392
+        },
+        {
+          "unix": 1793116235.5647125,
+          "available_bytes": 3871703040
+        },
+        {
+          "unix": 1793116236.5753667,
+          "available_bytes": 2585264128
+        },
+        {
+          "unix": 1793116237.5839353,
+          "available_bytes": 2656043008
+        },
+        {
+          "unix": 1793116238.5929596,
+          "available_bytes": 3463790592
+        },
+        {
+          "unix": 1793116239.6119106,
+          "available_bytes": 4084617216
+        },
+        {
+          "unix": 1793116240.622414,
+          "available_bytes": 4095451136
+        },
+        {
+          "unix": 1793116241.6366062,
+          "available_bytes": 4235538432
+        },
+        {
+          "unix": 1793116242.645974,
+          "available_bytes": 4203270144
+        },
+        {
+          "unix": 1793116243.6605916,
+          "available_bytes": 4189134848
+        },
+        {
+          "unix": 1793116244.6763566,
+          "available_bytes": 4121186304
+        },
+        {
+          "unix": 1793116245.688975,
+          "available_bytes": 4150738944
+        },
+        {
+          "unix": 1793116246.700363,
+          "available_bytes": 4126126080
+        },
+        {
+          "unix": 1793116247.7108433,
+          "available_bytes": 4123566080
+        },
+        {
+          "unix": 1793116248.7229755,
+          "available_bytes": 4103688192
+        },
+        {
+          "unix": 1793116249.732828,
+          "available_bytes": 4079013888
+        },
+        {
+          "unix": 1793116250.743521,
+          "available_bytes": 3961102336
+        },
+        {
+          "unix": 1793116251.7524142,
+          "available_bytes": 4011098112
+        },
+        {
+          "unix": 1793116252.7620523,
+          "available_bytes": 3938078720
+        },
+        {
+          "unix": 1793116253.771355,
+          "available_bytes": 3994259456
+        },
+        {
+          "unix": 1793116254.7817209,
+          "available_bytes": 3971411968
+        },
+        {
+          "unix": 1793116255.7928925,
+          "available_bytes": 3943141376
+        },
+        {
+          "unix": 1793116256.8063736,
+          "available_bytes": 3877199872
+        },
+        {
+          "unix": 1793116257.8206089,
+          "available_bytes": 3851440128
+        },
+        {
+          "unix": 1793116258.8328536,
+          "available_bytes": 3871510528
+        },
+        {
+          "unix": 1793116259.8461514,
+          "available_bytes": 3845062656
+        },
+        {
+          "unix": 1793116260.8594887,
+          "available_bytes": 3805270016
+        },
+        {
+          "unix": 1793116261.8683014,
+          "available_bytes": 3819884544
+        },
+        {
+          "unix": 1793116262.8786523,
+          "available_bytes": 2820022272
+        },
+        {
+          "unix": 1793116263.8853977,
+          "available_bytes": 3200331776
+        },
+        {
+          "unix": 1793116264.900486,
+          "available_bytes": 3834368000
+        },
+        {
+          "unix": 1793116265.90968,
+          "available_bytes": 3531968512
+        },
+        {
+          "unix": 1793116266.930449,
+          "available_bytes": 3756978176
+        },
+        {
+          "unix": 1793116267.9454257,
+          "available_bytes": 3743481856
+        },
+        {
+          "unix": 1793116268.9587884,
+          "available_bytes": 3713605632
+        },
+        {
+          "unix": 1793116269.973132,
+          "available_bytes": 3707867136
+        },
+        {
+          "unix": 1793116270.9830408,
+          "available_bytes": 3665756160
+        },
+        {
+          "unix": 1793116271.992812,
+          "available_bytes": 3670175744
+        },
+        {
+          "unix": 1793116273.018262,
+          "available_bytes": 3654848512
+        },
+        {
+          "unix": 1793116274.026978,
+          "available_bytes": 3654209536
+        },
+        {
+          "unix": 1793116275.0403562,
+          "available_bytes": 3696979968
+        },
+        {
+          "unix": 1793116276.0512393,
+          "available_bytes": 3658211328
+        },
+        {
+          "unix": 1793116277.063547,
+          "available_bytes": 3635408896
+        },
+        {
+          "unix": 1793116278.0774748,
+          "available_bytes": 3632914432
+        },
+        {
+          "unix": 1793116279.0862098,
+          "available_bytes": 3627384832
+        },
+        {
+          "unix": 1793116280.0977871,
+          "available_bytes": 3604705280
+        },
+        {
+          "unix": 1793116281.112784,
+          "available_bytes": 3585310720
+        },
+        {
+          "unix": 1793116282.1388433,
+          "available_bytes": 3575795712
+        },
+        {
+          "unix": 1793116283.1496985,
+          "available_bytes": 3539927040
+        },
+        {
+          "unix": 1793116284.1710446,
+          "available_bytes": 3438288896
+        },
+        {
+          "unix": 1793116285.1887972,
+          "available_bytes": 3466428416
+        },
+        {
+          "unix": 1793116286.1975663,
+          "available_bytes": 3512193024
+        },
+        {
+          "unix": 1793116287.2098415,
+          "available_bytes": 3507937280
+        },
+        {
+          "unix": 1793116288.2253523,
+          "available_bytes": 3505430528
+        },
+        {
+          "unix": 1793116289.2402642,
+          "available_bytes": 3456700416
+        },
+        {
+          "unix": 1793116290.248043,
+          "available_bytes": 3771346944
+        },
+        {
+          "unix": 1793116291.2628744,
+          "available_bytes": 3808882688
+        },
+        {
+          "unix": 1793116292.2851942,
+          "available_bytes": 3333619712
+        },
+        {
+          "unix": 1793116293.2973788,
+          "available_bytes": 3869470720
+        },
+        {
+          "unix": 1793116294.3059785,
+          "available_bytes": 3846643712
+        },
+        {
+          "unix": 1793116295.3193073,
+          "available_bytes": 3854544896
+        },
+        {
+          "unix": 1793116296.3370013,
+          "available_bytes": 3908653056
+        },
+        {
+          "unix": 1793116297.3490448,
+          "available_bytes": 3901251584
+        },
+        {
+          "unix": 1793116298.3579626,
+          "available_bytes": 3898216448
+        },
+        {
+          "unix": 1793116299.3708143,
+          "available_bytes": 3858014208
+        },
+        {
+          "unix": 1793116300.3811789,
+          "available_bytes": 3881459712
+        },
+        {
+          "unix": 1793116301.3904543,
+          "available_bytes": 3576381440
+        },
+        {
+          "unix": 1793116302.4031365,
+          "available_bytes": 3841187840
+        },
+        {
+          "unix": 1793116303.413837,
+          "available_bytes": 3845255168
+        },
+        {
+          "unix": 1793116304.4242632,
+          "available_bytes": 3838545920
+        },
+        {
+          "unix": 1793116305.4535148,
+          "available_bytes": 3807518720
+        },
+        {
+          "unix": 1793116306.463229,
+          "available_bytes": 3811266560
+        },
+        {
+          "unix": 1793116307.47801,
+          "available_bytes": 3809030144
+        },
+        {
+          "unix": 1793116308.4908407,
+          "available_bytes": 3795742720
+        },
+        {
+          "unix": 1793116309.5051637,
+          "available_bytes": 3722653696
+        },
+        {
+          "unix": 1793116310.518843,
+          "available_bytes": 3730939904
+        },
+        {
+          "unix": 1793116311.5312579,
+          "available_bytes": 3622211584
+        },
+        {
+          "unix": 1793116312.5488088,
+          "available_bytes": 3612766208
+        },
+        {
+          "unix": 1793116313.5579624,
+          "available_bytes": 3829497856
+        },
+        {
+          "unix": 1793116314.5677865,
+          "available_bytes": 3363180544
+        },
+        {
+          "unix": 1793116315.5777605,
+          "available_bytes": 3221204992
+        },
+        {
+          "unix": 1793116316.592003,
+          "available_bytes": 3660439552
+        },
+        {
+          "unix": 1793116317.602431,
+          "available_bytes": 3686211584
+        },
+        {
+          "unix": 1793116318.618031,
+          "available_bytes": 3831881728
+        },
+        {
+          "unix": 1793116319.6263883,
+          "available_bytes": 2488631296
+        },
+        {
+          "unix": 1793116320.6385484,
+          "available_bytes": 3849785344
+        },
+        {
+          "unix": 1793116321.6512988,
+          "available_bytes": 3825446912
+        },
+        {
+          "unix": 1793116322.6674635,
+          "available_bytes": 3705102336
+        },
+        {
+          "unix": 1793116323.6818156,
+          "available_bytes": 3836112896
+        },
+        {
+          "unix": 1793116324.6963189,
+          "available_bytes": 3739721728
+        },
+        {
+          "unix": 1793116325.7046669,
+          "available_bytes": 3782103040
+        },
+        {
+          "unix": 1793116326.7112124,
+          "available_bytes": 3561930752
+        },
+        {
+          "unix": 1793116327.7206197,
+          "available_bytes": 3286798336
+        },
+        {
+          "unix": 1793116328.7366302,
+          "available_bytes": 3716583424
+        },
+        {
+          "unix": 1793116329.7491379,
+          "available_bytes": 3606814720
+        },
+        {
+          "unix": 1793116330.7589579,
+          "available_bytes": 3286597632
+        },
+        {
+          "unix": 1793116331.7675788,
+          "available_bytes": 3557720064
+        },
+        {
+          "unix": 1793116332.7785943,
+          "available_bytes": 2340454400
+        },
+        {
+          "unix": 1793116333.790998,
+          "available_bytes": 3646124032
+        },
+        {
+          "unix": 1793116334.8039026,
+          "available_bytes": 3620171776
+        },
+        {
+          "unix": 1793116335.8173385,
+          "available_bytes": 3611123712
+        },
+        {
+          "unix": 1793116336.8303058,
+          "available_bytes": 3571621888
+        },
+        {
+          "unix": 1793116337.8408437,
+          "available_bytes": 3407843328
+        },
+        {
+          "unix": 1793116338.8515024,
+          "available_bytes": 3498979328
+        },
+        {
+          "unix": 1793116339.860899,
+          "available_bytes": 3462471680
+        },
+        {
+          "unix": 1793116340.8793087,
+          "available_bytes": 3480416256
+        },
+        {
+          "unix": 1793116341.8916237,
+          "available_bytes": 3483828224
+        },
+        {
+          "unix": 1793116342.9035068,
+          "available_bytes": 3370418176
+        },
+        {
+          "unix": 1793116343.9185429,
+          "available_bytes": 3434860544
+        },
+        {
+          "unix": 1793116344.9282107,
+          "available_bytes": 2379980800
+        },
+        {
+          "unix": 1793116345.94123,
+          "available_bytes": 3497267200
+        },
+        {
+          "unix": 1793116346.9553878,
+          "available_bytes": 3474530304
+        },
+        {
+          "unix": 1793116347.9700148,
+          "available_bytes": 3339345920
+        },
+        {
+          "unix": 1793116348.9787128,
+          "available_bytes": 3424677888
+        },
+        {
+          "unix": 1793116349.9888864,
+          "available_bytes": 3413360640
+        },
+        {
+          "unix": 1793116350.998491,
+          "available_bytes": 3272085504
+        },
+        {
+          "unix": 1793116352.0069642,
+          "available_bytes": 3401658368
+        },
+        {
+          "unix": 1793116353.0193825,
+          "available_bytes": 3364548608
+        },
+        {
+          "unix": 1793116354.0308828,
+          "available_bytes": 3356635136
+        },
+        {
+          "unix": 1793116355.0453823,
+          "available_bytes": 3233726464
+        },
+        {
+          "unix": 1793116356.055546,
+          "available_bytes": 3067076608
+        },
+        {
+          "unix": 1793116357.0646572,
+          "available_bytes": 2112253952
+        }
+      ],
+      "pid": 33392,
+      "stopped": "memory reserve",
+      "returncode": 1,
+      "elapsed_seconds": 204.57799999974668
+    },
+    {
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\low-bits-reference-sweep.py"
+      ],
+      "timeout_seconds": 900,
+      "minimum_available_bytes": 2147483648,
+      "samples": [
+        {
+          "unix": 1793116674.364064,
+          "available_bytes": 5027061760
+        },
+        {
+          "unix": 1793116675.3740528,
+          "available_bytes": 4949966848
+        },
+        {
+          "unix": 1793116676.3865137,
+          "available_bytes": 4871577600
+        },
+        {
+          "unix": 1793116677.3972323,
+          "available_bytes": 4704473088
+        },
+        {
+          "unix": 1793116678.4105234,
+          "available_bytes": 4733988864
+        },
+        {
+          "unix": 1793116679.422769,
+          "available_bytes": 4754841600
+        },
+        {
+          "unix": 1793116680.4372053,
+          "available_bytes": 4737384448
+        },
+        {
+          "unix": 1793116681.4456637,
+          "available_bytes": 4742897664
+        },
+        {
+          "unix": 1793116682.455545,
+          "available_bytes": 4612489216
+        },
+        {
+          "unix": 1793116683.4657943,
+          "available_bytes": 4738469888
+        },
+        {
+          "unix": 1793116684.474728,
+          "available_bytes": 3400007680
+        },
+        {
+          "unix": 1793116685.4841545,
+          "available_bytes": 3924078592
+        },
+        {
+          "unix": 1793116686.4939477,
+          "available_bytes": 4677410816
+        },
+        {
+          "unix": 1793116687.5070472,
+          "available_bytes": 4776861696
+        },
+        {
+          "unix": 1793116688.5171351,
+          "available_bytes": 4794880000
+        },
+        {
+          "unix": 1793116689.5306227,
+          "available_bytes": 4799647744
+        },
+        {
+          "unix": 1793116690.541826,
+          "available_bytes": 4764614656
+        },
+        {
+          "unix": 1793116691.550311,
+          "available_bytes": 4764925952
+        },
+        {
+          "unix": 1793116692.5596297,
+          "available_bytes": 4637138944
+        },
+        {
+          "unix": 1793116693.567989,
+          "available_bytes": 4751020032
+        },
+        {
+          "unix": 1793116694.5818794,
+          "available_bytes": 4644544512
+        },
+        {
+          "unix": 1793116695.5998375,
+          "available_bytes": 4690792448
+        },
+        {
+          "unix": 1793116696.6078355,
+          "available_bytes": 4705009664
+        },
+        {
+          "unix": 1793116697.6216874,
+          "available_bytes": 4581842944
+        },
+        {
+          "unix": 1793116698.636635,
+          "available_bytes": 4524535808
+        },
+        {
+          "unix": 1793116699.645636,
+          "available_bytes": 4524326912
+        },
+        {
+          "unix": 1793116700.6584227,
+          "available_bytes": 4603064320
+        },
+        {
+          "unix": 1793116701.670591,
+          "available_bytes": 4558745600
+        },
+        {
+          "unix": 1793116702.6824734,
+          "available_bytes": 4356583424
+        },
+        {
+          "unix": 1793116703.6907485,
+          "available_bytes": 4276637696
+        },
+        {
+          "unix": 1793116704.7004719,
+          "available_bytes": 4454453248
+        },
+        {
+          "unix": 1793116705.710662,
+          "available_bytes": 4401373184
+        },
+        {
+          "unix": 1793116706.7244465,
+          "available_bytes": 4410871808
+        },
+        {
+          "unix": 1793116707.7377007,
+          "available_bytes": 4393979904
+        },
+        {
+          "unix": 1793116708.747418,
+          "available_bytes": 4316250112
+        },
+        {
+          "unix": 1793116709.7571154,
+          "available_bytes": 4361093120
+        },
+        {
+          "unix": 1793116710.7657933,
+          "available_bytes": 4332085248
+        },
+        {
+          "unix": 1793116711.7787726,
+          "available_bytes": 4221882368
+        },
+        {
+          "unix": 1793116712.7915232,
+          "available_bytes": 4335853568
+        },
+        {
+          "unix": 1793116713.8000412,
+          "available_bytes": 4271116288
+        },
+        {
+          "unix": 1793116714.809595,
+          "available_bytes": 4104110080
+        },
+        {
+          "unix": 1793116715.8179338,
+          "available_bytes": 3369938944
+        },
+        {
+          "unix": 1793116716.8299766,
+          "available_bytes": 4187033600
+        },
+        {
+          "unix": 1793116717.840529,
+          "available_bytes": 4082053120
+        },
+        {
+          "unix": 1793116718.8550103,
+          "available_bytes": 4175015936
+        },
+        {
+          "unix": 1793116719.8851614,
+          "available_bytes": 4005072896
+        },
+        {
+          "unix": 1793116720.895377,
+          "available_bytes": 4102606848
+        },
+        {
+          "unix": 1793116721.9104745,
+          "available_bytes": 4066111488
+        },
+        {
+          "unix": 1793116722.9229863,
+          "available_bytes": 4074057728
+        },
+        {
+          "unix": 1793116723.932382,
+          "available_bytes": 4047687680
+        },
+        {
+          "unix": 1793116724.947194,
+          "available_bytes": 3902464000
+        },
+        {
+          "unix": 1793116725.964192,
+          "available_bytes": 3784810496
+        },
+        {
+          "unix": 1793116726.9794378,
+          "available_bytes": 3937824768
+        },
+        {
+          "unix": 1793116727.9930425,
+          "available_bytes": 4206137344
+        },
+        {
+          "unix": 1793116729.0080566,
+          "available_bytes": 4157140992
+        },
+        {
+          "unix": 1793116730.0249274,
+          "available_bytes": 4296663040
+        },
+        {
+          "unix": 1793116731.0391152,
+          "available_bytes": 4552519680
+        },
+        {
+          "unix": 1793116732.0484383,
+          "available_bytes": 4509745152
+        },
+        {
+          "unix": 1793116733.057996,
+          "available_bytes": 4501528576
+        },
+        {
+          "unix": 1793116734.067399,
+          "available_bytes": 4494573568
+        },
+        {
+          "unix": 1793116735.0761147,
+          "available_bytes": 4109889536
+        },
+        {
+          "unix": 1793116736.0866642,
+          "available_bytes": 3952619520
+        },
+        {
+          "unix": 1793116737.10253,
+          "available_bytes": 4421693440
+        },
+        {
+          "unix": 1793116738.1138098,
+          "available_bytes": 4451860480
+        },
+        {
+          "unix": 1793116739.1234372,
+          "available_bytes": 4458037248
+        },
+        {
+          "unix": 1793116740.1401513,
+          "available_bytes": 4425175040
+        },
+        {
+          "unix": 1793116741.160676,
+          "available_bytes": 4455268352
+        },
+        {
+          "unix": 1793116742.1771524,
+          "available_bytes": 4459761664
+        },
+        {
+          "unix": 1793116743.188831,
+          "available_bytes": 4447457280
+        },
+        {
+          "unix": 1793116744.199893,
+          "available_bytes": 4411424768
+        },
+        {
+          "unix": 1793116745.2253764,
+          "available_bytes": 4225458176
+        },
+        {
+          "unix": 1793116746.2380211,
+          "available_bytes": 4297814016
+        },
+        {
+          "unix": 1793116747.2539504,
+          "available_bytes": 3239182336
+        },
+        {
+          "unix": 1793116748.2711515,
+          "available_bytes": 4160577536
+        },
+        {
+          "unix": 1793116749.2930164,
+          "available_bytes": 4261863424
+        },
+        {
+          "unix": 1793116750.3064597,
+          "available_bytes": 4134191104
+        },
+        {
+          "unix": 1793116751.319852,
+          "available_bytes": 4165877760
+        },
+        {
+          "unix": 1793116752.338648,
+          "available_bytes": 4278177792
+        },
+        {
+          "unix": 1793116753.3527808,
+          "available_bytes": 4338782208
+        },
+        {
+          "unix": 1793116754.3630314,
+          "available_bytes": 4219064320
+        },
+        {
+          "unix": 1793116755.375234,
+          "available_bytes": 4302000128
+        },
+        {
+          "unix": 1793116756.3839712,
+          "available_bytes": 4582109184
+        },
+        {
+          "unix": 1793116757.4020777,
+          "available_bytes": 4585226240
+        },
+        {
+          "unix": 1793116758.4107761,
+          "available_bytes": 3091476480
+        },
+        {
+          "unix": 1793116759.4199588,
+          "available_bytes": 3272982528
+        },
+        {
+          "unix": 1793116760.42966,
+          "available_bytes": 4516306944
+        },
+        {
+          "unix": 1793116761.439042,
+          "available_bytes": 4570398720
+        },
+        {
+          "unix": 1793116762.4559069,
+          "available_bytes": 4570275840
+        },
+        {
+          "unix": 1793116763.4705598,
+          "available_bytes": 4440997888
+        },
+        {
+          "unix": 1793116764.479811,
+          "available_bytes": 4543762432
+        },
+        {
+          "unix": 1793116765.4899704,
+          "available_bytes": 4512763904
+        },
+        {
+          "unix": 1793116766.50442,
+          "available_bytes": 4349440000
+        },
+        {
+          "unix": 1793116767.5148287,
+          "available_bytes": 4453990400
+        },
+        {
+          "unix": 1793116768.538101,
+          "available_bytes": 4423327744
+        },
+        {
+          "unix": 1793116769.5461812,
+          "available_bytes": 4466450432
+        },
+        {
+          "unix": 1793116770.5553014,
+          "available_bytes": 4430852096
+        },
+        {
+          "unix": 1793116771.569031,
+          "available_bytes": 4478210048
+        },
+        {
+          "unix": 1793116772.581868,
+          "available_bytes": 4497113088
+        },
+        {
+          "unix": 1793116773.5957127,
+          "available_bytes": 4383928320
+        },
+        {
+          "unix": 1793116774.604986,
+          "available_bytes": 4388556800
+        },
+        {
+          "unix": 1793116775.6189415,
+          "available_bytes": 4412973056
+        },
+        {
+          "unix": 1793116776.630479,
+          "available_bytes": 4360998912
+        },
+        {
+          "unix": 1793116777.6750367,
+          "available_bytes": 4241039360
+        },
+        {
+          "unix": 1793116778.6902294,
+          "available_bytes": 4212817920
+        },
+        {
+          "unix": 1793116779.705395,
+          "available_bytes": 4322390016
+        },
+        {
+          "unix": 1793116780.7211316,
+          "available_bytes": 4269826048
+        },
+        {
+          "unix": 1793116781.7311335,
+          "available_bytes": 4194631680
+        },
+        {
+          "unix": 1793116782.7382717,
+          "available_bytes": 3841486848
+        },
+        {
+          "unix": 1793116783.7515635,
+          "available_bytes": 4572532736
+        },
+        {
+          "unix": 1793116784.7621822,
+          "available_bytes": 4563120128
+        },
+        {
+          "unix": 1793116785.77607,
+          "available_bytes": 4540063744
+        },
+        {
+          "unix": 1793116786.8009233,
+          "available_bytes": 4502855680
+        },
+        {
+          "unix": 1793116787.8107135,
+          "available_bytes": 4537663488
+        },
+        {
+          "unix": 1793116788.8200195,
+          "available_bytes": 4527767552
+        },
+        {
+          "unix": 1793116789.830681,
+          "available_bytes": 3471011840
+        },
+        {
+          "unix": 1793116790.842867,
+          "available_bytes": 4482887680
+        },
+        {
+          "unix": 1793116791.85211,
+          "available_bytes": 3191128064
+        },
+        {
+          "unix": 1793116792.8644853,
+          "available_bytes": 4590022656
+        },
+        {
+          "unix": 1793116793.8737662,
+          "available_bytes": 4552732672
+        },
+        {
+          "unix": 1793116794.887987,
+          "available_bytes": 4534132736
+        },
+        {
+          "unix": 1793116795.9027553,
+          "available_bytes": 4490461184
+        },
+        {
+          "unix": 1793116796.9140573,
+          "available_bytes": 4539359232
+        },
+        {
+          "unix": 1793116797.9250581,
+          "available_bytes": 4511907840
+        },
+        {
+          "unix": 1793116798.9360676,
+          "available_bytes": 4036730880
+        },
+        {
+          "unix": 1793116799.9481075,
+          "available_bytes": 4476809216
+        },
+        {
+          "unix": 1793116800.9618752,
+          "available_bytes": 4454608896
+        },
+        {
+          "unix": 1793116801.9720032,
+          "available_bytes": 4418883584
+        },
+        {
+          "unix": 1793116802.9831219,
+          "available_bytes": 4406431744
+        },
+        {
+          "unix": 1793116803.9936776,
+          "available_bytes": 4372049920
+        },
+        {
+          "unix": 1793116805.0216637,
+          "available_bytes": 4351594496
+        },
+        {
+          "unix": 1793116806.0352023,
+          "available_bytes": 4332470272
+        },
+        {
+          "unix": 1793116807.044891,
+          "available_bytes": 4336992256
+        },
+        {
+          "unix": 1793116808.0621128,
+          "available_bytes": 4289994752
+        },
+        {
+          "unix": 1793116809.0749586,
+          "available_bytes": 4294172672
+        },
+        {
+          "unix": 1793116810.0891027,
+          "available_bytes": 4293730304
+        },
+        {
+          "unix": 1793116811.0988343,
+          "available_bytes": 4275150848
+        },
+        {
+          "unix": 1793116812.128659,
+          "available_bytes": 4388634624
+        },
+        {
+          "unix": 1793116813.1475496,
+          "available_bytes": 4407771136
+        },
+        {
+          "unix": 1793116814.1589453,
+          "available_bytes": 4417523712
+        },
+        {
+          "unix": 1793116815.1673226,
+          "available_bytes": 3216498688
+        },
+        {
+          "unix": 1793116816.182915,
+          "available_bytes": 4392677376
+        },
+        {
+          "unix": 1793116817.200097,
+          "available_bytes": 4324990976
+        },
+        {
+          "unix": 1793116818.2109787,
+          "available_bytes": 4314857472
+        },
+        {
+          "unix": 1793116819.223335,
+          "available_bytes": 4657381376
+        },
+        {
+          "unix": 1793116820.238345,
+          "available_bytes": 4604944384
+        },
+        {
+          "unix": 1793116821.2468266,
+          "available_bytes": 4590292992
+        },
+        {
+          "unix": 1793116822.2836354,
+          "available_bytes": 4599672832
+        },
+        {
+          "unix": 1793116823.2972922,
+          "available_bytes": 4581400576
+        },
+        {
+          "unix": 1793116824.347134,
+          "available_bytes": 4591742976
+        },
+        {
+          "unix": 1793116825.3598702,
+          "available_bytes": 4560220160
+        },
+        {
+          "unix": 1793116826.3701966,
+          "available_bytes": 4522037248
+        },
+        {
+          "unix": 1793116827.383431,
+          "available_bytes": 4509380608
+        },
+        {
+          "unix": 1793116828.3961437,
+          "available_bytes": 4492910592
+        },
+        {
+          "unix": 1793116829.4082444,
+          "available_bytes": 4465639424
+        },
+        {
+          "unix": 1793116830.4176807,
+          "available_bytes": 4431388672
+        },
+        {
+          "unix": 1793116831.4266346,
+          "available_bytes": 4418572288
+        },
+        {
+          "unix": 1793116832.4403877,
+          "available_bytes": 4421455872
+        },
+        {
+          "unix": 1793116833.4519403,
+          "available_bytes": 4360282112
+        },
+        {
+          "unix": 1793116834.462423,
+          "available_bytes": 4315652096
+        },
+        {
+          "unix": 1793116835.4745312,
+          "available_bytes": 4171137024
+        },
+        {
+          "unix": 1793116836.4832814,
+          "available_bytes": 4335988736
+        },
+        {
+          "unix": 1793116837.4976628,
+          "available_bytes": 4266659840
+        },
+        {
+          "unix": 1793116838.5078068,
+          "available_bytes": 4263092224
+        },
+        {
+          "unix": 1793116839.5227468,
+          "available_bytes": 4243988480
+        },
+        {
+          "unix": 1793116840.5317855,
+          "available_bytes": 4219858944
+        },
+        {
+          "unix": 1793116841.543767,
+          "available_bytes": 4159623168
+        },
+        {
+          "unix": 1793116842.558177,
+          "available_bytes": 4146204672
+        },
+        {
+          "unix": 1793116843.5720081,
+          "available_bytes": 4137009152
+        },
+        {
+          "unix": 1793116844.586421,
+          "available_bytes": 4081057792
+        },
+        {
+          "unix": 1793116845.6045916,
+          "available_bytes": 3983212544
+        },
+        {
+          "unix": 1793116846.6161242,
+          "available_bytes": 3967377408
+        },
+        {
+          "unix": 1793116847.625925,
+          "available_bytes": 3926409216
+        },
+        {
+          "unix": 1793116848.6390471,
+          "available_bytes": 3988959232
+        },
+        {
+          "unix": 1793116849.6479192,
+          "available_bytes": 3981041664
+        },
+        {
+          "unix": 1793116850.6703746,
+          "available_bytes": 3965861888
+        },
+        {
+          "unix": 1793116851.6783164,
+          "available_bytes": 3948290048
+        },
+        {
+          "unix": 1793116852.6959043,
+          "available_bytes": 3938201600
+        },
+        {
+          "unix": 1793116853.7060995,
+          "available_bytes": 3916472320
+        },
+        {
+          "unix": 1793116854.721187,
+          "available_bytes": 3891253248
+        },
+        {
+          "unix": 1793116855.7355645,
+          "available_bytes": 3811229696
+        },
+        {
+          "unix": 1793116856.7480047,
+          "available_bytes": 3822641152
+        },
+        {
+          "unix": 1793116857.7649658,
+          "available_bytes": 3717599232
+        },
+        {
+          "unix": 1793116858.780178,
+          "available_bytes": 3656273920
+        },
+        {
+          "unix": 1793116859.7935302,
+          "available_bytes": 3691585536
+        },
+        {
+          "unix": 1793116860.8067102,
+          "available_bytes": 3782275072
+        },
+        {
+          "unix": 1793116861.8152418,
+          "available_bytes": 3715932160
+        },
+        {
+          "unix": 1793116862.8303645,
+          "available_bytes": 3722776576
+        },
+        {
+          "unix": 1793116863.8383849,
+          "available_bytes": 3694419968
+        },
+        {
+          "unix": 1793116864.8473825,
+          "available_bytes": 3725897728
+        },
+        {
+          "unix": 1793116865.8567128,
+          "available_bytes": 3723198464
+        },
+        {
+          "unix": 1793116866.866042,
+          "available_bytes": 2816225280
+        },
+        {
+          "unix": 1793116867.8758392,
+          "available_bytes": 3692982272
+        },
+        {
+          "unix": 1793116868.8842764,
+          "available_bytes": 3691196416
+        },
+        {
+          "unix": 1793116869.8977785,
+          "available_bytes": 3662237696
+        },
+        {
+          "unix": 1793116870.9080229,
+          "available_bytes": 3632308224
+        },
+        {
+          "unix": 1793116871.921126,
+          "available_bytes": 3720474624
+        },
+        {
+          "unix": 1793116872.9308841,
+          "available_bytes": 3662888960
+        },
+        {
+          "unix": 1793116873.9438117,
+          "available_bytes": 4067803136
+        },
+        {
+          "unix": 1793116874.9535613,
+          "available_bytes": 4002983936
+        },
+        {
+          "unix": 1793116875.9661949,
+          "available_bytes": 4036100096
+        },
+        {
+          "unix": 1793116876.974918,
+          "available_bytes": 3407069184
+        },
+        {
+          "unix": 1793116877.9899554,
+          "available_bytes": 4016181248
+        },
+        {
+          "unix": 1793116879.0109515,
+          "available_bytes": 3987107840
+        },
+        {
+          "unix": 1793116880.0265896,
+          "available_bytes": 4001878016
+        },
+        {
+          "unix": 1793116881.0391476,
+          "available_bytes": 4020666368
+        },
+        {
+          "unix": 1793116882.0536222,
+          "available_bytes": 4014579712
+        },
+        {
+          "unix": 1793116883.066116,
+          "available_bytes": 4036755456
+        },
+        {
+          "unix": 1793116884.078216,
+          "available_bytes": 4113403904
+        },
+        {
+          "unix": 1793116885.0883934,
+          "available_bytes": 4105568256
+        },
+        {
+          "unix": 1793116886.0990083,
+          "available_bytes": 3530993664
+        },
+        {
+          "unix": 1793116887.113996,
+          "available_bytes": 4056195072
+        },
+        {
+          "unix": 1793116888.1250238,
+          "available_bytes": 3988701184
+        },
+        {
+          "unix": 1793116889.1424356,
+          "available_bytes": 4020432896
+        },
+        {
+          "unix": 1793116890.153839,
+          "available_bytes": 3981434880
+        },
+        {
+          "unix": 1793116891.1667907,
+          "available_bytes": 3927437312
+        },
+        {
+          "unix": 1793116892.177953,
+          "available_bytes": 3907698688
+        },
+        {
+          "unix": 1793116893.1869345,
+          "available_bytes": 3896303616
+        },
+        {
+          "unix": 1793116894.203076,
+          "available_bytes": 3820384256
+        },
+        {
+          "unix": 1793116895.2218533,
+          "available_bytes": 3843448832
+        },
+        {
+          "unix": 1793116896.321177,
+          "available_bytes": 3832233984
+        },
+        {
+          "unix": 1793116897.329909,
+          "available_bytes": 4040003584
+        },
+        {
+          "unix": 1793116898.3402944,
+          "available_bytes": 3917844480
+        },
+        {
+          "unix": 1793116899.3517258,
+          "available_bytes": 3930341376
+        },
+        {
+          "unix": 1793116900.3606312,
+          "available_bytes": 3946762240
+        },
+        {
+          "unix": 1793116901.3785942,
+          "available_bytes": 4102520832
+        },
+        {
+          "unix": 1793116902.387331,
+          "available_bytes": 4093784064
+        },
+        {
+          "unix": 1793116903.3978376,
+          "available_bytes": 4032409600
+        },
+        {
+          "unix": 1793116904.4162414,
+          "available_bytes": 4066426880
+        },
+        {
+          "unix": 1793116905.425215,
+          "available_bytes": 4063883264
+        },
+        {
+          "unix": 1793116906.4431412,
+          "available_bytes": 4018499584
+        },
+        {
+          "unix": 1793116907.467313,
+          "available_bytes": 4041134080
+        },
+        {
+          "unix": 1793116908.4792004,
+          "available_bytes": 4226850816
+        },
+        {
+          "unix": 1793116909.4920769,
+          "available_bytes": 4229861376
+        },
+        {
+          "unix": 1793116910.5096152,
+          "available_bytes": 4171878400
+        },
+        {
+          "unix": 1793116911.5202544,
+          "available_bytes": 4199424000
+        },
+        {
+          "unix": 1793116912.5291789,
+          "available_bytes": 4208746496
+        },
+        {
+          "unix": 1793116913.539381,
+          "available_bytes": 4168941568
+        },
+        {
+          "unix": 1793116914.5490277,
+          "available_bytes": 4135587840
+        },
+        {
+          "unix": 1793116915.5604205,
+          "available_bytes": 4161044480
+        },
+        {
+          "unix": 1793116916.5709999,
+          "available_bytes": 4133416960
+        },
+        {
+          "unix": 1793116917.5813227,
+          "available_bytes": 3559481344
+        },
+        {
+          "unix": 1793116918.591753,
+          "available_bytes": 4050300928
+        },
+        {
+          "unix": 1793116919.6041667,
+          "available_bytes": 4118478848
+        },
+        {
+          "unix": 1793116920.6192236,
+          "available_bytes": 4097179648
+        },
+        {
+          "unix": 1793116921.6315503,
+          "available_bytes": 4077420544
+        },
+        {
+          "unix": 1793116922.6448104,
+          "available_bytes": 4070723584
+        },
+        {
+          "unix": 1793116923.6569002,
+          "available_bytes": 4084760576
+        },
+        {
+          "unix": 1793116924.6680846,
+          "available_bytes": 4077932544
+        },
+        {
+          "unix": 1793116925.6779766,
+          "available_bytes": 4074962944
+        },
+        {
+          "unix": 1793116926.6908064,
+          "available_bytes": 4055179264
+        },
+        {
+          "unix": 1793116927.7003303,
+          "available_bytes": 4018229248
+        },
+        {
+          "unix": 1793116928.7078962,
+          "available_bytes": 2499260416
+        },
+        {
+          "unix": 1793116929.775268,
+          "available_bytes": 3990642688
+        },
+        {
+          "unix": 1793116930.7867808,
+          "available_bytes": 4077076480
+        },
+        {
+          "unix": 1793116931.8009286,
+          "available_bytes": 4034068480
+        },
+        {
+          "unix": 1793116932.8142984,
+          "available_bytes": 4031811584
+        },
+        {
+          "unix": 1793116933.8279524,
+          "available_bytes": 4005728256
+        },
+        {
+          "unix": 1793116934.8443594,
+          "available_bytes": 3978682368
+        },
+        {
+          "unix": 1793116935.8590412,
+          "available_bytes": 3981443072
+        },
+        {
+          "unix": 1793116936.8682706,
+          "available_bytes": 3979796480
+        },
+        {
+          "unix": 1793116937.877682,
+          "available_bytes": 3104600064
+        },
+        {
+          "unix": 1793116938.8859644,
+          "available_bytes": 3017789440
+        },
+        {
+          "unix": 1793116939.8998148,
+          "available_bytes": 3925012480
+        },
+        {
+          "unix": 1793116940.9100802,
+          "available_bytes": 3860922368
+        },
+        {
+          "unix": 1793116941.925056,
+          "available_bytes": 3858202624
+        },
+        {
+          "unix": 1793116942.9369786,
+          "available_bytes": 3911098368
+        },
+        {
+          "unix": 1793116943.9486473,
+          "available_bytes": 3947048960
+        },
+        {
+          "unix": 1793116944.960814,
+          "available_bytes": 3964342272
+        },
+        {
+          "unix": 1793116945.9750702,
+          "available_bytes": 3950862336
+        },
+        {
+          "unix": 1793116946.9865165,
+          "available_bytes": 3926265856
+        },
+        {
+          "unix": 1793116947.9957824,
+          "available_bytes": 3832025088
+        },
+        {
+          "unix": 1793116949.0055401,
+          "available_bytes": 2411134976
+        },
+        {
+          "unix": 1793116950.017356,
+          "available_bytes": 2598645760
+        },
+        {
+          "unix": 1793116951.026878,
+          "available_bytes": 2707181568
+        },
+        {
+          "unix": 1793116952.037561,
+          "available_bytes": 2663505920
+        },
+        {
+          "unix": 1793116953.0469348,
+          "available_bytes": 3859001344
+        },
+        {
+          "unix": 1793116954.0551844,
+          "available_bytes": 3795968000
+        },
+        {
+          "unix": 1793116955.064438,
+          "available_bytes": 3672129536
+        },
+        {
+          "unix": 1793116956.0751235,
+          "available_bytes": 3788279808
+        },
+        {
+          "unix": 1793116957.0868332,
+          "available_bytes": 3761606656
+        },
+        {
+          "unix": 1793116958.10203,
+          "available_bytes": 3748474880
+        },
+        {
+          "unix": 1793116959.117854,
+          "available_bytes": 3852484608
+        },
+        {
+          "unix": 1793116960.1275775,
+          "available_bytes": 3797438464
+        },
+        {
+          "unix": 1793116961.137196,
+          "available_bytes": 2142068736
+        }
+      ],
+      "pid": 38192,
+      "stopped": "memory reserve",
+      "returncode": 1,
+      "elapsed_seconds": 286.81199999991804
+    },
+    {
+      "command": [
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\.tmp-hf-moe-file-exact-evidence-20261003\\.reference-venv\\Scripts\\python.exe",
+        "-X",
+        "utf8",
+        "-u",
+        "C:\\Users\\Marko\\Desktop\\Projects\\llmx\\worktrees\\q1-q2-weights-20261027\\build-low-bits-dev\\low-bits-reference-sweep.py"
+      ],
+      "timeout_seconds": 900,
+      "minimum_available_bytes": 2147483648,
+      "samples": [
+        {
+          "unix": 1793117017.1089096,
+          "available_bytes": 4168568832
+        },
+        {
+          "unix": 1793117018.116773,
+          "available_bytes": 4007448576
+        },
+        {
+          "unix": 1793117019.125603,
+          "available_bytes": 3973214208
+        },
+        {
+          "unix": 1793117020.1369748,
+          "available_bytes": 4296036352
+        },
+        {
+          "unix": 1793117021.1484666,
+          "available_bytes": 4284178432
+        },
+        {
+          "unix": 1793117022.1616426,
+          "available_bytes": 4277047296
+        },
+        {
+          "unix": 1793117023.1705475,
+          "available_bytes": 4273434624
+        },
+        {
+          "unix": 1793117024.179683,
+          "available_bytes": 4034097152
+        },
+        {
+          "unix": 1793117025.189663,
+          "available_bytes": 4125143040
+        },
+        {
+          "unix": 1793117026.201517,
+          "available_bytes": 4234555392
+        },
+        {
+          "unix": 1793117027.2378783,
+          "available_bytes": 4177756160
+        },
+        {
+          "unix": 1793117028.252419,
+          "available_bytes": 4027117568
+        },
+        {
+          "unix": 1793117029.26536,
+          "available_bytes": 4191137792
+        },
+        {
+          "unix": 1793117030.280295,
+          "available_bytes": 4128055296
+        },
+        {
+          "unix": 1793117031.2869139,
+          "available_bytes": 4163403776
+        },
+        {
+          "unix": 1793117032.2973697,
+          "available_bytes": 4152651776
+        },
+        {
+          "unix": 1793117033.3095202,
+          "available_bytes": 4134375424
+        },
+        {
+          "unix": 1793117034.3188386,
+          "available_bytes": 3544260608
+        },
+        {
+          "unix": 1793117035.3347166,
+          "available_bytes": 4067409920
+        },
+        {
+          "unix": 1793117036.3483949,
+          "available_bytes": 4066287616
+        },
+        {
+          "unix": 1793117037.361849,
+          "available_bytes": 4023844864
+        },
+        {
+          "unix": 1793117038.3771753,
+          "available_bytes": 3914797056
+        },
+        {
+          "unix": 1793117039.4011345,
+          "available_bytes": 3962245120
+        },
+        {
+          "unix": 1793117040.4148948,
+          "available_bytes": 3943264256
+        },
+        {
+          "unix": 1793117041.423243,
+          "available_bytes": 3831316480
+        },
+        {
+          "unix": 1793117042.4344544,
+          "available_bytes": 3320291328
+        },
+        {
+          "unix": 1793117043.4486458,
+          "available_bytes": 3477921792
+        },
+        {
+          "unix": 1793117044.4665272,
+          "available_bytes": 3701854208
+        },
+        {
+          "unix": 1793117045.4748974,
+          "available_bytes": 3749744640
+        },
+        {
+          "unix": 1793117046.4837735,
+          "available_bytes": 3195203584
+        },
+        {
+          "unix": 1793117047.4960992,
+          "available_bytes": 3538190336
+        },
+        {
+          "unix": 1793117048.5074465,
+          "available_bytes": 3736334336
+        },
+        {
+          "unix": 1793117049.5362856,
+          "available_bytes": 4024033280
+        },
+        {
+          "unix": 1793117050.5464709,
+          "available_bytes": 4033097728
+        },
+        {
+          "unix": 1793117051.5556767,
+          "available_bytes": 4030697472
+        },
+        {
+          "unix": 1793117052.5689967,
+          "available_bytes": 4054880256
+        },
+        {
+          "unix": 1793117053.579383,
+          "available_bytes": 4069359616
+        },
+        {
+          "unix": 1793117054.5910606,
+          "available_bytes": 3987767296
+        },
+        {
+          "unix": 1793117055.6043973,
+          "available_bytes": 4068364288
+        },
+        {
+          "unix": 1793117056.6147208,
+          "available_bytes": 4070424576
+        },
+        {
+          "unix": 1793117057.6353173,
+          "available_bytes": 3950219264
+        },
+        {
+          "unix": 1793117058.6444066,
+          "available_bytes": 4062089216
+        },
+        {
+          "unix": 1793117059.6593134,
+          "available_bytes": 4033695744
+        },
+        {
+          "unix": 1793117060.6699362,
+          "available_bytes": 3454349312
+        },
+        {
+          "unix": 1793117061.6809804,
+          "available_bytes": 3907371008
+        },
+        {
+          "unix": 1793117062.6939552,
+          "available_bytes": 4005621760
+        },
+        {
+          "unix": 1793117063.703996,
+          "available_bytes": 3944775680
+        },
+        {
+          "unix": 1793117064.712062,
+          "available_bytes": 3296591872
+        },
+        {
+          "unix": 1793117065.7210445,
+          "available_bytes": 3047055360
+        },
+        {
+          "unix": 1793117066.729714,
+          "available_bytes": 3359207424
+        },
+        {
+          "unix": 1793117067.743782,
+          "available_bytes": 4021047296
+        },
+        {
+          "unix": 1793117068.7570689,
+          "available_bytes": 4009553920
+        },
+        {
+          "unix": 1793117069.7679026,
+          "available_bytes": 3899301888
+        },
+        {
+          "unix": 1793117070.7816322,
+          "available_bytes": 3962417152
+        },
+        {
+          "unix": 1793117071.7943137,
+          "available_bytes": 3954982912
+        },
+        {
+          "unix": 1793117072.8049958,
+          "available_bytes": 3867299840
+        },
+        {
+          "unix": 1793117073.819568,
+          "available_bytes": 3900010496
+        },
+        {
+          "unix": 1793117074.8360887,
+          "available_bytes": 3745132544
+        },
+        {
+          "unix": 1793117075.8502862,
+          "available_bytes": 3823431680
+        },
+        {
+          "unix": 1793117076.8600087,
+          "available_bytes": 3687780352
+        },
+        {
+          "unix": 1793117077.8757164,
+          "available_bytes": 3698143232
+        },
+        {
+          "unix": 1793117078.886108,
+          "available_bytes": 3829878784
+        },
+        {
+          "unix": 1793117079.8950312,
+          "available_bytes": 3826675712
+        },
+        {
+          "unix": 1793117080.9030232,
+          "available_bytes": 3847438336
+        },
+        {
+          "unix": 1793117081.9169545,
+          "available_bytes": 3824979968
+        },
+        {
+          "unix": 1793117082.930134,
+          "available_bytes": 3813449728
+        },
+        {
+          "unix": 1793117083.9429877,
+          "available_bytes": 3727761408
+        },
+        {
+          "unix": 1793117084.9570143,
+          "available_bytes": 3789258752
+        },
+        {
+          "unix": 1793117085.970007,
+          "available_bytes": 3770793984
+        },
+        {
+          "unix": 1793117086.9787283,
+          "available_bytes": 3687038976
+        },
+        {
+          "unix": 1793117087.9927616,
+          "available_bytes": 3579043840
+        },
+        {
+          "unix": 1793117089.0017893,
+          "available_bytes": 3719667712
+        },
+        {
+          "unix": 1793117090.0107217,
+          "available_bytes": 2166345728
+        },
+        {
+          "unix": 1793117091.0443263,
+          "available_bytes": 3543003136
+        },
+        {
+          "unix": 1793117092.0553322,
+          "available_bytes": 3647021056
+        },
+        {
+          "unix": 1793117093.0701928,
+          "available_bytes": 3585515520
+        },
+        {
+          "unix": 1793117094.0813863,
+          "available_bytes": 3619364864
+        },
+        {
+          "unix": 1793117095.0929172,
+          "available_bytes": 3640627200
+        },
+        {
+          "unix": 1793117096.1096973,
+          "available_bytes": 3629096960
+        },
+        {
+          "unix": 1793117097.1206276,
+          "available_bytes": 3504087040
+        },
+        {
+          "unix": 1793117098.134413,
+          "available_bytes": 3631403008
+        },
+        {
+          "unix": 1793117099.1471736,
+          "available_bytes": 3602710528
+        },
+        {
+          "unix": 1793117100.1593864,
+          "available_bytes": 3479298048
+        },
+        {
+          "unix": 1793117101.169636,
+          "available_bytes": 3571421184
+        },
+        {
+          "unix": 1793117102.1838024,
+          "available_bytes": 3599417344
+        },
+        {
+          "unix": 1793117103.1963003,
+          "available_bytes": 3437412352
+        },
+        {
+          "unix": 1793117104.210748,
+          "available_bytes": 3358277632
+        },
+        {
+          "unix": 1793117105.2209995,
+          "available_bytes": 3238350848
+        },
+        {
+          "unix": 1793117106.2365444,
+          "available_bytes": 3477467136
+        },
+        {
+          "unix": 1793117107.2509317,
+          "available_bytes": 3472973824
+        },
+        {
+          "unix": 1793117108.2709088,
+          "available_bytes": 3488935936
+        },
+        {
+          "unix": 1793117109.2801116,
+          "available_bytes": 3621699584
+        },
+        {
+          "unix": 1793117110.2929552,
+          "available_bytes": 3603726336
+        },
+        {
+          "unix": 1793117111.3049223,
+          "available_bytes": 3569254400
+        },
+        {
+          "unix": 1793117112.3135269,
+          "available_bytes": 4074217472
+        },
+        {
+          "unix": 1793117113.3245897,
+          "available_bytes": 4048289792
+        },
+        {
+          "unix": 1793117114.335486,
+          "available_bytes": 3910369280
+        },
+        {
+          "unix": 1793117115.347537,
+          "available_bytes": 3997507584
+        },
+        {
+          "unix": 1793117116.3585038,
+          "available_bytes": 3372781568
+        },
+        {
+          "unix": 1793117117.3747866,
+          "available_bytes": 3872444416
+        },
+        {
+          "unix": 1793117118.3835049,
+          "available_bytes": 3964366848
+        },
+        {
+          "unix": 1793117119.3975909,
+          "available_bytes": 3957473280
+        },
+        {
+          "unix": 1793117120.4098299,
+          "available_bytes": 3890028544
+        },
+        {
+          "unix": 1793117121.4223754,
+          "available_bytes": 3609452544
+        },
+        {
+          "unix": 1793117122.4321926,
+          "available_bytes": 3885281280
+        },
+        {
+          "unix": 1793117123.4417932,
+          "available_bytes": 3857879040
+        },
+        {
+          "unix": 1793117124.455921,
+          "available_bytes": 3838976000
+        },
+        {
+          "unix": 1793117125.4667485,
+          "available_bytes": 3845574656
+        },
+        {
+          "unix": 1793117126.4779038,
+          "available_bytes": 3708596224
+        },
+        {
+          "unix": 1793117127.4886916,
+          "available_bytes": 3812552704
+        },
+        {
+          "unix": 1793117128.5020247,
+          "available_bytes": 3797012480
+        },
+        {
+          "unix": 1793117129.5132947,
+          "available_bytes": 3652055040
+        },
+        {
+          "unix": 1793117130.525801,
+          "available_bytes": 3737645056
+        },
+        {
+          "unix": 1793117131.5403876,
+          "available_bytes": 3719114752
+        },
+        {
+          "unix": 1793117132.5496414,
+          "available_bytes": 3680583680
+        },
+        {
+          "unix": 1793117133.5558467,
+          "available_bytes": 3727679488
+        },
+        {
+          "unix": 1793117134.566191,
+          "available_bytes": 3585593344
+        },
+        {
+          "unix": 1793117135.575369,
+          "available_bytes": 3684044800
+        },
+        {
+          "unix": 1793117136.5844252,
+          "available_bytes": 3673956352
+        },
+        {
+          "unix": 1793117137.5939481,
+          "available_bytes": 3667038208
+        },
+        {
+          "unix": 1793117138.6061842,
+          "available_bytes": 3938234368
+        },
+        {
+          "unix": 1793117139.618309,
+          "available_bytes": 3935834112
+        },
+        {
+          "unix": 1793117140.6279497,
+          "available_bytes": 3920158720
+        },
+        {
+          "unix": 1793117141.6369781,
+          "available_bytes": 3913453568
+        },
+        {
+          "unix": 1793117142.649967,
+          "available_bytes": 3879673856
+        },
+        {
+          "unix": 1793117143.6580863,
+          "available_bytes": 3765252096
+        },
+        {
+          "unix": 1793117144.6707444,
+          "available_bytes": 3879395328
+        },
+        {
+          "unix": 1793117145.6801453,
+          "available_bytes": 3853803520
+        },
+        {
+          "unix": 1793117146.6893632,
+          "available_bytes": 3720806400
+        },
+        {
+          "unix": 1793117147.6990519,
+          "available_bytes": 3837685760
+        },
+        {
+          "unix": 1793117148.7065077,
+          "available_bytes": 2251714560
+        },
+        {
+          "unix": 1793117149.715492,
+          "available_bytes": 3621548032
+        },
+        {
+          "unix": 1793117150.7298079,
+          "available_bytes": 3757096960
+        },
+        {
+          "unix": 1793117151.7443354,
+          "available_bytes": 3731865600
+        },
+        {
+          "unix": 1793117152.75309,
+          "available_bytes": 3731578880
+        },
+        {
+          "unix": 1793117153.768232,
+          "available_bytes": 3680419840
+        },
+        {
+          "unix": 1793117154.7831724,
+          "available_bytes": 3624804352
+        },
+        {
+          "unix": 1793117155.8175268,
+          "available_bytes": 3678081024
+        },
+        {
+          "unix": 1793117156.8262675,
+          "available_bytes": 3671560192
+        },
+        {
+          "unix": 1793117157.8365934,
+          "available_bytes": 3584286720
+        },
+        {
+          "unix": 1793117158.845567,
+          "available_bytes": 3635798016
+        },
+        {
+          "unix": 1793117159.8549602,
+          "available_bytes": 3620560896
+        },
+        {
+          "unix": 1793117160.8691907,
+          "available_bytes": 3566297088
+        },
+        {
+          "unix": 1793117161.883167,
+          "available_bytes": 3444719616
+        },
+        {
+          "unix": 1793117162.8950834,
+          "available_bytes": 3332558848
+        },
+        {
+          "unix": 1793117163.9076924,
+          "available_bytes": 3599015936
+        },
+        {
+          "unix": 1793117164.9232247,
+          "available_bytes": 3514302464
+        },
+        {
+          "unix": 1793117165.9415827,
+          "available_bytes": 3451822080
+        },
+        {
+          "unix": 1793117166.9528136,
+          "available_bytes": 2928427008
+        }
+      ],
+      "pid": 41796,
+      "returncode": 0,
+      "elapsed_seconds": 150.875
+    }
+  ],
+  "interpretation": "Reference-only F32 execution-order sensitivity, not a runtime correctness pass. No acceptance bound is installed. Two processes stopped at the unchanged 2 GiB reserve; completed rows were retained and the exact pinned plan resumed. Canonical full-forward results match committed goldens exactly. This empirical spread is not a mathematical error bound for another implementation.",
+  "by_shape": {
+    "Q1_0 ordinary": {
+      "models": 15,
+      "routing_changed": 0,
+      "max_stable_logit_spread": 3.647804260253906e-05,
+      "models_exceeding_2e_5": 4
+    },
+    "Q1_0 split": {
+      "models": 15,
+      "routing_changed": 0,
+      "max_stable_logit_spread": 8.20159912109375e-05,
+      "models_exceeding_2e_5": 15
+    },
+    "Q2_0 ordinary": {
+      "models": 15,
+      "routing_changed": 0,
+      "max_stable_logit_spread": 2.002716064453125e-05,
+      "models_exceeding_2e_5": 1
+    },
+    "Q2_0 split": {
+      "models": 15,
+      "routing_changed": 0,
+      "max_stable_logit_spread": 7.82012939453125e-05,
+      "models_exceeding_2e_5": 15
+    }
+  }
+}

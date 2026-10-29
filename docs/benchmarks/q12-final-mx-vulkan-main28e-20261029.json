@@ -1,0 +1,272 @@
+{
+  "scope": "Final actual-28e quant-versus-mx Vulkan screen. Five cells, ABBA order, 20 timed calls. The Q2 8B Vulkan performance phase gate is not met.",
+  "candidate": {
+    "revision": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+    "cli_sha256": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3",
+    "selected_build_receipt_sha256": "b1c74b4e5c4901ecfb40024111095e6335c7125f8595a1dd62cb5bec9ecdd27d",
+    "selected_vulkan_library_sha256": "3a254f49d914b4638d3dd1b42c2e82bac0430d413d59f711d4900e062de4eb41",
+    "unchanged": true,
+    "version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2"
+  },
+  "mx": {
+    "build_receipt_sha256": "efb662d07706f8b9100770d2d1c76ddcbd5a7253fd82083a3a361c3cd02a40f9",
+    "llama_bench_sha256": "5824cbde1e95295f3434e44f90a0b03833b3d9481a6c85f005824d74745838aa",
+    "version": "0.6.0-dev, build 0, commit unknown; GNU 14.2.0",
+    "libraries": {
+      "libggml.so": "1715c782a32caf20c757355cee43d4cd23aee5f3ed64e9da5bd96e3ab0a5726b",
+      "libllama.so": "399554c5eeb4921a9dc36828ea5085337c7e664c8ebb35528cd5c3b1b5f732e6",
+      "libggml-vulkan.so": "174f770194974d53f587ae2beed0a79b11cb79a3465059a08c7032b42d27b2b9",
+      "libggml-base.so": "bbe5bb40fb2cdd2f3852dbd816fdbc937fe0c08f77dc66af40255b953c3ef89c",
+      "libggml-cpu.so": "b03927939d41e30fce274a25fe148ff15ecd6139bb8977e8ba41cc848b07b677"
+    }
+  },
+  "environment": {
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "device_pci": "0000:c9:00.0",
+    "render_node": "/dev/dri/renderD130",
+    "cpu_set": "8-9",
+    "cpu_quota": 2,
+    "threads": 4,
+    "context": 40960,
+    "vocabulary": 151936,
+    "kv": "f16/f16",
+    "ubatch": 512,
+    "bench_method": "Matched LCG token IDs (prompt12345, decode777), full prompt and G256 warmups from empty sequences before measured phases. One prompt head, one head per decode token, completed synchronization. All three GGUF contexts are40960 and vocabularies151936.",
+    "order": [
+      "selected",
+      "mx",
+      "mx",
+      "selected"
+    ]
+  },
+  "models": {
+    "q1": {
+      "file": "Boole-1.7B-Q1_0.gguf",
+      "bytes": 292142912,
+      "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+      "context": 40960
+    },
+    "q2-small": {
+      "file": "Qwen3-0.6B-Q2_0.gguf",
+      "bytes": 345218560,
+      "sha256": "8e15e65d208fcc4709ec949fd11dc4a8584b4569f53539e6c39cc4d00ecf6a8b",
+      "context": 40960
+    },
+    "q2-8b": {
+      "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+      "bytes": 2310747584,
+      "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+      "context": 40960
+    }
+  },
+  "matrix": [
+    {
+      "cell": "q1-p128",
+      "phase": "pp",
+      "units": "tokens/second",
+      "selected_samples": [
+        2501.65,
+        2498.49
+      ],
+      "selected_mean": 2500.0699999999997,
+      "mx_samples": [
+        1105.700445,
+        781.110817
+      ],
+      "mx_mean": 943.405631,
+      "selected_vs_mx_percent": 165.0047782044667,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q1-p128",
+      "phase": "tg",
+      "units": "tokens/second",
+      "selected_samples": [
+        253.69,
+        235.88
+      ],
+      "selected_mean": 244.785,
+      "mx_samples": [
+        240.698957,
+        240.756356
+      ],
+      "mx_mean": 240.72765650000002,
+      "selected_vs_mx_percent": 1.6854496732908508,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q1-p4096",
+      "phase": "pp",
+      "units": "tokens/second",
+      "selected_samples": [
+        2225.17,
+        2219.86
+      ],
+      "selected_mean": 2222.5150000000003,
+      "mx_samples": [
+        1309.554468,
+        1303.988757
+      ],
+      "mx_mean": 1306.7716125000002,
+      "selected_vs_mx_percent": 70.0767738402337,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q1-p4096",
+      "phase": "tg",
+      "units": "tokens/second",
+      "selected_samples": [
+        230.8,
+        218.68
+      ],
+      "selected_mean": 224.74,
+      "mx_samples": [
+        245.089909,
+        230.871286
+      ],
+      "mx_mean": 237.9805975,
+      "selected_vs_mx_percent": -5.563729833059172,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-small-p128",
+      "phase": "pp",
+      "units": "tokens/second",
+      "selected_samples": [
+        5636.69,
+        5650.18
+      ],
+      "selected_mean": 5643.4349999999995,
+      "mx_samples": [
+        3802.543991,
+        3138.232523
+      ],
+      "mx_mean": 3470.388257,
+      "selected_vs_mx_percent": 62.616819274236015,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-small-p128",
+      "phase": "tg",
+      "units": "tokens/second",
+      "selected_samples": [
+        319.63,
+        307.23
+      ],
+      "selected_mean": 313.43,
+      "mx_samples": [
+        321.052741,
+        295.872604
+      ],
+      "mx_mean": 308.46267250000005,
+      "selected_vs_mx_percent": 1.6103496282844354,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-8b-p128",
+      "phase": "pp",
+      "units": "tokens/second",
+      "selected_samples": [
+        601.27,
+        599.12
+      ],
+      "selected_mean": 600.1949999999999,
+      "mx_samples": [
+        344.792256,
+        355.874076
+      ],
+      "mx_mean": 350.333166,
+      "selected_vs_mx_percent": 71.3212045701662,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-8b-p128",
+      "phase": "tg",
+      "units": "tokens/second",
+      "selected_samples": [
+        60.84,
+        60.97
+      ],
+      "selected_mean": 60.905,
+      "mx_samples": [
+        131.945286,
+        127.298002
+      ],
+      "mx_mean": 129.621644,
+      "selected_vs_mx_percent": -53.01324831214145,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-8b-p4096",
+      "phase": "pp",
+      "units": "tokens/second",
+      "selected_samples": [
+        558.87,
+        557.6
+      ],
+      "selected_mean": 558.235,
+      "mx_samples": [
+        721.388387,
+        725.923074
+      ],
+      "mx_mean": 723.6557305,
+      "selected_vs_mx_percent": -22.859036904980336,
+      "all_calls_valid": true
+    },
+    {
+      "cell": "q2-8b-p4096",
+      "phase": "tg",
+      "units": "tokens/second",
+      "selected_samples": [
+        61.06,
+        61.84
+      ],
+      "selected_mean": 61.45,
+      "mx_samples": [
+        126.714807,
+        129.639344
+      ],
+      "mx_mean": 128.1770755,
+      "selected_vs_mx_percent": -52.05850986980898,
+      "all_calls_valid": true
+    }
+  ],
+  "monitoring": {
+    "samples": 169,
+    "covered_calls": 20,
+    "flagged_calls": {
+      "other_gpu": 20,
+      "unrelated_cpu": 20,
+      "disk": 20,
+      "gap": 0
+    },
+    "unknown_process_cpu_observations": 2267,
+    "missed_process_observations": 119,
+    "limitations": "Short-lived processes between samples may be missed; disappeared/new and inaccessible processes are retained as coverage limits. Unavailable GPU counters are not zero."
+  },
+  "completion": {
+    "calls_in_execution_including_preflight": 24,
+    "timed_calls": 20,
+    "matched_paths": {
+      "q1-p128": true,
+      "q1-p4096": true,
+      "q2-small-p128": true,
+      "q2-8b-p128": true,
+      "q2-8b-p4096": true
+    },
+    "container_removed": true,
+    "listed_output_files_hash_verified": 51,
+    "hashes_verified": true,
+    "seconds": 351.2434136867523
+  },
+  "artifacts": {
+    "output_directory": "scratch/q12-landing-20261029/final-mx-vulkan-main28e-v1/out",
+    "execution_sha256": "23ae939ed4805a8bee6d346cca75fa0f29bbd77658389488215f5cd905c4e342",
+    "summary_sha256": "463e1e18642e2de7befebce97755eb5a48c64fea9927e7beabbfe0cc25029476",
+    "plan_sha256": "1a3a32380808b981eadceef611d0a8fdba19ddcc5ca71643ca1dba0b2ba72a58",
+    "payload_sha256": "f6162abc7bdb3fab26c22bf999f41f448d3ac13d5b09f3369e995ca7f4f574cc",
+    "identity_receipt_sha256": "640f291ae1ea8b4245c0884603f0100b7fd9342e87407ea7b087dd1e1ae79ac0",
+    "monitor_owner_sha256": "b47544d9355e16471bc83308a61c02b5b3beb16002dc8b4e9752caca537a55bf"
+  },
+  "interpretation": "On the Q2 8B grid-MSE file, generation is 53.01% and 52.06% below mx at P128 and P4096; P4096 prefill is 22.86% below mx, while P128 prefill is 71.32% above. The gate is unmet. All 20 calls had unrelated-CPU, other-GPU and disk activity flags, with no sample gaps. The monitoring limitations are retained. These measurements do not establish a cause; the separate diagnostic profile is not evidence in this record."
+}

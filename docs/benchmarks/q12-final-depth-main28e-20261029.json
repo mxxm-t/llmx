@@ -1,0 +1,109 @@
+{
+  "scope": "Final actual28e MI50 depth comparisons for Q1 Boole raw/chat and Q2 8B grid-MSE raw. No reference rerun, threshold change, merge, or broad qualification claim.",
+  "candidate": {
+    "revision": "28e97f5e3d26f4e1329373650fdd26d5d8a2bc64",
+    "build_receipt_sha256": "b1c74b4e5c4901ecfb40024111095e6335c7125f8595a1dd62cb5bec9ecdd27d",
+    "source_pins_sha256": "4c9fab840610d5af491cca57dd8eae97d2477be87d02f7cb2a9304575a1d78a8",
+    "version": "llmx 0.1.0+g28e97f5e3d26 numerics 7f76bd19ff129ca2",
+    "cli_sha256": "020de85847c663e083ff901c6ae0320db36512b5c15928f633ddc2d534b267a3",
+    "library_sha256": "3a254f49d914b4638d3dd1b42c2e82bac0430d413d59f711d4900e062de4eb41",
+    "image": "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+    "integration_context": "The 3a integration changes no inference runtime source relative to the measured 28e runtime; this evidence names the actual 28e binary, not a rebuilt 3a binary."
+  },
+  "acceptance": {
+    "owner": "tests/common.py::hf_depth_top1",
+      "owner_sha256": "a17e58bfc33dfb699c77d722101e3ac69d11cd810fab9ff5bb22c4ed8663d916",
+    "rule": "512 positions; exact top-one passes; otherwise HF top-two is an accepted tie only when its gap is <= 0.1; all other positions miss.",
+    "limit_changed": false
+  },
+  "model_and_reference_pins": {
+    "q1_boole": {
+      "file": "Boole-1.7B-Q1_0.gguf",
+      "sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+      "bytes": 292142912,
+      "raw_reference_report_sha256": "32cd3ef71a58fe5f5dfb4321f4292b4d05e7fb03c31c5d9d4e9db1440db66cca",
+      "chat_reference_report_sha256": "c10700b29073f6c98cb4af15dd1e1b3008d20a2108fc4fdd45644030fb557eab",
+      "policy_map_sha256": "47498695b0c52f32dbcef1be8a3c657885ff182888d22b3721bf5a7487404bf0",
+      "input_manifest_sha256": "5eaa4798e402d63b31f32f741b1f7af0728ebdf4e253933054ca7cca985c92a0",
+      "reference_policy_sha256": "7f1963bc0d795282d923fae99f3e924ae0c2021bb4d663d3e28db87fa51918a8",
+      "reference_scope": "Corrected exact-policy MI50 reference; independent GGUF decoding, block-int16 policy, F32 sums, F16 KV."
+    },
+    "q2_grid_mse_8b": {
+      "file": "Qwen3-8B-Q2_0-grid-mse.gguf",
+      "sha256": "3882b2cf5ace23cc984891d9fc697f1c317a06a2f3e68d12e974cbd3de4353c5",
+      "bytes": 2310747584,
+      "selected_reference_root": "own8b-layer-major-depth-v1",
+      "selected_reference_plan_sha256": "449712ff7c0748c4994bdfeb90dfc732c3f031b2ec4549b2831579e171a97102",
+      "selected_policy_map_sha256": "8d143174995669d20aa251535cee2d8bfb35145777620fde8514053fbb015c74",
+      "raw_input_manifest_sha256": "ac7b449bb3430a3facf785e55fd25b2a71a0a1c866723c047acbca3f337ea0bf",
+      "reference_scope": "Frozen selected-policy reference on the exact GGUF-decoded 8B weights; original-F32 quality comparison remains incomplete."
+    }
+  },
+  "results": [
+    {
+      "cell": "q1-raw",
+      "result": "PASS",
+      "counts": { "exact": 512, "accepted_ties": 0, "misses": 0 },
+      "scores": { "elements": 77791232, "bytes": 311164928, "sha256": "bb5a3662bd57f2ae7a42f067f2fc98a2254de94f62fdac16c6c30d8855a6797b" },
+      "device_pci": "0000:89:00.0",
+      "capture_executable_sha256": "ccc7d65f5b88630e379b01a7e8040c8887fadff2c2330b3d64ee4664acb55697",
+      "capture_execution_sha256": "48a4b967544286831fb9ee224834126ea3bd832bbab272b725b109c2742c0fbe",
+      "comparison_execution_sha256": "ba30162c9ee8367e7cfabdf064244ddfe6dd9ffa57eaf285d2447795a301be20",
+      "comparison_stdout_sha256": "ccd38766ca0cc1f2ec6e8eab6862fb0239a9fe34621d2591729ab2fe3d75fec4",
+      "artifacts": "scratch/q12-landing-20261029/final-depth-results-main28e-v1/q1-raw/"
+    },
+    {
+      "cell": "q1-chat",
+      "result": "PASS",
+      "counts": { "exact": 512, "accepted_ties": 0, "misses": 0 },
+      "scores": { "elements": 77791232, "bytes": 311164928, "sha256": "bada32f6fd03521aec56fe184aeff07e71d21bb0b309a05085b78f165000d0fb" },
+      "device_pci": "0000:c9:00.0",
+      "capture_executable_sha256": "ccc7d65f5b88630e379b01a7e8040c8887fadff2c2330b3d64ee4664acb55697",
+      "capture_execution_sha256": "9d2fdfa49734b20155f008a5dc444c5032832a83f7a8b29768ebcb101cc4cc74",
+      "comparison_execution_sha256": "811c8e2b2ccd9dac6fbc4babb57d0d02e9d372405aa873972f5acdf516738966",
+      "comparison_stdout_sha256": "da7d6329006446fbd20b8340aefc5631c69cba8733d84e1194b0f45ecd759eb7",
+      "artifacts": "scratch/q12-landing-20261029/final-depth-results-main28e-v1/q1-chat/"
+    },
+    {
+      "cell": "q2-8b-raw-selected-only",
+      "result": "PASS, PROVISIONAL SELECTED-POLICY ONLY",
+      "counts": { "exact": 512, "accepted_ties": 0, "misses": 0 },
+      "scores": { "elements": 77791232, "bytes": 311164928, "sha256": "2fee5a9bb59fdda9069a6c76c44732abe3073210e8c4eb6fd24aa37f32ac0969" },
+      "device_pci": "0000:89:00.0",
+      "capture_executable_sha256": "80e4307ada19e40b56c201927c3e29ac3c84523907c1e1198d8eda8dfc684ff7",
+      "capture_execution_sha256": "a476ac93cab358ae9c031d8ece489213fd337ec3296a1d971924992038e6f2ed",
+      "comparison_execution_sha256": "c993543e36c23559921fd21cebdcd50cf69591fc2db8cb2038b54f527d0691e8",
+      "comparison_stdout_sha256": "be4de4a23a39324aa7bd7ff09abdf45e456875b26ee5e2877f6a1db6d9d10be4",
+      "overall_qualification_complete": false,
+      "artifacts": "scratch/q12-landing-20261029/final-depth-results-main28e-v1/q2-raw/"
+    }
+  ],
+  "preserved_pre_inference_failures": {
+    "note": "Earlier memory-admission refusal, lost capture executable bit, missing child manifest, and busy-device attempts remain retained as setup/preflight failures. They began no inference and yielded no numerical results; they do not replace or discard the completed comparisons above.",
+    "history_roots": [
+      "scratch/q12-landing-20261029/final-depth-main28e-v1/historical/",
+      "scratch/q12-landing-20261029/final-depth-main28e-v2/",
+      "scratch/q12-landing-20261029/final-depth-main28e-v3/"
+    ]
+  },
+  "original_f32_companion": {
+    "status": "Operationally stopped; no numerical verdict.",
+    "terminal_receipt": "scratch/q12-landing-20261029/f32-continuation-terminal.json",
+    "terminal_receipt_sha256": "2d4c056acbdf5cd61d6d91767f5e1c3f3e408770d21e0ede9cc5b0b23bb9c6ab",
+    "plan_sha256": "9c84cd460d58e220330468d81c79bb5644aa199b0ba703b9ae51ee630a8a789e",
+    "payload_sha256": "d9288a77fa4d16040e03e94c68a3fafec638cc41da3af347d790a1ad3f7d636f",
+    "last_progress": { "layer": 18, "phase": "decode_1", "end_position": 16417 },
+    "stop_reason": "The supervisor refused to continue while any owned timing container was present, even on disjoint CPUs. At the stop it observed 12038832128 bytes available versus 5679333376 required; this was a guard refusal, not an OOM.",
+    "container_exit": 137,
+    "oom_killed": false,
+    "memory_peak_bytes": 4679458816,
+    "memory_events": { "max": 0, "oom": 0, "oom_kill": 0, "oom_group_kill": 0 },
+    "container_removed": true
+  },
+  "remaining": [
+    "Complete an original-F32 quality comparison for the 8B fixture; the retained run stopped operationally at layer 18 and has no numerical verdict.",
+    "Complete the remaining relevant final-device coverage and matched timing checks.",
+    "Complete hosted CI and landing review."
+  ],
+  "qualification_note": "Q1 raw and chat depth cells pass at the actual 28e candidate pin. Q2 8B raw passes selected-only, not against original-F32 quality. No overall merge or qualification claim is made."
+}

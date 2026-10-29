@@ -1,0 +1,51 @@
+{
+  "scope": "Focused current Q1/Q2 reference generation and consumption checks; no runtime or numerical limit changes.",
+  "command": [
+    "python",
+    "-X",
+    "utf8",
+    "tests/run_tests.py",
+    "--exe",
+    "build-low-bits-windows-cluster32-20261028/Release/llmx.exe",
+    "--only",
+    "reference-generator,reference-consumer"
+  ],
+  "exit_code": 0,
+  "log_sha256": "50b3314ac4719660e6b84367b3d9e03e672d64cb7167e9eb491dc549678b33d4",
+  "test_groups": [
+    {
+      "tests": 97,
+      "seconds": 71.504,
+      "skips": 0
+    },
+    {
+      "tests": 10,
+      "seconds": 0.136,
+      "skips": 0
+    },
+    {
+      "tests": 75,
+      "seconds": 9.624,
+      "skips": 4
+    }
+  ],
+  "source_hashes": {
+    "tests\\block_fixture.py": "3ecf479d92ed80cc1da3c26921786af1b0efac570ea0d41cacb0f14e3839d6b2",
+    "tests\\low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+    "tests\\reference_generator.py": "216c38be300b540c2aca264d2018b6669f755aa845487c38a1d0367fc92eb11c",
+    "tests\\reference_consumer.py": "622c007423c852b5d1e91e18a0f01d0e6c7e5892d1f4d2893ce8525ce0a6b947",
+    "tests\\tensor_split.py": "f46f515bfc19bcca185ec8b7fc4911c86146693b28804d80ad41f4662348cfc9",
+    "tests\\run_tests.py": "2e983d73939a13b9333302ef63718ab8a6c79079dcded9eadf623492521a1e8a",
+    "tools\\gen_baseline.py": "5528683a93fb748c6fe7158df9f2326765d7cc93e14195303a211487c9b3eeb7",
+    "tools\\calibrate_dtype.py": "6d201ba916dc1edea7e128572969581c0af7c39dc6c21603b65807139015ecfb",
+    "tests\\data\\dtype_budget.json": "3980418c806032e9f3e44b54d4d9be2f03c75480cae800420ca660b3ab4c146f",
+    "tests\\data\\baseline_q1_0.json": "44dd05b0e0334a405710999378efbb59bc4fe03a138eef7ed5c464b779fa892e",
+    "tests\\data\\baseline_q1_0_split.json": "ba9f8b6a0fe7c307b28d9320455179ac85b5d64686f60d7aae9b8dbbf9e804a2",
+    "tests\\data\\baseline_q2_0.json": "51e0e6c86f18dbdf20bcf7bbc2d20ac75cd1ed16769e96ad88cc1d5b807c6b6f",
+    "tests\\data\\baseline_q2_0_split.json": "d7acab398a0d3cce57e18bff95010fc341086e0c34c5c498639c1eb4073bdf75"
+  },
+  "limitation": "PowerShell decorates unittest stderr as NativeCommandError in the retained log. Actual runner exits0 and both components report PASS. Four unrelated Qwen4Exp native, two-device or POSIX cases skip; this is not their coverage.",
+  "tested_base_revision": "cc668442e",
+  "uncommitted_feature_inputs_at_test": true,
+  "log_path": "build-low-bits-dev/q12-reference-consumers-current-20261028.log"
+}

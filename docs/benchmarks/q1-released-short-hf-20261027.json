@@ -1,0 +1,243 @@
+{
+  "scope": "Released Q1 short file-exact HF comparisons only, not16K or full model qualification. Frozen four-value row build.",
+  "reference": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q1-short-v1/out/supervisor.json",
+  "reference_files": {
+    "stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stdout.log": "99847fe747e44a2f56ff81c3bcffac931427634f216d4ff9dc01b4b4def2d918",
+    "goldens/baseline_logits.json": "7ae3b19be20b3203f73b74ebf6b2a6d4dd0b052224b6ab66899298ebb1378d83",
+    "goldens/baseline_perplexity.json": "b250fece73ee120e97868d170b8713b49a0cd5b202a2214c908d57391768c846"
+  },
+  "consumer_receipt": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/released-q1-consumer-v1/out/supervisor.json",
+  "consumer_sha256": "6af6319fb1d8506c5867719d82d352031c0786778f50e6d6c1ea26e151ee6819",
+  "binary_sha256": "dedef34a6714b2a1e60289a4335195aa47736c79da6c16e4438b5743562b77bf",
+  "source_hashes": {
+    "tests/baseline_qwen35.py": "f99168ad0890173fe5ec437ea575e39675e4fe074df2fc44808ce3c91362b711",
+    "tests/arch_boundary.py": "85132c11572a2a9ce534f971d1dded0fa46931980c630c8a06c0781ae8f34b2e",
+    "tests/block_fixture.py": "6a773899fc88034bf1e5b76a001ed1cc8271713bca267e7a8866b1baa719d5df",
+    "tests/vision.py": "43430cf816fe4dcd7a8a9a486938f49c9b5cd1b012fdc2951a66e71a87bd5187",
+    "tests/version.py": "b317d50c1d20c972e733501dcd3c34f457946c52c1b78db7ba62f936bbb3070a",
+    "tests/perf.py": "8ff27eda43f291df808cb5d3bd3b08ca922407d3e98066a983997968cfcf24a0",
+    "tests/fetch_models.py": "4cdd58632fb03d9d3dfa20fd32a403cbce5e21cf44440289056391f7018c7edd",
+    "tests/raw_blocks.py": "d34d641b88610de8cbea56397b12a69197179f209f24d1770a20fd111af9eb26",
+    "tests/device_reference.py": "4bbafb23c4e32c5260a0b0204aab2e1dfdca5bf00bbdb75c17618f7bdca48bbc",
+    "tests/server_mix_tool.py": "2ef96e90e685032d99cc4476310c59a0d0b5524fef34f71886db50911382d4de",
+    "tests/qwen35.py": "d29849d61aca395f142a361e0ba5143b872e3e9c3d3d638073f8a4b458da73bc",
+    "tests/perplexity.py": "b5b108cc3b3de87492cb7006bc01d7c7d98487ff7a871f63655e5b6764638a6b",
+    "tests/q5_1.py": "1342068f5c95f73a0b8b0dd2a23a9e86b17a5811acb2ca642c5f5a3e2e762b83",
+    "tests/q5_0.py": "6fe47cbd4ada889d88af5a8c590f5480afa3500ca302785fa77874dcef612ecc",
+    "tests/tq.py": "cb564e3422f6c8278a3360a5249ec2751802c61d11e6c9376f2393b2bea3f6f7",
+    "tests/qwen4exp_fixture.py": "288f754c40a895c2d8a8bff5f54480aa02d5344c89edee139989f4a81ab9e9a6",
+    "tests/dead_code.py": "18ef5e227e91f75c8c774e79511af3afd88456720222ebd0a8ad932d45ab3ea0",
+    "tests/tensor_split.py": "fe8b6667ee53e373894ddfde25c81e55742217c75fd0583f6137964abeb06ffb",
+    "tests/spec_decode.py": "18a6c78c55c862a36e6302c6b257cf98fba397d9745d014758ddec87b119058c",
+    "tests/test_ci_annotations.py": "1a8db87b1c570bed833d15130a24403f32a611839e24f2040101bfd8073439b9",
+    "tests/layered_moe_reference.py": "e8675c8dd81a7dead38ce243d07636860a934ff37d09775a075a12fbec22b9fe",
+    "tests/image.py": "9beffcb923fcbea578c52402e3d3b6a021b132f5ee6013cdc2dc4f7ba4cbb2c0",
+    "tests/qwen4exp.py": "458b2104e189e88f63f7ad7f292cf0dbd476771cb46114aa6f0eda95d3b1647c",
+    "tests/iq3_xxs.py": "66624ce838dcd9b081b25bbc3e2e800403fdb5a8c43c273f483385a271442964",
+    "tests/server.py": "6b6a72792f9d4449294b99d2e928d3ad2419df63b320a92d4432ea556dc80dbe",
+    "tests/baseline.py": "ccb7f9ca7475f8c1d0d1961dd2b53102234169ae7c374353c0a18abf0fd61063",
+    "tests/nvfp4.py": "4e427afaa5f6d52d744cc3aba9d6247b2730265c4249e3cd9d79aa13953171fe",
+    "tests/tokenizer.py": "e1c383c6b5f9aa7ee4e9ff860a8b50a22efdb53eeb0288a10ad595eabbd618ae",
+    "tests/cli.py": "52d4f79873f1bbe3ceb9629a547a9c5ba8e4c540fdb1835120bf423d9f7ef587",
+    "tests/chat.py": "0ae45f2b778ec04d3e5cb699638425f712315f570382b8e99552c3172ef880bd",
+    "tests/iq2_small.py": "1ceb48eb65c54ef9141dc8058b765011901b9fc6a0fe9482f8d3a5cd82feb4c8",
+    "tests/run_tests.py": "6dc20c45bc88e69faca0ea28347cb76b940f098526856605200e5235a57c4ef0",
+    "tests/server_load_tool.py": "8b8348b2088f6ec87cbe27fb125c4c60d0dcaff2a98fd167408f135b10cd86fe",
+    "tests/low_bits.py": "4419d10335138d18f13e759cbb35824f31de37e3c6cef83f05313321e0339a9b",
+    "tests/reference_generator.py": "b9d6648d9ff014389e6a5e6bf6538ee0332e7d9e6f1e25d145a75f5919df5611",
+    "tests/baseline_layered.py": "7f877f2d91dcf5e007edf47a79a7641fb5d203224d7efdf50881bd0b7c34de41",
+    "tests/docs_check.py": "f0c5dfd9e6795d30da4ba6e3e2250dafa4fdb9096a732d7ffd139060598409c7",
+    "tests/q2_k.py": "025386616b1aa5d8b55b70799d5474706707537444a8184ebbb2a8e9767aaa62",
+    "tests/roundtrip.py": "c16cb7ba75f731c73e233244561dd2648d550394edc693a23e1cb45a53df50cc",
+    "tests/baseline_mxfp4.py": "a68df65f6e1e9f99216bf4e59682ef95c2112f85998e5829ab97bcbafb58240e",
+    "tests/reference_qwen4exp.py": "0199550dbbbe35cd119b7751e5dbe1a7d6bf4f3449781dbe242589ec22a57ce9",
+    "tests/iq3_s.py": "0bbe43a2a6bddb4d250ee7bbf69c036ffc0f476365cba2f52b5d04257ee20495",
+    "tests/int8.py": "b567f812966fc9cb630f4b0c57aead0a8d09837c6070b265e84dabdf352eed61",
+    "tests/decode_probe.py": "ccbf3f73df1471c3461227c8dd003f00448f398512f37e37e6be53342ccadb84",
+    "tests/q3_k.py": "9edb5e04802e3069032375e33590510bab18facea77e66c0da170859f9015d8e",
+    "tests/half_weights.py": "a79b37f5395cc89479e9c78d0a33da38b0440c42e7ef92fe3e8bb990a4c1f1f2",
+    "tests/mxfp4.py": "0cc2ad7ab529ff138543095b88ff5a029727bc11295ca2ff482a1a254b47ef78",
+    "tests/shards.py": "b84f52d86f9c81ef672842ad6ec7a6e332b152e915665f9d4cb56930167ac111",
+    "tests/common.py": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+    "tests/iq1.py": "b83b6877f24ae03ae360867241d1a76e9a93c57f263918889dbcd84dc7b3b6de",
+    "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+    "tests/reference_qwen4exp_file.py": "9a4de95efb27a41fe49c7b47ab0e2f945f14e661ae996e19f7c228933945f361",
+    "tests/threads.py": "3265befa959f99f015c0f50d688c3aeaf632f357b05f59f54245316ce4409b74",
+    "tests/iq2_s.py": "41a2e5529565d624c370df67a27a9bd81bfade3b9057b35f555ffe75fd9442d4",
+    "tests/drafters.py": "a1965887c5a24883cd399e8b9d5521eb66f71098209ffdb1c5d14654de00f53c",
+    "tests/iq4_xs.py": "e25abc0fb6f61bcfb9b9d13b2732515b15d3caca67e6c7f577f95d8a6a359c90",
+    "tests/iq4_nl.py": "89cb20f2795d895f58c3080ac05ec323f6ecced963e82d5a8b6e3bbe7b3f2a38",
+    "tests/reference_consumer.py": "81fdb13259196d911e8a9208ee60474920ed5807893de1056a10f2f9f399fc13",
+    "tests/baseline_8b.py": "5458095d73e4a17316d39d0ba546ccad1d7cb300500b4811e99c0a0b7a01e1f3",
+    "tests/split.py": "3a8816c0055af24c30f381dda8ac332cc41a3b6f81b0d80ff92346d4cedcf4bd",
+    "tests/moe.py": "b84b40727fab61812247080ad7367c437eee6f911d49ef3949d0c7eae133505a"
+  },
+  "device": {
+    "physical_gpus": [
+      8
+    ],
+    "pci_bus_by_physical": {
+      "8": "0000:c9:00.0"
+    },
+    "render_nodes_by_physical": {
+      "8": "/dev/dri/renderD130"
+    },
+    "cards": {
+      "card0": {
+        "GPU use (%)": "99",
+        "PCI Bus": "0000:03:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "30412779520"
+      },
+      "card1": {
+        "GPU use (%)": "99",
+        "PCI Bus": "0000:44:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "29502943232"
+      },
+      "card2": {
+        "GPU use (%)": "100",
+        "PCI Bus": "0000:83:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32347955200"
+      },
+      "card3": {
+        "GPU use (%)": "100",
+        "PCI Bus": "0000:86:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "32349257728"
+      },
+      "card4": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:89:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card5": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:8C:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card6": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C3:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      },
+      "card7": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C6:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      },
+      "card8": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:C9:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10932224"
+      },
+      "card9": {
+        "GPU use (%)": "0",
+        "PCI Bus": "0000:CC:00.0",
+        "VRAM Total Memory (B)": "34342961152",
+        "VRAM Total Used Memory (B)": "10919936"
+      }
+    },
+    "production_protected_devices": [
+      "/dev/dri/renderD132",
+      "/dev/dri/renderD133",
+      "/dev/dri/renderD136",
+      "/dev/dri/renderD137"
+    ],
+    "production_container": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2"
+  },
+  "calls": [
+    {
+      "cache": "f16",
+      "argv": [
+        "docker",
+        "exec",
+        "-e",
+        "LLMX_CACHE_TYPE=f16",
+        "-e",
+        "LLMX_LOAD_MODE=direct",
+        "297af0514cf8283273fe1a95338c8e035b63ea0e7f35d9981788432de2981a0d",
+        "python3",
+        "-B",
+        "/source/tests/baseline.py",
+        "--exe",
+        "/b/llmx",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "/goldens",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf"
+      ],
+      "started": 1793134491.9281764,
+      "exit_code": 0,
+      "seconds": 18.795966863632202
+    },
+    {
+      "cache": "f32",
+      "argv": [
+        "docker",
+        "exec",
+        "-e",
+        "LLMX_CACHE_TYPE=f32",
+        "-e",
+        "LLMX_LOAD_MODE=direct",
+        "297af0514cf8283273fe1a95338c8e035b63ea0e7f35d9981788432de2981a0d",
+        "python3",
+        "-B",
+        "/source/tests/baseline.py",
+        "--exe",
+        "/b/llmx",
+        "--device",
+        "vulkan:0",
+        "--file-exact",
+        "/goldens",
+        "--model",
+        "/models/Boole-1.7B-Q1_0.gguf"
+      ],
+      "started": 1793134510.7244425,
+      "exit_code": 0,
+      "seconds": 18.19334101676941
+    }
+  ],
+  "matrix": [
+    {
+      "cache": "f16",
+      "prompt_cases": 6,
+      "top1_pass": 6,
+      "top5_order_pass": 6,
+      "nll_cases": 8,
+      "nll_pass": 8,
+      "largest_printed_nll_delta": 4.6e-05,
+      "note": "Printed NLL deltas are rounded to six decimal places."
+    },
+    {
+      "cache": "f32",
+      "prompt_cases": 6,
+      "top1_pass": 6,
+      "top5_order_pass": 6,
+      "nll_cases": 8,
+      "nll_pass": 8,
+      "largest_printed_nll_delta": 0.0,
+      "note": "Printed NLL deltas are rounded to six decimal places."
+    }
+  ],
+  "output_files": {
+    "f16.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f32.stdout": "c6e4f7e55c98754ccd7985c22e62196ff43baacbce1327af052b17b5cc738c6c",
+    "vulkaninfo.txt": "834a768ba8612fe80b815d54f37295007b49add92fc82fe9302f9efd6c5ad55c",
+    "device-map.json": "3f86bdce127c6468700b20952c9cdbfa838b6a8bb1c0fb67b20c7ef0ff67c502",
+    "f32.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "f16.stdout": "a8d03851e47b6dad8398968910adf8f1262a7c0ed9637ffa642d35b4a4fc88b2",
+    "map_vulkan.py": "6cb48b3980fec4379180784bdbcd54cc64d82349897c94096b99639924bbdf6a",
+    "preflight.json": "42f1b6185e58ebb050264e92344a12a6dd9cc8827ca1f6ff8e070ba72f4d692b"
+  },
+  "removed": true
+}

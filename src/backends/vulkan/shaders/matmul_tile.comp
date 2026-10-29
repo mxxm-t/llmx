@@ -392,6 +392,19 @@ void main() {
                 uint first = k0 % 256u + wseg * WVALS;
                 for (uint i = 0u; i < WVALS; ++i)
                     ws[wseg * WVALS + i][wrow] = tq_at(type, o, first + i, d);
+            } else if (type == TYPE_Q1_0) {
+                uint block = block_values(type);
+                uint o = (wr * (p.nin / block) + k0 / block) * block_bytes(type);
+                float d = half_at(QBYTE(o), QBYTE(o + 1u));
+                uint first = k0 % block + wseg * WVALS;
+                const uint count = 8u;
+                uint run = min(WVALS, count);
+                // Power-of-two loader runs either stay inside one byte or cover whole bytes.
+                for (uint i = 0u; i < WVALS; i += run) {
+                    uint j = first + i, packed = QBYTE(o + 2u + j / count);
+                    for (uint lane = 0u; lane < run; ++lane)
+                        ws[wseg * WVALS + i + lane][wrow] = low_bits_value(packed, j % count + lane, d);
+                }
             } else if (type == TYPE_IQ4_NL || type == TYPE_IQ4_XS) {
                 float d;
                 uint codes = iq4_group(type, wr, p.nin, k0 / 32u, d);

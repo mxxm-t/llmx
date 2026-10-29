@@ -1,0 +1,47 @@
+{
+  "scope": "Actual AMD final assembly before/after Q1 sign-bit decode. Static counts, not executed instruction counts or occupancy measurements.",
+  "rows": [
+    {
+      "capture": "row-four-isa-v1",
+      "family": "q1_0",
+      "sha256": "6f9155412dde8a490444cb938622c8d1fa4646ae9cb00c680be4e7e07fb4792e",
+      "static_instruction_count": 235,
+      "convert_code_to_float": 4,
+      "multiply_f32_total": 14,
+      "bitfield_insert": 4,
+      "max_named_vgpr": 23
+    },
+    {
+      "capture": "row-four-isa-v1",
+      "family": "q2_0",
+      "sha256": "07974d5a4e58e3f54d665c037434da6e3c1c05c61f1c562778e44f1f5d5fa075",
+      "static_instruction_count": 236,
+      "convert_code_to_float": 4,
+      "multiply_f32_total": 14,
+      "bitfield_insert": 4,
+      "max_named_vgpr": 23
+    },
+    {
+      "capture": "q1-sign-isa-v1",
+      "family": "q1_0",
+      "sha256": "68bbc7ab54f3303538ce2b580cd5ff21a927c38f544a5989fd1d4b0c28b0f7ce",
+      "static_instruction_count": 217,
+      "convert_code_to_float": 0,
+      "multiply_f32_total": 10,
+      "bitfield_insert": 0,
+      "max_named_vgpr": 22
+    },
+    {
+      "capture": "q1-sign-isa-v1",
+      "family": "q2_0",
+      "sha256": "beb842f70d1f391c243c13e61148720dabda548a4e08081fd6583cf2898d8ca1",
+      "static_instruction_count": 236,
+      "convert_code_to_float": 4,
+      "multiply_f32_total": 14,
+      "bitfield_insert": 4,
+      "max_named_vgpr": 23
+    }
+  ],
+  "finding": "Q1 code conversions4->0, total float multiplies14->10 and sign-repair bitfield inserts4->0. Four activation multiplies and pairwise sums remain. Six other multiplies belong to index calculation, not weight decoding. Q2 counts remain unchanged.",
+  "frozen_runtime_preserved": true
+}

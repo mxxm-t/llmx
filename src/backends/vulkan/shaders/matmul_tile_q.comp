@@ -1,5 +1,5 @@
 #version 450
-#if defined(LLMX_TQ) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)
+#if defined(LLMX_LOW_BITS_DOT) || defined(LLMX_TQ) || defined(LLMX_IQ4) || defined(LLMX_IQ3_S) || defined(LLMX_IQ2_S) || defined(LLMX_IQ3_XXS) || defined(LLMX_IQ2_SMALL) || defined(LLMX_IQ1)
 #define LLMX_LOOKUP
 #endif
 #if defined(LLMX_Q2) || defined(LLMX_Q3)
@@ -74,6 +74,9 @@ layout(set = 0, binding = 5) readonly buffer WM { uint w[]; } wm[3];
 #endif
 #if defined(LLMX_LOOKUP) || defined(LLMX_Q50) || defined(LLMX_K23)
 #define QBYTE(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 3u))) & 255u)
+#ifdef LLMX_LOW_BITS_DOT
+#define LOW_BITS_HALF(i) ((ws[pi].w32[(i) >> 2u] >> (8u * ((i) & 2u))) & 65535u)
+#endif
 #ifdef LLMX_TQ
 #define TQ_WORD(i) ws[pi].w32[i]
 #endif
@@ -120,7 +123,9 @@ float lookup_input(uint col, uint b, uint j) {
     int q = int(int16_t(word >> ((j & 2u) * 8u)));
     return float(q) * xs[p.xcols * p.nin / 4u + col * (p.nin / 32u) + b].x;
 }
-#ifdef LLMX_TQ
+#ifdef LLMX_LOW_BITS_DOT
+#include "lookup_dot.glsl"
+#elif defined(LLMX_TQ)
 #include "tq_dot.glsl"
 #elif defined(LLMX_IQ3_XXS)
 #include "iq3_xxs_dot.glsl"

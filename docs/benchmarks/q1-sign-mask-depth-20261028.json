@@ -1,0 +1,475 @@
+{
+  "scope": "Q1 packed-sign-mask candidate raw/chat full-score identity versus the retained qualified row-local outputs. No HF rerun or new tolerance.",
+  "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1",
+  "execution_sha256": "fd7d923e5db7f972b89887b7011d0d841661bdda75294d39139ae54c00fff59e",
+  "plan_sha256": "c500f6fec5d4109a834b75cb0a7c373d506896cdd9903a0851e60e4341ebf23d",
+  "candidate": {
+    "rig_root": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out",
+    "source_subdir": "source",
+    "build_subdir": "build",
+    "build_receipt": "build-receipt.json",
+    "build_receipt_sha256": "14a0b770f7bb6c390ae06d892e13051342347cad9a50a9e8d2de92e13ec8a161",
+    "CLI_sha256": "a2e7d3b3177dfce2e268939d87438415acaa44285f0f1405728f528d1a03f8d9",
+    "library_sha256": "d0f45e678fd910c30838140fba44edef6ec3fa6555228ef64b2dca538ed06e42",
+    "q1_shader_include": "generated/vulkan/matmul_row_q1_0_dot.inc",
+    "q1_shader_include_sha256": "5237d0e07f6d63054887dedc2bb9dd0830dc9ae9dfecff48ebadb5353f80972f",
+    "build_outputs_sha256": {
+      "llmx": "a2e7d3b3177dfce2e268939d87438415acaa44285f0f1405728f528d1a03f8d9",
+      "libllmx-vulkan.a": "d0f45e678fd910c30838140fba44edef6ec3fa6555228ef64b2dca538ed06e42"
+    },
+    "source_manifest_key": "source_after",
+    "build_manifest_key": "build_after"
+  },
+  "capture_source_sha256": "53b190c24dab917f080fc89de065f9c28df4101246bdfcc44b624120b155e41c",
+  "capture_binary_sha256": "96e2ca6f7e27defe075fd5f4be0672e833d6d29f14b5c23c3743aeae84cc3be7",
+  "compile": {
+    "started": 1793194465.2834966,
+    "passed": true,
+    "candidate_cli_sha256": "a2e7d3b3177dfce2e268939d87438415acaa44285f0f1405728f528d1a03f8d9",
+    "argv": [
+      "c++",
+      "-std=c++17",
+      "-O3",
+      "-DNDEBUG",
+      "-mavx2",
+      "-mfma",
+      "-mf16c",
+      "-Wall",
+      "-Wextra",
+      "-Werror=unused-function",
+      "-Werror=unused-variable",
+      "-Werror=unused-but-set-variable",
+      "-pthread",
+      "-I",
+      "/candidate-build/generated",
+      "-I",
+      "/candidate-source/src",
+      "/prepared/capture.cpp",
+      "/candidate-build/libllmx-vulkan.a",
+      "-ldl",
+      "-o",
+      "/out/depth-capture"
+    ],
+    "capture_sha256": "96e2ca6f7e27defe075fd5f4be0672e833d6d29f14b5c23c3743aeae84cc3be7",
+    "seconds": 47.52199840545654,
+    "children_max_rss_KiB": 1243864
+  },
+  "identity_baseline": {
+    "receipt_sha256": "9255b634a1e1b168d3af30b85408bf40b6582e7df84794b12dbfd00d11c9d41a",
+    "scores": {
+      "raw": "b8bcc1245eac494163745bc18fe1d39e77993ed6ef079efbe28ddca5259c4a1a",
+      "chat": "d1ce4443883a2dca278b28af3f5c776f57f86e3db12ce774cc47d32b49585223"
+    }
+  },
+  "model_sha256": "3ea624d8d9c06cf2f056384f86c6ab3ced12a4495158bbc98ba19f0acd8b891d",
+  "input_manifest_sha256": "5eaa4798e402d63b31f32f741b1f7af0728ebdf4e253933054ca7cca985c92a0",
+  "policy_map_sha256": "47498695b0c52f32dbcef1be8a3c657885ff182888d22b3721bf5a7487404bf0",
+  "workload": {
+    "score_rows": 512,
+    "score_bytes": 311164928,
+    "vocab": 151936,
+    "ubatch": 512,
+    "kv_tokens": 17024,
+    "dtype_requested": "auto",
+    "dtype_effective": "f16",
+    "kv": "f16/f16"
+  },
+  "cells": [
+    {
+      "variant": "raw",
+      "gpu_preflight": {
+        "time": 1793194513.9619055,
+        "cards": {
+          "card0": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:03:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "30432026624"
+          },
+          "card1": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:44:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "29522120704"
+          },
+          "card2": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:83:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "32367808512"
+          },
+          "card3": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:86:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "32367792128"
+          },
+          "card4": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:89:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10981376"
+          },
+          "card5": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:8C:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10981376"
+          },
+          "card6": {
+            "GPU use (%)": "97",
+            "PCI Bus": "0000:C3:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "1929408512"
+          },
+          "card7": {
+            "GPU use (%)": "99",
+            "PCI Bus": "0000:C6:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "1929408512"
+          },
+          "card8": {
+            "GPU use (%)": "99",
+            "PCI Bus": "0000:C9:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "1929420800"
+          },
+          "card9": {
+            "GPU use (%)": "99",
+            "PCI Bus": "0000:CC:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "1929408512"
+          }
+        },
+        "physical": 4,
+        "pci": "0000:89:00.0",
+        "node": "/dev/dri/renderD134",
+        "production_id": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2",
+        "protected": [
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/zpool1/llmx-serve/flash-5673d3c25",
+          "/zpool1/llmx-serve/flash-5673d3c25/disk",
+          "/zpool1/models"
+        ],
+        "passed": true
+      },
+      "passed": true,
+      "process_passed": true,
+      "score_bytes": 311164928,
+      "score_sha256": "b8bcc1245eac494163745bc18fe1d39e77993ed6ef079efbe28ddca5259c4a1a",
+      "bit_identical_to_baseline": true,
+      "witness_records": 512
+    },
+    {
+      "variant": "chat",
+      "gpu_preflight": {
+        "time": 1793194533.8754213,
+        "cards": {
+          "card0": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:03:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "30431977472"
+          },
+          "card1": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:44:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "29522071552"
+          },
+          "card2": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:83:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "32367759360"
+          },
+          "card3": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:86:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "32367742976"
+          },
+          "card4": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:89:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10932224"
+          },
+          "card5": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:8C:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10932224"
+          },
+          "card6": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:C3:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10919936"
+          },
+          "card7": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:C6:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10919936"
+          },
+          "card8": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:C9:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10932224"
+          },
+          "card9": {
+            "GPU use (%)": "0",
+            "PCI Bus": "0000:CC:00.0",
+            "VRAM Total Memory (B)": "34342961152",
+            "VRAM Total Used Memory (B)": "10919936"
+          }
+        },
+        "physical": 4,
+        "pci": "0000:89:00.0",
+        "node": "/dev/dri/renderD134",
+        "production_id": "0e60e97ef8109523ffb513b34be0db42322ae9849c6be2d5f7c42f6765d63aa2",
+        "protected": [
+          "/dev/dri/renderD132",
+          "/dev/dri/renderD133",
+          "/dev/dri/renderD136",
+          "/dev/dri/renderD137",
+          "/zpool1/llmx-serve/flash-5673d3c25",
+          "/zpool1/llmx-serve/flash-5673d3c25/disk",
+          "/zpool1/models"
+        ],
+        "passed": true
+      },
+      "passed": true,
+      "process_passed": true,
+      "score_bytes": 311164928,
+      "score_sha256": "d1ce4443883a2dca278b28af3f5c776f57f86e3db12ce774cc47d32b49585223",
+      "bit_identical_to_baseline": true,
+      "witness_records": 512
+    }
+  ],
+  "stages": [
+    {
+      "tag": "build",
+      "argv": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-xdev-q1-sign-mask-depth-capture-v1-build",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=256m",
+        "--cpuset-cpus",
+        "12",
+        "--cpus",
+        "1",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/source:/candidate-source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/build:/candidate-build:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1:/prepared:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1/out:/out:rw",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "python3",
+        "-B",
+        "/prepared/build.py"
+      ],
+      "seconds": 48.728572607040405,
+      "passed": true,
+      "removed": true,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-28T13:34:25.168477515Z",
+        "FinishedAt": "2026-10-28T13:35:12.814000621Z"
+      }
+    },
+    {
+      "tag": "raw",
+      "argv": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-xdev-q1-sign-mask-depth-capture-v1-raw",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=256m",
+        "--cpuset-cpus",
+        "12-15",
+        "--cpus",
+        "4",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/source:/candidate-source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/build:/candidate-build:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1:/prepared:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1/out:/out:rw",
+        "--device",
+        "/dev/dri/renderD134",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/cache",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1/out:/capture:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-depth-prereq-v1/next-depth/inputs:/inputs:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf:/model.gguf:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "/capture/depth-capture",
+        "/model.gguf",
+        "/inputs",
+        "raw",
+        "vulkan:0",
+        "/out/raw.f32"
+      ],
+      "seconds": 19.44039011001587,
+      "passed": true,
+      "removed": true,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-28T13:35:14.312438353Z",
+        "FinishedAt": "2026-10-28T13:35:32.5457231Z"
+      }
+    },
+    {
+      "tag": "chat",
+      "argv": [
+        "docker",
+        "create",
+        "--init",
+        "--name",
+        "llmx-xdev-q1-sign-mask-depth-capture-v1-chat",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,size=256m",
+        "--cpuset-cpus",
+        "12-15",
+        "--cpus",
+        "4",
+        "--memory",
+        "4g",
+        "--memory-swap",
+        "4g",
+        "--pids-limit",
+        "256",
+        "--ulimit",
+        "core=0",
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/source:/candidate-source:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-trial-v1/out/build:/candidate-build:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1:/prepared:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1/out:/out:rw",
+        "--device",
+        "/dev/dri/renderD134",
+        "-e",
+        "XDG_CACHE_HOME=/tmp/cache",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-sign-mask-depth-capture-v1/out:/capture:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/q1-depth-prereq-v1/next-depth/inputs:/inputs:ro",
+        "-v",
+        "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/models/Boole-1.7B-Q1_0.gguf:/model.gguf:ro",
+        "sha256:2787625f463391c440798579bac0d012c77fdfa949d086d036cdbd77f0b8d600",
+        "/capture/depth-capture",
+        "/model.gguf",
+        "/inputs",
+        "chat",
+        "vulkan:0",
+        "/out/chat.f32"
+      ],
+      "seconds": 19.324639558792114,
+      "passed": true,
+      "removed": true,
+      "state": {
+        "Status": "exited",
+        "Running": false,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 0,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-28T13:35:34.05450977Z",
+        "FinishedAt": "2026-10-28T13:35:52.354028399Z"
+      }
+    }
+  ],
+  "files": {
+    "depth-capture": "96e2ca6f7e27defe075fd5f4be0672e833d6d29f14b5c23c3743aeae84cc3be7",
+    "chat.f32": "d1ce4443883a2dca278b28af3f5c776f57f86e3db12ce774cc47d32b49585223",
+    "raw.f32": "b8bcc1245eac494163745bc18fe1d39e77993ed6ef079efbe28ddca5259c4a1a",
+    "build.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "candidate-version.stdout": "8a71f0d13ee69eed0f1749f149ed84446641b0526e83096a123dc1362cae4b57",
+    "raw.stdout": "93e03f3e345c40b9e93a6f07ff255c3b8fb05bc13d062da5ea9238a927f56412",
+    "build-report.json": "9afb6b772c1a22121e3b052f454d74d22a008fa1f112e8376a58583d8ae0e266",
+    "compiler.stdout": "00f7e3c3e6a0308d7b60cc02429720ef6000d84c0add523f7dc030058d19961b",
+    "chat.stdout": "93e03f3e345c40b9e93a6f07ff255c3b8fb05bc13d062da5ea9238a927f56412",
+    "build.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "compiler.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "chat.stderr": "edbc461665846dc28beb2ab2c4231158a4290108bd134b7e70403a8f6e9bc8ac",
+    "candidate-version.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw.stderr": "edbc461665846dc28beb2ab2c4231158a4290108bd134b7e70403a8f6e9bc8ac"
+  },
+  "completed": true,
+  "unchanged": true,
+  "worktree_source_audit": "Every src file matches the frozen source either byte for byte or with CRLF normalized, except one shader comment: frozen matmul_row.glsl says isolated one-column, worktree says one-column. Exact text comparison confirms only that comment differs. No executed source difference.",
+  "seconds": 90.11430668830872,
+  "limitations": "This preserves the qualified single-MI50 raw/chat full-score results. It does not complete split, other-backend or performance qualification and does not waive any Q2 failure."
+}

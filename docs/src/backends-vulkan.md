@@ -4,6 +4,12 @@ The collective exports one binary signal per source as a sync file and duplicate
 
 The backend caches the greatest ticket confirmed by a successful Vulkan timeline wait. Waiting for or querying that ticket or an older one returns through an atomic completion value, including when another host thread waited; a timeout or Vulkan error does not advance it. Unconfirmed tickets retain the existing Vulkan wait and failure behavior.
 
+Q1_0 uses the shared float tile and embedding families and a compile-time float row variant. `shaders/low_bits.glsl` owns its contiguous sign fields, signed-zero-preserving reconstruction and packed signed16 pairs. Four 32-value integer groups share a block's scale. One halfword supplies four packed pairs, staying inside its block; tiles use the existing four-byte buffer padding for their masked word accesses.
+
+On integer-dot profiles F16/int8 requests use block-int16 rows and eligible prompt tiles. Explicit F32 and unsupported profiles retain float paths; BF16 uses the existing input-rounding float path. The shared planner restores value-based work for float fallbacks. The float row rounds products before pairwise addition to preserve cancellation behavior. Integer kernels reuse twin preparation, grouped/routed dispatch and scale/range repair.
+
+The integer row planner caps Q1's reduction group at 32 lanes. `kQ1TwoRows` selects variant 7 for one-column Q1 integer calls with at least two total output rows, including grouped projections. Each projection retains its row bounds and buffer; odd tails clamp unused reads and suppress stores. Two rows share activation pairs and consume their weights in turn. The native `low-bits` check compares row counts 1/2/3/5, grouped and standalone calls and batch columns bitwise, with kernel witnesses. Narrow routed integer tiles are classified as tall so their row count matches the dispatch plan. [Q1](../Q1.md) and [STATUS](../STATUS.md) record qualification.
+
 NVFP4 float tiles use `float_tile_rows_for` for ordinary and routed calls. It selects 64 rows for the small tile and 128 rows for the tall tile; NVFP4 does not use the 32-row dense fallback. Performance evidence is summarized in [STATUS](../STATUS.md).
 
 TQ1_0 and TQ2_0 share scalar code, scale and value decoding in `tq.glsl`; `tq_packed.glsl` owns four codes packed into signed16 pairs. The packed decoder shares address and plane work across four values and centers both fields without carrying between lanes. The packed module's `tq_bytes4` helper assembles four bytes from two word accesses at even offsets; row and integer-tile callers supply `TQ_WORD` through their existing weight-buffer accessor. TQ1_0 uses byte-wrapped radix expansion across its 160/80/16-value regions; TQ2_0 uses two-bit planes, including the raw code 3 value of +2. Scalar decoding uses byte offsets; packed reads handle the alternating half-word alignment of 54/66-byte blocks without requiring full word alignment. Embedding preserves the sign of a zero product explicitly.
@@ -246,7 +252,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   dispatch, and a call too small to fill the device splits its inner
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32 weights, explicit F32 requests, BF16 round/widen requests, and every type on other devices take the float tile
-  (`shaders/matmul_tile.comp`).
+  (`shaders/matmul_tile.comp`), except when the unsplit wide-tile rule below applies.
   An unsplit call of F32, F16 or BF16 weights with at least 128 rows and 128 columns, whose 128 by 128 tiles give every compute unit one at least (`wide_tile_fits`), takes the wide float tile instead (`wide_tile_kernel`, `shaders/matmul_tile_wide.comp`), whose outputs are the float tile's bits.
   Under `--dtype int8` every row of a quantized type but MXFP4 takes the 8-bit build of the kernel f16 gives it (`LLMX_I8`, `WeightKernels::int8_row`, `int8_tile` and `int8_tall_tile`): the row kernels `matmul_row_q4_i8`, `matmul_row_k4_i8`, `matmul_row_k5_i8` and `matmul_row_k_i8`, the Q8_0 decode kernel `matmul_vec_q8_i8` (`is_vec_kernel`, which shares `kVecBuilds`), and the tiles `matmul_tile_qi8`, `matmul_tile_q6i8` and `matmul_tile_q8i8`, each with a preserving variant but the Q8_0 tile, in the same lanes, blocks and order as the 16-bit build, its quants as signed bytes through the four-wide 8-bit dot.
   They read the 8-bit twin (`reads_x8`), which lives after the 16-bit twin in the same scratch at `x8_base_bytes`; `row_twin` and `tile_twin` bind it there, quantizing the input themselves where no kept twin of it holds the 8-bit one (`Twin::has8`).
@@ -575,7 +581,7 @@ The including function supplies the row, its weight row, the type, the column co
 
 ### `src/backends/vulkan/shaders/matmul_row_two.glsl`
 
-The Q4 and K-quant families' two-row builds' body (`ROWS` above 1): a cluster's dots of two adjacent rows with up to MAX_COLS columns, each sum handed to `ROW_STORE2(c, r, s)`, then a return from the including function.
+The Q4 and K-quant families' two-row builds and Q1's one-column integer build share this body (`ROWS` above 1): a cluster computes adjacent rows, hands each sum to `ROW_STORE2(c, r, s)`, then returns from the including function. Q1 retains each block's integer dot and range repair, with the shared row planner choosing its reduction group.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`
 

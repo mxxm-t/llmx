@@ -296,6 +296,46 @@ A reply's step then waits at the first stage for at most the slice ahead of it a
 A stage on a device is timed by its timestamps, read every 32 rounds, which waits for the device's queue, and a stage on the host by the thread's own time in it.
 The timestamps and those readings slow serving, so throughput is read from a server without `--timing`, and the timed figures from one with it on the same load.
 
+### The price table
+
+Every pass's every stage is timed as its devices ran it, at no cost to the round (`ServiceRecord` in `server/service_record.hpp`).
+The stage that records it posts the submission that ends it (`Model::stage_sent`) with when its recording began, and a thread of the record's own asks that submission whether it has retired, every millisecond while one waits and not at all otherwise (`Backend::done`).
+A stage's time runs from the latest of its recording's start, the end of the stage's previous pass and the end of the pass's previous stage, to its own end: the time a pass behind it waits for it.
+On a stage on the host, which computes as it records, that is its recording.
+The time is split into the host's recording of the stage, of it the waits for a lookup table's rows (`WeightRows::finish`) and in a tensor group's sums, which the model keeps for the pass's last stage recorded (`Model::stage_host_waits`), and the devices' time after the recording ended.
+
+Each stage keeps a table of measured prices (`PriceTable` in `server/policy.hpp`), keyed by what a pass holds (`PassWork`): rows of extent 1 (decode entries, verifies and a resume's recomputed tokens) by their count and the depth band of the deepest, and prompt slices by their row class (`Model::row_class` of the prompt's extent, which picks the tiles and their split), depth band and rows in steps of 16.
+A depth band is a doubling of the history from 4096 tokens (`depth_band`): band 0 below 4096, band 6 from 128k to 256k.
+A pass of decode rows alone prices its decode cell and a pass of one slice alone its slice's cell, each cell keeping a forgetting mean and its last measure; a pass of several parts prices nothing and only measures the prediction.
+A pass is predicted as its parts' prices added, each measured as a pass of its own, so a pass of several parts is predicted high by their fixed costs; rows not measured take the nearest measured rows of their class and band, a slice the next above it or the largest below scaled by its rows.
+A pass fed in pieces is timed but not priced, since its time holds the passes recorded between its pieces.
+
+The table's search gives the rows of a slice that stays within a stage time (`PriceTable::chunk_rows`), `PieceSearch` generalized: twice the largest slice measured within it while nothing above that is over, the bracket's middle in steps of 16 while it is wider than a step, and half the smallest over where nothing is within, each by the cells' last measures, so an overrun acts at once.
+A band not measured starts at the largest slice within of the nearest band below that has one, and a class's first slice is one step.
+In this step the table feeds nothing: the round forms its passes as above, and the table only records and predicts, which `/v1/health` shows under `service` beside each stage's measures (docs/USAGE.md, `/v1/health` and `/v1/live`).
+The record also counts the rows passes carried by kind and the prompt rows by depth band, and each request's wait for admission, its time from reading to its first token and the gaps between its tokens, a step's gap spread over the tokens it published; the health gives their percentiles over the last 1024 of each, and each live request its own.
+
+### The service rule
+
+The serving rework replaces the pacing above with one rule for every placement (docs/STATUS.md, the serving rework); this step holds its policy as functions the replay below runs, which the round does not call yet.
+While only replies wait, passes are formed as above, the decode share over the passes in flight.
+While a prompt also waits, the replies go in as few passes as the decode kernels' columns hold them (`packed_passes`), and each other free slot takes a chunk pass of one prompt, which continues in its own pass once its chunk before has run the first stage.
+A reply is served at least every `mix` times the step the same replies take with no prompt work (`service_gap`), and a chunk's rows are those the price table gives within what that gap leaves after the replies' own pass (`chunk_budget`); `mix` is the rule's one constant, a ratio, chosen by measurement.
+Which prompt the chunk goes to is the share rule's.
+
+### Prompt shares
+
+A share rule divides prompt time among the ready prompts, which `next_prompt` picks by from what each has left at the table's prices, how long it has waited without rows and the time it has had (`ReadyPrompt`, `Share`).
+An ordering rule takes the first by its order: today's order (a prompt of at most a quarter of a ubatch left first, else the oldest), the oldest first, the least priced work left first with any prompt idle for a bound first and waiting weighed against work, or the least time had first.
+A dividing rule gives each prompt a part of the time (the oldest a fixed part and the next in arrival order the rest, equal parts, or the oldest a floor and the least remaining of the others the rest) as credit over the chunks given (`charge_share`), the next chunk going to the largest credit among the prompts given a part.
+
+The rule is chosen by replaying production's requests and synthetic loads through the scheduler's own policy (`llmx-server-passes-test --replay FILE` or `--load NAME`, `tests/server_passes.cpp`).
+The replay runs the simulated round of `server-passes` with each stage's time at a price model (`Prices`: a replies' pass, a chunk pass's fixed time, a prompt row by its depth and a further row class), the passes formed by the service rule with each candidate share, the prices it decides by measured from its own stages into a `PriceTable` per stage, and the ledger checked at every event.
+Its loads are the trace (one JSON object a line with the arrival, the prompt, reused and generated tokens and the finish, a request following the one it reuses at least half of or arrives within 3 s of the end of), the owner's case, short turns behind a long prompt, two long prompts, bursts beside four replies, a stream at 70 and 90 percent load beside a long prompt, a long prompt into a stream, and users in a closed loop.
+For each load and rule it prints the time to first token and the slowdown against the same prompt alone by the rows read (under 1k, 1k to 8k, 8k to 32k, from 32k), the worst wait of a ready prompt for rows, the longest prompt's first token against alone, the gaps between tokens and the chunk passes a thousand prompt rows took; the score is the mean p95 slowdown over the classes present.
+`--rules` names the candidates (A0 today's order, A1 the oldest first, A2 and A3 the oldest keeping three quarters and a half, A4 equal parts, A5 least remaining with aging, A6 least remaining with the oldest's floor, A7 least attained), `--mix`, `--columns`, `--stages`, `--passes`, `--max-seqs`, `--ubatch`, `--pool` and `--hours` set the rule and the bench, and `--row-scale`, `--fixed-scale` and `--class-ms` move the prices, so a choice that holds at one price only shows.
+Every CTest run replays the owner's case at a smaller scale under three rules (`replay_smoke`).
+
 ### Sampling
 
 Sampling is per request, on the host, from the logits row the pass returns for that entry: the existing `inference/sampler.hpp` with the request's own temperature, top-k, top-p, penalty and seeded RNG, so a request with `seed` set is reproducible regardless of what it was batched with.

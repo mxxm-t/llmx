@@ -1,16 +1,19 @@
-// The scheduler's policy core (server/policy.hpp): make_room, the growth rule, the round's stages, the decode share and the logits rows by hand, then the scheduler's round under a simulated executor in random schedules (AGENTS.md, Tests).
-// `llmx-server-passes-test N` runs N schedules, 2000 by default.
+// The scheduler's policy core (server/policy.hpp) by hand, then its round under a simulated executor in random schedules (AGENTS.md, Tests).
+// `llmx-server-passes-test N` runs N schedules, 2000 by default; `--replay FILE` or `--load NAME` replays loads under each share rule instead (docs/SERVER.md, Prompt shares).
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+#include "core/json.hpp"
 #include "server/policy.hpp"
 
 namespace {
@@ -42,6 +45,27 @@ server::Taken room_of(const std::vector<size_t>& pool, const std::vector<size_t>
     });
 }
 
+// A stage's time in milliseconds as a replay prices it (docs/SERVER.md, Prompt shares): a replies' pass, a chunk pass's fixed time, a prompt row by its depth and each further row class.
+// The defaults fit Qwen3.8-Flash-Next's stage device times over four MI50s in two stages of two (docs/STATUS.md, the serving rework); a reply's further rows and a further class are estimates.
+struct Prices {
+    double reply_ms = 11.9, reply_row_ms = 3.25, reply_depth_ms = 7.9e-6;
+    double chunk_ms = 46, row_ms = 0.48, row_depth_ms = 3.99e-6, class_ms = 5;
+    static size_t row_class(size_t extent) { return extent <= 1 ? 0 : (std::min<size_t>(extent, 512) + 63) / 64; }
+};
+
+// A replay's rule (docs/SERVER.md, The service rule) and what it measures: the share rule, the gap's ratio, the decode columns, each stage's price table and each prompt's credit.
+struct Service {
+    server::Share share;
+    double mix = 3;
+    size_t columns = 16;
+    double record_ms = 0.2;
+    Prices prices;
+    std::vector<server::PriceTable> tables;
+    std::map<uint64_t, double> credit;
+    std::vector<double> gaps;   // every gap between two tokens of a request
+    size_t chunk_passes = 0, chunk_rows = 0;
+};
+
 // The scheduler's round over the policy core, driven by a simulated executor: stage s runs on device s for a random time, the host waiting for a handoff before recording the next stage and for a last stage before it samples.
 // The pools, the growth rule, make_room, the round's stages and the logits rows are the scheduler's own functions, and the order of the round's steps is the scheduler's run restated here.
 struct Sim {
@@ -60,6 +84,10 @@ struct Sim {
         bool reads = false, read_fails = false;
         uint64_t read_end = 0, bound = 0;
         std::vector<size_t> need;
+        // Under a replay: the history its first admission forks, its place in the load, its times and its longest wait for rows while ready.
+        size_t base = 0, tag = 0;
+        double arrived = 0, first_at = -1, last_token = -1, rows_at = 0, attained = 0, worst_wait = 0, ended_at = 0;
+        size_t chunks = 0;
         size_t history() const { return prompt + gen; }
         bool decoding() const { return gen && len + 1 == history(); }
     };
@@ -74,6 +102,7 @@ struct Sim {
         std::vector<size_t> rows;
         std::vector<char> wants;
         double ready = 0;            // when its last recorded stage ends on its device
+        std::vector<size_t> from, extent;   // by entry, the history it found and its extent, which a replay prices it by
     };
     size_t S, P, lap, max_seqs = 4, ubatch = 16, fail_per_mille = 2;
     std::vector<size_t> failed_now;   // the slots a failure emptied in this round's steps
@@ -100,6 +129,9 @@ struct Sim {
     // Whether the rows ride a round's passes is drawn, where the scheduler prices it (rides).
     bool apart_mode = false;
     server::LogitRows rows_apart;
+    // Under a replay the stages take the prices' times, each starting once its device is free, the pass's stage before has ended and the host has recorded it, and the passes are formed by the service rule (form_service); null otherwise.
+    Service* service = nullptr;
+    std::vector<Req> done;   // under a replay, every request that ended
     server::LogitRows& ring(const Pass& p) { return p.apart ? rows_apart : rows; }
     void clear(Pass& p) {
         const bool apart = p.apart;
@@ -184,6 +216,15 @@ struct Sim {
 
     // What a stage's device or thread does with the pass once it is recorded.
     void recorded_stage(Pass& p, size_t s) {
+        if (service) {
+            const double ms = stage_ms(p);
+            const double start = std::max({clock, device_free[s], s ? p.ready : 0.0});
+            p.ready = device_free[s] = start + ms;
+            service->tables[s].observe(work_of(p), ms);
+            clock = host[s] ? p.ready : clock + service->record_ms;
+            ++p.ran;
+            return;
+        }
         if (s) clock = std::max(clock, p.ready);
         size_t n = 0;
         for (size_t r : p.rows) n += r;
@@ -191,6 +232,41 @@ struct Sim {
         p.ready = device_free[s] = start + (0.5 + (double)(rng() % 100) / 100.0) * (1.0 + 0.05 * (double)n);
         clock = host[s] ? p.ready : clock + 0.05;
         ++p.ran;
+    }
+
+    // A pass's work as the price table keys it, a prompt's class by its extent (Prices::row_class).
+    server::PassWork work_of(const Pass& p) const {
+        server::PassWork w;
+        for (size_t e = 0; e < p.ids.size(); ++e) {
+            if (p.extent[e] == 1) w.decode(p.rows[e], p.from[e]);
+            else w.chunk(Prices::row_class(p.extent[e]), p.rows[e], p.from[e]);
+        }
+        return w;
+    }
+    // A stage's time for a pass at the replay's prices.
+    double stage_ms(const Pass& p) const {
+        const Prices& c = service->prices;
+        double ms = 0;
+        size_t decode = 0, deepest = 0;
+        std::vector<size_t> classes;
+        for (size_t e = 0; e < p.ids.size(); ++e) {
+            if (p.extent[e] == 1) {
+                decode += p.rows[e];
+                deepest = std::max(deepest, p.from[e]);
+                continue;
+            }
+            ms += (double)p.rows[e] * (c.row_ms + c.row_depth_ms * ((double)p.from[e] + (double)p.rows[e] / 2));
+            classes.push_back(Prices::row_class(p.extent[e]));
+        }
+        if (decode) {
+            ms += c.reply_ms + c.reply_row_ms * (double)decode + c.reply_depth_ms * (double)deepest;
+            classes.push_back(0);
+        } else {
+            ms += c.chunk_ms;
+        }
+        std::sort(classes.begin(), classes.end());
+        ms += c.class_ms * (double)(std::unique(classes.begin(), classes.end()) - classes.begin() - 1);
+        return ms;
     }
 
     // The recorders that are done, taken at the start of a round: a recorded stage counts, a failed one fails its pass alone.
@@ -358,6 +434,10 @@ struct Sim {
         return donor_ids;
     }
     void finish(size_t i) {
+        if (service) {
+            done.push_back(active[i]);
+            done.back().ended_at = clock;
+        }
         park(i, largest_block());
         ++ended;
     }
@@ -387,6 +467,10 @@ struct Sim {
         std::sort(gone.begin(), gone.end(), std::greater<size_t>());
         // A donor taken back gives the request what it held; a resume otherwise recomputes all it holds, a first admission all its prompt, which is what the ledger sees.
         r.len = take ? donors[own].len : 0;
+        if (service && !r.admission) {
+            r.len = r.base;
+            r.rows_at = clock;
+        }
         for (size_t i : gone) drop(i);
         add(reserved, need);
         r.need = need;
@@ -535,7 +619,13 @@ struct Sim {
             if (p.wants[e] && !r.cancel) {
                 ++r.gen;
                 r.since = round_no;
+                if (service) {
+                    if (r.first_at < 0) r.first_at = clock;
+                    else service->gaps.push_back(clock - r.last_token);
+                    r.last_token = clock;
+                }
             }
+            if (service && p.extent[e] != 1) r.rows_at = clock;
         }
         server::give_rows(ring(p), p.base, p.want);
         clear(p);
@@ -648,6 +738,10 @@ struct Sim {
 
     // New passes while a slot is free: ready decoding requests up to the decode share, then prompt rows up to the ubatch, each pass taking its logits rows and recording its first stage, or leaving a host stage in `deferred`.
     void form(std::vector<std::pair<size_t, size_t>>& deferred) {
+        if (service) {
+            form_service(deferred);
+            return;
+        }
         const bool ride = !apart_mode || rng() % 2;
         if (!ride) form(deferred, true, true);
         form(deferred, false, ride);
@@ -679,6 +773,8 @@ struct Sim {
                     p.ids.push_back(r.id);
                     p.rows.push_back(1);
                     p.wants.push_back(1);
+                    p.from.push_back(r.len);
+                    p.extent.push_back(1);
                     ++p.decoders;
                 }
             const bool alone = active.size() == 1 && queue.empty() && paused.empty();
@@ -729,6 +825,8 @@ struct Sim {
                 p.ids.push_back(r.id);
                 p.rows.push_back(n);
                 p.wants.push_back(at_len + n == r.history());
+                p.from.push_back(at_len);
+                p.extent.push_back(r.prompt);
                 if (continued) {
                     ++continued_passes;
                     break;
@@ -757,6 +855,118 @@ struct Sim {
             if (host[0]) deferred.push_back({k, 0});
             else record(k, 0);
             check();
+        }
+    }
+
+    // Whether a prompt in flight continues in a pass of its own under the service rule: each of its passes holds it alone, has run the first stage and does not want its logits, formed in an earlier round, and nothing could not grow.
+    bool continuing(const Req& r) const {
+        if (r.in.empty() || r.cancel || r.decoding() || std::any_of(active.begin(), active.end(), [](const Req& q) { return q.stalled; })) return false;
+        for (size_t k : r.in)
+            if (slots[k].ids.size() != 1 || !slots[k].ran || slots[k].wants[0] || slots[k].formed > formed_before) return false;
+        return true;
+    }
+    // A pass formed in slot k: its logits rows, its requests in flight, and its first stage recorded or left for the host.
+    void launch(Pass& p, size_t k, std::vector<std::pair<size_t, size_t>>& deferred) {
+        for (char w : p.wants) p.want += (size_t)w;
+        p.base = server::take_rows(ring(p), p.want);
+        require(p.base != ring(p).size, at + ": no logits rows for a pass though the passes in flight want at most half of them");
+        p.live = true;
+        p.formed = ++formed;
+        slots[k] = p;
+        for (uint64_t id : p.ids) active[find(id)].in.push_back(k);
+        check();
+        if (host[0]) deferred.push_back({k, 0});
+        else record(k, 0);
+        check();
+    }
+    // The service rule's passes (docs/SERVER.md, The service rule): replies packed while a prompt waits, then one prompt's chunk a free slot, by the share rule and the price table.
+    void form_service(std::vector<std::pair<size_t, size_t>>& deferred) {
+        at = "formation";
+        Service& v = *service;
+        const auto left = [&](const Req& q) { return q.history() - std::min(q.history(), q.len + flying_rows(q)); };
+        if (std::none_of(active.begin(), active.end(), [&](const Req& q) { return !q.decoding() && left(q) && !q.cancel; })) {
+            form(deferred, false, true);
+            return;
+        }
+        size_t decoders = 0, replying = 0, deepest = 0;
+        for (const Pass& q : slots) {
+            decoders += q.live ? q.decoders : 0;
+            replying += q.live && q.decoders;
+        }
+        std::vector<const Req*> ready_now;
+        for (const Req& r : active) {
+            if (!r.decoding()) continue;
+            deepest = std::max(deepest, r.len);
+            if (ready(r)) ready_now.push_back(&r);
+        }
+        decoders += ready_now.size();
+        std::stable_sort(ready_now.begin(), ready_now.end(), [](const Req* a, const Req* b) { return a->landed < b->landed; });
+        const size_t packed = server::packed_passes(decoders, v.columns);
+        // The gap the replies are served within, from the replies' own pass alone over the stages, and what it leaves a chunk.
+        double target = std::numeric_limits<double>::infinity();
+        if (decoders) {
+            const size_t band = server::depth_band(deepest);
+            const double alone = (double)S * v.tables[0].decode_ms(band, (decoders + S - 1) / S), replies = v.tables[0].decode_ms(band, std::min(decoders, v.columns));
+            if (alone > 0 && replies > 0) target = server::chunk_budget(server::service_gap(alone, v.mix), replies);
+        }
+        for (size_t k = free_slot(); k != npos; k = free_slot()) {
+            std::vector<Req*> prompts;
+            for (Req& r : active)
+                if (!r.decoding() && left(r) && !r.cancel && (r.in.empty() ? ready(r) : continuing(r))) prompts.push_back(&r);
+            Pass p;
+            if (!ready_now.empty() && (replying < packed || prompts.empty())) {
+                const size_t n = std::min(ready_now.size(), v.columns);
+                for (const Req& r : active)
+                    if (std::find(ready_now.begin(), ready_now.begin() + (std::ptrdiff_t)n, &r) != ready_now.begin() + (std::ptrdiff_t)n) {
+                        p.ids.push_back(r.id);
+                        p.rows.push_back(1);
+                        p.wants.push_back(1);
+                        p.from.push_back(r.len);
+                        p.extent.push_back(1);
+                        ++p.decoders;
+                    }
+                ready_now.erase(ready_now.begin(), ready_now.begin() + (std::ptrdiff_t)n);
+                ++replying;
+                launch(p, k, deferred);
+                continue;
+            }
+            if (prompts.empty()) return;
+            std::stable_sort(prompts.begin(), prompts.end(), [](const Req* a, const Req* b) { return a->arrived < b->arrived; });
+            std::vector<server::ReadyPrompt> views;
+            std::vector<double> credit;
+            for (const Req* r : prompts) {
+                const size_t at_len = r->len + flying_rows(*r), rows = r->history() - at_len;
+                Pass whole;
+                whole.ids = {r->id};
+                whole.rows = {rows};
+                whole.from = {at_len};
+                whole.extent = {r->prompt};
+                views.push_back({stage_ms(whole), r->in.empty() ? clock - r->rows_at : 0.0, r->attained, rows});
+                credit.push_back(v.credit[r->id]);
+            }
+            const size_t i = server::next_prompt(v.share, views, credit);
+            Req& r = *prompts[i];
+            const size_t at_len = r.len + flying_rows(r), most = std::min(ubatch, r.history() - at_len);
+            size_t n = most;
+            if (decoders) {
+                n = most;
+                for (size_t s = 0; s < S; ++s) n = std::min(n, v.tables[s].chunk_rows(Prices::row_class(r.prompt), server::depth_band(at_len), target, most));
+            }
+            if (r.in.empty()) r.worst_wait = std::max(r.worst_wait, clock - r.rows_at);
+            p.ids.push_back(r.id);
+            p.rows.push_back(n);
+            p.wants.push_back(at_len + n == r.history());
+            p.from.push_back(at_len);
+            p.extent.push_back(r.prompt);
+            const double ms = stage_ms(p);
+            r.attained += ms;
+            ++r.chunks;
+            server::charge_share(v.share, views, credit, i, ms);
+            for (size_t j = 0; j < prompts.size(); ++j) v.credit[prompts[j]->id] = credit.empty() ? 0.0 : credit[j];
+            ++v.chunk_passes;
+            v.chunk_rows += n;
+            continued_passes += !r.in.empty();
+            launch(p, k, deferred);
         }
     }
 
@@ -817,6 +1027,8 @@ struct Sim {
         steps();
         // With nothing in flight the host waits for a submission.
         if (!in_flight()) clock += 1.0;
+        // A replay measures its service; the laps bound today's rule.
+        if (service) return;
         // Laps: a ready decoder waits one lap at most, and a cancellation ends within one.
         for (Req& r : active) {
             if (!r.decoding() || r.stalled) r.since = round_no;
@@ -1446,10 +1658,510 @@ void random_schedules(size_t n) {
                 recorded, record_failures, held_formations, continued_passes, short_reads, shorts_ahead);
 }
 
+// The service rule's policy by hand (docs/SERVER.md, The price table, The service rule, Prompt shares): depth bands, the price table's prices and its slice search, the gap and packing, and each share rule's choice.
+void service_by_hand() {
+    require(server::depth_band(0) == 0 && server::depth_band(4095) == 0 && server::depth_band(4096) == 1 && server::depth_band(8191) == 1 && server::depth_band(8192) == 2 &&
+                server::depth_band(150000) == 6 && server::depth_band(262143) == 6 && server::depth_band(262144) == 7,
+            "a depth band was read wrongly");
+    server::PriceTable t;
+    server::PassWork decode;
+    decode.decode(1, 100);
+    decode.decode(1, 5000);
+    require(decode.decode_rows == 2 && decode.decode_band == 1, "decode rows took another band than their deepest's");
+    require(t.predict(decode) == 0, "a table that measured nothing predicted");
+    require(t.observe(decode, 10) && t.predict(decode) == 10, "a decode pass alone was not priced as measured");
+    t.observe(decode, 14);
+    require(std::fabs(t.decode.at({1, 2}).ms - (0.75 * 10 + 0.25 * 14)) < 1e-9 && t.decode.at({1, 2}).last_ms == 14 && t.decode.at({1, 2}).samples == 2, "a cell did not keep the forgetting mean and the last measure");
+    server::PassWork three;
+    three.decode(3, 5000);
+    require(t.predict(three) == t.decode.at({1, 2}).ms, "three decode rows did not take the nearest measured rows of their band");
+    const auto chunk = [](size_t cls, size_t rows, size_t depth) {
+        server::PassWork w;
+        w.chunk(cls, rows, depth);
+        return w;
+    };
+    require(t.observe(chunk(7, 30, 0), 40) && t.chunks.count({7, 0, 32}), "a slice alone was not priced at its rows' step");
+    server::PassWork both = chunk(7, 30, 0);
+    both.decode(1, 5000);
+    require(!t.observe(both, 99) && std::fabs(t.predict(both) - (40 + t.decode.at({1, 2}).ms)) < 1e-9, "a pass of two parts priced a cell, or was not predicted as its parts");
+    require(t.predict(chunk(7, 64, 0)) == 80 && t.predict(chunk(7, 16, 0)) == 40 && t.predict(chunk(7, 16, 4096)) == 0 && t.predict(chunk(8, 16, 0)) == 0,
+            "a slice's rows not measured were not priced from their class and band's nearest measure");
+    // The search: one step at a class's first slice, doubling while within, the bracket's middle once over, half the smallest over where nothing is within, and a new band from the band below.
+    server::PriceTable s;
+    require(s.chunk_rows(3, 0, 50, 512) == 16, "the class's first slice was not one step");
+    s.observe(chunk(3, 16, 0), 20);
+    require(s.chunk_rows(3, 0, 50, 512) == 32, "a slice within the target did not double");
+    s.observe(chunk(3, 32, 0), 30);
+    s.observe(chunk(3, 64, 0), 45);
+    s.observe(chunk(3, 128, 0), 75);
+    require(s.chunk_rows(3, 0, 50, 512) == 96, "the bracket's middle was not taken");
+    s.observe(chunk(3, 96, 0), 60);
+    require(s.chunk_rows(3, 0, 50, 512) == 80, "the bracket did not narrow");
+    s.observe(chunk(3, 80, 0), 52);
+    require(s.chunk_rows(3, 0, 50, 512) == 64, "a bracket of one step did not settle on its slice within");
+    s.observe(chunk(3, 64, 0), 55);
+    require(s.chunk_rows(3, 0, 50, 512) == 48, "an overrun did not bring the bracket down to the largest within below it");
+    require(s.chunk_rows(3, 0, 50, 20) == 20 && s.chunk_rows(3, 0, 50, 8) == 8, "the slice passed what the prompt has left");
+    s.observe(chunk(3, 16, 0), 70);
+    s.observe(chunk(3, 32, 0), 70);
+    require(s.chunk_rows(3, 0, 50, 512) == 16, "a band whose every slice is over did not halve to one step");
+    server::PriceTable n;
+    n.observe(chunk(3, 128, 0), 40);
+    n.observe(chunk(3, 256, 0), 70);
+    require(n.chunk_rows(3, 2, 50, 512) == 128 && n.chunk_rows(4, 2, 50, 512) == 16, "a band not measured did not start at the band below's slice within, or another class at one step");
+    n.observe(chunk(3, 128, 8192), 60);
+    require(n.chunk_rows(3, 2, 50, 512) == 64, "an overrun in a new band did not halve its slice");
+    require(server::service_gap(17, 3) == 51 && server::chunk_budget(51, 19) == 32 && server::chunk_budget(10, 19) == 0, "the gap or a chunk's budget was read wrongly");
+    require(server::packed_passes(0, 16) == 0 && server::packed_passes(1, 16) == 1 && server::packed_passes(16, 16) == 1 && server::packed_passes(17, 16) == 2, "replies were not packed by the columns");
+
+    // The share rules over three ready prompts in arrival order: an old long one, a newer short one and a newest middle one.
+    std::vector<server::ReadyPrompt> p{{9000, 0, 500, 150000}, {300, 0, 0, 327}, {3000, 0, 0, 3334}};
+    using R = server::Share::Rule;
+    const auto pick = [&](server::Share s, const std::vector<double>& credit = {}) { return server::next_prompt(s, p, credit); };
+    require(pick({R::oldest_first}) == 0, "oldest first did not take the oldest");
+    server::Share today{R::today};
+    today.short_rows = 128;
+    require(pick(today) == 0, "today's rule read a prompt past its short rows ahead of the oldest");
+    today.short_rows = 512;
+    require(pick(today) == 1, "today's rule did not read the short prompt first");
+    require(pick({R::least_remaining}) == 1, "least remaining did not take the least work left");
+    server::Share aged{R::least_remaining};
+    aged.age = 1;
+    p[2].idle_ms = 2800;
+    require(pick(aged) == 2, "least remaining with aging did not move a prompt that waited ahead");
+    p[0].idle_ms = 10000;
+    require(pick(aged) == 0, "a prompt idle for the bound did not go first");
+    p[0].idle_ms = p[2].idle_ms = 0;
+    require(pick({R::least_attained}) == 1, "least attained did not take the first that had none, the oldest of equals");
+    // A rule that divides gives each its part over many chunks of equal time, a chunk at a time.
+    const auto parts = [&](server::Share s) {
+        std::vector<double> credit(p.size(), 0.0), got(p.size(), 0.0);
+        for (int c = 0; c < 400; ++c) {
+            const size_t i = server::next_prompt(s, p, credit);
+            server::charge_share(s, p, credit, i, 1.0);
+            got[i] += 1.0;
+        }
+        for (double& g : got) g /= 400.0;
+        return got;
+    };
+    const std::vector<double> keeps = parts({R::oldest_keeps, 0.75}), equal = parts({R::equal}), floor = parts({R::least_remaining_floor, 0.25});
+    require(std::fabs(keeps[0] - 0.75) < 0.01 && std::fabs(keeps[1] - 0.25) < 0.01 && keeps[2] == 0, "the oldest did not keep its part, the next in arrival order the rest");
+    require(std::fabs(equal[0] - 1.0 / 3) < 0.01 && std::fabs(equal[2] - 1.0 / 3) < 0.01, "equal shares were not equal");
+    require(std::fabs(floor[0] - 0.25) < 0.01 && std::fabs(floor[1] - 0.75) < 0.01 && floor[2] == 0, "the oldest's floor was not kept, the least remaining of the others taking the rest");
+    require(server::share_parts({R::oldest_keeps, 0.75}, {p[2]}) == std::vector<double>{1.0} && server::share_parts({R::least_remaining}, p).empty(), "a lone prompt did not take all the time, or an ordering rule divided it");
+}
+
+// A request of a load: when it arrives, or the request it follows and the client's time after that one ends, its prompt, the history its first admission forks and the tokens it generates.
+struct LoadRequest {
+    double arrive_ms = 0;
+    size_t prompt = 0, base = 0, gen = 1;
+    long pred = -1;
+    double think_ms = 0;
+};
+struct Load {
+    std::string name;
+    std::vector<LoadRequest> requests;
+};
+// The placement and pool a replay serves on: stages, passes in flight, requests at once, the ubatch and the pool's tokens.
+struct Bench {
+    size_t stages = 2, passes = 3, max_seqs = 8, ubatch = 512, pool_tokens = 262144;
+};
+
+// One replay of a load under a rule: the requests as they ended, every gap between two tokens of a request, and the requests skipped as larger than a request may hold.
+struct Outcome {
+    std::vector<Sim::Req> done;
+    std::vector<double> gaps;
+    double span_ms = 0;
+    size_t chunk_passes = 0, chunk_rows = 0, skipped = 0;
+};
+Outcome replay(const Load& load, const Bench& b, const Service& rule) {
+    Sim sim(1, b.stages, b.passes);
+    sim.max_seqs = b.max_seqs;
+    sim.ubatch = b.ubatch;
+    sim.fail_per_mille = 0;
+    sim.pools.block_tokens = {256, 512};
+    sim.pools.blocks = {b.pool_tokens / 256, b.pool_tokens / 512};
+    sim.growth.tokens = 256;
+    sim.rows = server::logit_rows(b.passes, b.max_seqs);
+    Service v = rule;
+    v.tables.assign(b.stages, server::PriceTable{});
+    v.credit.clear();
+    v.gaps.clear();
+    sim.service = &v;
+    Outcome out;
+    const size_t n = load.requests.size();
+    const double never = std::numeric_limits<double>::infinity();
+    std::vector<double> when(n, never);
+    std::vector<char> sent(n, 0);
+    std::vector<std::vector<size_t>> followers(n);
+    for (size_t i = 0; i < n; ++i) {
+        const LoadRequest& q = load.requests[i];
+        if (q.pred < 0) when[i] = q.arrive_ms;
+        else followers[(size_t)q.pred].push_back(i);
+    }
+    size_t submitted = 0, seen = 0;
+    for (uint64_t rounds = 0;; ++rounds) {
+        require(rounds < 200000000, load.name + ": the replay ran past its bound of rounds");
+        for (; seen < sim.done.size(); ++seen)
+            for (size_t j : followers[sim.done[seen].tag]) when[j] = sim.done[seen].ended_at + load.requests[j].think_ms;
+        double next = never;
+        for (size_t i = 0; i < n; ++i) {
+            if (sent[i]) continue;
+            if (when[i] > sim.clock) {
+                next = std::min(next, when[i]);
+                continue;
+            }
+            sent[i] = 1;
+            const LoadRequest& q = load.requests[i];
+            if (q.prompt + 1 >= sim.limit()) {
+                ++out.skipped;
+                // A skipped request's followers arrive as if it had ended at once.
+                for (size_t j : followers[i]) when[j] = sim.clock + load.requests[j].think_ms;
+                next = sim.clock;
+                continue;
+            }
+            Sim::Req r;
+            r.id = sim.next_id++;
+            r.line = ++sim.admissions;
+            r.tag = i;
+            r.prompt = q.prompt;
+            r.base = std::min(q.base, q.prompt - 1) / 256 * 256;
+            r.max_tokens = std::max<size_t>(1, std::min(q.gen, sim.limit() - q.prompt));
+            r.arrived = when[i];
+            sim.queue.push_back(r);
+            ++submitted;
+        }
+        if (sim.ended == submitted && next == never && std::all_of(sent.begin(), sent.end(), [](char c) { return c != 0; })) break;
+        if (sim.active.empty() && sim.queue.empty() && sim.paused.empty() && !sim.in_flight()) {
+            require(next != never, load.name + ": requests wait for a request that never ends");
+            sim.clock = std::max(sim.clock, next);
+            continue;
+        }
+        sim.round();
+    }
+    out.done = std::move(sim.done);
+    out.gaps = std::move(v.gaps);
+    out.span_ms = sim.clock;
+    out.chunk_passes = v.chunk_passes;
+    out.chunk_rows = v.chunk_rows;
+    return out;
+}
+
+// The nearest-rank percentile of `v`, 0 for none.
+double percentile(std::vector<double> v, double q) {
+    if (v.empty()) return 0;
+    std::sort(v.begin(), v.end());
+    return v[std::min(v.size() - 1, (size_t)std::ceil(q * (double)v.size()) - 1)];
+}
+
+// The candidate share rules A0 to A7 as the replay names them (docs/SERVER.md, Prompt shares).
+struct Candidate {
+    std::string name;
+    server::Share share;
+};
+std::vector<Candidate> candidates(size_t ubatch) {
+    using R = server::Share::Rule;
+    std::vector<Candidate> c;
+    server::Share today{R::today};
+    today.short_rows = ubatch / server::kShortShare;
+    c.push_back({"A0", today});
+    c.push_back({"A1", {R::oldest_first}});
+    c.push_back({"A2", {R::oldest_keeps, 0.75}});
+    c.push_back({"A3", {R::oldest_keeps, 0.5}});
+    c.push_back({"A4", {R::equal}});
+    for (const double k : {1.0, 2.0, 4.0, 0.0})
+        for (const double wait_s : {5.0, 10.0, 30.0}) {
+            server::Share s{R::least_remaining};
+            s.age = k > 0 ? 1.0 / k : 0.0;
+            s.wait_ms = wait_s * 1000;
+            c.push_back({"A5(k=" + (k > 0 ? std::to_string((int)k) : std::string("inf")) + ",W=" + std::to_string((int)wait_s) + "s)", s});
+        }
+    c.push_back({"A6(1/4)", {R::least_remaining_floor, 0.25}});
+    c.push_back({"A6(1/2)", {R::least_remaining_floor, 0.5}});
+    c.push_back({"A7", {R::least_attained}});
+    return c;
+}
+
+// The figures of one load under one rule (docs/SERVER.md, Prompt shares), the score being the mean over the size classes present of the p95 slowdown against the prompt alone.
+struct Figures {
+    double score = 0, worst_wait_s = 0, longest_s = 0, longest_alone_s = 0, gap_p50_ms = 0, gap_p99_ms = 0, prompt_rate = 0, output_rate = 0, chunks_per_k = 0;
+    size_t longest = 0, skipped = 0;
+    std::string classes;
+};
+Figures figures(const Outcome& o, const std::function<double(size_t, size_t)>& alone_ms) {
+    Figures f;
+    static const size_t edges[] = {1000, 8000, 32000};
+    static const char* const names[] = {"<1k", "1k-8k", "8k-32k", ">=32k"};
+    std::vector<double> ttft[4], slow[4];
+    size_t prompt = 0, generated = 0;
+    for (const Sim::Req& r : o.done) {
+        const size_t read = r.prompt - r.base;
+        const size_t c = (size_t)(std::upper_bound(std::begin(edges), std::end(edges), read - 1) - std::begin(edges));
+        const double t = r.first_at - r.arrived;
+        ttft[c].push_back(t / 1000);
+        slow[c].push_back(t / std::max(1.0, alone_ms(r.prompt, r.base)));
+        f.worst_wait_s = std::max(f.worst_wait_s, r.worst_wait / 1000);
+        prompt += read;
+        generated += r.gen;
+        if (read > f.longest) {
+            f.longest = read;
+            f.longest_s = t / 1000;
+            f.longest_alone_s = alone_ms(r.prompt, r.base) / 1000;
+        }
+    }
+    size_t present = 0;
+    char line[256];
+    for (size_t c = 0; c < 4; ++c) {
+        if (ttft[c].empty()) continue;
+        ++present;
+        f.score += percentile(slow[c], 0.95);
+        std::snprintf(line, sizeof line, " | %s n=%zu ttft p50/p95/p99 %.1f/%.1f/%.1f s, slowdown p50/p95/max %.2f/%.2f/%.2f", names[c], ttft[c].size(), percentile(ttft[c], 0.5),
+                      percentile(ttft[c], 0.95), percentile(ttft[c], 0.99), percentile(slow[c], 0.5), percentile(slow[c], 0.95), percentile(slow[c], 1.0));
+        f.classes += line;
+    }
+    f.score = present ? f.score / (double)present : 0;
+    f.gap_p50_ms = percentile(o.gaps, 0.5);
+    f.gap_p99_ms = percentile(o.gaps, 0.99);
+    f.prompt_rate = o.span_ms > 0 ? 1000.0 * (double)prompt / o.span_ms : 0;
+    f.output_rate = o.span_ms > 0 ? 1000.0 * (double)generated / o.span_ms : 0;
+    f.chunks_per_k = o.chunk_rows ? 1000.0 * (double)o.chunk_passes / (double)o.chunk_rows : 0;
+    f.skipped = o.skipped;
+    return f;
+}
+
+// The UTC time `2026-10-27T11:03:12.972Z` in milliseconds since 1970, or a negative value where the text is not one.
+double utc_ms(const std::string& t) {
+    int y, mo, d, h, mi;
+    double sec;
+    if (std::sscanf(t.c_str(), "%d-%d-%dT%d:%d:%lfZ", &y, &mo, &d, &h, &mi, &sec) != 6) return -1;
+    y -= mo <= 2;
+    const long era = (y >= 0 ? y : y - 399) / 400;
+    const long yoe = y - era * 400, doy = (153 * (mo + (mo > 2 ? -3 : 9)) + 2) / 5 + d - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    const double days = (double)(era * 146097 + doe - 719468);
+    return ((days * 24 + h) * 60 + mi) * 60000.0 + sec * 1000.0;
+}
+
+// Production's requests with an arrival time from a trace of one JSON object a line (docs/SERVER.md, Prompt shares), a server's smoke request of 17 prompt and 151 generated tokens left out.
+// A request follows the one it reuses at least half of, or whose end it arrives within 3 s of, unless the trace gives `pred` and `think_ms`.
+Load trace(const std::string& path) {
+    std::ifstream in(path);
+    require((bool)in, "the trace " + path + " cannot be read");
+    struct Row {
+        LoadRequest q;
+        double arrive = 0, end = -1;
+        long given = -2;
+    };
+    std::vector<Row> rows;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.find_first_not_of(" \t\r") == std::string::npos) continue;
+        const jmini::Value v = jmini::parse(line);
+        const auto num = [&](const char* k, double fallback) {
+            const jmini::Value* x = v.get(k);
+            return x && x->isNumber() ? x->asNumber() : fallback;
+        };
+        const auto text = [&](const char* k) {
+            const jmini::Value* x = v.get(k);
+            return x && x->isString() ? x->asString() : std::string();
+        };
+        double arrive = utc_ms(text("arrival_utc_poller"));
+        if (arrive < 0) arrive = utc_ms(text("arrival_utc_derived"));
+        if (arrive < 0) continue;
+        Row r;
+        r.q.prompt = (size_t)num("prompt_tokens", 0);
+        r.q.base = (size_t)num("reused_tokens", 0);
+        r.q.gen = (size_t)std::max(1.0, num("generated_tokens", 1));
+        if (!r.q.prompt || (num("seq", -1) == 0 && r.q.prompt == 17 && r.q.gen == 151)) continue;
+        r.arrive = arrive;
+        r.end = utc_ms(text("finish_utc"));
+        r.given = (long)num("pred", -2);
+        r.q.think_ms = num("think_ms", 0);
+        rows.push_back(r);
+    }
+    require(!rows.empty(), "the trace " + path + " holds no request with an arrival time");
+    std::stable_sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.arrive < b.arrive; });
+    Load load{"trace", {}};
+    const double t0 = rows.front().arrive;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        LoadRequest q = rows[i].q;
+        q.arrive_ms = rows[i].arrive - t0;
+        if (rows[i].given >= -1) {
+            q.pred = rows[i].given;
+        } else {
+            double best_key = 1e300;
+            for (size_t j = 0; j < i; ++j) {
+                const Row& y = rows[j];
+                if (y.end < 0 || y.end > rows[i].arrive + 1000) continue;
+                const double gap = rows[i].arrive - y.end;
+                const bool reuse = q.base > 0 && y.q.prompt <= q.prompt && 2 * q.base >= y.q.prompt;
+                if (!reuse && gap > 3000) continue;
+                const double key = (reuse ? 0 : 1e12) + gap;
+                if (key < best_key) {
+                    best_key = key;
+                    q.pred = (long)j;
+                    q.think_ms = std::max(0.0, gap);
+                }
+            }
+        }
+        load.requests.push_back(q);
+    }
+    return load;
+}
+
+// The synthetic loads S1 to S7 (docs/SERVER.md, Prompt shares), `hours` long where they run on, their turns drawn from `pool` where it has any.
+std::vector<Load> synthetic(double hours, const std::vector<LoadRequest>& pool, const Prices& prices, size_t ubatch) {
+    std::mt19937 rng(1);
+    std::vector<Load> loads;
+    const auto turn = [&](double at) {
+        LoadRequest q;
+        if (!pool.empty()) {
+            q = pool[rng() % pool.size()];
+            q.gen = std::min<size_t>(q.gen, 4000);
+            q.pred = -1;
+        } else {
+            q.prompt = 1000 + rng() % 7000;
+            q.gen = 64 + rng() % 448;
+        }
+        q.arrive_ms = at;
+        return q;
+    };
+    // A prompt's stage time alone, by which a stream's rate is set to a load.
+    const auto cost = [&](const LoadRequest& q) {
+        const double rows = (double)(q.prompt - std::min(q.base, q.prompt));
+        return std::ceil(rows / (double)ubatch) * prices.chunk_ms + rows * (prices.row_ms + prices.row_depth_ms * ((double)q.base + rows / 2));
+    };
+    const auto stream = [&](Load& l, double load, double from, double until) {
+        double mean = 0;
+        for (int i = 0; i < 64; ++i) mean += cost(turn(0)) / 64;
+        for (double t = from + std::exponential_distribution<double>(load / mean)(rng); t < until; t += std::exponential_distribution<double>(load / mean)(rng)) l.requests.push_back(turn(t));
+    };
+    const LoadRequest reply{0, 1000, 0, 4000};
+    loads.push_back({"S1", {reply, {500, 150000, 0, 800}, {1500, 327, 0, 100}, {1500, 3334, 0, 160}}});
+    loads.push_back({"S2", {reply, {0, 150000, 0, 800}, {10000, 2000, 0, 300}, {30000, 2000, 0, 300}, {50000, 2000, 0, 300}, {70000, 2000, 0, 300}}});
+    loads.push_back({"S3", {{0, 150000, 0, 600}, {1000, 150000, 0, 600}}});
+    for (const size_t burst : {8, 16, 32}) {
+        Load l{"S4-" + std::to_string(burst), {reply, reply, reply, reply}};
+        for (size_t i = 0; i < burst; ++i) l.requests.push_back({5000, 1000 + rng() % 7000, 0, 64 + rng() % 448});
+        loads.push_back(l);
+    }
+    for (const double load : {0.7, 0.9}) {
+        Load l{"S5-" + std::to_string((int)(load * 100)), {{60000, 150000, 0, 800}}};
+        stream(l, load, 0, hours * 3600000);
+        loads.push_back(l);
+    }
+    Load six{"S6", {{300000, 150000, 0, 800}}};
+    stream(six, 0.5, 0, hours * 3600000);
+    loads.push_back(six);
+    for (const size_t users : {1, 4, 16, 64}) {
+        Load l{"S7-" + std::to_string(users), {}};
+        for (size_t u = 0; u < users; ++u)
+            for (size_t k = 0; k < 8; ++k) l.requests.push_back({0, 1024, 0, 64, k ? (long)(l.requests.size() - 1) : -1, 0});
+        loads.push_back(l);
+    }
+    return loads;
+}
+
+// The replay of loads under rules, a line a load and rule (llmx-server-passes-test --replay FILE or --load NAME): see docs/SERVER.md, Prompt shares.
+int replay_main(int argc, char** argv) {
+    Bench b;
+    Service rule;
+    std::string trace_path, only_load, only_rules;
+    double hours = 1, row_scale = 1, fixed_scale = 1;
+    for (int i = 1; i < argc; ++i) {
+        const std::string a = argv[i];
+        const auto value = [&]() -> std::string {
+            if (i + 1 >= argc) throw std::runtime_error(a + " needs a value");
+            return argv[++i];
+        };
+        if (a == "--replay") trace_path = value();
+        else if (a == "--load") only_load = value();
+        else if (a == "--rules") only_rules = value();
+        else if (a == "--hours") hours = std::stod(value());
+        else if (a == "--stages") b.stages = std::stoul(value());
+        else if (a == "--passes") b.passes = std::stoul(value());
+        else if (a == "--max-seqs") b.max_seqs = std::stoul(value());
+        else if (a == "--ubatch") b.ubatch = std::stoul(value());
+        else if (a == "--pool") b.pool_tokens = std::stoul(value());
+        else if (a == "--mix") rule.mix = std::stod(value());
+        else if (a == "--columns") rule.columns = std::stoul(value());
+        else if (a == "--row-scale") row_scale = std::stod(value());
+        else if (a == "--fixed-scale") fixed_scale = std::stod(value());
+        else if (a == "--class-ms") rule.prices.class_ms = std::stod(value());
+        else throw std::runtime_error("unknown argument " + a);
+    }
+    rule.prices.row_ms *= row_scale;
+    rule.prices.row_depth_ms *= row_scale;
+    rule.prices.chunk_ms *= fixed_scale;
+    rule.prices.reply_ms *= fixed_scale;
+    std::vector<Load> loads;
+    std::vector<LoadRequest> pool;
+    if (!trace_path.empty()) {
+        loads.push_back(trace(trace_path));
+        pool = loads.back().requests;
+    }
+    for (Load& l : synthetic(hours, pool, rule.prices, b.ubatch)) loads.push_back(std::move(l));
+    std::printf("replay: %zu stages, %zu passes, %zu requests at once, ubatch %zu, pool %zu tokens, mix %.2f, %zu columns; prices: reply %.2f + %.2f a row ms, chunk %.2f ms, row %.3f + %.3g a token of depth ms, class %.2f ms\n",
+                b.stages, b.passes, b.max_seqs, b.ubatch, b.pool_tokens, rule.mix, rule.columns, rule.prices.reply_ms, rule.prices.reply_row_ms, rule.prices.chunk_ms, rule.prices.row_ms,
+                rule.prices.row_depth_ms, rule.prices.class_ms);
+    for (const Load& load : loads) {
+        if (!only_load.empty() && load.name.rfind(only_load, 0) != 0) continue;
+        // Each prompt alone on the same placement, once, for the slowdowns.
+        std::map<std::pair<size_t, size_t>, double> alone;
+        const auto alone_ms = [&](size_t prompt, size_t base) {
+            const auto key = std::make_pair(prompt, base);
+            const auto it = alone.find(key);
+            if (it != alone.end()) return it->second;
+            Service one = rule;
+            one.share = server::Share{};
+            const Outcome o = replay(Load{"alone", {{0, prompt, base, 1}}}, b, one);
+            const double ms = o.done.empty() ? 0.0 : o.done[0].first_at - o.done[0].arrived;
+            alone[key] = ms;
+            return ms;
+        };
+        std::printf("load %s: %zu requests\n", load.name.c_str(), load.requests.size());
+        for (const Candidate& c : candidates(b.ubatch)) {
+            if (!only_rules.empty() && ("," + only_rules + ",").find("," + c.name.substr(0, 2) + ",") == std::string::npos && ("," + only_rules + ",").find("," + c.name + ",") == std::string::npos) continue;
+            Service r = rule;
+            r.share = c.share;
+            const Outcome o = replay(load, b, r);
+            const Figures f = figures(o, alone_ms);
+            std::printf("  %s %s: score %.2f, worst wait %.1f s, longest %zu rows %.1f s (alone %.1f s), gaps p50/p99 %.1f/%.1f ms, %.0f prompt and %.1f output tok/s, %.2f chunk passes a 1k rows%s%s\n", load.name.c_str(), c.name.c_str(),
+                        f.score, f.worst_wait_s, f.longest, f.longest_s, f.longest_alone_s, f.gap_p50_ms, f.gap_p99_ms, f.prompt_rate, f.output_rate, f.chunks_per_k, f.classes.c_str(),
+                        f.skipped ? (", " + std::to_string(f.skipped) + " skipped as too long").c_str() : "");
+            std::fflush(stdout);
+        }
+    }
+    return 0;
+}
+
+// The owner's case at 20k tokens under three rules: every request ends, and least remaining reads the short prompts sooner than the oldest first.
+void replay_smoke() {
+    Bench b;
+    b.max_seqs = 4;
+    b.pool_tokens = 65536;
+    Service rule;
+    const Load load{"smoke", {{0, 1000, 0, 400}, {500, 20000, 0, 50}, {1500, 327, 0, 20}, {1500, 3334, 0, 20}}};
+    double ttft[3] = {0, 0, 0};
+    const server::Share rules[] = {{server::Share::Rule::today}, {server::Share::Rule::oldest_first}, {server::Share::Rule::least_remaining}};
+    for (size_t i = 0; i < 3; ++i) {
+        Service r = rule;
+        r.share = rules[i];
+        r.share.short_rows = b.ubatch / server::kShortShare;
+        const Outcome o = replay(load, b, r);
+        require(o.done.size() == load.requests.size(), "a replay left requests that never ended");
+        for (const Sim::Req& q : o.done)
+            if (q.prompt == 327 || q.prompt == 3334) ttft[i] = std::max(ttft[i], q.first_at - q.arrived);
+        require(!o.gaps.empty() && o.chunk_passes > 0, "a replay measured no gap or formed no chunk pass");
+    }
+    require(ttft[2] < ttft[1], "least remaining did not read the short prompts before the long one: " + std::to_string(ttft[2]) + " ms against " + std::to_string(ttft[1]) + " ms oldest first");
+    std::printf("server-passes: replay of the owner's case at 20k tokens, the later prompts' first token at %.0f ms today, %.0f ms oldest first and %.0f ms least remaining\n", ttft[0], ttft[1], ttft[2]);
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
     try {
+        if (argc > 1 && std::string(argv[1]).rfind("--", 0) == 0) return replay_main(argc, argv);
         const size_t schedules = argc > 1 ? (size_t)std::stoul(argv[1]) : 2000;
         rooms_by_hand();
         host_cache_by_hand();
@@ -1460,6 +2172,8 @@ int main(int argc, char** argv) {
         rows_by_hand();
         automatic_by_hand();
         due_step_first();
+        service_by_hand();
+        replay_smoke();
         random_schedules(schedules);
         std::cout << "server-passes: " << checks << " checks pass\n";
         return 0;

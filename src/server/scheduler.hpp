@@ -31,6 +31,7 @@
 #include "model/stage_lanes.hpp"
 #include "server/disk_tier.hpp"
 #include "server/policy.hpp"
+#include "server/service_record.hpp"
 #include "tokenizer/tokenizer.hpp"
 
 namespace server {
@@ -249,6 +250,7 @@ private:
     size_t reached_ = 0;           // the longest history its cache has held, past which nothing is recomputed
     size_t recomputed_ = 0;        // rows its resumes computed again
     bool first_pass_ = false;      // a promotion it took waits for its next pass to retire, whose time is Restore::first_pass_ms
+    Clock::time_point first_at_{}, pushed_{};   // when its first token and its last went to the channel, the scheduler thread's copies for the service record
     Clock::time_point first_before_{};   // first_ as that promotion found it: unset where the pass gives the first token, so the pass is in prompt_ms
     size_t boundary_at_ = 0;       // on a model that keeps a state, where the slice that reaches it keeps the state as a message boundary; 0 once kept or skipped
     size_t boundary_kept_ = 0;     // where its pass in flight keeps that state, the end of that pass's slice, which goes to host memory once that pass retires; 0 for none
@@ -485,6 +487,9 @@ public:
         // In phase "encode": its image's place among the request's (from 1) and rows, the pieces run of the encode's and the time since it began, 0 of 0 in 0 ms while another image holds the encoder.
         size_t image_index = 0, image_count = 0, image_rows = 0, pieces_done = 0, pieces_total = 0;
         uint64_t image_elapsed_ms = 0;
+        // Its wait for admission (so far, while it waits), its time from reading to the first token (0 before it) and its mean gap between tokens since.
+        uint64_t queued_ms = 0, first_token_ms = 0;
+        double inter_token_ms = 0;
     };
     struct LiveRequests {
         static constexpr size_t limit = 64;
@@ -567,8 +572,11 @@ public:
         uint64_t floor_deferred = 0;              // the passes apart that were due and waited for the prompts' floor
         double longest_piece_ms = 0;              // the longest piece of a prompt's pass fed in pieces
         LiveRequests live{};
+        ServiceRecord::Snapshot service{};        // the service record (docs/SERVER.md, The price table)
     };
     Stats stats() const {
+        // The service record is copied under its own lock alone, before the scheduler's, so a health poll never holds the round.
+        ServiceRecord::Snapshot service = record_.snapshot();
         std::lock_guard<std::mutex> lk(m_);
         Stats s{active_count_.load(), queue_.size(), 0, 0, 0, (size_t)pauses_, paused_count_.load(), stalls_, waits_, recomputed_, 0, checkpoints_.load(), normal_, in_flight_.load(), samplers_.threads(), {}, {},
                 timed_, timing_};
@@ -627,6 +635,7 @@ public:
         for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
         s.live = live_;
         live_requested_ = true;
+        s.service = std::move(service);
         return s;
     }
 
@@ -886,6 +895,8 @@ private:
         Clock::time_point begun;
         uint64_t prompt_of = 0;  // the admission of the first request whose prompt it slices, and that history's ends before and after it, which its pieces' record names (StagePace::piece_of)
         size_t prompt_from = 0, prompt_end = 0;
+        PassWork work;                  // its work as the price table keys it
+        std::vector<double> predicted;  // per stage, the stage time the prices predicted as it was formed, 0 where they did not price it
     };
 
     bool flying() const {
@@ -1270,6 +1281,7 @@ private:
             give_rows(ring, f.base, f.want);
             throw;
         }
+        price(f);
         // Where passes go apart, a pass with prompt rows beside other requests is fed in pieces, so a pass apart waits a piece at a stage and not the stage.
         apart_formed_ += f.apart;
         prompt_passes_ += f.prompt_of != 0;
@@ -1301,6 +1313,40 @@ private:
         if (model_.stage_on_host(0)) host.push_back({k, 0});
         else advance(active, k, 0);
         return true;
+    }
+
+    // A pass's work as the price table keys it, each stage's predicted time and its rows by kind, for the service record (docs/SERVER.md, The price table); it changes nothing a pass holds.
+    void price(Slot& f) {
+        f.work = PassWork{};
+        RowKinds kinds;
+        for (size_t e = 0; e < entries_.size(); ++e) {
+            const infer::BatchEntry& x = entries_[e];
+            const Request& m = *f.members[e];
+            const size_t extent = x.extent ? x.extent : x.n;
+            if (extent == 1) {
+                f.work.decode(x.n, f.from[e]);
+            } else {
+                const size_t id = class_ids_.emplace(model_.row_class(extent), class_ids_.size()).first->second;
+                record_.class_extent(id, extent);
+                f.work.chunk(id, x.n, f.from[e]);
+                const size_t b = depth_band(f.from[e]);
+                if (kinds.by_band.size() <= b) kinds.by_band.resize(b + 1, 0);
+                kinds.by_band[b] += x.n;
+            }
+            if (m.job_) {
+                kinds.reread += x.n;
+            } else if (extent != 1) {
+                kinds.prompt += x.n;
+            } else if (f.from[e] < m.reached_) {
+                kinds.recomputed += x.n;
+            } else {
+                kinds.decode += 1;
+                kinds.drafts += x.n - 1;
+            }
+        }
+        f.predicted.assign(model_.stage_count(), 0.0);
+        for (size_t s = 0; s < f.predicted.size(); ++s) f.predicted[s] = record_.predict(s, f.work);
+        record_.formed(kinds);
     }
 
     // Stage s of the pass in slot k; a failure has abandoned the pass in the model, and it fails that pass alone.
@@ -1341,6 +1387,9 @@ private:
                 for (size_t n : slots_[k].rows) post.rows += slots_[k].generated ? 0 : n;
                 post.deferred = false;
                 post.serves = serves || slots_[k].apart;
+                post.pass = slots_[k].formed;
+                post.work = slots_[k].work;
+                post.predicted_ms = slots_[k].predicted[s];
                 post.posted = true;
             }
             r->cv.notify_all();
@@ -1352,6 +1401,7 @@ private:
             recorders_[s]->clock.began(now_ms());
         }
         const Clock::time_point start = timed_ ? Clock::now() : Clock::time_point{};
+        const Clock::time_point begun = Clock::now();
         const backend::Backend::HostTimes before = timed_ ? host_times() : backend::Backend::HostTimes{};
         try {
             // Undoing the pass drains every device, which a stage being recorded on its thread must not see, so the recorders go quiet first.
@@ -1360,6 +1410,9 @@ private:
             fail_pass(active, k, e.what());
             return;
         }
+        const auto sent = model_.stage_sent(ctx_, k);
+        const auto waits = model_.stage_host_waits(ctx_, k);
+        record_.post({slots_[k].formed, s, slots_[k].work, slots_[k].predicted[s], true, begun, Clock::now(), waits.first, waits.second, sent.first, sent.second});
         ++slots_[k].ran;
         if (!timed_) return;
         // The stage's time on the thread, apart from where it was held and its uploads; on the host that is the stage's own time.
@@ -1735,6 +1788,9 @@ private:
             bool timed = false;      // a prompt's slice under the interleaved rule, timed on this stage (Timing), of the prompt and to the history's end named here
             uint64_t prompt_of = 0;
             size_t prompt_end = 0;
+            uint64_t pass = 0;       // the pass's formation order, work and predicted stage time, for the service record
+            PassWork work;
+            double predicted_ms = 0;
         };
         struct End {
             size_t slot = 0;
@@ -1795,6 +1851,10 @@ private:
             p.search.add(t.rows, ms, p.apart_ms);
             p.piece_of = t.prompt_of;
             p.piece_end = t.prompt_end;
+            // The health's last slice: the stage's whole time for it, one piece.
+            p.slice = SliceRecord{};
+            p.slice.piece(ms, -1, "stage");
+            p.slice.rows = t.rows;
             r.timing.pop_front();
             settled = true;
         }
@@ -1811,6 +1871,7 @@ private:
             if (auto_ && taken.serves) r.clock.began(now_ms());
             lk.unlock();
             Recorder::End end{taken.slot, taken.job, false, {}};
+            const Clock::time_point begun = Clock::now();
             try {
                 if (taken.paced) {
                     infer::Pace pace;
@@ -1854,6 +1915,9 @@ private:
                     if (taken.timed) r.timing.push_back({before, model_.stage_ticket(ctx_, taken.slot), taken.rows, taken.prompt_of, taken.prompt_end, false, {}});
                 }
                 r.last = model_.stage_ticket(ctx_, taken.slot);
+                const auto sent = model_.stage_sent(ctx_, taken.slot);
+                const auto waits = model_.stage_host_waits(ctx_, taken.slot);
+                record_.post({taken.pass, s, taken.work, taken.predicted_ms, !taken.paced, begun, Clock::now(), waits.first, waits.second, sent.first, sent.second});
             } catch (const std::exception& e) {
                 end.failed = true;
                 end.error = e.what();
@@ -2455,6 +2519,19 @@ private:
     // A draw's tokens on the scheduler thread, pushed to the channel in order, the last its next decode feeds; a request that ends is finished after the pass, once every entry's logits have been read.
     void step(Draw& d) {
         Request& r = *d.r;
+        // The service record's request times: the first token's wait for admission and time from reading, and later a step's gap spread over the tokens it published.
+        if (!d.picks.empty()) {
+            const Clock::time_point now = Clock::now();
+            const auto ms = [](Clock::time_point a, Clock::time_point b) { return std::chrono::duration<double, std::milli>(b - a).count(); };
+            size_t later = d.picks.size();
+            if (r.first_at_ == Clock::time_point{}) {
+                record_.first_token(ms(r.submitted_, r.admitted_ == Clock::time_point{} ? now : r.admitted_), ms(r.received_, now));
+                r.first_at_ = r.pushed_ = now;
+                --later;
+            }
+            for (size_t i = 0; i < later; ++i) record_.inter_token(ms(r.pushed_, now) / (double)later);
+            r.pushed_ = now;
+        }
         for (Request::Token& t : d.picks) {
             r.last_id_ = t.id;
             // A row a token goes with comes back, once the reader has finished with another, for a later pass to fill.
@@ -2534,6 +2611,11 @@ private:
             const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - r.received_).count();
             live_.items[live_.count++] = {r.id_, r.prefilled_, r.gen_.size(), (uint64_t)std::max<int64_t>(0, elapsed),
                                         r.prompt_.size(), r.reused_.load(), phase};
+            RequestView& v = live_.items[live_.count - 1];
+            const auto ms = [](Clock::time_point a, Clock::time_point b) { return (uint64_t)std::max<int64_t>(0, std::chrono::duration_cast<std::chrono::milliseconds>(b - a).count()); };
+            v.queued_ms = ms(r.submitted_, r.admitted_ == Clock::time_point{} ? now : r.admitted_);
+            if (r.first_at_ != Clock::time_point{}) v.first_token_ms = ms(r.received_, r.first_at_);
+            if (r.gen_.size() > 1 && r.pushed_ > r.first_at_) v.inter_token_ms = std::chrono::duration<double, std::milli>(r.pushed_ - r.first_at_).count() / (double)(r.gen_.size() - 1);
         };
         for (const auto& r : active) {
             if (live_.count == LiveRequests::limit) break;
@@ -2669,6 +2751,8 @@ private:
     bool encoded_ = false;             // and whether it ran a piece of an image's encode, which a round forming no pass may have done
     uint64_t jobs_posted_ = 0;           // the scheduler thread's, the hand-overs to recorders so far
     uint64_t arrivals_ = 0, seen_ = 0;   // under the lock, the requests and follows submitted, and how many the round had seen as it began
+    std::map<std::vector<size_t>, size_t> class_ids_;   // the scheduler thread's: each row class Model::row_class gave, numbered as first seen, for the price table
+    ServiceRecord record_{model_.stage_count()};     // before the recorders' lanes, whose threads post to it
     std::vector<std::unique_ptr<StagePace>> pace_;   // per stage, its pacing state; before the recorders, which refer to it
     std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; before the lanes, whose threads use them
     infer::StageLanes lanes_;   // the recorders' threads (Recorder::cv, quit); last, so they end before anything they record on

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <memory>
 #include <functional>
 #include <exception>
@@ -217,6 +218,8 @@ struct Pass {
     size_t logits_base = 0;                            // the context's logits row its head writes first
     size_t at = 0;                                     // the device its residual left the last stage from
     backend::Ticket sent = 0;                          // the submission that copied it out, after the last stage the head's
+    size_t sent_at = 0;                                // the device `sent` is on
+    mutable double lookup_ms = 0, sum_ms = 0;          // the last stage recorded: the host's waits for its lookup rows and in its tensor-group sums
     std::vector<backend::Ticket> sent_members;         // on a tensor split, after the last stage each member of the head's group's, whose copies of its logits rows the pass's logits wait for
     bool in_flight = false;                            // a slot's pass between begin_pass and end_pass or abort_pass
     bool apart = false;                                // its rows are in the context's second arena (Model::begin_pass), so its stage may be recorded between the pieces of another pass's
@@ -804,6 +807,16 @@ public:
     bool stage_ready(ExecContext& ctx, size_t slot, size_t s);
     // The submission of the last stage recorded of the pass in `slot`, on that stage's device.
     backend::Ticket stage_ticket(ExecContext& ctx, size_t slot) { return in_flight(ctx, slot).sent; }
+    // That submission and its device's backend, which a caller timing the stage asks whether it has retired (docs/SERVER.md, The price table).
+    std::pair<backend::Backend*, backend::Ticket> stage_sent(ExecContext& ctx, size_t slot) {
+        const Pass& p = in_flight(ctx, slot);
+        return {devices_[p.sent_at]->b.get(), p.sent};
+    }
+    // The last stage recorded of that pass: the milliseconds its recording waited for lookup rows and spent in tensor-group sums.
+    std::pair<double, double> stage_host_waits(ExecContext& ctx, size_t slot) {
+        const Pass& p = in_flight(ctx, slot);
+        return {p.lookup_ms, p.sum_ms};
+    }
     // Whether a pass may be begun apart and a stage fed in pieces: every stage one device's or one tensor group's, none the host's, nothing crossing inside a stage.
     bool paces() const {
         if (!(pipelined_ || stages_.size() == 1) || place_.embed_device != (int)stages_.front().device || place_.output_device != (int)stages_.back().device) return false;

@@ -397,6 +397,7 @@ private:
                     ",\"phase\":" + jmini::quote(r.phase) + ",\"prompt_tokens\":" + n(r.prompt_tokens) +
                     ",\"reused_tokens\":" + n(r.reused_tokens) + ",\"prefilled_tokens\":" + n(r.prefilled_tokens) +
                     ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) +
+                    ",\"queued_ms\":" + n(r.queued_ms) + ",\"first_token_ms\":" + n(r.first_token_ms) + ",\"inter_token_ms\":" + jmini::number((float)r.inter_token_ms) +
                     (r.image_index ? ",\"image\":{\"index\":" + n(r.image_index) + ",\"count\":" + n(r.image_count) + ",\"rows\":" + n(r.image_rows) +
                                          ",\"pieces_done\":" + n(r.pieces_done) + ",\"pieces_total\":" + n(r.pieces_total) + ",\"elapsed_ms\":" + n(r.image_elapsed_ms) + "}"
                                    : std::string()) + "}";
@@ -448,7 +449,86 @@ private:
                   ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.interleaved ? "interleaved" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
                   ",\"since_start\":{\"interleaved_replies\":" + n(s.interleaved_replies) + ",\"interleaved_slices\":" + n(s.interleaved_slices) + ",\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
                   ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + "}" +
+                  ",\"service\":" + service_json(s.service) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
+    }
+    // The service record (docs/SERVER.md, The price table): per stage the passes measured against their predictions, the last few, and the prices by band and rows; the rows by kind; and the requests' waits, first tokens and gaps between tokens.
+    static std::string service_json(const ServiceRecord::Snapshot& v) {
+        const auto n = [](uint64_t x) { return std::to_string(x); };
+        const auto ms = [](double x) { return jmini::number((float)x); };
+        const auto list = [](const std::vector<std::string>& items) {
+            std::string out = "[";
+            for (size_t i = 0; i < items.size(); ++i) out += (i ? "," : "") + items[i];
+            return out + "]";
+        };
+        const auto work = [&](const PassWork& w) {
+            std::vector<std::string> chunks;
+            for (const PassWork::Chunk& c : w.chunks) chunks.push_back("{\"class\":" + n(c.cls) + ",\"band\":" + n(c.band) + ",\"rows\":" + n(c.rows) + "}");
+            return ",\"decode_rows\":" + n(w.decode_rows) + ",\"decode_band\":" + n(w.decode_band) + ",\"chunks\":" + list(chunks);
+        };
+        // A run of cells of one key, their rows, mean, last measure and count as arrays.
+        struct Run {
+            std::string head;
+            std::vector<std::string> rows, mean, last, samples;
+            std::string json() const {
+                const auto join = [](const std::vector<std::string>& xs) {
+                    std::string out = "[";
+                    for (size_t i = 0; i < xs.size(); ++i) out += (i ? "," : "") + xs[i];
+                    return out + "]";
+                };
+                return "{" + head + ",\"rows\":" + join(rows) + ",\"ms\":" + join(mean) + ",\"last_ms\":" + join(last) + ",\"samples\":" + join(samples) + "}";
+            }
+        };
+        std::vector<std::string> stages;
+        for (const StageRecord& st : v.stages) {
+            std::vector<std::string> recent, decode, chunks;
+            for (const StageRecord::Pass& p : st.recent)
+                recent.push_back("{\"pass\":" + n(p.pass) + ",\"measured_ms\":" + ms(p.measured_ms) + ",\"predicted_ms\":" + ms(p.predicted_ms) + work(p.work) + "}");
+            Run run;
+            const auto flush = [&](std::vector<std::string>& to) {
+                if (!run.rows.empty()) to.push_back(run.json());
+                run = Run{};
+            };
+            size_t band = SIZE_MAX;
+            for (const auto& [key, cell] : st.prices.decode) {
+                if (key.first != band) {
+                    flush(decode);
+                    band = key.first;
+                    run.head = "\"band\":" + n(band);
+                }
+                run.rows.push_back(n(key.second));
+                run.mean.push_back(ms(cell.ms));
+                run.last.push_back(ms(cell.last_ms));
+                run.samples.push_back(n(cell.samples));
+            }
+            flush(decode);
+            std::pair<size_t, size_t> at{SIZE_MAX, SIZE_MAX};
+            for (const auto& [key, cell] : st.prices.chunks) {
+                const size_t cls = std::get<0>(key), b = std::get<1>(key);
+                if (std::make_pair(cls, b) != at) {
+                    flush(chunks);
+                    at = {cls, b};
+                    run.head = "\"class\":" + n(cls) + ",\"extent\":" + n(cls < v.extents.size() ? v.extents[cls] : 0) + ",\"band\":" + n(b);
+                }
+                run.rows.push_back(n(std::get<2>(key)));
+                run.mean.push_back(ms(cell.ms));
+                run.last.push_back(ms(cell.last_ms));
+                run.samples.push_back(n(cell.samples));
+            }
+            flush(chunks);
+            stages.push_back("{\"since_start\":{\"passes\":" + n(st.passes) + ",\"predicted\":" + n(st.predicted) + ",\"over_prediction\":" + n(st.over) + ",\"in_pieces\":" + n(st.in_pieces) +
+                             ",\"measured_ms\":" + n((uint64_t)st.measured_ms) + ",\"predicted_ms\":" + n((uint64_t)st.predicted_ms) + ",\"error_ms\":" + n((uint64_t)st.error_ms) +
+                             ",\"longest_ms\":" + ms(st.longest_ms) + ",\"recording_ms\":" + n((uint64_t)st.recording_ms) + ",\"lookup_wait_ms\":" + n((uint64_t)st.lookup_ms) +
+                             ",\"sum_wait_ms\":" + n((uint64_t)st.sum_ms) + ",\"after_recording_ms\":" + n((uint64_t)st.after_ms) + "},\"recent\":" + list(recent) + ",\"prices\":{\"decode\":" + list(decode) + ",\"chunks\":" + list(chunks) + "}}");
+        }
+        std::vector<std::string> bands;
+        for (uint64_t x : v.rows.by_band) bands.push_back(n(x));
+        const auto summary = [&](const Recent::Summary& q) {
+            return "{\"count\":" + n(q.count) + ",\"p50\":" + ms(q.p50) + ",\"p95\":" + ms(q.p95) + ",\"p99\":" + ms(q.p99) + ",\"max\":" + ms(q.max) + "}";
+        };
+        return "{\"stages\":" + list(stages) + ",\"rows\":{\"since_start\":{\"decode\":" + n(v.rows.decode) + ",\"drafts\":" + n(v.rows.drafts) + ",\"recomputed\":" + n(v.rows.recomputed) +
+               ",\"prompt\":" + n(v.rows.prompt) + ",\"reread\":" + n(v.rows.reread) + ",\"prompt_by_band\":" + list(bands) + "}},\"requests\":{\"queue_wait_ms\":" + summary(v.queue_wait) +
+               ",\"first_token_ms\":" + summary(v.first_token) + ",\"inter_token_ms\":" + summary(v.inter_token) + "}}";
     }
     // Each stage's last pass fed in pieces (SliceRecord): its rows, its pieces' count and time, and its longest piece's time, layer and part.
     static std::string slices_json(const std::vector<SliceRecord>& slices) {

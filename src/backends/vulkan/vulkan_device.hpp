@@ -75,6 +75,7 @@ inline uint32_t float_control_support(const VkPhysicalDeviceFloatControlsPropert
     X(vkCreateSemaphore) \
     X(vkDestroySemaphore) \
     X(vkWaitSemaphores) \
+    X(vkSignalSemaphore) \
     X(vkCreateBuffer) \
     X(vkDestroyBuffer) \
     X(vkGetBufferMemoryRequirements) \

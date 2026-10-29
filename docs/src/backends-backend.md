@@ -64,7 +64,7 @@ placement contracts in `docs/EXECUTION.md`.
   thread may make while that one records.
   `done(t)` says whether submission t has retired, without waiting where the backend can tell and by waiting, then true, by default; any thread may ask, as it may wait.
   A collective's `wait(back)` returns once every member is done with what the last sum submitted on it (`back` 0) or the sum before it (1), and does nothing by default, where the members compute as they are called.
-  A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside `sum_into`: that thread calls the member's queue and nothing else of the backend, no other thread calls the member meanwhile but `wait(t)`, and `sum_into` returns, on success or failure, only once every member's queue is taken back.
+  A group's queue calls may be made on a thread of their own ([Vulkan](backends-vulkan.md)): a ticket is waited for there first, and one whose call failed retires without its work, so `raise(t)`, which does nothing by default, throws for it after `wait(t)` and before a caller reads in place what it wrote, as the logits are read, and `read` throws such a failure before it copies.
 - `hold_between_submissions(on)`: a model made over several devices asks it
   of each (true) and gives it back when it goes (false), since each waits
   while the others run their parts of a pass; while any request remains,

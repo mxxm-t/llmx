@@ -249,6 +249,8 @@ struct ExecContext {
         if (pending) {
             backend->wait(ticket);
             for (const auto& [b, t] : member_waits) b->wait(t);
+            backend->raise(ticket);
+            for (const auto& [b, t] : member_waits) b->raise(t);
             pending = false;
         }
         const void* p = logits_host.data() ? logits_host.data() : logits_buf->host_ptr();

@@ -492,8 +492,10 @@ public:
     // Results require wait(), sync() or read(); CPU ops complete eagerly (docs/DEVICE-EXECUTION.md).
     virtual Ticket submit() = 0;
     // Retirement cannot throw, since callers release storage afterward, and a backend is one thread's: every call is by the recording thread, but wait(t) of a submitted ticket may come from another (docs/SERVER.md, the round).
-    // A collective may make each member's queue call of a sum on a thread of its own while the recording thread is inside sum_into, which returns only once every member's queue is taken back.
+    // A group's queue calls may be made on a thread of their own, which a ticket is waited for on first; a ticket whose call failed there retires without its work.
     virtual void wait(Ticket t) noexcept = 0;
+    // After wait(t), before reading in place what submission t wrote: throws where its call failed, so no result of a failed submission is read.
+    virtual void raise(Ticket t) { (void)t; }
     // Whether submission t has retired, asked without waiting where the backend can tell; any thread may ask, as it may wait.
     virtual bool done(Ticket t) noexcept {
         wait(t);
@@ -502,7 +504,7 @@ public:
     // Also retires work behind no ticket, including on failure paths.
     virtual void sync() noexcept = 0;
 
-    // Copy to host memory after retiring earlier ops; logits can instead use host_visible storage after a wait.
+    // Copy to host memory after retiring earlier ops, throwing a failed submission's failure first; logits can instead use host_visible storage after a wait and raise.
     virtual void read(const Buffer& src, size_t off, void* dst, size_t bytes) = 0;
 
     // Storage to storage, within this backend. The KV cache grows with it.

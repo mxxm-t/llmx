@@ -107,6 +107,7 @@ inline void VulkanBackend::read(const Buffer& src_b, size_t off, void* dst, size
     if (!bytes) return;
     if (src.host_visible()) {
         sync();
+        if (submitter_) submitter_->raise();
         std::memcpy(dst, (const uint8_t*)src.mapped() + off, bytes);
         return;
     }
@@ -120,6 +121,7 @@ inline void VulkanBackend::read(const Buffer& src_b, size_t off, void* dst, size
         dev_->fn.vkCmdCopyBuffer(cmd, src.handle(), st.handle(), 1, &region);
         barrier(cmd);
         wait(flush());
+        if (submitter_) submitter_->raise();
         std::memcpy((uint8_t*)dst + done, st.mapped(), n);
         done += n;
     }

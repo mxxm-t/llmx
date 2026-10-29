@@ -164,6 +164,8 @@ inline const float* Model::pass_logits(ExecContext& ctx, size_t slot, size_t i) 
     if (i >= p.want) throw std::out_of_range("inference: no such logits row");
     devices_[(size_t)place_.output_device]->b->wait(p.sent);
     for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->wait(p.sent_members[m]);
+    devices_[(size_t)place_.output_device]->b->raise(p.sent);
+    for (size_t m = 1; m < p.sent_members.size(); ++m) devices_[(size_t)place_.output_device + m]->b->raise(p.sent_members[m]);
     const void* host = ctx.logits_host.data() ? ctx.logits_host.data() : ctx.logits_buf->host_ptr();
     if (!host) throw std::runtime_error("inference: logits are not host visible");
     return (const float*)host + (p.logits_base + i) * ctx.width;

@@ -19,6 +19,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <exception>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -27,6 +30,117 @@ namespace backend {
 namespace {
 
 struct MoeBuild;   // the fused routed step's builds (vulkan_moe.hpp)
+
+// The one thread that makes a tensor group's queue calls, in the order they are handed over, so the recording thread hands a submission over and records on (docs/TENSOR-SPLIT.md, section 4.3).
+// A call that fails settles its own tickets and every later job's without calling, so no waiter hangs; the next hand-over runs the owners' recovery and throws the failure, and the jobs after it run again.
+class VulkanSubmitter {
+public:
+    // `call` makes the queue calls; `settle` marks the job's tickets made without a call, for a job skipped after a failure or one whose call threw.
+    struct Job {
+        std::function<void()> call, settle;
+    };
+
+    VulkanSubmitter() : thread_([this] { loop(); }) {}
+    ~VulkanSubmitter() {
+        {
+            std::lock_guard<std::mutex> lk(mu_);
+            stop_ = true;
+        }
+        cv_.notify_all();
+        thread_.join();
+    }
+    VulkanSubmitter(const VulkanSubmitter&) = delete;
+    VulkanSubmitter& operator=(const VulkanSubmitter&) = delete;
+
+    // On a recording thread; after a failure the job is settled uncalled, and the failure given out (raise) unless `report` is false.
+    void run(Job job, bool report = true) {
+        std::unique_lock<std::mutex> lk(mu_);
+        if (failed_) {
+            lk.unlock();
+            job.settle();
+            if (report) raise();
+            return;
+        }
+        jobs_.push_back(std::move(job));
+        ++posted_;
+        cv_.notify_all();
+    }
+    // On a recording thread: a failure not yet given out is given here, once the jobs handed over before it are settled and the owners recovered.
+    void raise() {
+        std::unique_lock<std::mutex> lk(mu_);
+        if (!failed_) return;
+        const std::exception_ptr e = failed_;
+        const uint64_t target = posted_;
+        cv_.wait(lk, [&] { return ran_ >= target; });
+        failed_ = nullptr;
+        std::vector<std::function<void()>> recover;
+        for (const auto& o : owners_) recover.push_back(o.second);
+        lk.unlock();
+        for (const auto& r : recover) r();
+        std::rethrow_exception(e);
+    }
+    // Until every job handed over so far has been called or settled.
+    void drain() noexcept {
+        std::unique_lock<std::mutex> lk(mu_);
+        const uint64_t target = posted_;
+        cv_.wait(lk, [&] { return ran_ >= target; });
+    }
+    // Until `pred` holds; `pred` reads what the jobs set, which every finished job notifies.
+    template <class Pred> void until(Pred pred) noexcept {
+        std::unique_lock<std::mutex> lk(mu_);
+        cv_.wait(lk, [&] { return pred(); });
+    }
+    // An owner's recovery, run on the recording thread that is given a failure, before any later job; removed with the owner.
+    void own(const void* owner, std::function<void()> recover) {
+        std::lock_guard<std::mutex> lk(mu_);
+        owners_.emplace_back(owner, std::move(recover));
+    }
+    void disown(const void* owner) {
+        std::lock_guard<std::mutex> lk(mu_);
+        owners_.erase(std::remove_if(owners_.begin(), owners_.end(), [&](const auto& o) { return o.first == owner; }), owners_.end());
+    }
+
+private:
+    void loop() {
+        std::unique_lock<std::mutex> lk(mu_);
+        for (;;) {
+            cv_.wait(lk, [&] { return stop_ || !jobs_.empty(); });
+            if (jobs_.empty()) return;
+            Job job = std::move(jobs_.front());
+            jobs_.pop_front();
+            // Jobs handed over before a failure was given out depend on what failed, so they are settled uncalled.
+            const bool skip = failed_ != nullptr;
+            lk.unlock();
+            std::exception_ptr e;
+            if (skip) {
+                job.settle();
+            } else {
+                try { job.call(); } catch (...) {
+                    e = std::current_exception();
+                }
+                // The failure is recorded before the tickets are settled, so a waiter that wakes on them finds it at its next hand-over.
+                if (e) {
+                    lk.lock();
+                    if (!failed_) failed_ = e;
+                    lk.unlock();
+                    job.settle();
+                }
+            }
+            lk.lock();
+            ++ran_;
+            cv_.notify_all();
+        }
+    }
+
+    std::mutex mu_;
+    std::condition_variable cv_;
+    std::deque<Job> jobs_;
+    uint64_t posted_ = 0, ran_ = 0;
+    std::exception_ptr failed_;   // a failure not yet given out
+    std::vector<std::pair<const void*, std::function<void()>>> owners_;
+    bool stop_ = false;
+    std::thread thread_;
+};
 
 class VulkanBackend final : public Backend {
     friend struct VulkanLifetimeTest;
@@ -357,6 +471,7 @@ public:
 
     ~VulkanBackend() override {
         Device& d = *dev_;
+        if (submitter_) submitter_->drain();
         hold_release();
         d.fn.vkDeviceWaitIdle(d.device);
         for (auto& p : pending_) p.clear();
@@ -370,6 +485,7 @@ public:
         if (timeline_) d.fn.vkDestroySemaphore(d.device, timeline_, nullptr);
         hold_.word.reset();
         if (hold_.timeline) d.fn.vkDestroySemaphore(d.device, hold_.timeline, nullptr);
+        if (hold_.pool) d.fn.vkDestroyCommandPool(d.device, hold_.pool, nullptr);
         if (pool_) d.fn.vkDestroyCommandPool(d.device, pool_, nullptr);
     }
 
@@ -590,9 +706,12 @@ public:
         Ticket ticket = 0;
         bool dispatches = false;   // the command buffer holds a dispatch
         std::vector<VkSemaphore> signal, waits;
+        std::atomic<uint32_t>* release = nullptr;   // on a submitter, the hold this submission lets go, released just before its call
+        uint32_t release_seq = 0;
 
-        // The queue's call alone; it touches nothing of the backend but the device's queue.
+        // The queue's call alone; it touches nothing of the backend but the device's queue and a held queue's release word.
         VkResult queue(const Device& d) const {
+            if (release) release->store(release_seq);
             std::vector<uint64_t> values(signal.size(), 0), wait_values(waits.size(), 0);
             values[0] = ticket;
             const std::vector<VkPipelineStageFlags> stages(waits.size(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
@@ -617,8 +736,17 @@ public:
     };
 
     Submission prepare(const std::vector<VkSemaphore>& signals) {
-        if (hold_.on) hold_release();
         Submission s;
+        if (hold_.on) {
+            // On a submitter the release travels with the submission, so the hold spins until the next work reaches the queue.
+            if (submitter_ && hold_.pending) {
+                s.release = reinterpret_cast<std::atomic<uint32_t>*>(hold_.word->mapped());
+                s.release_seq = hold_.seq;
+                hold_.pending = false;
+            } else {
+                hold_release();
+            }
+        }
         s.cmd = open();
         s.dispatches = chunk_ > 0;
         chunk_ = 0;
@@ -683,12 +811,19 @@ public:
     void hold_setup() {
         Fn& fn = dev_->fn;
         VkCommandBuffer cmds[kHolds] = {};
+        VkCommandPool pool = VK_NULL_HANDLE;
         VkSemaphore timeline = VK_NULL_HANDLE;
         std::unique_ptr<VulkanBuffer> word;
         try {
+            // A pool of their own, since a submitter records them on its thread while this one records the ring's.
+            VkCommandPoolCreateInfo pi{};
+            pi.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+            pi.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+            pi.queueFamilyIndex = dev_->queue_family;
+            check(fn.vkCreateCommandPool(dev_->device, &pi, nullptr, &pool), "vkCreateCommandPool");
             VkCommandBufferAllocateInfo ci{};
             ci.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            ci.commandPool = pool_;
+            ci.commandPool = pool;
             ci.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
             ci.commandBufferCount = kHolds;
             check(fn.vkAllocateCommandBuffers(dev_->device, &ci, cmds), "vkAllocateCommandBuffers");
@@ -705,10 +840,12 @@ public:
         } catch (...) {
             word.reset();
             if (timeline) fn.vkDestroySemaphore(dev_->device, timeline, nullptr);
-            if (cmds[0]) fn.vkFreeCommandBuffers(dev_->device, pool_, kHolds, cmds);
+            if (cmds[0]) fn.vkFreeCommandBuffers(dev_->device, pool, kHolds, cmds);
+            if (pool) fn.vkDestroyCommandPool(dev_->device, pool, nullptr);
             throw;
         }
         std::copy(cmds, cmds + kHolds, hold_.cmds);
+        hold_.pool = pool;
         hold_.timeline = timeline;
         hold_.word = std::move(word);
         // The device's clock is taken to tick at the timestamp period, as the drivers feed both from one reference clock; backend-vulkan holds an unreleased hold's end to 50-400 ms.
@@ -732,9 +869,79 @@ public:
     }
 
     // The queue's submission of the open command buffer, after letting a held queue go, waiting on the semaphores a group's exchange left (wait_on).
-    Ticket flush() {
+    // On a submitter, a failure not yet given out is thrown here unless `report` is false, when this submission is given up and the failure kept.
+    Ticket flush(bool report = true) {
         const Submission s = prepare({});
-        return queued(s, s.queue(*dev_));
+        if (!submitter_) return queued(s, s.queue(*dev_));
+        const Ticket t = queued(s, VK_SUCCESS);
+        submitter_->run({[this, s] {
+                             check(s.queue(*dev_), "vkQueueSubmit");
+                             made(s.ticket, true);
+                         },
+                         [this, t] { made(t, false); }},
+                        report);
+        return t;
+    }
+
+    // A submitter's group: every queue call of this backend goes to it from now on, in the order handed over.
+    void submit_through(const std::shared_ptr<VulkanSubmitter>& s) {
+        if (submitter_ == s) return;
+        if (submitter_) throw std::logic_error("vulkan: a device in two tensor groups' submitters");
+        sync();
+        // Every ticket so far was queued here.
+        made_ticket_.store(last_ticket_.load(), std::memory_order_release);
+        good_ticket_.store(last_ticket_.load(), std::memory_order_release);
+        submitter_ = s;
+    }
+    const std::shared_ptr<VulkanSubmitter>& submitter() const { return submitter_; }
+    // Its queue calls its own again, once the submitter has made every call handed over.
+    void submit_alone() noexcept {
+        if (!submitter_) return;
+        submitter_->drain();
+        submitter_.reset();
+    }
+    // After a failed queue call: drops the waits left without a signal and, once earlier work has finished, moves the timeline past the tickets given up.
+    void give_up() noexcept {
+        waits_.clear();
+        if (open_) {
+            try { flush(); } catch (const std::exception& e) {
+                std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
+                std::abort();
+            }
+        }
+        const Ticket last = last_ticket_.load();
+        wait(last);
+        if (good_ticket_.load(std::memory_order_acquire) >= last) return;
+        VkSemaphoreSignalInfo si{};
+        si.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+        si.semaphore = timeline_;
+        si.value = last;
+        if (dev_->fn.vkSignalSemaphore(dev_->device, &si) != VK_SUCCESS) return;
+        good_ticket_.store(last, std::memory_order_release);
+        remember_completed(last);
+    }
+    // On the submitter's thread: the call carrying `t` has been made, or given up (not `queued`), so no wait for it waits on its timeline value.
+    void made(Ticket t, bool queued) noexcept {
+        if (queued) {
+            good_ticket_.store(t, std::memory_order_release);
+        } else {
+            std::lock_guard<std::mutex> lk(lost_mu_);
+            if (!lost_.empty() && lost_.back().second + 1 == t) lost_.back().second = t;
+            else lost_.push_back({t, t});
+        }
+        made_ticket_.store(t, std::memory_order_release);
+    }
+    // Whether the call carrying `t` was given up after a failure.
+    bool lost(Ticket t) {
+        std::lock_guard<std::mutex> lk(lost_mu_);
+        for (const auto& r : lost_)
+            if (r.first <= t && t <= r.second) return true;
+        return false;
+    }
+    void raise(Ticket t) override {
+        if (!submitter_ || !lost(t)) return;
+        submitter_->raise();
+        throw std::runtime_error("vulkan: the submission of these results failed");
     }
 
     // The dispatches recorded so far submitted, so a long dispatch recorded next shares its submission with none, whose time the GPU's job timeout bounds.
@@ -750,58 +957,68 @@ public:
     }
 
     // A submission of the hold's kernel in the next slot; the slot's previous hold has finished once the hold timeline reaches its value.
+    // On a submitter the slot's wait, its recording and its call are the submitter's, after the work handed over before it.
     void hold_queue() {
         const uint32_t i = (hold_.slot + 1) % kHolds;
-        if (hold_.value[i]) {
-            VkSemaphoreWaitInfo wi{};
-            wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-            wi.semaphoreCount = 1;
-            wi.pSemaphores = &hold_.timeline;
-            wi.pValues = &hold_.value[i];
-            check(dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX), "vkWaitSemaphores");
-        }
-        VkCommandBuffer cmd = hold_.cmds[i];
-        check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
-        VkCommandBufferBeginInfo bi{};
-        bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
         const Kernel& k = kernel(K_HOLD, 0);
-        const VkDescriptorBufferInfo released{hold_.word->handle(), 0, VK_WHOLE_SIZE};
-        VkWriteDescriptorSet w{};
-        w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        w.dstBinding = 0;
-        w.descriptorCount = 1;
-        w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        w.pBufferInfo = &released;
-        const uint32_t pc[2] = {hold_.seq + 1, hold_.ticks};
-        dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.pipeline);
-        dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, k.layout, 0, 1, &w);
-        dev_->fn.vkCmdPushConstants(cmd, k.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), pc);
-        dev_->fn.vkCmdDispatch(cmd, 1, 1, 1);
-        // What the hold records reaches the host once its timeline value does (hold_seen).
-        VkMemoryBarrier mb{};
-        mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-        dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
-        check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
         const uint64_t value = hold_.last + 1;
-        VkTimelineSemaphoreSubmitInfo tsi{};
-        tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-        tsi.signalSemaphoreValueCount = 1;
-        tsi.pSignalSemaphoreValues = &value;
-        VkSubmitInfo si{};
-        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        si.pNext = &tsi;
-        si.commandBufferCount = 1;
-        si.pCommandBuffers = &cmd;
-        si.signalSemaphoreCount = 1;
-        si.pSignalSemaphores = &hold_.timeline;
-        check(dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
-        hold_.last = hold_.value[i] = value;
+        const uint32_t seq = hold_.seq + 1;
+        auto queue_hold = [this, i, value, seq, pipeline = k.pipeline, layout = k.layout] {
+            // The slot's last hold queued, read where the calls are made, so a hold given up after a failure is not waited for.
+            const uint64_t before = hold_.queued[i];
+            if (before) {
+                VkSemaphoreWaitInfo wi{};
+                wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+                wi.semaphoreCount = 1;
+                wi.pSemaphores = &hold_.timeline;
+                wi.pValues = &before;
+                check(dev_->fn.vkWaitSemaphores(dev_->device, &wi, UINT64_MAX), "vkWaitSemaphores");
+            }
+            VkCommandBuffer cmd = hold_.cmds[i];
+            check(dev_->fn.vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
+            VkCommandBufferBeginInfo bi{};
+            bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+            check(dev_->fn.vkBeginCommandBuffer(cmd, &bi), "vkBeginCommandBuffer");
+            const VkDescriptorBufferInfo released{hold_.word->handle(), 0, VK_WHOLE_SIZE};
+            VkWriteDescriptorSet w{};
+            w.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            w.dstBinding = 0;
+            w.descriptorCount = 1;
+            w.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            w.pBufferInfo = &released;
+            const uint32_t pc[2] = {seq, hold_.ticks};
+            dev_->fn.vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+            dev_->fn.vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &w);
+            dev_->fn.vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), pc);
+            dev_->fn.vkCmdDispatch(cmd, 1, 1, 1);
+            // What the hold records reaches the host once its timeline value does (hold_seen).
+            VkMemoryBarrier mb{};
+            mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            mb.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            mb.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+            dev_->fn.vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+            check(dev_->fn.vkEndCommandBuffer(cmd), "vkEndCommandBuffer");
+            VkTimelineSemaphoreSubmitInfo tsi{};
+            tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+            tsi.signalSemaphoreValueCount = 1;
+            tsi.pSignalSemaphoreValues = &value;
+            VkSubmitInfo si{};
+            si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            si.pNext = &tsi;
+            si.commandBufferCount = 1;
+            si.pCommandBuffers = &cmd;
+            si.signalSemaphoreCount = 1;
+            si.pSignalSemaphores = &hold_.timeline;
+            hold_.queued[i] = 0;
+            check(dev_->fn.vkQueueSubmit(dev_->queue, 1, &si, VK_NULL_HANDLE), "vkQueueSubmit");
+            hold_.queued[i] = value;
+        };
+        if (submitter_) submitter_->run({queue_hold, [] {}});
+        else queue_hold();
+        hold_.last = value;
         hold_.slot = i;
-        ++hold_.seq;
+        hold_.seq = seq;
         hold_.pending = true;
     }
 
@@ -831,6 +1048,12 @@ public:
     void wait_for(Ticket t) noexcept {
         if (t == 0 || t > last_ticket_) return;
         if (t <= completed_ticket_.load(std::memory_order_acquire)) return;
+        // A ticket the submitter has not yet queued is waited for there first; one given up is never signalled, so the wait is for the last ticket queued before it.
+        if (submitter_) {
+            if (t > made_ticket_.load(std::memory_order_acquire)) submitter_->until([&] { return made_ticket_.load(std::memory_order_acquire) >= t; });
+            t = std::min(t, good_ticket_.load(std::memory_order_acquire));
+            if (t == 0 || t <= completed_ticket_.load(std::memory_order_acquire)) return;
+        }
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
@@ -883,7 +1106,8 @@ public:
     // Open work and waits a group's exchange left (wait_on) are submitted first, so no semaphore a wait names outlives its use.
     void sync() noexcept override {
         if (open_ || !waits_.empty()) {
-            try { flush(); } catch (const std::exception& e) {
+            // A submitter's failure is not given out here: the work is given up and the failure kept for the next hand-over.
+            try { flush(false); } catch (const std::exception& e) {
                 std::fprintf(stderr, "vulkan: %s; the device is lost\n", e.what());
                 std::abort();
             }
@@ -1648,6 +1872,11 @@ private:
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
     std::atomic<Ticket> completed_ticket_{0};   // the greatest ticket a successful Vulkan wait confirmed
+    std::shared_ptr<VulkanSubmitter> submitter_;   // a tensor group's queue thread, which makes this backend's queue calls once set
+    std::atomic<Ticket> made_ticket_{0};          // on a submitter, the last ticket whose queue call was made or given up
+    std::atomic<Ticket> good_ticket_{0};          // of those, the last whose call was made
+    std::mutex lost_mu_;
+    std::vector<std::pair<Ticket, Ticket>> lost_;   // the runs of tickets whose calls were given up, which raise refuses to read
     std::atomic<Ticket> last_ticket_{0};   // atomic for a wait made from another thread while this one records (Backend::wait)
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call
@@ -1658,8 +1887,9 @@ private:
         bool refused = false;                   // the device keeps no hold, without a device clock or a hold seeing its release, and said so
         size_t holders = 0;
         VkCommandBuffer cmds[kHolds] = {};
+        VkCommandPool pool = VK_NULL_HANDLE;    // the holds' own, apart from the ring's
         VkSemaphore timeline = VK_NULL_HANDLE;  // signalled as each hold ends
-        uint64_t value[kHolds] = {};
+        uint64_t queued[kHolds] = {};           // per slot, the value of its last hold whose call was made, read and written only where the calls are made
         uint64_t last = 0;
         uint32_t slot = 0;
         uint32_t seq = 0;                       // the last hold queued; a hold ends once the release counter reaches its sequence

@@ -113,15 +113,29 @@ public:
                         }
                 }
             make_semaphores();
+            if (W > 1) {
+                // One queue thread for the group, kept by its members, so every call to their queues is made there in the order recorded.
+                submitter_ = members[0]->submitter();
+                if (!submitter_) submitter_ = std::make_shared<VulkanSubmitter>();
+                for (VulkanBackend* m : members) m->submit_through(submitter_);
+                submitter_->own(this, [this] { recover(); });
+            }
         } catch (...) {
             release();
             throw;
         }
     }
-    // The threads go first: release drains members they call; the context that holds a collective goes before the model's backends.
+    // The queue thread's calls go first, then the member threads: release drains members they call; the context that holds a collective goes before the model's backends.
     ~VulkanCollective() override {
+        if (submitter_) {
+            submitter_->disown(this);
+            submitter_->drain();
+        }
         threads_.reset();
         release();
+        // The last collective over the group gives the members their own queue calls back.
+        if (submitter_ && submitter_.use_count() == 1 + (long)members_.size())
+            for (VulkanBackend* m : members_) m->submit_alone();
     }
 
     Slice partial(size_t member) override { return {partial_.at(member).get(), 0}; }
@@ -220,9 +234,35 @@ private:
                 }
     }
 
-    // Prepare every member on the recording thread, then queue and export concurrently before importing peer fences.
-    // Worker threads touch only their queue and semaphore exports; all are joined before return or throw.
+    // Every member's submission ended and its ticket taken on the recording thread, its queue call, export and the peers' imports handed to the group's queue thread.
+    // The peers' next submissions name the imported semaphores now; the queue thread imports them before it makes any later call.
     void exchange() {
+        const size_t W = members_.size();
+        std::vector<VulkanBackend::Submission> work(W);
+        if (!submitter_) {
+            // One member: its own queue call, nothing to exchange.
+            work[0] = members_[0]->prepare({});
+            taken_[0] = members_[0]->queued(work[0], work[0].queue(*members_[0]->device()));
+            return;
+        }
+        for (size_t m = 0; m < W; ++m) {
+            std::vector<VkSemaphore> signals;
+            if (signal_[m]) signals.push_back(signal_[m]);
+            work[m] = members_[m]->prepare(signals);
+            taken_[m] = members_[m]->queued(work[m], VK_SUCCESS);
+        }
+        for (size_t m = 0; m < W; ++m)
+            for (size_t t = 0; t < W; ++t)
+                if (t != m) members_[t]->wait_on(wait_[t][m]);
+        submitter_->run({[this, work] { exchange_calls(work); },
+                         [this, work] {
+                             for (size_t m = 0; m < work.size(); ++m) members_[m]->made(work[m].ticket, false);
+                         }});
+    }
+
+    // On the queue thread: queue and export concurrently from three members on, then import each peer's fence.
+    // Member threads touch only their queue and semaphore exports; all are joined before return or throw.
+    void exchange_calls(const std::vector<VulkanBackend::Submission>& work) {
         const size_t W = members_.size();
         struct Files {
             std::vector<int> fd;
@@ -233,51 +273,32 @@ private:
 #endif
             }
         } files{std::vector<int>(W * W, -1)};
-        std::vector<VulkanBackend::Submission> work(W);
         std::vector<VkResult> result(W, VK_NOT_READY);
-        std::exception_ptr failed;
-        size_t prepared = 0;
-        try {
-            for (; prepared < W; ++prepared) {
-                std::vector<VkSemaphore> signals;
-                if (signal_[prepared]) signals.push_back(signal_[prepared]);
-                work[prepared] = members_[prepared]->prepare(signals);
-            }
-            threads_->run(W, [&](size_t m) {
-                const Device& from = *members_[m]->device();
-                result[m] = work[m].queue(from);
-                if (result[m] != VK_SUCCESS) return;
-                if (W == 1) return;
-                const size_t first = m ? 0 : 1;
-                VkSemaphoreGetFdInfoKHR gi{};
-                gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-                gi.semaphore = signal_[m];
-                gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-                int& fd = files.fd[m * W + first];
-                check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
-                // A sync file is an immutable fence; each peer takes its own descriptor, including -1 for a completed signal.
-                for (size_t t = 0; t < W; ++t) {
-                    if (t == m || t == first || fd < 0) continue;
+        threads_->run(W, [&](size_t m) {
+            const Device& from = *members_[m]->device();
+            result[m] = work[m].queue(from);
+            if (result[m] != VK_SUCCESS) return;
+            members_[m]->made(work[m].ticket, true);
+            const size_t first = m ? 0 : 1;
+            VkSemaphoreGetFdInfoKHR gi{};
+            gi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+            gi.semaphore = signal_[m];
+            gi.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+            int& fd = files.fd[m * W + first];
+            check(from.get_semaphore_fd(from.device, &gi, &fd), "vkGetSemaphoreFdKHR");
+            // A sync file is an immutable fence; each peer takes its own descriptor, including -1 for a completed signal.
+            for (size_t t = 0; t < W; ++t) {
+                if (t == m || t == first || fd < 0) continue;
 #if !defined(_WIN32)
-                    const int copy = fcntl(fd, F_DUPFD_CLOEXEC, 3);
-                    if (copy < 0) throw std::runtime_error("vulkan: duplicating a sync file failed");
-                    files.fd[m * W + t] = copy;
+                const int copy = fcntl(fd, F_DUPFD_CLOEXEC, 3);
+                if (copy < 0) throw std::runtime_error("vulkan: duplicating a sync file failed");
+                files.fd[m * W + t] = copy;
 #else
-                    throw std::runtime_error("vulkan: sync files require POSIX descriptors");
+                throw std::runtime_error("vulkan: sync files require POSIX descriptors");
 #endif
-                }
-            });
-        } catch (...) {
-            failed = std::current_exception();
-        }
-        for (size_t m = 0; m < prepared; ++m) {
-            try {
-                taken_[m] = members_[m]->queued(work[m], result[m]);
-            } catch (...) {
-                if (!failed) failed = std::current_exception();
             }
-        }
-        if (failed) std::rethrow_exception(failed);
+        });
+        for (size_t m = 0; m < W; ++m) check(result[m], "vkQueueSubmit");
         for (size_t m = 0; m < W; ++m) {
             for (size_t t = 0; t < W; ++t) {
                 if (t == m) continue;
@@ -290,7 +311,6 @@ private:
                 ii.fd = files.fd[m * W + t];
                 check(to.import_semaphore_fd(to.device, &ii), "vkImportSemaphoreFdKHR");
                 files.fd[m * W + t] = -1;
-                members_[t]->wait_on(wait_[t][m]);
             }
         }
     }
@@ -318,9 +338,19 @@ private:
         check(d.fn.vkCreateSemaphore(d.device, &si, nullptr, &s), "vkCreateSemaphore");
         return s;
     }
+    // On the recording thread given a failed queue call: each member's given-up tickets settled (`give_up`) and the semaphores made again.
+    void recover() noexcept {
+        for (VulkanBackend* m : members_) m->give_up();
+        destroy_semaphores();
+        try { make_semaphores(); } catch (const std::exception&) { destroy_semaphores(); }
+    }
     // Every member drained first, so no submission still waits on, signals or reads what goes.
     void release() noexcept {
         for (VulkanBackend* m : members_) m->sync();
+        if (submitter_) submitter_->drain();
+        destroy_semaphores();
+    }
+    void destroy_semaphores() noexcept {
         for (size_t a = 0; a < signal_.size(); ++a)
             if (signal_[a]) members_[a]->device()->fn.vkDestroySemaphore(members_[a]->device()->device, signal_[a], nullptr);
         for (size_t a = 0; a < wait_.size(); ++a)
@@ -344,6 +374,7 @@ private:
     std::vector<std::vector<BufferPtr>> gathered_[2];                    // [parity][owner][sender]: those gather rows on the sender, their only importer
     std::vector<VkSemaphore> signal_;                  // one binary signal per source, exported once for every peer
     std::vector<std::vector<VkSemaphore>> wait_;        // [member][peer]: what member waits on from the peer
+    std::shared_ptr<VulkanSubmitter> submitter_;        // the group's queue thread, from two members on
 };
 
 // A collective over Vulkan devices of one profile, each opened once, that share memory as dma-buf and semaphores as sync files, under any PCI root complexes; none where a device lacks them, as on Windows.

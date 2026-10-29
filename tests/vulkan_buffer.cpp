@@ -48,6 +48,9 @@ struct VulkanLifetimeTest {
         return b.args(data, bytes);
     }
     static uint32_t slot(VulkanBackend& b) { return b.ring_index_; }
+    static VkSemaphore timeline(VulkanBackend& b) { return b.timeline_; }
+    static bool submits_apart(VulkanBackend& b) { return b.submitter_ != nullptr; }
+    static Ticket last(VulkanBackend& b) { return b.last_ticket_; }
     // Whether a binding names the argument arena of a ring slot other than the one recording.
     static bool foreign_arena(VulkanBackend& b, VkBuffer h) {
         for (uint32_t i = 0; i < VulkanBackend::kRing; ++i)
@@ -654,10 +657,11 @@ struct CollectiveCalls {
     std::vector<PFN_vkGetSemaphoreFdKHR> get_fd;
     std::vector<PFN_vkImportSemaphoreFdKHR> import_fd;
     std::vector<PFN_vkGetMemoryFdKHR> memory_fd;
-    int creates = 0, live = 0, fail_create = 0, fail_get = 0, fail_import = 0, imports = 0;
+    int creates = 0, live = 0, fail_create = 0;
+    std::atomic<int> fail_get{0}, fail_import{0}, imports{0};   // reached from the group's queue thread, which exports and imports
     std::atomic<int> gets{0}, fail_submit{0};   // reached from the members' threads; fail_submit is the member whose next queue call fails, from 1
     std::atomic<int> submit_calls{0};
-    int fail_submit_call = 0;
+    std::atomic<int> fail_submit_call{0};
     bool premature = false;
     // Trace only shared inbox/gather payloads. These are actual Vulkan calls, not
     // an assumed barrier count: aliases are paired through their exported fd.
@@ -678,6 +682,8 @@ struct CollectiveCalls {
     struct Signal { size_t member; VkSemaphore semaphore; size_t submission; };
     struct FenceFd { int fd; size_t submission; };
     struct Imported { size_t member; VkSemaphore semaphore; std::vector<size_t> dependencies; };
+    struct Queued { size_t member; std::thread::id thread; uint64_t ticket; };
+    std::vector<Queued> queued;   // every member's submission on its timeline, in the order the calls were made
     bool trace = false;
     size_t payloads = 0;
     std::vector<Allocation> allocations;
@@ -751,6 +757,8 @@ struct CollectiveCalls {
     }
     static VKAPI_ATTR VkResult VKAPI_CALL allocate(VkDevice d, const VkMemoryAllocateInfo* info, const VkAllocationCallbacks* a, VkDeviceMemory* out) {
         auto& q = *collective_calls;
+        // The group's queue thread submits while this thread records, so the trace is read and written under one lock.
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         const size_t m = q.index(d);
         size_t id = 0;
         for (auto p = static_cast<const VkBaseInStructure*>(info->pNext); p; p = p->pNext) {
@@ -766,6 +774,7 @@ struct CollectiveCalls {
     }
     static VKAPI_ATTR VkResult VKAPI_CALL bind(VkDevice d, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize offset) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         const size_t m = q.index(d);
         const VkResult r = q.original[m].vkBindBufferMemory(d, buffer, memory, offset);
         if (r == VK_SUCCESS) for (const auto& a : q.allocations)
@@ -774,6 +783,7 @@ struct CollectiveCalls {
     }
     static VKAPI_ATTR VkResult VKAPI_CALL export_memory(VkDevice d, const VkMemoryGetFdInfoKHR* info, int* fd) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         const size_t m = q.index(d);
         const VkResult r = q.memory_fd[m](d, info, fd);
         if (r == VK_SUCCESS) for (const auto& a : q.allocations)
@@ -782,24 +792,28 @@ struct CollectiveCalls {
     }
     static VKAPI_ATTR void VKAPI_CALL destroy_buffer(VkDevice d, VkBuffer buffer, const VkAllocationCallbacks* a) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         const size_t m = q.index(d);
         q.shared.erase(std::remove_if(q.shared.begin(), q.shared.end(), [&](const Shared& b) { return b.member == m && b.buffer == buffer; }), q.shared.end());
         q.original[m].vkDestroyBuffer(d, buffer, a);
     }
     static VKAPI_ATTR void VKAPI_CALL free_memory(VkDevice d, VkDeviceMemory memory, const VkAllocationCallbacks* a) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         const size_t m = q.index(d);
         q.allocations.erase(std::remove_if(q.allocations.begin(), q.allocations.end(), [&](const Allocation& b) { return b.member == m && b.memory == memory; }), q.allocations.end());
         q.original[m].vkFreeMemory(d, memory, a);
     }
     static VKAPI_ATTR VkResult VKAPI_CALL begin(VkCommandBuffer cmd, const VkCommandBufferBeginInfo* info) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         c.events.clear(); c.sources.clear(); c.count = 0;
         return q.original[c.member].vkBeginCommandBuffer(cmd, info);
     }
     static VKAPI_ATTR void VKAPI_CALL copy(VkCommandBuffer cmd, VkBuffer src, VkBuffer dst, uint32_t n, const VkBufferCopy* regions) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         for (uint32_t i = 0; i < n; ++i) {
             if (const size_t p = q.payload(c.member, src)) c.events.push_back({Op::read, p, regions[i].srcOffset, regions[i].size, 0, VK_PIPELINE_STAGE_TRANSFER_BIT});
@@ -810,6 +824,7 @@ struct CollectiveCalls {
     static VKAPI_ATTR void VKAPI_CALL barrier(VkCommandBuffer cmd, VkPipelineStageFlags src, VkPipelineStageFlags dst, VkDependencyFlags flags,
             uint32_t nm, const VkMemoryBarrier* mb, uint32_t nb, const VkBufferMemoryBarrier* bb, uint32_t ni, const VkImageMemoryBarrier* ib) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         for (uint32_t i = 0; i < nb; ++i) if (const size_t p = q.payload(c.member, bb[i].buffer))
             c.events.push_back({Op::barrier, p, bb[i].offset, bb[i].size, src, dst,
@@ -819,6 +834,7 @@ struct CollectiveCalls {
     static VKAPI_ATTR void VKAPI_CALL descriptors(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipelineLayout layout,
             uint32_t set, uint32_t n, const VkWriteDescriptorSet* writes) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         c.sources.clear();
         for (uint32_t i = 0; i < n; ++i) if (writes[i].dstBinding >= 1 && writes[i].pBufferInfo) c.sources.push_back(*writes[i].pBufferInfo);
@@ -827,12 +843,14 @@ struct CollectiveCalls {
     static VKAPI_ATTR void VKAPI_CALL constants(VkCommandBuffer cmd, VkPipelineLayout layout, VkShaderStageFlags stages,
             uint32_t offset, uint32_t bytes, const void* data) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         if (!offset && bytes >= sizeof(c.count)) std::memcpy(&c.count, data, sizeof(c.count));
         q.original[c.member].vkCmdPushConstants(cmd, layout, stages, offset, bytes, data);
     }
     static VKAPI_ATTR void VKAPI_CALL dispatch(VkCommandBuffer cmd, uint32_t x, uint32_t y, uint32_t z) {
         auto& q = *collective_calls;
+        std::lock_guard<std::mutex> lock(q.trace_mutex);
         auto& c = q.command(cmd);
         for (const VkDescriptorBufferInfo& source : c.sources)
             if (const size_t p = q.payload(c.member, source.buffer))
@@ -861,6 +879,16 @@ struct CollectiveCalls {
         int armed = (int)i + 1;
         if (q.fail_submit.compare_exchange_strong(armed, 0)) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         const VkResult r = q.original[i].vkQueueSubmit(queue, n, info, fence);
+        if (r == VK_SUCCESS) {
+            // The thread that made the call and the ticket it signals on the member's own timeline, which a hold's submission does not.
+            std::lock_guard<std::mutex> lock(q.trace_mutex);
+            for (uint32_t j = 0; j < n; ++j) {
+                const auto* t = static_cast<const VkTimelineSemaphoreSubmitInfo*>(info[j].pNext);
+                if (info[j].signalSemaphoreCount && t && t->signalSemaphoreValueCount &&
+                    info[j].pSignalSemaphores[0] == backend::VulkanLifetimeTest::timeline(*q.members[i]))
+                    q.queued.push_back({i, std::this_thread::get_id(), t->pSignalSemaphoreValues[0]});
+            }
+        }
         if (q.trace && r == VK_SUCCESS) {
             std::lock_guard<std::mutex> lock(q.trace_mutex);
             for (uint32_t j = 0; j < n; ++j) {
@@ -1280,6 +1308,116 @@ int collective_checks() {
         if (!ok) ++failures;
     }
     {
+        // Every member's queue calls are made on the group's one thread, other than this one, in ticket order, and the members make their own again once the collective goes.
+        CollectiveCalls q(vk);
+        auto sum = first->join(members, rows, width);
+        bool apart = true;
+        for (auto* b : vk) apart = apart && backend::VulkanLifetimeTest::submits_apart(*b);
+        std::vector<backend::BufferPtr> x;
+        std::vector<backend::Slice> xs;
+        for (auto* b : members) {
+            x.push_back(b->alloc(n * sizeof(float)));
+            xs.push_back({x.back().get(), 0});
+        }
+        size_t from = 0;
+        {
+            std::lock_guard<std::mutex> lock(q.trace_mutex);
+            from = q.queued.size();
+        }
+        for (int k = 0; k < 7; ++k) {
+            sum->sum_into(xs, rows, width);
+            for (auto* b : members) b->submit();
+        }
+        for (auto* b : members) b->sync();
+        std::vector<CollectiveCalls::Queued> made;
+        {
+            std::lock_guard<std::mutex> lock(q.trace_mutex);
+            made.assign(q.queued.begin() + (std::ptrdiff_t)from, q.queued.end());
+        }
+        x.clear();
+        sum.reset();
+        bool alone = true;
+        for (auto* b : vk) alone = alone && !backend::VulkanLifetimeTest::submits_apart(*b);
+        const bool same = chain(members, sum = first->join(members, rows, width), 3);
+        bool ordered = made.size() >= 7 * members.size(), off = true;
+        {
+            std::vector<uint64_t> last(vk.size(), 0);
+            for (const auto& e : made) {
+                ordered = ordered && (last[e.member] == 0 || e.ticket == last[e.member] + 1);
+                last[e.member] = e.ticket;
+                off = off && e.thread != std::this_thread::get_id();
+            }
+        }
+        const bool ok = apart && same && ordered && off && alone && q.live == 0 && !q.premature;
+        std::cout << "collective_queue_thread calls=" << made.size() << " apart=" << apart << " ordered=" << ordered << " off_thread=" << off << " alone_after=" << alone << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    {
+        // A queue call that fails on the group's thread wakes a waiter on its ticket, fails the next hand-over once, and the sums after it give their bits.
+        CollectiveCalls q(vk);
+        auto sum = first->join(members, rows, width);
+        std::vector<backend::BufferPtr> x;
+        std::vector<backend::Slice> xs;
+        for (auto* b : members) {
+            x.push_back(b->alloc(n * sizeof(float)));
+            xs.push_back({x.back().get(), 0});
+        }
+        q.fail_submit = 2;
+        bool at_sum = false, threw = false, again = true;
+        try { sum->sum_into(xs, rows, width); } catch (const std::exception&) { at_sum = true; }
+        const backend::Ticket t = backend::VulkanLifetimeTest::last(*vk[1]);
+        std::atomic<bool> returned{false};
+        std::thread waiter([&] { members[1]->wait(t); returned = true; });
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+        while (!returned && std::chrono::steady_clock::now() < until) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!returned) {
+            std::cout << "collective_failed_call waiter on a failed ticket did not return FAIL\n";
+            std::_Exit(1);
+        }
+        waiter.join();
+        try { members[1]->submit(); } catch (const std::exception&) { threw = true; }
+        try { for (auto* b : members) b->submit(); } catch (const std::exception&) { again = false; }
+        bool drained = q.fail_submit == 0;
+        for (auto* b : members) b->sync();
+        for (auto* b : vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
+        x.clear();
+        const bool summed = chain(members, sum, 3) && q.live == 0 && !q.premature;
+        const bool ok = !at_sum && threw && again && drained && summed;
+        std::cout << "collective_failed_call woke=1 thrown_once=" << (threw && again) << " drained=" << drained << " summed=" << summed << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    {
+        // Results whose submission failed on the queue thread are never read: a read of them throws, as does the check a caller makes before reading in place (raise), and the next submission's results are exact.
+        CollectiveCalls q(vk);
+        auto sum = first->join(members, rows, width);
+        auto& b = *vk[0];
+        std::vector<float> src(n), got(n, 0.0f);
+        for (size_t i = 0; i < n; ++i) src[i] = float(i) * 0.5f - 7.0f;
+        const auto s = b.adopt(src.data(), n * sizeof(float));
+        const auto d = b.alloc(n * sizeof(float), backend::Memory::host_visible);
+        b.sync();
+        b.copy(*d, 0, *s, 0, n * sizeof(float));
+        q.fail_submit = 1;
+        const backend::Ticket t = b.submit();
+        b.wait(t);
+        bool read_threw = false, raised = false;
+        try { b.read(*d, 0, got.data(), n * sizeof(float)); } catch (const std::exception&) { read_threw = true; }
+        try { b.raise(t); } catch (const std::exception&) { raised = true; }
+        bool exact = true;
+        try {
+            b.copy(*d, 0, *s, 0, n * sizeof(float));
+            const backend::Ticket again = b.submit();
+            b.wait(again);
+            b.raise(again);
+            b.read(*d, 0, got.data(), n * sizeof(float));
+            exact = std::memcmp(got.data(), src.data(), n * sizeof(float)) == 0;
+        } catch (const std::exception&) { exact = false; }
+        sum.reset();
+        const bool ok = read_threw && raised && exact && q.fail_submit == 0;
+        std::cout << "collective_failed_read read_threw=" << read_threw << " raised=" << raised << " next_exact=" << exact << (ok ? " PASS\n" : " FAIL\n");
+        if (!ok) ++failures;
+    }
+    {
         // This checks refusal at the existing capability boundary, not the
         // extension scan or vkCreateDevice's enabled-extension list.
         auto dev = backend::VulkanLifetimeTest::device(*vk[1]);
@@ -1384,8 +1522,12 @@ int collective_checks() {
                     xs.push_back({x.back().get(), 0});
                 }
                 bool threw = false;
-                try { sum->sum_into(xs, large_rows, large_width); }
-                catch (const std::exception&) { threw = true; }
+                // The queue thread's failure is given out at the next hand-over once its calls have been made.
+                try {
+                    sum->sum_into(xs, large_rows, large_width);
+                    for (auto* b : group) b->sync();
+                    for (auto* b : group) b->submit();
+                } catch (const std::exception&) { threw = true; }
                 bool drained = q.live == live && !q.premature;
                 for (auto* b : group_vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
                 q.fail_get = q.fail_import = q.fail_submit_call = 0;
@@ -1409,8 +1551,11 @@ int collective_checks() {
                     x.push_back(group[m]->alloc(n * sizeof(float)));
                     xs.push_back({x.back().get(), 0});
                 }
-                try { sum->sum_into(xs, rows, width); }
-                catch (const std::exception&) { threw = true; }
+                try {
+                    sum->sum_into(xs, rows, width);
+                    for (auto* b : group) b->sync();
+                    for (auto* b : group) b->submit();
+                } catch (const std::exception&) { threw = true; }
                 drained = q.live == live && !q.premature && q.fail_submit == 0;
                 for (auto* b : group_vk) drained = drained && backend::VulkanLifetimeTest::idle(*b);
                 q.fail_get = q.fail_import = 0;

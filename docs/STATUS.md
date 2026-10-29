@@ -1,5 +1,18 @@
 # llmx - Development Status
 
+## A tensor group's queue calls on a thread of their own (2026-10-29, DDEV, branch feat/sum-submit-thread on main 3a5e3d5bd, step 1 of the CPU-trips audit, the coordinator's DECISION of 12:36 and F2DEV's approval with four conditions, in progress)
+
+**Goal:** a group's recording thread hands each queue call over and records on, so no device of the group waits while the calls are made.
+**Measured first** (Flash-Next UD-Q4_K_XL 2x2, production's flags, untimed, GPUs 4-7, CPUs 4-7): each decode sum held the recording thread about 190 us, of it the two members' `vkQueueSubmit` calls about 70-80 us each, the export 7 us and the import 9 us, with the ring never full, so about 9 ms of each 14-17 ms stage pass was the host while the device had 7.9 ms of work.
+**Done:** `VulkanSubmitter`, one queue thread per group, owns every member's queue (submissions, holds, a sum's calls, exports and imports in recorded order); a ticket handed out before its call is waited for there first; a failed call settles its tickets, wakes every waiter, recovers each collective's semaphores and throws once at the next hand-over; no result of a failed submission is read (`read` throws a pending failure, `raise(t)` a given-up ticket's before the logits are read in place, F2DEV's review finding, its test red before the fix and green after); a ring slot is reused only after its call and its work; the holds have their own command pool; the last collective gives the members their calls back.
+vulkan-lifetime holds the order, the thread, the give-back, the failed call's wake and the failed read, and its exchange failures now surface at the next hand-over.
+Prototype on 4 pinned CPUs, MTP off: one reply 34.4 to 40.3 tok/s (medians, +17%).
+Timing round as production runs (unpinned, --threads 8), three interleaved repeats, each server three single 512-token replies then four at once, medians without each server's first reply: one reply raw 45.3 to 46.3 tok/s (+2.2%) and drafted 53.3 to 55.1 (+3.4%, drafts priced by measured costs, so kept drafts differ); four at once raw 128.5 to 128.5 tok/s together (level) and drafted 109.3 to 119.4 (+9%).
+Per stage pass the recording thread's sum time fell from 6.3-7.2 to 4.5-5.9 ms and the device's work left after recording rose from 0.4-2.3 to 3.4-5.5 ms; stage 0's lookup waits stayed under 0.6 ms in both.
+Gates: byte identity against main on the CPU, a tensor group of 2 (Qwen3-0.6B Q8_0, Qwen3.6-27B MTP Q4_1), Flash-Next 2x2, the scheduler's mix with log-probabilities on 0.6B 2x2 and a layer split's split-check; CPU CTest 94/94; Radeon VII Vulkan CTest 17/17; vulkan-lifetime's new cases pass on four MI50s and its two-shot ownership and second-exchange cases at widths 3 and 4 fail the same way on main; TSan on vulkan-lifetime reports only the Mesa driver's shader-cache threads.
+**Left:** the review, then landing as one commit.
+**Gotchas:** the failure is given at the next hand-over on the group, which may be the next pass's when it was the last call of a pass; a hold given up after a failure ends by its bound.
+
 ## The encoder's products on a wide float tile (2026-10-29, branch perf/image-encode-products on main 80cbf1da0, step 2 of perf/image-encode, the owner's approval of the order and F2DEV's DECIDED of 2026-10-27 09:33, lands by fast-forward as one commit)
 
 - **Goal:** the vision encoder's products of BF16 weights, the larger gap to the references (their F32 SGEMM runs at about twice llmx's rate on an MI50), faster on both cards with the rows unchanged.

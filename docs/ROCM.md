@@ -4,8 +4,11 @@ Research and proposed delivery plan, 2026-10-09, based on main a1b8211b4.
 No ROCm backend is implemented or qualified by this document. The source
 comparison and pinned references are in [the research record](research/rocm-20261009.md).
 The user requested the plan and on 2026-10-09 authorized its bounded hardware
-probe before Vulkan tensor split is complete. The remaining implementation
-follows the existing order in [TENSOR-SPLIT](TENSOR-SPLIT.md). The closed
+probe before Vulkan tensor split was complete.
+On 2026-10-29 the owner ruled that the Vulkan backend and tensor split are finished and only fine-tuning remains.
+They no longer gate the implementation steps below, and step 2 may start when a developer is free.
+The open Vulkan speed cells against the reference stay in [STATUS](STATUS.md) and are not a precondition.
+The design of the Vulkan tensor split is in [TENSOR-SPLIT](TENSOR-SPLIT.md). The closed
 patched-kernel/driver route stays closed.
 This combines two research proposals, dated 2026-10-08 and 2026-10-09,
 reviewed on 2026-10-09. The research record states the accepted inputs and the
@@ -29,6 +32,7 @@ There is no second model runtime, graph scheduler or precision system.
 The first delivery target is Linux MI50/gfx906. The completion target is all
 currently supported model operations, quant types and requested dtypes, including
 hybrid layers, routed experts, embedded drafts, layer splits and tensor groups.
+What that means on main as of 2026-10-29 is listed under Scope on main, below.
 The dense Qwen3 Q8_0 milestone is a bounded first implementation, not a claim
 that the backend is complete. Unsupported operations/types are refused at load
 through existing capability checks, before uploads or execution.
@@ -53,6 +57,27 @@ This plan adds no runtime dependency. rocBLAS, AITER, PyTorch and Transformer
 Engine remain research inputs for this delivery; no external source is copied
 into llmx.
 
+## Scope on main, 2026-10-29
+
+The list below names what exists on main and is in the completion target.
+Each item is refused at load by capability until the ROCm backend implements it.
+It is a snapshot, not a second source: the code is the source, and the list is refreshed at the start of step 5.
+
+| Area | What main holds | Where |
+| --- | --- | --- |
+| Operations a backend may lack | 22 named ops: the qwen35 layer ops (`causal_conv_silu`, `gated_delta_rule`, `gated_rms_norm`, `norm_rope_partial`, `sigmoid_mul`), `mixed_experts`, the drafter ops (`argmax_rows`, `embed_ids`), the Flash-Next ops (`group_rms_norm`, `silu_scaled`, `mix_streams`, `inject_streams`, `signed_sqrt_gate`, `dilated_conv_silu_add`, `select_kv`, `sparse_attention`, `mix_rows`, `rope_streams`) and the encoder ops (`layer_norm`, `gelu`, `add_bias`, `attention_full`); the backend also has `pool_kv` for the indexer | `Op` and `Backend` in `src/backends/backend.hpp` |
+| Quant layouts | 37 active GGML layouts: F32, F16, BF16, Q4_0, Q4_1, Q5_0, Q5_1, Q8_0, Q2_K to Q6_K, the IQ families, TQ1_0, TQ2_0, MXFP4 and NVFP4 | `src/quant/types.hpp`, [quant-types](src/quant-types.md) |
+| Architectures | qwen3, qwen3moe, the hybrid qwen35 and qwen35moe, and qwen4exp (Flash-Next) | `src/model/arch/registry.hpp` |
+| Embedded drafter | The MTP block as a drafter, with checkpoint and rollback | [SPECULATIVE](SPECULATIVE.md), section 7 |
+| Image encoder | The vision encoder and image decoder are implemented; image rows are not yet wired into prompts or the server | `src/model/encoder.hpp`, [VISION](VISION.md) |
+| Host and disk cache tiers | The backend supplies buffer read and write only; tier policy stays in the server cache | `src/server/cache.hpp`, `src/server/disk_tier.hpp`, [DISK-TIER](DISK-TIER.md) |
+| Lookup-table rows | Rows held under the one host budget and read ahead; a backend reads a host-held table, it does not own it | `src/model/weight_rows.hpp` |
+
+Porting a quant layout is more than a decoder: the Vulkan backend carries row kernels, packed layouts and tile kernels for each family.
+The effort re-estimate after step 1 counts that cost per family.
+A mixed file needs the full type set of its tensors, so a model is refused whole when one type is missing.
+A model whose per-layer ops a ROCm device lacks is refused at load, as `Backend::implements` does today.
+
 ## What the research changes
 
 | Source | Take into this design | Keep outside this delivery |
@@ -66,6 +91,7 @@ into llmx.
 The performance hypothesis is specific: HIP can remove the per-sum host
 submission/sync-file cost seen in Vulkan and can use suitable native dot/matrix
 instructions. It is not a promise that translating GLSL makes every kernel faster.
+The measured cause on 2026-10-29 is the sum, not the kernels: see Evidence of 2026-10-29, below.
 The first probe must establish the communication gain before full backend work.
 
 ## Owners and boundaries
@@ -219,6 +245,13 @@ Capture cannot commit sequence state, consume random samples or publish logits.
 Warmup must preserve the caller's state. Eager and replay paths give the same
 bits for the same policy and row classes, including padded and mixed batches.
 
+This follows the never-wait rule of [AGENTS](../AGENTS.md), Principles.
+The host queues work ahead as asynchronous submissions with device-side dependencies.
+No host round trip sits inside a pass: group sums are signalled on the device, and the host does not join between stages.
+A graph replay counts toward performance only if the host also does not wait for sums between stages.
+The measure is device idle time between stage submissions, not host time.
+A ROCm backend honours the seams the interface already has for this: `Collective::wait` with its back count, `Backend::hold_between_submissions`, `Backend::unordered` and `Backend::decode_columns`, each implemented or consciously ignored.
+
 One member's graph must not wait on another member that the host cannot launch
 until the first finishes. Prepare every member before any launch and use the
 existing recorder/collective ownership to avoid duplicate worker pools. Measure
@@ -319,6 +352,31 @@ Record the reference's real path and retain the public best-path target; add an
 F32-communication diagnostic control if supported. A lower-precision collective
 would require its own approved policy and calibrated gate, not a hidden speed fix.
 
+## Evidence of 2026-10-29
+
+Measured on MI50 cards, one sum of a 20 KiB row.
+The rows are two kinds of measurement and are not comparable with each other:
+
+| Sum | What it measures | Width 2, us | Width 4, us |
+| --- | --- | --- | --- |
+| Vulkan sum in llmx | Host time inside the sum during real decode | 176-215 | not recorded |
+| Private GPU-signal sum over Vulkan | Standalone round-trip latency, microbenchmark | 207.5 | 378.4 |
+| Native ROCm custom sum | Standalone round-trip latency, microbenchmark | 36.3 | 75.1 |
+
+The Vulkan cost is per-sum host work: two queue submissions back to back on the recording thread, plus the device-side gap.
+The private GPU-signal route still submits twice per sum, so it does not close the gap.
+The two microbenchmark rows are the same kind, so their ratio is valid: the native sum is 5.7 times faster at width 2 and 5.0 times at width 4 than that route.
+No ratio is formed between the decode row and the microbenchmark rows.
+On Qwen3.8-Flash-Next UD-Q4_K_XL at 2x2 a stage pass holds about 48 sums.
+Part of the host cost is recoverable on Vulkan with one submission thread per queue (branch `feat/sum-submit-thread`, not landed).
+Under production's CPU setup (unpinned, `--threads 8`) it gains 2.2 percent on one reply with drafts off (45.3 to 46.3 tok/s) and 3.4 percent drafted, is level on four replies with drafts off and gains 9 percent on four drafted.
+A 4-CPU prototype showed 17 percent; that figure does not carry over.
+With the fix, one-reply decode is close to GPU-bound.
+The Vulkan control for every decision below is main with that fix once it lands, not today's main.
+
+Step 4's collective and replayed decode steps are therefore the main expected gain of a ROCm backend, and the kernels are not.
+The kernel probes below (Q8, attention) are Qwen3 dense shapes from 2026-10-10; no Flash-Next, 4-bit K-quant or IQ shape has been measured on HIP.
+
 ## Probe workloads and decision rule
 
 The probe tests a concrete hypothesis before committing to a backend. Historical
@@ -338,6 +396,17 @@ The same-session 2026-10-06 record in STATUS gives:
 | --- | --- | --- | --- |
 | 4 | 49.8 / 48.9 | 61.6 / 62.1 | 30.1 / 34.0 |
 | 2 | 33.3 / 33.9 | 36.0 / 36.3 | 17.6 / 15.2 |
+
+For the production model the same idea needs different inputs.
+Flash-Next at 2x2 has groups of width 2 and about 48 sums per stage pass.
+The Vulkan control is main with the submission-thread fix, where the sums cost about 4.5 to 5.9 ms of host time per stage pass under production's CPU setup (host time in decode).
+The native ROCm sums are estimated at 48 x 36.3 = 1.74 ms per stage pass at width 2 (standalone latency) and 48 x 75.1 = 3.6 ms at width 4.
+The expected saving at width 2 is about 4.5 - 1.7 to 5.9 - 1.7 = 2.8 to 4.2 ms per stage pass.
+It is an estimate across the two measurement kinds: a standalone latency stands in for the in-decode cost of the native sum, which only a ROCm backend running the model can measure.
+The step 0 record puts the device work of a stage pass at 6 to 8 ms.
+The budget rule for this model is per stage pass, not per token: advance when 48 sums at the qualified latency stay well below the device work of the pass, and the end-to-end decode on this model improves against the post-fix Vulkan control.
+The per-sum figure follows from the stage-pass saving divided by 48; it is recomputed from a fresh no-sum control on the production model before the gate, not taken from the Qwen3-32B rows.
+The model comparison adds Qwen3.8-Flash-Next UD-Q4_K_XL at 2x2 and Qwen3.5-9B Q4_K_M at width 4 as end-to-end cells beside the Qwen3-32B rows.
 
 These are estimates under unchanged non-collective work, not measured HIP
 latencies or release gates. The no-sum binaries produce wrong logits, and their
@@ -488,6 +557,12 @@ to execute on that Windows machine. Builds for gfx1151 without hardware are
 labeled compile-only.
 
 ## Open decisions and checkpoint reporting
+
+Delivery order is open, for the owner.
+Option A keeps the table above: foundation (step 2), then the first model (step 3), then tensor execution (step 4).
+Option B builds a thin ROCm collective and stage loop first, aimed at the decode gap in the evidence above, and then widens to full operation coverage; it moves step 4's collective and replay ahead of steps 3 and 5 for that thin path only.
+The coordinator recommends B.
+The checkpoint table is not reordered until the owner chooses.
 
 Step 1 resolves the fine-grain memory prerequisite and actual custom-collective
 gain, including RCCL path eligibility. The user approved the optional dependency

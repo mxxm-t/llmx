@@ -16,6 +16,12 @@
 - **Left:** the hosted run and F2DEV's review.
 - **Gotchas:** the tile holds 128 registers and 32 KiB of shared memory, two waves a SIMD; the products reach about 7.5 TFLOPS on Flash-Next 1024 against the references' 10.9.
 
+## A CPU stage's last slice may time at 0 ms (2026-10-29, RDEV, branch fix/slice-record-zero on main 80cbf1da0, tests only, F2DEV's request through the coordinator, lands by fast-forward as one commit)
+
+- **Why:** `server-passes-cpu`'s interleaved case required each stage's last slice to time above 0 ms. A CPU stage has retired by the time its timing starts, so on Windows the two clock reads gave 0 ms (rows 16, pieces 1, longest 0, run alone), and the case failed there.
+- **Change:** the case keeps the record's rows and pieces, accepts a time of 0 or more, and prints all three on failure. No source changes.
+- **Checks:** CTest on Windows and Linux, and the hosted run.
+
 ## Layered HF references for dense Qwen3 file-exact runs (2026-10-29)
 
 - **Done:** `tools/gen_layered_reference.py` can stream dense Qwen3 GGUF tensors through the existing `tests/f32.py` names and `tests/spec_decode.py` decoder, calling HF's own Qwen3 forward with one module loaded at a time. File-exact metadata records the GGUF identity and decoded tensor types; it does not label checkpoint weights as the quantized file.

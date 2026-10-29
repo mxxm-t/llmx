@@ -1876,6 +1876,66 @@ void boundary_fork_held(const gguf::GGUFModel& weights, uint32_t vocab) {
     ++checks;
 }
 
+// A prompt that lands while four replies decode on a layer split of two, at P = S and S + 1, with and without the interleaved rule: it reads its prompt and gives its first token before any reply ends, every reply its reply alone.
+// Production's case on Qwen3-8B (four uncapped replies, a 16k prompt that read no row for 900 s): the replies' passes took every free slot, since four decoders over the passes fill each one.
+void prompt_beside_replies(const gguf::GGUFModel& weights, uint32_t vocab) {
+    const bpe::Tokenizer tok(weights);
+    const size_t pool = 16 * kBlock;
+    Submitters seen;
+    const Make one = on(weights, [] { return cpus(1); });
+    const std::vector<Req> replies{{prompt_of(31, 4, vocab), 150}, {prompt_of(32, 4, vocab), 150}, {prompt_of(33, 4, vocab), 150}, {prompt_of(34, 4, vocab), 150}};
+    const Req late{prompt_of(35, 200, vocab), 4};
+    const std::vector<Reply> own = alone(one, tok, pool, replies), own_late = alone(one, tok, pool, {late});
+    for (const bool rule : {false, true})
+        for (const size_t passes : {size_t(2), size_t(3)}) {
+            const std::string where = std::string("a prompt beside four replies on two devices at P = ") + std::to_string(passes) + (rule ? " under the interleaved rule" : " without pacing");
+            const Make split = on(weights, [&seen] {
+                std::vector<backend::BackendPtr> v;
+                for (size_t i = 0; i < 2; ++i) v.push_back(std::make_shared<Slow>(&seen, 2));
+                return v;
+            });
+            auto model = split(pool, kUbatch);
+            server::Scheduler sched(*model, tok, kSeqs, 64, passes, false, 0, nullptr, 0, false, {}, rule ? server::Pacing::interleaved() : server::Pacing{});
+            std::vector<std::shared_ptr<server::Request>> handles;
+            std::shared_ptr<server::Request> prompt;
+            std::atomic<bool> sent{false};
+            size_t pass = 0, first_token = 0, first_end = 0;
+            // The prompt is submitted on the scheduler thread once every reply decodes, as the tenth pass retires; the passes that end the prompt and the first reply are counted.
+            sched.on_retire = [&](const server::Scheduler::Retired& t) {
+                ++pass;
+                for (size_t e = 0; e < t.requests.size(); ++e) {
+                    const server::Request* r = t.requests[e];
+                    if (r == prompt.get() && t.want[e] && t.from[e] + t.rows[e] == r->prompt_tokens() && !first_token) first_token = pass;
+                    if (r != prompt.get() && t.from[e] + 2 == r->prompt_tokens() + (size_t)replies[0].cap && !first_end) first_end = pass;
+                }
+                if (pass == 10 && !sent.load()) {
+                    prompt = sched.submit(late.prompt, params_of(late));
+                    sent.store(true);
+                }
+            };
+            for (const Req& r : replies) handles.push_back(sched.submit(r.prompt, params_of(r)));
+            std::thread runner([&] { sched.run(); });
+            std::vector<Reply> got;
+            Reply got_late;
+            try {
+                for (auto& h : handles) got.push_back(drain(*h));
+                while (!sent.load()) std::this_thread::yield();
+                got_late = drain(*prompt);
+            } catch (...) {
+                sched.stop();
+                runner.join();
+                throw;
+            }
+            sched.stop();
+            runner.join();
+            for (size_t i = 0; i < replies.size(); ++i) same(own[i], got[i], where + ", reply " + std::to_string(i));
+            same(own_late[0], got_late, where + ", the prompt");
+            require(first_token && first_end && first_token < first_end,
+                    where + ": the prompt's first token came in pass " + std::to_string(first_token) + ", not before the first reply ended in pass " + std::to_string(first_end));
+            ++checks;
+        }
+}
+
 // The interleaved rule (server::Pacing::interleaved) on layer splits of two and three devices, none a CPU, at P = S and S + 1, every reply its reply alone.
 // Requests in turn form no interleaved pass, beside a reply each prompt slice gets a pass of its own, and once a prompt beside a reply is sampled its request decodes in the normal round.
 void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
@@ -2100,6 +2160,7 @@ int main(int argc, char** argv) {
         short_beside_automatic(served(kSplit), (uint32_t)kSplit.vocab);
         drafted_service(served(kSplit), (uint32_t)kSplit.vocab);
         interleaved(served(kSplit), (uint32_t)kSplit.vocab);
+        prompt_beside_replies(served(kSplit), (uint32_t)kSplit.vocab);
         continued(served(kSplit), (uint32_t)kSplit.vocab);
         boundary_continued(served_hybrid(kHybrid), (uint32_t)kHybrid.vocab);
         fitted_reservation(served(kSplit));

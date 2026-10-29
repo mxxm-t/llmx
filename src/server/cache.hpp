@@ -90,6 +90,8 @@ public:
         s.host_bytes_moved = host_moved_;
         s.boundaries = bounds_.size();
         s.boundary_hits = bound_hits_;
+        s.reuse_misses = misses_;
+        s.last_miss = last_miss_;
         s.disk_entries = disk_now_.files;
         s.disk_states = disk_now_.states;
         s.disk_bytes = disk_now_.bytes;
@@ -331,6 +333,8 @@ public:
             r->no_room_ = true;
             return false;
         }
+        // A long prompt's first admission that forks under half of it says why, before admission moves anything it compares with.
+        if (!r->job_ && r->classes_.empty() && r->prompt_.size() >= kMissTokens && shared * 2 < r->prompt_.size()) note_miss(*r, shared);
         std::vector<size_t> gone = t.donors;
         std::sort(gone.begin(), gone.end(), std::greater<size_t>());
         bool consume = false;
@@ -959,6 +963,8 @@ private:
     bool beyond_host(size_t n) const { return model_.host_bytes(n) > host_cap_; }
     // The most reads from disk in flight (docs/DISK-TIER.md, Restore).
     static constexpr size_t kDiskReads = 2;
+    // A first admission of this many prompt tokens or more that forks under half of them says why (note_miss); shorter prompts cost little to read again.
+    static constexpr size_t kMissTokens = 4096;
     void count_wait(Request& r);
     void end_wait(Request& r);
     void finish_read(const Lines& lines, uint64_t id, bool ok);
@@ -1161,6 +1167,7 @@ private:
     }
     // Defined below, out of the class.
     void supersede(const Request& j, uint64_t kept);
+    void note_miss(const Request& r, size_t shared);
     static bool supersedes(const Request& j, uint64_t id, const std::vector<uint32_t>& tokens);
     bool host_growing_ = true;            // its slabs are not all taken yet (grow_host), under the lock
     // How often the host's memory is looked at (host_pressure): pressure builds over seconds and the look is one small file read, so idle slabs outstay it by a second at most.
@@ -1180,6 +1187,8 @@ private:
     uint64_t promoting_ = 0;                      // the host entry being promoted, which no room it makes releases
     uint64_t reading_for_ = 0;                    // the host entry whose rows a state about to be read alone is for, while that read's room is made (read_source)
     size_t bound_hits_ = 0;                       // under the lock
+    size_t misses_ = 0;                           // turns that reused little (note_miss), under the lock
+    ReuseMiss last_miss_;
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::vector<std::shared_ptr<Request>> restores_;   // under the lock, jobs restore_later made since follow_up last took them in
@@ -1624,6 +1633,36 @@ inline Cache::Served Cache::served(const std::vector<uint32_t>& tokens, const st
         if (n > best.tokens) best = {Served::Kind::running, i, n};
     }
     return best;
+}
+
+// Why a long prompt's first admission forked under half of it (docs/SERVER.md, A turn that reuses little): every history held compared with its prompt by reuse_miss, said once and counted.
+// A state is one the history keeps (its checkpoint, a host entry's end) or a boundary of the same tokens.
+inline void Cache::note_miss(const Request& r, size_t shared) {
+    const std::vector<RowClass> classes = first_classes(r);
+    const bool keeps = model_.keeps_state();
+    const auto bound_state = [&](size_t n) {
+        size_t s = 0;
+        for (const Boundary& b : bounds_) {
+            const size_t len = b.state.length;
+            if (len <= n && len > s && b.tokens.size() >= len && r.prompt_.size() >= len && std::equal(b.tokens.begin(), b.tokens.begin() + (std::ptrdiff_t)len, r.prompt_.begin())) s = len;
+        }
+        return s;
+    };
+    const auto alike_of = [&](const std::vector<RowClass>& c) { return [this, &classes, &c](size_t n) { return alike(classes, c, n); }; };
+    const auto state_of = [&](std::optional<size_t> own) -> std::function<size_t(size_t)> {
+        if (!keeps) return nullptr;
+        return [bound_state, own](size_t n) { return std::max(bound_state(n), own && *own <= n ? *own : size_t(0)); };
+    };
+    std::vector<HeldHistory> held;
+    for (const Donor& d : donors_) held.push_back({&d.tokens, alike_of(d.classes), state_of(model_.checkpoint(d.seq))});
+    for (const HostDonor& h : host_) held.push_back({&h.tokens, alike_of(h.classes), state_of(h.history.length)});
+    for (const Boundary& b : bounds_) held.push_back({&b.tokens, alike_of(b.classes), state_of(b.state.length)});
+    last_miss_ = reuse_miss(r.prompt_, shared, held, model_.kv_block_tokens(), r.spans_);
+    ++misses_;
+    const ReuseMiss& m = last_miss_;
+    const std::string where = m.messages ? " (message " + std::to_string(m.message + 1) + " of " + std::to_string(m.messages) + ", " + m.role + ")" : "";
+    std::fprintf(stderr, "server: cache: a turn of %zu tokens reused %zu; the closest held history agrees for %zu tokens%s, limited by %s at %zu\n", m.prompt, m.reused, m.agreed,
+                 where.c_str(), limit_name(m.limit), m.at);
 }
 
 // What request r asks served about: its history but the last token, which the pass giving its logits computes (a job, wanting none, all of it), under its own row classes or, at its first admission, its prompt's.

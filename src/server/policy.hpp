@@ -72,6 +72,81 @@ inline std::vector<RowClass> clip(const std::vector<RowClass>& rows, size_t n) {
     return out;
 }
 
+// Where each message of a chat prompt ends in its rows, and its role: what reuse_miss names the message a difference falls in by; empty for a prompt without messages.
+struct MessageSpans {
+    std::vector<size_t> ends;
+    std::vector<std::string> roles;
+};
+
+// A history the cache holds, as reuse_miss reads it: its tokens, how far below `n` its row classes agree with the request's, and on a model that keeps a state the furthest state it can be forked at, at or below `n`.
+struct HeldHistory {
+    const std::vector<uint32_t>* tokens = nullptr;
+    std::function<size_t(size_t)> alike;
+    std::function<size_t(size_t)> state;
+};
+
+// A first admission that reused under half of its prompt: how far the closest held history agrees with it, and what held the reuse below that (docs/SERVER.md, A turn that reuses little).
+struct ReuseMiss {
+    enum class Limit { tokens, classes, state, room };
+    size_t prompt = 0, reused = 0, agreed = 0, at = 0;
+    size_t message = 0, messages = 0;   // the message `agreed` falls in, of `messages`; none where messages is 0
+    std::string role;
+    Limit limit = Limit::tokens;
+};
+
+inline const char* limit_name(ReuseMiss::Limit l) {
+    switch (l) {
+    case ReuseMiss::Limit::tokens: return "tokens";
+    case ReuseMiss::Limit::classes: return "classes";
+    case ReuseMiss::Limit::state: return "state";
+    case ReuseMiss::Limit::room: return "room";
+    }
+    return "tokens";
+}
+
+// The closest of `held` to `tokens`, which reused `reused`, with forks in whole blocks of `block`: each compare stops at the first differing token, and row classes and states are asked of the closest alone.
+inline ReuseMiss reuse_miss(const std::vector<uint32_t>& tokens, size_t reused, const std::vector<HeldHistory>& held, size_t block, const MessageSpans& spans) {
+    ReuseMiss m;
+    m.prompt = tokens.size();
+    m.reused = reused;
+    const HeldHistory* best = nullptr;
+    for (const HeldHistory& h : held) {
+        const size_t limit = std::min(tokens.size(), h.tokens->size());
+        size_t n = 0;
+        while (n < limit && (*h.tokens)[n] == tokens[n]) ++n;
+        if (!best || n > m.agreed) {
+            best = &h;
+            m.agreed = n;
+        }
+    }
+    if (!spans.ends.empty()) {
+        m.messages = spans.ends.size();
+        m.message = std::min<size_t>((size_t)(std::upper_bound(spans.ends.begin(), spans.ends.end(), m.agreed) - spans.ends.begin()), spans.ends.size() - 1);
+        if (m.message < spans.roles.size()) m.role = spans.roles[m.message];
+    }
+    m.at = m.agreed;
+    if (!best || m.agreed < block) return m;
+    const size_t alike = best->alike ? best->alike(m.agreed) : m.agreed, whole = alike / block * block;
+    if (alike < m.agreed && whole <= reused) {
+        m.limit = ReuseMiss::Limit::classes;
+        m.at = alike;
+        return m;
+    }
+    if (best->state) {
+        const size_t s = best->state(whole);
+        if (s <= reused && s < whole) {
+            m.limit = ReuseMiss::Limit::state;
+            m.at = s;
+            return m;
+        }
+    }
+    if (whole > reused) {
+        m.limit = ReuseMiss::Limit::room;
+        m.at = whole;
+    }
+    return m;
+}
+
 // How a request reserves room: a capped one its history and what it may still generate, an uncapped one `tokens` past its history, and again `tokens` past its next position whenever that position would pass what it holds.
 // Admission and growth read the same `tokens`, so the first uncapped request a growth plan pauses always frees a whole step, and a plan never pauses more than one.
 struct Growth {

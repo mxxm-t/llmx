@@ -439,7 +439,7 @@ private:
                   ",\"refused\":" + n(s.disk_refused) + ",\"dropped_for_cap\":" + n(s.disk_capped) + ",\"proved\":" + n(s.disk_proved) + ",\"disproved\":" + n(s.disk_disproved) + ",\"lost_before_written\":" + n(s.lost_before_written) + ",\"refused_directories\":" + n(s.disk_refused_dirs) +
                   ",\"room_waits\":" + n(s.room_waits) + ",\"room_wait_timeouts\":" + n(s.room_wait_timeouts) + ",\"room_wait_ms\":" + n((uint64_t)s.room_wait_ms) +
                   ",\"room_wait_longest_ms\":" + n((uint64_t)s.room_wait_longest_ms) + "}}" +
-                  ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}" + restore_json(s.restore) + ",\"moves\":{\"since_start\":{" + moves(s) + "}}}" +
+                  ",\"boundaries\":{\"now\":{\"entries\":" + n(s.boundaries) + "},\"since_start\":{\"hits\":" + n(s.boundary_hits) + "}}" + misses_json(s) + restore_json(s.restore) + ",\"moves\":{\"since_start\":{" + moves(s) + "}}}" +
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + ",\"turns_without_memory\":" + n(s.turns_without_memory) + "}}" +
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
@@ -1299,6 +1299,26 @@ private:
         });
     }
 
+    // The turns that reused little and the last one's numbers (Cache::note_miss), its message counted from 1 and null on a route without messages.
+    static std::string misses_json(const Scheduler::Stats& s) {
+        const auto n = [](uint64_t v) { return std::to_string(v); };
+        const ReuseMiss& m = s.last_miss;
+        const std::string last = !s.reuse_misses ? "null" : "{\"prompt\":" + n(m.prompt) + ",\"reused\":" + n(m.reused) + ",\"agreed\":" + n(m.agreed) + ",\"limit\":" + jmini::quote(limit_name(m.limit)) +
+            ",\"at\":" + n(m.at) + ",\"message\":" + (m.messages ? n(m.message + 1) : "null") + ",\"messages\":" + n(m.messages) + ",\"role\":" + (m.messages ? jmini::quote(m.role) : "null") + "}";
+        return ",\"misses\":{\"since_start\":" + n(s.reuse_misses) + ",\"last\":" + last + "}";
+    }
+
+    // Where each message of a chat prompt ends in `ids` and its role, from the end tokens alone with no render, for the note of a turn that reuses little (Cache::note_miss).
+    // A template's own end tokens come before the messages', so the last ones are the messages'; with fewer end tokens than messages, as where turns merge, nothing.
+    MessageSpans message_spans(const std::vector<chat::Message>& messages, const std::vector<uint32_t>& ids) const {
+        const std::vector<size_t> points = cut_points(ids.data(), ids.size(), [this](uint32_t id) { return tok_.is_eos(id); });
+        MessageSpans s;
+        if (messages.empty() || points.size() < messages.size()) return s;
+        s.ends.assign(points.end() - (std::ptrdiff_t)messages.size(), points.end());
+        for (const chat::Message& m : messages) s.roles.push_back(m.role);
+        return s;
+    }
+
     // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
     // A chat route drops its oldest messages after the system message, a dropped message's images with it, and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
     Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids, const RequestImages& images) {
@@ -1406,7 +1426,8 @@ private:
                 }, e->pieces()};
             };
         }
-        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped, std::move(given)); }
+        MessageSpans spans = route == Route::chat || route == Route::chat_completions ? message_spans(messages_of(body), ids) : MessageSpans{};
+        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped, std::move(given), std::move(spans)); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }

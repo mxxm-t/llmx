@@ -200,6 +200,7 @@ private:
     const size_t stable_;
     const size_t message_;
     std::vector<uint32_t> cut_;    // a cut prompt's uncut rows through the first one the cut dropped (Api::fit), whose holders admission supersedes
+    MessageSpans spans_;           // where its messages end and their roles, from the chat route (Api::message_spans), for a turn that reuses little
     mutable std::mutex m_;
     std::condition_variable cv_;
     std::deque<Token> out_;
@@ -422,7 +423,7 @@ public:
     // Queue a request; the handle's channel delivers its tokens.
     // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0,
-                                    Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}, Images images = {}) {
+                                    Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}, Images images = {}, MessageSpans spans = {}) {
         if (prompt.empty()) throw std::runtime_error("server: empty prompt");
         if (!images.runs.empty() && (!model_.takes_images() || !images.encode)) throw std::runtime_error("server: images for a model that takes none, or without their encoder");
         for (size_t i = 0; i < images.runs.size(); ++i) {
@@ -435,6 +436,7 @@ public:
         if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
         auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
         r->cut_ = std::move(cut);
+        r->spans_ = std::move(spans);
         r->media_ = std::move(images.runs);
         r->encode_ = std::move(images.encode);
         {
@@ -523,6 +525,8 @@ public:
         size_t host_allocated = 0, host_yielded = 0;   // bytes of host slabs alive, held or idle, and bytes of idle slabs given back to a host short of memory
         size_t host_bytes_moved = 0;              // bytes copied between the devices and host memory, both ways
         size_t boundaries = 0, boundary_hits = 0; // message boundaries' states held in host memory now, and the requests that forked one
+        size_t reuse_misses = 0;       // first admissions of a long prompt that reused under half of it (Cache, kMissTokens), the last one's numbers beside
+        ReuseMiss last_miss;
         size_t disk_entries = 0, disk_errors = 0; // files on disk now, and writes and reads that failed
         size_t disk_states = 0;                   // those of them that are states, the rest being segments
         size_t disk_hits = 0, disk_waits = 0;     // entries read back for a request, and requests that waited for a read

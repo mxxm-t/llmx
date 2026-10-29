@@ -9,6 +9,13 @@
 - **Follow-up:** use file-exact HF NLL and perplexity against the uniform reference for the frozen Qwen3-8B Q2 file. The Q2_0 integration must pin the candidate tree's `spec_decode.py` and `gen_baseline.py`; this main-tree unit case uses Q2_K, which its decoder supports. The large-file Q2 quality result remains pending. The tiny test establishes adapter equivalence, not released-model correctness.
 
 
+## A turn that reuses little says why (2026-10-29, branch feat/reuse-diagnostic on serving step 0 8aaca981f (on main 509d3241b), LDEV's PROPOSAL of 2026-10-29 04:20 approved by F2DEV at 04:24 with four conditions, lands by fast-forward as one commit)
+
+- **Why:** on 2026-10-27 turns of one agentic run reused nothing of a history kept for them, about 290 s each, and nothing logged could show where the prompts differed (docs/CACHE-PLAN.md, section 10's evidence; the devlog of 2026-10-29).
+- **Done:** a first admission of 4096 tokens or more that forks under half its prompt logs how far the closest held history agrees (P), the chat message that falls in (K of L, by role) and the limit (the tokens, row classes, the state or room), and counts it in `/v1/health` (`reuse.misses`). F2DEV's conditions: one owner (`Cache::note_miss` over `reuse_miss` in `policy.hpp`, the route passing only end-token positions, no render); bounded cost (only past the threshold, each compare stopping at its first difference, memory only); the limit named; the three tests. Docs: SERVER (A turn that reuses little), `docs/src/server.md`, AGENTS (Tests).
+- **Tests:** `server-passes`' `reuse_miss` cases (a first message, a last message, a completions prompt without messages, and the state, tokens and room cases between).
+- **Left:** CTest, the CPU suite, Qwen3-0.6B identity, the hosted run; then production as a preview, so the next such turn names its cause.
+
 ## The serving rework, step 0: the service record, the price table and the replay (2026-10-27, RDEV, branch feat/serving-step0 on feat/q8-short-k bac4ed4bd (on perf/image-encode-attention 509d3241b), approved by F2DEV, lands third by fast-forward, step 0 of the serving rework plan (the coordinator's sched-audit draft 3, agreed by F2DEV and XDEV, the owner's answers of 12:43), in progress)
 
 - **Goal:** the server under a long prompt redone as one service rule for every placement (production on 2026-10-27: a reply at 3 tok/s beside a 150k prompt read at 400-768 tok/s, prompts of 327 and 3,334 tokens at 0 rows for 106 s).

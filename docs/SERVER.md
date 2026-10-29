@@ -383,6 +383,14 @@ A prompt that does not fit what one request may hold (`Scheduler::token_limit`) 
 - **What a cut costs.** The turn that cuts reads everything past the leading block again, about three eighths of the limit for an uncapped chat, 98000 tokens at 262144. No saved state serves it: a recurrent state at any row holds every row before it, and on a model without one the kept rows' positions and what they attend to both change; a message boundary's state is the state after the dropped messages. Only the leading block is forked, as any shared prefix is. The turn says what it pays as it is admitted (`server: cache: a cut turn reads R rows again beside S reused`, with the seconds at the measured prompt rate once a pass has measured it), and the conversation's uncut history ranks first to go (docs/CACHE-PLAN.md, section 4).
 - **What the client sees.** A `context` object in the reply (`tokens`, `limit`, and after a cut `dropped_messages`, `dropped_tokens`, `at_marker`), a line on the server, and the cuts counted in `/v1/health` (`requests.since_start.shifts`, `shifted_tokens`).
 
+### A turn that reuses little
+
+A first admission of a prompt of 4096 tokens or more (`kMissTokens`) that forks under half of it says why, once, with numbers and no text: `server: cache: a turn of M tokens reused N; the closest held history agrees for P tokens (message K of L, its role), limited by LIMIT at A` (`Cache::note_miss`, over `reuse_miss` in `src/server/policy.hpp`).
+- **P.** Every history the cache holds in memory, device donors, host entries and message boundaries, is compared with the prompt token by token, each compare stopping at its first difference, row classes left out; the closest is the one P names. Files on disk are not read.
+- **The limit.** `tokens`: the closest history differs at P, in its first block where P is under a block. `classes`: its rows were computed in other row classes from A. `state`: on a model that keeps a recurrent state, a history is forked only at a state it keeps, its checkpoint, a host entry's end or a boundary of the same tokens, and the furthest within the agreement is at A. `room`: the history held A rows the turn could have forked but did not, given up for room or out of the source's reach.
+- **K.** On the chat routes the message the difference falls in, from the end tokens' positions alone (`Api::message_spans`, no render); where a conversation has fewer end tokens than messages, as where tool results share one, and on `/v1/completions`, none.
+- **Health.** `reuse.misses`: `since_start`, the count, and `last`, the last one's `prompt`, `reused`, `agreed`, `limit`, `at`, `message` (counted from 1), `messages` and `role`, or null before the first.
+
 ### Log-probabilities
 
 A request may ask for the log-probability of each token it is sent and for the most likely tokens at each position, at most 20.
@@ -714,7 +722,8 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
     "disk": {"now": {"entries": 90, "bytes": 8011472896, "limit_bytes": 214748364800, "in_flight": 0, "ready": true, "writing": true},
              "since_start": {"hits": 7, "bytes_read": 612368384, "bytes_written": 9100574720, "waits": 7, "wait_ms": 412,
                              "errors": 0, "refused": 0, "dropped_for_cap": 0, "lost_before_written": 0}},
-    "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}}
+    "boundaries": {"now": {"entries": 14}, "since_start": {"hits": 21}},
+    "misses": {"since_start": 1, "last": {"prompt": 222191, "reused": 0, "agreed": 221984, "limit": "state", "at": 0, "message": 71, "messages": 72, "role": "assistant"}}
   },
   "pressure": {"since_start": {"pauses": 0, "stalls": 0, "waits": 0, "recomputed_tokens": 0, "resumes_taking_history_back": 0}},
   "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},

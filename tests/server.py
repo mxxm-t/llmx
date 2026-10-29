@@ -527,7 +527,8 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         time.sleep(0.02)
         assert srv.get("/v1/health")["requests"]["live"] == live, "idle polling refreshed the cached snapshot"
         assert health["work"] == {"since_start": {"prefilled_tokens": 0, "generated_tokens": 0}}, health
-        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "restore", "moves"}, health["reuse"]
+        assert set(health["reuse"]) == {"since_start", "device", "host", "disk", "boundaries", "misses", "restore", "moves"}, health["reuse"]
+        assert health["reuse"]["misses"] == {"since_start": 0, "last": None}, health["reuse"]["misses"]
         restore = health["reuse"]["restore"]["since_start"]
         assert {"reads", "promotions", "copies", "from_host", "from_disk", "timeouts", "read_ms", "hold_ms", "enqueue_ms", "copies_ms"} <= set(restore) and all(v == 0 for v in restore.values()), restore
         moves = health["reuse"]["moves"]["since_start"]

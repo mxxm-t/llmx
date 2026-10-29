@@ -9,8 +9,10 @@
 #include <deque>
 #include <functional>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include "backends/backend.hpp"
@@ -498,6 +500,207 @@ inline bool take_piece(PieceSearch& search, uint64_t& piece_of, size_t& piece_en
     piece_of = prompt_of;
     piece_end = prompt_end;
     return true;
+}
+
+// The depth band of rows read at history position `depth` (docs/SERVER.md, The price table): 0 below kBandTokens, then one band a doubling, so 4k to 8k tokens is band 1 and 128k to 256k band 6.
+inline constexpr size_t kBandTokens = 4096;
+inline size_t depth_band(size_t depth) {
+    size_t b = 0;
+    for (size_t d = depth / kBandTokens; d; d >>= 1) ++b;
+    return b;
+}
+
+// A pass's work at a stage as the price table keys it: its rows of extent 1 (decode entries, verifies and a resume's recomputed tokens) with the band of the deepest, and each prompt slice by its row class, band and rows.
+struct PassWork {
+    struct Chunk {
+        size_t cls = 0, band = 0, rows = 0;
+    };
+    size_t decode_rows = 0, decode_band = 0;
+    std::vector<Chunk> chunks;
+    void decode(size_t rows, size_t depth) {
+        decode_rows += rows;
+        decode_band = std::max(decode_band, depth_band(depth));
+    }
+    void chunk(size_t cls, size_t rows, size_t depth) { chunks.push_back({cls, depth_band(depth), rows}); }
+};
+
+// A stage's measured prices (docs/SERVER.md, The price table): a pass of decode rows alone by its band and rows, and a pass of one prompt slice alone by the slice's row class, band and rows in steps of kPieceStep.
+// A cell keeps a forgetting mean, which predicts, and its last measure, which the slice search reads so that an overrun acts at once.
+struct PriceTable {
+    struct Cell {
+        double ms = 0, last_ms = 0;
+        uint64_t samples = 0;
+    };
+    std::map<std::pair<size_t, size_t>, Cell> decode;              // by (band, rows)
+    std::map<std::tuple<size_t, size_t, size_t>, Cell> chunks;     // by (class, band, rows in steps)
+    static size_t step_of(size_t rows) { return (rows + kPieceStep - 1) / kPieceStep * kPieceStep; }
+
+    // A measured stage time: a pass of decode rows alone prices its decode cell and one slice alone its slice's; a pass of several parts prices nothing, which says so.
+    bool observe(const PassWork& w, double ms) {
+        if (!(ms >= 0)) return false;
+        Cell* c = nullptr;
+        if (w.chunks.empty() && w.decode_rows) c = &decode[{w.decode_band, w.decode_rows}];
+        else if (w.chunks.size() == 1 && !w.decode_rows) c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
+        if (!c) return false;
+        c->ms = forget(c->ms, ms);
+        c->last_ms = ms;
+        ++c->samples;
+        return true;
+    }
+    // Decode rows' price: their cell, else the nearest measured rows above in their band, else below; 0 where the band has none.
+    double decode_ms(size_t band, size_t rows) const {
+        const auto it = decode.lower_bound({band, rows});
+        if (it != decode.end() && it->first.first == band) return it->second.ms;
+        if (it != decode.begin() && std::prev(it)->first.first == band) return std::prev(it)->second.ms;
+        return 0;
+    }
+    // A slice's price: its cell, else the nearest measured above in its class and band, else the largest below scaled by the rows; 0 where none is measured.
+    double chunk_ms(const PassWork::Chunk& c) const {
+        const size_t rows = step_of(c.rows);
+        const auto same = [&](const auto& key) { return std::get<0>(key) == c.cls && std::get<1>(key) == c.band; };
+        const auto it = chunks.lower_bound({c.cls, c.band, rows});
+        if (it != chunks.end() && same(it->first)) return it->second.ms;
+        if (it != chunks.begin() && same(std::prev(it)->first)) return std::prev(it)->second.ms * (double)rows / (double)std::get<2>(std::prev(it)->first);
+        return 0;
+    }
+    // A pass's predicted stage time: its decode rows' price and each slice's, each measured as a pass of its own, so a pass of several parts is priced high by their fixed costs; 0 where a part has no price yet.
+    double predict(const PassWork& w) const {
+        double ms = 0;
+        if (w.decode_rows) {
+            const double d = decode_ms(w.decode_band, w.decode_rows);
+            if (d <= 0) return 0;
+            ms += d;
+        }
+        for (const PassWork::Chunk& c : w.chunks) {
+            const double x = chunk_ms(c);
+            if (x <= 0) return 0;
+            ms += x;
+        }
+        return ms;
+    }
+    // A class and band's measured slices against `target_ms` by their last measures: the smallest over it (`hi`), the largest within it below that (`lo`), 0 for none, and whether any is measured.
+    struct Bracket {
+        size_t lo = 0, hi = 0;
+        bool any = false;
+    };
+    Bracket bracket(size_t cls, size_t band, double target_ms) const {
+        Bracket b;
+        for (auto it = chunks.lower_bound({cls, band, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == band; ++it) {
+            b.any = true;
+            if (it->second.last_ms > target_ms && !b.hi) b.hi = std::get<2>(it->first);
+        }
+        for (auto it = chunks.lower_bound({cls, band, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == band; ++it)
+            if (it->second.last_ms <= target_ms && (!b.hi || std::get<2>(it->first) < b.hi)) b.lo = std::get<2>(it->first);
+        return b;
+    }
+    // The rows of the next slice of class `cls` in band `band` within `target_ms`, at most `most`: the search over the measured cells (docs/SERVER.md, The price table).
+    size_t chunk_rows(size_t cls, size_t band, double target_ms, size_t most) const {
+        const Bracket b = bracket(cls, band, target_ms);
+        size_t rows = kPieceStep;
+        if (!b.any) {
+            for (size_t below = band; below-- > 0;) {
+                const Bracket p = bracket(cls, below, target_ms);
+                if (!p.any) continue;
+                rows = std::max(kPieceStep, p.lo);
+                break;
+            }
+        } else if (!b.lo) {
+            rows = b.hi / 2 / kPieceStep * kPieceStep;
+        } else if (!b.hi) {
+            rows = 2 * b.lo;
+        } else {
+            rows = b.hi - b.lo > kPieceStep ? (b.lo + b.hi) / 2 / kPieceStep * kPieceStep : b.lo;
+        }
+        return std::min(most, std::max(kPieceStep, rows));
+    }
+};
+
+// The service rule's gap (docs/SERVER.md, The service rule): while prompt work waits, a reply is served at least every `mix` times the step the same replies take with no prompt work.
+// `mix` is the one constant the rule has, a ratio, which step 0's measurement chooses.
+inline double service_gap(double alone_step_ms, double mix) { return mix * alone_step_ms; }
+// What the gap leaves a chunk pass between two passes of replies at a stage: the gap less the replies' own pass.
+inline double chunk_budget(double gap_ms, double replies_ms) { return gap_ms > replies_ms ? gap_ms - replies_ms : 0.0; }
+// Replies while prompt work waits go in as few passes as the decode kernels' columns hold them.
+inline size_t packed_passes(size_t decoders, size_t columns) { return columns ? (decoders + columns - 1) / columns : decoders; }
+
+// A prompt with rows left to read as the share rule sees it, the rule taking them in arrival order: its rows left and their price, how long it has been ready without rows and the stage time it has had.
+struct ReadyPrompt {
+    double remaining_ms = 0, idle_ms = 0, attained_ms = 0;
+    size_t remaining_rows = 0;
+};
+// How prompt time is divided among the ready prompts: a rule that orders them or one that gives each a part (docs/SERVER.md, Prompt shares).
+// `part` is the oldest's part or floor, `age` and `wait_ms` least remaining's aging and idle bound, and `short_rows` what today's order reads first.
+struct Share {
+    enum class Rule { today, oldest_first, oldest_keeps, equal, least_remaining, least_remaining_floor, least_attained };
+    Rule rule = Rule::oldest_first;
+    double part = 0.75;
+    double age = 0;
+    double wait_ms = 10000;
+    size_t short_rows = 0;
+};
+// Each ready prompt's part of prompt time under a rule that divides it, by index into `p` in arrival order; empty for a rule that orders.
+inline std::vector<double> share_parts(const Share& s, const std::vector<ReadyPrompt>& p) {
+    using R = Share::Rule;
+    if (s.rule != R::oldest_keeps && s.rule != R::equal && s.rule != R::least_remaining_floor) return {};
+    std::vector<double> parts(p.size(), 0.0);
+    if (p.size() == 1) parts[0] = 1;
+    if (p.size() < 2) return parts;
+    if (s.rule == R::equal) {
+        std::fill(parts.begin(), parts.end(), 1.0 / (double)p.size());
+        return parts;
+    }
+    size_t other = 1;
+    if (s.rule == R::least_remaining_floor)
+        for (size_t i = 2; i < p.size(); ++i)
+            if (p[i].remaining_ms < p[other].remaining_ms) other = i;
+    parts[0] = s.part;
+    parts[other] = 1 - s.part;
+    return parts;
+}
+// The prompt the next chunk goes to, an index into `p` (in arrival order): by the rule's order, or under a rule that divides, the largest credit (charge_share), the oldest of equals.
+inline size_t next_prompt(const Share& s, const std::vector<ReadyPrompt>& p, const std::vector<double>& credit) {
+    using R = Share::Rule;
+    if (p.empty()) return 0;
+    const auto least = [&](auto key) {
+        size_t best = 0;
+        for (size_t i = 1; i < p.size(); ++i)
+            if (key(i) < key(best)) best = i;
+        return best;
+    };
+    switch (s.rule) {
+    case R::today:
+        for (size_t i = 0; i < p.size(); ++i)
+            if (p[i].remaining_rows <= s.short_rows) return i;
+        return 0;
+    case R::oldest_first:
+        return 0;
+    case R::least_remaining: {
+        size_t idle = p.size();
+        for (size_t i = 0; i < p.size(); ++i)
+            if (p[i].idle_ms >= s.wait_ms && (idle == p.size() || p[i].idle_ms > p[idle].idle_ms)) idle = i;
+        if (idle < p.size()) return idle;
+        return least([&](size_t i) { return p[i].remaining_ms - s.age * p[i].idle_ms; });
+    }
+    case R::least_attained:
+        return least([&](size_t i) { return p[i].attained_ms; });
+    default: {
+        // The largest credit among the prompts the rule gives a part, so one it gives none is never read by a rounding of the others' credits.
+        const std::vector<double> parts = share_parts(s, p);
+        const auto of = [&](size_t i) { return i < credit.size() ? credit[i] : 0.0; };
+        size_t best = p.size();
+        for (size_t i = 0; i < p.size(); ++i)
+            if (parts[i] > 0 && (best == p.size() || of(i) > of(best))) best = i;
+        return best < p.size() ? best : 0;
+    }
+    }
+}
+// A chunk of `ms` given to prompt `served`: under a rule that divides, every ready prompt's credit grows by its part of it and the served one's falls by all of it.
+inline void charge_share(const Share& s, const std::vector<ReadyPrompt>& p, std::vector<double>& credit, size_t served, double ms) {
+    const std::vector<double> parts = share_parts(s, p);
+    if (parts.empty()) return;
+    credit.resize(p.size(), 0.0);
+    for (size_t i = 0; i < p.size(); ++i) credit[i] += parts[i] * ms;
+    credit[served] -= ms;
 }
 
 // Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.

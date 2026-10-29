@@ -54,11 +54,13 @@ class Server:
             for field, item_field in (("prefilled_tokens", "prefilled_tokens"), ("generated_tokens", "published_tokens")):
                 assert sum(item[item_field] for item in live["items"]) <= work[field] <= result["work"]["since_start"][field], live
             for item in live["items"]:
-                assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms"}, item
+                assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms",
+                                     "queued_ms", "first_token_ms", "inter_token_ms"}, item
                 assert isinstance(item["id"], str) and re.fullmatch(r"r-[1-9][0-9]*", item["id"]), item
                 assert item["phase"] in ("queued", "paused", "prefill", "generate"), item
                 assert all(isinstance(item[key], int) and item[key] >= 0 for key in
-                           ("prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms")), item
+                           ("prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms", "queued_ms", "first_token_ms")), item
+                assert item["inter_token_ms"] >= 0 and (item["first_token_ms"] == 0) == (item["published_tokens"] == 0), item
                 assert item["reused_tokens"] <= item["prompt_tokens"], item
         return result
 
@@ -416,6 +418,55 @@ def check_dtype(model):
             srv.close()
 
 
+def check_service(srv, requests, n):
+    """The service record in /v1/health (docs/SERVER.md, The price table) after `requests` requests of `n` tokens each, then a live request's own times while it generates."""
+    health = srv.get("/v1/health")
+    service = health["service"]
+    assert set(service) == {"stages", "rows", "requests"}, service
+    assert service["stages"], service
+    for stage in service["stages"]:
+        since = stage["since_start"]
+        assert since["passes"] > 0 and since["measured_ms"] >= 0 and since["longest_ms"] > 0, stage
+        assert 0 < since["predicted"] <= since["passes"] and since["predicted_ms"] > 0, stage
+        assert since["over_prediction"] <= since["predicted"] and since["error_ms"] >= 0, stage
+        assert since["recording_ms"] >= since["lookup_wait_ms"] + since["sum_wait_ms"] - 1 and since["after_recording_ms"] >= 0, stage
+        assert stage["recent"] and len(stage["recent"]) <= 8, stage
+        for p in stage["recent"]:
+            assert p["measured_ms"] >= 0 and p["predicted_ms"] >= 0 and (p["decode_rows"] or p["chunks"]), p
+        assert stage["prices"]["decode"] and stage["prices"]["chunks"], stage
+        for run in stage["prices"]["decode"] + stage["prices"]["chunks"]:
+            assert len(run["rows"]) == len(run["ms"]) == len(run["last_ms"]) == len(run["samples"]) > 0, run
+            assert all(ms > 0 for ms in run["ms"]) and all(k > 0 for k in run["samples"]), run
+    rows = service["rows"]["since_start"]
+    assert rows["decode"] > 0 and rows["prompt"] > 0 and sum(rows["prompt_by_band"]) >= rows["prompt"], rows
+    times = service["requests"]
+    for name in ("queue_wait_ms", "first_token_ms", "inter_token_ms"):
+        q = times[name]
+        assert set(q) == {"count", "p50", "p95", "p99", "max"} and 0 <= q["p50"] <= q["p95"] <= q["p99"] <= q["max"], (name, q)
+    assert times["queue_wait_ms"]["count"] == times["first_token_ms"]["count"] >= requests and times["inter_token_ms"]["count"] > 0, times
+    assert times["first_token_ms"]["max"] > 0 and times["inter_token_ms"]["max"] > 0, times
+    # A request generating: each poll asks the next round boundary for a snapshot and gives the one before, so it is polled until its item shows tokens.
+    done = []
+    worker = threading.Thread(target=lambda: done.append(srv.post("/v1/generate", {"prompt": "a", "max_tokens": min(400, health["server"]["request_tokens"] - 8), "temperature": 0, "ignore_eos": True})))
+    worker.start()
+    seen = None
+    try:
+        for _ in range(2000):
+            items = [i for i in srv.get("/v1/health")["requests"]["live"]["items"] if i["published_tokens"] > 2]
+            if items:
+                seen = items[0]
+                break
+            if done:
+                break
+            time.sleep(0.005)
+    finally:
+        worker.join()
+    if seen:
+        assert seen["first_token_ms"] > 0 and seen["first_token_ms"] <= seen["elapsed_ms"] and seen["queued_ms"] <= seen["first_token_ms"], seen
+        assert seen["inter_token_ms"] > 0, seen
+    return seen is not None
+
+
 def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
     srv = Server(model, *flags)
     def check_idle(before):
@@ -435,7 +486,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16", "int8"), dtype
         assert dtype["devices"], dtype
         # The groups and the units in their names (docs/OPERATING.md), and the route a load balancer polls without waiting on the scheduler.
-        assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing"} and "timing" not in health, health
+        assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing", "service"} and "timing" not in health, health
         topology = health["topology"]
         assert topology["mode"] in ("single", "layer", "tensor", "staged_tensor") and isinstance(topology["mixed_roles"], bool), topology
         assert isinstance(topology.get("lookups"), list), topology
@@ -528,6 +579,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert status == 200 and reply["ids"] == expected[p], (p, reply, expected[p])
         since = srv.wait(lambda h: h["requests"]["since_start"]["finished"] >= 4 + len(prompts), "finished requests were not counted")["requests"]["since_start"]
         assert since["prompt_tokens"] > 0 and since["generated_tokens"] > 0, since
+        check_service(srv, 4 + len(prompts), n)
 
         # A stream: token events, then the end marker, with the same ids.
         events = srv.stream("/v1/generate", {"prompt": prompts[0], "max_tokens": n, "temperature": 0, "stream": True})

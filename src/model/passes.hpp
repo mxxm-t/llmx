@@ -496,7 +496,9 @@ inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, 
     if (!lookup || !home_[size_t(l)][lookup->role].row_source) return;
     ExecContext::Scratch& owner = p.apart ? ctx.apart[group] : ctx.scratch[group];
     auto& prepared = owner.lookups[size_t(l)];
+    const auto waited = std::chrono::steady_clock::now();
     const auto rows = home_[size_t(l)][lookup->role].row_source->finish(*prepared.host);
+    p.lookup_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - waited).count();
     for (size_t i = 0; i < rows.requested; ++i) prepared.ids[i] = uint32_t(rows.remap[i]);
     const size_t bytes = backend::size_mul(rows.unique, rows.row_bytes);
     for (size_t m = 0; m < width; ++m) {
@@ -513,6 +515,7 @@ inline void Model::finish_lookup(ExecContext& ctx, const Pass& p, size_t group, 
 // With a `pace` each part ends a piece: what is recorded is submitted, that piece or the one before it waited for, and the caller's `between` runs.
 inline void Model::single_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace) {
     const Stage& st = stages_[s];
+    p.lookup_ms = p.sum_ms = 0;
     size_t cur = st.device;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     for (int l = st.first; l < st.end; ++l) start_lookup(ctx, p, st.device, l);
@@ -607,9 +610,16 @@ inline void Model::prepare_tokens(Pass& p, size_t s) const {
 // With a `pace` each sum ends a piece: that sum or the one before it is waited for on every member, and the caller's `between` runs.
 inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace) {
     const Stage& st = stages_[s];
+    p.lookup_ms = p.sum_ms = 0;
     const size_t g = st.device, W = width_;
     const backend::RowRuns all{p.runs.data(), p.runs.size()};
     backend::Collective& sum = *ctx.collectives[g];
+    // A sum, its host time added to the pass's (Pass::sum_ms).
+    const auto summed = [&](auto&& add) {
+        const auto from = std::chrono::steady_clock::now();
+        add();
+        p.sum_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - from).count();
+    };
     const auto piece = [&](int l, bool ffn) {
         if (!pace) return;
         if (pace->within) {
@@ -642,7 +652,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
             arch_->mixer(step);
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
-        sum.sum_into(x, p.rows, plan_.residual);
+        summed([&] { sum.sum_into(x, p.rows, plan_.residual); });
         piece(l, false);
         for (size_t m = 0; m < W; ++m) {
             Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all, p.apart);
@@ -651,7 +661,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s, Pace* pace)
             if (has_experts(plan_.layers[(size_t)l])) clear_partial(ctx, g + m, step.partial, p.rows);
             arch_->ffn(step);
         }
-        sum.sum_into(x, p.rows, plan_.residual);
+        summed([&] { sum.sum_into(x, p.rows, plan_.residual); });
         piece(l, true);
     }
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
@@ -686,6 +696,7 @@ inline void Model::stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur)
     for (size_t d : stages_[s].touches)
         for (size_t m = d; m < d + width_; ++m) p.tickets[m] = ctx.tickets[m] = devices_[m]->b->submit();
     p.sent = p.tickets[cur];
+    p.sent_at = cur;
     p.sent_members.assign(p.tickets.begin() + (std::ptrdiff_t)cur, p.tickets.begin() + (std::ptrdiff_t)(cur + width_));
 }
 

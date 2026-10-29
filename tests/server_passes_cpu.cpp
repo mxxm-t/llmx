@@ -1911,6 +1911,14 @@ void interleaved(const gguf::GGUFModel& weights, uint32_t vocab) {
                 require(s.interleaved_replies > 0 && s.interleaved_slices > 0,
                         where + ": " + std::to_string(s.interleaved_replies) + " passes of generated rows and " + std::to_string(s.interleaved_slices) + " prompt slices formed apart beside a reply");
                 require(s.interleaved_mixed == 0, where + ": " + std::to_string(s.interleaved_mixed) + " passes in an overlap held a reply's rows beside a prompt's or two prompts' slices");
+                // Each stage's last slice and its service record (docs/SERVER.md, The price table): every pass timed at every stage, the later ones predicted, and the time split.
+                for (size_t st = 0; st < stages; ++st) {
+                    require(s.slices[st].rows > 0 && s.slices[st].pieces == 1 && s.slices[st].longest_ms > 0, where + ": stage " + std::to_string(st) + "'s last slice reads empty");
+                    const server::StageRecord& r = s.service.stages[st];
+                    require(r.passes > 0 && r.predicted > 0 && r.measured_ms > 0 && r.recording_ms > 0 && !r.prices.decode.empty() && !r.prices.chunks.empty(),
+                            where + ": stage " + std::to_string(st) + "'s service record holds " + std::to_string(r.passes) + " passes, " + std::to_string(r.predicted) + " predicted");
+                }
+                require(s.service.rows.decode > 0 && s.service.rows.prompt > 0 && s.service.first_token.count == beside.size() && s.service.inter_token.count > 0, where + ": the service record's rows or request times are empty");
                 ledger(s, *model, where);
             }
             auto model = split(pool, kUbatch);

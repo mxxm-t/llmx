@@ -173,6 +173,34 @@ jobs:
         if: ${{ !cancelled() }}
         run: python -X utf8 tests/dead_code.py --linked build-linked
 
+  # The ROCm backend compiled, its tests not run: no hosted runner has a ROCm device, so its device checks are the hand check on an MI50 (docs/STATUS.md).
+  rocm-build:
+    name: ROCm backend (build only, Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      # The SDK from AMD's repository at the release the backend is built and checked with, its headers and the compiler that writes the code objects.
+      - name: ROCm headers and compiler
+        run: |
+          sudo wget -qO /etc/apt/trusted.gpg.d/rocm.asc https://repo.radeon.com/rocm/rocm.gpg.key
+          echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/7.2.1 noble main" | sudo tee /etc/apt/sources.list.d/rocm.list
+          # The distribution packages an older HIP under the same names, so AMD's repository is preferred for every package it has.
+          printf 'Package: *\nPin: origin repo.radeon.com\nPin-Priority: 600\n' | sudo tee /etc/apt/preferences.d/rocm-pin-600
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends hip-dev rocm-device-libs
+      - name: Configure with the ROCm backend
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DLLMX_HAS_BACKEND_ROCM=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Dead code and docs over the ROCm build
+        run: python -X utf8 tests/run_tests.py --annotate --exe build/llmx --only docs,dead-code
+
   hf-reference:
     name: HF reference (CPU)
     runs-on: ubuntu-24.04

@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstddef>
 #include <stdexcept>
@@ -54,6 +55,23 @@ enum class Memory { device, host_visible };
 // A submission.
 // `submit()` hands everything enqueued so far to the device and returns one; `wait()` blocks until that submission has retired.
 using Ticket = uint64_t;
+
+// The tickets a device backend hands out in order and the greatest one seen retired, read from any thread while the recording thread hands them out (Backend::wait).
+class TicketLedger {
+public:
+    Ticket last() const noexcept { return last_.load(std::memory_order_acquire); }
+    Ticket take() noexcept { return ++last_; }
+    // The last ticket taken, given back by a submission that failed before its work was queued.
+    void give_back() noexcept { --last_; }
+    // Whether a wait on `t` has nothing to wait for: no ticket, one not yet handed out, or one already seen retired.
+    bool settled(Ticket t) const noexcept { return t == 0 || t > last() || t <= done_.load(std::memory_order_acquire); }
+    void retired(Ticket t) noexcept {
+        Ticket before = done_.load(std::memory_order_relaxed);
+        while (before < t && !done_.compare_exchange_weak(before, t, std::memory_order_release, std::memory_order_relaxed)) {}
+    }
+private:
+    std::atomic<Ticket> last_{0}, done_{0};
+};
 
 // An operand identifies backend storage with a buffer and a float offset.
 struct Slice {
@@ -400,6 +418,8 @@ public:
 
     // Whether the implemented weight-reading ops support this storage type on this device, checked before a model adopts its weights.
     virtual bool supports_type(uint32_t type) const { (void)type; return false; }
+    // The refusal of an op a backend does not implement, which implements() keeps every model needing it from reaching (docs/ROCM.md, Outcome and scope).
+    [[noreturn]] static void lacks(Op op) { throw std::runtime_error(std::string("backend: ") + op_name(op) + " is not implemented"); }
     // Whether this backend runs `op`; one that does not refuses it by name when it is called anyway.
     virtual bool implements(Op op) const {
         (void)op;
@@ -539,14 +559,14 @@ public:
     // embed with the ids read on the device, `count` 32-bit integers in float-sized slots at `ids`, as a draft chain feeds a drafted token back (docs/SPECULATIVE.md, section 7): an id of `nrows` or more writes a zero row.
     virtual void embed_ids(Slice dst, WeightView weight, size_t nin, size_t nrows, CSlice ids, size_t count) {
         (void)dst; (void)weight; (void)nin; (void)nrows; (void)ids; (void)count;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::embed_ids) + " is not implemented");
+        lacks(Op::embed_ids);
     }
 
     // For each of `rows` rows of `n` logits, the id of the largest, ties to the lowest, as a 32-bit integer in a float-sized slot of `ids`.
     // It is `n` where the largest is not finite or a logit is NaN, and for a row whose id in `after`, when given, is `n` or more, so a chain of drafts ends at its first invalid one.
     virtual void argmax_rows(Slice ids, CSlice logits, size_t rows, size_t n, CSlice after = {}) {
         (void)ids; (void)logits; (void)rows; (void)n; (void)after;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::argmax_rows) + " is not implemented");
+        lacks(Op::argmax_rows);
     }
 
     // Independent projections of the same X; outputs must not overlap each other, X, or any weights.
@@ -587,17 +607,17 @@ public:
     // Output is U32 token IDs in chronological order, padded with UINT32_MAX to budget + compression - 1 per row; equal scores prefer the earlier group.
     virtual void select_kv(CSlice, size_t, const KVView*, size_t, Slice,
                            const IndexArgs&, CSlice, CSlice, CSlice, const GroupPositions& = {}) {
-        throw std::runtime_error("backend: select_kv is not implemented");
+        lacks(Op::select_kv);
     }
     // The complete groups the views' rows complete, their raw auxiliary keys averaged, normalized and rotated at the group's first position, into their pooled rows of the auxiliary blocks (BlockKVStorage::auxiliary_pool).
     // select_kv pools its own rows' groups; a caller that writes a pooled layer's auxiliary rows without selecting them pools them here, so every complete group of a history has its row.
     virtual void pool_kv(size_t, const KVView*, size_t, const IndexArgs&, CSlice, CSlice, CSlice, const GroupPositions& = {}) {
-        throw std::runtime_error("backend: pool_kv is not implemented");
+        lacks(Op::select_kv);
     }
 
     // Causal GQA over chronological unique U32 IDs, id_stride slots per query in view order; padding and IDs outside the causal prefix are ignored, and an empty selection yields zeros.
     virtual void sparse_attention(CSlice, size_t, const KVView*, size_t, CSlice, size_t, Slice, int, int, int) {
-        throw std::runtime_error("backend: sparse_attention is not implemented");
+        lacks(Op::sparse_attention);
     }
 
     // dst[i] = src[i] * rsqrt(mean(src^2) + eps) * w[i]  (RMS norm), the one-row case of rms_norm_rows.
@@ -615,9 +635,11 @@ public:
 
     // Per-head RMS norm over `head_dim` floats, then RoPE on the first `rope_dim` of them only, pairs (i, i + rope_dim / 2) at pos[r] in `cos`/`sin` tables of rope_dim / 2 entries a position, without the norm where `w` has no buffer.
     // Head h of row r starts at src + r * src_stride + h * src_head_stride, dst may alias src only if identical and contiguous, and `streams` give a row several positions (docs/src/backends-backend.md).
-    virtual void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride,
-                                   size_t heads, size_t head_dim, size_t rope_dim, CSlice w, float eps,
-                                   CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams = {}) = 0;
+    virtual void norm_rope_partial(Slice /*dst*/, CSlice /*src*/, size_t /*rows*/, size_t /*src_stride*/, size_t /*src_head_stride*/,
+                                   size_t /*heads*/, size_t /*head_dim*/, size_t /*rope_dim*/, CSlice /*w*/, float /*eps*/,
+                                   CSlice /*cos*/, CSlice /*sin*/, const uint32_t* /*pos*/, RopeStreams /*streams*/ = {}) {
+        lacks(Op::norm_rope_partial);
+    }
 
     // Normalize and rotate q and k in place over the whole head, then write k and v into the views' KV blocks using the primitive ops' row layouts.
     // A device may fuse these consecutive ops; k must still hold its normalized, rotated rows afterward.
@@ -641,22 +663,22 @@ public:
     // LayerNorm of `rows` rows of `n` floats, row r at src/dst + r*stride: the mean and biased variance of the row, then (x - mean) / sqrt(var + eps) * w + b.
     virtual void layer_norm_rows(Slice dst, CSlice src, CSlice w, CSlice b, size_t rows, size_t n, size_t stride, float eps) {
         (void)dst; (void)src; (void)w; (void)b; (void)rows; (void)n; (void)stride; (void)eps;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::layer_norm) + " is not implemented");
+        lacks(Op::layer_norm);
     }
     // dst[i] = gelu(src[i]) in the given form.
     virtual void gelu(Slice dst, CSlice src, size_t n, GeluForm form) {
         (void)dst; (void)src; (void)n; (void)form;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::gelu) + " is not implemented");
+        lacks(Op::gelu);
     }
     // dst row r += bias, `rows` rows of `width` floats.
     virtual void add_bias(Slice dst, CSlice bias, size_t rows, size_t width) {
         (void)dst; (void)bias; (void)rows; (void)width;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::add_bias) + " is not implemented");
+        lacks(Op::add_bias);
     }
     // dst row r += the sum over k of weight[r*taps + k] times table row idx[r*taps + k], the taps taken in order; a row past `table_rows` is refused.
     virtual void mix_rows(Slice dst, CSlice table, size_t width, size_t table_rows, const uint32_t* idx, const float* weight, size_t rows, size_t taps) {
         (void)dst; (void)table; (void)width; (void)table_rows; (void)idx; (void)weight; (void)rows; (void)taps;
-        throw std::runtime_error(std::string("backend: ") + op_name(Op::mix_rows) + " is not implemented");
+        lacks(Op::mix_rows);
     }
 
     // dst[i] = silu(gate[i]) * up[i], the SwiGLU elementwise stage.
@@ -684,18 +706,24 @@ public:
 
     // For each of `rows` rows of `scores` (n_expert floats each), the k experts of highest softmax probability over all n_expert, the most probable first and ties to the lower id, with their probabilities, divided by their sum when `normalize`.
     // A row without a candidate gives k picks of kNoExpert with weights 0.
-    virtual void route_experts(CSlice scores, size_t rows, size_t n_expert, size_t k, bool normalize,
-                               Slice ids, Slice weights) = 0;
+    virtual void route_experts(CSlice /*scores*/, size_t /*rows*/, size_t /*n_expert*/, size_t /*k*/, bool /*normalize*/,
+                               Slice /*ids*/, Slice /*weights*/) {
+        lacks(Op::mixed_experts);
+    }
 
     // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections, an entry of kNoExpert left unwritten.
     // A projection's data holds its n_expert matrices of `rows` rows each back to back; `runs` are matmul's, over the `nrows` token rows.
-    virtual void matmul_experts(std::initializer_list<Projection> projections, CSlice X, size_t nin,
-                                size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
+    virtual void matmul_experts(std::initializer_list<Projection> /*projections*/, CSlice /*X*/, size_t /*nin*/,
+                                size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16) {
+        lacks(Op::mixed_experts);
+    }
 
     // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j, an entry of kNoExpert adding nothing.
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
-    virtual void matmul_experts_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout,
-                                    size_t nrows, const Routing& routing, RowRuns runs = {}, Dtype dtype = Dtype::f16) = 0;
+    virtual void matmul_experts_add(WeightView /*weight*/, CSlice /*X*/, Slice /*Y*/, size_t /*nin*/, size_t /*nout*/,
+                                    size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16) {
+        lacks(Op::mixed_experts);
+    }
 
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.
     // The base runs those ops in that order; a device may fuse them where it gives the same bits.
@@ -755,45 +783,65 @@ public:
 
     // The linear-attention layers' causal conv, then SiLU: out[t][c] = silu(sum over tap i of w[c * kConvTaps + i] * x[t - kConvTaps + 1 + i][c]), w being `ssm_conv1d` as stored, so tap kConvTaps - 1 multiplies row t.
     // x and out are the views' rows of the storage's channels(), in view order; a view reads the rows before its first from slot src, rows before its sequence's start being zero, and leaves its last kConvTaps - 1 raw rows in slot dst.
-    virtual void causal_conv_silu(Slice out, CSlice x, CSlice w, size_t layer, const StateView* views, size_t n_views) = 0;
+    virtual void causal_conv_silu(Slice /*out*/, CSlice /*x*/, CSlice /*w*/, size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/) {
+        lacks(Op::causal_conv_silu);
+    }
 
     // The gated delta rule of the linear-attention layers (docs/QWEN35.md, Linear attention, steps 3 to 5), token by token for every (view, V head) from slot src's matrices into slot dst's.
     // qkv holds the conv's output rows [q | k | v] of channels(); q and k are L2-normed with kL2NormEps, q scaled by 1 / sqrt(k_dim), beta is sigmoid(b), and the decay exp(a * softplus(alpha + dt_bias)) is 0 below 2^-126.
-    virtual void gated_delta_rule(Slice out, CSlice qkv, CSlice alpha, CSlice b, CSlice a, CSlice dt_bias,
-                                  size_t layer, const StateView* views, size_t n_views) = 0;
+    virtual void gated_delta_rule(Slice /*out*/, CSlice /*qkv*/, CSlice /*alpha*/, CSlice /*b*/, CSlice /*a*/, CSlice /*dt_bias*/,
+                                  size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/) {
+        lacks(Op::gated_delta_rule);
+    }
 
     // dst = RMSNorm(x; w) times the selected gate of z over each head; w is one dim-wide weight shared by every head.
     // dst may alias x only if identical, and never z; `runs` as for rms_norm_rows.
-    virtual void gated_rms_norm(Slice dst, CSlice x, CSlice z, CSlice w, size_t rows, size_t heads, size_t dim, float eps,
-                                RowRuns runs = {}, NormGate gate = NormGate::silu) = 0;
+    virtual void gated_rms_norm(Slice /*dst*/, CSlice /*x*/, CSlice /*z*/, CSlice /*w*/, size_t /*rows*/, size_t /*heads*/, size_t /*dim*/, float /*eps*/,
+                                RowRuns /*runs*/ = {}, NormGate /*gate*/ = NormGate::silu) {
+        lacks(Op::gated_rms_norm);
+    }
 
     // dst[r][h][d] = x[r][h][d] * sigmoid(gate[r * gate_stride + h * gate_head_stride + d]), x and dst being `rows` rows of heads * dim floats.
     // The output gate reads each query head's gate in place from `attn_q`'s rows, a scale of one value per row is heads = the row's width, dim = 1 and gate_head_stride = 0, and dst may alias x only if identical; `runs` as for silu_mul.
-    virtual void sigmoid_mul(Slice dst, CSlice x, CSlice gate, size_t rows, size_t heads, size_t dim,
-                             size_t gate_stride, size_t gate_head_stride, RowRuns runs = {}) = 0;
+    virtual void sigmoid_mul(Slice /*dst*/, CSlice /*x*/, CSlice /*gate*/, size_t /*rows*/, size_t /*heads*/, size_t /*dim*/,
+                             size_t /*gate_stride*/, size_t /*gate_head_stride*/, RowRuns /*runs*/ = {}) {
+        lacks(Op::sigmoid_mul);
+    }
 
     // Normalize each dim-wide group separately with its own weight slice in each row of groups * dim floats; dst may equal src.
-    virtual void group_rms_norm(Slice dst, CSlice src, CSlice w, size_t rows, size_t groups, size_t dim, float eps,
-                                RowRuns runs = {}) = 0;
+    virtual void group_rms_norm(Slice /*dst*/, CSlice /*src*/, CSlice /*w*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/, float /*eps*/,
+                                RowRuns /*runs*/ = {}) {
+        lacks(Op::group_rms_norm);
+    }
 
     // dst = silu(src * scale) for rows of width floats; dst may equal src.
-    virtual void silu_scaled(Slice dst, CSlice src, size_t rows, size_t width, float scale, RowRuns runs = {}) = 0;
+    virtual void silu_scaled(Slice /*dst*/, CSlice /*src*/, size_t /*rows*/, size_t /*width*/, float /*scale*/, RowRuns /*runs*/ = {}) {
+        lacks(Op::silu_scaled);
+    }
 
     // Reduce each row's streams * dim normalized values with elementwise sigmoid(gate), dividing the sum across streams by streams into dim outputs.
-    virtual void mix_streams(Slice dst, CSlice src, CSlice gate, size_t rows, size_t streams, size_t dim,
-                             RowRuns runs = {}) = 0;
+    virtual void mix_streams(Slice /*dst*/, CSlice /*src*/, CSlice /*gate*/, size_t /*rows*/, size_t /*streams*/, size_t /*dim*/,
+                             RowRuns /*runs*/ = {}) {
+        lacks(Op::mix_streams);
+    }
 
     // Add each dim-wide block row to every residual stream, weighted by 2 * sigmoid(gate[row][stream] / streams); dst holds the residual in place.
-    virtual void inject_streams(Slice dst, CSlice block, CSlice gate, size_t rows, size_t streams, size_t dim) = 0;
+    virtual void inject_streams(Slice /*dst*/, CSlice /*block*/, CSlice /*gate*/, size_t /*rows*/, size_t /*streams*/, size_t /*dim*/) {
+        lacks(Op::inject_streams);
+    }
 
     // For each normalized key/query group, g = dot(key, query) / sqrt(dim), then sigmoid(sign(g) * sqrt(max(abs(g), 1e-6))) gates the row's shared dim-wide value.
-    virtual void signed_sqrt_gate(Slice dst, CSlice key, CSlice query, CSlice value, size_t rows, size_t groups, size_t dim,
-                                  RowRuns runs = {}) = 0;
+    virtual void signed_sqrt_gate(Slice /*dst*/, CSlice /*key*/, CSlice /*query*/, CSlice /*value*/, size_t /*rows*/, size_t /*groups*/, size_t /*dim*/,
+                                  RowRuns /*runs*/ = {}) {
+        lacks(Op::signed_sqrt_gate);
+    }
 
     // Add SiLU of a causal depthwise convolution of x to residual, using weights [channel][tap], last tap current, and taps spaced by dilation.
     // Carries (taps - 1) * dilation raw x rows in the layer's F32 tail after its common state prefix; exact out=residual is allowed, but out may not overlap x or weights.
-    virtual void dilated_conv_silu_add(Slice out, CSlice x, CSlice residual, CSlice w, size_t channels, size_t taps, size_t dilation,
-                                       size_t layer, const StateView* views, size_t n_views) = 0;
+    virtual void dilated_conv_silu_add(Slice /*out*/, CSlice /*x*/, CSlice /*residual*/, CSlice /*w*/, size_t /*channels*/, size_t /*taps*/, size_t /*dilation*/,
+                                       size_t /*layer*/, const StateView* /*views*/, size_t /*n_views*/) {
+        lacks(Op::dilated_conv_silu_add);
+    }
 protected:
     void record_matrix_path(MatrixPath path) { matrix_paths_.record(path); }
 

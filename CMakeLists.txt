@@ -2,10 +2,11 @@ cmake_minimum_required(VERSION 3.16)
 project(llmx VERSION 0.1.0 LANGUAGES CXX)
 
 # llmx: a dependency-free GGUF runtime, built on Windows, Linux and macOS.
-# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK.
+# The CPU backend is always built; the Vulkan backend is opt-in through LLMX_HAS_BACKEND_VULKAN and needs its SDK, and the ROCm backend through LLMX_HAS_BACKEND_ROCM, on Linux, with the ROCm SDK.
 # Split mode and node count are runtime parameters, not build options.
 
 option(LLMX_HAS_BACKEND_VULKAN "Build the Vulkan backend" OFF)
+option(LLMX_HAS_BACKEND_ROCM "Build the ROCm backend (Linux)" OFF)
 
 add_executable(llmx
     src/cli/main.cpp
@@ -19,6 +20,11 @@ if(LLMX_HAS_BACKEND_VULKAN)
     set(LLMX_BACKEND_VULKAN_FLAG 1)
 else()
     set(LLMX_BACKEND_VULKAN_FLAG 0)
+endif()
+if(LLMX_HAS_BACKEND_ROCM)
+    set(LLMX_BACKEND_ROCM_FLAG 1)
+else()
+    set(LLMX_BACKEND_ROCM_FLAG 0)
 endif()
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/llmx-config.hpp.in
@@ -345,10 +351,54 @@ if(LLMX_HAS_BACKEND_VULKAN)
     target_link_libraries(llmx PRIVATE llmx-vulkan)
 endif()
 
+# The ROCm backend (docs/ROCM.md): the SDK supplies the headers and the compiler at build time and the HIP runtime is opened at run time, so nothing links against libamdhip64.
+if(LLMX_HAS_BACKEND_ROCM)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM is Linux only")
+    endif()
+    find_path(LLMX_HIP_INCLUDE_DIR hip/hip_runtime_api.h HINTS $ENV{ROCM_PATH}/include /opt/rocm/include)
+    find_program(LLMX_HIP_CLANG clang++ HINTS $ENV{ROCM_PATH}/llvm/bin /opt/rocm/llvm/bin NO_DEFAULT_PATH)
+    if(NOT LLMX_HIP_INCLUDE_DIR OR NOT LLMX_HIP_CLANG)
+        message(FATAL_ERROR "LLMX_HAS_BACKEND_ROCM needs hip/hip_runtime_api.h and the ROCm clang++: install the ROCm SDK, or set ROCM_PATH")
+    endif()
+    # Kernels are HIP in the tree, compiled to a code object for each target and embedded as byte arrays, as the Vulkan SPIR-V is; gfx1151 is compile coverage until hardware qualifies it.
+    # The compiler reads the SDK it was found with, never another HIP installed beside it.
+    get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
+    set(LLMX_ROCM_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/rocm/kernels)
+    set(LLMX_ROCM_KERNELS f32)
+    set(LLMX_ROCM_OBJECTS)
+    foreach(kernel IN LISTS LLMX_ROCM_KERNELS)
+        set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
+        set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.inc)
+        add_custom_command(OUTPUT ${inc}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
+            COMMAND ${LLMX_HIP_CLANG} -x hip -std=c++17 -O3 --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only --offload-arch=gfx906 --offload-arch=gfx1151
+                    -c ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip -o ${bundle}
+            COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            DEPENDS ${LLMX_ROCM_KERNEL_DIR}/${kernel}.hip ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+            COMMENT "hip ${kernel}"
+            VERBATIM)
+        list(APPEND LLMX_ROCM_OBJECTS ${inc})
+    endforeach()
+    add_custom_target(llmx-rocm-kernels DEPENDS ${LLMX_ROCM_OBJECTS})
+    add_library(llmx-rocm STATIC src/backends/rocm/rocm_backend.cpp)
+    add_dependencies(llmx-rocm llmx-rocm-kernels)
+    # The generated directory comes first, so the backend reads the build's config.hpp and its embedded kernels.
+    target_include_directories(llmx-rocm
+        PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/generated ${CMAKE_CURRENT_SOURCE_DIR}/src
+        PRIVATE ${LLMX_HIP_INCLUDE_DIR})
+    target_compile_definitions(llmx-rocm PRIVATE __HIP_PLATFORM_AMD__)
+    target_link_libraries(llmx-rocm PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(llmx PRIVATE llmx-rocm)
+endif()
+
 include(CTest)
 set(LLMX_TARGETS llmx)
 if(LLMX_HAS_BACKEND_VULKAN)
     list(APPEND LLMX_TARGETS llmx-vulkan)
+endif()
+if(LLMX_HAS_BACKEND_ROCM)
+    list(APPEND LLMX_TARGETS llmx-rocm)
 endif()
 if(BUILD_TESTING)
     include(cmake/tests.cmake)

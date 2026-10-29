@@ -77,7 +77,7 @@ struct BenchNumbers {
 // The execution flags, the "Execution options" of a model command's help, and --verbose: where the model runs, its workers, its prompt batch and its caches.
 // exec_flag fills them, and a flag the command line does not give keeps the default here, which the help prints.
 struct ExecOptions {
-    std::string device = "cpu";   // cpu, or vulkan:N when built with it; several, comma separated, split the model by layers over them
+    std::string device = "cpu";   // cpu, or vulkan:N or rocm:N when built with them; several, comma separated, split the model by layers over them
     std::optional<backend::Dtype> dtype; // empty selects auto
     std::string layer_shares;     // with several devices, their proportions of the layers, comma separated; empty fits them to the devices' free memory
     int tensor_width = 1;         // devices each layer is split across: the listed devices form groups of this many, the stages of the layer split (docs/TENSOR-SPLIT.md)
@@ -1562,7 +1562,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
     };
     const auto model_options = [&](bool batch_threads) {
         page << "\nExecution options:\n"
-            << "  --device D              " << defaults.device << " (default), or vulkan:N when built with Vulkan.\n"
+            << "  --device D              " << defaults.device << " (default), or vulkan:N or rocm:N when built with them.\n"
             << "                          Several, comma separated, split the model by layers\n"
             << "                          over them in that order, fitted to their free memory\n"
             << "  --dtype T               Matmul inputs: auto (default), f16, bf16, f32 or int8.\n"

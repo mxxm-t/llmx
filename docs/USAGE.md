@@ -335,7 +335,7 @@ Flags:
 | `-tb`, `--threads-batch N` | threads for batched passes (omitted or 0: `--threads`); refused with `--per-token`, which scores on `--threads` |
 | `--ubatch N`    | tokens per batched pass (default 512)          |
 | `-ctk`, `--cache-type-k T` / `-ctv`, `--cache-type-v T` | KV cache storage per side, `f16` (default) or `f32` |
-| `--device D`    | backend: `cpu`, or `vulkan:N` in a build with it |
+| `--device D`    | backend: `cpu`, or `vulkan:N` or `rocm:N` in a build with it |
 | `--layer-shares A,B` | with several devices, their proportions of the layers |
 | `--tensor-width N` | devices each layer is split across, the listed devices forming groups of `N` (default 1, below) |
 | `--n-cpu-moe N`, `--cpu-moe` | experts of the first `N` routed layers, or of all, on the CPU beside a device |
@@ -385,7 +385,12 @@ prompt tokens per forward pass across backends.
 `--device cpu` is the default. `--device vulkan:N` runs the model on Vulkan
 device `N`, counted as the loader lists them, in a build configured with
 `-DLLMX_HAS_BACKEND_VULKAN=ON` (`docs/VULKAN.md`); a build without it says
-so rather than falling back. `generate`, `chat`, `logits`, `perplexity`,
+so rather than falling back. `--device rocm:N` runs it on HIP device `N`, as
+the ROCm runtime numbers them, in a Linux build configured with
+`-DLLMX_HAS_BACKEND_ROCM=ON` (`docs/ROCM.md`); a build without it, or a
+machine without the ROCm runtime or the device, says so the same way. The
+ROCm backend reads F32 and Q8_0 weights only for now, Q8_0 decoded exactly
+into F32 sums, and every other weight type is refused as the model loads. `generate`, `chat`, `logits`, `perplexity`,
 `serve` and `bench` take the flag. A model whose layers need an op the
 device's backend lacks is refused as it loads, naming the op; every op the
 `qwen3` and `qwen35` files need runs on a Vulkan device. On a device `--threads` and `--threads-batch` do
@@ -609,7 +614,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `-ctk`, `--cache-type-k T` | KV cache storage for keys: `f16` or `f32`      | `f16`   |
 | `-ctv`, `--cache-type-v T` | KV cache storage for values: `f16` or `f32`    | `f16`   |
 | `-tb`, `--threads-batch N` | threads for prefill                               | = `--threads` |
-| `--device D`            | backend: `cpu`, or `vulkan:N` in a build with it     | `cpu`   |
+| `--device D`            | backend: `cpu`, or `vulkan:N` or `rocm:N` in a build with it | `cpu`   |
 | `--layer-shares A,B`    | with several devices, their proportions of the layers | fitted to free memory |
 | `--tensor-width N`      | devices each layer is split across, the listed devices forming groups of `N` | 1 |
 | `--n-cpu-moe N`         | experts of the first `N` routed layers on the CPU    | 0       |

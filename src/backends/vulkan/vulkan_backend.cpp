@@ -756,7 +756,7 @@ public:
         s.signal.insert(s.signal.end(), signals.begin(), signals.end());
         s.waits.swap(waits_);
         open_ = false;
-        s.ticket = ++last_ticket_;
+        s.ticket = tickets_.take();
         lent_.store(true, std::memory_order_relaxed);
         return s;
     }
@@ -765,7 +765,7 @@ public:
     Ticket queued(const Submission& s, VkResult r) {
         lent_.store(false, std::memory_order_relaxed);
         if (r != VK_SUCCESS) {
-            --last_ticket_;
+            tickets_.give_back();
             check(r, "vkQueueSubmit");
         }
         ring_ticket_[ring_index_] = s.ticket;
@@ -855,7 +855,7 @@ public:
     // Whether one hold, released once it is spinning and with no submission after it, ends by the release rather than its bound, which a device that cannot show a running shader the host's write would not; checked once, at setup.
     // The queue's earlier work is waited for and the release comes a tenth of the bound after the hold's submission, so no submission's start shows the hold the write.
     bool hold_seen() {
-        if (const Ticket t = last_ticket_.load()) wait(t);
+        if (const Ticket t = tickets_.last()) wait(t);
         hold_queue();
         std::this_thread::sleep_for(std::chrono::milliseconds(kHoldMs / 10));
         hold_release();
@@ -889,8 +889,8 @@ public:
         if (submitter_) throw std::logic_error("vulkan: a device in two tensor groups' submitters");
         sync();
         // Every ticket so far was queued here.
-        made_ticket_.store(last_ticket_.load(), std::memory_order_release);
-        good_ticket_.store(last_ticket_.load(), std::memory_order_release);
+        made_ticket_.store(tickets_.last(), std::memory_order_release);
+        good_ticket_.store(tickets_.last(), std::memory_order_release);
         submitter_ = s;
     }
     const std::shared_ptr<VulkanSubmitter>& submitter() const { return submitter_; }
@@ -909,7 +909,7 @@ public:
                 std::abort();
             }
         }
-        const Ticket last = last_ticket_.load();
+        const Ticket last = tickets_.last();
         wait(last);
         if (good_ticket_.load(std::memory_order_acquire) >= last) return;
         VkSemaphoreSignalInfo si{};
@@ -918,7 +918,7 @@ public:
         si.value = last;
         if (dev_->fn.vkSignalSemaphore(dev_->device, &si) != VK_SUCCESS) return;
         good_ticket_.store(last, std::memory_order_release);
-        remember_completed(last);
+        tickets_.retired(last);
     }
     // On the submitter's thread: the call carrying `t` has been made, or given up (not `queued`), so no wait for it waits on its timeline value.
     void made(Ticket t, bool queued) noexcept {
@@ -1025,34 +1025,28 @@ public:
     void wait(Ticket t) noexcept override { waited(host_.ticket_ms, t); }
 
     // Only a successful Vulkan wait advances this timeline's known completion; another waiting thread may advance it too.
-    void remember_completed(Ticket t) noexcept {
-        Ticket before = completed_ticket_.load(std::memory_order_relaxed);
-        while (before < t && !completed_ticket_.compare_exchange_weak(before, t, std::memory_order_release, std::memory_order_relaxed)) {}
-    }
 
     // A wait of no time; anything but a timeout is left to the wait that follows.
     bool done(Ticket t) noexcept override {
-        if (t == 0 || t > last_ticket_) return true;
-        if (t <= completed_ticket_.load(std::memory_order_acquire)) return true;
+        if (tickets_.settled(t)) return true;
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
         wi.pSemaphores = &timeline_;
         wi.pValues = &t;
         const VkResult r = dev_->fn.vkWaitSemaphores(dev_->device, &wi, 0);
-        if (r == VK_SUCCESS) remember_completed(t);
+        if (r == VK_SUCCESS) tickets_.retired(t);
         return r != VK_TIMEOUT;
     }
 
     // noexcept by contract: a device that cannot report its work finished has been lost, and nothing here can act on that.
     void wait_for(Ticket t) noexcept {
-        if (t == 0 || t > last_ticket_) return;
-        if (t <= completed_ticket_.load(std::memory_order_acquire)) return;
+        if (tickets_.settled(t)) return;
         // A ticket the submitter has not yet queued is waited for there first; one given up is never signalled, so the wait is for the last ticket queued before it.
         if (submitter_) {
             if (t > made_ticket_.load(std::memory_order_acquire)) submitter_->until([&] { return made_ticket_.load(std::memory_order_acquire) >= t; });
             t = std::min(t, good_ticket_.load(std::memory_order_acquire));
-            if (t == 0 || t <= completed_ticket_.load(std::memory_order_acquire)) return;
+            if (tickets_.settled(t)) return;
         }
         VkSemaphoreWaitInfo wi{};
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
@@ -1065,7 +1059,7 @@ public:
                          dev_->caps.device.c_str(), vk_result_name(r));
             std::abort();
         }
-        remember_completed(t);
+        tickets_.retired(t);
     }
 
     // Device time per kernel since the last call, in milliseconds, for a diagnostics backend whose queue timestamps; reading them waits for the queue.
@@ -1112,7 +1106,7 @@ public:
                 std::abort();
             }
         }
-        wait(last_ticket_);
+        wait(tickets_.last());
     }
 
     void read(const Buffer& src_b, size_t off, void* dst, size_t bytes) override;
@@ -1871,13 +1865,12 @@ private:
     uint32_t ring_index_ = 0;
     bool open_ = false;
     VkSemaphore timeline_ = VK_NULL_HANDLE;
-    std::atomic<Ticket> completed_ticket_{0};   // the greatest ticket a successful Vulkan wait confirmed
     std::shared_ptr<VulkanSubmitter> submitter_;   // a tensor group's queue thread, which makes this backend's queue calls once set
     std::atomic<Ticket> made_ticket_{0};          // on a submitter, the last ticket whose queue call was made or given up
     std::atomic<Ticket> good_ticket_{0};          // of those, the last whose call was made
     std::mutex lost_mu_;
     std::vector<std::pair<Ticket, Ticket>> lost_;   // the runs of tickets whose calls were given up, which raise refuses to read
-    std::atomic<Ticket> last_ticket_{0};   // atomic for a wait made from another thread while this one records (Backend::wait)
+    TicketLedger tickets_;   // what a successful Vulkan wait confirmed is its retired ticket
     std::vector<VkSemaphore> waits_;          // what the next submission waits on (wait_on)
     std::atomic<bool> lent_{false};           // between prepare() and queued(), while another thread may be making the queue's call
     static constexpr uint32_t kHolds = 4;       // hold submissions in flight; one is pending at a time

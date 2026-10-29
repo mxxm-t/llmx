@@ -3,11 +3,30 @@
 // A capability decides which kernel to launch and a profile number shapes the same kernel; branch on what a device reports, never on its vendor name.
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #include "quant/types.hpp"
 
 namespace backend {
+
+// The PCI root complex above the device at this address, as Linux's sysfs names it (pci0000:80), or empty where the system does not say, which a tensor group's startup report gives (docs/TENSOR-SPLIT.md, section 4.5).
+inline std::string pci_root_of(uint32_t domain, uint32_t bus, uint32_t device, uint32_t function) {
+#if defined(__linux__)
+    char address[64];
+    std::snprintf(address, sizeof address, "/sys/bus/pci/devices/%04x:%02x:%02x.%x", domain, bus, device, function);
+    char resolved[4096];
+    if (!realpath(address, resolved)) return {};
+    const std::string path(resolved);
+    const size_t at = path.find("/pci");
+    if (at == std::string::npos) return {};
+    return path.substr(at + 1, path.find('/', at + 1) - at - 1);
+#else
+    (void)domain, (void)bus, (void)device, (void)function;
+    return {};
+#endif
+}
 
 // What the device reports about itself: the sizes shape a kernel and the flags choose one.
 // A flag is here only when a different implementation would be written for it, not merely because the API reports it.

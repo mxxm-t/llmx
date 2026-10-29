@@ -52,6 +52,7 @@ placement contracts in `docs/EXECUTION.md`.
   load of every weight a copying backend took, where the backend cannot wrap
   the read ring (`infer::detail::stream`).
 - `submit()` returns a monotonic `Ticket` for everything enqueued so far;
+  `TicketLedger` keeps a device backend's tickets, the last handed out and the greatest seen retired, which any thread may read while the recording thread hands them out; the Vulkan and ROCm backends both keep theirs in one.
   `wait(t)` blocks until that submission has retired. The model submits
   each device a stage records on at the end of that stage, and the source
   device again at each crossing inside a stage, such as a feed-forward

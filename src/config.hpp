@@ -18,5 +18,6 @@
 #define LLMX_GLSLC_VERSION ""
 #endif
 
-// Backends compiled in besides the CPU, which is always built: the Vulkan backend is opt-in and needs its SDK at build time.
+// Backends compiled in besides the CPU, which is always built: the Vulkan and ROCm backends are opt-in and need their SDKs at build time, ROCm on Linux only.
 #define LLMX_HAS_BACKEND_VULKAN 0
+#define LLMX_HAS_BACKEND_ROCM 0

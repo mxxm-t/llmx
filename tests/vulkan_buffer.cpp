@@ -50,7 +50,7 @@ struct VulkanLifetimeTest {
     static uint32_t slot(VulkanBackend& b) { return b.ring_index_; }
     static VkSemaphore timeline(VulkanBackend& b) { return b.timeline_; }
     static bool submits_apart(VulkanBackend& b) { return b.submitter_ != nullptr; }
-    static Ticket last(VulkanBackend& b) { return b.last_ticket_; }
+    static Ticket last(VulkanBackend& b) { return b.tickets_.last(); }
     // Whether a binding names the argument arena of a ring slot other than the one recording.
     static bool foreign_arena(VulkanBackend& b, VkBuffer h) {
         for (uint32_t i = 0; i < VulkanBackend::kRing; ++i)
@@ -97,7 +97,7 @@ struct VulkanLifetimeTest {
         wi.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         wi.semaphoreCount = 1;
         wi.pSemaphores = &b.timeline_;
-        const uint64_t last = b.last_ticket_;
+        const uint64_t last = b.tickets_.last();
         wi.pValues = &last;
         return !b.open_ && b.waits_.empty() && b.dev_->fn.vkWaitSemaphores(b.dev_->device, &wi, 0) == VK_SUCCESS;
     }

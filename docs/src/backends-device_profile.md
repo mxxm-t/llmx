@@ -5,6 +5,7 @@ Vulkan backend fills and reads them today; a second GPU backend would share
 them (`docs/ROADMAP.md` 4b). Branch on what a device reports, never on its
 vendor name.
 
+- `pci_root_of(domain, bus, device, function)`: the PCI root complex above a device at that address as Linux's sysfs names it (pci0000:80), or empty where the system does not say; the Vulkan and ROCm backends both report it.
 - `DeviceCaps`: what the device reports, filled by the backend from its own
   API: subgroup width, compute units, the names the device and its driver
   give themselves, and whether it has an integer dot product. A capability

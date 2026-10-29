@@ -11,8 +11,11 @@
 #if LLMX_HAS_BACKEND_VULKAN
 #include "backends/vulkan/vulkan_backend.hpp"
 #endif
+#if LLMX_HAS_BACKEND_ROCM
+#include "backends/rocm/rocm_backend.hpp"
+#endif
 
-// The backends a device spec names: `cpu` or `vulkan:N` (`vulkan` alone is `vulkan:0`), one or a comma-separated list, and the backend each names.
+// The backends a device spec names: `cpu`, `vulkan:N` or `rocm:N` (`vulkan` alone is `vulkan:0`, `rocm` alone `rocm:0`), one or a comma-separated list, and the backend each names.
 namespace backend {
 
 // A device spec in its one spelling, so `vulkan`, `vulkan:0` and `vulkan:00` are the same device.
@@ -20,7 +23,7 @@ inline std::string canonical_device(const std::string& spec) {
     if (spec == "cpu") return spec;
     const size_t colon = spec.find(':');
     const std::string name = spec.substr(0, colon);
-    if (name != "vulkan") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N)");
+    if (name != "vulkan" && name != "rocm") throw std::runtime_error("--device: unknown backend '" + name + "' (cpu, vulkan:N, rocm:N)");
     unsigned long index = 0;
     if (colon != std::string::npos) {
         const std::string rest = spec.substr(colon + 1);
@@ -49,10 +52,19 @@ inline std::vector<std::string> device_specs(const std::string& value) {
 inline BackendPtr make_backend(const std::string& spec, bool diagnostics = false) {
     const std::string device = canonical_device(spec);
     if (device == "cpu") return make_cpu_backend();
-#if LLMX_HAS_BACKEND_VULKAN
-    return make_vulkan_backend(std::atoi(device.c_str() + device.find(':') + 1), diagnostics);
+    const int index = std::atoi(device.c_str() + device.find(':') + 1);
+    if (device.compare(0, 5, "rocm:") == 0) {
+#if LLMX_HAS_BACKEND_ROCM
+        // --profile times Vulkan devices only, which the CLI checks before any device is made.
+        return make_rocm_backend(index);
 #else
-    (void)diagnostics;
+        throw std::runtime_error("--device rocm: this build has no ROCm backend (LLMX_HAS_BACKEND_ROCM)");
+#endif
+    }
+#if LLMX_HAS_BACKEND_VULKAN
+    return make_vulkan_backend(index, diagnostics);
+#else
+    (void)diagnostics, (void)index;
     throw std::runtime_error("--device vulkan: this build has no Vulkan backend (LLMX_HAS_BACKEND_VULKAN)");
 #endif
 }

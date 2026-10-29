@@ -1,0 +1,129 @@
+#version 450
+// Y[b*nout + o] = dot(row o, X column b) for float weights (F32, F16 or BF16) over a wide batch: a workgroup computes a 128 x 128 output tile, eight rows by eight columns a thread.
+// Each output sums its products in ascending k as the float tile does (matmul_tile.comp), so the two give the same bits; this one stages vector loads into shared memory twice buffered, one barrier a stage.
+#extension GL_EXT_control_flow_attributes : require
+#include "float_controls.glsl"
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+#include "f16.glsl"
+#endif
+layout(local_size_x = 256) in;
+layout(push_constant) uniform P { uint nin; uint nout; uint nbatch; uint type; uint accum; uint per; uint order0; uint kper; uint ctiles; uint wstride; } p;
+layout(set = 0, binding = 0) buffer Y { float y[]; };
+// A 16-bit weight row as words of two values, or an F32 row (its stride `wstride` floats, more than nin for a padded copy).
+layout(set = 0, binding = 1) readonly buffer W16 { uint w2[]; };
+layout(set = 0, binding = 1) readonly buffer W16V { uvec4 w8[]; };
+layout(set = 0, binding = 2) readonly buffer WF { float wf[]; };
+layout(set = 0, binding = 2) readonly buffer WFV { vec4 wf4[]; };
+layout(set = 0, binding = 3) readonly buffer X { float x[]; };
+layout(set = 0, binding = 3) readonly buffer XV { vec4 x4[]; };
+const uint TR = 128u, TC = 128u, SK = 16u;
+shared float ws[2][SK][TR];
+shared float xs[2][SK][TC];
+
+float matrix_input(float value) {
+#ifdef LLMX_BF16
+    uint bits = floatBitsToUint(value);
+    bits = (bits & 0x7fffffffu) > 0x7f800000u ? bits | 0x00400000u : bits + 0x7fffu + ((bits >> 16u) & 1u);
+    value = uintBitsToFloat(bits & 0xffff0000u);
+#endif
+    return value;
+}
+
+// One weight value of row `row` at k, zero past the matrix.
+float weight(uint row, uint k) {
+    if (row >= p.nout || k >= p.nin) return 0.0;
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+    uint i = row * p.nin + k;
+    uint h = (w2[i >> 1u] >> (16u * (i & 1u))) & 0xffffu;
+#ifdef LLMX_WEIGHT_F16
+    return f16_to_f32(h);
+#else
+    return bf16_to_f32(h);
+#endif
+#else
+    return wf[row * p.wstride + k];
+#endif
+}
+
+// A thread's eight values of a stage: vector loads where the eight lie inside the matrix and the rows are whole vectors, else one value at a time.
+void load(uint wrow, uint xcol, uint k, out float wv[8], out float xv[8]) {
+    bool wfast = wrow < p.nout && k + 8u <= p.nin && p.nin % 8u == 0u;
+#if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)
+    if (wfast) {
+        uvec4 q = w8[(wrow * p.nin + k) >> 3u];
+        uint words[4] = uint[4](q.x, q.y, q.z, q.w);
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) {
+            uint h = (words[e >> 1u] >> (16u * (e & 1u))) & 0xffffu;
+#ifdef LLMX_WEIGHT_F16
+            wv[e] = f16_to_f32(h);
+#else
+            wv[e] = bf16_to_f32(h);
+#endif
+        }
+    }
+#else
+    if (wfast && p.wstride % 4u == 0u) {
+        vec4 a = wf4[(wrow * p.wstride + k) >> 2u], b = wf4[(wrow * p.wstride + k + 4u) >> 2u];
+        wv = float[8](a.x, a.y, a.z, a.w, b.x, b.y, b.z, b.w);
+    }
+#endif
+    else {
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) wv[e] = weight(wrow, k + e);
+    }
+    if (xcol < p.nbatch && k + 8u <= p.nin && p.nin % 4u == 0u) {
+        vec4 a = x4[(xcol * p.nin + k) >> 2u], b = x4[(xcol * p.nin + k + 4u) >> 2u];
+        xv = float[8](matrix_input(a.x), matrix_input(a.y), matrix_input(a.z), matrix_input(a.w), matrix_input(b.x), matrix_input(b.y), matrix_input(b.z), matrix_input(b.w));
+    } else {
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) xv[e] = xcol < p.nbatch && k + e < p.nin ? matrix_input(x[xcol * p.nin + k + e]) : 0.0;
+    }
+}
+
+void main() {
+    uint tid = gl_LocalInvocationID.x;
+    uint row_base = gl_WorkGroupID.x * TR, col_base = gl_WorkGroupID.y * TC;
+    // Thread t loads eight k values of row and column t / 2 from k (t % 2) * 8, and sums rows 8 tr to 8 tr + 7 by columns 4 tc to 4 tc + 3 and 64 + 4 tc to 67 + 4 tc.
+    uint lr = tid >> 1u, lk = (tid & 1u) * 8u;
+    uint tr = tid >> 4u, tc = tid & 15u;
+#ifdef LLMX_PRESERVE_F32
+    precise float acc[8][8];
+#else
+    float acc[8][8];
+#endif
+    [[unroll]] for (uint i = 0u; i < 8u; ++i) [[unroll]] for (uint j = 0u; j < 8u; ++j) acc[i][j] = 0.0;
+    uint wrow = row_base + lr, xcol = col_base + lr;
+    float wv[8], xv[8];
+    load(wrow, xcol, lk, wv, xv);
+    uint stages = (p.nin + SK - 1u) / SK;
+    for (uint s = 0u; s < stages; ++s) {
+        uint b = s & 1u;
+        [[unroll]] for (uint e = 0u; e < 8u; ++e) { ws[b][lk + e][lr] = wv[e]; xs[b][lk + e][lr] = xv[e]; }
+        barrier();
+        // The next stage's values load while this one is summed.
+        if (s + 1u < stages) load(wrow, xcol, (s + 1u) * SK + lk, wv, xv);
+        [[unroll]] for (uint k = 0u; k < SK; ++k) {
+            vec4 a0 = vec4(ws[b][k][tr * 8u], ws[b][k][tr * 8u + 1u], ws[b][k][tr * 8u + 2u], ws[b][k][tr * 8u + 3u]);
+            vec4 a1 = vec4(ws[b][k][tr * 8u + 4u], ws[b][k][tr * 8u + 5u], ws[b][k][tr * 8u + 6u], ws[b][k][tr * 8u + 7u]);
+            vec4 c0 = vec4(xs[b][k][tc * 4u], xs[b][k][tc * 4u + 1u], xs[b][k][tc * 4u + 2u], xs[b][k][tc * 4u + 3u]);
+            vec4 c1 = vec4(xs[b][k][64u + tc * 4u], xs[b][k][65u + tc * 4u], xs[b][k][66u + tc * 4u], xs[b][k][67u + tc * 4u]);
+            float a[8] = float[8](a0.x, a0.y, a0.z, a0.w, a1.x, a1.y, a1.z, a1.w);
+            float c[8] = float[8](c0.x, c0.y, c0.z, c0.w, c1.x, c1.y, c1.z, c1.w);
+            [[unroll]] for (uint i = 0u; i < 8u; ++i) [[unroll]] for (uint j = 0u; j < 8u; ++j) {
+#ifdef LLMX_PRESERVE_F32
+                acc[i][j] = fma(a[i], c[j], acc[i][j]);
+#else
+                acc[i][j] += a[i] * c[j];
+#endif
+            }
+        }
+    }
+    [[unroll]] for (uint i = 0u; i < 8u; ++i) {
+        uint row = row_base + tr * 8u + i;
+        if (row >= p.nout) continue;
+        [[unroll]] for (uint j = 0u; j < 8u; ++j) {
+            uint col = col_base + (j < 4u ? tc * 4u + j : 60u + tc * 4u + j);
+            if (col >= p.nbatch) continue;
+            if (p.accum != 0u) y[col * p.nout + row] += acc[i][j];
+            else y[col * p.nout + row] = acc[i][j];
+        }
+    }
+}

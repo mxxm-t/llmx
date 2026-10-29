@@ -247,6 +247,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   dimension into parts that `shaders/matmul_reduce.comp` adds in order.
   F32 weights, explicit F32 requests, BF16 round/widen requests, and every type on other devices take the float tile
   (`shaders/matmul_tile.comp`).
+  An unsplit call of F32, F16 or BF16 weights with at least 128 rows and 128 columns, whose 128 by 128 tiles give every compute unit one at least (`wide_tile_fits`), takes the wide float tile instead (`wide_tile_kernel`, `shaders/matmul_tile_wide.comp`), whose outputs are the float tile's bits.
   Under `--dtype int8` every row of a quantized type but MXFP4 takes the 8-bit build of the kernel f16 gives it (`LLMX_I8`, `WeightKernels::int8_row`, `int8_tile` and `int8_tall_tile`): the row kernels `matmul_row_q4_i8`, `matmul_row_k4_i8`, `matmul_row_k5_i8` and `matmul_row_k_i8`, the Q8_0 decode kernel `matmul_vec_q8_i8` (`is_vec_kernel`, which shares `kVecBuilds`), and the tiles `matmul_tile_qi8`, `matmul_tile_q6i8` and `matmul_tile_q8i8`, each with a preserving variant but the Q8_0 tile, in the same lanes, blocks and order as the 16-bit build, its quants as signed bytes through the four-wide 8-bit dot.
   They read the 8-bit twin (`reads_x8`), which lives after the 16-bit twin in the same scratch at `x8_base_bytes`; `row_twin` and `tile_twin` bind it there, quantizing the input themselves where no kept twin of it holds the 8-bit one (`Twin::has8`).
   Where the tile reads a producer's output next in a pass of 32 rows or more, the 8-bit twin lies block-major (`x8_major`, `Twin::major`), which the tile reads through its `xpad` constant and `row_twin` has made again column after column.
@@ -592,6 +593,15 @@ From the comment at line 32:
 
 - A routed call (per != 0, backend.hpp matmul_experts) runs workgroup row y as tile y of the grouping (moe_group.comp): up to TILE_COLS entries of one expert, column c being entry tab[order0 + first + c], which reads X column entry / per through the expert's rows and writes output row entry.
 - A routed call is never split.
+
+### `src/backends/vulkan/shaders/matmul_tile_wide.comp`
+
+From the comment at line 2:
+
+- Products of float weights (F32, F16 or BF16) over a wide batch: a workgroup computes a 128 by 128 output tile, eight rows by eight columns a thread.
+- Each output sums its products in ascending k with the float tile's operation, a multiply and add or, in the preserving build, a fused one, so the two tiles give the same bits and a call may take either.
+- Stages of 16 k values pass through shared memory twice buffered, one barrier a stage, the next stage's weights and inputs loading as vectors while the current one is summed; a stage that ends past the matrix, or rows that are not whole vectors, load one value at a time.
+- The `LLMX_BF16` builds round each input to BF16 as the float tile does.
 
 ### `src/backends/vulkan/shaders/matmul_tile_q.comp`
 

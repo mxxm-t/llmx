@@ -67,7 +67,7 @@ if(LLMX_HAS_BACKEND_VULKAN)
     # Shaders are GLSL in the tree, compiled to SPIR-V at build time and embedded as uint32_t arrays, so the binary carries its kernels.
     set(LLMX_VK_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/vulkan/shaders)
     set(LLMX_VK_SHADERS copy_mxfp4 add sum_rows silu_mul gather_rows rms_norm_rows norm_rope_partial embed matmul_row
-        kv_write attention attention_merge matmul_tile norm_rope_kv attention_tile quantize_x
+        kv_write attention attention_merge matmul_tile matmul_tile_wide norm_rope_kv attention_tile quantize_x
         quantize_xw matmul_tile_q matmul_reduce matmul_vec_q8 moe_route moe_combine moe_group moe_step_route moe_step_act attention_vec
         sigmoid_mul gated_rms_norm causal_conv_silu dilated_conv_silu_add delta_rule argmax_rows
         group_rms_norm silu_scaled mix_streams inject_streams signed_sqrt_gate
@@ -281,6 +281,12 @@ if(LLMX_HAS_BACKEND_VULKAN)
         matmul_tile_wf16_bf16=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16
         matmul_tile_wf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_F16+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_wbf16=matmul_tile=LLMX_WEIGHT_BF16
+        matmul_tile_wide_preserve=matmul_tile_wide=LLMX_PRESERVE_F32
+        matmul_tile_wide_bf16=matmul_tile_wide=LLMX_BF16 matmul_tile_wide_bf16_preserve=matmul_tile_wide=LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wide_wf16=matmul_tile_wide=LLMX_WEIGHT_F16 matmul_tile_wide_wf16_preserve=matmul_tile_wide=LLMX_WEIGHT_F16+LLMX_PRESERVE_F32
+        matmul_tile_wide_wf16_bf16=matmul_tile_wide=LLMX_WEIGHT_F16+LLMX_BF16 matmul_tile_wide_wf16_bf16_preserve=matmul_tile_wide=LLMX_WEIGHT_F16+LLMX_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wide_wbf16=matmul_tile_wide=LLMX_WEIGHT_BF16 matmul_tile_wide_wbf16_preserve=matmul_tile_wide=LLMX_WEIGHT_BF16+LLMX_PRESERVE_F32
+        matmul_tile_wide_wbf16_bf16=matmul_tile_wide=LLMX_WEIGHT_BF16+LLMX_BF16 matmul_tile_wide_wbf16_bf16_preserve=matmul_tile_wide=LLMX_WEIGHT_BF16+LLMX_BF16+LLMX_PRESERVE_F32
         matmul_tile_wbf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_PRESERVE_F32
         matmul_tile_wbf16_bf16=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16
         matmul_tile_wbf16_bf16_preserve=matmul_tile=LLMX_WEIGHT_BF16+LLMX_BF16+LLMX_PRESERVE_F32

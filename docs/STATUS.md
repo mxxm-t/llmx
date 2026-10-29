@@ -1,5 +1,21 @@
 # llmx - Development Status
 
+## The encoder's products on a wide float tile (2026-10-29, branch perf/image-encode-products on main 80cbf1da0, step 2 of perf/image-encode, the owner's approval of the order and F2DEV's DECIDED of 2026-10-27 09:33, lands by fast-forward as one commit)
+
+- **Goal:** the vision encoder's products of BF16 weights, the larger gap to the references (their F32 SGEMM runs at about twice llmx's rate on an MI50), faster on both cards with the rows unchanged.
+- **Done:** `shaders/matmul_tile_wide.comp`, a 128 by 128 tile for F32, F16 and BF16 weights, eight rows by eight columns a thread, stages of 16 k values twice buffered in shared memory and the next stage loaded as vectors during the current one, in six forms (each weight type with and without BF16 inputs), each with its float-preserving twin.
+  Each output sums in ascending k with the float tile's operation, so the rows are the float tile's bits and a call may take either tile.
+  An unsplit call of a float-weight type with at least 128 rows and 128 columns, whose tiles give every compute unit one at least, takes it (`wide_tile_fits`, `wide_tile_kernel`); every other call keeps its tile.
+- **Measured (development, encode wall of `llmx-encode-image`, median ms, against main built the same way):** MI50 (GPU 9): 0.8B tower 1024x1024 248 to 224, Flash-Next 1024x1024 997 to 835, Flash-Next 2048x2048 8480-8800 to 7390 (the products 134 to 112, 614 to 452 and 2550 to 1747); Radeon VII: 705 to 640, 2914 to 2353 and 25100 to 22800.
+  Rows bit-identical to main on both cards (both towers at 1024, Flash-Next at 2048); Qwen3.5-0.8B BF16 `logits` of a 1439-token prompt byte-identical to main on the MI50 at `--dtype auto`, `f32` and `bf16`; `backend-vulkan`, `vision` and `image` pass on the MI50.
+- **The bits, forced (F2DEV's REVIEW of 09:23):** `vulkan-quantization` dispatches both tiles on the same inputs and compares every output: 30322568 outputs, none differing, in the preserving and the plain build on the Radeon VII under the AMD proprietary driver; and through `matmul` on each side of the compute-unit rule.
+- **Tried and not kept:** a first form loading one value at a time was slower than main (Flash-Next 1024 products 843 against 630 ms); lanes along rows for conflict-free shared stores changed nothing.
+- **Gate, main d34878121 against the branch, each built the same way from its own commit (encode wall, median ms, ABBA twice):** MI50 (GPU 9, RADV, host load 11 to 15): 0.8B 249 to 224 (-10%), Flash-Next 1024 1002 to 842 (-16%), Flash-Next 2048 8268 to 7593 (-8%); Radeon VII (AMD proprietary driver): 704 to 639 (-9%), 2914 to 2352 (-19%), 25130 to 22780 (-9%).
+  On both cards: encoder rows bit-identical to main, Qwen3.5-0.8B BF16 `logits` of a 1440-token prompt byte-identical at `--dtype auto`, `f32` and `bf16`, the forced comparison 30322568 outputs with none differing in both builds, `backend-vulkan`, `vision` and `image` pass, no scratch.
+  MI50: CTest 94 of 94; the suite on the device with `--require-tools` passes every component but `raw-blocks`, which needs numpy the rig's image lacks (no device code; the hosted jobs install it), and `baseline`, skipped without its models.
+- **Left:** the hosted run and F2DEV's review.
+- **Gotchas:** the tile holds 128 registers and 32 KiB of shared memory, two waves a SIMD; the products reach about 7.5 TFLOPS on Flash-Next 1024 against the references' 10.9.
+
 ## Layered HF references for dense Qwen3 file-exact runs (2026-10-29)
 
 - **Done:** `tools/gen_layered_reference.py` can stream dense Qwen3 GGUF tensors through the existing `tests/f32.py` names and `tests/spec_decode.py` decoder, calling HF's own Qwen3 forward with one module loaded at a time. File-exact metadata records the GGUF identity and decoded tensor types; it does not label checkpoint weights as the quantized file.

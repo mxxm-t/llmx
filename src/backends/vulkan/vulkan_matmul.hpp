@@ -197,6 +197,9 @@ inline void VulkanBackend::matmul_group_impl(const Projection* projections, size
                     dispatch(pr->weight.type == quant::GGML_TYPE_MXFP4 ? K_MATMUL_REDUCE_MXFP4 : K_MATMUL_REDUCE, {bind(y), bind(y), bind(y), pb}, rc, sizeof(rc), start, 1, 0,
                              {n, n, n});
                 }
+            } else if (const KernelId wide = wide_tile_kernel(dtype, pr->weight.type); wide != K_COUNT && wide_tile_fits(dev_->caps, pr->rows, nbatch)) {
+                dispatch(wide, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},
+                         pc, sizeof(pc), groups(pr->rows, kWideTile), groups(nbatch, kWideTile), 0, {nbatch * pr->rows});
             } else {
                 dispatch(kernel, {bind(pr->out), bind(pr->weight.data), words, bind(X), bind(pr->weight.data), bind(X)},
                          pc, sizeof(pc), groups(pr->rows, height), (uint32_t)gy, small, {nbatch * pr->rows});

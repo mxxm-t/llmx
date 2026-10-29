@@ -1,6 +1,7 @@
 // Inspect the private packed activation buffers without adding a runtime probe API.
 #include "backends/vulkan/vulkan_backend.cpp"
 #include "backends/cpu/cpu_backend.hpp"
+#include "core/fp16.hpp"
 #include <algorithm>
 #include <cstring>
 #include <functional>
@@ -57,6 +58,22 @@ struct VulkanQuantizationTest {
     // Where the device does not prefer the integer dot, preferring it reaches the tile's twin layouts, which change only where a twin's values lie.
     static void prefer_integer_dot(VulkanBackend& b, bool on) { b.dev_->profile.prefer_integer_dot = on; }
     static bool tile_reads(VulkanBackend& b, size_t nin, size_t nbatch, RowRuns runs) { return b.tile_reads(nin, nbatch, runs); }
+    // One unsplit float-weight product on the float tile at height `rows_tile` (128 or 64), or on the wide tile, as the dispatch in vulkan_matmul.hpp records them.
+    static void float_tile(VulkanBackend& b, uint32_t type, Dtype dtype, CSlice w, CSlice x, Slice y, size_t nin, size_t rows, size_t cols, bool accum, size_t rows_tile) {
+        const VkDescriptorBufferInfo wf = b.padded_f32(w, type, rows, nin);
+        const size_t wstride = wf.buffer == b.bind(w).buffer ? nin : nin + kF32Pad;
+        const VkDescriptorBufferInfo words = b.weight_floats({type, w}, b.lookup_grid(type, wf));
+        const size_t gy = (cols + 63) / 64;
+        const uint32_t pc[10] = {uint32_t(nin), uint32_t(rows), uint32_t(cols), type, accum ? 1u : 0u, 0, 0, uint32_t((nin + 31) / 32 * 32), uint32_t(gy), uint32_t(wstride)};
+        if (rows_tile == kWideTile)
+            b.dispatch(wide_tile_kernel(dtype, type), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
+                       uint32_t((rows + kWideTile - 1) / kWideTile), uint32_t((cols + kWideTile - 1) / kWideTile), 0, {cols * rows});
+        else
+            b.dispatch(float_tile_kernel(rows_tile == kTileRowsTall, dtype, type, false), {b.bind(y), b.bind(w), words, b.bind(x), b.bind(w), b.bind(x)}, pc, sizeof(pc),
+                       uint32_t((rows + rows_tile - 1) / rows_tile), uint32_t(gy), 0, {cols * rows});
+    }
+    static uint32_t compute_units(VulkanBackend& b) { return b.dev_->caps.compute_units; }
+    static bool wide_fits(VulkanBackend& b, size_t rows, size_t cols) { return wide_tile_fits(b.dev_->caps, rows, cols); }
     // The words of the twin the table keeps for the n floats at x, and its layout; empty when no producer left one.
     static std::vector<uint32_t> kept_twin(VulkanBackend& b, CSlice x, size_t n, uint32_t& major, bool& has8) {
         const VkDescriptorBufferInfo xf = b.bind(x);
@@ -177,6 +194,75 @@ void check_float_identity(backend::VulkanBackend& preserved, backend::VulkanBack
     }
     std::cout << "vulkan-quantization: " << checked << " ordinary F32 outputs, " << failed << " differ between modules\n";
     require(failed == 0, "F32 rows changed under Q8 preservation");
+}
+
+// The wide float tile (shaders/matmul_tile_wide.comp) against the float tile on the same inputs, every output bit for bit, since a call takes either by its width.
+// Every weight type it serves with and without BF16 inputs, row, column and k tails, accumulation on and off, the float tile at both heights, and through matmul a call on each side of the compute-unit rule.
+void check_wide_tile(backend::VulkanBackend& b, const char* build) {
+    using T = backend::VulkanQuantizationTest;
+    uint32_t seed = 4127;
+    size_t checked = 0, failed = 0;
+    auto stored = [&](uint32_t type, const std::vector<float>& v) {
+        std::vector<uint16_t> h(v.size());
+        for (size_t i = 0; i < v.size(); ++i) {
+            uint32_t bits;
+            std::memcpy(&bits, &v[i], 4);
+            h[i] = type == quant::GGML_TYPE_F16 ? f32_to_f16(v[i]) : uint16_t((bits + 0x7fffu + ((bits >> 16) & 1u)) >> 16);
+        }
+        return type == quant::GGML_TYPE_F32 ? b.adopt(v.data(), v.size() * 4) : b.adopt(h.data(), h.size() * 2);
+    };
+    auto compare = [&](const std::vector<float>& a, const std::vector<float>& e, const char* what, size_t rows, size_t cols, size_t nin) {
+        for (size_t i = 0; i < a.size(); ++i) {
+            if (std::memcmp(&a[i], &e[i], sizeof(float)) != 0) {
+                if (failed < 8) std::fprintf(stderr, "wide tile (%s build, %s): %zu x %zu over %zu, output %zu wide %.9g float tile %.9g\n", build, what, rows, cols, nin, i, a[i], e[i]);
+                ++failed;
+            }
+            ++checked;
+        }
+    };
+    struct Shape { size_t rows, cols, nin; };
+    const Shape shapes[] = {{300, 333, 1000}, {1000, 1000, 1152}, {256, 129, 1003}, {128, 128, 16}, {129, 255, 40}};
+    for (uint32_t type : {quant::GGML_TYPE_F32, quant::GGML_TYPE_F16, quant::GGML_TYPE_BF16})
+        for (backend::Dtype dtype : {backend::Dtype::f32, backend::Dtype::bf16})
+            for (const Shape& s : shapes) {
+                std::vector<float> w(s.rows * s.nin), x(s.nin * s.cols), y0(s.rows * s.cols);
+                for (float& v : w) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+                for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+                for (float& v : y0) v = float(int(random_bits(seed) % 65535u) - 32767) / 257.0f;
+                const auto wb = stored(type, w);
+                const auto xb = b.adopt(x.data(), x.size() * 4);
+                for (bool accum : {false, true}) {
+                    std::vector<float> wide(y0.size()), tile(y0.size());
+                    const auto yw = b.adopt(y0.data(), y0.size() * 4), yt = b.adopt(y0.data(), y0.size() * 4), ys = b.adopt(y0.data(), y0.size() * 4);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yw.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kWideTile);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kTileRowsTall);
+                    T::float_tile(b, type, dtype, {wb.get(), 0}, {xb.get(), 0}, {ys.get(), 0}, s.nin, s.rows, s.cols, accum, backend::kTileRowsShort);
+                    b.read(*yw, 0, wide.data(), wide.size() * 4);
+                    b.read(*yt, 0, tile.data(), tile.size() * 4);
+                    compare(wide, tile, "tall", s.rows, s.cols, s.nin);
+                    b.read(*ys, 0, tile.data(), tile.size() * 4);
+                    compare(wide, tile, "short", s.rows, s.cols, s.nin);
+                }
+            }
+    // Through matmul: 128 rows by one column tile fewer than the compute units, which keeps the float tile, and by as many, which takes the wide one; both give the forced float tile's bits.
+    const uint32_t units = T::compute_units(b);
+    for (size_t tiles : {size_t(units) - 1, size_t(units)}) {
+        const size_t rows = 128, cols = 128 * tiles, nin = 200;
+        require(T::wide_fits(b, rows, cols) == (tiles >= units), "the wide tile's rule is not the compute-unit count");
+        std::vector<float> w(rows * nin), x(nin * cols), viacall(rows * cols), tile(rows * cols);
+        for (float& v : w) v = float(int(random_bits(seed) % 65535u) - 32767) / 4099.0f;
+        for (float& v : x) v = float(int(random_bits(seed) % 65535u) - 32767) / 1009.0f;
+        const auto wb = stored(quant::GGML_TYPE_BF16, w);
+        const auto xb = b.adopt(x.data(), x.size() * 4);
+        const auto yc = b.alloc(viacall.size() * 4, backend::Memory::device), yt = b.alloc(tile.size() * 4, backend::Memory::device);
+        b.matmul({quant::GGML_TYPE_BF16, {wb.get(), 0}}, {xb.get(), 0}, {yc.get(), 0}, nin, rows, cols, {}, backend::Dtype::f32);
+        T::float_tile(b, quant::GGML_TYPE_BF16, backend::Dtype::f32, {wb.get(), 0}, {xb.get(), 0}, {yt.get(), 0}, nin, rows, cols, false, backend::kTileRowsTall);
+        b.read(*yc, 0, viacall.data(), viacall.size() * 4);
+        b.read(*yt, 0, tile.data(), tile.size() * 4);
+        compare(viacall, tile, tiles >= units ? "matmul, wide by rule" : "matmul, float tile by rule", rows, cols, nin);
+    }
+    std::cout << "vulkan-quantization: wide tile (" << build << " build): " << checked << " outputs, " << failed << " differ from the float tile\n";
+    require(failed == 0, "the wide float tile's outputs differ from the float tile's");
 }
 
 // The routed combine's preserving module (moe_combine.glsl) gives the ordinary module's bits on normal inputs: F32 down rows, which take the ordinary row kernel in both, so the combine is all that differs.
@@ -987,6 +1073,8 @@ int main() {
         check_elementwise_subnormals(b);
         check_elementwise_subnormals(fallback);
         check_float_identity(b, fallback);
+        check_wide_tile(b, backend::VulkanQuantizationTest::preserves_float32(b) ? "preserving" : "plain");
+        check_wide_tile(fallback, "plain");
         check_combine_identity(b, fallback);
         check_combine_subnormals(b);
         check_combine_subnormals(fallback);

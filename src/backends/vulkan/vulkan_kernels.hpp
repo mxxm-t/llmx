@@ -924,6 +924,42 @@ const uint32_t kSpvMatmulTileWbf16[] = {
 const uint32_t kSpvMatmulTileWbf16Preserve[] = {
 #include "vulkan/matmul_tile_wbf16_preserve.inc"
 };
+const uint32_t kSpvMatmulTileWide[] = {
+#include "vulkan/matmul_tile_wide.inc"
+};
+const uint32_t kSpvMatmulTileWidePreserve[] = {
+#include "vulkan/matmul_tile_wide_preserve.inc"
+};
+const uint32_t kSpvMatmulTileWideBf16[] = {
+#include "vulkan/matmul_tile_wide_bf16.inc"
+};
+const uint32_t kSpvMatmulTileWideBf16Preserve[] = {
+#include "vulkan/matmul_tile_wide_bf16_preserve.inc"
+};
+const uint32_t kSpvMatmulTileWideWf16[] = {
+#include "vulkan/matmul_tile_wide_wf16.inc"
+};
+const uint32_t kSpvMatmulTileWideWf16Preserve[] = {
+#include "vulkan/matmul_tile_wide_wf16_preserve.inc"
+};
+const uint32_t kSpvMatmulTileWideWf16Bf16[] = {
+#include "vulkan/matmul_tile_wide_wf16_bf16.inc"
+};
+const uint32_t kSpvMatmulTileWideWf16Bf16Preserve[] = {
+#include "vulkan/matmul_tile_wide_wf16_bf16_preserve.inc"
+};
+const uint32_t kSpvMatmulTileWideWbf16[] = {
+#include "vulkan/matmul_tile_wide_wbf16.inc"
+};
+const uint32_t kSpvMatmulTileWideWbf16Preserve[] = {
+#include "vulkan/matmul_tile_wide_wbf16_preserve.inc"
+};
+const uint32_t kSpvMatmulTileWideWbf16Bf16[] = {
+#include "vulkan/matmul_tile_wide_wbf16_bf16.inc"
+};
+const uint32_t kSpvMatmulTileWideWbf16Bf16Preserve[] = {
+#include "vulkan/matmul_tile_wide_wbf16_bf16_preserve.inc"
+};
 const uint32_t kSpvMatmulTileWbf16Bf16[] = {
 #include "vulkan/matmul_tile_wbf16_bf16.inc"
 };
@@ -1208,6 +1244,12 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_TILE_WBF16, "matmul_tile_wbf16", kSpvMatmulTileWbf16, sizeof(kSpvMatmulTileWbf16), 6, nullptr, kSpvMatmulTileWbf16Preserve, sizeof(kSpvMatmulTileWbf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WBF16_TALL, "matmul_tile_wbf16_tall", kSpvMatmulTileWbf16, sizeof(kSpvMatmulTileWbf16), 6, nullptr, kSpvMatmulTileWbf16Preserve, sizeof(kSpvMatmulTileWbf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WBF16_BF16, "matmul_tile_wbf16_bf16", kSpvMatmulTileWbf16Bf16, sizeof(kSpvMatmulTileWbf16Bf16), 6, nullptr, kSpvMatmulTileWbf16Bf16Preserve, sizeof(kSpvMatmulTileWbf16Bf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE, "matmul_tile_wide", kSpvMatmulTileWide, sizeof(kSpvMatmulTileWide), 6, nullptr, kSpvMatmulTileWidePreserve, sizeof(kSpvMatmulTileWidePreserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE_BF16, "matmul_tile_wide_bf16", kSpvMatmulTileWideBf16, sizeof(kSpvMatmulTileWideBf16), 6, nullptr, kSpvMatmulTileWideBf16Preserve, sizeof(kSpvMatmulTileWideBf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE_WF16, "matmul_tile_wide_wf16", kSpvMatmulTileWideWf16, sizeof(kSpvMatmulTileWideWf16), 6, nullptr, kSpvMatmulTileWideWf16Preserve, sizeof(kSpvMatmulTileWideWf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE_WF16_BF16, "matmul_tile_wide_wf16_bf16", kSpvMatmulTileWideWf16Bf16, sizeof(kSpvMatmulTileWideWf16Bf16), 6, nullptr, kSpvMatmulTileWideWf16Bf16Preserve, sizeof(kSpvMatmulTileWideWf16Bf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE_WBF16, "matmul_tile_wide_wbf16", kSpvMatmulTileWideWbf16, sizeof(kSpvMatmulTileWideWbf16), 6, nullptr, kSpvMatmulTileWideWbf16Preserve, sizeof(kSpvMatmulTileWideWbf16Preserve), 0, kPreserve32) \
+    X(K_MATMUL_TILE_WIDE_WBF16_BF16, "matmul_tile_wide_wbf16_bf16", kSpvMatmulTileWideWbf16Bf16, sizeof(kSpvMatmulTileWideWbf16Bf16), 6, nullptr, kSpvMatmulTileWideWbf16Bf16Preserve, sizeof(kSpvMatmulTileWideWbf16Bf16Preserve), 0, kPreserve32) \
     X(K_MATMUL_TILE_WBF16_BF16_TALL, "matmul_tile_wbf16_bf16_tall", kSpvMatmulTileWbf16Bf16, sizeof(kSpvMatmulTileWbf16Bf16), 6, nullptr, kSpvMatmulTileWbf16Bf16Preserve, sizeof(kSpvMatmulTileWbf16Bf16Preserve), 0, kPreserve32) \
     X(K_EMBED_IDS_WF16, "embed_ids_wf16", kSpvEmbedIdsWf16, sizeof(kSpvEmbedIdsWf16), 4, nullptr) \
     X(K_EMBED_IDS_WBF16, "embed_ids_wbf16", kSpvEmbedIdsWbf16, sizeof(kSpvEmbedIdsWbf16), 4, nullptr) \
@@ -1361,6 +1403,20 @@ const WeightKernels* weight_kernels(uint32_t type) {
 }
 
 // Dense and routed calls share the tile selection and its input precision.
+// The wide float tile's build for float weights (shaders/matmul_tile_wide.comp), or K_COUNT for any other type; its outputs are the float tile's bits.
+inline KernelId wide_tile_kernel(Dtype dtype, uint32_t type) {
+    const bool bf16 = dtype == Dtype::bf16;
+    if (type == quant::GGML_TYPE_F32) return bf16 ? K_MATMUL_TILE_WIDE_BF16 : K_MATMUL_TILE_WIDE;
+    if (type == quant::GGML_TYPE_F16) return bf16 ? K_MATMUL_TILE_WIDE_WF16_BF16 : K_MATMUL_TILE_WIDE_WF16;
+    if (type == quant::GGML_TYPE_BF16) return bf16 ? K_MATMUL_TILE_WIDE_WBF16_BF16 : K_MATMUL_TILE_WIDE_WBF16;
+    return K_COUNT;
+}
+// The wide tile's side, and whether an unsplit call of `rows` by `columns` takes it: at least one of its workgroups for every compute unit, so its fewer, larger tiles still fill the device.
+const size_t kWideTile = 128;
+inline bool wide_tile_fits(const DeviceCaps& caps, size_t rows, size_t columns) {
+    const size_t tiles = (rows + kWideTile - 1) / kWideTile * ((columns + kWideTile - 1) / kWideTile);
+    return rows >= kWideTile && columns >= kWideTile && tiles >= caps.compute_units;
+}
 inline KernelId float_tile_kernel(bool tall, Dtype dtype, uint32_t type, bool f16_inputs) {
     const WeightKernels& format = *weight_kernels(type);
     if (type == quant::GGML_TYPE_NVFP4 && dtype == Dtype::f16 && f16_inputs)

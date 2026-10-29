@@ -83,6 +83,11 @@ That leaves the shared machine's packages untouched.
   a run because background activity is present. Do not discard isolated slow
   samples. If monitoring is unavailable, report that limitation instead of
   assuming the machine was idle or treating unknown activity as zero.
+- **Never wait; keep the pipeline busy.** The pipeline is the whole path from input to output: a request arriving, its tokens, loading and reading weights, every pass on every device, sampling, and the text streamed back.
+  Nothing on it waits behind anything else while work exists for it: no device behind the host, no stage behind another, no request behind a step that could run beside it.
+  The host prepares and queues work ahead of time, as asynchronous submissions with device-side dependencies; where that is not possible, a thread does the work beside the devices.
+  A host round trip inside a pass is allowed only when handing the work to the host lets a device keep going where that work would otherwise stall it, and then it overlaps device work rather than sitting on the critical path.
+  A change that adds a wait states why no alternative exists; device idle time, not host time, is the measure.
 - **Dependency-free.** No external libs. The whole point is to control the full
   stack; reaching for a library erodes that.
 - **Lean, not clever.** Add a seam only when a second implementation is on the

@@ -2159,6 +2159,41 @@ void replay_smoke() {
 
 } // namespace
 
+// Why a turn reused little (reuse_miss): the closest held history by tokens, the message the difference falls in, and what limited the reuse below the agreement.
+void reuse_miss_by_hand() {
+    using server::ReuseMiss;
+    const size_t block = 8;
+    std::vector<uint32_t> prompt(60);
+    for (size_t i = 0; i < prompt.size(); ++i) prompt[i] = uint32_t(100 + i);
+    const server::MessageSpans spans{{10, 30, 50, 60}, {"system", "user", "assistant", "user"}};
+    const auto full = [](size_t n) { return n; };
+    // The first message differs: the history agrees for 2 tokens, inside the first block, in message 1, the system message.
+    std::vector<uint32_t> head = prompt;
+    head[2] = 7;
+    std::vector<uint32_t> other(40, 9);
+    ReuseMiss m = server::reuse_miss(prompt, 0, {{&other, full, nullptr}, {&head, full, nullptr}}, block, spans);
+    require(m.prompt == 60 && m.reused == 0 && m.agreed == 2 && m.limit == ReuseMiss::Limit::tokens && m.at == 2 && m.messages == 4 && m.message == 0 && m.role == "system",
+            "a first message that differs is not named as the history agreeing for 2 tokens in message 1, the system message");
+    // The last message differs at 45, in message 3, the assistant's; on a model that keeps a state the history's only state, at 48, lies past it, so nothing could be forked.
+    std::vector<uint32_t> tail = prompt;
+    tail[45] = 7;
+    const auto state48 = [](size_t n) { return n >= 48 ? size_t(48) : size_t(0); };
+    m = server::reuse_miss(prompt, 0, {{&tail, full, state48}}, block, spans);
+    require(m.agreed == 45 && m.limit == ReuseMiss::Limit::state && m.at == 0 && m.message == 2 && m.role == "assistant",
+            "a last message that differs past the history's only state is not named as the state limiting the reuse in message 3");
+    // The same history with a state at 40: the 40 rows below it were forkable, so a turn that reused them is limited by the tokens, and one that reused none by the room.
+    const auto state40 = [](size_t n) { return n >= 40 ? size_t(40) : size_t(0); };
+    m = server::reuse_miss(prompt, 40, {{&tail, full, state40}}, block, spans);
+    require(m.limit == ReuseMiss::Limit::tokens && m.at == 45, "a turn that forked every row below its difference is not named as limited by the tokens");
+    m = server::reuse_miss(prompt, 0, {{&tail, full, state40}}, block, spans);
+    require(m.limit == ReuseMiss::Limit::room && m.at == 40, "a history the turn did not fork though it held 40 rows is not named as limited by the room");
+    // A completions prompt, no messages: the tokens agree whole, but the row classes only for 20, so no message is named and the classes limit it at 20.
+    std::vector<uint32_t> same = prompt;
+    m = server::reuse_miss(prompt, 16, {{&same, [](size_t n) { return std::min<size_t>(n, 20); }, nullptr}}, block, {});
+    require(m.agreed == 60 && m.limit == ReuseMiss::Limit::classes && m.at == 20 && m.messages == 0 && m.role.empty(),
+            "a completions prompt whose rows were computed in other classes from 20 is not named so, or names a message");
+}
+
 int main(int argc, char** argv) {
     try {
         if (argc > 1 && std::string(argv[1]).rfind("--", 0) == 0) return replay_main(argc, argv);
@@ -2174,6 +2209,7 @@ int main(int argc, char** argv) {
         due_step_first();
         service_by_hand();
         replay_smoke();
+        reuse_miss_by_hand();
         random_schedules(schedules);
         std::cout << "server-passes: " << checks << " checks pass\n";
         return 0;

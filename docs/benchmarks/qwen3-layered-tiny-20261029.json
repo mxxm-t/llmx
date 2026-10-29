@@ -1,0 +1,391 @@
+{
+  "report": {
+    "complete": true,
+    "scope": "tiny synthetic Qwen3 checkpoint and independently packed Q2_0 GGUF; HF whole versus Layered full-vocabulary logits",
+    "source_revision": "7fbe5d33b11d9d296123df369b852f5dd36f96ae",
+    "versions": {
+      "torch": "2.5.1+cpu",
+      "transformers": "4.55.2",
+      "numpy": "2.2.6",
+      "safetensors": "0.8.0"
+    },
+    "threads": 4,
+    "attention": "eager",
+    "device": "cpu",
+    "prompt_lengths": [
+      1,
+      2,
+      5,
+      8
+    ],
+    "variants": [
+      "dense-tied",
+      "dense-untied"
+    ],
+    "seed": 12346,
+    "cases": [
+      {
+        "variant": "dense-tied",
+        "weights": "checkpoint",
+        "parameter_elements": 1640448,
+        "rows": [
+          {
+            "tokens": 1,
+            "shape": [
+              1,
+              1,
+              257
+            ],
+            "full_logits_sha256": "1b18d1586447f6f9ab2a97ac7c7095e22380f7cf20d3b00409d7af8682f11bb4",
+            "layered_logits_sha256": "1b18d1586447f6f9ab2a97ac7c7095e22380f7cf20d3b00409d7af8682f11bb4",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 2,
+            "shape": [
+              1,
+              2,
+              257
+            ],
+            "full_logits_sha256": "acc6c2f59d3ac706fc324de7ee9501b409062ea169054083ee38dd764fe46f20",
+            "layered_logits_sha256": "acc6c2f59d3ac706fc324de7ee9501b409062ea169054083ee38dd764fe46f20",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 5,
+            "shape": [
+              1,
+              5,
+              257
+            ],
+            "full_logits_sha256": "e3b46c244cb73d0e359bbee3bbb8d636e0f5dfd40b2c1453cb030c863edfe2b8",
+            "layered_logits_sha256": "e3b46c244cb73d0e359bbee3bbb8d636e0f5dfd40b2c1453cb030c863edfe2b8",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 8,
+            "shape": [
+              1,
+              8,
+              257
+            ],
+            "full_logits_sha256": "64805eaa6c7169c79ad6a62e793a70b99e64b44c48b94285caf512ce7d8765b8",
+            "layered_logits_sha256": "64805eaa6c7169c79ad6a62e793a70b99e64b44c48b94285caf512ce7d8765b8",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "variant": "dense-tied",
+        "weights": "q2_0-file",
+        "parameter_elements": 1640448,
+        "rows": [
+          {
+            "tokens": 1,
+            "shape": [
+              1,
+              1,
+              257
+            ],
+            "full_logits_sha256": "1b18d1586447f6f9ab2a97ac7c7095e22380f7cf20d3b00409d7af8682f11bb4",
+            "layered_logits_sha256": "1b18d1586447f6f9ab2a97ac7c7095e22380f7cf20d3b00409d7af8682f11bb4",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 2,
+            "shape": [
+              1,
+              2,
+              257
+            ],
+            "full_logits_sha256": "acc6c2f59d3ac706fc324de7ee9501b409062ea169054083ee38dd764fe46f20",
+            "layered_logits_sha256": "acc6c2f59d3ac706fc324de7ee9501b409062ea169054083ee38dd764fe46f20",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 5,
+            "shape": [
+              1,
+              5,
+              257
+            ],
+            "full_logits_sha256": "e3b46c244cb73d0e359bbee3bbb8d636e0f5dfd40b2c1453cb030c863edfe2b8",
+            "layered_logits_sha256": "e3b46c244cb73d0e359bbee3bbb8d636e0f5dfd40b2c1453cb030c863edfe2b8",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 8,
+            "shape": [
+              1,
+              8,
+              257
+            ],
+            "full_logits_sha256": "64805eaa6c7169c79ad6a62e793a70b99e64b44c48b94285caf512ce7d8765b8",
+            "layered_logits_sha256": "64805eaa6c7169c79ad6a62e793a70b99e64b44c48b94285caf512ce7d8765b8",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          }
+        ],
+        "passed": true,
+        "gguf_sha256": "5b42d9ef2c4e1449a6a6f66f09b72d7a4b02e803e1f30268c08e9252fadc08cf",
+        "gguf_bytes": 469536,
+        "source_tensor_types": {
+          "Q2_0": 15,
+          "F32": 9
+        },
+        "q2_0_packed_tensors": 15,
+        "checkpoint_safetensors_sha256": "4ecc936a4d17b9e27267a78cfcb5f5760788acdb24315363ea871f55c9f7f138",
+        "checkpoint_config_sha256": "6b96f16512358d5f2cf06e6991609112c05023be4b52b6997bedd15694b3f0d1",
+        "packed_payload_sha256": "52c5e5f09d1d72be60c71fd4989d74f46dc2107047a6ff8086483224d7c44bca"
+      },
+      {
+        "variant": "dense-untied",
+        "weights": "checkpoint",
+        "parameter_elements": 1706240,
+        "rows": [
+          {
+            "tokens": 1,
+            "shape": [
+              1,
+              1,
+              257
+            ],
+            "full_logits_sha256": "626cfa5454049541c9e1aea29dff4d91d178d12c776c579abaa7f1891e0dfd24",
+            "layered_logits_sha256": "626cfa5454049541c9e1aea29dff4d91d178d12c776c579abaa7f1891e0dfd24",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 2,
+            "shape": [
+              1,
+              2,
+              257
+            ],
+            "full_logits_sha256": "a142746a6eefc04d447ef5356e0a8e177bbb67581bc9b6b285709d9237a059ad",
+            "layered_logits_sha256": "a142746a6eefc04d447ef5356e0a8e177bbb67581bc9b6b285709d9237a059ad",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 5,
+            "shape": [
+              1,
+              5,
+              257
+            ],
+            "full_logits_sha256": "a3a14b61f403eae12e0bf5cd8c36598b55933996fa34dae8064d48f3b382b4a0",
+            "layered_logits_sha256": "a3a14b61f403eae12e0bf5cd8c36598b55933996fa34dae8064d48f3b382b4a0",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 8,
+            "shape": [
+              1,
+              8,
+              257
+            ],
+            "full_logits_sha256": "7a3787b64069071d38ca2d2e02b24740b6c789485f992fe0e454b309d01b0c5f",
+            "layered_logits_sha256": "7a3787b64069071d38ca2d2e02b24740b6c789485f992fe0e454b309d01b0c5f",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          }
+        ],
+        "passed": true
+      },
+      {
+        "variant": "dense-untied",
+        "weights": "q2_0-file",
+        "parameter_elements": 1706240,
+        "rows": [
+          {
+            "tokens": 1,
+            "shape": [
+              1,
+              1,
+              257
+            ],
+            "full_logits_sha256": "626cfa5454049541c9e1aea29dff4d91d178d12c776c579abaa7f1891e0dfd24",
+            "layered_logits_sha256": "626cfa5454049541c9e1aea29dff4d91d178d12c776c579abaa7f1891e0dfd24",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 2,
+            "shape": [
+              1,
+              2,
+              257
+            ],
+            "full_logits_sha256": "a142746a6eefc04d447ef5356e0a8e177bbb67581bc9b6b285709d9237a059ad",
+            "layered_logits_sha256": "a142746a6eefc04d447ef5356e0a8e177bbb67581bc9b6b285709d9237a059ad",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 5,
+            "shape": [
+              1,
+              5,
+              257
+            ],
+            "full_logits_sha256": "a3a14b61f403eae12e0bf5cd8c36598b55933996fa34dae8064d48f3b382b4a0",
+            "layered_logits_sha256": "a3a14b61f403eae12e0bf5cd8c36598b55933996fa34dae8064d48f3b382b4a0",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          },
+          {
+            "tokens": 8,
+            "shape": [
+              1,
+              8,
+              257
+            ],
+            "full_logits_sha256": "7a3787b64069071d38ca2d2e02b24740b6c789485f992fe0e454b309d01b0c5f",
+            "layered_logits_sha256": "7a3787b64069071d38ca2d2e02b24740b6c789485f992fe0e454b309d01b0c5f",
+            "bit_identical": true,
+            "max_abs_difference": 0.0
+          }
+        ],
+        "passed": true,
+        "gguf_sha256": "61fe905529ae57892a96d13e1365966ec94209ecc02962614a0aef63b2fe3cdb",
+        "gguf_bytes": 488128,
+        "source_tensor_types": {
+          "Q2_0": 16,
+          "F32": 9
+        },
+        "q2_0_packed_tensors": 16,
+        "checkpoint_safetensors_sha256": "cdf87090a6d7416019f7a384bf52fb55dae08371e0ab36883b462a3a333988e3",
+        "checkpoint_config_sha256": "72fec73114a090dfac64e01abebdcccf5f8abf043b2dbdd6d27becfcbf2c445e",
+        "packed_payload_sha256": "bfba97d00971e1939fe6fc3e20802caaacf5105726f09d7f10dea6cf211e67e7"
+      }
+    ],
+    "seconds": 12.400034666061401
+  },
+  "plan": {
+    "scope": "Preparation only: bounded tiny Qwen3 whole-versus-layered checks for checkpoint loading and exact Q2_0 GGUF loading; no HF download, build, inference launch, or runtime change by the preparer.",
+    "candidate_revision": "7fbe5d33b11d9d296123df369b852f5dd36f96ae",
+    "source_mount": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/landing-20261029/candidate/source",
+    "source_pins": {
+      "tools/gen_baseline.py": "2210c1a0e9a4bd9e3f4b65f9745988d43cc294fde7211958f10246a80cd9754a",
+      "tests/spec_decode.py": "18a6c78c55c862a36e6302c6b257cf98fba397d9745d014758ddec87b119058c",
+      "tests/low_bits.py": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3",
+      "tests/block_fixture.py": "5e9908a73939ac49660cee14fba0eed268d133b8ccca9a6058e4534925a15415",
+      "tests/f32.py": "33f5649419b907922b997c17647403f4b91b1c2d0cc470221d25144468535da0",
+      "tests/common.py": "7ba2710cc9f9b20977314ab3e4806c1c0641c5ed9dd18bba8acdb336551e96f5",
+      "tests/raw_blocks.py": "d34d641b88610de8cbea56397b12a69197179f209f24d1770a20fd111af9eb26",
+      "tests/tokenizer.py": "e1c383c6b5f9aa7ee4e9ff860a8b50a22efdb53eeb0288a10ad595eabbd618ae",
+      "tests/qwen35.py": "d29849d61aca395f142a361e0ba5143b872e3e9c3d3d638073f8a4b458da73bc"
+    },
+    "tool_overlay": {
+      "path": "overlay/tools/gen_layered_reference.py",
+      "sha256": "e8bfb802e78a9bcbd6359bd58e7f605a1191bc3ba3e7058b057188bbfc579d2c"
+    },
+    "environment": {
+      "image": "sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36",
+      "venv": "/zpool1/llmx-xdev-quant-20261020/nvfp4-20261025/hf-reference/venv",
+      "versions": {
+        "torch": "2.5.1+cpu",
+        "transformers": "4.55.2",
+        "numpy": "2.2.6",
+        "safetensors": "0.8.0"
+      },
+      "network": "none",
+      "HF_download_or_cache_mount": false,
+      "reference_overlay": "/zpool1/llmx-xdev-quant-20261020/q1-q2-bf16-calibration-v1/overlay",
+      "PYTHONPATH": "/reference-overlay"
+    },
+    "method": {
+      "fixture": "candidate tests/low_bits.fixture_q2 plus block_fixture.write_fixture; two-layer dense Qwen3; independently packed Q2_0 matrices, F32 norms; seed12346/context16",
+      "variants": [
+        "dense-tied",
+        "dense-untied"
+      ],
+      "prompts": [
+        [
+          7
+        ],
+        [
+          7,
+          11
+        ],
+        [
+          7,
+          11,
+          19,
+          31,
+          2
+        ],
+        [
+          256,
+          3,
+          17,
+          41,
+          5,
+          99,
+          1,
+          8
+        ]
+      ],
+      "checkpoints": "save the full HF model initialized from the fixture's independently spec-decoded Q2_0 values; compare HF whole forward with Layered checkpoint loading",
+      "file_exact": "compare that same HF whole forward with Layered(gguf=...) loading the generated actual Q2_0 GGUF through candidate tests/spec_decode.py",
+      "comparison": "torch.equal, exact shape/dtype, every token position and full vocabulary logits; preserve SHA-256 for each output row; no tolerance",
+      "retained_inputs": "generated GGUF, safetensors checkpoint, config.json, and complete hashes are retained under output/fixtures"
+    },
+    "resources": {
+      "cpuset": "8-11",
+      "threads": 4,
+      "memory_GiB": 8,
+      "swap_GiB": 8,
+      "host_reserve_GiB": 2,
+      "deadline_seconds": 600,
+      "disk_minimum_GiB": 1,
+      "estimate": "The standard Q2_0 tiny fixture has 1,640,448 tied or 1,706,240 untied parameters (about 6.5 MiB or 6.8 MB as F32); model tensors and temporary copies stay well below 1 GiB. The 8 GiB cap leaves room for torch/transformers imports and allocator overhead; require 2 GiB host reserve and current peer unused-cap admission before root launch."
+    },
+    "container_command": [
+      "/venv/bin/python",
+      "-B",
+      "-u",
+      "/prepared/validate_tiny.py",
+      "--source-root",
+      "/w",
+      "--overlay-tools",
+      "/prepared/overlay/tools",
+      "--output",
+      "/out/report.json"
+    ],
+    "candidate_source_receipt": "Exact git blobs of candidate 7fbe5d33b11d9d296123df369b852f5dd36f96ae, checked again against detached rig source before execution.",
+    "checkpoint_backed_06B_equality": "Optional second control only if the pinned full Qwen3-0.6B checkpoint is already cached; not required by this tiny adapter bundle and no cache path is assumed.",
+    "review_corrections": [
+      {
+        "file": "tools/gen_baseline.py",
+        "old": "fa03e00c39a8e112f419dcc46b9714720b990a63054d557940bcb0f81bc6ce50",
+        "new": "2210c1a0e9a4bd9e3f4b65f9745988d43cc294fde7211958f10246a80cd9754a"
+      },
+      {
+        "file": "tests/low_bits.py",
+        "old": "4419d10335138d18f13e759cbb35824f31de37e3c6cef83f05313321e0339a9b",
+        "new": "ce1107b379193faa4a53fd4cd001c9e273dd4c826a5237cec8ecddae7245dfa3"
+      },
+      {
+        "file": "tests/block_fixture.py",
+        "old": "6a773899fc88034bf1e5b76a001ed1cc8271713bca267e7a8866b1baa719d5df",
+        "new": "5e9908a73939ac49660cee14fba0eed268d133b8ccca9a6058e4534925a15415"
+      }
+    ],
+    "environment_correction": "v2 refused transformers5.17 before inference. Restore existing reference overlay4.55.2, the same mount and PYTHONPATH used by completed Q2 quality runs. No package installation or numerical change.",
+    "import_correction": "gen_baseline prepends source/tools during import. Restore reviewed overlay precedence afterward and assert imported layered module path. v3 stopped before inference at unsupported-model check with old module."
+  },
+  "execution_sha256": "231d5b53e421b49b7e4ed0b31f635b78c46cfcea4daf73004ea522673a68b6e5",
+  "remote_artifacts": "/zpool1/llmx-xdev-quant-20261020/q1-q2-20261027/layered-tiny-v4/out",
+  "earlier_attempts": "v2 refused transformers5.17 before inference because the existing4.55.2 reference overlay was missing. v3 imported the old source module after gen_baseline changed sys.path, then refused qwen3 before inference. Both results are retained. v4 restores the package overlay and asserts the reviewed layered module path. Runtime and limits unchanged."
+}

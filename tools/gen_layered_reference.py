@@ -1,4 +1,4 @@
-"""The layered HF reference: HF's own Qwen3-MoE, Qwen3.5 and Qwen3.5-MoE modules, one decoder layer's weights in memory at a time.
+"""The layered HF reference: HF's own Qwen3, Qwen3-MoE, Qwen3.5 and Qwen3.5-MoE modules, one decoder layer's weights in memory at a time.
 
     python tools/gen_layered_reference.py goldens --repo Qwen/Qwen3.5-9B --revision SHA --gguf FILE.gguf --output-dir DIR [--gguf-repo REPO --gguf-revision SHA] [--file-exact]
     python tools/gen_layered_reference.py equality --output FILE [--repo REPO --revision SHA --layers N]
@@ -7,7 +7,8 @@ From the 9B up, a qwen35 model's float32 forward does not fit host memory whole.
 This runs the calls of transformers' Qwen3_5TextModel.forward in its order: the embedding, the model's own rotary embedding and masks, each decoder layer, the final norm and the head.
 Each module's weights are read from the checkpoint's safetensors just before it runs, widened from bf16 to float32 as from_pretrained does, and released once it has run every input, so a run holds one layer, the embedding or the head at a time.
 Every input runs alone, a batch of one, as the full forward runs it, so every logit is the full forward's bit for bit.
-The checkpoint's config.json chooses the model: Qwen3_5ForCausalLM, or Qwen3_5MoeForCausalLM, whose decoder layers run HF's routed experts and shared expert as HF's own default experts implementation does.
+The checkpoint's config.json chooses the model: Qwen3ForCausalLM, Qwen3MoeForCausalLM, Qwen3_5ForCausalLM or Qwen3_5MoeForCausalLM. Qwen3 and Qwen3-MoE file-exact runs use the existing tiny-MoE environment: torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6.
+For Qwen3 and Qwen3-MoE file-exact runs, temporary hooks run HF's original causal forward while loading and releasing the GGUF's decoded modules around their calls.
 
 goldens writes baseline_tokenizer.json, baseline_logits.json and baseline_perplexity.json into --output-dir with the writers of tools/gen_baseline.py, from the checkpoint's own weights, as the Qwen3-8B goldens are made.
 The GGUF labels them: they record its SHA-256, and its F32 tensors are compared with the checkpoint's under the converter's conventions (docs/QWEN35.md), which shows the file was converted from these weights and which V-head order it stores.
@@ -19,8 +20,7 @@ It exits nonzero unless every pair and every parameter is equal, and tests/refer
 Both run offline from the HF cache, which must already hold the checkpoint at the commit given.
 They need the qwen35 reference venv that docs/ASSETS.md lists, and tools/gen_baseline.py's check of it refuses other versions and an installed kernels, fla or causal_conv1d package, which HF would run in place of its torch code for the linear-attention layers.
 
-Qwen3-MoE file-exact generation uses the existing tiny-MoE environment instead: torch 2.5.1+cpu, transformers 4.55.2 and numpy 2.2.6.
-Temporary hooks load and release HF's modules during its own full forward, retaining its masks and RoPE.
+Temporary hooks load and release Qwen3 and Qwen3-MoE modules during HF's own full forward, retaining its masks and RoPE.
 Each distinct token sequence rereads the layers; it does not hold the whole model or create a widened model file.
 Only config/tokenizer files are needed from the pinned checkpoint for --file-exact.
 It does not define a new acceptance bound.
@@ -46,7 +46,8 @@ from qwen35 import tiled_order
 EQUALITY_REPO = generator.QWEN35_REPO
 EQUALITY_REVISION = generator.QWEN35_REVISION
 # The text model type of a checkpoint's config.json, and the transformers config and model classes that run it.
-MODELS = {"qwen3_5_text": ("Qwen3_5TextConfig", "Qwen3_5ForCausalLM"),
+MODELS = {"qwen3": ("Qwen3Config", "Qwen3ForCausalLM"),
+          "qwen3_5_text": ("Qwen3_5TextConfig", "Qwen3_5ForCausalLM"),
           "qwen3_5_moe_text": ("Qwen3_5MoeTextConfig", "Qwen3_5MoeForCausalLM"),
           "qwen3_moe": ("Qwen3MoeConfig", "Qwen3MoeForCausalLM")}
 # A decoder layer's key, as a checkpoint stores it or as the model names it, with the layer's index.
@@ -85,7 +86,7 @@ def runtime(threads, directory=None):
         with open(os.path.join(directory, "config.json"), encoding="utf-8") as f:
             raw = json.load(f)
         kind = raw.get("text_config", raw).get("model_type")
-    if kind == "qwen3_moe":
+    if kind in ("qwen3", "qwen3_moe"):
         torch, transformers = generator.qwen3moe_environment()
     else:
         torch, transformers, _ = generator.qwen35_environment()
@@ -111,8 +112,8 @@ def checkpoint_plan(directory, model, cut=None):
     """Where each parameter of `model` is stored in the checkpoint in `directory`, {name: (file, key)}, with the checkpoint keys the model does not take.
     Keys are renamed by transformers' own loading rules for the model, and a rule that would reshape a tensor, a key the model does not take other than the ones a qwen35 load may leave unused (tools/gen_baseline.py, QWEN35_UNUSED) or the layers past `cut` of a model cut to its first layers, and a parameter no key gives other than a tied head are refused."""
     from safetensors import safe_open
-    moe = getattr(model.config, "model_type", None) == "qwen3_moe"
-    if not moe:
+    direct = getattr(model.config, "model_type", None) in ("qwen3", "qwen3_moe")
+    if not direct:
         from transformers.conversion_mapping import get_model_conversion_mapping
         from transformers.core_model_loading import WeightConverter, WeightRenaming, rename_source_key
 
@@ -123,7 +124,7 @@ def checkpoint_plan(directory, model, cut=None):
     else:
         with safe_open(os.path.join(directory, "model.safetensors"), framework="pt") as f:
             stored = {key: "model.safetensors" for key in f.keys()}
-    if not moe:
+    if not direct:
         mapping = get_model_conversion_mapping(model)
         renamings = [t for t in mapping if isinstance(t, WeightRenaming)]
         converters = [t for t in mapping if isinstance(t, WeightConverter)]
@@ -132,8 +133,8 @@ def checkpoint_plan(directory, model, cut=None):
     plan, unexpected = {}, []
     # As transformers' loader renames them: every renaming, then at most one converter, then the base model's prefix.
     for key in sorted(stored):
-        name, converter = (key, None) if moe else rename_source_key(key, renamings, converters, prefix, meta)
-        if not moe and name not in meta and key in meta:
+        name, converter = (key, None) if direct else rename_source_key(key, renamings, converters, prefix, meta)
+        if not direct and name not in meta and key in meta:
             name, converter = rename_source_key(key, [], [], prefix, meta)
         if name not in meta:
             unexpected.append(key)
@@ -143,7 +144,7 @@ def checkpoint_plan(directory, model, cut=None):
         if name in plan:
             raise SystemExit("%s: %s and %s both give %s" % (directory, plan[name][1], key, name))
         plan[name] = (stored[key], key)
-    stray = [key for key in unexpected if not (not moe and generator.QWEN35_UNUSED.match(key)) and not past_cut(key, cut)]
+    stray = [key for key in unexpected if not (not direct and generator.QWEN35_UNUSED.match(key)) and not past_cut(key, cut)]
     if stray:
         raise SystemExit("%s: %d checkpoint keys the model neither takes nor ignores, such as %s" % (directory, len(stray), stray[0]))
     tied = {"lm_head.weight"} if model.config.tie_word_embeddings else set()
@@ -178,8 +179,13 @@ class FileWeights:
     def __init__(self, path):
         import spec_decode
         self.gguf = spec_decode.GGUF(path)
-        self.moe = self.gguf.value("general.architecture") == "qwen3moe"
-        if self.moe:
+        architecture = self.gguf.value("general.architecture")
+        if architecture is None and self.gguf.value("qwen3.block_count") is not None:
+            architecture = "qwen3"
+        self.architecture = architecture
+        self.qwen3 = architecture == "qwen3"
+        self.moe = architecture == "qwen3moe"
+        if self.qwen3 or self.moe:
             from f32 import hf_name
             self.outside = {hf_name(t.name): t.name for t in self.gguf.weight_tensors() if not t.name.startswith("blk.")}
         else:
@@ -199,12 +205,19 @@ class FileWeights:
             wanted = {self.outside.get(name) for name in names}
             tensors = [t for t in self.gguf.tensors if t.name in wanted]
         got = {}
-        decode = generator.qwen3moe_tensors if self.moe else generator.qwen35_tensors
-        for name, shape, values, type_name in decode(self.gguf, True, tensors):
+        if self.qwen3:
+            from f32 import hf_name
+            import spec_decode
+            decoded = ((hf_name(t.name), list(reversed(t.shape)), self.gguf.decode(t, numpy=True), spec_decode.type_name(t.type))
+                       for t in self.gguf.weight_tensors(tensors))
+        else:
+            decode = generator.qwen3moe_tensors if self.moe else generator.qwen35_tensors
+            decoded = decode(self.gguf, True, tensors)
+        for name, shape, values, type_name in decoded:
             if name in got:
                 raise SystemExit("the GGUF gives parameter %s more than once" % name)
             got[name] = torch.from_numpy(numpy.ascontiguousarray(values, dtype=numpy.float32)).reshape(shape)
-            if not self.moe or name not in self.seen:
+            if not (self.moe or self.qwen3) or name not in self.seen:
                 self.types[type_name] = self.types.get(type_name, 0) + 1
                 self.seen.add(name)
         if set(got) != set(names):
@@ -251,9 +264,11 @@ class Layered:
         # The inverse frequencies are a buffer computed at construction, which the meta device leaves without values.
         self.rotary = type(self.model.model.rotary_emb)(config=self.model.model.config)
         self.moe = config.model_type == "qwen3_moe"
-        if self.moe and self.file:
-            if not self.file.moe:
-                raise SystemExit("qwen3_moe reference needs a qwen3moe GGUF")
+        self.qwen3 = config.model_type == "qwen3"
+        if self.file and (self.moe or self.qwen3):
+            expected_architecture = "qwen3moe" if self.moe else "qwen3"
+            if self.file.architecture != expected_architecture:
+                raise SystemExit("%s reference needs a %s GGUF" % (config.model_type, expected_architecture))
             for t in self.file.gguf.tensors:
                 match = re.match(r"blk\.(\d+)\.", t.name)
                 if match and int(match[1]) >= config.num_hidden_layers:
@@ -299,8 +314,8 @@ class Layered:
 
     def run(self, rows, on_layer=None):
         """The logits at every position of each [1, N] row in `rows` that has none yet, computed layer by layer; `on_layer(name, module)` sees each decoder layer and the final norm while their weights are loaded."""
-        if self.moe:
-            # HF owns its complete attention/mask/rotary and MoE forward.
+        if self.moe or self.qwen3:
+            # HF owns its complete attention, mask, rotary and layer forward.
             # Load and release its modules around those calls, without recreating that math.
             text = self.model.model
             text.rotary_emb = self.rotary
@@ -528,11 +543,15 @@ def goldens(args):
     torch, transformers = runtime(args.threads, directory)
     from transformers import AutoTokenizer
     with open(os.path.join(directory, "config.json"), encoding="utf-8") as f:
-        moe = json.load(f).get("model_type") == "qwen3_moe"
+        raw = json.load(f)
+    kind = raw.get("text_config", raw).get("model_type")
+    moe = kind == "qwen3_moe"
     if moe and not args.file_exact:
         raise SystemExit("qwen3_moe goldens require --file-exact")
+    if kind == "qwen3" and not args.file_exact:
+        raise SystemExit("qwen3 goldens require --file-exact")
     start = time.time()
-    checkpoint = None if moe and args.file_exact else safetensors_sha256(directory)
+    checkpoint = None if (moe or kind == "qwen3") and args.file_exact else safetensors_sha256(directory)
     gguf = {"gguf_repo": args.gguf_repo, "gguf_file": os.path.basename(args.gguf), "gguf_revision": args.gguf_revision,
             "gguf_sha256": file_sha256(args.gguf), "gguf_bytes": os.path.getsize(args.gguf)}
     print("hashed the checkpoint and the GGUF in %.1f s" % (time.time() - start), flush=True)
@@ -572,7 +591,7 @@ def file_exact(args, torch, transformers, tok, rows, layered, gguf, start):
     weights = {"file": gguf["gguf_file"], "sha256": gguf["gguf_sha256"], "bytes": gguf["gguf_bytes"],
                "repo": args.gguf_repo, "revision": args.gguf_revision, "types": dict(sorted(layered.file.types.items())),
                "decoder": "tests/spec_decode.py, numpy form", "tensors": sum(layered.file.types.values())}
-    if layered.moe:
+    if layered.moe or layered.qwen3:
         import spec_decode
         source_types = {}
         for tensor in layered.file.gguf.tensors:
@@ -586,7 +605,10 @@ def file_exact(args, torch, transformers, tok, rows, layered, gguf, start):
     os.makedirs(args.output_dir, exist_ok=True)
     generator.gen_logits(writer, (torch, transformers, tok, layered))
     generator.gen_perplexity(writer, (torch, transformers, tok, layered))
-    reference = {"layered": {"weights": "the GGUF's own tensors as tests/spec_decode.py decodes them, the converter's changes undone"}}
+    weights = "the GGUF's own tensors as tests/spec_decode.py decodes them"
+    if not (layered.moe or layered.qwen3):
+        weights += ", the converter's changes undone"
+    reference = {"layered": {"weights": weights}}
     if layered.experts():
         reference["layered"]["experts_implementation"] = layered.experts()
     for name in ("baseline_logits.json", "baseline_perplexity.json"):
@@ -606,7 +628,7 @@ def equality(args):
     layered.run([ids for _, ids in rows])
     layered_seconds = time.time() - start
     causal, config = text_model(transformers, directory, args.layers)
-    precision = {"torch_dtype" if layered.moe else "dtype": torch.float32}
+    precision = {"torch_dtype" if layered.moe or layered.qwen3 else "dtype": torch.float32}
     full, info = causal.from_pretrained(args.repo, revision=args.revision, config=config, **precision,
                                         attn_implementation="eager", output_loading_info=True, local_files_only=True)
     full.eval()
@@ -641,7 +663,8 @@ def equality(args):
         "unexpected_keys_ignored": len(layered.unexpected),
     }
     if args.layers:
-        record["decoder_layers"] = "the first %d, of which %d full attention" % (args.layers, args.layers if layered.moe else config.layer_types.count("full_attention"))
+        full_attention = args.layers if layered.moe or layered.qwen3 else config.layer_types.count("full_attention")
+        record["decoder_layers"] = "the first %d, of which %d full attention" % (args.layers, full_attention)
     if layered.experts():
         record["experts_implementation"] = layered.experts()
     record["cases"] = cases
@@ -654,7 +677,7 @@ def equality(args):
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="The layered HF reference of a qwen3moe or qwen35 model, run offline on the CPU in float32.")
+    parser = argparse.ArgumentParser(description="The layered HF reference of a qwen3, qwen3moe or qwen35 model, run offline on the CPU in float32.")
     kinds = parser.add_subparsers(dest="kind", required=True)
     make = kinds.add_parser("goldens", help="write the tokenizer, logit and perplexity goldens for a GGUF from its HF checkpoint")
     make.add_argument("--repo", required=True, help="HF repository of the checkpoint")

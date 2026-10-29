@@ -1450,6 +1450,19 @@ class LayeredReference(unittest.TestCase):
                     with self.subTest(version=version), patch.object(module, "__version__", version), self.assertRaises(SystemExit):
                         layered.runtime(2)
 
+    def test_qwen3_uses_the_existing_cpu_reference_environment(self):
+        torch = SimpleNamespace(set_num_threads=MagicMock())
+        transformers = SimpleNamespace()
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_qwen3_runtime_") as directory:
+            Path(directory, "config.json").write_text(json.dumps({"model_type": "qwen3"}), encoding="utf-8")
+            with patch.object(layered.generator, "qwen3moe_environment", return_value=(torch, transformers)) as environment, \
+                 patch.dict(os.environ, clear=False):
+                os.environ.pop("HF_HUB_OFFLINE", None)
+                os.environ.pop("TRANSFORMERS_OFFLINE", None)
+                self.assertEqual(layered.runtime(2, directory), (torch, transformers))
+                environment.assert_called_once_with()
+        torch.set_num_threads.assert_called_once_with(2)
+
     def test_checkpoint_plan_takes_only_keys_the_model_takes_or_ignores(self):
         # transformers' loading rules as the tool reads them: every renaming, then at most one converter, which also names the pattern it matched.
         class WeightRenaming:
@@ -1523,6 +1536,8 @@ class LayeredReference(unittest.TestCase):
             return SimpleNamespace(from_pretrained=load)
         transformers = SimpleNamespace(Qwen3_5TextConfig=config_class("dense"), Qwen3_5ForCausalLM="dense model",
                                        Qwen3_5MoeTextConfig=config_class("moe"), Qwen3_5MoeForCausalLM="moe model")
+        transformers.Qwen3Config = config_class("qwen3")
+        transformers.Qwen3ForCausalLM = "qwen3 model"
         with tempfile.TemporaryDirectory(prefix="llmx_layered_config_") as directory:
             def chosen(raw, layers=None):
                 with open(os.path.join(directory, "config.json"), "w", encoding="utf-8") as f:
@@ -1534,11 +1549,27 @@ class LayeredReference(unittest.TestCase):
             self.assertEqual(chosen(moe), ("moe model", "moe", "eager", 4, ["linear_attention"] * 3 + ["full_attention"]))
             self.assertEqual(chosen(moe, 3), ("moe model", "moe", "eager", 3, ["linear_attention"] * 3))
             self.assertEqual(chosen({"model_type": "qwen3_5_text"})[:2], ("dense model", "dense"))
+            self.assertEqual(chosen({"model_type": "qwen3"})[:2], ("qwen3 model", "qwen3"))
             for raw, layers, error in ((moe, 5, "has 4 decoder layers, not 5"), (moe, 0, "has 4 decoder layers, not 0"),
                                        ({"model_type": "qwen3_next"}, None, "holds a qwen3_next model")):
                 with self.subTest(error=error), self.assertRaises(SystemExit) as refused:
                     chosen(raw, layers)
                 self.assertIn(error, str(refused.exception))
+
+    def test_qwen3_checkpoint_plan_uses_direct_hf_names(self):
+        names = ["model.embed_tokens.weight", "model.layers.0.self_attn.q_proj.weight",
+                 "model.norm.weight", "lm_head.weight"]
+        model = SimpleNamespace(state_dict=lambda: dict.fromkeys(names), base_model_prefix="model",
+                                config=SimpleNamespace(model_type="qwen3", tie_word_embeddings=False))
+        safetensors = types.ModuleType("safetensors")
+        safetensors.safe_open = MagicMock()
+        stored = {name: "model.safetensors" for name in names}
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_qwen3_plan_") as directory, \
+             patch.dict(sys.modules, {"safetensors": safetensors}):
+            Path(directory, "model.safetensors.index.json").write_text(json.dumps({"weight_map": stored}), encoding="utf-8")
+            plan, unexpected = layered.checkpoint_plan(directory, model)
+        self.assertEqual(plan, {name: ("model.safetensors", name) for name in names})
+        self.assertEqual(unexpected, [])
 
     @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which the file-exact reference decodes with")
     def test_file_weights_give_one_layer_of_the_file(self):
@@ -1554,6 +1585,35 @@ class LayeredReference(unittest.TestCase):
             for names in (sorted(state)[1:], sorted(state) + ["model.layers.0.mlp.extra.weight"]):
                 with self.subTest(names=len(names)), self.assertRaisesRegex(SystemExit, "the GGUF gives"):
                     weights.read(torch, names)
+
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "numpy, which the file-exact reference decodes with")
+    def test_qwen3_file_weights_use_the_existing_dense_mapping_one_layer_at_a_time(self):
+        import q2_k
+        import spec_decode
+        from block_fixture import write_fixture
+        config, fixture_weights, packed = q2_k.fixture(tied=False, moe=False)
+        expected = {hf: (shape, values) for _, hf, shape, values in fixture_weights}
+        layer_names = sorted(hf for name, hf, _, _ in fixture_weights if name.startswith("blk.0."))
+        torch = SimpleNamespace(from_numpy=lambda array: array)
+        with tempfile.TemporaryDirectory(prefix="llmx_layered_qwen3_q2k_") as directory:
+            path = os.path.join(directory, "tiny-qwen3-q2k.gguf")
+            write_fixture(path, config, fixture_weights, packed, moe=False)
+            weight_tensors = spec_decode.GGUF.weight_tensors
+            def without_alignment_sentinel(model, selected=None, tensor_sources=None):
+                return (tensor for tensor in weight_tensors(model, selected, tensor_sources) if tensor.name != "unused.weight")
+            with patch.object(spec_decode.GGUF, "weight_tensors", without_alignment_sentinel):
+                weights = layered.FileWeights(path)
+                got = weights.read(torch, layer_names)
+                self.assertEqual(set(got), set(layer_names))
+                self.assertGreater(weights.types.get("Q2_K", 0), 0)
+                for name, values in got.items():
+                    self.assertEqual(list(values.shape), list(reversed(expected[name][0])))
+                    self.assertEqual(values.reshape(-1).tolist(), expected[name][1])
+                first_types = dict(weights.types)
+                weights.read(torch, layer_names)
+                self.assertEqual(weights.types, first_types)
+                embedding = weights.read(torch, ["model.embed_tokens.weight"])["model.embed_tokens.weight"]
+                self.assertEqual(embedding.reshape(-1).tolist(), expected["model.embed_tokens.weight"][1])
 
     def test_provenance_names_the_f32_tensors_it_had_nothing_to_compare_with(self):
         provenance = layered.Provenance.__new__(layered.Provenance)

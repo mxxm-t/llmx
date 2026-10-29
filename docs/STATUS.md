@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Layered HF references for dense Qwen3 file-exact runs (2026-10-29)
+
+- **Done:** `tools/gen_layered_reference.py` can stream dense Qwen3 GGUF tensors through the existing `tests/f32.py` names and `tests/spec_decode.py` decoder, calling HF's own Qwen3 forward with one module loaded at a time. File-exact metadata records the GGUF identity and decoded tensor types; it does not label checkpoint weights as the quantized file.
+- **Local checks:** all 21 `LayeredReference` unit tests pass, including direct Qwen3 checkpoint names, a real GGUF with independently packed Q2_K weights decoded one layer at a time, and existing Qwen3-MoE/Qwen3.5 cases. The rig also passes 16 exact whole-HF versus layered comparisons: tied and untied two-layer Qwen3, checkpoint and independently packed Q2_0 file loading, prompt lengths 1/2/5/8, every position and vocabulary logit. The original HF forward owns all math. [Version pins, retained input hashes and output identities](benchmarks/qwen3-layered-tiny-20261029.json). No model download was needed.
+- **Checks:** the reference-generator component passes all 95 tests on the rebased tree, including the 21 layered-reference cases. The docs and dead-code checks pass. The reference usage and this status were updated against the adapter and retained measurements.
+- **Landing:** tools, tests and docs only, rebased onto main `509d3241b`. The intervening main change concerns Vulkan vision attention; the layered tool, generator tests and reference inputs retain their checked bytes, so the exact tiny HF evidence carries forward. The affected generator and docs checks run on this tree, with applicable hosted checks required before fast-forward. No inference runtime or numerical limit changes.
+- **Follow-up:** use file-exact HF NLL and perplexity against the uniform reference for the frozen Qwen3-8B Q2 file. The Q2_0 integration must pin the candidate tree's `spec_decode.py` and `gen_baseline.py`; this main-tree unit case uses Q2_K, which its decoder supports. The large-file Q2 quality result remains pending. The tiny test establishes adapter equivalence, not released-model correctness.
+
 ## DeepSeek-V4.1-Flash-1017 and DeepSeek-V4 planned (2026-10-27, branch docs/deepseek4-plan on main 53309fd3b, docs only, the owner's request of 2026-10-27, reviewed by F2DEV and XDEV, decided by the owner on 2026-10-27, lands by fast-forward as one commit)
 
 - **Goal:** docs/DEEPSEEK4.md: the plan for running DeepSeek-V4.1-Flash-1017 (`deepseek41`) and DeepSeek-V4-Flash (`deepseek4`) in llmx, from the plan the owner decided on 2026-09-26, updated for the 1017 release and for what llmx gained since.

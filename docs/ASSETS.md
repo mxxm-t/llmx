@@ -912,6 +912,12 @@ It also runs the consumer over simulated passing outputs and requires 41 checks,
 It was the eleventh ordinary suite component when it was added.
 The real 8B run is optional and separate; `--require-baseline` and `tools/fetch_test_models.py` cover the seven gate models, the five Qwen3-0.6B files and the two Qwen3.5-0.8B files, and `tools/fetch_test_models.py --all` every file `tests/data/fixtures.json` pins, never the 8B.
 
+### Dense Qwen3 layered file-exact references
+
+`tools/gen_layered_reference.py goldens --file-exact` also accepts a dense Qwen3 checkpoint and GGUF. It uses the Qwen3-MoE CPU reference environment below, the dense tensor names from `tests/f32.py`, and the independent decoder in `tests/spec_decode.py`. HF owns the complete forward, including masks and RoPE. Hooks load and release each module's weights around its call, so the whole F32 model need not fit in host memory.
+
+The checkpoint config and tokenizer must already be cached at the requested revision. The tool reads weights from the supplied GGUF and records that file's hash and tensor types. This mode does not generate checkpoint-weight goldens. Tiny tied and untied Qwen3 models give exact whole-model versus layered logits for checkpoint and independently packed Q2_0 file loading at four prompt lengths; the evidence is in `docs/benchmarks/qwen3-layered-tiny-20261029.json`. This adapter check does not establish released-model correctness or change any acceptance bound.
+
 ### Qwen3-MoE file-exact references
 
 `tools/gen_baseline.py file-exact` maps `qwen3moe` through the same expert/router

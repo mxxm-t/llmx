@@ -16,7 +16,6 @@ The CLI's commands that run a model, `llmx-split-check`, `llmx-decode-probe`, `l
   - `chat` is its `chat::ChatFormat` (`chat::chat_format`), which `chat` and the server render conversations with.
   - `plan` is what each device of a split was given (`LayerSplit::describe`), and is empty otherwise.
   - `checkpoint_kv_tokens` is the KV tokens a server's fitted checkpoint slots took from its budget (`PlacedModel`), which `serve` prints as it starts, and `kv_kept_context` why its automatic budget kept the model's context, which it prints too.
-  - `unpaced` and `pipelined_split` are the placement's reasons for its pacing mode (`PlacedModel`), which `serve` resolves its pacing from.
   - `drafter` is what the drafter file given beside the model is (`spec::DrafterKind`, [pair](inference-pair.md)), when one was given.
   - `times` is the load's `LoadTimes`.
   - `host` is a direct load's copy of each file, laid out as the file, for the weights a host reads in place (`core::HostPages::reserved`), which the host reads in place of the payload; it is declared before `model`, which reads it.

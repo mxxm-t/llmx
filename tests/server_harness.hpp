@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <map>
 #include <cstring>
 #include <filesystem>
 #include <functional>
@@ -311,9 +312,9 @@ inline void ledger(const server::Scheduler::Stats& s, const infer::Model& model,
 // With a `proposer` it drafts up to `draft_max` a verify, `priced` by measured pass cost or by decode columns; a wave is fully queued before any pass retires, which `observe` sees.
 inline std::vector<Reply> serve(infer::Model& model, const bpe::Tokenizer& tok, size_t max_seqs,
                          const std::vector<std::vector<Req>>& waves, server::Scheduler::Stats* stats = nullptr, size_t passes = 0,
-                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false, server::Pacing pacing = {},
+                         size_t host = 0, infer::spec::Proposer* proposer = nullptr, size_t draft_max = 0, bool priced = false,
                          const std::function<void(const server::Scheduler::Retired&)>& observe = {}) {
-    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {}, pacing);
+    server::Scheduler sched(model, tok, max_seqs, 64, passes, false, host, proposer, draft_max, priced, {});
     std::mutex submitting;
     uint64_t prompt_rows = 0;
     // The first pass may start while a wave is queued, but cannot retire and advance its request ahead of the rest.
@@ -406,25 +407,57 @@ inline std::vector<backend::BackendPtr> cpus(size_t n) {
     return v;
 }
 
-// A CPU backend whose copies into or out of its host-visible memory throw once `fail_read` or `fail_write` is set, as a copy to or from host memory that fails does (Model::save_host, Model::restore_host); every other copy runs.
-// `fail_writes` copies out of host memory throw, one each, beside `fail_write`.
+// A CPU backend whose copies into or out of host-visible memory throw once `fail_read` or `fail_write` is set (`fail_writes` counts throwing writes out of host memory), as failed copies do in Model::save_host and restore_host.
+// As a `device` it says it is no CPU, so a split records its stages on their own threads, and a copy to or from host memory waits `late` and its submission retires `retire_late` after it, with retiring held for every earlier ticket.
 struct FailingCopies : backend::CpuBackend {
     std::atomic<bool> fail_read{false}, fail_write{false};
     size_t fail_writes = 0;
+    bool device = false;
+    std::chrono::milliseconds late{0}, retire_late{0};
     std::mutex m;
     std::vector<const backend::Buffer*> host;
+    bool slab_copied = false;                                                    // under m, since the last submission
+    std::map<backend::Ticket, std::chrono::steady_clock::time_point> retire_at;  // under m
+    bool is_cpu() const override { return !device; }
+    backend::Ticket submit() override {
+        const backend::Ticket t = CpuBackend::submit();
+        std::lock_guard<std::mutex> lock(m);
+        if (slab_copied) retire_at[t] = std::chrono::steady_clock::now() + retire_late;
+        slab_copied = false;
+        return t;
+    }
+    // When every submission up to `t` has retired.
+    std::chrono::steady_clock::time_point retired_at(backend::Ticket t) {
+        std::lock_guard<std::mutex> lock(m);
+        std::chrono::steady_clock::time_point at{};
+        for (auto it = retire_at.begin(); it != retire_at.end() && it->first <= t; ++it) at = std::max(at, it->second);
+        return at;
+    }
+    bool done(backend::Ticket t) noexcept override { return std::chrono::steady_clock::now() >= retired_at(t) && CpuBackend::done(t); }
+    void wait(backend::Ticket t) noexcept override {
+        std::this_thread::sleep_until(retired_at(t));
+        CpuBackend::wait(t);
+    }
     backend::BufferPtr alloc(size_t bytes, backend::Memory where) override {
         backend::BufferPtr b = CpuBackend::alloc(bytes, where);
         std::lock_guard<std::mutex> lock(m);
-        if (where == backend::Memory::host_visible) host.push_back(b.get());
+        if (where == backend::Memory::host_visible && (!device || bytes == infer::Model::host_slab_bytes())) host.push_back(b.get());
         return b;
     }
     void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        bool out = false, into = false;
         {
             std::lock_guard<std::mutex> lock(m);
             const auto in = [&](const backend::Buffer* b) { return std::find(host.begin(), host.end(), b) != host.end(); };
             if (fail_read && in(&dst)) throw std::runtime_error("injected read failure");
-            if (in(&src) && (fail_write || fail_writes)) {
+            out = in(&src);
+            into = in(&dst);
+            slab_copied = slab_copied || (device && retire_late.count() && (out || into));
+        }
+        if ((out || into) && late.count()) std::this_thread::sleep_for(late);
+        {
+            std::lock_guard<std::mutex> lock(m);
+            if (out && (fail_write || fail_writes)) {
                 if (fail_writes) --fail_writes;
                 throw std::runtime_error("injected write failure");
             }
@@ -434,7 +467,7 @@ struct FailingCopies : backend::CpuBackend {
 };
 
 // A CPU backend that runs `hook` whenever the model submits its work, which under the scheduler happens only inside a pass's stages, so a case acts in the scheduler's own thread while that pass is in flight.
-// As a `device` it says it is no CPU, so a scheduler with a share feeds its stage in pieces, each a submission.
+// As a `device` it says it is no CPU, as a backend of a split over devices does.
 struct Hooked : backend::CpuBackend {
     std::function<void()> hook;
     bool device = false;

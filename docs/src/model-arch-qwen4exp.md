@@ -50,7 +50,7 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
 
 The model takes resident PLE tables and explicit file-backed row sources.
 The loader builds bounded sources from declared lookup tensor spans, and `PlacementRequest::lookup_storage` selects `auto`, `device` or `file` residency.
-The runtime stages requested packed rows for external sources, separately for normal and apart execution.
+The runtime stages requested packed rows for external sources.
 
 Tests:
 - `tests/arch_qwen4exp.cpp` (CTest `arch-qwen4exp`) exercises the reader with in-memory metadata mutations and exact PLE row vectors, including the HF reference rows.

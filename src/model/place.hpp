@@ -160,6 +160,16 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
         const size_t slots = backend::size_add(backend::size_add(options.state_slots, options.checkpoint_slots), options.mark_slots);
         fp.drafter_cache = backend::size_add(backend::size_mul(kv_tokens(plan, options), kv_bytes_per_position(kept, options, plan.drafter->kv_aux_floats())),
                                              backend::size_mul(backend::size_add(slots, backend::size_mul(options.mark_slots, options.mark_rows)), plan.residual * sizeof(float)));
+        // A chain's ids and logits for a mark's sequences at the most drafts a mark holds (Model::reserve_drafting).
+        if (options.mark_slots && options.mark_rows > 1) {
+            const size_t ids = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows), sizeof(uint32_t));
+            const size_t logits = backend::size_mul(backend::size_mul(options.mark_slots, options.mark_rows - 1), backend::size_mul(plan.vocab, sizeof(float)));
+            fp.drafter_cache = backend::size_add(fp.drafter_cache, backend::size_add(ids, logits));
+        }
+    }
+    {
+        const bool states = std::any_of(plan.layers.begin(), plan.layers.end(), [](const LayerPlan& l) { return l.cache == Cache::state; });
+        fp.context_rows = std::max(states && options.mark_slots ? options.mark_rows : 0, plan.drafter && options.mark_slots ? options.mark_slots : 0);
     }
     // Runtime gives every state layer on one device the largest saved and rerun row of that device. Before placement, charge the model-wide maxima for each state layer.
     size_t saved_max = 0, rerun_max = 0;
@@ -299,7 +309,6 @@ struct PlacementRequest {
     int ubatch = 0;                   // prompt tokens a pass takes, kDefaultUbatch when 0
     size_t decode_rows = 0;           // generated tokens a pass may carry beside a prompt's: a server's decoding requests
     size_t draft_rows = 0;            // draft rows a pass may carry beside a prompt's and the generated tokens': a server's verifies
-    size_t apart_rows = 0;            // rows of a second arena on every device, for a pass of generated rows recorded between the pieces of a prompt's (Model::reserve_passes), which the fit counts
     size_t slots = 0;                 // passes the caller keeps in flight (Model::reserve_passes), each with a handoff buffer on every stage but the last, two at least, which a split's fit counts
     size_t logit_rows = 0;            // rows of logits the caller keeps (Model::reserve_passes), which a split's fit counts; 0 for one per row of a pass
     // Histories the caller holds at once and the tokens each reaches, when it knows them, as bench does its sequences; zero leaves the options' budget as it is.
@@ -392,8 +401,6 @@ struct PlacedModel {
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0;   // the KV tokens the fitted checkpoint slots took from the budget (fitted_kv)
     std::string kv_kept_context;       // why an automatic budget (PlacementRequest::kv_auto) kept the model's context, empty where it read the devices
-    std::string unpaced;               // why no stage of it is fed in pieces (unpaced), empty where one is
-    bool pipelined_split = false;      // it is a layer split whose stages take passes in flight (Model::pipelined), which the server serves by the interleaved rule
 };
 
 // A placement without model buffers: the loader attaches the selected row sources before constructing it once.
@@ -407,7 +414,6 @@ struct PlannedModel {
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0;
     std::string kv_kept_context;
-    std::string unpaced;
 };
 
 // Whether the placement of `request` over `backends` adds a CPU backend for experts on the CPU, which it does beside one backend that is not the CPU.
@@ -415,33 +421,11 @@ inline bool adds_host_for_experts(const std::vector<backend::BackendPtr>& backen
     return request.cpu_moe && backends.size() == 1 && request.shares.empty() && !backends[0]->is_cpu();
 }
 
-// Why the placement of `request` over `backends` feeds no stage in pieces, or nothing where it does: only one device or one tensor group does, with every part of the model on it and nothing on the CPU.
-// A stage on the CPU computes as it is recorded, and over the stages of a layer split a pass fed in pieces would hold one stage at a time.
-inline std::string unpaced(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    // A missing backend is the fit's to refuse.
-    if (std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return !b; })) return {};
-    if (std::any_of(backends.begin(), backends.end(), [](const backend::BackendPtr& b) { return b->is_cpu(); }))
-        return "a stage on the CPU is not fed in pieces; serve the model on one device or one tensor group";
-    if (adds_host_for_experts(backends, request))
-        return "a stage is fed in pieces only with every part of it on its device, and here experts, the embedding or the head run elsewhere; serve the model whole on one device or one tensor group";
-    if (backends.size() != request.width)
-        return "a layer split would read a prompt one stage at a time beside a generating request; serve the model on one device or one tensor group";
-    return {};
-}
-// The rows of the second arena the fit counts: the request's where a stage is fed in pieces, none elsewhere.
-inline size_t apart_rows(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    return unpaced(backends, request).empty() ? request.apart_rows : 0;
+// The rows of a pass the fit counts: a ubatch of prompt rows, the generated tokens' and a verify's drafts.
+inline size_t fitted_rows(const PlacementRequest& request) {
+    return (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.draft_rows;
 }
 
-// The rows of a pass the fit counts: a ubatch of prompt rows, the generated tokens', a verify's drafts, and the second arena's where a stage is fed in pieces.
-inline size_t fitted_rows(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    return (size_t)(request.ubatch > 0 ? request.ubatch : kDefaultUbatch) + request.decode_rows + request.draft_rows + apart_rows(backends, request);
-}
-
-// The logits rows the fit counts where the request names them: the request's and, where a stage is fed in pieces, the rows of the passes apart, which keep a ring of their own (server::Scheduler).
-inline std::optional<size_t> fitted_logit_rows(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
-    return request.logit_rows ? std::optional<size_t>(request.logit_rows + apart_rows(backends, request)) : std::nullopt;
-}
 
 // Whether a backend of that placement reads weights in place: one of `backends`, or the CPU backend it adds for experts.
 inline bool host_reads_in_place(const std::vector<backend::BackendPtr>& backends, const PlacementRequest& request) {
@@ -520,8 +504,8 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
     const ModelPlan held = held_of(plan), bare_plan = plan.drafter ? held_of(plan_model(weights)) : held;
     const ModelPlan* fitting = &bare_plan;
     std::vector<DeviceBudget> budgets = budgets_for(backends, request.names);
-    const size_t rows = fitted_rows(backends, request);
-    const std::optional<size_t> logits = fitted_logit_rows(backends, request);
+    const size_t rows = fitted_rows(request);
+    const std::optional<size_t> logits = request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt;
     std::string why;
     size_t kept = options.checkpoint_slots;
     const auto fits = [&](size_t tokens) {
@@ -533,7 +517,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
                 Footprint fp = footprint(source, *fitting, o, request.width);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
                 split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(),
-                             std::max<size_t>(1, request.slots), logits, apart_rows(backends, request));
+                             std::max<size_t>(1, request.slots), logits);
                 return true;
             } catch (const std::runtime_error& e) {
                 why = e.what();
@@ -742,7 +726,6 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     }
     // A table the request puts on the devices reads nothing from its file, so only the others hold rows.
     if (request.lookup_storage != LookupStorage::device) hold_rows(plan, candidates, request.host_budget);
-    const std::string no_pieces = unpaced(backends, request);
     // A width the model's shards cannot take is refused by its name here, before the fit reads a member's shards.
     shard::check_plan(plan, weights.tensors, request.width);
     // A model without routed layers has no experts to put on the CPU, so every placement refuses the flags, on the CPU as beside a device.
@@ -829,8 +812,8 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         std::string why;
         const auto fits = [&] {
             try {
-                selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, plan.residual), fitted_rows(backends, request), request.shares,
-                                        host_room, std::max<size_t>(1, request.slots), fitted_logit_rows(backends, request), apart_rows(backends, request));
+                selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, plan.residual), fitted_rows(request), request.shares,
+                                        host_room, std::max<size_t>(1, request.slots), request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error& e) {
                 selected.reset();
@@ -893,14 +876,14 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     if (backends.size() > 1 || !request.shares.empty()) {
         if (request.cpu_moe)
             throw std::runtime_error(experts_flag + ": not with several devices; list the CPU as a device to give it layers");
-        const size_t rows = fitted_rows(backends, request);
+        const size_t rows = fitted_rows(request);
         const Footprint fp = footprint(weights, plan, options, request.width);
         std::optional<LayerSplit> split;
         std::exception_ptr refused;
         auto fit = [&] {
             try {
                 split = split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(), request.slots,
-                                     fitted_logit_rows(backends, request), apart_rows(backends, request));
+                                     request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error&) {
                 refused = std::current_exception();
@@ -934,7 +917,6 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
     placed.backends = std::move(all);
     placed.options = options;
     placed.dtype = std::move(dtype);
-    placed.unpaced = no_pieces;
     return placed;
 }
 
@@ -946,8 +928,6 @@ inline PlacedModel construct_model(const ModelWeights& weights, PlannedModel pla
     placed.dtype = std::move(planned.dtype);
     placed.checkpoint_kv_tokens = planned.checkpoint_kv_tokens;
     placed.kv_kept_context = std::move(planned.kv_kept_context);
-    placed.unpaced = std::move(planned.unpaced);
-    placed.pipelined_split = placed.model->pipelined() && placed.model->stage_count() > 1;
     return placed;
 }
 

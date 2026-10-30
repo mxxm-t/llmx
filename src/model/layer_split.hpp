@@ -49,6 +49,7 @@ struct Footprint {
     Matrix drafter_embedding;
     size_t drafter_cache = 0;
     size_t host_state = 0;                     // model-owned host state, counted once rather than per device
+    size_t context_rows = 0;                   // the model's own context beside a server's passes, which a mark's rerun and a drafter's chain take (Model::reserve_drafting)
     size_t host_scratch_per_row = 0;           // host lookup indices for each used stage's execution arena
 };
 
@@ -116,16 +117,13 @@ struct LayerSplit {
 // Consecutive layers per device in the order given: the best plan over every set of devices that could run layers, with every device and the host within its budget (docs/src/model-layer_split.md says what each holds).
 // `shares`, when given, is each device's proportion of the layers in place of the balance, still checked against the budgets, and `logit_rows` the logits rows kept where the head runs, in place of one for each of a pass's `rows`.
 inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudget>& devices, size_t rows, const std::vector<int>& shares = {},
-                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt,
-                               size_t apart_rows = 0) {
+                               std::optional<size_t> host_free = std::nullopt, size_t slots = 1, std::optional<size_t> logit_rows = std::nullopt) {
     if (devices.empty()) throw std::runtime_error("split: no devices");
     const size_t L = fp.layers.size(), N = devices.size();
     if (!L) throw std::runtime_error("split: a model without layers");
     if (N > 16) throw std::runtime_error("split: more than 16 devices");
     if (!fp.cache.empty() && fp.cache.size() != L) throw std::logic_error("split: a cache for some layers and not others");
     if (!fp.lookups.empty() && fp.lookups.size() != L) throw std::logic_error("split: a lookup footprint for some layers and not others");
-    if (apart_rows > rows) throw std::logic_error("split: apart rows exceed fitted rows");
-    const size_t normal_rows = rows - apart_rows;
     auto page_bytes = [](size_t bytes) {
         if (!bytes) return size_t(0);
         const size_t page = core::page_size();
@@ -136,9 +134,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
         const LookupMemory& lookup = fp.lookups[l];
         if (!lookup.rows_per_token) continue;
         const size_t rows_per_pass = backend::size_mul(lookup.rows_per_token, lookup.row_bytes);
-        const size_t normal_capacity = backend::size_mul(normal_rows, rows_per_pass);
-        const size_t apart_capacity = backend::size_mul(apart_rows, rows_per_pass);
-        lookup_device[l] = backend::size_add(normal_capacity, apart_capacity);
+        lookup_device[l] = backend::size_mul(rows, rows_per_pass);
         auto host_capacity = [&](size_t nrows) {
             if (!nrows) return size_t(0);
             const size_t count = backend::size_mul(nrows, lookup.rows_per_token);
@@ -147,7 +143,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
             return backend::size_add(raw, arrays);
         };
         // The table's own host bytes, its store and its read windows, are counted once (WeightRows::host_bytes).
-        lookup_host[l] = backend::size_add(backend::size_add(host_capacity(normal_rows), host_capacity(apart_rows)), page_bytes(lookup.io_bytes));
+        lookup_host[l] = backend::size_add(host_capacity(rows), page_bytes(lookup.io_bytes));
     }
     // cached[i]: the cache of layers [0, i), the same on every device.
     std::vector<size_t> cached(L + 1, 0);
@@ -205,7 +201,7 @@ inline LayerSplit split_layers(const Footprint& fp, const std::vector<DeviceBudg
     // Besides weights and caches: a pass's activations, the backend's reserve and, where weights are copied, the device's own tables; the carrier also holds the host's needs, since its budget is the host's memory.
     auto overhead = [&](size_t d, const Host& h) {
         const size_t copies = devices[d].host ? 0 : fp.tables;
-        return rows * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
+        return (rows + fp.context_rows) * (fp.activations_per_row + devices[d].collective_per_row) + copies + devices[d].scratch + (d == h.carrier ? h.need : 0);
     };
     // What device d holds running layers [i, i + k), given whether it is the first and the last device that runs layers.
     auto need = [&](size_t d, size_t i, size_t k, bool first, bool last, const Host& h) {

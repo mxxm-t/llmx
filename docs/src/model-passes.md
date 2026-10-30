@@ -21,9 +21,7 @@ Resident tables retain their ordinary path.
 
 The row reader and its scratch perform no backend work. `Backend::write`
 consumes the host source before returning; the packed backend buffer remains
-owned by execution scratch through its consuming submissions. Separate normal
-and apart buffers prevent a pass recorded between pieces from overwriting the
-prompt's lookup. A failed read publishes no prepared view; the normal pass
+owned by execution scratch through its consuming submissions. A failed read publishes no prepared view; the normal pass
 rollback drains work before histories or storage are reused. Recurrent replay
 reads saved inputs and performs no table lookup.
 
@@ -48,11 +46,9 @@ reads saved inputs and performs no table lookup.
   is `Model::pipelined` ([runtime](model-runtime.md)). `reserve_passes(ctx, slots, rows,
   logit_rows)` sizes a fresh context once: the arena for `rows` rows and,
   separately on each used device, host U32 lookup indices for `rows *
-  plan.index_width` entries (no allocation when the width is zero). An apart
-  arena has its own lookup scratch for `apart_rows * plan.index_width` entries.
+  plan.index_width` entries (no allocation when the width is zero).
   External lookups additionally reserve packed storage on every group member
-  and reader/remap scratch on the first member for the maximum requested rows,
-  separately in each normal and apart arena.
+  and reader/remap scratch on the first member for the maximum requested rows.
   Passes share these buffers per device. It also allocates a handoff buffer per slot on each device the
   residual leaves, two at least on a pipelined split and one for the
   single slot of a placement that is not pipelined (`handoff_buffers` in
@@ -77,12 +73,6 @@ reads saved inputs and performs no table lookup.
   devices; and `commit_pass_stage` on its own thread again, which commits
   the histories and counts the stage. A failed `record_pass_stage` leaves
   the pass for the caller's `abort_pass`.
-  Given a `Pace`, `record_pass_stage` feeds the stage in pieces: on a single device a piece is submitted after each part, a layer's mixer or its feed-forward block, and on a tensor group a piece ends at each sum; the piece before it (`Pace::ahead`) or the piece itself is then waited for, the group's through `Collective::wait`, and the caller's `between` runs, `Pace::layer` and `Pace::ffn` naming the piece that ended there.
-  There the caller may record a stage of a pass begun apart on the same devices, `record_pass_within`, once `stage_ready` says the stage before it has retired, asked without waiting (`Backend::done`); that pass's submission is left in `Pace::within`, and `passed` runs once it has retired, before the next piece is waited for. After the stage's last piece none follows, so `record_pass_stage` settles a pass still pending there itself, once the stage is submitted and also where the stage's recording fails, with no wait where none is pending.
-  Its preparation has already run on the history thread; `record_pass_within`
-  only records. The caller commits its histories through `commit_pass_stage`
-  when collecting completion, as for a separately recorded stage.
-  A pass begun apart (`begin_pass` with `apart`) has its rows in the context's second arena (`ExecContext::apart`, the `apart_rows` of `reserve_passes`), so its parts and its handoff read and write other slots than the pass whose pieces it runs between; `Model::paces` says whether a model takes this: every stage one device's or one group's, none the host's, nothing crossing inside a stage.
   A pass keeps each device's submission of its stage (`Pass::tickets`), which its histories take as their last, since the context's last submission may be another pass's.
   `pass_logits(ctx, slot, i)` waits on the pass's own head
   and returns its wanting row `i`, written from row `logits_base` on.

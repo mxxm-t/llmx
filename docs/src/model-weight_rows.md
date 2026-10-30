@@ -51,8 +51,7 @@ group shares the host read and replicates the requested packed rows.
 The runtime's `start_lookup` and `finish_lookup`, used by single-device and tensor-group stages,
 start the read once on the group's first member as the stage begins and finish it before the layer, upload the unique packed rows
 to each member, and supply shared remapped IDs through `PreparedLookup`. Existing
-backend embedding decodes those rows in request order. Normal and apart
-execution have independent scratch and packed buffers. Backend writes consume
+backend embedding decodes those rows in request order. Backend writes consume
 the host bytes before returning, and backend storage follows the execution
 context's ticket lifetime. File-backed GPU stages use the server's recorder
 outside its scheduler lock; the read runs on the table's readers while that thread records the layers before it.

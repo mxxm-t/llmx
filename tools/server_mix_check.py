@@ -14,8 +14,7 @@ Every request that runs to its end must give its ids alone, the CLI its text; a 
 --logprobs asks every request of these phases for its log-probabilities and top five too, which must equal alone's as its ids do.
 --ids writes every phase's ids, with --logprobs beside their values, so two builds can be compared byte for byte.
 --passes N serves with N passes in flight, which a layer split takes above one.
---generating-share X serves with that share for generating requests, whose rows then go in passes of their own between a prompt pass's pieces.
---no-pacing serves with pacing off, and --host-cache-bytes N with that much host memory for evicted prefixes; without them the server's own defaults run.
+--host-cache-bytes N serves with that much host memory for evicted prefixes; without it the server's own default runs.
 --tensor-width W groups the devices in tensor groups of W, the server and the CLI alike.
 --drafter lookup|embedded|PATH, or lookup,embedded and lookup,PATH, serves with drafts, so every phase holds drafting to the replies without them: alone, together and skewed as the server gives them, and the CLI's run without drafts.
 It prints the drafts the server fed and kept, and fails where it fed none.
@@ -224,8 +223,6 @@ def main():
     p.add_argument("--logprobs", action="store_true", help="the capped phases compare log-probabilities and the top five beside the ids")
     p.add_argument("--sampled", action="store_true", help="the capped phases draw every request at the defaults with a seed of its own, in place of greedy")
     p.add_argument("--passes", type=int, help="passes in flight, the server's own number when not given")
-    p.add_argument("--generating-share", type=float, help="the share of each device's time generating requests keep while prompts are read, the server's own when not given")
-    p.add_argument("--no-pacing", action="store_true", help="serve with pacing off, the server's own mode when not given")
     p.add_argument("--host-cache-bytes", type=int, help="host memory for evicted prefixes, the server's own when not given")
     p.add_argument("--drafter", default="off",
                    help="the server's drafter: off, or sources tried in order (lookup, embedded or a file of MTP blocks, as lookup,embedded)"
@@ -249,10 +246,6 @@ def main():
     if args.cache_type:
         flags += ["--cache-type-k", args.cache_type, "--cache-type-v", args.cache_type]
     server_flags = flags + (["--passes", str(args.passes)] if args.passes else []) + (["--drafter", args.drafter] if args.drafter != "off" else [])
-    if args.generating_share is not None:
-        server_flags += ["--generating-share", str(args.generating_share)]
-    if args.no_pacing:
-        server_flags += ["--no-pacing"]
     if args.host_cache_bytes is not None:
         server_flags += ["--host-cache-bytes", str(args.host_cache_bytes)]
     if args.uncapped:

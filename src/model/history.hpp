@@ -30,6 +30,8 @@ inline Sequence Model::fork(const Sequence& src, size_t length) {
     f.last_ = src.last_;
     f.owner_ = this;
     f.media_ = carried(src, length);
+    // A fork of a history whose restore is still pending shares its record, so a failed copy is found in both.
+    if (src.deferred_ && src.deferred_->restore) f.deferred_ = src.deferred_;
     f.from_.assign(stages_.size(), Sequence::kLive);
     if (state_layers_) {
         f.kept_ = src.kept_;
@@ -42,6 +44,7 @@ inline Sequence Model::fork(const Sequence& src, size_t length) {
 // Every pass ends in a submit or, on failure, a sync, so the sequence's last tickets cover everything that could still touch a block or slot: this waits for those and no more.
 inline void Model::reset(Sequence& s) {
     settle(s, "a reset");
+    s.deferred_.reset();
     drop_mark(s);
     for (auto& kv : s.kv_) kv.reset();
     s.media_.clear();
@@ -53,11 +56,19 @@ inline void Model::reset(Sequence& s) {
 
 // The history back to at most `length`, the one call that shortens it (docs/SPECULATIVE.md, section 1), returning the length reached: `length` wherever the caches hold it, else the sequence's checkpoint at or below it, else 0.
 // The caller computes the rest again, and inside a mark it reaches `length` itself by running the state again from the mark's over the kept rows' saved inputs (Architecture::recur); a retract that throws keeps the mark.
-inline size_t Model::retract(Sequence& s, size_t length) {
+inline size_t Model::retract(Sequence& s, size_t length) { return retract(s, length, {}); }
+
+// With `defer` a rerun inside a mark goes to the caller as one stage item a device, while the lengths and blocks change here at once (docs/src/model-history.md).
+inline size_t Model::retract(Sequence& s, size_t length, const Defer& defer) {
     settle(s, "a retract");
     if (s.mark_.held() && s.mark_.ran && length > s.mark_.pos && length < s.length()) {
-        rerun(s, length - s.mark_.pos);
-        drop_mark(s);
+        rerun(s, length - s.mark_.pos, defer);
+        if (s.deferred_) {
+            s.deferred_->hold = std::move(s.mark_.hold);
+            s.mark_.ran = false;
+        } else {
+            drop_mark(s);
+        }
         for (size_t& n : s.length_) n = std::min(n, length);
         for (auto& kv : s.kv_) kv.truncate(length);
         return length;
@@ -67,7 +78,7 @@ inline size_t Model::retract(Sequence& s, size_t length) {
         else if (s.mark_.held()) restore_mark(s);
         return s.length();
     }
-    return rewind(s, length);
+    return rewind(s, length, defer ? &defer : nullptr);
 }
 
 // Whether a draft of the sequence may be asked for (draft): it holds a history and, on a model that keeps a state, a pass has fed it since its fork, since until then it reads its checkpoint in place and the drafter has no state to read.
@@ -330,9 +341,9 @@ inline Model::HostFit Model::host_copy_fits(size_t length, size_t limit, const s
     return detail::host_room(free ? std::optional<size_t>(*free + take->dropped * kHostSlab) : std::nullopt, take->fresh * kHostSlab, host_reserve_) ? HostFit::fits : HostFit::memory;
 }
 
-// Slabs for a copy of `length` tokens of this model's layout (HostHistory), as save_host takes them, holding nothing yet: within `limit` and the host reserve, idle slabs reused and those of other devices freed first.
-// From `first` on and without `state` they are for the blocks of a range alone (save_host_blocks), and `out` is whole or, on a throw, released.
-inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state) {
+// Slabs for a copy of `length` tokens (HostHistory) as save_host takes them, holding nothing yet: within `limit` and the host reserve, idle slabs reused and other devices' freed first.
+// From `first` on and without `state` they cover the blocks of a range alone, `out` is whole or released on a throw, and with `deferred` or `defer` the allocation and frees are left to each device's stage thread (copy_out).
+inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, bool blocks, size_t first, bool state, std::vector<size_t>* deferred, const Defer* defer) {
     release_host(out);
     // Each sized on its own, so one that fails to grow leaves the other's check to grow it next time.
     if (host_allocated_.size() != devices_.size()) host_allocated_.resize(devices_.size(), 0);
@@ -346,11 +357,15 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     // Idle slabs are retired (release_host), so freeing them waits for nothing.
     const auto take = detail::copy_slabs(need, idle, host_allocated() / kHostSlab, limit / kHostSlab);
     if (!take) throw std::runtime_error("inference: no host memory for the copy within its limit");
+    std::vector<std::vector<backend::BufferPtr>> dropped(devices_.size());
     for (size_t i = 0; i < devices_.size(); ++i)
         for (size_t k = 0; k < take->drop[i]; ++k) {
+            dropped[i].push_back(std::move(host_slabs_[i].back()));
             host_slabs_[i].pop_back();
             --host_allocated_[i];
         }
+    if (defer) free_slabs(std::move(dropped), *defer);
+    dropped.clear();
     const size_t fresh = take->fresh;
     // The slabs it allocates must leave the host the reserve the fit kept on it, read once the idle slabs above are freed.
     if (fresh && !host_admits(fresh * kHostSlab))
@@ -364,15 +379,17 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
     h.device_bytes = bytes;
     h.slabs.resize(devices_.size());
     h.tickets.assign(devices_.size(), 0);
+    if (deferred) deferred->assign(devices_.size(), 0);
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
             if (!bytes[i]) continue;
             Device& d = *devices_[i];
             std::vector<backend::BufferPtr>& slabs = h.slabs[i];
-            while (slabs.size() < need[i]) {
+            while (slabs.size() + (deferred ? (*deferred)[i] : 0) < need[i]) {
                 if (host_slabs_[i].empty()) {
                     host_slabs_[i].reserve(host_allocated_[i] + 1);
-                    slabs.push_back(d.b->alloc(kHostSlab, backend::Memory::host_visible));
+                    if (deferred) ++(*deferred)[i];
+                    else slabs.push_back(d.b->alloc(kHostSlab, backend::Memory::host_visible));
                     ++host_allocated_[i];
                 } else {
                     slabs.push_back(std::move(host_slabs_[i].back()));
@@ -383,16 +400,105 @@ inline void Model::alloc_host(size_t length, HostHistory& out, size_t limit, boo
             h.bytes += bytes[i];
         }
     } catch (...) {
+        if (deferred)
+            for (size_t i = 0; i < devices_.size(); ++i) host_allocated_[i] -= (*deferred)[i];
         release_host(h);
         throw;
     }
     out = std::move(h);
 }
 
+// Slabs freed on their devices' stages' threads, which may be recording on those devices.
+inline void Model::free_slabs(std::vector<std::vector<backend::BufferPtr>> slabs, const Defer& defer) {
+    for (size_t i = 0; i < slabs.size(); ++i) {
+        if (slabs[i].empty()) continue;
+        auto held = std::make_shared<std::vector<backend::BufferPtr>>(std::move(slabs[i]));
+        defer(StageItem{stage_of_device(i), [held] { held->clear(); }});
+    }
+}
+
+// The device parts of a copy to host memory (save_host, save_host_blocks), one stage item a device: each allocates its fresh slabs, records its copies and submits on its stage's thread, and reports to h's pending record.
+// What a part reads is taken now, the block ids, the token tail and the slot: a block or slot the caller releases after this is reused only by a pass queued after the part on the same device, so the part reads it first.
+inline void Model::copy_out(HostHistory& h, const std::vector<size_t>& fresh, std::vector<std::vector<int32_t>> ids, std::vector<uint32_t> tail, size_t tail_at, size_t slot, bool state,
+                            const Defer& defer) {
+    auto p = std::make_shared<HostPending>();
+    p->wanted = fresh;
+    p->fresh.resize(devices_.size());
+    p->tickets.assign(devices_.size(), 0);
+    std::vector<StageItem> items;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        if (h.slabs[i].empty() && !fresh[i]) continue;
+        const bool tokens = state && token_width_ && i == stages_[token_stage_].device;
+        items.push_back(StageItem{stage_of_device(i), [this, p, i, reused = h.slabs[i], n = fresh[i], ids = std::move(ids[i]), tail = tokens ? tail : std::vector<uint32_t>{}, tail_at, slot,
+                                                       state]() mutable {
+            Device& d = *devices_[i];
+            std::vector<backend::BufferPtr> made;
+            backend::Ticket t = 0;
+            std::string error;
+            try {
+                std::vector<backend::BufferPtr> slabs = reused;
+                for (size_t k = 0; k < n; ++k) {
+                    made.push_back(d.b->alloc(kHostSlab, backend::Memory::host_visible));
+                    slabs.push_back(made.back());
+                }
+                detail::HostSpan span{*d.b, slabs, kHostSlab, true};
+                if (!tail.empty()) span.tokens(tail.data(), tail.size(), tail_at);
+                if (!ids.empty()) span.blocks(*dynamic_cast<backend::BlockKVStorage*>(d.storage.get()), ids.data(), ids.size());
+                if (state && d.states) span.slot(*d.states, slot);
+                if (state && d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+                if (!ids.empty() || !tail.empty() || state) t = d.b->submit();
+            } catch (const std::exception& e) {
+                error = e.what();
+                // Nothing else records on the device on its stage's thread, so what the part recorded retires here before its slabs can go.
+                try { d.b->sync(); } catch (...) {}
+            }
+            std::lock_guard<std::mutex> lk(p->m);
+            p->fresh[i] = std::move(made);
+            p->tickets[i] = t;
+            if (!error.empty() && p->error.empty()) p->error = error;
+            if (!--p->left) p->cv.notify_all();
+        }});
+    }
+    p->left = items.size();
+    h.pending = p;
+    for (StageItem& it : items) defer(std::move(it));
+}
+
+// A copy whose parts are pending made whole once they have run: their fresh slabs joined to its own and their tickets and error taken, true; false where `wait` is not given and a part has yet to run.
+inline bool Model::host_settle(const HostHistory& h, bool wait) noexcept {
+    const std::shared_ptr<HostPending> p = h.pending;
+    if (!p || h.owner != this) return true;
+    {
+        std::unique_lock<std::mutex> lk(p->m);
+        if (p->left && !wait) return false;
+        if (p->left) {
+            if (stage_wait_) stage_wait_(true);
+            p->cv.wait(lk, [&] { return p->left == 0; });
+            if (stage_wait_) stage_wait_(false);
+        }
+    }
+    for (size_t i = 0; i < devices_.size() && i < h.slabs.size(); ++i) {
+        // A part whose allocation failed made fewer than the pool counted.
+        host_allocated_[i] -= p->wanted[i] - p->fresh[i].size();
+        for (auto& b : p->fresh[i]) h.slabs[i].push_back(std::move(b));
+        if (p->tickets[i]) h.tickets[i] = p->tickets[i];
+    }
+    if (!p->error.empty()) h.error = p->error;
+    h.pending.reset();
+    return true;
+}
+
+// A copy read back into the devices whole: its parts run, and none of them failed.
+inline void Model::settled_whole(const HostHistory& h) {
+    host_settle(h, true);
+    if (!h.error.empty()) throw std::runtime_error("inference: a copy to host memory failed (" + h.error + ")");
+}
+
 // The history's first `length` tokens (whole blocks of every storage) copied to host memory, with its checkpoint's slot at `length` on a model that keeps a state; without `blocks` only the state is copied.
-// Host token IDs transfer first, then device copies are enqueued; slabs stay within `limit` and the host's reserve, and `out` is whole or released on failure.
-inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks) {
+// Slabs stay within `limit` and the host's reserve and `out` is whole or released on failure; with `defer` the device parts go to the stages' threads (copy_out) and `out` is whole once host_settle has taken them.
+inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_t limit, bool blocks, const Defer& defer) {
     settle(s, "a copy to host memory");
+    if (s.deferred_ && !s.deferred_->error.empty()) throw std::runtime_error("inference: a copy to host memory of a history whose restore failed (" + s.deferred_->error + ")");
     release_host(out);
     if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
     if (length > s.length()) throw std::logic_error("inference: a copy to host memory past the history");
@@ -404,6 +510,28 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
         if (length % d->b->kv_layout().block_tokens) throw std::logic_error("inference: a copy to host memory takes whole blocks of the history");
     }
     HostHistory h;
+    if (defer) {
+        std::vector<size_t> fresh;
+        alloc_host(length, h, limit, blocks, 0, true, &fresh, &defer);
+        std::vector<std::vector<int32_t>> ids(devices_.size());
+        std::vector<uint32_t> tail;
+        size_t tail_at = 0;
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            Device& d = *devices_[i];
+            if (token_width_ && i == stages_[token_stage_].device) {
+                tail.assign(token_tails_.begin() + (std::ptrdiff_t)(s.kept_.slot() * token_width_), token_tails_.begin() + (std::ptrdiff_t)((s.kept_.slot() + 1) * token_width_));
+                tail_at = h.device_bytes[i] - token_width_ * sizeof(uint32_t);
+            }
+            if (const auto* st = blocks ? dynamic_cast<const backend::BlockKVStorage*>(d.storage.get()) : nullptr) {
+                const int32_t* b = s.kv_[(size_t)d.storage_index].view(nullptr).blocks;
+                ids[i].assign(b, b + length / st->block_tokens());
+            }
+        }
+        copy_out(h, fresh, std::move(ids), std::move(tail), tail_at, state_layers_ ? s.kept_.slot() : 0, true, defer);
+        for (const Sequence::Media& m : carried(s, length)) h.media.push_back(m.run);
+        out = std::move(h);
+        return;
+    }
     alloc_host(length, h, limit, blocks);
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
@@ -431,8 +559,9 @@ inline void Model::save_host(Sequence& s, size_t length, HostHistory& out, size_
 
 // The blocks of the history's tokens from `first` to `length` copied to host memory alone, with no state: what a turn added to a history whose earlier blocks are kept elsewhere (docs/DISK-TIER.md, Entries written as what changed).
 // Enqueued and limited as save_host's copies are; `out` is whole or, on a throw, released.
-inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit) {
+inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, HostHistory& out, size_t limit, const Defer& defer) {
     settle(s, "a copy to host memory");
+    if (s.deferred_ && !s.deferred_->error.empty()) throw std::runtime_error("inference: a copy to host memory of a history whose restore failed (" + s.deferred_->error + ")");
     release_host(out);
     if (s.mark_.held()) throw std::logic_error("inference: a copy to host memory of a marked sequence");
     if (first >= length || length > s.length()) throw std::logic_error("inference: a copy to host memory of blocks outside the history");
@@ -441,6 +570,21 @@ inline void Model::save_host_blocks(Sequence& s, size_t first, size_t length, Ho
         if (first % d->b->kv_layout().block_tokens || length % d->b->kv_layout().block_tokens) throw std::logic_error("inference: a copy to host memory takes whole blocks of the history");
     }
     HostHistory h;
+    if (defer) {
+        std::vector<size_t> fresh;
+        alloc_host(length, h, limit, true, first, false, &fresh, &defer);
+        std::vector<std::vector<int32_t>> ids(devices_.size());
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            Device& d = *devices_[i];
+            if (const auto* st = dynamic_cast<const backend::BlockKVStorage*>(d.storage.get())) {
+                const int32_t* b = s.kv_[(size_t)d.storage_index].view(nullptr).blocks;
+                ids[i].assign(b + first / st->block_tokens(), b + length / st->block_tokens());
+            }
+        }
+        copy_out(h, fresh, std::move(ids), {}, 0, 0, false, defer);
+        out = std::move(h);
+        return;
+    }
     alloc_host(length, h, limit, true, first, false);
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
@@ -519,10 +663,103 @@ inline bool Model::copies_retired(const std::vector<backend::Ticket>& tickets) c
     return true;
 }
 
-// A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot of this model at h.length, so a fork or the history itself continues with the bits of the history it was copied from.
-// The copies are enqueued ahead of any pass of the history, whose tickets cover them; a pool, slot, copy or submission failure leaves nothing held and retires queued work before storage is released.
-inline Sequence Model::restore_host(HostHistory& h) {
+// Whether the parts a pending record waits for have run and every ticket they took has retired.
+inline bool Model::copies_retired(const HostPending& p) const noexcept {
+    std::lock_guard<std::mutex> lk(const_cast<HostPending&>(p).m);
+    return !p.left && copies_retired(p.tickets);
+}
+
+// The token tail of `h`'s state written into checkpoint slot `slot`, read from its slabs' host memory once its copies into them have retired.
+inline void Model::read_tail(const HostHistory& h, size_t slot) {
+    if (!token_width_) return;
+    const size_t i = stages_[token_stage_].device;
+    size_t at = h.device_bytes[i] - token_width_ * sizeof(uint32_t), off = 0, bytes = token_width_ * sizeof(uint32_t);
+    auto* out = reinterpret_cast<uint8_t*>(token_tails_.data() + slot * token_width_);
+    while (bytes) {
+        const size_t in = at % kHostSlab, n = std::min(bytes, kHostSlab - in);
+        std::memcpy(out + off, static_cast<const uint8_t*>(h.slabs[i][at / kHostSlab]->host_ptr()) + in, n);
+        at += n;
+        off += n;
+        bytes -= n;
+    }
+}
+
+// The device parts of a copy from host memory into `s` (restore_host, fork with a state), one stage item a device: each records its copies and submits on its stage's thread, behind which the history's passes are queued.
+// Each part's ticket goes to both `h`, whose slabs it reads, and `s`, whose next settle folds it; a part that fails throws after it has reported, so its stage's thread reports the restore (StageItem::restore).
+inline void Model::copy_in(HostHistory& h, Sequence& s, std::vector<std::vector<int32_t>> ids, size_t slot, const Defer& defer) {
+    auto p = std::make_shared<HostPending>();
+    p->wanted.assign(devices_.size(), 0);
+    p->fresh.resize(devices_.size());
+    p->tickets.assign(devices_.size(), 0);
+    auto q = std::make_shared<Sequence::Deferred>();
+    q->last.assign(devices_.size(), 0);
+    q->restore = true;
+    std::vector<StageItem> items;
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        Device& d = *devices_[i];
+        const bool state = h.state && (d.states || (d.carry && state_layers_));
+        if (ids[i].empty() && !state) continue;
+        items.push_back(StageItem{stage_of_device(i), [this, p, q, i, slabs = h.slabs[i], ids = std::move(ids[i]), slot]() mutable {
+            Device& d = *devices_[i];
+            backend::Ticket t = 0;
+            std::string error;
+            try {
+                detail::HostSpan span{*d.b, slabs, kHostSlab, false};
+                auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+                // The storage grows to the blocks taken here, on the device's thread, ahead of the copies into them.
+                if (!ids.empty()) st->ensure((size_t)*std::max_element(ids.begin(), ids.end()));
+                if (!ids.empty()) span.blocks(*st, ids.data(), ids.size());
+                if (d.states) span.slot(*d.states, slot);
+                if (d.carry && state_layers_) span.copy(*d.carry, slot * plan_.residual * sizeof(float), plan_.residual * sizeof(float));
+                t = d.b->submit();
+            } catch (const std::exception& e) {
+                error = e.what();
+                // Nothing else records on the device on its stage's thread, so what the part recorded retires here before the slabs can go.
+                try { d.b->sync(); } catch (...) {}
+            }
+            // The host copy read from stays whole, so only the history copied into takes the error.
+            {
+                std::lock_guard<std::mutex> lk(p->m);
+                p->tickets[i] = t;
+                if (!--p->left) p->cv.notify_all();
+            }
+            {
+                std::lock_guard<std::mutex> lk(q->m);
+                q->last[i] = t;
+                if (!error.empty() && q->error.empty()) q->error = error;
+                if (!--q->left) q->cv.notify_all();
+            }
+            if (!error.empty()) throw std::runtime_error(error);
+        }, q});
+    }
+    p->left = q->left = items.size();
+    h.pending = p;
+    s.deferred_ = q;
+    size_t sent = 0;
+    try {
+        for (; sent < items.size(); ++sent) defer(std::move(items[sent]));
+    } catch (...) {
+        // A part run in the call that threw reported itself; those after it are never handed over, so nothing waits for them.
+        const size_t unsent = items.size() - sent - 1;
+        {
+            std::lock_guard<std::mutex> lk(p->m);
+            p->left -= unsent;
+            p->cv.notify_all();
+        }
+        {
+            std::lock_guard<std::mutex> lk(q->m);
+            q->left -= unsent;
+            q->cv.notify_all();
+        }
+        throw;
+    }
+}
+
+// A fresh history holding what `h` copied, copied back into blocks and, on a model that keeps a state, a checkpoint slot at h.length, so it continues with the bits of the history it was copied from.
+// The copies are enqueued ahead of any pass of the history; a failure leaves nothing held, and with `defer` the device copies go to the stages' threads (copy_in) with the history's passes queued behind them.
+inline Sequence Model::restore_host(HostHistory& h, const Defer& defer) {
     if (h.owner != this) throw std::runtime_error("inference: a history copied to host memory by another model");
+    settled_whole(h);
     if (h.slabs.size() != devices_.size() || !h.blocks || h.first || (state_layers_ && !h.state)) throw std::logic_error("inference: a host history of another layout");
     Sequence s = make_sequence();
     for (const MediaRun& run : h.media) s.media_.push_back(Sequence::Media{run, std::vector<backend::BufferPtr>(devices_.size())});
@@ -531,6 +768,30 @@ inline Sequence Model::restore_host(HostHistory& h) {
         slot = slots_.acquire_kept();
         s.kept_ = Checkpoint(slots_, slot, h.length);
         std::fill(s.from_.begin(), s.from_.end(), slot);
+    }
+    if (defer) {
+        std::vector<std::vector<int32_t>> ids(devices_.size());
+        for (size_t i = 0; i < devices_.size(); ++i) {
+            Device& d = *devices_[i];
+            auto* st = dynamic_cast<backend::BlockKVStorage*>(d.storage.get());
+            if (d.storage && !st) throw std::runtime_error("inference: a KV storage that cannot be copied from host memory");
+            if ((st || d.states) && h.slabs[i].empty()) throw std::logic_error("inference: a host history of another layout");
+            if (!st) continue;
+            // A tensor group's members copy into the blocks its first member, before them, took from the pool they share.
+            const size_t n = h.length / st->block_tokens();
+            KVSequence& kv = s.kv_[(size_t)d.storage_index];
+            if (!d.member) kv.prepare(h.length);
+            const int32_t* blocks = kv.view(nullptr).blocks;
+            ids[i].assign(blocks, blocks + n);
+            if (!d.member) kv.commit();
+        }
+        if (state_layers_) {
+            wait_host(h);
+            read_tail(h, slot);
+        }
+        copy_in(h, s, std::move(ids), slot, defer);
+        std::fill(s.length_.begin(), s.length_.end(), h.length);
+        return s;
     }
     size_t submitted = 0, recorded = 0;
     try {
@@ -569,14 +830,17 @@ inline Sequence Model::restore_host(HostHistory& h) {
     return s;
 }
 
-// A fresh history for a restore of `length` tokens copied in piece by piece, its blocks and checkpoint slot taken as restore_host takes them, and per device where each byte of the image goes.
-// The runs follow HostSpan's walk, so a host copy's bytes copied run by run give restore_host's bits (docs/src/model-history.md).
-inline RestoreInto Model::restore_into(size_t length) {
+// A fresh history for a restore of `length` tokens copied in piece by piece, its blocks and checkpoint slot taken as restore_host takes them, with per device where each byte of the image goes.
+// The runs follow HostSpan's walk, so bytes copied run by run give restore_host's bits (docs/src/model-history.md); with `defer` each storage grows on its device's stage thread.
+inline RestoreInto Model::restore_into(size_t length, const Defer& defer) {
     RestoreInto r;
     r.length = length;
     r.seq = make_sequence();
     r.runs.resize(devices_.size());
-    for (const auto& d : devices_) r.backends.push_back(d->b.get());
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        r.backends.push_back(devices_[i]->b.get());
+        r.stages.push_back(stage_of_device(i));
+    }
     size_t slot = 0;
     if (state_layers_) {
         slot = slots_.acquire_kept();
@@ -595,7 +859,11 @@ inline RestoreInto Model::restore_into(size_t length) {
             KVSequence& kv = r.seq.kv_[(size_t)d.storage_index];
             if (!d.member) kv.prepare(length);
             const int32_t* blocks = kv.view(nullptr).blocks;
-            if (n) st->ensure((size_t)*std::max_element(blocks, blocks + n));
+            if (n) {
+                const size_t most = (size_t)*std::max_element(blocks, blocks + n);
+                if (defer) defer(StageItem{stage_of_device(i), [st, most] { st->ensure(most); }});
+                else st->ensure(most);
+            }
             detail::block_runs(*st, blocks, n, [&](size_t l, unsigned side, size_t off, size_t bytes) {
                 runs.push_back({nullptr, st, l, side, off, bytes});
             });
@@ -628,9 +896,10 @@ inline void Model::restored(RestoreInto& r, const std::vector<backend::Ticket>& 
 }
 
 // A second history holding the first `length` tokens of `src`, whose blocks it shares as fork does, and the state at `length` that `state` holds (Model::save_host without blocks, docs/SPECULATIVE.md, section 2, Host tier).
-// The state is copied back into a checkpoint slot of its own, which the fork's first pass reads in place, enqueued behind the passes that wrote what it shares; a throw leaves nothing held.
-inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state) {
+// The state is copied into a checkpoint slot of its own, on the stages' threads with `defer` (copy_in), behind the passes that wrote what it shares; a throw leaves nothing held.
+inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& state, const Defer& defer) {
     if (src.owner_ != this || state.owner != this) throw std::runtime_error("inference: sequence or host state of another model");
+    settled_whole(state);
     if (src.flights_) throw std::logic_error("inference: a fork of a sequence in flight");
     if (src.mark_.held()) throw std::logic_error("inference: a fork of a marked sequence");
     if (!state_layers_ || state.blocks || state.length != length || state.slabs.size() != devices_.size())
@@ -647,6 +916,14 @@ inline Sequence Model::fork(const Sequence& src, size_t length, HostHistory& sta
     const size_t slot = slots_.acquire_kept();
     f.kept_ = Checkpoint(slots_, slot, length);
     f.from_.assign(stages_.size(), slot);
+    if (defer) {
+        for (size_t i = 0; i < devices_.size(); ++i)
+            if ((devices_[i]->states || devices_[i]->carry) && state.slabs[i].empty()) throw std::logic_error("inference: a host state of another layout");
+        wait_host(state);
+        read_tail(state, slot);
+        copy_in(state, f, std::vector<std::vector<int32_t>>(devices_.size()), slot, defer);
+        return f;
+    }
     size_t submitted = 0, recorded = 0;
     try {
         for (size_t i = 0; i < devices_.size(); ++i) {
@@ -728,10 +1005,11 @@ inline std::string Model::host_identity() const {
 
 // The slabs `h` holds left for the next copy on their devices once every copy into or out of them has retired; the pools' capacity is reserved as slabs are allocated, so this allocates nothing.
 inline void Model::release_host(HostHistory& h) noexcept {
+    host_settle(h, true);
     if (h.owner == this)
         for (size_t i = 0; i < h.slabs.size() && i < devices_.size(); ++i) {
             if (h.slabs[i].empty()) continue;
-            devices_[i]->b->wait(h.tickets[i]);
+            wait_ticket(i, h.tickets[i]);
             for (auto& b : h.slabs[i]) host_slabs_[i].push_back(std::move(b));
         }
     h = HostHistory{};
@@ -752,14 +1030,27 @@ inline bool Model::host_short() const {
 
 // Idle slabs given back to a host below the pool's reserve, as many as cover what it is short by; the bytes freed.
 // Slabs a copy holds are not idle and stay, so every history in host memory and every read or write on one is as it was.
-inline size_t Model::host_yield() {
+inline size_t Model::host_yield(const Defer& defer) {
     const std::optional<size_t> free = host_available();
     if (!free || *free >= host_reserve_) return 0;
     size_t idle = 0;
     for (const auto& slabs : host_slabs_) idle += slabs.size();
     const size_t give = std::min(idle, backend::blocks_for(host_reserve_ - *free, kHostSlab)) * kHostSlab;
-    trim_host(host_allocated() - give);
+    if (defer) trim_host(host_allocated() - give, defer);
+    else trim_host(host_allocated() - give);
     return give;
+}
+
+// The same, each slab freed on its device's stage's thread (free_slabs).
+inline void Model::trim_host(size_t limit, const Defer& defer) {
+    std::vector<std::vector<backend::BufferPtr>> freed(host_slabs_.size());
+    for (size_t i = host_slabs_.size(); i-- > 0;)
+        while (!host_slabs_[i].empty() && host_allocated() > limit) {
+            freed[i].push_back(std::move(host_slabs_[i].back()));
+            host_slabs_[i].pop_back();
+            --host_allocated_[i];
+        }
+    free_slabs(std::move(freed), defer);
 }
 
 // Idle slabs freed until the slabs alive are within `limit`: what a copy allocated beyond its caller's own limit gives back once it is released.
@@ -772,24 +1063,62 @@ inline void Model::trim_host(size_t limit) noexcept {
 }
 
 // Waits for the copies into and out of h's slabs, so the host can read its bytes, as the disk tier's writes do.
-inline void Model::wait_host(const HostHistory& h) const noexcept {
+inline void Model::wait_host(const HostHistory& h) noexcept {
+    host_settle(h, true);
     if (h.owner == this)
         for (size_t i = 0; i < h.slabs.size() && i < devices_.size(); ++i)
-            if (!h.slabs[i].empty()) devices_[i]->b->wait(h.tickets[i]);
+            if (!h.slabs[i].empty()) wait_ticket(i, h.tickets[i]);
+}
+
+// The caller waits for device `device`'s ticket `t`, told to on_stage_wait where the work has not yet retired, so a server counts every wait of its thread on a device.
+inline void Model::wait_ticket(size_t device, backend::Ticket t) const noexcept {
+    if (!t || devices_[device]->b->done(t)) return;
+    if (stage_wait_) stage_wait_(true);
+    devices_[device]->b->wait(t);
+    if (stage_wait_) stage_wait_(false);
+}
+
+// A history whose retract's parts have all run takes their tickets and gives the mark's hold back now, without waiting, so another verify can take that mark; true where nothing is left pending.
+// A restore's record stays, its failure reported by its stage (StageItem::restore), and so does a part's failure, which its request's end meets.
+inline bool Model::release_settled(Sequence& s) noexcept {
+    const std::shared_ptr<Sequence::Deferred> p = s.deferred_;
+    if (!p) return true;
+    if (p->restore) return false;
+    {
+        std::lock_guard<std::mutex> lk(p->m);
+        if (p->left || !p->error.empty()) return false;
+    }
+    for (size_t d = 0; d < p->last.size() && d < s.last_.size(); ++d) s.last_[d] = std::max(s.last_[d], p->last[d]);
+    p->hold.release();
+    s.deferred_.reset();
+    return true;
 }
 
 // A sequence out of flight whose passes have retired, before it gives blocks or slots back.
 inline void Model::settle(Sequence& s, const char* what) {
     if (s.owner_ != this) throw std::runtime_error("inference: sequence of another model");
     if (s.flights_) throw std::logic_error(std::string("inference: ") + what + " of a sequence in flight");
+    // Parts on the stages' threads run first; a failed part's request ends by its stage's report, so its error is not thrown here.
+    if (const std::shared_ptr<Sequence::Deferred> p = std::move(s.deferred_)) {
+        std::unique_lock<std::mutex> lk(p->m);
+        if (p->left) {
+            if (stage_wait_) stage_wait_(true);
+            p->cv.wait(lk, [&] { return p->left == 0; });
+            if (stage_wait_) stage_wait_(false);
+        }
+        for (size_t d = 0; d < p->last.size() && d < s.last_.size(); ++d) s.last_[d] = std::max(s.last_[d], p->last[d]);
+        p->hold.release();
+        // A restore that failed stays named on the history, so its stage's report finds every holder of it (Sequence::restoring).
+        if (p->restore && !p->error.empty()) s.deferred_ = p;
+    }
     // A sequence moved from has no tickets, nothing of it being left to wait on.
     for (size_t d = 0; d < devices_.size() && d < s.last_.size(); ++d)
-        if (devices_[d]->used) devices_[d]->b->wait(s.last_[d]);
+        if (devices_[d]->used) wait_ticket(d, s.last_[d]);
 }
 
 // A history back to `length`, or on a model that keeps a state to its checkpoint at or below it, else 0, returning the length reached: every stage and storage at it, the blocks and a checkpoint beyond it returned.
 // The state is then the checkpoint's, or zero, so the live slot goes back too, and the next pass takes one: a donor parked at its checkpoint holds none of the slots admission counts on.
-inline size_t Model::rewind(Sequence& s, size_t length) noexcept {
+inline size_t Model::rewind(Sequence& s, size_t length, const Defer* defer) noexcept {
     // At or past a mark the state is the mark's, and the history goes back to its position; below it the mark is not needed.
     if (s.mark_.held() && length >= s.mark_.pos) {
         const size_t to = s.mark_.pos;
@@ -808,7 +1137,7 @@ inline size_t Model::rewind(Sequence& s, size_t length) noexcept {
     }
     for (size_t& n : s.length_) n = std::min(n, to);
     for (auto& kv : s.kv_) kv.truncate(to);
-    drop_media(s, to);
+    drop_media(s, to, defer);
     return to;
 }
 
@@ -823,7 +1152,7 @@ inline size_t Model::saved_at(const Device& d, const LayerPlan& lp, size_t buffe
 inline void Model::save(ExecContext& ctx, const Pass& p, size_t dev, int l) {
     const Device& d = *devices_[dev];
     const LayerPlan& lp = plan_.layers[(size_t)l];
-    const ExecContext::Scratch& sc = p.apart ? ctx.apart[dev] : ctx.scratch[dev];
+    const ExecContext::Scratch& sc = ctx.scratch[dev];
     for (size_t e = 0; e < p.entries.size(); ++e) {
         const Sequence::Mark& m = p.entries[e].seq->mark_;
         if (!m.held()) continue;
@@ -841,7 +1170,7 @@ inline void Model::save_h(ExecContext& ctx, const Pass& p) {
     const size_t E = plan_.residual;
     for (size_t o = (size_t)place_.output_device, end = o + width_; o < end; ++o) {
         const Device& d = *devices_[o];
-        const backend::Slice hn = slot(ctx, o, plan_.draft_h, p.apart);
+        const backend::Slice hn = slot(ctx, o, plan_.draft_h);
         for (size_t e = 0; e < p.entries.size(); ++e) {
             const Sequence::Mark& m = p.entries[e].seq->mark_;
             if (!m.held()) continue;
@@ -853,70 +1182,129 @@ inline void Model::save_h(ExecContext& ctx, const Pass& p) {
 
 // The state after the first `rows` rows of the pass past the sequence's mark, into its live slot: each state layer's update (Architecture::recur) run from the mark's state over its saved inputs, in one submission on each device.
 // An embedded drafter's carried row is the last kept row's, copied from the mark's room into the live slot's in the same submission, and a failure drains every device and leaves the mark, which a retry reads again.
-inline void Model::rerun(Sequence& s, size_t rows) {
+inline void Model::rerun(Sequence& s, size_t rows, const Defer& defer) {
     const Sequence::Mark& m = s.mark_;
-    try {
-        ensure(ctx_, rows, 0, handoffs(1));
-        // The update's calls take the mark's rows, which a plane of its saved inputs holds, and their views the rows kept.
-        const backend::RowRun run{options_.mark_rows, 1};
-        std::vector<size_t> offsets(plan_.slots.size());
-        int phases = 0;
-        for (const LayerPlan& lp : plan_.layers)
-            if (lp.cache == Cache::state) phases = std::max(phases, lp.recur_phases);
-        for (size_t dev = 0; dev < devices_.size(); ++dev) {
-            Device& d = *devices_[dev];
-            const bool carry = plan_.drafter && dev - d.member == (size_t)place_.output_device;
-            if (!d.states && !carry) continue;
-            // Nothing a phase runs reads what another layer's writes: each layer reads its own saved inputs and slot, and writes its own room and slot.
-            for (int phase = 0; d.states && phase < phases; ++phase) {
-                d.b->unordered(true);
-                for (size_t st = 0; st < stages_.size(); ++st) {
-                    if (stages_[st].device != dev - d.member) continue;
-                    const size_t src = m.from[st] == Sequence::kLive ? s.state_.slot() : m.from[st];
-                    const backend::StateView view{d.states.get(), src, s.state_.slot(), m.pos, rows};
-                    for (int l = stages_[st].first; l < stages_[st].end; ++l) {
-                        const LayerPlan& lp = plan_.layers[(size_t)l];
-                        if (lp.cache != Cache::state || phase >= lp.recur_phases) continue;
-                        const size_t layer = (size_t)d.local_layer[(size_t)l];
-                        size_t at = d.rerun_base + layer * options_.mark_rows * d.rerun_floats;
-                        std::fill(offsets.begin(), offsets.end(), 0);
-                        for (size_t slot : lp.recur_writes) {
-                            offsets[slot] = at * sizeof(float);
-                            at += options_.mark_rows * plan_.slots[slot];
-                        }
-                        for (size_t i = 0; i < lp.saved.size(); ++i)
-                            if (!lp.saved[i].plane) offsets[lp.saved[i].slot] = saved_at(d, lp, m.hold.buffer(), layer, i) * sizeof(float);
-                        Step step = part(ctx_, dev, home_row(d.member, (size_t)l), lp.kind, 0, options_.mark_rows, {&run, 1});
-                        step.width = width_;
-                        step.arena = d.saved.get();
-                        step.offsets = offsets.data();
-                        step.x = {d.saved.get(), 0};
-                        step.states = &view;
-                        step.n_views = 1;
-                        step.state_layer = layer;
-                        step.phase = phase;
-                        arch_->recur(step);
-                    }
+    // What every device's part reads, taken now: a deferred part runs once the mark has gone to the history's Deferred.
+    const Rerun a{rows, m.pos, m.from, s.state_.slot(), m.hold.buffer()};
+    if (!defer) {
+        try {
+            ensure(ctx_, rows, 0, handoffs(1));
+            for (size_t dev = 0; dev < devices_.size(); ++dev)
+                if (reruns_on(dev)) {
+                    rerun_on(dev, a);
+                    s.last_[dev] = devices_[dev]->b->submit();
                 }
-                d.b->unordered(false);
-            }
-            if (carry) {
-                const size_t E = plan_.residual;
-                d.b->copy(*d.carry, s.state_.slot() * E * sizeof(float), *d.saved_h, (m.hold.buffer() * options_.mark_rows + rows - 1) * E * sizeof(float),
-                          E * sizeof(float));
-            }
-            s.last_[dev] = d.b->submit();
+        } catch (...) {
+            // A failure inside a phase leaves its device recording without barriers; the mode is set before any barrier is recorded, so it is off even where recording that barrier fails.
+            for (auto& d : devices_) try { d->b->unordered(false); } catch (...) {}
+            retire();
+            throw;
         }
-        if (token_width_) {
-            const size_t src = m.from[token_stage_] == Sequence::kLive ? s.state_.slot() : m.from[token_stage_];
-            advance_tokens(token_tails_.data() + s.state_.slot() * token_width_, token_tails_.data() + src * token_width_,
-                           m.pos, marked_tokens_.data() + m.hold.buffer() * options_.mark_rows, rows);
+    } else {
+        // The context takes the most rows a mark saves, so no later retract grows it under a part still running.
+        {
+            std::lock_guard<std::mutex> lk(context_m_);
+            ensure(ctx_, options_.mark_rows, 0, handoffs(1));
         }
-    } catch (...) {
-        // A failure inside a phase leaves its device recording without barriers; the mode is set before any barrier is recorded, so it is off even where recording that barrier fails.
-        for (auto& d : devices_) try { d->b->unordered(false); } catch (...) {}
-        retire();
-        throw;
+        auto p = std::make_shared<Sequence::Deferred>();
+        p->last.assign(devices_.size(), 0);
+        std::vector<size_t> on;
+        for (size_t dev = 0; dev < devices_.size(); ++dev)
+            if (reruns_on(dev)) on.push_back(dev);
+        p->left = on.size();
+        s.deferred_ = p;
+        for (size_t dev : on)
+            defer({stage_of_device(dev), [this, dev, a, p] {
+                Device& d = *devices_[dev];
+                std::string error;
+                try {
+                    {
+                        // Parts on different stages' threads share the context's scratch run list.
+                        std::lock_guard<std::mutex> lk(context_m_);
+                        rerun_on(dev, a);
+                    }
+                    const backend::Ticket t = d.b->submit();
+                    std::lock_guard<std::mutex> lk(p->m);
+                    p->last[dev] = t;
+                } catch (const std::exception& e) {
+                    try { d.b->unordered(false); d.b->sync(); } catch (...) {}
+                    error = e.what();
+                }
+                {
+                    std::lock_guard<std::mutex> lk(p->m);
+                    if (!error.empty() && p->error.empty()) p->error = error;
+                    --p->left;
+                }
+                p->cv.notify_all();
+                if (!error.empty()) throw std::runtime_error(error);
+            }});
+    }
+    if (token_width_) {
+        const size_t src = a.from[token_stage_] == Sequence::kLive ? a.live : a.from[token_stage_];
+        advance_tokens(token_tails_.data() + a.live * token_width_, token_tails_.data() + src * token_width_,
+                       a.pos, marked_tokens_.data() + a.buffer * options_.mark_rows, rows);
+    }
+}
+
+// Whether a retract's rerun records on device dev: one holding state layers, or the output device of a model with an embedded drafter, whose carried row it restores.
+inline bool Model::reruns_on(size_t dev) const {
+    const Device& d = *devices_[dev];
+    return d.states || (plan_.drafter && dev - d.member == (size_t)place_.output_device);
+}
+
+// The stage whose passes record on device dev.
+inline size_t Model::stage_of_device(size_t dev) const {
+    const size_t home = dev - devices_[dev]->member;
+    for (size_t st = 0; st < stages_.size(); ++st)
+        if (stages_[st].device == home) return st;
+    throw std::logic_error("inference: a device no stage records on");
+}
+
+// Device dev's part of a rerun, recorded and not submitted: each state layer's update over the kept rows' saved inputs, from the mark's state into the live slot, and the drafter's carried row.
+inline void Model::rerun_on(size_t dev, const Rerun& a) {
+    Device& d = *devices_[dev];
+    // The update's calls take the mark's rows, which a plane of its saved inputs holds, and their views the rows kept.
+    const backend::RowRun run{options_.mark_rows, 1};
+    std::vector<size_t> offsets(plan_.slots.size());
+    int phases = 0;
+    for (const LayerPlan& lp : plan_.layers)
+        if (lp.cache == Cache::state) phases = std::max(phases, lp.recur_phases);
+    // Nothing a phase runs reads what another layer's writes: each layer reads its own saved inputs and slot, and writes its own room and slot.
+    for (int phase = 0; d.states && phase < phases; ++phase) {
+        d.b->unordered(true);
+        for (size_t st = 0; st < stages_.size(); ++st) {
+            if (stages_[st].device != dev - d.member) continue;
+            const size_t src = a.from[st] == Sequence::kLive ? a.live : a.from[st];
+            const backend::StateView view{d.states.get(), src, a.live, a.pos, a.rows};
+            for (int l = stages_[st].first; l < stages_[st].end; ++l) {
+                const LayerPlan& lp = plan_.layers[(size_t)l];
+                if (lp.cache != Cache::state || phase >= lp.recur_phases) continue;
+                const size_t layer = (size_t)d.local_layer[(size_t)l];
+                size_t at = d.rerun_base + layer * options_.mark_rows * d.rerun_floats;
+                std::fill(offsets.begin(), offsets.end(), 0);
+                for (size_t slot : lp.recur_writes) {
+                    offsets[slot] = at * sizeof(float);
+                    at += options_.mark_rows * plan_.slots[slot];
+                }
+                for (size_t i = 0; i < lp.saved.size(); ++i)
+                    if (!lp.saved[i].plane) offsets[lp.saved[i].slot] = saved_at(d, lp, a.buffer, layer, i) * sizeof(float);
+                Step step = part(ctx_, dev, home_row(d.member, (size_t)l), lp.kind, 0, options_.mark_rows, {&run, 1});
+                step.width = width_;
+                step.arena = d.saved.get();
+                step.offsets = offsets.data();
+                step.x = {d.saved.get(), 0};
+                step.states = &view;
+                step.n_views = 1;
+                step.state_layer = layer;
+                step.phase = phase;
+                arch_->recur(step);
+            }
+        }
+        d.b->unordered(false);
+    }
+    if (plan_.drafter && dev - d.member == (size_t)place_.output_device) {
+        const size_t E = plan_.residual;
+        d.b->copy(*d.carry, a.live * E * sizeof(float), *d.saved_h, (a.buffer * options_.mark_rows + a.rows - 1) * E * sizeof(float), E * sizeof(float));
     }
 }
 
@@ -944,77 +1332,128 @@ inline void Model::drop_mark(Sequence& s) noexcept {
 // Up to `k` drafts of the tokens after `last`, each history's last pick not yet fed, from an embedded drafter (docs/SPECULATIVE.md, section 7), in `out`, for every sequence asked: one submission on the head's device of a step a draft.
 // Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it, and a chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
 inline void Model::draft(DraftAsk* asks, size_t n) {
+    std::unique_ptr<Chain> c = draft_begin(asks, n);
+    if (!c) return;
+    try {
+        draft_record(*c);
+    } catch (...) {
+        draft_end(*c);
+        throw;
+    }
+    draft_end(*c);
+}
+
+// The drafter's room for chains of `seqs` sequences of `steps` steps: the ids of every step, the first member's logits of every step and the others' of one.
+inline void Model::draft_buffers(size_t seqs, size_t steps) {
+    const size_t o = (size_t)place_.output_device, W = width_, V = plan_.vocab;
+    if (draft_id_rows_ >= seqs * (steps + 1) && draft_rows_ >= seqs * steps && draft_seqs_ >= seqs) return;
+    const size_t id_rows = std::max(draft_id_rows_, seqs * (steps + 1)), rows = std::max(draft_rows_, seqs * steps), most = std::max(draft_seqs_, seqs);
+    std::vector<backend::BufferPtr> ids(W), logits(W);
+    for (size_t m = 0; m < W; ++m) {
+        backend::Backend& b = *devices_[o + m]->b;
+        ids[m] = b.alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
+        logits[m] = m ? b.alloc(backend::size_mul(most, backend::size_mul(V, sizeof(float))))
+                      : b.alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
+    }
+    draft_ids_ = std::move(ids);
+    draft_logits_ = std::move(logits);
+    draft_id_rows_ = id_rows;
+    draft_rows_ = rows;
+    draft_seqs_ = most;
+}
+
+// The fit counts both (Footprint::context_rows, Footprint::drafter_cache).
+inline void Model::reserve_drafting() {
+    if (!options_.mark_slots) return;
+    const size_t rows = std::max(state_layers_ ? options_.mark_rows : 0, plan_.drafter ? options_.mark_slots : 0);
+    if (!rows) return;
+    std::lock_guard<std::mutex> context(context_m_);
+    ensure(ctx_, rows, 0, handoffs(1));
+    if (plan_.drafter && options_.mark_rows > 1) draft_buffers(options_.mark_slots, options_.mark_rows - 1);
+}
+
+// The chain's part on the thread that owns the histories: each history settled, the KV rows its drafts take, every step's rows, positions and views, and its sequences in flight; null where no ask drafts.
+// With `behind` the chain is recorded on the head stage's thread behind the histories' rerun parts, and a caller without reserve_drafting's room grows the context and the drafter's buffers here.
+inline std::unique_ptr<Model::Chain> Model::draft_begin(const DraftAsk* asks, size_t n, bool behind) {
     if (!plan_.drafter) throw std::logic_error("inference: a draft without an embedded drafter");
-    const size_t S = stages_.size(), V = plan_.vocab;
-    std::vector<size_t> order;
-    size_t steps = 0;
+    const size_t S = stages_.size();
+    auto c = std::make_unique<Chain>();
+    c->asks.assign(asks, asks + n);
     for (size_t i = 0; i < n; ++i) {
-        DraftAsk& a = asks[i];
-        settle(*a.seq, "a draft");
+        const DraftAsk& a = asks[i];
+        if (!behind) settle(*a.seq, "a draft");
         a.out->clear();
         if (!a.k) continue;
+        if (a.seq->flights_) throw std::logic_error("inference: a draft of a sequence in flight");
         const size_t L = history(*a.seq);
         if (!L || !a.seq->state_.held()) throw std::logic_error("inference: a draft of a history no pass has fed");
         if (a.k > plan_.context_length - std::min(plan_.context_length, L))
             throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
-        order.push_back(i);
-        steps = std::max(steps, a.k);
+        c->order.push_back(i);
+        c->steps = std::max(c->steps, a.k);
     }
-    if (order.empty()) return;
-    std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
-    const size_t R = order.size(), o = (size_t)place_.output_device, W = width_;
+    if (c->order.empty()) return nullptr;
+    std::stable_sort(c->order.begin(), c->order.end(), [&](size_t a, size_t b) { return asks[a].k > asks[b].k; });
+    const size_t R = c->order.size(), o = (size_t)place_.output_device, W = width_, steps = c->steps;
     Device& d = *devices_[o];
-    ensure(ctx_, R, 0, handoffs(1));
-    if (draft_id_rows_ < R * (steps + 1) || draft_rows_ < R * steps || draft_seqs_ < R) {
-        const size_t id_rows = std::max(draft_id_rows_, R * (steps + 1)), rows = std::max(draft_rows_, R * steps), seqs = std::max(draft_seqs_, R);
-        std::vector<backend::BufferPtr> ids(W), logits(W);
-        for (size_t m = 0; m < W; ++m) {
-            backend::Backend& b = *devices_[o + m]->b;
-            ids[m] = b.alloc(backend::size_mul(id_rows, sizeof(float)), backend::Memory::host_visible);
-            logits[m] = m ? b.alloc(backend::size_mul(seqs, backend::size_mul(V, sizeof(float))))
-                          : b.alloc(backend::size_mul(rows, backend::size_mul(V, sizeof(float))), backend::Memory::host_visible);
-        }
-        draft_ids_ = std::move(ids);
-        draft_logits_ = std::move(logits);
-        draft_id_rows_ = id_rows;
-        draft_rows_ = rows;
-        draft_seqs_ = seqs;
+    {
+        std::lock_guard<std::mutex> context(context_m_);
+        ensure(ctx_, R, 0, handoffs(1));
+        draft_buffers(R, steps);
     }
-    draft_order_.assign(n, R);
-    draft_k_.assign(n, 0);
-    draft_width_ = R;
-    std::vector<uint32_t> last(R), carried(R), pos(R);
+    c->last.resize(R);
+    c->carried.resize(R);
+    c->kv.resize(R);
     std::vector<size_t> length(R);
-    std::vector<KVSequence*> kv(R);
     for (size_t p = 0; p < R; ++p) {
-        Sequence& s = *asks[order[p]].seq;
-        draft_order_[order[p]] = p;
-        last[p] = asks[order[p]].last;
+        Sequence& s = *asks[c->order[p]].seq;
+        c->last[p] = asks[c->order[p]].last;
         length[p] = history(s);
-        carried[p] = (uint32_t)(s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1]);
-        kv[p] = &s.kv_[(size_t)d.storage_index];
+        c->carried[p] = (uint32_t)(s.from_[S - 1] == Sequence::kLive ? s.state_.slot() : s.from_[S - 1]);
+        c->kv[p] = &s.kv_[(size_t)d.storage_index];
     }
-    size_t prepared = 0;
     try {
-        for (; prepared < R; ++prepared) kv[prepared]->prepare(asks[order[prepared]].k);
-        std::vector<backend::Slice> x(W);
-        for (size_t g = 0; g < W; ++g) {
-            devices_[o + g]->b->write(*draft_ids_[g], 0, last.data(), R * sizeof(uint32_t));
-            x[g] = slot(ctx_, o + g, plan_.draft_x);
-        }
-        std::vector<std::vector<backend::KVView>> views(W, std::vector<backend::KVView>(R));
+        for (; c->prepared < R; ++c->prepared) c->kv[c->prepared]->prepare(asks[c->order[c->prepared]].k);
+        c->rows.resize(steps);
+        c->pos.assign(backend::size_mul(steps, R), 0);
+        c->views.resize(backend::size_mul(backend::size_mul(steps, W), R));
         for (size_t m = 0, rows = R; m < steps; ++m) {
-            while (asks[order[rows - 1]].k <= m) --rows;
+            while (asks[c->order[rows - 1]].k <= m) --rows;
+            c->rows[m] = rows;
             for (size_t p = 0; p < rows; ++p) {
                 for (size_t g = 0; g < W; ++g) {
-                    views[g][p] = kv[p]->view(devices_[o + g]->storage.get());
-                    views[g][p].length = length[p] + m;
-                    views[g][p].nq = 1;
-                    views[g][p].extent = 1;
+                    backend::KVView& v = c->views[(m * W + g) * R + p];
+                    v = c->kv[p]->view(devices_[o + g]->storage.get());
+                    v.length = length[p] + m;
+                    v.nq = 1;
+                    v.extent = 1;
                 }
                 // A drafted token is text, at its index less what the history's images saved.
-                positions(*asks[order[p]].seq, length[p] + m, 1, false, &pos[p]);
+                positions(*asks[c->order[p]].seq, length[p] + m, 1, false, &c->pos[m * R + p]);
             }
+        }
+    } catch (...) {
+        for (size_t p = 0; p < c->prepared; ++p) c->kv[p]->abort();
+        throw;
+    }
+    for (size_t p = 0; p < R; ++p) ++asks[c->order[p]].seq->flights_;
+    return c;
+}
+
+// The chain on the head's devices, on the head stage's thread in a server: one submission a member of a step a draft, waited for, and the drafted ids read back.
+// Step m takes the sequences whose chains are longer than m, longest first, each reading the token drafted before it.
+inline void Model::draft_record(Chain& c) {
+    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, steps = c.steps;
+    // A server records the chain beside a deferred rerun's parts on other stages, which share the context.
+    std::lock_guard<std::mutex> context(context_m_);
+    try {
+        std::vector<backend::Slice> x(W);
+        for (size_t g = 0; g < W; ++g) {
+            devices_[o + g]->b->write(*draft_ids_[g], 0, c.last.data(), R * sizeof(uint32_t));
+            x[g] = slot(ctx_, o + g, plan_.draft_x);
+        }
+        for (size_t m = 0; m < steps; ++m) {
+            const size_t rows = c.rows[m];
             const backend::RowRun run{rows, 1};
             // One device runs a step whole; a group runs it in three calls a member with a sum after each of the first two (DraftStep).
             for (int phase = W > 1 ? 0 : -1; phase < (W > 1 ? 3 : 0); ++phase) {
@@ -1023,14 +1462,14 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
                     DraftStep step{part(ctx_, o + g, drafter_row(g), plan_.drafter->kind, 0, rows, {&run, 1}),
                                    {draft_ids_[g].get(), m * R},
                                    m ? backend::CSlice{hn} : backend::CSlice{devices_[o + g]->carry.get(), 0},
-                                   m ? nullptr : carried.data(),
+                                   m ? nullptr : c.carried.data(),
                                    {draft_ids_[g].get(), (m + 1) * R},
                                    hn,
                                    {draft_logits_[g].get(), g ? 0 : m * R * V}};
-                    step.views = views[g].data();
+                    step.views = &c.views[(m * W + g) * R];
                     step.n_views = rows;
                     step.kv_layer = drafter_kv_;
-                    step.pos = pos.data();
+                    step.pos = &c.pos[m * R];
                     step.phase = phase;
                     if (W > 1) {
                         step.width = W;
@@ -1042,29 +1481,45 @@ inline void Model::draft(DraftAsk* asks, size_t n) {
                 if (phase == 0 || phase == 1) ctx_.collectives[o]->sum_into(x, rows, plan_.residual);
             }
         }
-        std::vector<backend::Ticket> sent(W);
-        for (size_t g = 0; g < W; ++g) {
-            sent[g] = devices_[o + g]->b->submit();
-            for (size_t p = 0; p < R; ++p) asks[order[p]].seq->last_[o + g] = sent[g];
-        }
-        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(sent[g]);
+        c.sent.assign(W, 0);
+        for (size_t g = 0; g < W; ++g) c.sent[g] = devices_[o + g]->b->submit();
+        for (size_t g = 0; g < W; ++g) devices_[o + g]->b->wait(c.sent[g]);
+        // The ids buffers serve the next chain, which a server may record before this one ends.
+        const size_t per = R * (steps + 1);
+        c.ids.resize(per * W);
+        for (size_t g = 0; g < W; ++g) std::memcpy(c.ids.data() + g * per, draft_ids_[g]->host_ptr(), per * sizeof(uint32_t));
     } catch (...) {
-        retire();
-        for (size_t p = 0; p < prepared; ++p) kv[p]->abort();
+        // Only the head's devices recorded the chain, and another stage's thread may be recording on the rest.
+        for (size_t g = 0; g < W; ++g) try { devices_[o + g]->b->sync(); } catch (...) {}
         throw;
     }
+    c.recorded = true;
+}
+
+// The chain's end on the thread that owns the histories: the drafted rows given back, the sequences out of flight and, once recorded, each history's drafts.
+// A chain ends at the first id outside the vocabulary or, on a tensor group, one its members disagree on.
+inline void Model::draft_end(Chain& c) {
+    const size_t R = c.order.size(), o = (size_t)place_.output_device, W = width_, V = plan_.vocab, per = R * (c.steps + 1);
+    for (size_t p = 0; p < c.prepared; ++p) c.kv[p]->abort();
+    c.prepared = 0;
+    for (size_t p = 0; p < R; ++p) --c.asks[c.order[p]].seq->flights_;
+    draft_order_.assign(c.asks.size(), R);
+    draft_k_.assign(c.asks.size(), 0);
+    draft_width_ = R;
+    if (!c.recorded) return;
     for (size_t p = 0; p < R; ++p) {
-        kv[p]->abort();
-        draft_k_[order[p]] = asks[order[p]].k;
+        draft_order_[c.order[p]] = p;
+        draft_k_[c.order[p]] = c.asks[c.order[p]].k;
+        for (size_t g = 0; g < W; ++g) c.asks[c.order[p]].seq->last_[o + g] = c.sent[g];
     }
-    const uint32_t* ids = (const uint32_t*)draft_ids_[0]->host_ptr();
+    const uint32_t* ids = c.ids.data();
     const auto agreed = [&](size_t i) {
         for (size_t g = 1; g < W; ++g)
-            if (((const uint32_t*)draft_ids_[g]->host_ptr())[i] != ids[i]) return false;
+            if (ids[g * per + i] != ids[i]) return false;
         return true;
     };
     for (size_t p = 0; p < R; ++p) {
-        const DraftAsk& a = asks[order[p]];
+        const DraftAsk& a = c.asks[c.order[p]];
         for (size_t m = 1; m <= a.k && ids[m * R + p] < V && agreed(m * R + p); ++m) a.out->push_back(ids[m * R + p]);
     }
 }
@@ -1142,8 +1597,16 @@ inline void Model::release_media(Sequence& s) {
 }
 
 // The images whose first row is at or past `length`, which the history no longer reaches, dropped.
-inline void Model::drop_media(Sequence& s, size_t length) noexcept {
-    while (!s.media_.empty() && s.media_.back().run.first >= length) s.media_.pop_back();
+// With `defer` each device's rows are freed on its stage's thread, which may be recording on that device.
+inline void Model::drop_media(Sequence& s, size_t length, const Defer* defer) noexcept {
+    std::vector<std::vector<backend::BufferPtr>> rows(devices_.size());
+    while (!s.media_.empty() && s.media_.back().run.first >= length) {
+        if (defer)
+            for (size_t d = 0; d < s.media_.back().on.size() && d < rows.size(); ++d)
+                if (s.media_.back().on[d]) rows[d].push_back(std::move(s.media_.back().on[d]));
+        s.media_.pop_back();
+    }
+    if (defer) try { free_slabs(std::move(rows), *defer); } catch (...) {}
 }
 
 } // namespace infer

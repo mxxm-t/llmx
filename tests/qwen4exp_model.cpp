@@ -1074,27 +1074,6 @@ void row_source_checks(const infer::ModelWeights& base, gguf::GGUFModel& gguf, c
             history_checks(source, test_backend(device), prompt, hf_full, vocab, name + " " + mode);
             batch_and_scratch_checks(source, test_backend(device), prompt, hf_full, vocab, name + " " + mode);
             if (device == "cpu") cpu_layer_split_checks(source, prompt, hf_full, vocab, name + " " + mode);
-
-            if (device.rfind("vulkan:", 0) == 0) {
-                infer::Model apart_model(source, test_backend(device), model_options());
-                if (!apart_model.paces()) throw std::runtime_error(name + ": Vulkan row-source model cannot run apart passes");
-                infer::ExecContext apart_ctx;
-                apart_model.reserve_passes(apart_ctx, 1, prompt.size(), prompt.size(), prompt.size());
-                infer::Sequence apart_sequence = apart_model.make_sequence();
-                infer::BatchEntry apart_entry{&apart_sequence, prompt.data(), prompt.size(), true};
-                apart_entry.every_logits = true;
-                apart_entry.extent = prompt.size();
-                apart_model.begin_pass(apart_ctx, 0, &apart_entry, 1, 0, true);
-                for (size_t stage = 0; stage < apart_model.stage_count(); ++stage)
-                    apart_model.run_pass_stage(apart_ctx, 0, stage);
-                std::vector<float> apart_logits;
-                for (size_t row = 0; row < prompt.size(); ++row) {
-                    const float* values = apart_model.pass_logits(apart_ctx, 0, row);
-                    apart_logits.insert(apart_logits.end(), values, values + vocab);
-                }
-                compare(apart_logits, hf_full, name + " " + mode + " Vulkan apart rows");
-                apart_model.end_pass(apart_ctx, 0);
-            }
         }
     }
 }
@@ -1121,43 +1100,12 @@ void tensor_group_row_source_checks(const infer::ModelWeights& base, gguf::GGUFM
         compare(score(model, prompt), hf_cached,
                 name + " padded shared width 8 tensor width 2 " + mode + " cached prompt");
 
-        infer::ExecContext apart_ctx;
-        if (model.paces()) {
-            model.reserve_passes(apart_ctx, 1, prompt.size(), prompt.size(), prompt.size());
-            infer::Sequence apart_sequence = model.make_sequence();
-            infer::BatchEntry apart_entry{&apart_sequence, prompt.data(), prompt.size(), true};
-            apart_entry.every_logits = true;
-            apart_entry.extent = prompt.size();
-            model.begin_pass(apart_ctx, 0, &apart_entry, 1, 0, true);
-            for (size_t stage = 0; stage < model.stage_count(); ++stage)
-                model.run_pass_stage(apart_ctx, 0, stage);
-            std::vector<float> apart_logits;
-            for (size_t row = 0; row < prompt.size(); ++row) {
-                const float* values = model.pass_logits(apart_ctx, 0, row);
-                apart_logits.insert(apart_logits.end(), values, values + vocab);
-            }
-            compare(apart_logits, hf_full,
-                    name + " padded shared width 8 tensor width 2 " + mode + " apart rows");
-            model.end_pass(apart_ctx, 0);
-        } else {
-            std::cout << name << " tensor group " << group_devices << " does not support apart passes; checking refusal\n";
-            bool refused = false;
-            try {
-                model.reserve_passes(apart_ctx, 1, prompt.size(), prompt.size(), prompt.size());
-            } catch (const std::logic_error& error) {
-                refused = std::string(error.what()) ==
-                    "inference: a pass apart needs stages of one device each, none on the host";
-                if (!refused) throw;
-            }
-            if (!refused)
-                throw std::runtime_error(name + ": apart reserve on an unpaced tensor group was accepted");
-        }
         source = with_ple_row_source(base, gguf, reader_lifetime, table_tensor);
         host_snapshot_restore_parity(source, config, tensor_group_backends(group_devices), tensor_placement(),
                                      prompt, hf_full, vocab,
                                      name + " padded shared width 8 tensor width 2 " + mode);
         compare(score(model, prompt), hf_full,
-                name + " padded shared width 8 tensor width 2 " + mode + " normal after apart");
+                name + " padded shared width 8 tensor width 2 " + mode + " after the snapshot");
 
         const Json& decode = field(item, "decode_token");
         if (!decode.isNumber()) return;

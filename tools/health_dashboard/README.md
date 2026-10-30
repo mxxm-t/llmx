@@ -83,7 +83,7 @@ normal certificate validation for HTTPS. Runtime configuration uses flags.
   utilization, physical VRAM use or per-request latency distribution.
 - Host payload, allocated storage and capacity are different quantities.
   Disk occupancy and transfer counters describe the cache tier.
-- Draft acceptance and pacing counters describe work since server start.
+- Draft acceptance, the service rule's pass counters and each stage's time split describe work since server start.
   Draft acceptance shows the kept / drafted lifetime counts even when no request
   is currently active. Zero observations show `No data`, missing counters show
   `Unavailable`, and zero kept tokens with a positive drafted count show `0%`.

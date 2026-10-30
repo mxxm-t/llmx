@@ -55,7 +55,8 @@ class Server:
                 assert sum(item[item_field] for item in live["items"]) <= work[field] <= result["work"]["since_start"][field], live
             for item in live["items"]:
                 assert set(item) == {"id", "phase", "prompt_tokens", "reused_tokens", "prefilled_tokens", "published_tokens", "elapsed_ms",
-                                     "queued_ms", "first_token_ms", "inter_token_ms"}, item
+                                     "queued_ms", "first_token_ms", "inter_token_ms", "steps", "verifies", "drafted", "kept"}, item
+                assert item["verifies"] <= item["steps"] <= item["published_tokens"] and item["kept"] <= item["drafted"], item
                 assert isinstance(item["id"], str) and re.fullmatch(r"r-[1-9][0-9]*", item["id"]), item
                 assert item["phase"] in ("queued", "paused", "prefill", "generate"), item
                 assert all(isinstance(item[key], int) and item[key] >= 0 for key in
@@ -422,7 +423,10 @@ def check_service(srv, requests, n):
     """The service record in /v1/health (docs/SERVER.md, The price table) after `requests` requests of `n` tokens each, then a live request's own times while it generates."""
     health = srv.get("/v1/health")
     service = health["service"]
-    assert set(service) == {"stages", "rows", "requests"}, service
+    assert set(service) == {"stages", "rows", "requests", "objective"}, service
+    objective = service["objective"]
+    assert objective["reply_tokens_per_s"] == 8 and objective["max_step_gap_ms"] == 500 and objective["gap_ms"] >= 0, objective
+    assert set(objective["since_start"]) == {"met", "unmet", "capped"} and objective["since_start"]["capped"] <= objective["since_start"]["met"] + objective["since_start"]["unmet"], objective
     assert service["stages"], service
     for stage in service["stages"]:
         since = stage["since_start"]
@@ -486,7 +490,7 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
         assert dtype["declared"] in ("f32", "f16", "bf16") and dtype["effective"] in ("f32", "f16", "bf16", "int8"), dtype
         assert dtype["devices"], dtype
         # The groups and the units in their names (docs/OPERATING.md), and the route a load balancer polls without waiting on the scheduler.
-        assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "pacing", "service"} and "timing" not in health, health
+        assert set(health) >= {"status", "server", "precision", "topology", "requests", "reuse", "pressure", "reread", "drafting", "passes", "service"} and "pacing" not in health and "timing" not in health, health
         topology = health["topology"]
         assert topology["mode"] in ("single", "layer", "tensor", "staged_tensor") and isinstance(topology["mixed_roles"], bool), topology
         assert isinstance(topology.get("lookups"), list), topology
@@ -509,12 +513,10 @@ def check_server(model, prompts, n, long_n, chat, texts, prefix=None, flags=()):
             assert lookup["row_bytes"] > 0 and lookup["bytes"] == lookup["rows"] * lookup["row_bytes"], lookup
             assert lookup["members"] == topology["layers"][lookup["layer"]]["mixer_members"], lookup
             assert all(member < len(topology["devices"]) for member in lookup["members"]), lookup
-        # Generating requests are paced by the automatic rule where a stage is fed in pieces, on one device that is not the CPU with nothing beside it, and not elsewhere.
-        pacing = health["pacing"]
-        device = os.environ.get("LLMX_DEVICE", "cpu")
-        whole = device != "cpu" and "," not in device and not any(f in ("--cpu-moe", "--n-cpu-moe", "--no-pacing") for f in flags)
-        assert pacing["mode"] == ("automatic" if whole else "off") and pacing["target_gap_ms"] == 100, pacing
-        assert set(pacing["since_start"]) == {"interleaved_replies", "interleaved_slices", "gaps", "gaps_above_target", "deferred_by_floor", "longest_piece_ms"}, pacing
+        # The passes formed since start, those formed while replies and prompt work both waited by kind (docs/SERVER.md, The service rule), and the scheduler's holds and waits on the stages' threads.
+        since = health["passes"]["since_start"]
+        assert set(since) == {"prompt", "continued", "rule_replies", "rule_chunks", "rule_mixed", "holds", "stage_waits"}, health["passes"]
+        assert all(isinstance(v, int) and v >= 0 for v in since.values()), health["passes"]
         info = health["server"]
         assert info["version"] and info["numerics"] and info["uptime_s"] >= 0 and info["context_tokens"] > 0 and info["devices"], info
         assert health["requests"]["limits"]["active"] >= 1 and health["requests"]["limits"]["queued"] >= 1, health["requests"]

@@ -362,8 +362,8 @@ void external_lookup_fits() {
     fit.lookups.resize(2);
     const size_t page = core::page_size();
     fit.lookups[0] = {2, row_bytes, page + 1};
-    const size_t normal_rows = 3, apart_rows = 2;
-    const size_t device_capacity = (normal_rows + apart_rows) * 2 * row_bytes;
+    const size_t normal_rows = 3, rows = 5;
+    const size_t device_capacity = rows * 2 * row_bytes;
     const auto rounded = [page](size_t bytes) { return (bytes + page - 1) / page * page; };
     const auto host_capacity = [&](size_t token_rows) {
         if (!token_rows) return size_t(0);
@@ -372,7 +372,7 @@ void external_lookup_fits() {
     };
     // The table's own host bytes are counted once, whatever scratches read it (WeightRows::host_bytes).
     const size_t windows = rounded(page + 1);
-    const size_t host_capacity_total = host_capacity(normal_rows) + host_capacity(apart_rows) + windows;
+    const size_t host_capacity_total = host_capacity(rows) + windows;
     auto device = [](size_t bytes) {
         infer::DeviceBudget d;
         d.name = "device";
@@ -383,20 +383,20 @@ void external_lookup_fits() {
                                                  {1, 1}, host_capacity(normal_rows) + windows, 1, size_t(0));
     require(normal_only.stages[0].other == normal_rows * 2 * row_bytes && normal_only.host == host_capacity(normal_rows) + windows,
             "a normal-only lookup did not fit its rows and the table's rounded read windows");
-    const auto split = infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, 5, {1, 1},
-                                           host_capacity_total, 1, size_t(0), apart_rows);
+    const auto split = infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, rows, {1, 1},
+                                           host_capacity_total, 1, size_t(0));
     require(split.stages[0].other == device_capacity && split.stages[1].other == 0 && split.host == host_capacity_total,
             "external lookup memory was not charged to its layer device, separate host rows and the table's windows once");
     bool device_short = false;
     try {
-        infer::split_layers(fit, {device(device_capacity - 1), device(size_t(1) << 20)}, 5, {1, 1},
-                            host_capacity_total, 1, size_t(0), apart_rows);
+        infer::split_layers(fit, {device(device_capacity - 1), device(size_t(1) << 20)}, rows, {1, 1},
+                            host_capacity_total, 1, size_t(0));
     } catch (const std::runtime_error&) { device_short = true; }
     require(device_short, "a device one byte short of packed lookup capacity was accepted");
     bool host_short = false;
     try {
-        infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, 5, {1, 1},
-                            host_capacity_total - 1, 1, size_t(0), apart_rows);
+        infer::split_layers(fit, {device(device_capacity), device(size_t(1) << 20)}, rows, {1, 1},
+                            host_capacity_total - 1, 1, size_t(0));
     } catch (const std::runtime_error&) { host_short = true; }
     require(host_short, "host lookup pages and index vectors were not fitted exactly");
     checked += 6;
@@ -2017,139 +2017,18 @@ void context_keeps_logits_pages() {
     ++checked;
 }
 
-// A CPU backend that says it is a device, as a stage fed in pieces needs; it is a CPU member for as long as its collective is made, and tells no free memory.
-// It keeps the tickets waited for, and fails its next submission when told to.
-struct PacedDevice : backend::CpuBackend {
-    static inline thread_local bool joining = false;
-    std::vector<backend::Ticket> waited;
-    bool fail = false;
-    bool is_cpu() const override { return joining; }
-    std::optional<size_t> memory_available() const override { return std::nullopt; }
-    std::unique_ptr<backend::Collective> join(const std::vector<backend::Backend*>& members, size_t rows, size_t width) override {
-        joining = true;
-        std::unique_ptr<backend::Collective> c = CpuBackend::join(members, rows, width);
-        joining = false;
-        return c;
-    }
-    backend::Ticket submit() override {
-        if (fail) {
-            fail = false;
-            throw std::runtime_error("injected submission failure");
-        }
-        return CpuBackend::submit();
-    }
-    void wait(backend::Ticket t) noexcept override { waited.push_back(t); }
-};
-
-// The fit counts the second arena's rows and a logits ring for the passes apart only where a stage is fed in pieces: on one device and one group that are no CPU's, not on a CPU or over a layer split.
-void apart_rows_fitted() {
-    const auto devices = [](size_t n, bool cpu) {
-        std::vector<backend::BackendPtr> v;
-        for (size_t i = 0; i < n; ++i) v.push_back(cpu ? std::static_pointer_cast<backend::Backend>(std::make_shared<backend::CpuBackend>()) : std::make_shared<PacedDevice>());
-        return v;
-    };
-    infer::PlacementRequest request;
-    request.apart_rows = 20;
-    request.logit_rows = 16;
-    require(infer::unpaced(devices(1, false), request).empty() && infer::apart_rows(devices(1, false), request) == 20 && infer::fitted_logit_rows(devices(1, false), request) == std::optional<size_t>(36),
-            "one device that is fed in pieces is not fitted with the second arena's rows and their logits ring");
-    require(!infer::unpaced(devices(1, true), request).empty() && infer::apart_rows(devices(1, true), request) == 0 && infer::fitted_logit_rows(devices(1, true), request) == std::optional<size_t>(16),
-            "a CPU is fitted with rows for passes apart");
-    require(!infer::unpaced(devices(2, false), request).empty() && infer::fitted_logit_rows(devices(2, false), request) == std::optional<size_t>(16), "a layer split is fitted with rows for passes apart");
-    request.width = 2;
-    require(infer::unpaced(devices(2, false), request).empty() && infer::fitted_logit_rows(devices(2, false), request) == std::optional<size_t>(36), "one tensor group is not fitted with the passes apart's logits ring");
-    request.logit_rows = 0;
-    require(!infer::fitted_logit_rows(devices(2, false), request), "a request that names no logits rows was given some");
-    // The rows of a pass the fit counts hold a verify's draft rows beside a ubatch and the decode rows, and the second arena's where a stage is fed in pieces.
+// The rows of a pass the fit counts hold a verify's draft rows beside a ubatch and the decode rows.
+void fitted_rows_counted() {
     infer::PlacementRequest drafting;
     drafting.ubatch = 512;
     drafting.decode_rows = 16;
     drafting.draft_rows = 64;
-    drafting.apart_rows = 80;
-    require(infer::fitted_rows(devices(1, true), drafting) == 512 + 16 + 64 && infer::fitted_rows(devices(1, false), drafting) == 512 + 16 + 64 + 80,
+    require(infer::fitted_rows(drafting) == 512 + 16 + 64,
             "the fit's rows of a pass do not hold a verify's draft rows");
     drafting.draft_rows = 0;
     drafting.ubatch = 0;
-    require(infer::fitted_rows(devices(1, true), drafting) == (size_t)infer::kDefaultUbatch + 16, "the fit's rows of a pass without drafts are not a ubatch and the decode rows");
+    require(infer::fitted_rows(drafting) == (size_t)infer::kDefaultUbatch + 16, "the fit's rows of a pass without drafts are not a ubatch and the decode rows");
     ++checked;
-}
-
-// A pass recorded within another's stage at a piece boundary is observed once, after its ticket was waited for, whichever boundary took it, the stage's last among them, after which no piece follows.
-// Where the stage then fails it is still observed once and the error escapes, and a stage that fails with no pass taken observes none; on one device and a group of two, with and without logits.
-void final_piece_observed() {
-    const auto weights = tiny_qwen(2, 2 * 128, true);
-    const std::vector<uint32_t> prompt{1, 2, 3, 4, 5}, token{6};
-    struct Case {
-        int take;     // the boundary a pass is taken at: 0 none, -1 the last
-        bool fail;    // the first member's next submission after that boundary fails
-        bool taken;   // a pass is taken there
-    };
-    for (const size_t width : {size_t(1), size_t(2)})
-        for (const bool logits : {true, false}) {
-            size_t pieces = 0;
-            for (const Case c : {Case{0, false, false}, Case{1, false, true}, Case{-1, false, true}, Case{1, true, true}, Case{-1, true, true}, Case{1, true, false}}) {
-                std::vector<backend::BackendPtr> cpus;
-                for (size_t d = 0; d < width; ++d) {
-                    cpus.push_back(std::make_shared<PacedDevice>());
-                    cpus.back()->set_threads(1);
-                }
-                PacedDevice& first = static_cast<PacedDevice&>(*cpus[0]);
-                infer::PlacementRequest request;
-                request.names.assign(width, "device");
-                request.width = width;
-                infer::PlacedModel placed = infer::place_model(infer::gguf_weights(weights), std::move(cpus), request, infer::ModelOptions{});
-                infer::Model& m = *placed.model;
-                infer::ExecContext ctx;
-                m.reserve_passes(ctx, 2, 8, 4, 4);
-                infer::Sequence a = m.make_sequence(), b = m.make_sequence();
-                const infer::BatchEntry ea{&a, prompt.data(), prompt.size(), logits}, eb{&b, token.data(), token.size(), true};
-                m.begin_pass(ctx, 0, &ea, 1, 0);
-                m.begin_pass(ctx, 1, &eb, 1, 2, true);
-                m.prepare_pass_stage(ctx, 0, 0);
-                m.prepare_pass_stage(ctx, 1, 0);
-                const size_t at = c.take < 0 ? pieces : (size_t)c.take;
-                size_t boundary = 0, observed = 0;
-                backend::Ticket ticket = 0;
-                bool waited_first = true;
-                infer::Pace pace;
-                pace.ahead = false;
-                pace.between = [&] {
-                    if (++boundary != at) return;
-                    if (c.taken) {
-                        m.record_pass_within(ctx, 1, 0);
-                        pace.within = ticket = m.stage_ticket(ctx, 1);
-                        first.waited.clear();
-                    }
-                    first.fail = c.fail;
-                };
-                pace.passed = [&] {
-                    ++observed;
-                    waited_first = waited_first && std::find(first.waited.begin(), first.waited.end(), ticket) != first.waited.end();
-                };
-                std::string caught;
-                try {
-                    m.record_pass_stage(ctx, 0, 0, &pace);
-                } catch (const std::runtime_error& e) {
-                    caught = e.what();
-                }
-                const std::string what = std::string(width > 1 ? "on a group" : "on one device") + (c.take < 0 ? ", at the last boundary" : c.take ? ", at an interior boundary" : "");
-                if (!c.take) {
-                    pieces = boundary;
-                    require(pieces > 1 && !observed && caught.empty(), "a paced stage ended no pieces, or observed a pass none recorded");
-                } else if (!c.taken) {
-                    require(caught == "injected submission failure" && !observed && pace.within == 0, ("a stage that failed with no pass taken observed one, or lost its error, " + what).c_str());
-                } else {
-                    require(caught == (c.fail ? "injected submission failure" : ""), ("a stage's failure after a pass was taken did not escape, or a whole stage failed, " + what).c_str());
-                    require(observed == 1 && pace.within == 0, ("a pass recorded at a piece boundary was not observed exactly once before the stage's recording returned, " + what).c_str());
-                    require(waited_first, ("a pass recorded at a piece boundary was observed before its ticket was waited for, " + what).c_str());
-                }
-                if (!caught.empty()) {
-                    m.abort_pass(ctx, 0);
-                    m.abort_pass(ctx, 1);
-                }
-                ++checked;
-            }
-        }
 }
 
 // The fit of a tensor group counts what a member keeps beside its layers: its collective's rows (Backend::collective_bytes_per_row) and, on the head's group, its slice of every logits row, while the host's rows hold the whole vocabulary.
@@ -2207,8 +2086,7 @@ int main() {
         tensor_groups();
         group_fits();
         context_keeps_logits_pages();
-        apart_rows_fitted();
-        final_piece_observed();
+        fitted_rows_counted();
         host_scratch_fits();
         head_aux_footprint_fits();
         lookup_scratch_fits();

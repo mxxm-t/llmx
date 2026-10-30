@@ -2587,81 +2587,60 @@ button[hidden] {
     <div class="secondary-side">
     <section class="card pad">
      <h2>
-      Scheduler pacing
+      Service record
      </h2>
-     <div class="mode" id="pacing-mode">
-      Mode unavailable
+     <div class="detail-line">
+      <span>
+       Gap between tokens p50 / p99
+      </span>
+      <span>
+       <span data-format="ms" data-m="service.requests.inter_token_ms.p50">
+        --
+       </span>
+       /
+       <span data-format="ms" data-m="service.requests.inter_token_ms.p99">
+        --
+       </span>
+      </span>
      </div>
      <div class="detail-line">
       <span>
-       Target gap
+       First token p99 / queue wait p99
       </span>
-      <span data-format="ms" data-m="pacing.target_gap_ms">
-       --
+      <span>
+       <span data-format="ms" data-m="service.requests.first_token_ms.p99">
+        --
+       </span>
+       /
+       <span data-format="ms" data-m="service.requests.queue_wait_ms.p99">
+        --
+       </span>
       </span>
      </div>
      <div class="detail-line">
       <span>
-       Longest piece / lifetime
+       Replies / chunks / both, while both waited
       </span>
-      <span data-format="ms" data-m="pacing.since_start.longest_piece_ms">
-       --
+      <span>
+       <span data-m="passes.since_start.rule_replies">
+        --
+       </span>
+       /
+       <span data-m="passes.since_start.rule_chunks">
+        --
+       </span>
+       /
+       <span data-m="passes.since_start.rule_mixed">
+        --
+       </span>
       </span>
      </div>
      <p class="tier-note">
-      Pacing counters describe scheduling decisions since server start.
+      Each stage's mean time a pass since start: recording on the host (of it lookup and sum waits), then the devices after recording.
      </p>
-     <details class="fold" id="scheduler-details">
-      <summary>
-       All scheduler counters / lifetime
-      </summary>
-      <div class="fold-body">
-       <div class="detail-line">
-        <span>
-         Gaps / above target
-        </span>
-        <span>
-         <span data-m="pacing.since_start.gaps">
-          --
-         </span>
-         /
-         <span data-m="pacing.since_start.gaps_above_target">
-          --
-         </span>
-        </span>
-       </div>
-       <div class="detail-line">
-        <span>
-         Deferred by floor
-        </span>
-        <span data-m="pacing.since_start.deferred_by_floor">
-         --
-        </span>
-       </div>
-       <div class="detail-line">
-        <span>
-         Passes apart / between pieces
-        </span>
-        <span>
-         <span data-m="passes.since_start.apart">
-          --
-         </span>
-         /
-         <span data-m="passes.since_start.between_pieces">
-          --
-         </span>
-        </span>
-       </div>
-       <div class="detail-line">
-        <span>
-         Passes rode together
-        </span>
-        <span data-m="passes.since_start.rode">
-         --
-        </span>
-       </div>
-      </div>
-     </details>
+     <div id="service-stages">
+      <p class="no-data">No stage measured</p>
+     </div>
     </section>
     <section class="card pad">
      <h2>
@@ -2940,6 +2919,25 @@ function duration(v) {
 }
 function txt(id, value) {
   $(id).textContent = value
+}
+// Each stage's split of a pass's time from the service record, as means over its passes since start.
+function renderServiceStages(raw) {
+  const box = $('service-stages'),
+  stages = get(raw, 'service.stages');
+  box.replaceChildren();
+  if (!Array.isArray(stages) || !stages.length) {
+    box.append(element('p', 'no-data', 'No stage measured'));
+    return
+  }
+  stages.forEach((st, i) => {
+    const s = st && st.since_start || {},
+    n = s.passes,
+    per = v => number(v) && number(n) && n > 0 ? fmt(v / n) + ' ms': '--';
+    const line = element('div', 'detail-line');
+    line.append(element('span', '', 'Stage ' + i + ' (' + fmt(n) + ' passes)'),
+      element('span', '', per(s.recording_ms) + ' rec (' + per(s.lookup_wait_ms) + ' lookup, ' + per(s.sum_wait_ms) + ' sum) + ' + per(s.after_recording_ms) + ' after'));
+    box.append(line)
+  })
 }
 function element(tag, cls, text) {
   const e = document.createElement(tag);
@@ -4148,9 +4146,7 @@ function render() {
   const sources = m('drafting.sources');
   txt('draft-sources', Array.isArray(sources) ? sources.join(' + '): 'Unavailable');
   drawOwnHistory(raw);
-  const mode = m('pacing.mode'),
-  automatic = m('pacing.automatic');
-  txt('pacing-mode', mode === undefined ? 'Mode unavailable': String(mode) + (typeof automatic === 'boolean' ? ' / ' + (automatic ? 'automatic': 'manual'): ''));
+  renderServiceStages(raw);
   drawPositions(raw);
   renderMetadata(raw);
   renderTopology(raw);

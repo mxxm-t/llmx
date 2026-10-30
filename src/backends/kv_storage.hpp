@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -22,14 +23,15 @@ public:
     }
 
     size_t max_blocks() const override { return max_; }
-    size_t allocated_bytes() const override { return size_mul(backed_, total_block_bytes_); }
-    size_t peak_bytes() const override { return peak_; }
+    size_t allocated_bytes() const override { return size_mul(backed_.load(), total_block_bytes_); }
+    size_t peak_bytes() const override { return peak_.load(); }
     // One growth to the whole budget, which copies nothing on a fresh storage.
     void back_all() override {
         if (max_) ensure(max_ - 1);
     }
 
-    size_t layers() const { return k_.size(); }
+    // Fixed when the storage is made, so a thread may read it while another grows the buffers on the device's thread.
+    size_t layers() const { return layers_; }
     size_t heads() const { return heads_; }
     size_t dim() const { return dim_; }
     size_t block_tokens() const { return bt_; }
@@ -58,7 +60,7 @@ public:
         const size_t want = growth_target(backed_, id, max_);
         const size_t kbytes = size_mul(want, kblock_), vbytes = size_mul(want, vblock_);
         // The old buffers and the new are held together while the copies run.
-        const size_t peak = std::max(peak_, size_add(allocated_bytes(), size_mul(want, total_block_bytes_)));
+        const size_t peak = std::max(peak_.load(), size_add(allocated_bytes(), size_mul(want, total_block_bytes_)));
         std::vector<BufferPtr> nk(layers()), nv(layers()), na(layers());
         try {
             for (size_t l = 0; l < layers(); ++l) {
@@ -147,7 +149,7 @@ protected:
     // `prefix` starts every error the storage throws, the backend's own.
     BlockKVStorage(Backend& owner, const char* prefix, size_t block_tokens, size_t layers, size_t heads, size_t dim,
                    size_t max_tokens, KVType kt, KVType vt, const std::vector<size_t>& auxiliary_widths = {}, const std::vector<size_t>& auxiliary_pools = {})
-        : owner_(&owner), prefix_(prefix), bt_(block_tokens), heads_(heads), dim_(dim),
+        : owner_(&owner), prefix_(prefix), bt_(block_tokens), heads_(heads), dim_(dim), layers_(layers),
           max_(blocks_for(max_tokens, block_tokens)), kt_(kt), vt_(vt),
           kblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(kt))),
           vblock_(size_mul(size_mul(size_mul(heads, block_tokens), dim), kv_elem_bytes(vt))),
@@ -197,7 +199,11 @@ private:
 
     Backend* owner_;
     const char* prefix_;
-    size_t bt_, heads_, dim_, max_, backed_ = 0, peak_ = 0;
+    size_t bt_, heads_, dim_;
+    const size_t layers_;
+    size_t max_;
+    // Growth runs on the device's thread, a stage's in a server, while the scheduler's thread reads what is backed for its accounting.
+    std::atomic<size_t> backed_{0}, peak_{0};
     KVType kt_, vt_;
     size_t kblock_, vblock_, total_block_bytes_ = 0;
     std::vector<BufferPtr> k_, v_;

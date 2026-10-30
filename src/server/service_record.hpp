@@ -51,13 +51,11 @@ struct RowKinds {
 };
 
 // One stage of one pass as the record is given it once recorded: the pass's formation order, its work and prediction, when its recording began and ended, its host waits for lookup rows and in sums, and the submission that ends it.
-// A pass fed in pieces is not priced, since its time holds the passes recorded between its pieces.
 struct StageRun {
     uint64_t pass = 0;
     size_t stage = 0;
     PassWork work;
     double predicted_ms = 0;
-    bool priced = true;
     std::chrono::steady_clock::time_point begun, recorded;
     double lookup_ms = 0, sum_ms = 0;
     backend::Backend* backend = nullptr;
@@ -67,7 +65,7 @@ struct StageRun {
 // What a stage's passes measured since start: passes, those predicted and the predictions' total and absolute error, those over their prediction, those fed in pieces, the longest stage time, the last kRecentPasses passes and the prices.
 struct StageRecord {
     static constexpr size_t kRecentPasses = 8;
-    uint64_t passes = 0, predicted = 0, over = 0, in_pieces = 0;
+    uint64_t passes = 0, predicted = 0, over = 0;
     double measured_ms = 0, predicted_ms = 0, error_ms = 0, longest_ms = 0;
     // The measured time split: the host recording the stage, of it the waits for lookup rows and in tensor-group sums, and the device's time after the recording.
     double recording_ms = 0, lookup_ms = 0, sum_ms = 0, after_ms = 0;
@@ -110,6 +108,26 @@ public:
         std::lock_guard<std::mutex> lk(m_);
         return stages_[s].prices.predict(w);
     }
+    // Stage s's price of `rows` decode rows at depth band `band`, 0 before one is measured.
+    double decode_ms(size_t s, size_t band, size_t rows) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return stages_[s].prices.decode_ms(band, rows);
+    }
+    // Stage s's price of a prompt row in a slice of `rows` rows of class `cls` at band `band`, 0 before one is measured.
+    double row_ms(size_t s, size_t cls, size_t band, size_t rows) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return rows ? stages_[s].prices.chunk_ms({cls, band, rows}) / (double)rows : 0.0;
+    }
+    // Stage s's price of a slice of `rows` rows for the quick rule, 0 with `step` the rows to read next where it is not yet known (PriceTable::slice_ms).
+    double slice_ms(size_t s, size_t cls, size_t band, size_t rows, size_t& step) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return stages_[s].prices.slice_ms({cls, band, rows}, step);
+    }
+    // The rows of a slice of class `cls` at band `band` within `target_ms` of stage s, at most `most` (PriceTable::chunk_rows).
+    size_t chunk_rows(size_t s, size_t cls, size_t band, double target_ms, size_t most) const {
+        std::lock_guard<std::mutex> lk(m_);
+        return stages_[s].prices.chunk_rows(cls, band, target_ms, most);
+    }
     // A pass formed, its rows by kind.
     void formed(const RowKinds& k) {
         std::lock_guard<std::mutex> lk(m_);
@@ -128,6 +146,17 @@ public:
         if (!extents_[cls] || extent < extents_[cls]) extents_[cls] = extent;
     }
     // A request's first token, with its wait for admission and its time from reading to that token; and a later token's gap since the one before it.
+    // A pass's reply objective while replies and prompt work both waited (docs/SERVER.md, The service rule): the gap it chose, whether the replies' pass left a chunk room and whether the step gap's maximum bound the gap.
+    struct Objective {
+        double gap_ms = 0;
+        uint64_t met = 0, unmet = 0, capped = 0;
+    };
+    void objective(double gap_ms, bool met, bool capped) {
+        std::lock_guard<std::mutex> lk(m_);
+        objective_.gap_ms = gap_ms;
+        ++(met ? objective_.met : objective_.unmet);
+        objective_.capped += capped;
+    }
     void first_token(double queued_ms, double first_ms) {
         std::lock_guard<std::mutex> lk(m_);
         queue_waits_.add(queued_ms);
@@ -143,10 +172,11 @@ public:
         RowKinds rows;
         std::vector<size_t> extents;   // by row class, its least extent seen
         Recent::Summary queue_wait, first_token, inter_token;
+        Objective objective;
     };
     Snapshot snapshot() const {
         std::lock_guard<std::mutex> lk(m_);
-        return {stages_, rows_, extents_, queue_waits_.summary(), first_tokens_.summary(), inter_tokens_.summary()};
+        return {stages_, rows_, extents_, queue_waits_.summary(), first_tokens_.summary(), inter_tokens_.summary(), objective_};
     }
 
 private:
@@ -201,8 +231,7 @@ private:
             st.error_ms += std::abs(ms - r.predicted_ms);
             st.over += ms > r.predicted_ms;
         }
-        if (r.priced) st.prices.observe(r.work, ms);
-        else ++st.in_pieces;
+        st.prices.observe(r.work, ms);
         st.recent.push_back({r.pass, ms, r.predicted_ms, r.work});
         if (st.recent.size() > StageRecord::kRecentPasses) st.recent.pop_front();
     }
@@ -212,6 +241,7 @@ private:
     std::vector<Clock::time_point> last_done_;         // under m_, per stage, when its last pass seen ended
     std::map<uint64_t, std::pair<size_t, Clock::time_point>> upstream_;   // under m_, by pass, its last stage seen and when it ended
     RowKinds rows_;
+    Objective objective_;
     std::vector<size_t> extents_;
     Recent queue_waits_, first_tokens_, inter_tokens_;
     bool stop_ = false;

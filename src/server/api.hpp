@@ -57,11 +57,7 @@ struct Config {
     uint16_t port = 8080;
     size_t max_seqs = 16;
     size_t max_queue = 64;   // requests waiting for admission; past it, 503
-    size_t passes = 0;       // passes in flight; 0 takes the stage count on a pipelined layer split and one elsewhere (Scheduler)
-    double generating_share = 0;   // of each device's time, a fixed share generating requests keep while prompts are read (Scheduler); 0 leaves it to the automatic rule
-    bool no_pacing = false;        // generating requests are served with the prompts' passes alone
-    Pacing pacing;                 // what the two flags and the placement give (resolve_pacing)
-    std::string unpaced;           // and where that is off, why
+    size_t passes = 0;       // passes in flight; 0 takes the stages and one more on a pipelined layer split, S + 1, and one elsewhere (Scheduler)
     int state_checkpoints = -1;   // on a model that keeps a state, the states kept for prefix reuse; -1 for the most the fit gives up to max_seqs
     bool timing = false;     // time the rounds and the stages for /v1/health, over backends made to time their work
     std::optional<size_t> host_cache_bytes;   // host memory for donors the devices evict (Scheduler); none given takes default_host_cache
@@ -396,7 +392,8 @@ private:
             live += (i ? "," : "") + std::string("{\"id\":") + jmini::quote("r-" + n(r.id)) +
                     ",\"phase\":" + jmini::quote(r.phase) + ",\"prompt_tokens\":" + n(r.prompt_tokens) +
                     ",\"reused_tokens\":" + n(r.reused_tokens) + ",\"prefilled_tokens\":" + n(r.prefilled_tokens) +
-                    ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) +
+                    ",\"published_tokens\":" + n(r.published_tokens) + ",\"elapsed_ms\":" + n(r.elapsed_ms) + ",\"steps\":" + n(r.steps) + ",\"verifies\":" + n(r.verifies) +
+                    ",\"drafted\":" + n(r.drafted) + ",\"kept\":" + n(r.kept) +
                     ",\"queued_ms\":" + n(r.queued_ms) + ",\"first_token_ms\":" + n(r.first_token_ms) + ",\"inter_token_ms\":" + jmini::number((float)r.inter_token_ms) +
                     (r.image_index ? ",\"image\":{\"index\":" + n(r.image_index) + ",\"count\":" + n(r.image_count) + ",\"rows\":" + n(r.image_rows) +
                                          ",\"pieces_done\":" + n(r.pieces_done) + ",\"pieces_total\":" + n(r.pieces_total) + ",\"elapsed_ms\":" + n(r.image_elapsed_ms) + "}"
@@ -445,10 +442,7 @@ private:
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
                   ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
-                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"apart\":" + n(s.apart) + ",\"between_pieces\":" + n(s.between) + ",\"rode\":" + n(s.rode) + ",\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"short\":" + n(s.short_passes) + "}}" +
-                  ",\"pacing\":{\"mode\":\"" + (s.automatic ? "automatic" : s.interleaved ? "interleaved" : s.share > 0 ? "fixed" : "off") + "\",\"target_gap_ms\":" + n((uint64_t)kServiceGapMs) +
-                  ",\"since_start\":{\"interleaved_replies\":" + n(s.interleaved_replies) + ",\"interleaved_slices\":" + n(s.interleaved_slices) + ",\"gaps\":" + n(s.gaps) + ",\"gaps_above_target\":" + n(s.gaps_late) + ",\"deferred_by_floor\":" + n(s.floor_deferred) +
-                  ",\"longest_piece_ms\":" + n((uint64_t)s.longest_piece_ms) + "},\"stages\":" + slices_json(s.slices) + "}" +
+                  ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"rule_replies\":" + n(s.rule_replies) + ",\"rule_chunks\":" + n(s.rule_chunks) + ",\"rule_mixed\":" + n(s.rule_mixed) + ",\"holds\":" + n(s.holds) + ",\"stage_waits\":" + n(s.stage_waits) + "}}" +
                   ",\"service\":" + service_json(s.service) +
                   (s.timed ? ",\"timing\":" + timing_json(s.timing) : std::string()) + "}");
     }
@@ -516,7 +510,7 @@ private:
                 run.samples.push_back(n(cell.samples));
             }
             flush(chunks);
-            stages.push_back("{\"since_start\":{\"passes\":" + n(st.passes) + ",\"predicted\":" + n(st.predicted) + ",\"over_prediction\":" + n(st.over) + ",\"in_pieces\":" + n(st.in_pieces) +
+            stages.push_back("{\"since_start\":{\"passes\":" + n(st.passes) + ",\"predicted\":" + n(st.predicted) + ",\"over_prediction\":" + n(st.over) +
                              ",\"measured_ms\":" + n((uint64_t)st.measured_ms) + ",\"predicted_ms\":" + n((uint64_t)st.predicted_ms) + ",\"error_ms\":" + n((uint64_t)st.error_ms) +
                              ",\"longest_ms\":" + ms(st.longest_ms) + ",\"recording_ms\":" + n((uint64_t)st.recording_ms) + ",\"lookup_wait_ms\":" + n((uint64_t)st.lookup_ms) +
                              ",\"sum_wait_ms\":" + n((uint64_t)st.sum_ms) + ",\"after_recording_ms\":" + n((uint64_t)st.after_ms) + "},\"recent\":" + list(recent) + ",\"prices\":{\"decode\":" + list(decode) + ",\"chunks\":" + list(chunks) + "}}");
@@ -528,17 +522,9 @@ private:
         };
         return "{\"stages\":" + list(stages) + ",\"rows\":{\"since_start\":{\"decode\":" + n(v.rows.decode) + ",\"drafts\":" + n(v.rows.drafts) + ",\"recomputed\":" + n(v.rows.recomputed) +
                ",\"prompt\":" + n(v.rows.prompt) + ",\"reread\":" + n(v.rows.reread) + ",\"prompt_by_band\":" + list(bands) + "}},\"requests\":{\"queue_wait_ms\":" + summary(v.queue_wait) +
-               ",\"first_token_ms\":" + summary(v.first_token) + ",\"inter_token_ms\":" + summary(v.inter_token) + "}}";
-    }
-    // Each stage's last pass fed in pieces (SliceRecord): its rows, its pieces' count and time, and its longest piece's time, layer and part.
-    static std::string slices_json(const std::vector<SliceRecord>& slices) {
-        std::string out = "[";
-        for (const SliceRecord& r : slices) {
-            if (out.size() > 1) out += ",";
-            out += "{\"last_slice\":{\"rows\":" + std::to_string(r.rows) + ",\"pieces\":" + std::to_string(r.pieces) + ",\"pieces_ms\":" + jmini::number((float)r.pieces_ms) +
-                   ",\"longest_ms\":" + jmini::number((float)r.longest_ms) + ",\"longest_layer\":" + std::to_string(r.longest_layer) + ",\"longest_part\":\"" + r.longest_part + "\"}}";
-        }
-        return out + "]";
+               ",\"first_token_ms\":" + summary(v.first_token) + ",\"inter_token_ms\":" + summary(v.inter_token) + "},\"objective\":{\"reply_tokens_per_s\":" + jmini::number(kReplyTokensPerSecond) +
+               ",\"max_step_gap_ms\":" + jmini::number(kMaxStepGapMs) + ",\"gap_ms\":" + ms(v.objective.gap_ms) + ",\"since_start\":{\"met\":" + n(v.objective.met) + ",\"unmet\":" + n(v.objective.unmet) +
+               ",\"capped\":" + n(v.objective.capped) + "}}}";
     }
     static std::string topology_json(const infer::Model::Topology& t, const infer::DtypePlan& dtype) {
         const auto n = [](size_t v) { return std::to_string(v); };
@@ -1682,27 +1668,6 @@ struct StopOnSignal {
 };
 } // namespace detail
 
-// How generating requests are served beside prompts, from the two flags and why the placement feeds no stage in pieces (infer::unpaced), into cfg.pacing and cfg.unpaced.
-// The automatic rule where a stage is fed in pieces, the interleaved one on a pipelined split (PlacedModel::pipelined_split), else off with the reason; a fixed share is refused by the flag's name where it cannot be kept.
-inline void resolve_pacing(Config& cfg, const std::string& unpaced, bool pipelined_split = false) {
-    if (cfg.generating_share > 0 && !unpaced.empty()) throw std::runtime_error("--generating-share: " + unpaced);
-    cfg.unpaced = cfg.no_pacing ? "--no-pacing" : unpaced;
-    cfg.pacing = cfg.no_pacing                 ? Pacing{}
-                 : cfg.generating_share > 0    ? Pacing::fixed(cfg.generating_share)
-                 : unpaced.empty()             ? Pacing::automatic()
-                 : pipelined_split             ? Pacing::interleaved()
-                                               : Pacing{};
-}
-// The start line that says which.
-inline std::string pacing_line(const Config& cfg) {
-    if (cfg.pacing.mode == Pacing::Mode::fixed) return "server: pacing: fixed share " + jmini::number((float)cfg.pacing.share) + "\n";
-    if (cfg.pacing.mode == Pacing::Mode::off) return "server: pacing: off (" + cfg.unpaced + ")\n";
-    if (cfg.pacing.mode == Pacing::Mode::interleaved)
-        return "server: pacing: interleaved (while a prompt is read a generating request's passes go between its slices on every stage, each slice cut to a stage's target time)\n";
-    return "server: pacing: automatic (while a prompt is read a generating request is served about every " + std::to_string((int)kServiceGapMs) +
-           " ms, where the device's steps allow)\n";
-}
-
 // The server's accept loop from the moment it listens, on a thread of its own: until the routes are published, health answers 503 with the start's record and every other route 503.
 // It ends when the listener closes; destroyed, it closes the listener and waits for its connections.
 class Front {
@@ -1776,12 +1741,11 @@ inline void serve(infer::Model& model, const bpe::Tokenizer& tok, const chat::Ch
                   const Config& cfg, Front& front) {
     Scheduler sched(model, tok, cfg.max_seqs, cfg.max_queue, cfg.passes, cfg.timing,
                     cfg.host_cache_bytes.value_or(default_host_cache(model, cfg.max_seqs, Scheduler::request_limit(model, cfg.ctx_size))), cfg.proposer, cfg.draft_max, true, cfg.disk,
-                    cfg.pacing, cfg.ctx_size);
+                    cfg.ctx_size);
     const Scheduler::Stats started = sched.stats();
     std::fprintf(stderr, "server: up to %zu pass%s in flight over %zu stage%s, %zu sampling thread%s beside the scheduler's\n", started.passes,
                  started.passes == 1 ? "" : "es", model.stage_count(), model.stage_count() == 1 ? "" : "s", started.samplers,
                  started.samplers == 1 ? "" : "s");
-    std::fputs(pacing_line(cfg).c_str(), stderr);
     Api api(model, tok, format, sched, cfg, &front.startup());
     std::thread runner([&] { sched.run(); });
     const detail::StopOnSignal stop_on_signal(front.listener());

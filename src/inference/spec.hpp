@@ -62,6 +62,11 @@ public:
     }
     // Whether a history's own convincing continuation is drafted in this proposer's place where it has one (lookup_first), as the commands ask of a proposer that runs a model.
     virtual bool after_lookup() const { return false; }
+    // Whether its drafts run on the model's devices, as they may unless it says not: on the head stage's alone, which a server records on that stage's thread, or on others too, for which it holds every stage.
+    virtual bool on_device() const { return true; }
+    virtual bool on_head() const { return false; }
+    // For a proposer on the head's devices, the asks' chain begun for a caller that records it on the head stage's thread behind the work queued there and ends it (Model::Chain); null where no ask drafts.
+    virtual std::unique_ptr<Model::Chain> begin_all(Ask*, size_t) { throw std::logic_error("inference: a proposer without a chain on the head's devices"); }
 };
 
 // Whether row `at` of a history is an image's.
@@ -118,6 +123,7 @@ public:
         }
         return 0;
     }
+    bool on_device() const override { return false; }
 };
 
 // The embedded drafter a model was loaded with (docs/SPECULATIVE.md, section 7): its chain of drafts after the history's last pick, which the model drafts from the row its history carries.
@@ -132,16 +138,26 @@ public:
     }
     // Every ask's chain in one batch of the model's (Model::draft), so the drafter's weights and the head are read once a step for all of them; each ask names its sequence.
     void draft_all(Ask* asks, size_t n) override {
+        batch(asks, n);
+        model_.draft(batch_.data(), batch_.size());
+    }
+    std::unique_ptr<Model::Chain> begin_all(Ask* asks, size_t n) override {
+        batch(asks, n);
+        return model_.draft_begin(batch_.data(), batch_.size(), true);
+    }
+    bool after_lookup() const override { return after_lookup_; }
+    bool on_device() const override { return true; }
+    bool on_head() const override { return true; }
+
+private:
+    void batch(Ask* asks, size_t n) {
         batch_.clear();
         for (size_t i = 0; i < n; ++i) {
             asks[i].out.clear();
             if (!asks[i].history.empty()) batch_.push_back({asks[i].seq, asks[i].history.back(), asks[i].k, &asks[i].out});
         }
-        model_.draft(batch_.data(), batch_.size());
     }
-    bool after_lookup() const override { return after_lookup_; }
 
-private:
     Model& model_;
     const bool after_lookup_;
     std::vector<Model::DraftAsk> batch_;
@@ -182,6 +198,7 @@ public:
         }
     }
     bool after_lookup() const override { return after_lookup_; }
+    bool on_device() const override { return true; }
 
 private:
     Model& model_;
@@ -310,11 +327,6 @@ public:
     void pass(size_t rows, double ms) { passes_.add((double)rows, ms); }
     void chain(size_t steps, size_t chains, double ms) {
         if (steps) chains_.add((double)chains, ms / (double)steps);
-    }
-    // What a pass of `rows` generated rows takes, from the line where it is known and else the mean of those seen; 0 before any.
-    double pass_ms(double rows) const {
-        double base = 0, row = 0;
-        return passes_.fit(base, row) ? base + row * rows : passes_.mean();
     }
     PassCost cost() const {
         PassCost c;

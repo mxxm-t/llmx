@@ -132,8 +132,9 @@ public:
         uint64_t payload = 0;
     };
 
-    StreamedRead(const DiskStore& store, std::vector<File> files, infer::RestoreInto& into, std::function<void()> wake)
-        : store_(store), files_(std::move(files)), into_(into), wake_(std::move(wake)), opened_(files_.size()) {
+    // With `defer` every call on a device, its views of the slots and each chunk's copies, runs on its stage's thread (infer::Model::StageItem), in order there, and the scheduler's thread only waits on tickets.
+    StreamedRead(const DiskStore& store, std::vector<File> files, infer::RestoreInto& into, std::function<void()> wake, infer::Model::Defer defer = {})
+        : store_(store), files_(std::move(files)), into_(into), wake_(std::move(wake)), defer_(std::move(defer)), opened_(files_.size()) {
         for (size_t f = 0; f < files_.size(); ++f)
             for (uint64_t c = 0; c * DiskStore::kChunk < files_[f].payload; ++c) chunks_.push_back({f, c});
         // Each device's image offsets where its runs start, so an image byte finds its run.
@@ -147,16 +148,34 @@ public:
         }
         ring_ = std::make_unique<infer::ReadRing>(chunks_.size(), DiskStore::kChunk, [this](size_t k, uint8_t* slot) { return fill(k, slot); });
         // Each device's view of every slot where it copies out of host pages in place; a write where it does not.
+        // With `defer` the views are made on the device's stage's thread, ahead of every chunk sent to it there, which alone reads them.
         views_.resize(into_.backends.size());
-        for (size_t d = 0; d < into_.backends.size(); ++d)
-            for (size_t i = 0; i < ring_->slots(); ++i) {
-                backend::BufferPtr v = into_.backends[d]->wrap_host(ring_->pages(i).data(), ring_->pages(i).size());
-                if (!v) {
-                    views_[d].clear();
-                    break;
+        for (size_t d = 0; d < into_.backends.size(); ++d) {
+            const auto make = [this, d] {
+                for (size_t i = 0; i < ring_->slots(); ++i) {
+                    backend::BufferPtr v = into_.backends[d]->wrap_host(ring_->pages(i).data(), ring_->pages(i).size());
+                    if (!v) {
+                        views_[d].clear();
+                        break;
+                    }
+                    views_[d].push_back(std::move(v));
                 }
-                views_[d].push_back(std::move(v));
+            };
+            if (defer_) {
+                ++views_left_;
+                defer_(infer::Model::StageItem{into_.stages[d], [this, make] {
+                    try {
+                        make();
+                    } catch (...) {
+                        --views_left_;
+                        throw;
+                    }
+                    --views_left_;
+                }});
+            } else {
+                make();
             }
+        }
         last_.assign(into_.backends.size(), 0);
         // The readers start only now: a view that throws above leaves no reader to join, one of which could be waking the scheduler whose lock the caller holds.
         ring_->start();
@@ -168,7 +187,8 @@ public:
     State poll() {
         if (state_ != State::running) return state_;
         retire();
-        if (taken_ == chunks_.size() && pending_.empty()) state_ = State::done;
+        // A chunk whose part failed fails the read as it retires, which no later state takes back.
+        if (state_ == State::running && taken_ == chunks_.size() && pending_.empty()) state_ = State::done;
         return state_;
     }
     // Whether a full slot waits to be sent, or a reader's failure to be taken, either of which needs send().
@@ -193,7 +213,7 @@ public:
     // Whether the readers have ended and every copy has retired, so the ring, its pages and the history's blocks can go with no wait.
     bool idle() {
         retire();
-        return ring_->idle() && pending_.empty();
+        return ring_->idle() && pending_.empty() && !views_left_;
     }
     // Where a failure came from: the file whose read failed, 0 for a cancel, and why.
     uint64_t failed_key() const { return failed_key_; }
@@ -207,9 +227,17 @@ private:
         size_t file;
         uint64_t index;
     };
+    // A chunk's parts on the stages' threads: the parts left, each device's ticket and the first error.
+    struct Chunked {
+        std::mutex m;
+        size_t piece = 0, left = 0;
+        std::vector<backend::Ticket> tickets;
+        std::string error;
+    };
     struct Pending {
         size_t piece;
         std::vector<backend::Ticket> tickets;
+        std::shared_ptr<Chunked> parts = {};
     };
 
     // On a reader thread: chunk k's file opened once, its header checked, and the chunk read and checked against its CRC.
@@ -252,6 +280,7 @@ private:
         const uint64_t from = c.index * DiskStore::kChunk, to = from + full.bytes;
         const uint8_t* data = ring_->pages(full.slot).data();
         std::vector<char> used(into_.backends.size(), 0);
+        if (defer_) return send_deferred(full, f, from, to, data);
         Pending p{full.piece, std::vector<backend::Ticket>(into_.backends.size(), 0)};
         try {
             uint64_t at = 0;
@@ -283,6 +312,70 @@ private:
         bytes_ += full.bytes;
         ++taken_;
     }
+    // A chunk sent with `defer`: the bytes bound for host memory copied here, and each device's copies and submission one item on its stage's thread, reporting to the chunk's record.
+    // A part that fails retires what it recorded on its own thread and fails the read once the chunk is retired (retire).
+    void send_deferred(const infer::ReadRing::Full& full, const File& f, uint64_t from, uint64_t to, const uint8_t* data) {
+        struct Put {
+            size_t run, off, in_slot, k;
+            const uint8_t* src;
+        };
+        std::vector<std::vector<Put>> puts(into_.backends.size());
+        uint64_t at = 0;
+        for (const File::Segment& s : f.segments) {
+            const uint64_t lo = std::max(at, from), hi = std::min(at + s.bytes, to);
+            if (!s.skip && lo < hi) {
+                size_t image = s.image + (size_t)(lo - at), in_slot = (size_t)(lo - from), n = (size_t)(hi - lo);
+                const uint8_t* src = data + (lo - from);
+                const size_t d = s.device;
+                size_t r = (size_t)(std::upper_bound(starts_[d].begin(), starts_[d].end(), image) - starts_[d].begin()) - 1;
+                while (n) {
+                    const infer::RestoreInto::Run& run = into_.runs[d][r];
+                    const size_t off = image - starts_[d][r], k = std::min(n, run.bytes - off);
+                    if (run.host) std::memcpy(run.host + run.offset + off, src, k);
+                    else puts[d].push_back({r, off, in_slot, k, src});
+                    image += k;
+                    src += k;
+                    in_slot += k;
+                    n -= k;
+                    ++r;
+                }
+            }
+            at += s.bytes;
+        }
+        auto p = std::make_shared<Chunked>();
+        p->piece = full.piece;
+        p->tickets.assign(into_.backends.size(), 0);
+        size_t parts = 0;
+        for (const auto& v : puts) parts += !v.empty();
+        p->left = parts;
+        pending_.push_back(Pending{full.piece, {}, p});
+        for (size_t d = 0; d < puts.size(); ++d) {
+            if (puts[d].empty()) continue;
+            defer_(infer::Model::StageItem{into_.stages[d], [this, p, d, slot = full.slot, list = std::move(puts[d])] {
+                backend::Backend& b = *into_.backends[d];
+                backend::Ticket t = 0;
+                std::string error;
+                try {
+                    for (const Put& u : list) {
+                        const infer::RestoreInto::Run& run = into_.runs[d][u.run];
+                        if (!views_[d].empty()) b.copy(run.target(), run.offset + u.off, *views_[d][slot], u.in_slot, u.k);
+                        else b.write(run.target(), run.offset + u.off, u.src, u.k);
+                    }
+                    t = b.submit();
+                } catch (const std::exception& e) {
+                    error = e.what();
+                    // Nothing else records on the device on its stage's thread, so what the part recorded retires here before the slot can go.
+                    try { b.sync(); } catch (...) {}
+                }
+                std::lock_guard<std::mutex> lk(p->m);
+                p->tickets[d] = t;
+                if (!error.empty() && p->error.empty()) p->error = error;
+                --p->left;
+            }});
+        }
+        bytes_ += full.bytes;
+        ++taken_;
+    }
     // `n` bytes of device d's image from `image` on, which are at `in_slot` of the slot, to the runs they fall in.
     void put(size_t d, size_t image, const uint8_t* src, size_t slot, size_t in_slot, size_t n) {
         const std::vector<infer::RestoreInto::Run>& runs = into_.runs[d];
@@ -304,7 +397,14 @@ private:
     // The slots whose copies have retired given back, in order.
     void retire() {
         while (!pending_.empty()) {
-            const Pending& p = pending_.front();
+            Pending& p = pending_.front();
+            if (p.parts) {
+                std::lock_guard<std::mutex> lk(p.parts->m);
+                if (p.parts->left) return;
+                p.tickets = p.parts->tickets;
+                if (!p.parts->error.empty() && state_ == State::running) failed(p.parts->error.c_str());
+                for (size_t d = 0; d < p.tickets.size(); ++d) last_[d] = std::max(last_[d], p.tickets[d]);
+            }
             for (size_t d = 0; d < p.tickets.size(); ++d)
                 if (p.tickets[d] && !into_.backends[d]->done(p.tickets[d])) return;
             ring_->free(p.piece);
@@ -316,6 +416,8 @@ private:
     std::vector<File> files_;
     infer::RestoreInto& into_;
     const std::function<void()> wake_;
+    const infer::Model::Defer defer_;
+    std::atomic<size_t> views_left_{0};   // view items not yet run on their stages' threads
     std::vector<Chunk> chunks_;
     std::vector<std::vector<size_t>> starts_;
     std::mutex open_;
@@ -738,21 +840,12 @@ public:
         return any;
     }
 
-    // The bytes a block of every device's KV storage and one state take in a file, measured once on slabs taken and given back.
-    void measure(infer::Model& model) {
+    // The bytes a block of every device's KV storage and one state take in a file, as a copy of each would hold them (Model::host_bytes), with no memory taken.
+    void measure(const infer::Model& model) {
         if (measured_) return;
         measured_ = true;
-        try {
-            infer::HostHistory probe;
-            model.alloc_host(model.kv_block_tokens(), probe, std::numeric_limits<size_t>::max(), true, 0, false);
-            block_bytes_ = probe.bytes;
-            model.release_host(probe);
-            if (model.keeps_state()) {
-                model.alloc_host(0, probe, std::numeric_limits<size_t>::max(), false);
-                state_bytes_ = probe.bytes;
-                model.release_host(probe);
-            }
-        } catch (const std::exception&) {}
+        block_bytes_ = model.host_bytes(model.kv_block_tokens(), true, 0, false);
+        if (model.keeps_state()) state_bytes_ = model.host_bytes(0, false);
     }
     // The bytes still to write of a history of `n` tokens: its segments not on disk, where `blocks` says its holder has them, and its state.
     uint64_t unwritten(const std::vector<std::string>& d, size_t block, size_t n, bool state, bool blocks) const {
@@ -767,7 +860,7 @@ public:
     // Starts the write of the next file a history of `n` tokens lacks on disk, a segment and then its state, out of `held` or off the devices from `seq`, a segment of at most `most` rows from `seq`.
     // `source` and `bound` name the host entry whose slabs the store reads, 0 for slabs of its own (docs/src/server.md, the disk tier).
     Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound,
-                     size_t most = std::numeric_limits<size_t>::max()) {
+                     size_t most = std::numeric_limits<size_t>::max(), const infer::Model::Defer& defer = {}) {
         const size_t block = model.kv_block_tokens();
         const bool state = model.keeps_state();
         const auto missing = index_.missing(d, block, n);
@@ -784,7 +877,7 @@ public:
                 f.below = d[f.first / block];
                 f.ends.assign(d.begin() + (std::ptrdiff_t)(f.first / block) + 1, d.begin() + (std::ptrdiff_t)(f.end / block) + 1);
                 if (!held) {
-                    model.save_host_blocks(*seq, f.first, f.end, staging_, std::numeric_limits<size_t>::max());
+                    model.save_host_blocks(*seq, f.first, f.end, staging_, std::numeric_limits<size_t>::max(), defer);
                     from = &staging_;
                 }
                 ranges = model.host_ranges(*from, f.first, f.end);
@@ -793,7 +886,7 @@ public:
                 f.first = f.end = n;
                 f.below = d[n / block];
                 if (!held) {
-                    model.save_host(*seq, n, staging_, std::numeric_limits<size_t>::max(), false);
+                    model.save_host(*seq, n, staging_, std::numeric_limits<size_t>::max(), false, defer);
                     from = &staging_;
                 }
                 ranges = model.host_state_ranges(*from);
@@ -816,7 +909,14 @@ public:
             model.release_host(staging_);
             return Wrote::refused;
         }
+        // The host reads what the copy wrote, so it waits for the copy; a copy that failed loses only itself.
         model.wait_host(*from);
+        if (!from->error.empty()) {
+            pins_.clear();
+            std::fprintf(stderr, "server: %zu tokens of a history were not written to the disk (its copy to host memory failed: %s)\n", n, from->error.c_str());
+            model.release_host(staging_);
+            return Wrote::refused;
+        }
         {
             std::lock_guard<std::mutex> lk(m_);
             in_flight_ = store_->put(std::move(blob), runs_of(*from, ranges), infer::Model::host_slab_bytes(), [this](bool ok, const std::string& error) {
@@ -848,12 +948,12 @@ public:
 
     // Starts the read of path `p` of a history into `target`, or with `state_only` of its state alone, and returns the read's id, which settle reports once every file has ended.
     // 0, nothing started, where host memory for the part not wanted is not to be had (docs/src/server.md, the disk tier).
-    uint64_t read(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only) {
+    uint64_t read(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only, const infer::Model::Defer& defer = {}) {
         Reading r;
         r.id = ++read_ids_;
         std::vector<Call> calls;
         try {
-            calls_of(model, p, target, state_only, r.scratch, calls);
+            calls_of(model, p, target, state_only, r.scratch, calls, defer);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "server: a history of %zu tokens was not read from disk (%s)\n", p.length, e.what());
             model.release_host(r.scratch);
@@ -863,7 +963,7 @@ public:
     }
 
     // The read of path `p` streamed straight into `into`'s device storage (StreamedRead), its files pinned until end_stream; nothing where the model lays the path out otherwise than its files.
-    std::unique_ptr<StreamedRead> stream(infer::Model& model, const DiskIndex::Path& p, infer::RestoreInto& into, uint64_t& id) {
+    std::unique_ptr<StreamedRead> stream(infer::Model& model, const DiskIndex::Path& p, infer::RestoreInto& into, uint64_t& id, const infer::Model::Defer& defer = {}) {
         const infer::HostHistory image = model.host_layout(p.length);
         std::vector<StreamedRead::File> files;
         const auto segments = [&](StreamedRead::File& f, const std::vector<infer::HostRange>& ranges, const std::vector<infer::HostRange>& skip) {
@@ -898,7 +998,7 @@ public:
         std::vector<uint64_t> keys;
         for (const StreamedRead::File& f : files) keys.push_back(f.key);
         // The files are pinned only once the read exists, so a read that fails as it is made leaves no pin.
-        std::unique_ptr<StreamedRead> read = std::make_unique<StreamedRead>(*store_, std::move(files), into, wake_);
+        std::unique_ptr<StreamedRead> read = std::make_unique<StreamedRead>(*store_, std::move(files), into, wake_, defer);
         streams_.push_back({read_ids_ + 1, std::move(keys)});
         id = ++read_ids_;
         return read;
@@ -961,7 +1061,7 @@ public:
     }
 
     // Starts a plan's proof: the path to its fork read for its request to restore, and the files holding its first block, its last block and the state at its end read whole to compare with. The proof's id, which settle reports as a read, or 0.
-    uint64_t prove(infer::Model& model, const Plan& plan) {
+    uint64_t prove(infer::Model& model, const Plan& plan, const infer::Model::Defer& defer = {}) {
         Proof p;
         Reading r;
         r.id = p.id = ++read_ids_;
@@ -975,21 +1075,21 @@ public:
         std::vector<Call> calls;
         const size_t most = std::numeric_limits<size_t>::max();
         const auto whole = [&](const DiskIndex::Piece& piece, infer::HostHistory& h) {
-            model.alloc_host(piece.end, h, most, true, piece.first, false);
+            model.take_host(piece.end, h, most, true, piece.first, false, defer);
             const std::vector<infer::HostRange> ranges = model.host_ranges(h, piece.first, piece.end);
             calls.push_back(Call{piece.key, runs_of(h, ranges), layout_of(ranges, h.slabs.size())});
         };
         try {
             if (plan.base.length) {
-                model.alloc_host(plan.base.length, p.base, most, true);
-                calls_of(model, plan.base, p.base, false, r.scratch, calls);
+                model.take_host(plan.base.length, p.base, most, true, 0, true, defer);
+                calls_of(model, plan.base, p.base, false, r.scratch, calls, defer);
             }
             const DiskIndex::Piece& root = plan.path.pieces.front();
             const DiskIndex::Piece& last = plan.path.pieces.back();
             if (plan.first) whole(root, p.head);
             if (!plan.first || last.key != root.key) whole(last, p.tail);
             if (plan.path.state) {
-                model.alloc_host(plan.end, p.state, most, false);
+                model.take_host(plan.end, p.state, most, false, 0, true, defer);
                 const std::vector<infer::HostRange> ranges = model.host_state_ranges(p.state);
                 calls.push_back(Call{*plan.path.state, runs_of(p.state, ranges), layout_of(ranges, p.state.slabs.size())});
             }
@@ -1148,12 +1248,13 @@ private:
         std::vector<size_t> layout;
     };
     // The reads of path `p` into `target`, a file the path uses part of taking `scratch` for the rest, appended to `calls`.
-    void calls_of(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only, infer::HostHistory& scratch, std::vector<Call>& calls) {
+    void calls_of(infer::Model& model, const DiskIndex::Path& p, const infer::HostHistory& target, bool state_only, infer::HostHistory& scratch, std::vector<Call>& calls,
+                  const infer::Model::Defer& defer = {}) {
         for (const DiskIndex::Piece& piece : state_only ? std::vector<DiskIndex::Piece>{} : p.pieces) {
             std::vector<infer::HostRange> ranges = model.host_ranges(target, piece.first, piece.use);
             std::vector<StoreRun> runs = runs_of(target, ranges);
             if (piece.use < piece.end) {
-                model.alloc_host(piece.end, scratch, std::numeric_limits<size_t>::max(), true, piece.use, false);
+                model.take_host(piece.end, scratch, std::numeric_limits<size_t>::max(), true, piece.use, false, defer);
                 const std::vector<infer::HostRange> rest = model.host_ranges(scratch, piece.use, piece.end);
                 const std::vector<StoreRun> more = runs_of(scratch, rest);
                 std::vector<StoreRun> both;

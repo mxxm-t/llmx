@@ -5,6 +5,9 @@
 #include <cstring>
 #include <atomic>
 #include <numeric>
+#include <chrono>
+#include <limits>
+#include <thread>
 
 #include "server_harness.hpp"
 #include "inference/load.hpp"
@@ -121,11 +124,110 @@ void timed_phases(const Make& plain, const Make& drafting, const MakeProposer& p
     std::cout << "server-spec: " << what << ": chains " << t.drafting_ms << " ms, retracts " << t.settling_ms << " ms over " << t.rounds << " rounds" << std::endl;
 }
 
+// One reply drafting alone in steady state, between its 60th and 300th token, never stops the stages' recorders: marks, verifies' retracts and drafters' chains go to the stages' threads instead (docs/SERVER.md, the round).
+void steady_holds(const Make& drafting, const MakeProposer& proposer, const bpe::Tokenizer& tok, uint32_t vocab, size_t passes, const std::string& what) {
+    std::vector<uint32_t> prompt = prompt_of(21, 60, vocab);
+    prompt.insert(prompt.end(), prompt.begin(), prompt.begin() + 30);
+    auto model = drafting(4096, 0);
+    auto p = proposer(*model);
+    server::Scheduler sched(*model, tok, 2, 64, passes, false, 0, p.get(), kDraftMax, false);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats early, late;
+    size_t read = 0;
+    try {
+        auto r = sched.submit(prompt, params_of({prompt, 400}));
+        server::Request::Token t;
+        for (;;) {
+            const auto got = r->next(t, server::Request::Clock::now() + std::chrono::seconds(120));
+            if (got == server::Request::Next::end) break;
+            require(got == server::Request::Next::id, what + ": a channel gave nothing for 120 seconds");
+            if (++read == 60) early = sched.stats();
+            if (read == 300) late = sched.stats();
+        }
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(read == 400 && total(late.drafted) > total(early.drafted), what + ": " + std::to_string(total(late.drafted) - total(early.drafted)) + " drafts fed in steady state");
+    require(late.holds == early.holds, what + ": " + std::to_string(late.holds - early.holds) + " holds of every recorder in steady drafting");
+    std::cout << "server-spec: " << what << ": " << total(late.drafted) - total(early.drafted) << " drafts fed in steady state with no hold of the recorders" << std::endl;
+}
+
+// A wide CPU backend whose copy into a host slab throws once `armed` is set, the first such copy taking it.
+struct SaveThrows : Wide {
+    std::shared_ptr<std::atomic<bool>> armed, threw;
+    SaveThrows(std::shared_ptr<std::atomic<bool>> a, std::shared_ptr<std::atomic<bool>> t) : armed(std::move(a)), threw(std::move(t)) {}
+    void copy(backend::Buffer& dst, size_t dst_off, const backend::Buffer& src, size_t src_off, size_t bytes) override {
+        bool expected = true;
+        if (dst.size() == infer::Model::host_slab_bytes() && armed->compare_exchange_strong(expected, false)) {
+            threw->store(true);
+            throw std::runtime_error("injected save failure");
+        }
+        backend::CpuBackend::copy(dst, dst_off, src, src_off, bytes);
+    }
+};
+
+// A drafting reply beside short requests on a pool their finished histories outgrow, so donors are copied to host memory while the reply drafts, over two CPU stages at two passes.
+// The copies take no hold of the recorders and the reply is its reply alone; with a copy failing on its stage's thread, that copy alone is lost and every request still ends by its length.
+void host_saves(const gguf::GGUFModel& file, const bpe::Tokenizer& tok, uint32_t vocab, bool failing) {
+    auto armed = std::make_shared<std::atomic<bool>>(failing), threw = std::make_shared<std::atomic<bool>>(false);
+    const auto backends = [&] {
+        std::vector<backend::BackendPtr> v;
+        for (size_t i = 0; i < 2; ++i) v.push_back(std::make_shared<SaveThrows>(armed, threw));
+        return v;
+    };
+    const Make plain = on(file, [] { return cpus(2); });
+    const Make drafting = on(file, backends, 8, 0, 4, kDraftMax + 1);
+    std::vector<uint32_t> prompt = prompt_of(21, 60, vocab);
+    prompt.insert(prompt.end(), prompt.begin(), prompt.begin() + 30);
+    const Req reply{prompt, 400};
+    Reply alone;
+    {
+        auto m = plain(1024, 0);
+        alone = serve(*m, tok, 2, {{reply}}, nullptr, 2).back();
+    }
+    const std::string what = failing ? "host saves, one failing" : "host saves";
+    auto model = drafting(1024, 0);
+    infer::spec::Lookup lookup;
+    server::Scheduler sched(*model, tok, 2, 64, 2, false, size_t(256) << 20, &lookup, kDraftMax, false);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats first, last;
+    Reply got;
+    try {
+        auto r = sched.submit(reply.prompt, params_of(reply));
+        for (uint32_t s = 0; s < 6; ++s) {
+            const Req q{prompt_of(40 + s, 250, vocab), 4};
+            auto h = sched.submit(q.prompt, params_of(q));
+            collect(*h);
+            require(h->finish() == "length", what + ": a short request ended " + h->finish() + " " + h->error());
+            if (!s) first = sched.stats();
+        }
+        last = sched.stats();
+        got = collect(*r);
+        require(r->finish() == "length", what + ": the reply ended " + r->finish() + " " + r->error());
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(last.host_bytes_moved > first.host_bytes_moved, what + ": no donor was copied to host memory");
+    require(last.holds == first.holds, what + ": " + std::to_string(last.holds - first.holds) + " holds of every recorder while donors were copied");
+    require(threw->load() == failing, what + ": the injected failure " + (failing ? "did not happen" : "happened"));
+    same(alone, got, what + ": the drafting reply beside the copies");
+    std::cout << "server-spec: " << what << ": " << (last.host_bytes_moved - first.host_bytes_moved) / 1024 << " KiB copied to host memory with no hold of the recorders, the reply its reply alone" << std::endl;
+}
+
 // A proposer that stands behind lookup as a model drafter does and drafts the token after each history's last, which a reply seldom holds next.
 struct Astray final : infer::spec::Proposer {
     uint32_t vocab = 0;
     void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override { out.assign(k, (h.back() + 1) % vocab); }
     bool after_lookup() const override { return true; }
+    bool on_device() const override { return false; }
 };
 
 // Lookup ahead of a proposer in the scheduler (docs/SPECULATIVE.md, section 8): greedy replies that come to repeat themselves draft their own continuation, the proposer drafting for the others in the same passes, each reply its own alone.
@@ -144,6 +246,50 @@ void own_history(const Make& plain, const Make& drafting, const bpe::Tokenizer& 
     require(kept * 2 > own && kept >= 100, what + ": " + std::to_string(kept) + " of " + std::to_string(own) + " drafts of the replies' own continuations kept");
     require(total(stats.drafted) > own && total(stats.kept) >= kept, what + ": the proposer drafted nothing beside them, " + std::to_string(total(stats.drafted)) + " drafts fed in all");
     std::cout << "server-spec: " << what << ": " << kept << " of " << own << " drafts of the replies' own continuations kept, " << total(stats.drafted) - own << " of the proposer's fed" << std::endl;
+}
+
+// A proposer behind lookup that drafts the next token of one request's reply alone and then tokens after it the reply seldom holds, so that request keeps one draft a verify and never rests.
+struct FirstRight final : infer::spec::Proposer {
+    std::vector<uint32_t> prompt;
+    Reply reply;
+    uint32_t vocab = 0;
+    void draft(infer::Sequence*, const std::vector<uint32_t>& h, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override {
+        const bool known = h.size() >= prompt.size() && std::equal(prompt.begin(), prompt.end(), h.begin()) && h.size() - prompt.size() < reply.size();
+        out.assign(1, known ? reply[h.size() - prompt.size()].id : (h.back() + 1) % vocab);
+        while (out.size() < k) out.push_back((out.back() + 1) % vocab);
+    }
+    bool after_lookup() const override { return true; }
+    bool on_device() const override { return false; }
+};
+
+// Two decoders in every pass on 16 decode columns leave 14 for drafts: sampled A, admitted first, keeps one draft of its proposer's a verify, and greedy B comes to repeat itself and drafts its own continuation.
+// The columns go to the likelier kept drafts, so B keeps beside A at least four fifths of the drafts it keeps alone, and both replies are their replies alone.
+void columns_to_likelier(const Make& plain, const Make& drafting, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "draft columns to the likelier kept drafts";
+    const Req a{prompt_of(6, 40, vocab), 300, "", 0.8f, 7}, b{prompt_of(3, 40, vocab), 300};
+    std::vector<Reply> alone;
+    for (const Req& r : {a, b}) {
+        auto model = plain(4096, 0);
+        alone.push_back(serve(*model, tok, 2, {{r}}).back());
+    }
+    FirstRight proposer;
+    proposer.prompt = a.prompt;
+    proposer.reply = alone[0];
+    proposer.vocab = vocab;
+    server::Scheduler::Stats solo, both;
+    {
+        auto model = drafting(4096, 0);
+        same(alone[1], serve(*model, tok, 2, {{b}}, &solo, 1, 0, &proposer, 14).back(), what + ", B alone");
+    }
+    auto model = drafting(4096, 0);
+    const std::vector<Reply> got = serve(*model, tok, 2, {{a, b}}, &both, 1, 0, &proposer, 14);
+    same(alone[0], got[0], what + ", A beside B");
+    same(alone[1], got[1], what + ", B beside A");
+    const size_t own_solo = total(solo.own_kept), own_both = total(both.own_kept), a_kept = total(both.kept) - own_both;
+    require(own_solo >= 100, what + ": B alone kept " + std::to_string(own_solo) + " drafts of its own continuation");
+    require(a_kept > 0, what + ": A kept none of its proposer's drafts");
+    require(own_both * 5 >= own_solo * 4, what + ": B kept " + std::to_string(own_both) + " drafts beside A against " + std::to_string(own_solo) + " alone");
+    std::cout << "server-spec: " << what << ": B kept " << own_both << " of its own drafts beside A against " << own_solo << " alone, A kept " << a_kept << std::endl;
 }
 
 // A wide CPU backend that runs `hook` as the model submits its work (Hooked), so a case acts while a pass is in flight.
@@ -293,6 +439,7 @@ void drafts_while_one_waits(const Make& plain, const Make& drafting, const MakeP
 struct FlashDrafts final : infer::spec::Proposer {
     infer::spec::Embedded embedded;
     bool batched = false;
+    size_t begun = 0;   // chains begun for the head stage's thread
     explicit FlashDrafts(infer::Model& model) : embedded(model) {}
     void draft(infer::Sequence* seq, const std::vector<uint32_t>& history, size_t k, std::vector<uint32_t>& out, const infer::spec::ImageRows& = {}) override {
         embedded.draft(seq, history, k, out);
@@ -301,6 +448,12 @@ struct FlashDrafts final : infer::spec::Proposer {
         batched = batched || n > 1;
         embedded.draft_all(asks, n);
     }
+    std::unique_ptr<infer::Model::Chain> begin_all(Ask* asks, size_t n) override {
+        batched = batched || n > 1;
+        ++begun;
+        return embedded.begin_all(asks, n);
+    }
+    bool on_head() const override { return embedded.on_head(); }
 };
 
 // Public sidecar loading and real scheduler verifies share the native Flash fixture, without an HTTP transport claim.
@@ -372,7 +525,7 @@ void flash_sidecar(bool split, int compression, int layout, const std::vector<st
             what + ": need fed, kept and rejected drafts, got " + std::to_string(total(stats.kept)) + "/" + std::to_string(total(stats.drafted)));
     require(stats.prefix_hits == 2 && stats.prefix_tokens == 256, what + ": follow-up/edit did not reuse the exact checkpoints");
     if (devices.size() != 4 || passes == 1) require(proposer.batched, what + ": unequal requests never drafted together");
-    if (grouped) require(stats.passes == (passes ? passes : devices.size() / 2), what + ": scheduler did not retain the requested pass count");
+    if (grouped) require(stats.passes == (passes ? passes : devices.size() / 2 > 1 ? devices.size() / 2 + 1 : 1), what + ": scheduler did not retain the requested pass count");
     require(wants[0][0].logprob != wants[3][0].logprob, what + ": edited suffix did not change the target row");
     require(stats.draft_failures == 0, what + ": drafter failed");
     std::cout << "server-spec: " << what << ": " << total(stats.kept) << " of " << total(stats.drafted)
@@ -486,6 +639,236 @@ void flash_marked_rerun_failure() {
     std::cout << "server-spec: Flash MTP marked rerun failure after both PLE replays and one GDN member, then retry; width 2 over three CPU stages: pass\n";
 }
 
+// A wide CPU backend whose recurrence throws once, inside the rerun call that takes `armed` from 0 below it, the backends sharing the count: a verify's retract, which records unordered on its stage's thread.
+struct RerunThrows : Wide {
+    std::shared_ptr<std::atomic<long>> armed;
+    std::shared_ptr<std::atomic<bool>> threw;
+    bool unordered_on = false;
+    RerunThrows(std::shared_ptr<std::atomic<long>> a, std::shared_ptr<std::atomic<bool>> t) : armed(std::move(a)), threw(std::move(t)) {}
+    void unordered(bool on) override { unordered_on = on; }
+    void gated_delta_rule(backend::Slice out, backend::CSlice qkv, backend::CSlice alpha, backend::CSlice b, backend::CSlice a, backend::CSlice dt_bias, size_t layer,
+                          const backend::StateView* views, size_t n_views) override {
+        if (unordered_on && armed->fetch_sub(1) == 0) {
+            // The scheduler forms passes holding the request while its item waits, so the failure finds it in flight beside others.
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+            threw->store(true);
+            throw std::runtime_error("injected rerun failure");
+        }
+        backend::CpuBackend::gated_delta_rule(out, qkv, alpha, b, a, dt_bias, layer, views, n_views);
+    }
+};
+
+// Four replies verifying drafts two to a pass over two tensor-group stages at two passes, whose stages' threads run the verifies' reruns: one rerun throws once its request is in flight again beside another.
+// Its request ends with the error alone, and the others, whose passes formed after it are rolled back and formed again, give every byte of their replies alone.
+void rerun_failure_alone() {
+    flash_mtp::Fixture fixture(false, 0, true);
+    fixture.c.context_length = 512;
+    auto& decay = fixture.data.at("blk.0.ssm_a");
+    std::fill(decay.begin(), decay.end(), -0.5f);
+    auto [target, side] = flash_mtp::headers(fixture, 1);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side));
+    // The rerun calls before the one that throws, enough that every request is decoding beside another by then.
+    auto armed = std::make_shared<std::atomic<long>>(std::numeric_limits<long>::min() / 2);
+    auto threw = std::make_shared<std::atomic<bool>>(false);
+    const auto load = [&](bool paired, bool injected) {
+        std::vector<backend::BackendPtr> backends;
+        for (size_t i = 0; i < 4; ++i) {
+            if (injected) backends.push_back(std::make_shared<RerunThrows>(armed, threw));
+            else backends.push_back(std::make_shared<Wide>());
+        }
+        infer::ModelOptions options;
+        options.kv_tokens = 2048; options.state_slots = 4; options.checkpoint_slots = 4;
+        options.mark_slots = 4; options.mark_rows = kDraftMax + 1;
+        infer::PlacementRequest request;
+        request.dtype = backend::Dtype::f32;
+        request.width = 2;
+        request.names.assign(4, "cpu");
+        request.shares.assign(2, 1);
+        auto loaded = infer::load_model(files.target_path, std::move(backends), request, options, {}, infer::LoadMode::mapped, paired ? files.side_path : "");
+        require(loaded->model->stage_count() == 2 && loaded->model->stage_grouped(0) && loaded->model->stage_grouped(1), "rerun failure: two tensor-group stages");
+        return loaded;
+    };
+    const std::vector<Req> reqs{{prompt_of(1, 151, flash_mtp::V), 60}, {prompt_of(3, 137, flash_mtp::V), 60, "", 0.8f, 7}, {prompt_of(5, 120, flash_mtp::V), 60}, {prompt_of(7, 129, flash_mtp::V), 60, "", 0.8f, 11}};
+    std::vector<Reply> alone;
+    for (const Req& r : reqs) {
+        auto plain = load(false, false);
+        alone.push_back(serve(*plain->model, *plain->tok, 2, {{r}}, nullptr, 3).back());
+    }
+    auto loaded = load(true, true);
+    FlashDrafts proposer(*loaded->model);
+    server::Scheduler sched(*loaded->model, *loaded->tok, 4, 64, 2, false, 0, &proposer, kDraftMax, false, {});
+    std::thread runner([&] { sched.run(); });
+    std::vector<Reply> got(reqs.size());
+    std::vector<std::string> ends(reqs.size());
+    try {
+        armed->store(60);
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+        for (size_t i = 0; i < handles.size(); ++i) {
+            got[i] = collect(*handles[i]);
+            ends[i] = handles[i]->finish() + (handles[i]->error().empty() ? "" : ": " + handles[i]->error());
+        }
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(threw->load(), "rerun failure: no rerun threw");
+    size_t failed = 0;
+    for (size_t i = 0; i < reqs.size(); ++i) {
+        if (ends[i] == "error: injected rerun failure") {
+            ++failed;
+            continue;
+        }
+        require(ends[i] == "length", "rerun failure: request " + std::to_string(i) + " ended " + ends[i]);
+        same(alone[i], got[i], "rerun failure: request " + std::to_string(i) + " beside the request whose rerun threw");
+    }
+    require(failed == 1, "rerun failure: " + std::to_string(failed) + " requests ended with the rerun's error");
+    std::cout << "server-spec: a verify's rerun throwing on its stage's thread ends its request alone, the others beside it their replies alone" << std::endl;
+}
+
+// A sampled reply drafting alone over two tensor-group stages at two passes, whose chains go to the head stage's thread: no hold of the recorders in steady state, and the token gaps and the rate from token 60 to 300 printed (docs/STATUS.md).
+void steady_gap() {
+    flash_mtp::Fixture fixture(false, 0, true);
+    fixture.c.context_length = 512;
+    auto& decay = fixture.data.at("blk.0.ssm_a");
+    std::fill(decay.begin(), decay.end(), -0.5f);
+    auto [target, side] = flash_mtp::headers(fixture, 1);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side));
+    std::vector<backend::BackendPtr> backends;
+    for (size_t i = 0; i < 4; ++i) backends.push_back(std::make_shared<Wide>());
+    infer::ModelOptions options;
+    options.kv_tokens = 1024; options.state_slots = 2; options.checkpoint_slots = 2;
+    options.mark_slots = 2; options.mark_rows = kDraftMax + 1;
+    infer::PlacementRequest request;
+    request.dtype = backend::Dtype::f32;
+    request.width = 2;
+    request.names.assign(4, "cpu");
+    request.shares.assign(2, 1);
+    auto loaded = infer::load_model(files.target_path, std::move(backends), request, options, {}, infer::LoadMode::mapped, files.side_path);
+    FlashDrafts proposer(*loaded->model);
+    server::Scheduler sched(*loaded->model, *loaded->tok, 2, 64, 2, false, 0, &proposer, kDraftMax, false, {});
+    std::thread runner([&] { sched.run(); });
+    std::vector<uint32_t> prompt = prompt_of(2, 60, flash_mtp::V);
+    prompt.insert(prompt.end(), prompt.begin(), prompt.begin() + 30);
+    server::Scheduler::Stats early, late;
+    std::vector<server::Request::Clock::time_point> at;
+    try {
+        auto r = sched.submit(prompt, params_of({prompt, 400, "", 0.8f, 5}));
+        server::Request::Token t;
+        for (;;) {
+            const auto got = r->next(t, server::Request::Clock::now() + std::chrono::seconds(120));
+            if (got == server::Request::Next::end) break;
+            require(got == server::Request::Next::id, "steady gap: a channel gave nothing for 120 seconds");
+            at.push_back(server::Request::Clock::now());
+            if (at.size() == 60) early = sched.stats();
+            if (at.size() == 300) late = sched.stats();
+        }
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(at.size() == 400, "steady gap: the reply gave " + std::to_string(at.size()) + " tokens");
+    require(late.holds == early.holds, "steady gap: " + std::to_string(late.holds - early.holds) + " holds of every recorder in steady drafting");
+    std::vector<double> gaps;
+    for (size_t i = 60; i < 300; ++i) gaps.push_back(std::chrono::duration<double, std::milli>(at[i] - at[i - 1]).count());
+    std::sort(gaps.begin(), gaps.end());
+    const double span = std::chrono::duration<double>(at[299] - at[59]).count();
+    std::printf("server-spec: steady gap, a sampled reply on Flash over two grouped CPU stages at two passes: %zu drafts fed, %zu chains begun for the head's thread, token gap p50 %.3f ms p99 %.3f ms, %.1f tokens/s\n",
+                total(late.drafted) - total(early.drafted), proposer.begun, gaps[gaps.size() / 2], gaps[gaps.size() * 99 / 100], 240.0 / span);
+}
+
+// A wide CPU backend whose drafter argmax throws once `armed` is set, the first such call taking it, so a chain on the head stage's thread fails.
+struct ChainThrows : Wide {
+    std::shared_ptr<std::atomic<bool>> armed;
+    explicit ChainThrows(std::shared_ptr<std::atomic<bool>> a) : armed(std::move(a)) {}
+    void argmax_rows(backend::Slice ids, backend::CSlice logits, size_t rows, size_t n, backend::CSlice after = {}) override {
+        bool expected = true;
+        if (armed->compare_exchange_strong(expected, false)) throw std::runtime_error("injected chain failure");
+        backend::CpuBackend::argmax_rows(ids, logits, rows, n, after);
+    }
+};
+
+// Requests with chains queued on the head stage's thread, over two tensor-group stages at three passes: one cancelled, three paused on a pool too small for all of them, and a chain failing.
+// The cancelled one ends cancelled, every other reply is its reply alone, and a failed chain costs its requests their drafts alone.
+enum class ChainCase { cancelled, paused, failed };
+void chain_cases(ChainCase which) {
+    const std::string what = std::string("a chain queued on the head stage's thread, ") + (which == ChainCase::cancelled ? "its request cancelled" : which == ChainCase::paused ? "its requests paused" : "the chain failing");
+    flash_mtp::Fixture fixture(false, 0, true);
+    fixture.c.context_length = 512;
+    auto& decay = fixture.data.at("blk.0.ssm_a");
+    std::fill(decay.begin(), decay.end(), -0.5f);
+    auto [target, side] = flash_mtp::headers(fixture, 1);
+    flash_mtp::Files files(fixture, std::move(target), std::move(side));
+    auto armed = std::make_shared<std::atomic<bool>>(false);
+    const auto load = [&](bool paired) {
+        std::vector<backend::BackendPtr> backends;
+        for (size_t i = 0; i < 4; ++i) backends.push_back(std::make_shared<ChainThrows>(armed));
+        infer::ModelOptions options;
+        // The paused case runs three uncapped replies of the 512-token context on 1024 tokens, so their growth pauses one.
+        options.kv_tokens = 1024; options.state_slots = 3; options.checkpoint_slots = 3;
+        options.mark_slots = 3; options.mark_rows = kDraftMax + 1;
+        infer::PlacementRequest request;
+        request.dtype = backend::Dtype::f32;
+        request.width = 2;
+        request.names.assign(4, "cpu");
+        request.shares.assign(2, 1);
+        return infer::load_model(files.target_path, std::move(backends), request, options, {}, infer::LoadMode::mapped, paired ? files.side_path : "");
+    };
+    std::vector<Req> reqs{{prompt_of(1, 151, flash_mtp::V), 120}, {prompt_of(3, 137, flash_mtp::V), 120, "", 0.8f, 7}};
+    if (which == ChainCase::paused) reqs = {{prompt_of(1, 40, flash_mtp::V), 0}, {prompt_of(3, 9, flash_mtp::V), 0, "", 0.8f, 7}, {prompt_of(5, 23, flash_mtp::V), 0}};
+    std::vector<Reply> alone;
+    for (const Req& r : reqs) {
+        auto plain = load(false);
+        alone.push_back(serve(*plain->model, *plain->tok, 2, {{r}}, nullptr, 3).back());
+    }
+    auto loaded = load(true);
+    FlashDrafts proposer(*loaded->model);
+    server::Scheduler sched(*loaded->model, *loaded->tok, reqs.size(), 64, 3, false, 0, &proposer, kDraftMax, false, {});
+    std::thread runner([&] { sched.run(); });
+    std::vector<Reply> got(reqs.size());
+    std::vector<std::string> ends(reqs.size());
+    server::Scheduler::Stats stats;
+    try {
+        std::vector<std::shared_ptr<server::Request>> handles;
+        for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
+        if (which == ChainCase::failed) armed->store(true);
+        if (which == ChainCase::cancelled) {
+            server::Request::Token t;
+            for (size_t n = 0; n < 20; ++n) require(handles[0]->next(t, server::Request::Clock::now() + std::chrono::seconds(120)) == server::Request::Next::id, what + ": the first request gave no token");
+            handles[0]->cancel();
+        }
+        for (size_t i = 0; i < handles.size(); ++i) {
+            got[i] = collect(*handles[i]);
+            ends[i] = handles[i]->finish();
+        }
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(proposer.begun > 0 && total(stats.drafted) > 0, what + ": no chain was queued on the head stage's thread or no draft fed");
+    for (size_t i = 0; i < reqs.size(); ++i) {
+        if (which == ChainCase::cancelled && i == 0) {
+            require(ends[i] == "cancel", what + ": the cancelled request ended " + ends[i]);
+            continue;
+        }
+        require(ends[i] == "length", what + ": request " + std::to_string(i) + " ended " + ends[i]);
+        same(alone[i], got[i], what + ": request " + std::to_string(i));
+    }
+    if (which == ChainCase::paused) require(stats.pauses > 0, what + ": no request was paused");
+    if (which == ChainCase::failed) require(!armed->load() && stats.draft_failures > 0, what + ": no chain failed");
+    std::cout << "server-spec: " << what << ": " << proposer.begun << " chains begun, " << total(stats.drafted) << " drafts fed, every other reply its reply alone" << std::endl;
+}
+
 void write_flash_http(const std::filesystem::path& directory) {
     require(std::filesystem::is_directory(directory) && std::filesystem::is_empty(directory), "Flash HTTP fixture needs an empty directory");
     flash_mtp::Fixture fixture(false, 0);
@@ -532,6 +915,11 @@ int main(int argc, char** argv) {
         }
         flash_sidecars({device});
         if (device == "cpu") flash_marked_rerun_failure();
+        if (device == "cpu" && !flash_only) {
+            rerun_failure_alone();
+            for (const ChainCase c : {ChainCase::cancelled, ChainCase::paused, ChainCase::failed}) chain_cases(c);
+            steady_gap();
+        }
         if (groups_given) flash_sidecars(group_devices);
         else {
             flash_sidecars({"cpu", "cpu"});
@@ -584,9 +972,18 @@ int main(int argc, char** argv) {
             // Priced by the passes' timing, which decides how much each pass drafts, every reply is still its reply alone.
             against_alone(plain, with_drafter, embedded, hybrid_tok, 4096, 4, stages, reqs, "the hybrid model with its embedded drafter on " + where + ", priced", false, true);
         }
+        for (size_t stages : {size_t(1), size_t(2)}) {
+            const std::string where = stages == 1 ? "one CPU" : "a two-CPU split at two passes";
+            steady_holds(on(q8, [stages] { return wide(stages); }, 8, 0, 4, kDraftMax + 1), lookup, q8_tok, q8_vocab, stages, "steady drafting, Q8_0 with lookup on " + where);
+            steady_holds(on(hybrid, [stages] { return wide(stages); }, 4, 0, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab, stages,
+                         "steady drafting, the hybrid model with its embedded drafter on " + where);
+        }
+        host_saves(q8, q8_tok, q8_vocab, false);
+        host_saves(q8, q8_tok, q8_vocab, true);
         resumed_by_fork(on(hybrid, [] { return cpus(1); }, 4, 3), on(hybrid, [] { return wide(1); }, 4, 3, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
                         "a request resumed by a fork of its whole history, the hybrid model with its embedded drafter");
         drafts_while_one_waits(on(q8, [] { return cpus(1); }), on(q8, [] { return wide(1); }, 8, 0, 4, kDraftMax + 1), lookup, q8_tok, q8_vocab, "drafts while a request waits, Q8_0 with lookup");
+        columns_to_likelier(on(q8, [] { return cpus(1); }), on(q8, [] { return wide(1); }, 8, 0, 4, 15), q8_tok, q8_vocab);
         timed_phases(on(hybrid, [] { return cpus(1); }, 4), on(hybrid, [] { return wide(1); }, 4, 0, 4, kDraftMax + 1, true), embedded, hybrid_tok, hybrid_vocab,
                      "a timed scheduler, the hybrid model with its embedded drafter");
         cancelled_in_flight(q8, q8_tok, q8_vocab, lookup, false, 8, "Q8_0 with lookup");

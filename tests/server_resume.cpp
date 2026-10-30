@@ -1005,7 +1005,7 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
-// A job beside a decoding request over a two-CPU split, with a pass in flight on each stage: its rows are the lowest-priority prompt rows, a step after kBackgroundGaps passes of the request's rows alone, no stage being fed in pieces.
+// A job beside a decoding request over a two-CPU split at three passes in flight: its rows go in chunk passes of their own, never in the request's (docs/SERVER.md, The service rule).
 // `idle`: a job begun once the reply has ended, beside another request; otherwise a job begun mid-reply, beside its own.
 void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
     const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
@@ -1030,7 +1030,7 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
     server::Scheduler::Stats stats;
     {
         server::Scheduler sched(*model, tok, 3, 64);
-        require(sched.stats().passes == 2, what + ": the scheduler keeps " + std::to_string(sched.stats().passes) + " passes in flight, against 2");
+        require(sched.stats().passes == 3, what + ": the scheduler keeps " + std::to_string(sched.stats().passes) + " passes in flight, against 3");
         std::shared_ptr<server::Request> h, o;
         size_t request_passes = 0;
         std::mutex handles;
@@ -1097,15 +1097,11 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
         most = std::max(most, passes[i].second);
         read += passes[i].second;
     }
-    // The job read beside the decoding request, a step at a time where no stage is fed in pieces, and each step after passes of the request's rows alone, kBackgroundGaps less the pass in flight beside it.
-    size_t steps = 0, alone_passes = 0;
-    for (size_t i = first_pass; i <= last_pass; ++i) {
-        if (passes[i].second) ++steps;
-        else if (passes[i].first) ++alone_passes;
-    }
-    require(read > 0 && most <= server::kPieceStep && alone_passes >= steps * (server::kBackgroundGaps - 1),
-            what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, in " + std::to_string(steps) + " steps beside " +
-                std::to_string(alone_passes) + " passes of the request alone, against some, a step at most and " + std::to_string(server::kBackgroundGaps - 1) + " such passes a step");
+    // The job read beside the decoding request, each chunk in a pass the request is not in.
+    size_t together = 0;
+    for (size_t i = first_pass; i <= last_pass; ++i) together += passes[i].first && passes[i].second;
+    require(read > 0 && together == 0, what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, " +
+                                           std::to_string(together) + " passes holding both, against some and none");
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.
@@ -1538,14 +1534,25 @@ void turns_need_host_memory(const gguf::GGUFModel& weights, const bpe::Tokenizer
 enum class HostFault { none, write_back, promotion };
 
 // With a `width` above 1 the devices form tensor groups of that many (docs/TENSOR-SPLIT.md), each member's storage copied to host memory and back on its own.
+// With `threads` the devices are two non-CPU ones on a layer split whose stages record on their own threads, copies landing 50 ms late, and a second follow-up of the first conversation must not read them before they have.
 void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t devices, size_t checkpoints, HostFault fault,
-               const std::string& what, size_t width = 1) {
+               const std::string& what, size_t width = 1, bool threads = false) {
     std::shared_ptr<FailingCopies> failing;
     const Make make = on(weights, [&] {
         failing = std::make_shared<FailingCopies>();
         failing->set_threads(1);
-        std::vector<backend::BackendPtr> b{failing};
-        for (size_t d = 1; d < devices; ++d) b.push_back(cpus(1)[0]);
+        failing->device = threads;
+        if (threads) failing->late = std::chrono::milliseconds(50);
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 1; d < devices; ++d) {
+            auto other = std::make_shared<FailingCopies>();
+            other->set_threads(1);
+            other->device = threads;
+            b.push_back(other);
+        }
+        // On threads the failing device is the last, whose stage records on a thread of its own; the first stage of such a split stays on the scheduler's.
+        if (threads) b.push_back(failing);
+        else b.insert(b.begin(), failing);
         return b;
     }, 3, checkpoints, 0, 0, false, width);
     const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
@@ -1557,9 +1564,9 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
         again.insert(again.end(), more.begin(), more.end());
         return Req{again, 32};
     };
-    const Req fa = follow(a, 6), fb = follow(b, 8);
+    const Req fa = follow(a, 6), fb = follow(b, 8), fa2 = follow(a, 9);
     std::vector<Reply> alone;
-    for (const Req& r : {a, b, fa, fb}) {
+    for (const Req& r : {a, b, fa, fb, fa2}) {
         auto model = make(512, 0);
         alone.push_back(serve(*model, tok, 3, {{r}})[0]);
     }
@@ -1568,9 +1575,18 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
         failing->fail_read = fault == HostFault::write_back;
         failing->fail_write = fault == HostFault::promotion;
         server::Scheduler::Stats stats;
-        const std::vector<Reply> got = serve(*model, tok, 3, {{a}, {b}, {fa}, {fb}}, &stats, 0, host ? (size_t)1 << 30 : 0);
+        const std::vector<std::vector<Req>> waves = threads ? std::vector<std::vector<Req>>{{a}, {b}, {fa, fa2}, {fb}} : std::vector<std::vector<Req>>{{a}, {b}, {fa}, {fb}};
+        const std::vector<Reply> got = serve(*model, tok, 3, waves, &stats, 0, host ? (size_t)1 << 30 : 0);
         const std::string arm = what + (host ? ", with a host tier" : ", without one");
-        for (size_t i = 0; i < got.size(); ++i) same(alone[i], got[i], arm + ", request " + std::to_string(i));
+        const std::vector<size_t> order = threads ? std::vector<size_t>{0, 1, 2, 4, 3} : std::vector<size_t>{0, 1, 2, 3};
+        for (size_t i = 0; i < got.size(); ++i) same(alone[order[i]], got[i], arm + ", request " + std::to_string(i));
+        if (threads) {
+            // Copies on the stages' threads: a promotion is made and a failed one is the history gone, read again from the start (Scheduler::history_failed), so only the replies and that the copies ran are held here.
+            require(!host || fault == HostFault::write_back || stats.host_hits >= 1, arm + ": nothing was promoted from host memory");
+            // A follow-up comes right after its conversation's write-back, whose copy lands late, and is promoted only once that copy has, so the scheduler's thread waits for none (F2DEV's ruling of 2026-10-30).
+            require(fault != HostFault::none || stats.stage_waits == 0, arm + ": the scheduler's thread waited " + std::to_string(stats.stage_waits) + " times for work on a stage's thread");
+            continue;
+        }
         const bool hits = host && fault == HostFault::none;
         require(stats.host_hits == (hits ? 2u : 0u) && stats.prefix_tokens == (hits ? 4 * kBlock : 0u),
                 arm + ": " + std::to_string(stats.host_hits) + " promotions and " + std::to_string(stats.prefix_tokens) + " tokens reused");
@@ -1582,6 +1598,46 @@ void host_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32
         require(stats.host_donors == held && (stats.host_bytes == 0) == (held == 0),
                 arm + ": " + std::to_string(stats.host_donors) + " donors held in host memory, against " + std::to_string(held));
     }
+}
+
+// A follow-up submitted right after its conversation's donor is written back to host memory, while that copy still retires; it is promoted only once the copy has retired, and its reply is its reply alone.
+// One request at a time on a pool that holds them all, with a checkpoint slot per conversation on the hybrid model, over two non-CPU devices whose slab copies land 5 ms late and retire 500 ms after their submission.
+void promotion_after_write_back(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool hybrid) {
+    const std::string what = std::string("a follow-up right after its write-back on two devices' threads") + (hybrid ? ", a hybrid model" : "");
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<FailingCopies>();
+            c->set_threads(1);
+            c->device = true;
+            c->late = std::chrono::milliseconds(5);
+            c->retire_late = std::chrono::milliseconds(500);
+            b.push_back(c);
+        }
+        return b;
+    }, 3, hybrid ? 2 : 0);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    Req fa;
+    {
+        auto model = make(2048, 0);
+        fa.prompt = a.prompt;
+        for (uint32_t id : ids_of(serve(*model, tok, 1, {{a}})[0])) fa.prompt.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(6, 30, vocab);
+        fa.prompt.insert(fa.prompt.end(), more.begin(), more.end());
+        fa.cap = 32;
+    }
+    Reply alone;
+    {
+        auto model = make(2048, 0);
+        alone = serve(*model, tok, 1, {{fa}})[0];
+    }
+    auto model = make(2048, 0);
+    server::Scheduler::Stats stats;
+    const std::vector<Reply> got = serve(*model, tok, 1, {{a}, {b}, {fa}}, &stats, 0, (size_t)1 << 30);
+    same(alone, got[2], what + ", the follow-up");
+    require(stats.host_hits >= 1, what + ": the follow-up was not promoted from host memory");
+    require(stats.stage_waits == 0, what + ": the scheduler's thread waited " + std::to_string(stats.stage_waits) + " times for a stage's work or a device");
+    std::cout << "server-resume: " << what << ": " << stats.host_hits << " promoted with no wait of the scheduler's thread, its reply its reply alone\n";
 }
 
 // A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks, C's donor and A's request donor and, read again, A's job's donor of 384 tokens.
@@ -2274,7 +2330,7 @@ void hybrid(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t 
     no_donors(s, "a hybrid model's follow-up turn");
     s = alone_then_together(on(weights, [] { return cpus(2); }, 3), tok, 1024, 0, 3, {}, three, "a hybrid model on a two-CPU split");
     no_donors(s, "a hybrid model on a two-CPU split");
-    require(s.passes == 2, "a hybrid model on a two-CPU split kept " + std::to_string(s.passes) + " passes in flight, against 2");
+    require(s.passes == 3, "a hybrid model on a two-CPU split kept " + std::to_string(s.passes) + " passes in flight, against 3");
     // Paused requests cancelled from the scheduler's thread at the first pass retired after a pause, then the slots and blocks they held taken by as many requests at once.
     model = one(1024, 0);
     {
@@ -2695,9 +2751,9 @@ struct Guarded : backend::CpuBackend {
 };
 
 // What a scheduler's thread does on a stage's devices outside a pass's stage while that stage's recording is parked: room sending a donor to host memory, a promotion from host memory, and a read back from disk.
-// `width` 2 holds it over two stages of groups, `width` 1 over a layer split of two with two requests decoding, and with a `share` that split is fed in pieces and reached only under a hold (Scheduler::hold).
-void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t width, double share = 0) {
-    const std::string what = std::string(width > 1 ? "the recorder rule over two stages of groups" : "the recorder rule over a layer split of two") + (share > 0 ? " fed in pieces" : "");
+// `width` 2 holds it over two stages of groups, `width` 1 over a layer split of two with two requests decoding.
+void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, size_t width) {
+    const std::string what = std::string(width > 1 ? "the recorder rule over two stages of groups" : "the recorder rule over a layer split of two");
     Recording rule;
     const Make make = on(weights, [&rule, width] {
         std::vector<backend::BackendPtr> v;
@@ -2781,7 +2837,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         if (width == 1) s.pair = Req{prompt_of(10 + seed, 20, vocab), 60};
     };
     {
-        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options, server::Pacing::fixed(share));
+        server::Scheduler sched(*model, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, 2 * 2 * width * ((size_t)64 << 20), nullptr, 0, false, options);
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {
@@ -2828,7 +2884,7 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
             std::lock_guard<std::mutex> lk(rule.m);
             rule.slabs.clear();
         }
-        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options, server::Pacing::fixed(share));
+        server::Scheduler sched(*again, tok, width > 1 ? 2 : 3, 64, width > 1 ? 2 : 3, false, (size_t)1 << 16, nullptr, 0, false, options);
         sched.on_retire = [&](const server::Scheduler::Retired&) { std::lock_guard<std::mutex> lock(submitting); };
         std::thread runner([&] {
             {
@@ -2856,7 +2912,6 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
     for (const Step& s : steps) {
         require(s.met == 0, what + ", " + s.name + ": " + std::to_string(s.met) + " calls reached the stage's devices from another thread while its recording was parked");
         require(s.own_parked == 0, what + ", " + s.name + ": the scheduler's thread made " + std::to_string(s.own_parked) + " calls on the stage's devices while its recording was parked");
-        require(s.own_after > 0 || &s == &steps[1], what + ", " + s.name + ": the scheduler's thread made no call on the stage's devices once the recording was let go, so the case did not reach the call it holds");
         auto fresh = plain(2048, 16);
         same(serve(*fresh, tok, 1, {{s.trigger}})[0], s.got, what + ", " + s.name);
         auto fresh_beside = plain(2048, 16);
@@ -2865,16 +2920,19 @@ void recorder_rule(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         auto fresh_pair = plain(2048, 16);
         same(serve(*fresh_pair, tok, 1, {{s.pair}})[0], s.got_pair, what + ", the second request beside " + s.name);
     }
-    // What each step held is the first call its path makes on the stage's devices: a copy into host memory, and a copy out of it.
-    require(steps[0].calls[0] == 'S' && steps[0].after.host_bytes_moved > steps[0].before.host_bytes_moved, what + ", " + steps[0].name + ": its first call there was not a donor's copy to host memory (" + steps[0].calls + ")");
-    // A promotion whose room first sends a donor to host memory (S) makes its copy back after it.
-    require((steps[2].calls[0] == 'R' || (steps[2].calls[0] == 'S' && steps[2].calls.find('R') != std::string::npos)) && steps[2].after.host_hits == steps[2].before.host_hits + 1 && steps[2].after.disk_hits == steps[2].before.disk_hits,
-            what + ", " + steps[2].name + ": its first call there was not the copy back from host memory, or it was read from disk (" + steps[2].calls + ", " +
+    // A donor's copy to host memory and a promotion's copy back are made on the stage's thread, behind its recording, so the scheduler's thread makes none of them.
+    require(steps[0].calls.find('S') == std::string::npos && steps[0].after.host_bytes_moved > steps[0].before.host_bytes_moved,
+            what + ", " + steps[0].name + ": the donor was not copied to host memory, or the scheduler's thread made the copy (" + steps[0].calls + ")");
+    require(steps[2].calls.find('R') == std::string::npos && steps[2].calls.find('S') == std::string::npos && steps[2].after.host_hits == steps[2].before.host_hits + 1 && steps[2].after.disk_hits == steps[2].before.disk_hits,
+            what + ", " + steps[2].name + ": the scheduler's thread made a copy to or from host memory, or it was read from disk (" + steps[2].calls + ", " +
                 std::to_string(steps[2].after.host_hits - steps[2].before.host_hits) + " promotions, " + std::to_string(steps[2].after.disk_hits - steps[2].before.disk_hits) + " reads from disk)");
     require(steps[3].after.disk_hits == steps[3].before.disk_hits + 1 && steps[3].after.host_hits == steps[3].before.host_hits + 1, what + ", " + steps[3].name + ": it was not read back from disk and promoted (" + steps[3].calls + ")");
-    require(std::string("acw").find(steps[4].calls[0]) != std::string::npos && steps[4].after.disk_hits == steps[4].before.disk_hits + 1 && steps[4].after.host_hits == steps[4].before.host_hits,
-            what + ", " + steps[4].name + ": its first call there was not its storage's growth or a copy into it, or it was not read back from disk alone (" + steps[4].calls + ")");
-    std::cout << "server-resume: " << what << ": a donor's copy to host memory, a promotion from it, a conversation read back from disk and one streamed back to the devices, each waited for a parked recording\n";
+    // Every copy into or out of host memory and every slab is made on the stage's thread; a stage the scheduler's thread records itself, as a layer split's is while one pass is in flight, takes its own passes' calls there.
+    for (const Step& s : steps)
+        require(s.calls.find_first_of("SRA") == std::string::npos, what + ", " + s.name + ": the scheduler's thread copied to or from host memory or took slabs on the stage's devices (" + s.calls + ")");
+    require(steps[4].after.disk_hits == steps[4].before.disk_hits + 1 && steps[4].after.host_hits == steps[4].before.host_hits,
+            what + ", " + steps[4].name + ": it was not read back from disk alone (" + steps[4].calls + ")");
+    std::cout << "server-resume: " << what << ": a donor's copy to host memory and a promotion from it on the stage's thread, a conversation read back from disk and one streamed back to the devices, each waited for a parked recording\n";
 }
 
 // A request waiting for its read keeps its place (docs/DISK-TIER.md, Restore): with every read held two seconds a chunk, a follow-up on disk has had no pass when a later unrelated request ends, then forks the copy read back.
@@ -4501,10 +4559,10 @@ void job_holds_its_ids(const Make& make, const bpe::Tokenizer& tok, uint32_t voc
 }
 
 // A lone uncapped request whose growth step finds the pool full because the job reading its own reply holds the rest: the job gives way and the request grows in the same round, so a pass is formed.
-// With `beside`, a second such request runs with it, its prompt longer by the passes it starts decoding later, so both steps fall due in one round; each reply is its reply alone.
+// With `beside`, a second request of an equal prompt runs with it, both prompts read in one pass, so both steps fall due in one round; each reply is its reply alone.
 void stalled_alone(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, size_t pool, bool beside, const std::string& what) {
     std::vector<Req> reqs = {{prompt_of(5, 700, vocab)}};
-    if (beside) reqs.push_back({prompt_of(9, 747, vocab)});
+    if (beside) reqs.push_back({prompt_of(9, 700, vocab)});
     // The ids each next turn begins with once 250 tokens are written: the prompt and the reply's first 230, 896 as whole blocks, 7 blocks beside the 8 the request holds until its step at 1024.
     std::vector<Reply> alone;
     std::vector<std::vector<uint32_t>> early;
@@ -4516,7 +4574,7 @@ void stalled_alone(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
         early.push_back(r.prompt);
         early.back().insert(early.back().end(), ids.begin(), ids.begin() + 230);
     }
-    auto model = make(pool, 16);
+    auto model = make(pool, beside ? 2048 : 16);
     std::vector<Reply> replies;
     server::Scheduler::Stats stats;
     // The pass after which each request's cache holds its 8 blocks, so its step falls due in the next round.
@@ -4541,12 +4599,10 @@ void stalled_alone(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, 
                     }
                 }
         };
+        // Both submitted before the scheduler starts, so its first admission takes them together and their prompts share its first pass whatever the machine's speed.
+        for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
         std::thread runner([&] { sched.run(); });
         try {
-            {
-                std::lock_guard<std::mutex> lock(submitting);
-                for (const Req& r : reqs) handles.push_back(sched.submit(r.prompt, params_of(r)));
-            }
             for (auto& h : handles) replies.push_back(drain(*h));
             stats = sched.stats();
         } catch (...) {
@@ -5241,7 +5297,6 @@ int main(int argc, char** argv) {
             }
             recorder_rule(weights, tok, vocab, 2);
             recorder_rule(weights, tok, vocab, 1);
-            recorder_rule(weights, tok, vocab, 1, 0.5);
             disk_read_waits(one, tok, vocab);
             disk_read_bound(one, tok, vocab);
             disk_flush(one, tok, vocab);
@@ -5296,6 +5351,7 @@ int main(int argc, char** argv) {
             for (size_t devices = 1; devices <= 2; ++devices)
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
+            promotion_after_write_back(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, true);
             host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 1, 1, HostFault::promotion, "a hybrid model's donors in host memory, a promotion failing");
             // The job reads 128 rows in passes of 16, so it can be cancelled at each of the seven boundaries before its last pass.
             writing_growth(one, tok, vocab);
@@ -5306,6 +5362,11 @@ int main(int argc, char** argv) {
                 host_tier(weights, tok, vocab, devices, 0, HostFault::none, "donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             host_tier(weights, tok, vocab, 1, 0, HostFault::write_back, "donors in host memory, a write-back failing");
             host_tier(weights, tok, vocab, 1, 0, HostFault::promotion, "donors in host memory, a promotion failing");
+            // The copies on the stages' threads of a split over two devices: a promotion failing there is the history gone, read again from the start (F2DEV's ruling of 2026-10-29).
+            host_tier(weights, tok, vocab, 2, 0, HostFault::none, "donors in host memory on two devices' threads", 1, true);
+            host_tier(weights, tok, vocab, 2, 0, HostFault::write_back, "donors in host memory on two devices' threads, a write-back failing", 1, true);
+            host_tier(weights, tok, vocab, 2, 0, HostFault::promotion, "donors in host memory on two devices' threads, a promotion failing", 1, true);
+            promotion_after_write_back(weights, tok, vocab, false);
             failed_promotion(one, tok, vocab);
             next_candidate(weights, tok, vocab);
             cut_ranked_out(one, tok, vocab);

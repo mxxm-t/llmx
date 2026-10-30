@@ -52,34 +52,15 @@ llmx serve model.gguf --device vulkan:0 --drafter lookup --draft-max 4
 ```
 
 **A generating request beside a long prompt.**
-On one GPU or one tensor group a request that is already writing its reply keeps writing while a long prompt is read: the server serves it between the steps of the prompt's batch, about every 100 ms where the device's steps allow, and the prompt's reading takes longer for it.
-The start line `server: pacing: automatic` says so, and `pacing` in `/v1/health` counts the gaps and how many were longer than the 100 ms ; the `pacing` rows of the health table in docs/USAGE.md say what each counter means.
-On the CPU, with experts on the CPU, and on a layer split a prompt goes first instead: the writing request gets a token each time a batch of the prompt has run, which beside a long prompt is one or two seconds a token, and the start line says `pacing: off` with the reason.
-`--no-pacing` chooses that everywhere.
-`--generating-share X` replaces the automatic rule by an account that aims the requests that are writing at the fraction X of the device's time, with bounded credit and charge and no guarantee over every stretch; a layer split refuses the flag.
-Its trade, as typical costs and not as bounds:
-
-- the prompt's reading takes about 1 / (1 - X) of the time it takes alone, so twice as long at 0.5 and a third longer at 0.25, and only while a request is writing;
-- the writing requests keep about X of the speed they have alone, and their longest pause is about (1 - X) / X of one of their own steps, where at 0 it is a whole prompt batch.
-
-Choose the smallest share that makes a reply readable while a prompt arrives: 0.25 to 0.33 where long prompts are common and a wait for the first token matters, 0.5 where people read replies as they are written and long prompts are rare.
-With nothing writing, a prompt is read at full speed in every mode; pacing, automatic or by a share, holds a small second arena on every device, which `--no-pacing` gives back.
-With many users the share also lowers total output, most where prompts are long, because a batch of prompt rows uses a device better than a batch of a few generated rows.
-
-One measured case, to read the trade from (a 27B model on a tensor group of two GPUs with `--drafter embedded`, which then drafted from the block alone, as `embedded` does now, one request writing while a 50000-token prompt is read; the record with its conditions and the many-user tables is in [STATUS](STATUS.md), A generating request keeps a share of a device beside a prompt):
-
-| share | the writing request, tokens a second | its longest pause | the prompt's read |
-|---|---|---|---|
-| 0 | 2.2 | 2.5 s | 182 s |
-| 0.25 | 20.6 | 0.4 s | 238 s |
-| 0.33 | 26.2 | 0.25 s | 265 s |
-| 0.5 | 38.0 | 0.2 to 0.5 s | 350 s |
+A request that is already writing its reply keeps writing while a long prompt is read, on every placement: the server serves it at least every few times the step it takes alone, and reads the prompt in chunks that fit between its steps, each chunk's rows from the measured price of a stage's work at that depth (docs/SERVER.md, The service rule).
+There is no setting; `service` in `/v1/health` shows each stage's measured and predicted times and the gaps between tokens, and `passes.since_start` the passes of replies and of chunks formed while both waited.
+With nothing writing, a prompt is read at full speed.
 
 Alone, that request writes about 60 tokens a second.
 `passes.since_start` in health shows it at work (Reading health, below).
 
 ```
-llmx serve model.gguf --device vulkan:0,vulkan:1 --tensor-width 2 --generating-share 0.33
+llmx serve model.gguf --device vulkan:0,vulkan:1 --tensor-width 2
 ```
 
 **Many users.**

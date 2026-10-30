@@ -856,7 +856,7 @@ void first_write_wait(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok,
 void pool_past_context(const Make& make, const bpe::Tokenizer& tok, uint32_t v) {
     {
         auto model = make(2 * kPool, 64);
-        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, {}, 512);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, 512);
         require(sched.token_limit() == 512, "a request limit of 512 beside a pool of " + std::to_string(model->kv_tokens_total()) + " gave requests " + std::to_string(sched.token_limit()));
         bool refused = false;
         try {
@@ -882,7 +882,7 @@ void pool_past_context(const Make& make, const bpe::Tokenizer& tok, uint32_t v) 
     }
     {
         auto model = make(2 * kBlock, 64);
-        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, {}, 512);
+        server::Scheduler sched(*model, tok, 2, 64, 0, false, 0, nullptr, 0, true, {}, 512);
         require(sched.token_limit() == 2 * kBlock, "a pool of 256 tokens below a request limit of 512 gave requests " + std::to_string(sched.token_limit()));
     }
     DiskRoot disk("pool-past-context");
@@ -1392,8 +1392,8 @@ void jobs_passed_over(const gguf::GGUFModel& weights, const Make& make, const bp
     }
 }
 
-// A turn-end write beside a reply takes background work's cadence (F2DEV, 2026-10-22): a donor beyond a host tier a byte short of a slab, parked while another request goes on generating.
-// Each of its segments starts kBackgroundGaps reply-only passes or more after the last, each pass spinning 30 ms so a segment's file is whole sooner, and a donor parked once nothing runs is written in one.
+// A turn-end write beside a reply takes only what nothing waits on (docs/SERVER.md, The service rule): a donor beyond a host tier a byte short of a slab, parked while another request goes on generating, each pass spinning 30 ms.
+// No segment starts while the reply generates, and a donor parked once nothing runs is written in one.
 void write_cadence(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
     const std::string what = "cache-scenario, a turn-end write beside a reply";
     const auto slow = hooked(1);
@@ -1445,9 +1445,7 @@ void write_cadence(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
         sched.stop();
         runner.join();
     }
-    require(during.size() >= 2, what + ": " + std::to_string(during.size()) + " segments started beside the reply, against two at least");
-    for (size_t i = 1; i < during.size(); ++i)
-        require(during[i] >= during[i - 1] + server::kBackgroundGaps, what + ": a segment " + std::to_string(during[i] - during[i - 1]) + " reply-only passes after the last, against " + std::to_string(server::kBackgroundGaps));
+    require(during.size() <= 1, what + ": " + std::to_string(during.size()) + " segments started while the reply generated, against one at most once it had ended");
     require(lone == 1, what + ": the lone donor in " + std::to_string(lone) + " writes, against one");
     std::cout << what << ": " << during.size() << " segments beside the reply, at reply-only passes";
     for (size_t at : during) std::cout << " " << at;
@@ -1476,7 +1474,7 @@ void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uin
     std::vector<double> gaps;
     double content_ms = 0;
     {
-        server::Scheduler sched(*model, tok, 3, 64, 0, false, 0, nullptr, 0, true, {}, server::Pacing::automatic());
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, 0, nullptr, 0, true, {});
         std::thread runner([&] { sched.run(); });
         try {
             drain(*sched.submit(before, params_of(Req{before, 8})));

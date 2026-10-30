@@ -305,7 +305,6 @@ struct Flight {
     uint64_t formed = 0;
     size_t ran = 0;
     bool recording = false;
-    bool apart = false;   // a pass of generated rows alone in its own arena, which a stage takes between the pieces of another pass
 };
 
 // What a round records and retires, by slot, before it makes room and forms passes.
@@ -315,21 +314,18 @@ struct Steps {
 };
 
 // From the last stage down to the first, each stage records the oldest pass waiting for it, and every pass whose last stage an earlier round recorded retires, oldest first.
-// Passes apart are a kind of their own: a stage holds one pass of each kind at most, each kind in its formation order, and passes retire in order within a kind.
 inline Steps round_steps(const std::vector<Flight>& slots, size_t stages) {
     Steps st;
     const size_t none = slots.size();
     for (size_t s = stages; s-- > 0;) {
-        for (const bool apart : {true, false}) {
-            size_t pick = none;
-            bool busy = false;
-            for (size_t k = 0; k < slots.size(); ++k) {
-                if (!slots[k].live || slots[k].ran != s || slots[k].apart != apart) continue;
-                if (slots[k].recording) busy = true;
-                else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
-            }
-            if (pick != none && !busy) st.advance.push_back({pick, s});
+        size_t pick = none;
+        bool busy = false;
+        for (size_t k = 0; k < slots.size(); ++k) {
+            if (!slots[k].live || slots[k].ran != s) continue;
+            if (slots[k].recording) busy = true;
+            else if (pick == none || slots[k].formed < slots[pick].formed) pick = k;
         }
+        if (pick != none && !busy) st.advance.push_back({pick, s});
     }
     for (size_t k = 0; k < slots.size(); ++k)
         if (slots[k].live && slots[k].ran == stages) st.retire.push_back(k);
@@ -345,175 +341,9 @@ inline size_t decode_share(size_t decoders, size_t passes, size_t stages) { retu
 // A tensor group's does, since its recording waits at every sum; a single device's only while another pass is in flight, since a pass alone has nothing to overlap with and the hand-over would only add to its time.
 inline bool recorded_apart(bool grouped, size_t live) { return grouped || live > 1; }
 
-// Whether generated rows ride the pass that reads prompt rows: where it costs them no more than their share would, the prompt pass taking no longer than their own pass over the share.
-// Without a share they always ride; with prices not yet measured they go apart.
-inline bool rides(double prompt_ms, double generated_ms, double share) {
-    return share <= 0 || (prompt_ms > 0 && generated_ms > 0 && prompt_ms * share <= generated_ms);
-}
-
-// How long generated rows go on riding a prompt's passes: after kProbe ridden in a row they go apart for one pass, which a stage measures since no piece is held ahead while it waits, so a ride on a stale price ends there.
-// While they ride no pass apart is measured, so without this a ride would last until the prompt's own price moved.
-struct RideRun {
-    size_t ridden = 0;
-    static constexpr size_t kProbe = 8;
-    bool allow(bool rides) const { return rides && ridden < kProbe; }
-    void rode() { ++ridden; }
-    void apart() { ridden = 0; }
-};
-
-// What the generated rows are owed of a stage's time beside a prompt's pieces, by the stage's thread's clock: a piece earns them their share of its time, a pass of theirs spends the rest of its own.
-// A pass is priced as the least of the last kRecent measured: the credit stops at one pass at that price and no pass spends more than two (docs/SERVER.md, A generating request beside a prompt).
-struct StageShare {
-    double share = 0;
-    double owed_ms = 0;        // at 0 or above the generated rows may take the stage
-    size_t pieces = kQuiet;    // pieces since the last pass of generated rows
-    static constexpr size_t kRecent = 8;
-    double recent[kRecent] = {};   // the last passes measured, a ring
-    size_t measured = 0;
-
-    static constexpr size_t kQuiet = 32;
-    // What a pass of generated rows takes there: the least of the last kRecent measured; 0 before any.
-    double price() const {
-        const size_t n = std::min(measured, kRecent);
-        return n ? *std::min_element(recent, recent + n) : 0.0;
-    }
-    void piece(double ms) {
-        owed_ms = std::min(owed_ms + share * ms, (1 - share) * std::max(price(), ms));
-        ++pieces;
-    }
-    void generated(double ms) {
-        const double known = price();
-        recent[measured++ % kRecent] = ms;
-        owed_ms -= (1 - share) * (known > 0 ? std::min(ms, 2 * known) : ms);
-        pieces = 0;
-    }
-    // A pass of generated rows recorded behind a piece the device held ahead, whose own time is not seen: it spends the price, or a piece's time until one is measured.
-    void unmeasured(double piece_ms) {
-        const double known = price();
-        owed_ms -= (1 - share) * (known > 0 ? known : piece_ms);
-        pieces = 0;
-    }
-    // The stage stood still for the scheduler's own work on its devices, which is not the prompt's time either: the generated rows spend it, up to two passes owed.
-    void held(double ms) { owed_ms = std::max(owed_ms - (1 - share) * ms, std::min(owed_ms, -2 * (1 - share) * price())); }
-    // Whether the device may hold a piece ahead: once no pass of generated rows has come for kQuiet pieces; the stage's thread holds one only while none waits either.
-    bool ahead() const { return pieces >= kQuiet; }
-    // Whether generated rows may take the stage at this boundary.
-    bool due() const { return share > 0 && owed_ms >= 0; }
-};
-
-// How generated rows are served while prompts are read: with the prompts' passes alone (off), by a fixed share of each stage's time (StageShare), or by the automatic rule (ServiceClock, PromptFloor).
-struct Pacing {
-    enum class Mode { off, fixed, automatic, interleaved };
-    Mode mode = Mode::off;
-    double share = 0;   // the fixed share
-    static Pacing fixed(double share) { return share > 0 ? Pacing{Mode::fixed, share} : Pacing{}; }
-    static Pacing automatic() { return {Mode::automatic, 0}; }
-    // On a pipelined split, where no stage is fed in pieces: while replies and prompts both wait, generated rows go in passes of their own and a prompt's slices, cut to a stage's time, in passes between them.
-    static Pacing interleaved() { return {Mode::interleaved, 0}; }
-};
-
-// The gap the automatic rule aims at between two services of generated rows at a stage while a prompt is read: ten tokens a second a reply, faster than a reader reads, so a stream reads as continuous on any hardware.
-// It is a goal, not a bound: a piece and a service are each indivisible, and the counters say how often the gap was missed (docs/SERVER.md, A generating request beside a prompt).
-inline constexpr double kServiceGapMs = 100;
-// The part of a stage's accounted time prompts keep however long a service of generated rows takes: half, so neither side waits on the other for longer than its own time.
-inline constexpr double kPromptFloor = 0.5;
-
-// What generated rows owe prompts of a stage's time under the automatic rule: a service of theirs adds the floor's part of its whole time, a prompt piece pays off the rest of its own, and they take the stage only with nothing owed.
-// So the services taken that way use at most (1 - floor) / floor of the pieces' accounted time and one service more; work charged without that gate (HeldTime) adds its own time.
-struct PromptFloor {
-    double owed_ms = 0;
-    void service(double ms) { owed_ms += kPromptFloor * ms; }
-    void piece(double ms) { owed_ms = std::max(0.0, owed_ms - (1 - kPromptFloor) * ms); }
-    // Replies and prompts no longer wait together: what was owed is owed to nobody.
-    void demand_ended() { owed_ms = 0; }
-    bool clear() const { return owed_ms <= 0; }
-};
-
-// When a stage last began a pass serving generated rows, by a clock in milliseconds, and how the gaps between such passes met the target while replies and prompts both waited (`overlap`).
-struct ServiceClock {
-    double last_ms = -1e300;   // never
-    double from_ms = 0;        // since when both wait
-    bool overlap = false;
-    uint64_t intervals = 0, late = 0;   // the gaps between two services that both began in one overlap, and those of them above the target
-    uint64_t deferred = 0;              // passes that were due and waited for the floor, each once
-    uint64_t overlaps = 0;              // the overlaps begun
-    double longest_piece_ms = 0;
-    // Whether a service is due at a piece boundary: at the boundary nearest the target, so where half of one more piece of `piece_ms` would pass it.
-    // The gaps then centre on the target and are not all above it, at the price of a service up to half a piece early.
-    bool due(double now_ms, double piece_ms) const { return now_ms - last_ms + piece_ms / 2 >= kServiceGapMs; }
-    // A pass serving generated rows begins: ridden, apart or alone; the wait for an overlap's first service is no gap.
-    void began(double now_ms) {
-        if (overlap && last_ms >= from_ms) {
-            ++intervals;
-            if (now_ms - last_ms > kServiceGapMs) ++late;
-        }
-        last_ms = now_ms;
-    }
-    // A pass that was due waits for the floor: counted once, `counted` being the pass's own mark.
-    void defer(bool& counted) {
-        if (!counted) ++deferred;
-        counted = true;
-    }
-    // Whether replies and prompts both wait changed; it gives whether the overlap ended.
-    bool demand(bool both, double now_ms) {
-        const bool ended = overlap && !both;
-        if (both && !overlap) {
-            from_ms = now_ms;
-            ++overlaps;
-        }
-        overlap = both;
-        return ended;
-    }
-};
-
-// A stage's last pass fed in pieces, as the health gives it: its prompt rows, its pieces' count and time, and its longest piece's time, layer and part (`mixer`, `ffn`, or `tail` after the last layer).
-struct SliceRecord {
-    size_t rows = 0, pieces = 0;
-    double pieces_ms = 0, longest_ms = 0;
-    int longest_layer = -1;
-    const char* longest_part = "";
-    void piece(double ms, int layer, const char* part) {
-        ++pieces;
-        pieces_ms += ms;
-        if (pieces > 1 && ms <= longest_ms) return;
-        longest_ms = ms;
-        longest_layer = layer;
-        longest_part = part;
-    }
-};
-
-// Whether a request counts as a prompt for the overlap: before its first token, and while its cache lacks more than its last token, as after a pause.
+// Whether a request counts as a prompt for the service rule: before its first token, and while its cache lacks more than its last token, as after a pause.
 // Otherwise it is a reply, whether its rows are in a pass in flight or not.
 inline bool reads_prompt(size_t generated, size_t cached, size_t history) { return !generated || cached + 1 < history; }
-
-// The scheduler's holds of a stage, which may nest and follow each other while its thread stands still.
-// It keeps the time of each outermost hold taken for the generated rows' own work, from where a prompt's pass stood parked for it, for the floor to charge; the wait for that boundary is the prompt's piece.
-struct HeldTime {
-    size_t depth = 0;
-    bool generated = false, standing = false;
-    double from_ms = 0, parked_ms = 0;
-    double charge_ms = 0;   // not yet taken
-    void begin(bool for_generated, double now_ms) {
-        if (!depth++) {
-            generated = for_generated;
-            from_ms = now_ms;
-        }
-    }
-    // The stage's thread stands still at a piece boundary, and goes on.
-    void parked(double now_ms) {
-        standing = true;
-        parked_ms = now_ms;
-    }
-    void resumed() { standing = false; }
-    void end(double now_ms) {
-        if (!--depth && generated && standing) charge_ms += now_ms - std::max(from_ms, parked_ms);
-    }
-    double take() {
-        const double ms = charge_ms;
-        charge_ms = 0;
-        return ms;
-    }
-};
 
 // How long a request waits at most for a restore or a save it needs, until the server has measured the whole path (step 8 of docs/CACHE-PLAN.md): past it the request goes on and computes, or takes the room, said and counted.
 // Production read 9.9 GiB back in 10 s; the bound leaves a write of that size its time too.
@@ -536,47 +366,9 @@ inline double in_flight_rate(uint64_t bytes, double seconds) {
 inline constexpr double kCostKeep = 0.75;
 inline double forget(double old, double now) { return old > 0 ? kCostKeep * old + (1 - kCostKeep) * now : now; }
 
-// The reply-only service gaps completed before the next piece of background work beside replies, a read-ahead job's or a turn-end write's: a frequency in gaps, not a share of time (F2DEV and XDEV, 2026-10-20 and 2026-10-22).
-inline constexpr size_t kBackgroundGaps = 3;
-
-// The time one piece of a prompt's pass may take beside generated rows (docs/CACHE-PLAN.md, section 8 item 3): 50 ms, from the measured pieces (305 ms at 240k tokens of history, 61 ms at 40k), and the step its rows are cut in.
+// The time a segment of a turn-end write may take beside prompts (Cache::flush_one), 50 ms, and the step a prompt's slices are measured and cut in (PriceTable).
 inline constexpr double kPieceMs = 50;
 inline constexpr size_t kPieceStep = 16;
-// A prompt's slices beside replies at one depth: the largest whose longest piece stays within the target, found by doubling while every slice is within it and then halving the bracket (F2DEV, 2026-10-19 10:35).
-// The target is kPieceMs, the reply's own pass (`apart_ms`) or the one-step probe's piece and kPieceMs more, the longest; a cost that is a line, a plateau or a staircase in the rows, as tiled attention at depth is, is searched alike.
-struct PieceSearch {
-    double probe_ms = 0;    // the longest piece of the last one-step slice at this depth
-    size_t lo = 0, hi = 0;  // the largest slice measured within the target, and the smallest over it since, 0 for none
-    double target(double apart_ms) const { return std::max({kPieceMs, apart_ms, probe_ms + kPieceMs}); }
-    // A slice's rows and its longest piece: one over the target at or below `lo` means the depth moved a step, so `lo` falls to half of it.
-    void add(size_t rows, double ms, double apart_ms) {
-        if (rows == kPieceStep) probe_ms = ms;
-        if (ms > target(apart_ms)) {
-            hi = rows;
-            if (rows <= lo) lo = std::max(kPieceStep, rows / 2 / kPieceStep * kPieceStep);
-            return;
-        }
-        lo = std::max(lo, rows);
-        if (hi && lo >= hi) hi = 0;
-    }
-    // The next slice's rows, at least one step and at most `most`: twice `lo` while nothing is over the target, the bracket's middle in steps while it is wider than a step, then `lo`.
-    size_t next(size_t most) const {
-        if (!lo) return hi ? kPieceStep : most;
-        const size_t rows = !hi ? 2 * lo : hi - lo > kPieceStep ? (lo + hi) / 2 / kPieceStep * kPieceStep : lo;
-        return std::min(most, std::max(kPieceStep, rows));
-    }
-};
-
-// A stage's search after a paced pass's piece (StagePace), false where it is not taken: a short prompt's pass leaves it to the long prompt (short_prompts), another prompt's pass starts it again.
-inline bool take_piece(PieceSearch& search, uint64_t& piece_of, size_t& piece_end, bool short_pass, uint64_t prompt_of, size_t prompt_from, size_t prompt_end, size_t rows, double ms, double apart_ms) {
-    if (short_pass || !rows) return false;
-    if (piece_of != prompt_of || piece_end != prompt_from) search = PieceSearch{};
-    search.add(rows, ms, apart_ms);
-    piece_of = prompt_of;
-    piece_end = prompt_end;
-    return true;
-}
-
 // The depth band of rows read at history position `depth` (docs/SERVER.md, The price table): 0 below kBandTokens, then one band a doubling, so 4k to 8k tokens is band 1 and 128k to 256k band 6.
 inline constexpr size_t kBandTokens = 4096;
 inline size_t depth_band(size_t depth) {
@@ -615,21 +407,46 @@ struct PriceTable {
         if (!(ms >= 0)) return false;
         Cell* c = nullptr;
         if (w.chunks.empty() && w.decode_rows) c = &decode[{w.decode_band, w.decode_rows}];
-        else if (w.chunks.size() == 1 && !w.decode_rows) c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
+        else if (w.chunks.size() == 1) {
+            // A slice beside decode rows already priced takes what remains, so a prompt riding the replies' pass learns its price.
+            const double d = w.decode_rows ? decode_ms(w.decode_band, w.decode_rows) : 0;
+            if (w.decode_rows && !(d > 0 && ms > d)) return false;
+            ms -= d;
+            c = &chunks[{w.chunks[0].cls, w.chunks[0].band, step_of(w.chunks[0].rows)}];
+        }
         if (!c) return false;
         c->ms = forget(c->ms, ms);
         c->last_ms = ms;
         ++c->samples;
         return true;
     }
-    // Decode rows' price: their cell, else the nearest measured rows above in their band, else below; 0 where the band has none.
+    // Decode rows' price: their cell, else the nearest measured rows above in their band, else below; 0 where none is.
+    // A band not yet measured takes the nearest band below, so a reply crossing into a deeper band is still priced.
     double decode_ms(size_t band, size_t rows) const {
-        const auto it = decode.lower_bound({band, rows});
-        if (it != decode.end() && it->first.first == band) return it->second.ms;
-        if (it != decode.begin() && std::prev(it)->first.first == band) return std::prev(it)->second.ms;
+        for (size_t b = band + 1; b-- > 0;) {
+            const auto it = decode.lower_bound({b, rows});
+            if (it != decode.end() && it->first.first == b) return it->second.ms;
+            if (it != decode.begin() && std::prev(it)->first.first == b) return std::prev(it)->second.ms;
+        }
         return 0;
     }
-    // A slice's price: its cell, else the nearest measured above in its class and band, else the largest below scaled by the rows; 0 where none is measured.
+    // A slice's price for the quick rule (quick_prompt): its cell or the nearest measured above, else a line through the two largest measured below.
+    // 0 where neither is measured, with `step` then the rows to read next to learn it: twice the largest measured below, at least kPieceStep.
+    double slice_ms(const PassWork::Chunk& c, size_t& step) const {
+        const size_t rows = step_of(c.rows);
+        const auto same = [&](const auto& key) { return std::get<0>(key) == c.cls && std::get<1>(key) == c.band; };
+        step = kPieceStep;
+        const auto it = chunks.lower_bound({c.cls, c.band, rows});
+        if (it != chunks.end() && same(it->first)) return it->second.ms;
+        if (it == chunks.begin() || !same(std::prev(it)->first)) return 0;
+        const auto hi = std::prev(it);
+        step = 2 * std::get<2>(hi->first);
+        if (hi == chunks.begin() || !same(std::prev(hi)->first)) return 0;
+        const auto lo = std::prev(hi);
+        const double r1 = (double)std::get<2>(lo->first), r2 = (double)std::get<2>(hi->first);
+        const double slope = std::max(0.0, (hi->second.ms - lo->second.ms) / (r2 - r1));
+        return hi->second.ms + slope * ((double)rows - r2);
+    }
     double chunk_ms(const PassWork::Chunk& c) const {
         const size_t rows = step_of(c.rows);
         const auto same = [&](const auto& key) { return std::get<0>(key) == c.cls && std::get<1>(key) == c.band; };
@@ -656,13 +473,14 @@ struct PriceTable {
     // A class and band's measured slices against `target_ms` by their last measures: the smallest over it (`hi`), the largest within it below that (`lo`), 0 for none, and whether any is measured.
     struct Bracket {
         size_t lo = 0, hi = 0;
+        double hi_ms = 0;
         bool any = false;
     };
     Bracket bracket(size_t cls, size_t band, double target_ms) const {
         Bracket b;
         for (auto it = chunks.lower_bound({cls, band, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == band; ++it) {
             b.any = true;
-            if (it->second.last_ms > target_ms && !b.hi) b.hi = std::get<2>(it->first);
+            if (it->second.last_ms > target_ms && !b.hi) b.hi = std::get<2>(it->first), b.hi_ms = it->second.last_ms;
         }
         for (auto it = chunks.lower_bound({cls, band, 0}); it != chunks.end() && std::get<0>(it->first) == cls && std::get<1>(it->first) == band; ++it)
             if (it->second.last_ms <= target_ms && (!b.hi || std::get<2>(it->first) < b.hi)) b.lo = std::get<2>(it->first);
@@ -680,7 +498,8 @@ struct PriceTable {
                 break;
             }
         } else if (!b.lo) {
-            rows = b.hi / 2 / kPieceStep * kPieceStep;
+            // Half the smallest over, or its rows scaled to the target where it is far over, as a band measured only at a whole ubatch is.
+            rows = std::min(b.hi / 2, (size_t)((double)b.hi * target_ms / b.hi_ms)) / kPieceStep * kPieceStep;
         } else if (!b.hi) {
             rows = 2 * b.lo;
         } else {
@@ -690,13 +509,65 @@ struct PriceTable {
     }
 };
 
-// The service rule's gap (docs/SERVER.md, The service rule): while prompt work waits, a reply is served at least every `mix` times the step the same replies take with no prompt work.
-// `mix` is the one constant the rule has, a ratio, which step 0's measurement chooses.
-inline double service_gap(double alone_step_ms, double mix) { return mix * alone_step_ms; }
-// What the gap leaves a chunk pass between two passes of replies at a stage: the gap less the replies' own pass.
-inline double chunk_budget(double gap_ms, double replies_ms) { return gap_ms > replies_ms ? gap_ms - replies_ms : 0.0; }
-// Replies while prompt work waits go in as few passes as the decode kernels' columns hold them.
-inline size_t packed_passes(size_t decoders, size_t columns) { return columns ? (decoders + columns - 1) / columns : decoders; }
+// The reply rate the service rule aims for while prompt work waits, a product objective and not a guaranteed rate (docs/SERVER.md, The service rule).
+inline constexpr double kReplyTokensPerSecond = 8;
+// The longest a reply's steps may lie apart while prompt work waits, however many tokens a step brings, so a drafting reply is delivered without long pauses; a reader's property, not the hardware's.
+inline constexpr double kMaxStepGapMs = 500;
+// A reply's tokens a step over its last kSteps steps, a verify's kept drafts and its pick or one decoded token; 1 until it has that many, so one lucky verify cannot widen the gap.
+class StepTokens {
+public:
+    static constexpr size_t kSteps = 8;
+    void add(size_t tokens) {
+        sum_ += tokens - last_[at_];
+        last_[at_] = tokens;
+        at_ = (at_ + 1) % kSteps;
+        seen_ += seen_ < kSteps;
+    }
+    double mean() const { return seen_ < kSteps ? 1.0 : std::max(1.0, (double)sum_ / (double)kSteps); }
+
+private:
+    std::array<size_t, kSteps> last_{};
+    size_t sum_ = 0, at_ = 0, seen_ = 0;
+};
+// What the gap leaves a chunk pass at each of `stages` stages: a reply's pass meets one chunk at every stage, so the gap is the stages times a chunk and the replies' own pass.
+inline double chunk_budget(double gap_ms, double replies_ms, size_t stages) {
+    const double per_stage = gap_ms / (double)std::max<size_t>(1, stages);
+    return per_stage > replies_ms ? per_stage - replies_ms : 0.0;
+}
+// A chunk's stage time while replies and prompt work both wait: the largest gap that keeps every reply at the objective, from the fewest tokens a step among them and at most kMaxStepGapMs, less the replies' pass at each stage.
+// Where even the replies' pass leaves nothing the objective is unmet, and a chunk goes only to a prompt the wait bound makes due, taking one stage's share of that gap.
+struct ChunkPlan {
+    double gap_ms = 0, budget_ms = 0;
+    bool met = true, capped = false;
+};
+inline ChunkPlan chunk_plan(double fewest_tokens_per_step, double replies_ms, size_t stages, double rate = kReplyTokensPerSecond) {
+    const double by_tokens = 1000.0 * fewest_tokens_per_step / rate, gap = std::min(by_tokens, kMaxStepGapMs), budget = chunk_budget(gap, replies_ms, stages);
+    const bool capped = by_tokens > kMaxStepGapMs;
+    if (budget > 0) return {gap, budget, true, capped};
+    return {gap, gap / (double)std::max<size_t>(1, stages), false, capped};
+}
+// How long a ready prompt goes without rows at most before it reads first, the bound of least-remaining-first (Share::wait_ms) the replays chose (docs/SERVER.md, Prompt shares).
+inline constexpr double kPromptWaitMs = 10000;
+// A lone prompt's next slice on `stages` stages when it lacks `waiting` rows: about a 2 * stages-th of them, at least 128 rows and at most a ubatch.
+// So every stage of a split has a slice to read while the prompt is the only work; on one stage a ubatch.
+inline size_t lone_slice(size_t waiting, size_t stages, size_t ubatch) {
+    if (stages < 2) return ubatch;
+    const size_t cut = (waiting + 2 * stages - 1) / (2 * stages);
+    return std::min(ubatch, std::max(std::min<size_t>(128, ubatch), cut));
+}
+// Whether a prompt is quick while the reply objective is unmet: its whole remaining cost and the replies-only pass fit within the step gap's cap by the measured prices.
+// A quick prompt runs whole in a pass shared with the replies, at most every other replies' pass, shortest first, so a newcomer never waits the wait bound and no reply step lies further apart than the cap.
+inline bool quick_prompt(double remaining_ms, double replies_ms) { return remaining_ms > 0 && remaining_ms + replies_ms <= kMaxStepGapMs; }
+// The passes a round keeps in flight of the `slots` reserved: one a stage, and the one more only while prompt rows and replies overlap, when a prompt's chunk continues beside a pass of replies.
+inline size_t passes_in_flight(size_t slots, size_t stages, bool overlap) { return overlap ? slots : std::min(slots, std::max<size_t>(1, stages)); }
+// Replies while prompt work waits go in as few passes as the decode kernels' columns hold them, leaving prompt work a slot of `slots`, and in the one pass where there is one.
+inline size_t packed_passes(size_t decoders, size_t columns, size_t slots) {
+    if (!decoders) return 0;
+    const size_t n = columns ? (decoders + columns - 1) / columns : decoders;
+    return slots > 1 ? std::min(n, slots - 1) : 1;
+}
+// The replies each of those passes takes.
+inline size_t packed_share(size_t decoders, size_t passes) { return passes ? (decoders + passes - 1) / passes : decoders; }
 
 // A prompt with rows left to read as the share rule sees it, the rule taking them in arrival order: its rows left and their price, how long it has been ready without rows and the stage time it has had.
 struct ReadyPrompt {
@@ -776,43 +647,6 @@ inline void charge_share(const Share& s, const std::vector<ReadyPrompt>& p, std:
     credit.resize(p.size(), 0.0);
     for (size_t i = 0; i < p.size(); ++i) credit[i] += parts[i] * ms;
     credit[served] -= ms;
-}
-
-// Whether generated rows ride the pass that reads prompt rows under the automatic rule: where that pass, of a measured `prompt_ms`, takes no longer than the target gap.
-inline bool rides_within_gap(double prompt_ms) { return prompt_ms > 0 && prompt_ms <= kServiceGapMs; }
-
-// The most rows of a request's next prompt slice, and whether that slice closes its pass to other prompts' rows.
-struct PromptSlice {
-    size_t most;
-    bool closes;
-};
-
-// A later prompt is short where its remaining rows fit this fraction of the ubatch (docs/SERVER.md, the round).
-inline constexpr size_t kShortShare = 4;
-
-// The short prompts read ahead of the oldest long one, indices into `waiting` (the later prompts' remaining rows in arrival order, 0 where not ready): the arrival-order prefix that fits `base` / kShortShare.
-// A prompt past the share is not short, and the first short one that does not fit what is left ends the prefix.
-inline std::vector<size_t> short_prompts(const std::vector<size_t>& waiting, size_t base) {
-    const size_t share = base / kShortShare;
-    std::vector<size_t> taken;
-    size_t used = 0;
-    for (size_t i = 0; i < waiting.size(); ++i) {
-        if (!waiting[i] || waiting[i] > share) continue;
-        if (used + waiting[i] > share) break;
-        used += waiting[i];
-        taken.push_back(i);
-    }
-    return taken;
-}
-
-// A request's next prompt slice when it lacks `waiting` prompt rows on `stages` stages: a ubatch, but for a lone request (`alone`, having read `read_alone` rows) about a 2 * stages-th of what it lacks, at least kMinSlice rows.
-// Once company comes, a prompt whose lone slices left it off a whole ubatch first takes the rows back to one, in a pass no other prompt shares (docs/STATUS.md, a lone prompt read by every stage).
-inline PromptSlice prompt_slice(size_t waiting, size_t stages, size_t ubatch, bool alone, size_t read_alone) {
-    static constexpr size_t kMinSlice = 128;
-    if (!alone) return read_alone % ubatch ? PromptSlice{ubatch - read_alone % ubatch, true} : PromptSlice{ubatch, false};
-    if (stages < 2) return {ubatch, false};
-    const size_t cut = (waiting + 2 * stages - 1) / (2 * stages);
-    return {std::min(ubatch, std::max(std::min(kMinSlice, ubatch), cut)), false};
 }
 
 // The logits rows of a context reserved for passes, which each pass takes a run of as it is formed: after the newest run, or from row 0 when that does not fit.

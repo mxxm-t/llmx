@@ -73,8 +73,6 @@ struct LoadedModel {
     DtypePlan dtype;
     size_t checkpoint_kv_tokens = 0; // the KV tokens a server's fitted checkpoint slots took from its budget (PlacedModel)
     std::string kv_kept_context;     // why a server's automatic budget kept the model's context (PlacedModel)
-    std::string unpaced;             // why no stage of the placement is fed in pieces, empty where one is (PlacedModel)
-    bool pipelined_split = false;    // the placement is a pipelined layer split (PlacedModel)
     std::optional<spec::DrafterKind> drafter;   // what the drafter file beside the model is (spec::pair), when one was given
     std::vector<backend::BackendPtr> backends;  // the backends the caller gave, which a draft model beside the model shares
     LoadTimes times;
@@ -452,8 +450,6 @@ inline std::unique_ptr<LoadedModel> load_weights(std::unique_ptr<LoadedModel> lo
     loaded->dtype = std::move(placed.dtype);
     loaded->checkpoint_kv_tokens = placed.checkpoint_kv_tokens;
     loaded->kv_kept_context = placed.kv_kept_context;
-    loaded->unpaced = std::move(placed.unpaced);
-    loaded->pipelined_split = placed.pipelined_split;
     loaded->model = std::move(placed.model);
     if (mode != LoadMode::mapped) {
         // Every weight has storage now, so a model that cannot be placed has failed before any weight is uploaded.

@@ -593,7 +593,7 @@ std::vector<std::string> exec_specs(const ExecOptions& exec) {
 std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const ExecOptions& exec, bool progress, int threads, size_t decode_rows = 0,
                                                bool show_plan = false, std::vector<backend::Backend*>* profiled = nullptr, size_t history_tokens = 0, size_t slots = 0,
                                                bool timed = false, int checkpoints = 0, size_t mark_rows = 0, bool drafter = false,
-                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {}, size_t apart_rows = 0,
+                                               const std::string& drafter_file = {}, const std::vector<backend::BackendPtr>& shared = {},
                                                std::optional<size_t> host_budget = std::nullopt, const infer::LoadReport& watch = {}) {
     const auto specs = exec_specs(exec);
     if (watch) watch({"devices"});
@@ -613,7 +613,6 @@ std::unique_ptr<infer::LoadedModel> open_model(const std::string& path, const Ex
     request.host_budget = host_budget;
     request.ubatch = exec.ubatch;
     request.decode_rows = decode_rows;
-    request.apart_rows = apart_rows;
     request.slots = slots;
     // A server's passes carry a verify's draft rows where it drafts, and it keeps logits rows for its passes in flight by its own rule, a row a request and those drafts, not one for every row of a pass.
     if (slots) {
@@ -1358,8 +1357,7 @@ int cmd_bench_model(const std::string& path, const ExecOptions& exec, int P, int
     return 0;
 }
 
-void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, size_t apart,
-                  server::Front& front);
+void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, server::Front& front);
 
 // llmx serve: the multi-user server of docs/SERVER.md over one model.
 // The identity an image's digest begins with, the encoder file's SHA-256 (docs/VISION.md, section 5): cached under the disk tier's digests where a disk tier is given, else read once at start.
@@ -1369,10 +1367,9 @@ std::array<uint8_t, 32> vision_identity(const std::string& path, const server::D
 }
 
 int cmd_serve(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images) {
-    // Without --passes a pipelined split keeps a pass in flight per stage, and its stages are at most the devices listed.
-    const size_t slots = cfg.passes ? cfg.passes : backend::device_specs(exec.device).size();
-    // Unless pacing is off each device holds a second arena for the generating requests' rows, where the placement feeds a stage in pieces (infer::apart_rows).
-    const size_t apart = cfg.no_pacing ? 0 : server::Scheduler::apart_rows(cfg.max_seqs, drafts.mark_rows() ? drafts.draft_max : 0);
+    // Without --passes a pipelined split keeps a pass in flight per stage and one more (Scheduler), and its stages are at most the devices listed.
+    const size_t devices = backend::device_specs(exec.device).size();
+    const size_t slots = cfg.passes ? cfg.passes : devices > 1 ? devices + 1 : 1;
     // The flags' own refusals and a model path with nothing there, as the load would refuse it, come before the server listens, so a mistyped line fails at once.
     exec_specs(exec);
     if (!std::filesystem::exists(std::filesystem::u8path(model_path))) throw std::runtime_error("cannot open file: " + model_path);
@@ -1381,7 +1378,7 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
     server::Startup startup(std::filesystem::u8path(model_path).filename().u8string());
     server::Front front(listener, startup);
     try {
-        serve_loaded(model_path, cfg, exec, drafts, images, slots, apart, front);
+        serve_loaded(model_path, cfg, exec, drafts, images, slots, front);
     } catch (const std::exception& e) {
         startup.fail(e.what());
         throw;
@@ -1390,18 +1387,16 @@ int cmd_serve(const std::string& model_path, const server::Config& cfg, const Ex
 }
 
 // The rest of `serve` once the server listens: the model loaded, the start recorded as it goes, then the routes served on `front`.
-void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, size_t apart,
-                  server::Front& front) {
+void serve_loaded(const std::string& model_path, const server::Config& cfg, const ExecOptions& exec, Drafts& drafts, const Images& images, size_t slots, server::Front& front) {
     server::Startup& startup = front.startup();
     const auto loaded = open_model(model_path, exec, true, exec.threads, cfg.max_seqs, false, nullptr, 0, slots, cfg.timing, cfg.state_checkpoints,
-                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, apart, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); });
+                                   drafts.mark_rows(), drafts.embedded, drafts.file, {}, cfg.host_cache_bytes, [&](const infer::LoadStep& step) { startup.step(step); });
     bpe::Tokenizer& tok = *loaded->tok;
     infer::Model& model = *loaded->model;
     drafts.attach(*loaded, exec, true, true);
     // A template the renderer refuses stops the server before it serves, as it stops chat before a turn.
     loaded->chat.require();
     server::Config c = cfg;
-    server::resolve_pacing(c, loaded->unpaced, loaded->pipelined_split);
     // The path is UTF-8, as the loader reads it, so the name is read back as UTF-8 rather than in the system code page.
     c.model_name = std::filesystem::u8path(model_path).filename().u8string();
     c.dtype = loaded->dtype;
@@ -1647,13 +1642,8 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --max-seqs N            Requests served at once (default: " << cfg.max_seqs << ")\n"
             << "  --max-queue N           Requests waiting for a place, paused ones not counted. More get a 503 (default: " << cfg.max_queue << ")\n"
             << "  --passes N              Batches the devices work on at once. Above 1 needs the model\n"
-            << "                          split over several devices (default: one per device of a layer split, else 1)\n"
-            << "  --no-pacing             Serve requests already generating only with the prompts' batches. By default,\n"
-            << "                          on one device or one tensor group, they are served between the parts of a\n"
-            << "                          prompt's batch, about every " << (int)server::kServiceGapMs << " ms\n"
-            << "  --generating-share X    Instead of that rule, a fixed share of each device's time for requests\n"
-            << "                          already generating while prompts are read, above 0 up to 0.9. A value of 0 keeps\n"
-            << "                          the rule (default: " << cfg.generating_share << ")\n"
+            << "                          split over several devices (default: one more than the stages of a layer\n"
+            << "                          split, else 1)\n"
             << "\nPrefix cache (keeps conversations so a follow-up skips re-reading its prompt).\n"
             << "A SIZE is a number of bytes, or a number followed by b, k, m, g or t (also kb, kib and so on),\n"
             << "powers of 1024 in any case: 4g, 4GiB and 4096mb are 4294967296 bytes. A fraction needs a suffix, as in 1.5g.\n"
@@ -2016,8 +2006,6 @@ int main(int argc, char** argv) {
                 else if (f == "--max-seqs") cfg.max_seqs = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--max-queue") cfg.max_queue = (size_t)int_arg(argc, argv, i, a, 1);
                 else if (f == "--passes") cfg.passes = (size_t)int_arg(argc, argv, i, a, 1);
-                else if (f == "--generating-share") cfg.generating_share = float_arg(argc, argv, i, a, 0.0f, 0.9f);
-                else if (f == "--no-pacing") cfg.no_pacing = true;
                 else if (f == "--state-checkpoints") cfg.state_checkpoints = int_arg(argc, argv, i, a, 0);
                 else if (f == "--host-cache-bytes") host_bytes = bytes_arg(argc, argv, i, a, std::numeric_limits<size_t>::max());
                 else if (f == "--disk-cache-bytes") cfg.disk.bytes = bytes_arg(argc, argv, i, a);
@@ -2046,7 +2034,6 @@ int main(int argc, char** argv) {
                 given.take(a, i > at);
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
-            if (cfg.no_pacing && cfg.generating_share > 0) throw UsageError("--no-pacing serves no generating request apart; not with --generating-share");
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
             if (images.max_pixels && images.mmproj.empty()) throw UsageError("--image-max-pixels sizes the images the encoder --mmproj names reads");
             return cmd_serve(argv[2], cfg, exec, drafts, images);

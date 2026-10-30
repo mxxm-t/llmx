@@ -8,4 +8,4 @@
 - `notify(s)` wakes a lane after the caller changed what `ready` reads.
 - Destruction sets every lane's `stop` under its mutex, wakes it and joins its thread, after the step it is in ends, so a caller declares the lanes after anything they record on.
 
-The lanes hold no pass, pacing or rule: `run_chunks` hands a lane one chunk at a time and commits it on the calling thread, and the scheduler's recorder keeps its pacing, shares, holds, background gaps and timed slices as its policy (docs/src/server.md).
+The lanes hold no pass, pacing or rule: `run_chunks` hands a lane one chunk at a time and commits it on the calling thread, and the scheduler's recorder keeps its holds as its policy (docs/src/server.md).

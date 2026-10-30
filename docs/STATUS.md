@@ -69,6 +69,123 @@ On the rebased head the ROCm tests and f32 pass on renderD128, and a Vulkan buil
 - Comments: a sentence or two, ASCII, a sentence a line.
 **Gotchas:** Linux only, built in the gfx906 ROCm image pinned by digest; cards on pci0000:c0 (renderD128-131), never production's roots; every other op and type is refused at load by capability, and tensor groups by `join()` returning none until step 4.
 
+## The serving rework, step 1: holds off the reply path (2026-10-29, VDEV, branch feat/serving-holds on RDEV's feat/serving-rule 413a0328d, F2DEV's design of 2026-10-27 12:31 ("Step 2, holds off the reply path"), the coordinator's order of 2026-10-29, lands with step 2 below by fast-forward)
+
+- **Goal:** the scheduler thread owns host state and each stage's thread is the only recorder on its devices; device work outside a pass goes to the stages' threads in formation order, and the whole-model hold (`quiet`) stays only for abort-all, recall, stop and failure.
+- **Done:** `Stats::holds` (`/v1/health` `passes.since_start.holds`) counts every hold; a mark and a kept state are plain calls; a verify's retract hands its state rerun to each state stage's thread as an item (`Model::retract` with a `Defer`, `Recorder::items`), the lengths changing at once and the mark's hold going back as the history settles, and a failed item ends its request alone, its passes in flight abandoned and their other requests formed again; a timed scheduler's stage readings run on their stage's thread (`run_on`) while the other stages record, and lookup takes no hold at all.
+  The embedded drafter's chain is split as F2DEV approved on 2026-10-29 at 14:58 (`Model::draft_begin`, `draft_record`, `draft_end`): begun on the scheduler thread, recorded as an item on the head stage's thread and ended by the round when it reports, its requests sitting the pass out and verifying its drafts in the next, so the scheduler thread never waits for a chain; the model's context and the chains' buffers are taken as the scheduler is made (`Model::reserve_drafting`) and counted in the fit (`Footprint::context_rows`, `drafter_cache`), so neither a chain nor a rerun allocates while a stage's thread records.
+  `server-spec`'s `rerun_failure_alone`: four drafting replies two to a pass over two tensor-group stages, the 61st rerun call throwing once every request decodes beside another; it ends alone with the error and the others give their replies alone, where the previous `item_failed` ended its pass partner too.
+  `server-spec`'s `steady_gap`, a sampled reply drafting alone on the Flash fixture over two tensor-group CPU stages at two passes (240 tokens from the 60th, two runs each, interleaved): with the chain waited for, token gap p50 0.060 and 0.062 ms, p99 0.189 and 0.248 ms, 14766 and 13167 tokens/s; with the chain on the head stage's thread (35 chains begun there), p50 0.065 and 0.063 ms, p99 0.209 and 0.189 ms, 12216 and 14006 tokens/s.
+  The arms differ within their noise; the fixture's chain takes microseconds, so the cost of sitting a round out is measured on a device with a real model before this merges.
+  `server-spec`'s `steady_holds` takes no hold between a reply's 60th and 300th token while it drafts: Q8_0 with lookup and the hybrid model with its embedded drafter, on one CPU and on a two-CPU split at two passes (280 holds before on Q8_0 with lookup).
+  CTest 77 of 77 on a CPU build.
+  The tier copies, F2DEV's approval of 2026-10-29, step 1 of 4: a copy to host memory (`write_back`, `keep_boundary`) takes no hold, its parts on the stages' threads with the fresh slabs they allocate and a pending record every reader settles (`Model::copy_out`, `host_settle`); `server-spec`'s `host_saves` copies donors to host memory beside a drafting reply over two CPU stages at two passes with no hold and the reply its reply alone, and with a copy's first part throwing, that copy alone lost.
+  Step 2 of 4: a promotion from host memory and a fork with a boundary's state take no hold (`Model::restore_host`, `fork` with a `Defer`, `copy_in`), and a part that fails, F2DEV's ruling, is the history gone: each request holding it leaves flight and reads it again, a donor holding it is dropped (`Scheduler::history_failed`); a history still landing is forked by no other request, serves as no source and is not cancelled into a donor (`Sequence::landing`, F2DEV's note).
+  `server-resume`'s host tier on two devices' threads (a layer split over backends that say they are no CPU, so the copies run on the last stage's thread and land 50 ms late): every reply its reply alone with a write-back failing and with a promotion failing, a second follow-up of the conversation beside the first while its copies land; the recorder rule now expects no copy and no allocation on the scheduler's thread.
+  Steps 3 and 4: the host tier's frees and the idle growth's slabs (`Model::trim_host`, `host_yield` and `grow_slabs` with a `Defer`), the images the cache's retracts drop (`drop_media`), and the disk tier's reads, writes, proofs and streams (`Model::take_host`, `DiskTier::write_next`, `prove`, `read` and `StreamedRead` with a `Defer`) take no hold; `DiskTier::measure` takes no memory (`Model::host_bytes`); the only holds left are abort-all's, recall's, the stop's, a failed pass's, a proposer's on other stages' devices and an image's encode.
+  The step gap on a real model, Qwen3.6-27B-MTP Q4_1 as a layer split over two MI50s with its embedded drafter, sampled 512-token prompts and 256-token replies, the chain waited for (99663e641) against the chain on the head stage's thread (f73b60950), interleaved twice: level at 1 user (19.6-19.9 tok/s, ITL p50 48.3-49.0 ms), and at 4 users 33.8 and 33.6 against 28.8 and 27.3 tok/s, TTFT p50 6.0 and 6.2 against 8.0 and 7.3 s, ITL unchanged; a reply sitting out the pass its chain is queued in costs the passes rows.
+  A KV storage's layer count is fixed when it is made and what it has backed is atomic (`BlockKVStorage::layers`, `allocated_bytes`, `peak_bytes`), since a restore now grows the storage on the device's stage's thread while the scheduler's thread reads the layer count and the accounting (the final gate's phase 1 found the race on a streamed read); the buffers, their retirement and the growth hook are touched only on the device's thread.
+  A retract's mark goes back as soon as its rerun has run (`Model::release_settled`, after the retract and once a round), where it had waited for the history's next settle and kept two replies' marks from the others (RDEV's `drafts shared among four replies over two marks` in `server-passes-cpu`).
+  A copy into host memory made while the idle growth's slabs are still being made on the stages' threads may take as many beside the tier's limit, given back once they land (`Cache::copy_limit`, `copies_retired`): the growth had reserved the whole tier, so a donor leaving then was refused room as held by entries in use and lost, which failed `server-passes-cpu`'s `boundary_fork_held` on Windows in 6 of 20 runs (0 of 20 on main aca246a74), and with the fix 0 of 20 there and on Linux.
+  A promotion of a host copy whose save is still queued waits a round for it rather than the scheduler's thread waiting (F2DEV's ruling of 2026-10-30); `server-resume`'s host tier on two devices' threads, its copies landing 50 ms late both ways, a follow-up right after its conversation's write-back, holds that the scheduler's thread waits for no stage's work (`Stats::stage_waits`, 0); on a model that keeps a state, whose restore reads the copy's token tail on the host, the promotion also waits until the copy has retired on its devices (F2DEV's finding of 2026-10-30), every device wait of the scheduler's thread counts in `stage_waits` (`Model::wait_ticket`), and `server-resume`'s `promotion_after_write_back`, one request at a time so the donor count sends a conversation to host memory as the next request ends and its follow-up comes at once, on two devices' threads whose slab copies land 5 ms late and retire 500 ms after their submission, holds 0 waits on the dense and the hybrid model; without the promotion's wait for the copy to retire it counts the restore's wait on the hybrid one.
+  The scheduler's thread still waits for a stage's work in these places, each counted in `stage_waits`: a history settling before another call on it while its rerun or restore parts run (a fork, a save or a reset of such a history), the disk tier's reads, which take their slabs on the stages' threads before the store reads into them (`Model::take_host`), its writes, which wait for their copy before the host reads it, and the proof of entries another build wrote, which restores the history it proves and copies the blocks it compares under such waits (`Cache::prove`).
+  `server-spec`'s `chain_cases` hold a request cancelled, requests paused and a chain failing with chains queued on the head stage's thread, every other reply its reply alone.
+  The chain queued as a reply's token is drawn, with a rule for when a reply sits out, was measured on 2026-10-30 (Qwen3.6-27B-MTP over two MI50s): it dropped 83 to 95 percent of chains at 1 user and gave 21.9 to 24.1 tok/s at 4 users against main's 27.9 to 28.3, so F2DEV withdrew it; the chain one pass ahead is a separate branch after the owner's decision.
+  The draft columns go to the drafts the price kept, likeliest kept first (`Scheduler::order_`), where each request had taken its columns in admission order before the price: on Flash-Next 2x2 a reply admitted earlier, whose embedded drafter's later drafts it rarely keeps, took all 14 columns and the price then dropped its draft, so the reply drafting well from its own history got none (the final gate's four-reply cell, 0 to 5 verifies in about 355 steps).
+  `server-spec`'s `columns_to_likelier` holds it: B keeps 119 own drafts beside A as alone, against 88 before.
+  On Flash-Next UD-Q4_K_XL 2x2 over GPUs 4-7 at the gate's flags, four replies on a warm server: two replies at 2.26 to 2.34 and 1.87 to 1.88 tokens a step (68.6 to 72.2 and 53.2 to 55.1 tok/s), against 1.02 to 1.05 for all four before; the owner's scenario is unchanged, its greedy reply 103.4 tok/s at 15 tokens a step against 103.1 before.
+  Only one mark fits beside an automatic pool on that placement, so one request drafts a pass.
+- **Open:** byte identity with drafting on and off on a device; the 4-user cost of a reply sitting out the pass its chain is queued in (27.4 tok/s against main's 27.9-28.3, 99663e641's 33.6-33.8), which the chain one pass ahead addresses.
+  A greedy reply's chain at its verify's last-stage tail (F2DEV's design) is a change of its own after this step, judged on its measured gain.
+- **Gotchas:** a stage's thread tells the round of an end by spinning on the scheduler's lock unless the scheduler thread waits for it, so every wait of the scheduler thread on a stage's thread raises `quieting_` (`run_on`, `Model::on_stage_wait`).
+  The model's context lock is the last lock taken: nothing else is locked or waited for while it is held, so a chain's begin takes it only after its histories settle, whose rerun parts need it.
+
+## The serving rework, step 2: one formation rule (2026-10-29, RDEV, branch feat/serving-rule on main 3a5e3d5bd (step 0 landed), step 2 of the serving rework plan, the coordinator's DECISION of 2026-10-29 05:52; by the owner's direction the rework's steps stack on this branch and land together; reviewed by F2DEV; lands by fast-forward on main aca246a74 as two commits, the failing test and then the change)
+
+**Goal.** One rule forms the passes on every placement (docs/SERVER.md, The service rule): replies kept at a reading-speed objective of 8 tokens a second where the stages' measured prices allow it, prompts read in chunks the price table sizes to fit between their steps, prompts in least-remaining order with a 10 s wait bound, and the pacing modes, pieces, passes apart, short prompts, `--generating-share` and `--no-pacing` deleted.
+Its failing test is SDEV's starvation case of 2026-10-29 04:08 (`prompt_beside_replies` in `server-passes-cpu`): a prompt beside four uncapped replies on a two-device split read no row, since four decoders over the passes filled every slot.
+
+**Done.**
+- The rule (`Scheduler::plan`, `form_round`, `form`): on a split the replies packed by the decode columns (`packed_passes`) and each other slot one prompt's chunk, continuing in its own pass, at S + 1 passes in flight by default; on one pass in flight the chunk rides the replies' pass.
+- The gap model restated against the measured two-stage gap: a reply's pass meets a chunk at every stage, so the gap is S times a chunk and its own pass, and a chunk takes at most the gap over the stages less the replies' pass (`chunk_budget`).
+- The reply objective in place of a ratio, the criterion F2DEV and XDEV agreed (2026-10-29 09:36 and 09:40) under the owner's rule that nothing is model- or topology-specific: `kReplyTokensPerSecond` = 8, a product objective; the gap is 1000 ms over 8 times the fewest tokens a step among the replies (`StepTokens`, the mean of a reply's last 8 steps, 1 until then); a chunk takes the gap over the stages less the replies' pass (`chunk_plan`).
+  Where the replies' pass alone leaves nothing, the objective is unmet, the health counts it (`service.objective`), and a prompt takes a chunk only once the 10 s bound makes it due, so it still reads each bound (`replay_unmet` in `server-passes`).
+- The step gap's maximum, `kMaxStepGapMs` = 500 ms (F2DEV and XDEV, 2026-10-29): a drafting reply's tokens a step widen the gap only up to it, since on the owner's scenario a greedy reply keeping 16 tokens a step was given 2000 ms and arrived in bursts 1.4 s apart; the health counts the passes it bound (`service.objective.since_start.capped`).
+  At Flash's fitted prices 8 tokens a second lies between the table's ratios 3 and 4 below: the long prompt keeps about a fifth of its rate while a reply runs, and all of it between replies.
+- Disk writes take only what nothing waits on (`Scheduler::write_turn`); the runtime's apart arena, `Pace`, `record_pass_within`, `stage_ready` and the fit's apart rows deleted.
+- `server-passes` simulates the rule as its only formation (2000 schedules pass), a decoder beside prompt work getting a token within two laps and a round.
+
+**Checks at the head.** The build; the server, scheduler, cache-scenario, placement and kv-cache CTests (11 of 11, `server-passes` 2000 schedules); the suite's docs, dead-code, cli and server components; Qwen3-0.6B Q8_0 logits, 64 greedy ids and `server_mix_check` ids with log-probabilities byte-identical to bac4ed4bd on the CPU.
+The starvation test fails on main and passes here: on the CPU, one decode column a pass, the replies' packed passes first took every slot, so they now leave prompt work one (`packed_passes`), and the plan counts a reply in flight as a reply.
+- Two tests moved with the rule: the fitted room of `fitted_reservation` follows the scheduler's smaller reservation, and the boundary fork's case runs on a split of two devices, since one device no longer records a stage on a thread of its own.
+
+**The final gate (2026-10-30, gate-run-20261030a, head 56dd2fec7 against main 7f83d159a, Flash-Next UD-Q4_K_XL 2x2 on GPUs 4-7 at production's flags, three interleaved repeats).**
+Other developers' CPU containers ran at 100-390% CPU beside most timed blocks, on the clients' cores among others, in both arms alike; production was idle throughout.
+
+| cell | main | head |
+|---|---|---|
+| owner's scenario: later prompts' first token | 266-362 s | 1.9-2.7 s |
+| owner's scenario: largest reply step gap | | 175-834 ms |
+| owner's scenario: the long prompt read | 376-380 s | 397-445 s |
+| four replies without drafts, aggregate output | 78.7-79.2 tok/s | 119.1-119.6 tok/s |
+| four replies with drafts, aggregate output | 75.2-125.9 tok/s | 127.8-128.7 tok/s |
+| one reply alone | 47.8-48.1 tok/s | 47.7-47.9 tok/s |
+| single user, 2k prompt, first token | 1846-1930 ms | 1810-1884 ms |
+| single user, 16k prompt, first token | 12748-13399 ms | 12621-13230 ms |
+
+Main never ran the four replies at once: two of them got their first token at 11.3-11.6 s, after the first two ended, so the cell's criterion is aggregate output with every first token within 5 s (F2DEV, 2026-10-30), which the head meets at 1.4-3.1 s.
+`tools/server_load.py` (512-token prompts, 256-token greedy replies, one run an arm):
+
+| users | main tok/s | head tok/s | main TTFT p50 | head TTFT p50 | main ITL p99 | head ITL p99 |
+|---|---|---|---|---|---|---|
+| 1 | 109.5 | 110.8 | 675 ms | 648 ms | 81.2 ms | 80.8 ms |
+| 4 | 74.4 | 93.2 | 5358 ms | 2492 ms | 87.1 ms | 109.2 ms |
+| 16 | 85.2 | 110.4 | 19509 ms | 12375 ms | 149.4 ms | 129.9 ms |
+| 64 | 71.1 | 117.6 | 120534 ms | 63266 ms | 126.0 ms | 135.1 ms |
+
+Identity: Qwen3-0.6B Q8_0 logits, greedy ids and `server_mix_check` ids, and Flash-Next 2x2 logits and 128 greedy ids byte-identical to main; the baseline and qwen35 baseline components pass on both arms.
+Phase 1's findings were fixed after it: two TSan races in KV storage growth (5fceb4588), the server test's health keys (56ba37170), eight comment walls, and the stalled pair of `server-resume` made deterministic (5b002d89c).
+The overload's 28.6 s prompt stall on Flash was the bound holding with two prompts (10.5 s, the bound and one pass, on Qwen3.6-27B Q4_1 with the live view sampled), and the short newcomer it hid is the quick rule below.
+CTest, the CPU suite with numpy, docs, dead-code, TSan on the server tests and the 0.6B identity are rerun at the landing head before the hosted run.
+
+**Open.** The largest reply step gap reaches about 670 ms on Qwen3.6-27B Q4_1 over two MI50s with eight replies and newcomers, on 56dd2fec7 as on the head, so a pass of that length still passes the 500 ms cap; not traced yet, not a blocker.
+The Flash 2x2 cold and overload cells rerun with the gate client's per-sample record when four cards are free.
+
+**The ratio's trade at Flash 2x2's measured prices, which led to the objective** (the replay of `server-passes`, load S1: a 150k-token prompt beside replies and two short prompts, two stages, three passes, ubatch 512, least remaining with the 10 s bound; simulated at SDEV's fitted prices, not measured on devices).
+The reply's gap beside the long prompt is read as the gaps' p99, since the p50 holds the stretches without the prompt.
+
+| ratio | reply gap beside the long prompt | reply tok/s beside it | long prompt (alone 131.0 s) | its share of solo speed |
+|---|---|---|---|---|
+| 4 | 138 ms | 7.2 | 551.5 s | 24% |
+| 7 | 234 ms | 4.3 | 287.5 s | 46% |
+| 14 | 493 ms | 2.0 | 163.2 s | 80% |
+
+**The owner's scenario on Flash-Next 2x2, measured (2026-10-29, GPUs 4-7, production's flags, one run an arm, main 80cbf1da0 against 413a0328d before the step gap's maximum).**
+
+| | main | step 2 and the reply floor |
+|---|---|---|
+| 100k prompt alone, first token | 107.6 s | 105.8 s |
+| 100k prompt beside a reply | 350.1 s | 205.4 s |
+| six 500-token prompts during it, first token | 236 to 331 s | 1.95 to 2.92 s |
+| the reply's step gap p50/p99 meanwhile | 176/212 ms | 1374/1854 ms |
+
+With the step gap's maximum (9a896dbea against main, two replies throughout, one greedy and one sampled, both of which drafted about 14 tokens a step): the 100k prompt 430 s against 504 s, the six later prompts' first token 1.1 to 4.5 s against 390 to 485 s, and the greedy reply's step gap p50/p99 129/435 ms against 1374/1854 ms uncapped; one gap of 1.9 s each remained, at 77 s and 151 s, when the replies' history crossed 8192 and 16384 tokens: their decode price at the new band was unmeasured, so no budget bound and a whole ubatch's chunk (1024 rows, about 1 s a stage) went beside them; a band not yet measured now takes the band below's price.
+With a reply that drafts little (f85dfcd89 against main, 2026-10-29 15:27 to 15:59, host tier 4 GiB in both arms, one greedy reply and one sampled at temperature 1.0 with penalty 1.15, which kept 1 token a step): the 100k prompt 517 s against 715 s, the later prompts' first token 2.1 to 4.5 s against 606 to 697 s, the sampled reply 7.9 tokens a second at step gaps p50/p99 126/138 ms against 14.7 at 51/382 ms, and the greedy one 102 tokens a second at 128/166 ms; one gap of 1.0 s remained in both replies at once: the long prompt entered a depth band that the alone phase had measured only at a 1024-row slice of about 1000 ms, and the search's half of the smallest over gave a 512-row slice of about 500 ms a stage; a band measured only far over the target now starts at its rows scaled to the target. GPU 8 was busy in 14 of 277 monitor samples (another job), in both arms.
+
+A prompt pass alone takes about 1000 ms a stage, nearly all host recording: about 55% waiting in the tensor group's sums, 17% on stage 0 waiting for lookup rows, about 190 ms of device time after recording; the passes' fixed cost is those waits (devlog, 2026-10-29 12:5x). Raw data: /zpool1/llmx-ldev-scratch/rdev/scen/.
+
+**Passes in flight follow the queue (2026-10-29).** With S + 1 passes always in flight, four replies alone on Flash-Next 2x2 split their rows over more, smaller passes (1211 passes for 1600 tokens against main's 802) and decoded at 28 to 36 tokens a second each against main's 36 to 37; each pass's stage split was the same (about 13 ms recording, 7.5 ms of it sum waits, 3.6 ms on the devices after).
+The round now keeps a pass a stage in flight and the one more only while prompt rows and replies overlap (`passes_in_flight`): 820 passes and 34 to 39 tokens a second, level with main, interleaved twice, drafts off; one reply alone runs at 44 to 47 on all three.
+
+**A lone prompt read by every stage again (2026-10-30).** Qwen3.6-27B Q4_1 over two MI50s gave a single user's first token at 2148 ms against main's 1815 ms (VDEV): step 2 had dropped main's lone-prompt cut, so a prompt alone was read a whole ubatch a pass and the second stage idled while the first read it. A lone prompt on a split is again cut to about a 2S-th of what it lacks, at least 128 rows (`lone_slice`); beside other work the service rule's slices stand.
+
+**A short newcomer never waits for the bound (2026-10-30).** Under an unmet objective every prompt waited for the 10 s bound, short ones included: on Qwen3.6-27B Q4_1 over two MI50s an 85-token newcomer beside eight replies took its first token at 16.4 s. F2DEV's rule: while the objective is unmet, the shortest prompt whose whole remaining cost and the replies-only pass fit within the 500 ms step gap's cap is quick and runs whole in a pass shared with the replies, every other replies' pass at most (`quick_prompt`); every other prompt keeps the bound, and before prices are measured the 16-row learning step applies.
+A prompt longer than one pass is never quick, and a slice beside decode rows already priced takes what remains of the pass, so a riding prompt learns its price.
+A replies' pass formed from a slot no prompt is due for takes the quick prompt too: on devices whose decode kernels hold every reply in one pass, the second and later newcomers had waited about 35 s, until the replies ended (`short_newcomer` in `server-passes-cpu`, alone on such devices, fails without it).
+On Qwen3.6-27B-MTP Q4_1 over two MI50s, eight 400-token replies and four 85-token newcomers 3 s apart, cd4ac0841 against 56dd2fec7, two and four runs: the newcomers' first token 0.93-1.76 s against 11.2-61.9 s, the replies 6.3-7.0 against 5.5-5.6 tok/s while the newcomers came, the largest reply gap 433-671 ms against 390-678 ms.
+
+**Gotchas.** The chunk's fixed cost dominates at Flash's prices, so the prompt's share at the objective rises only as that cost falls; the objective is a code constant, not a flag.
+
 ## The encoder's products on a wide float tile (2026-10-29, branch perf/image-encode-products on main 80cbf1da0, step 2 of perf/image-encode, the owner's approval of the order and F2DEV's DECIDED of 2026-10-27 09:33, lands by fast-forward as one commit)
 
 - **Goal:** the vision encoder's products of BF16 weights, the larger gap to the references (their F32 SGEMM runs at about twice llmx's rate on an MI50), faster on both cards with the rows unchanged.
@@ -107,7 +224,7 @@ On the rebased head the ROCm tests and f32 pass on renderD128, and a Vulkan buil
 - **Tests:** `server-passes`' `reuse_miss` cases (a first message, a last message, a completions prompt without messages, and the state, tokens and room cases between).
 - **Left:** CTest, the CPU suite, Qwen3-0.6B identity, the hosted run; then production as a preview, so the next such turn names its cause.
 
-## The serving rework, step 0: the service record, the price table and the replay (2026-10-27, RDEV, branch feat/serving-step0 on feat/q8-short-k bac4ed4bd (on perf/image-encode-attention 509d3241b), approved by F2DEV, lands third by fast-forward, step 0 of the serving rework plan (the coordinator's sched-audit draft 3, agreed by F2DEV and XDEV, the owner's answers of 12:43), in progress)
+## The serving rework, step 0: the service record, the price table and the replay (2026-10-27, RDEV, branch feat/serving-step0 on feat/q8-short-k bac4ed4bd (on perf/image-encode-attention 509d3241b), approved by F2DEV, lands third by fast-forward, step 0 of the serving rework plan (the coordinator's sched-audit draft 3, agreed by F2DEV and XDEV, the owner's answers of 12:43), landed; steps 1 and 2 above land on it)
 
 - **Goal:** the server under a long prompt redone as one service rule for every placement (production on 2026-10-27: a reply at 3 tok/s beside a 150k prompt read at 400-768 tok/s, prompts of 327 and 3,334 tokens at 0 rows for 106 s).
   Step 0 measures and decides without changing a generated output byte: the server records every stage's time against a measured price table, and the scheduler's simulator replays production's requests and synthetic loads under each share rule through the policy the server will run.
@@ -4328,7 +4445,7 @@ Static dashboard changes use focused browser checks; documentation changes use t
 | Grouped `/v1/health`, `/v1/live`, grouped help pages and `docs/OPERATING.md` | Done (record below): one shape, no copy of the flat fields; lands by fast-forward |
 | Tool calling on the chat routes          | In progress: step 1 on feat/tool-calls, steps 2 to 4 on feat/tool-calls-reply, step 5 on feat/tool-calls-single (block above) |
 | Multi-user server                        | Done (`docs/SERVER.md` steps 1 to 12 merged, 13 and 14 on `feat/split-sampling`; later split work is tracked in the multi-device row): `llmx serve`, correctness gates pass on both backends, throughput on one MI50 with Qwen3-8B Q8_0 132 and 174 percent of the reference server at 1 and 16 users and 85 percent at 4, in phase 3 step 2's gate (short of the wide margin `docs/SERVER.md` gates on), prefix reuse through fork, a second execution context measured and not added, since the next pass's tokens come from the one before, the OpenAI-compatible routes |
-| A generating request served beside a prompt (automatic pacing, `serve --no-pacing`, `--generating-share`) | Done on one device and on one tensor group, automatic by default there (records of 2026-10-12 and 2026-10-09 below); a layer split is not paced until a sequence may be in consecutive passes at consecutive stages (active block) |
+| A generating request served beside a prompt | Replaced by the service rule (block of the serving rework, step 2, above): one formation rule on every placement, no setting |
 | Chat follow-up cache validation          | Done |
 | Correctness baseline vs HF reference     | In Progress |
 | Pinned HF reference generation           | Done |

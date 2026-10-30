@@ -246,7 +246,7 @@ inline server::Scheduler::Images images_of(const Req& r) {
     images.runs = r.images;
     if (!r.images.empty()) {
         auto runs = std::make_shared<std::vector<infer::MediaRun>>(r.images);
-        images.encode = [runs](size_t i) { return server::ImageSteps{[rows = (*runs)[i].encoded] { return rows; }, 1}; };
+        images.encode = [runs](size_t i) { return server::ImageSteps{[] {}, [rows = (*runs)[i].encoded] { return rows; }, 1}; };
     }
     return images;
 }

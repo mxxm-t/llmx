@@ -1,11 +1,14 @@
 // An image's identity in every tier of the server's cache (docs/VISION.md, section 5), and its encode in pieces (section 10), through the scheduler over a tiny hybrid model (AGENTS.md, Tests).
 // Each reply is held to the same request's reply on a fresh model, bit for bit.
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <limits>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -134,7 +137,8 @@ void disk_tier(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     size_t reused = 0;
     server::Scheduler::Stats stats;
     {
-        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
+        // Four copies' slabs and a MiB for the images' last rows the copies keep (ImageTail).
+        server::Scheduler sched(*model, tok, 1, 64, 0, false, 4 * ((size_t)64 << 20) + ((size_t)1 << 20), nullptr, 0, false, disk.options(uint64_t(1) << 30));
         std::thread runner([&] { sched.run(); });
         const auto submit = [&](const Req& r) {
             return sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, images_of(r));
@@ -203,9 +207,11 @@ void drafts(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
 
 // An image's encode in `steps` pieces, each counted with the passes retired before it, its steps' life watched: the rows those of r's image, which the request does not hold.
 struct Encodes {
-    std::atomic<size_t> steps{0}, passes{0}, spread{0}, last{0};
+    std::atomic<size_t> steps{0}, passes{0};
     std::atomic<int> alive{0};
     std::chrono::milliseconds pause{0};
+    std::mutex m;
+    std::vector<size_t> at;  // the passes retired as each piece began
 };
 server::Scheduler::Images stepped(const Req& r, size_t steps, const std::shared_ptr<Encodes>& seen) {
     server::Scheduler::Images images;
@@ -222,14 +228,17 @@ server::Scheduler::Images stepped(const Req& r, size_t steps, const std::shared_
         ++seen->alive;
         auto life = std::make_shared<Life>();
         life->seen = seen;
-        auto left = std::make_shared<size_t>(steps);
-        return server::ImageSteps{[rows, seen, life, left]() -> std::shared_ptr<const std::vector<float>> {
-            ++seen->steps;
-            const size_t now = seen->passes.load();
-            if (now != seen->last.exchange(now) || seen->steps == 1) ++seen->spread;
-            std::this_thread::sleep_for(seen->pause);
-            return --*left ? nullptr : rows;
-        }, steps};
+        auto left = std::make_shared<std::atomic<size_t>>(steps);
+        return server::ImageSteps{[seen, life, left] {
+                                      ++seen->steps;
+                                      {
+                                          std::lock_guard<std::mutex> lk(seen->m);
+                                          seen->at.push_back(seen->passes.load());
+                                      }
+                                      std::this_thread::sleep_for(seen->pause);
+                                      --*left;
+                                  },
+                                  [rows, left]() -> std::shared_ptr<const std::vector<float>> { return left->load() ? nullptr : rows; }, steps};
     };
     return images;
 }
@@ -271,8 +280,8 @@ void reused_inside(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     }
 }
 
-// A follow-up whose first turn's history went to host memory forks the copy inside its image and encodes nothing, the image's last rows going with the copy; with no host tier the history leaves with nothing kept, and the follow-up encodes its image again.
-// Each reply is its reply on a fresh model.
+// A follow-up whose first turn's history went to host memory forks the copy inside its image and encodes nothing, the image's last rows going with the copy.
+// With no host tier the history leaves with nothing kept and the follow-up encodes its image again; each reply is its reply on a fresh model.
 void reused_evicted(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     const Make make = on(weights, [] { return cpus(1); }, 3, 3);
     const Req a = with_image(5, 240, 6, 5, 30, 7, 40), b = with_image(9, 100, 4, 6, 176, 8, 40);
@@ -307,13 +316,13 @@ void reused_evicted(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     }
 }
 
-// An image's encode runs in the request's slice turns (docs/VISION.md, section 10): beside a reply its six pieces fall among the reply's passes, both replies their replies alone.
+// Beside a reply an image's six pieces, each longer than the chunk budget, meet one a replies' pass (encode_pieces), so with one pass in flight no more than two begin between two retirements while the reply has passes to come.
 // A request cancelled mid-encode ends it at a piece boundary, freeing the encoder for the next image.
 void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     const Make make = on(weights, [] { return cpus(1); }, 3, 0);
     Req text;
     text.prompt = prompt_of(40, 30, kVocab);
-    text.cap = 60;
+    text.cap = 200;
     const Req img = with_image(3, 20, 4, 4, 10, 11, 20), next = with_image(4, 8, 3, 3, 5, 12, 12);
     std::vector<Reply> alone;
     for (const Req& r : {text, img, next}) {
@@ -323,17 +332,28 @@ void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     auto model = make(1024, 0);
     server::Scheduler sched(*model, tok, 3, 64);
     auto seen = std::make_shared<Encodes>();
-    sched.on_retire = [&](const server::Scheduler::Retired&) { ++seen->passes; };
-    std::thread runner([&] { sched.run(); });
+    seen->pause = std::chrono::milliseconds((long long)(1000 / server::kReplyTokensPerSecond) + 75);
+    std::atomic<const server::Request*> replying{nullptr};
+    std::atomic<size_t> reply_last{0};
+    sched.on_retire = [&](const server::Scheduler::Retired& done) {
+        const size_t n = ++seen->passes;
+        if (std::find(done.requests.begin(), done.requests.end(), replying.load()) != done.requests.end()) reply_last = n;
+    };
+    std::thread runner;
     const auto submit = [&](const Req& r, server::Scheduler::Images images) {
         return sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, std::move(images));
     };
     try {
         const auto t = submit(text, images_of(text)), i = submit(img, stepped(img, 6, seen));
+        replying = t.get();
+        runner = std::thread([&] { sched.run(); });
         same(alone[0], drain(*t), "a reply beside an image's encode");
         same(alone[1], drain(*i), "a request whose image encodes in pieces beside a reply");
         require(seen->steps == 6 && seen->alive == 0, "an image's six pieces: " + std::to_string(seen->steps.load()) + " run, " + std::to_string(seen->alive.load()) + " encodes alive");
-        require(seen->spread >= 3, "an image's pieces beside a reply fell between " + std::to_string(seen->spread.load()) + " runs of passes, against at least 3");
+        std::map<size_t, size_t> between;
+        for (const size_t n : seen->at)
+            if (n < reply_last) ++between[n];
+        for (const auto& [n, k] : between) require(k <= 2, std::to_string(k) + " of an image's pieces began beside a reply after " + std::to_string(n) + " passes retired, against two at most");
 
         auto slow = std::make_shared<Encodes>();
         slow->pause = std::chrono::milliseconds(2);
@@ -349,7 +369,7 @@ void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
         require(after->steps == 4 && after->alive == 0, "the image after a cancelled encode: " + std::to_string(after->steps.load()) + " pieces");
     } catch (...) {
         sched.stop();
-        runner.join();
+        if (runner.joinable()) runner.join();
         throw;
     }
     sched.stop();
@@ -357,7 +377,7 @@ void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
 }
 
 // A reply beside another request's image encode: on two devices whose second stage records on its own thread, the encode's pieces take no hold that stops the stages.
-// Both replies are their replies alone; holds are counted, not times, since how the pieces fall among the passes follows the threads' timing.
+// Both replies are their replies alone; holds are counted, not times, and how many pieces a replies' pass meets is the price rule's (server-passes, encode_pieces).
 void no_hold(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     const Make make = on(weights, [] {
         std::vector<backend::BackendPtr> v;
@@ -443,11 +463,13 @@ void encode_live(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     runner.join();
 }
 
-// A conversation's job reads its reply again on a fork inside its image, so it encodes that image again in background turns, which come only while no prompt waits.
+// A job reading its reply again on a fork inside its image without a digest, so no rows of it are kept (Cache::keep_tail), encodes it again in background turns.
 // A request whose image arrives meanwhile takes the encoder from the job and gives its reply alone, and the job starts its image again and completes after it.
 void job_gives_way(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
     const Make make = on(weights, [] { return cpus(1); }, 3, 3);
-    const Req first = with_image(5, 100, 6, 5, 40, 13, 20), next = with_image(4, 8, 3, 3, 5, 12, 12);
+    Req first = with_image(5, 100, 6, 5, 40, 13, 20);
+    first.images[0].digest = {};
+    const Req next = with_image(4, 8, 3, 3, 5, 12, 12);
     auto fresh = make(1024, 0);
     const Reply alone = serve(*fresh, tok, 3, {{next}})[0];
     auto model = make(1024, 0);

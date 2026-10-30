@@ -1,9 +1,9 @@
 #pragma once
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -22,19 +22,17 @@
 namespace infer {
 
 // A vision encoder's file opened on the backend of a text model's embedding, its weights held while the encoder reads them, and the preprocessing its images take.
-// The encoder takes one image a call, so `encoding` holds it for one caller at a time.
 struct Vision {
     gguf::GGUFModel file;
     VisionWeights weights;
     std::unique_ptr<VisionEncoder> encoder;
     image::Params params;
     uint32_t pad = 0;   // the text model's id of the token its template marks an image with
-    std::mutex encoding;
 };
 
-// The encoder of `path` beside `model`, whose rows must be the embedding's width and whose pad token the tokenizer must hold; `max_pixels` bounds a resized image where given.
+// The encoder of `path` beside `model`, whose rows must be the embedding's width and whose pad token the tokenizer must hold; `max_tokens` bounds the tokens of a resized image where given, which the encoder turns into its own resize bound.
 inline std::unique_ptr<Vision> open_vision(const std::string& path, Model& model, const bpe::Tokenizer& tok, backend::Dtype dtype,
-                                           std::optional<uint64_t> max_pixels = {}) {
+                                           std::optional<uint64_t> max_tokens = {}) {
     if (!model.takes_images()) throw std::runtime_error("inference: the model takes no image rows");
     auto v = std::make_unique<Vision>();
     v->file = gguf::read_gguf(path);
@@ -45,8 +43,7 @@ inline std::unique_ptr<Vision> open_vision(const std::string& path, Model& model
         throw std::runtime_error("inference: the vision encoder's rows are " + std::to_string(v->encoder->plan().out_width) + " wide and the model's embedding " +
                                  std::to_string(model.embedding_width()));
     if (v->weights.arch->positions() != VisionPositions::grid) throw std::runtime_error("inference: the vision encoder places its rows in a way the model does not");
-    v->params = v->weights.arch->preprocess();
-    if (max_pixels) v->params.max_pixels = *max_pixels;
+    v->params = v->weights.arch->preprocess(max_tokens);
     const std::string pad = v->weights.arch->token_texts().pad;
     const auto it = tok.token_to_id.find(pad);
     if (it == tok.token_to_id.end()) throw std::runtime_error("inference: the model's vocabulary has no " + pad + " to mark an image with");
@@ -101,30 +98,46 @@ inline PreparedImage prepare_image(const Vision& v, const std::string& bytes, co
     return out;
 }
 
-// A prepared image's encode in its pieces, on the backend the encoder runs on, which a server runs between other work (docs/VISION.md, section 10).
-// It holds the encoder for its life, so one image encodes at a time; one destroyed before its last piece leaves nothing behind but the encoder's scratch.
+// An image's encode in pieces, each run by the thread that records the encoder's backend, the last submitting a copy of the rows to host memory (docs/src/inference-media.md).
+// rows() never waits: null until that copy has retired; one encode runs on an encoder at a time, its caller's to order.
 class ImageEncode {
 public:
-    ImageEncode(Vision& v, const image::Raster& resized) : v_(v), lock_(v.encoding) { count_ = v_.encoder->begin(image::patches(resized, v_.params)); }
-    // Runs the next piece; true once the last has run.
-    bool step() {
-        if (next_ < count_) v_.encoder->piece(next_++);
-        return next_ == count_;
+    ImageEncode(Vision& v, std::shared_ptr<const image::Raster> resized) : v_(v), resized_(std::move(resized)) {
+        const size_t patches = size_t(resized_->height / v_.params.patch) * (resized_->width / v_.params.patch);
+        count_ = v_.encoder->architecture().pieces(patches);
+    }
+    void piece() {
+        if (next_ == 0) {
+            if (v_.encoder->begin(image::patches(*resized_, v_.params)) != count_) throw std::logic_error("inference: an encode's pieces changed");
+            resized_.reset();
+        }
+        v_.encoder->piece(next_++);
+        if (next_ == count_) {
+            const backend::Ticket t = v_.encoder->copy_rows();
+            ticket_ = t;
+            submitted_.store(true, std::memory_order_release);
+        }
+    }
+    std::shared_ptr<const std::vector<float>> rows() {
+        if (!submitted_.load(std::memory_order_acquire)) return nullptr;
+        backend::Backend& b = v_.encoder->backend();
+        if (!b.done(ticket_)) return nullptr;
+        b.raise(ticket_);
+        return std::make_shared<const std::vector<float>>(v_.encoder->copied());
     }
     size_t pieces() const { return count_; }
-    std::shared_ptr<const std::vector<float>> rows() { return std::make_shared<const std::vector<float>>(v_.encoder->rows()); }
 
 private:
     Vision& v_;
-    std::unique_lock<std::mutex> lock_;
+    std::shared_ptr<const image::Raster> resized_;
     size_t count_ = 0, next_ = 0;
+    backend::Ticket ticket_ = 0;
+    std::atomic<bool> submitted_{false};
 };
 
-// A prepared image's encoder rows, its pieces run one after another.
+// A prepared image's encoder rows, its pieces run one after another on the caller's thread.
 inline std::shared_ptr<const std::vector<float>> encode_rows(Vision& v, const image::Raster& resized) {
-    ImageEncode e(v, resized);
-    while (!e.step()) {}
-    return e.rows();
+    return std::make_shared<const std::vector<float>>(v.encoder->encode(image::patches(resized, v.params)));
 }
 
 // The rows an image file's bytes take, from its decoded size and the encoder's sizing, without preparing or encoding it.

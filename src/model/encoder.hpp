@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -63,7 +64,10 @@ struct EncodeStep {
 class VisionArchitecture {
 public:
     virtual ~VisionArchitecture() = default;
-    virtual image::Params preprocess() const = 0;
+    // Its preprocessing; with `max_tokens`, its resize bound the one that keeps an image within that many tokens, refused where its images always take more.
+    virtual image::Params preprocess(std::optional<uint64_t> max_tokens) const = 0;
+    // The most tokens an image resized under `p` takes.
+    virtual uint64_t max_tokens(const image::Params& p) const = 0;
     virtual size_t tokens(uint32_t grid_h, uint32_t grid_w) const = 0;
     virtual VisionPositions positions() const = 0;
     virtual ImageTokenTexts token_texts() const = 0;
@@ -109,6 +113,7 @@ public:
 
     const VisionArchitecture& architecture() const { return *arch_; }
     const EncoderPlan& plan() const { return plan_; }
+    backend::Backend& backend() const { return b_; }
 
     // One image's rows, tokens(grid) rows of out_width floats: its pieces in order; one image at a time, so its rows are its own whatever else is encoded.
     std::vector<float> encode(const image::Prepared& image) {
@@ -141,14 +146,31 @@ public:
         ++next_;
     }
     std::vector<float> rows() {
-        if (!pieces_ || next_ != pieces_) throw std::logic_error("inference: an encoder's rows read before its last piece");
-        std::vector<float> out(backend::size_mul(arch_->tokens(grid_h_, grid_w_), plan_.out_width));
+        std::vector<float> out(row_floats());
         b_.read(*arena_, offsets_[plan_.output_slot], out.data(), out.size() * sizeof(float));
         pieces_ = next_ = 0;
         return out;
     }
+    // After the last piece, its rows copied on the device into host-visible storage and that work submitted, so no caller waits for the device: copied() reads them once the ticket has retired.
+    backend::Ticket copy_rows() {
+        const size_t bytes = backend::size_mul(row_floats(), sizeof(float));
+        if (!out_ || out_->size() < bytes) out_ = b_.alloc(bytes, backend::Memory::host_visible);
+        b_.copy(*out_, 0, *arena_, offsets_[plan_.output_slot], bytes);
+        copied_ = bytes / sizeof(float);
+        pieces_ = next_ = 0;
+        return b_.submit();
+    }
+    // The rows copy_rows copied, read in place once its ticket has retired and raised; any thread may read them, while no later encode has copied its own.
+    std::vector<float> copied() const {
+        const float* p = static_cast<const float*>(out_->host_ptr());
+        return std::vector<float>(p, p + copied_);
+    }
 
 private:
+    size_t row_floats() const {
+        if (!pieces_ || next_ != pieces_) throw std::logic_error("inference: an encoder's rows read before its last piece");
+        return backend::size_mul(arch_->tokens(grid_h_, grid_w_), plan_.out_width);
+    }
     // Grows the arena and the K and V to `patches` rows; the encoder's K and V are scratch of one encode, F32 always (docs/VISION.md, section 3).
     void reserve(size_t patches) {
         if (patches <= capacity_) return;
@@ -180,6 +202,9 @@ private:
     backend::KVView view_{};
     size_t patches_ = 0, pieces_ = 0, next_ = 0;
     uint32_t grid_h_ = 0, grid_w_ = 0;
+    // The host-visible storage copy_rows fills, grown to the largest image's rows, and the floats it last copied.
+    backend::BufferPtr out_;
+    size_t copied_ = 0;
 };
 
 }  // namespace infer

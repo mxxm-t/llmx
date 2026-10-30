@@ -951,16 +951,18 @@ inline void Model::write_media(ExecContext& ctx, const Pass& p, size_t dev) {
         for (Sequence::Media& m : q.media_) {
             const size_t from = std::max(len, m.run.first), to = std::min(len + n, m.run.first + m.run.rows);
             if (from >= to) continue;
+            // The rows held start at row `from` of the image, which add_media keeps at or below what the history has read.
+            if (from < m.run.first + m.run.from) throw std::logic_error("inference: a pass reads rows of an image before those given");
             if (!m.on[dev]) {
                 // As residual rows: each encoder row copied into every residual stream, as the embedding fills them.
-                const size_t E = embedding_width(), C = plan_.embed_copies;
-                std::vector<float> rows(backend::size_mul(m.run.rows, W));
-                for (size_t r = 0; r < m.run.rows; ++r)
+                const size_t E = embedding_width(), C = plan_.embed_copies, held = m.run.rows - m.run.from;
+                std::vector<float> rows(backend::size_mul(held, W));
+                for (size_t r = 0; r < held; ++r)
                     for (size_t c = 0; c < C; ++c) std::copy_n(m.run.encoded->data() + r * E, E, rows.data() + r * W + c * E);
                 m.on[dev] = b.alloc(rows.size() * sizeof(float));
                 b.write(*m.on[dev], 0, rows.data(), rows.size() * sizeof(float));
             }
-            b.copy(*sc.arena, x + (r + from - len) * W * sizeof(float), *m.on[dev], (from - m.run.first) * W * sizeof(float), (to - from) * W * sizeof(float));
+            b.copy(*sc.arena, x + (r + from - len) * W * sizeof(float), *m.on[dev], (from - m.run.first - m.run.from) * W * sizeof(float), (to - from) * W * sizeof(float));
         }
     }
 }

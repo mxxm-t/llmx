@@ -49,13 +49,24 @@ struct SampleParams : infer::Sampling {
     size_t top_logprobs = 0;
 };
 
-// One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
-// An image's encode as the scheduler runs it: `step` runs a piece a call, null until the last of its `pieces` has run, then the image's rows (docs/VISION.md, section 10).
+// An image's encode as the scheduler runs it (docs/VISION.md, section 10): `piece` records the next of its `pieces` on the first stage's thread, never under a hold.
+// `rows` never waits: null until the last piece's work has retired, then the image's rows.
 struct ImageSteps {
-    std::function<std::shared_ptr<const std::vector<float>>()> step;
+    std::function<void()> piece;
+    std::function<std::shared_ptr<const std::vector<float>>()> rows;
     size_t pieces = 0;
 };
 
+// An image's rows from the last whole block it reaches into, which a history forked at that block reads, so a fork inside the image encodes nothing (docs/VISION.md, section 5).
+// The request and each entry holding its history keep them, counted in the entry's bytes and freed with it (Cache::keep_tail).
+struct ImageTail {
+    std::array<uint8_t, 32> digest{};
+    size_t rows = 0, from = 0;
+    std::shared_ptr<const std::vector<float>> encoded;
+    size_t bytes() const { return encoded ? encoded->size() * sizeof(float) : 0; }
+};
+
+// One request from submission to completion: the connection thread reads its channel, and everything below the channel belongs to the scheduler thread.
 class Request {
 public:
     using Clock = std::chrono::steady_clock;
@@ -230,6 +241,7 @@ private:
     std::vector<infer::MediaRun> media_;
     std::function<ImageSteps(size_t)> encode_;
     size_t media_next_ = 0;
+    std::vector<ImageTail> tails_;   // its images' last rows, its own encodes' and those of the history it forked
     uint32_t last_id_ = 0;
     // Drafting (docs/SPECULATIVE.md, section 3): its record, the draft its own history gave ahead of the proposer, and the verify its pass in flight carries, its last pick then the drafts, empty for a decode entry.
     infer::spec::Record record_;
@@ -553,7 +565,7 @@ public:
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
         std::vector<size_t> own_drafted{}, own_kept{};   // those of them requests' own histories gave ahead of the proposer (spec::lookup_first)
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
-        size_t holds = 0;                         // times the scheduler's thread stopped every stage's recorder to work on their devices itself (quiet, quieted)
+        size_t holds = 0;                         // times the scheduler's thread stopped every stage's recorder to work on their devices itself (quiet, Held)
         size_t stage_waits = 0;                   // times the scheduler's thread waited for work it had queued on a stage's thread (Model::on_stage_wait)
         size_t yields = 0, kv_tokens = 0, kv_donor_tokens = 0;   // pauses that gave the pool's edge to a paused request (Growth::yields), and the pool's reserved blocks as tokens, each the largest over the pools: the running requests' part, and the donors'
         size_t turns_without_memory = 0;          // turns at the pool's edge kept because the host had no memory for the copy the history would leave (host_room)
@@ -618,11 +630,11 @@ public:
                 // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
                     return stopping_ || ended() || acting() || Cache::ready(queue_) || Cache::ready(paused_) || cache_.due(active.size() < max_seqs_) ||
-                           std::any_of(active.begin(), active.end(), [&](const std::shared_ptr<Request>& r) { return working(*r) && (!r->seq_.in_flight() || continues(*r)); });
+                           std::any_of(active.begin(), active.end(), [&](const std::shared_ptr<Request>& r) { return working(*r) && !cache_.waits_encode(*r) && (!r->seq_.in_flight() || continues(*r)); });
                 };
                 // Under --disk-cache-keep a server with nothing to do for kDiskIdle writes ahead (disk_round), and the loop wakes for it.
                 cache_.idle_moment(!active.empty() || flying() || !queue_.empty() || !paused_.empty());
-                const auto bound = cache_.next_disk_bound(lines());
+                const auto bound = soonest(cache_.next_disk_bound(lines()), cache_.encode_bound());
                 // With nothing to do the host tier's slabs are taken ahead, a step a round with no sleep between, so a copy made later allocates none (grow_host).
                 const bool ahead = !stopping_ && active.empty() && !flying() && queue_.empty() && paused_.empty() && cache_.grow_ahead();
                 if (!ahead && bound) cv_.wait_until(lk, *bound, due);
@@ -735,7 +747,7 @@ public:
             if (!acted_ && recording()) {
                 std::unique_lock<std::mutex> lk(m_);
                 const auto woken = [&] { return ended() || stopping_ || cache_.woken() || arrivals_ != seen_; };
-                const auto bound = cache_.next_disk_bound(lines());
+                const auto bound = soonest(cache_.next_disk_bound(lines()), cache_.encode_bound());
                 if (bound) cv_.wait_until(lk, *bound, woken);
                 else cv_.wait(lk, woken);
             }
@@ -842,6 +854,8 @@ private:
         Clock::time_point begun;
         PassWork work;                  // its work as the price table keys it
         std::vector<double> predicted;  // per stage, the stage time the prices predicted as it was formed, 0 where they did not price it
+        size_t pieces = 0;              // an image's pieces queued on the first stage's thread ahead of it, which a replies' pass waits behind
+        double pieces_host_ms = 0;      // this thread's time queuing them, the pieces' own time where the first stage records here
     };
 
     bool flying() const {
@@ -1118,14 +1132,21 @@ private:
             if (continued && !(entries_.empty() && continues(*r))) continue;
             if (!continued && r->stalled_) continue;
             if (Cache::image_stop(*r) <= r->seq_.length()) {
-                if (encoded_ || continued) continue;
+                // Beside replies an encode takes the pieces a replies' pass meets as a prompt takes a chunk, by the chunk budget at a piece's measured time (encode_pieces).
+                const size_t allowed = plan.overlap ? encode_pieces(plan.budget_ms, piece_ms_) : 0;
+                if (encoded_ || continued || (plan.overlap && pieces_since_replies_ >= allowed)) continue;
                 // Every piece while nothing else could use the stages; a health poll ends the run of pieces too, so the round boundary it waits for comes.
+                size_t queued = 1;
                 const auto more = [&] {
+                    if (plan.overlap) return pieces_since_replies_ + queued < allowed && ++queued;
                     if (!alone || r->job_ || flying() || !entries_.empty() || r->cancel_.load()) return false;
                     std::lock_guard<std::mutex> lk(m_);
                     return arrivals_ == seen_ && !stopping_ && !live_requested_;
                 };
+                const Clock::time_point piece_start = Clock::now();
                 if (cache_.encode_piece(*r, more)) {
+                    pieces_host_ms_ += ms_since(piece_start);
+                    pieces_since_replies_ += queued;
                     acted_ = encoded_ = true;
                     budget = 0;
                     break;
@@ -1155,6 +1176,14 @@ private:
         }
         price(f);
         prompt_passes_ += f.members.size() > f.decoders;
+        f.pieces = 0;
+        f.pieces_host_ms = 0;
+        if (f.decoders) {
+            f.pieces = pieces_since_replies_;
+            f.pieces_host_ms = pieces_host_ms_;
+            pieces_since_replies_ = 0;
+            pieces_host_ms_ = 0;
+        }
         continued_ += continuing;
         f.continues = continuing;
         f.live = true;
@@ -1373,6 +1402,13 @@ private:
         Retirement& last = retirement_;
         const double since_retired = last.any ? ms_since(last.at) - last.chain_ms : std::numeric_limits<double>::infinity();
         const double took = std::min(ms_since(f.begun), since_retired);
+        // A replies' pass that waited behind an image's pieces took their time beside its own, which the prices predicted; pieces run on this thread, before the pass began, took the time they held it.
+        if (f.pieces) {
+            double own = 0;
+            for (double ms : f.predicted) own = std::max(own, ms);
+            const double ms = std::max(own > 0 && took > own ? took - own : 0.0, f.pieces_host_ms);
+            if (ms > 0) piece_ms_ = piece_ms_ > 0 ? 0.75 * piece_ms_ + 0.25 * ms / (double)f.pieces : ms / (double)f.pieces;
+        }
         if (f.generated) times_.pass(f.generated, took);
         else measure_prompt(f, since_retired);
         last = Retirement{Clock::now(), true, 0};
@@ -1790,6 +1826,13 @@ private:
         ran.wait();
         --quieting_;
         ran.get();
+    }
+
+    // The earlier of two times the round wakes at, either possibly none.
+    static std::optional<Clock::time_point> soonest(std::optional<Clock::time_point> a, std::optional<Clock::time_point> b) {
+        if (!a) return b;
+        if (!b) return a;
+        return std::min(*a, *b);
     }
 
     // Whether stage s's thread holds an item, waiting or running.
@@ -2489,7 +2532,7 @@ private:
     bool stopping_ = false;
     double prompt_ms_row_ = 0;         // the scheduler thread's, a pass's milliseconds a prompt row, measured; 0 until a pass has
     static constexpr size_t kMeasuredRows = 64;   // the prompt rows a pass needs for its time to give a row's
-    Cache cache_{model_, m_, pools_, max_seqs_, host_cap_, limit_, wait_bound_, read_wait_, recompute_row_ms_, epoch_, [this](bool) { hold(); }, [this] { release(); }};
+    Cache cache_{model_, m_, pools_, max_seqs_, host_cap_, limit_, wait_bound_, read_wait_, recompute_row_ms_, epoch_};
     // The waiting lines, as the cache's calls that search them take them.
     Cache::Lines lines() { return {queue_, paused_}; }
 public:
@@ -2499,6 +2542,9 @@ private:
     std::atomic<int> quieting_{0};        // the scheduler's thread waits for the recorders or holds them, possibly under the lock
     bool acted_ = false;               // the scheduler thread's, whether this round advanced, collected, retired or formed anything
     bool encoded_ = false;             // and whether it ran a piece of an image's encode, which a round forming no pass may have done
+    size_t pieces_since_replies_ = 0;  // an image's pieces queued since the last pass that carried replies
+    double pieces_host_ms_ = 0;        // and this thread's time queuing them
+    double piece_ms_ = 0;              // a piece's measured time, from the replies' passes that waited behind pieces or this thread's time running them, 0 before any did
     uint64_t jobs_posted_ = 0;           // the scheduler thread's, the hand-overs to recorders so far
     uint64_t arrivals_ = 0, seen_ = 0;   // under the lock, the requests and follows submitted, and how many the round had seen as it began
     std::map<std::vector<size_t>, size_t> class_ids_;   // the scheduler thread's: each row class Model::row_class gave, numbered as first seen, for the price table

@@ -264,7 +264,7 @@ Print the top-N next-token logits for `text`, one `id value` pair per line after
 The list is most likely first, a tie going to the lower id.
 `--top` defaults to 10.
 `--file <path>` (`-f`) in place of the text reads it from a UTF-8 file, as `perplexity` does, for a text longer than a command line holds.
-`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-pixels` read images into it as `generate` does, `--per-token` included.
+`--chat` reads the text as `generate --chat` reads its prompt, one user message through the model's chat template, and `--mmproj`, `--image` and `--image-max-tokens` read images into it as `generate` does, `--per-token` included.
 `--then-ids F` appends the token ids in `F`, separated by commas or whitespace, after the text's tokens, so a generated reply is read as the tokens it was.
 `--last N` prints each of the last `N` positions instead, one line of its position followed by its top-N `id value` pairs, from the batched passes a prompt takes; `tools/long_context_check.py` reads a device's reply this way.
 That tool takes `--dtype auto|f16|bf16|f32` to select the same request for prompt sizing, both fresh generations and both backends' scoring passes.
@@ -576,7 +576,7 @@ Prompt-process `prompt`, then autoregressively generate tokens until eos or
 `--file <path>` (`-f`) in place of the prompt reads it from a UTF-8 file, as `logits` and `perplexity` read their text, for a prompt longer than a command line holds.
 The prompt is raw text unless `--chat` is given, which sends it as one user message through the model's `tokenizer.chat_template` with the assistant's header after it and no system message, as `/v1/chat` renders a conversation of that one message; a template the renderer refuses stops the command, as it stops `chat`.
 `--mmproj F --image A[,B...]`, with `--chat`, reads images into the one user message, before its text: `F` is the vision encoder file beside the model (an `mmproj` GGUF), each image a PNG or JPEG file, and each is decoded, resized as the encoder's processor resizes it, encoded on the device of the model's embedding and placed among the prompt's positions as the model's own processor places it (docs/VISION.md, section 4).
-`--image-max-pixels N` bounds a resized image's pixels, by default at the encoder's bound.
+`--image-max-tokens N` bounds the tokens a resized image takes, by default at the encoder's bound; it is a count of tokens, so it takes the suffixes `--ctx-size` takes (4k is 4096), and each encoder turns it into its own resize bound, an encoder whose images always take more being refused at start.
 The three flags go together and with `--chat`; an image file whose name holds a comma cannot be named, as a `--device` entry cannot.
 A model whose architecture places no image rows, an encoder whose rows are not the embedding's width, a vocabulary without the token the encoder's template marks an image with, and a text whose own image tokens make the prompt mark more images than were given are refused by name.
 The encoder runs on the device of the model's embedding, the CPU or a Vulkan device.
@@ -631,7 +631,7 @@ Prints `pp:` (prompt-processing) and `tg:` (text-generation) timing lines:
 | `--chat`                | send the prompt as one user message through the model's chat template | off (raw text) |
 | `--mmproj PATH`         | vision encoder file of the model's images, with `--chat` and `--image` | (none) |
 | `--image PATH`          | images, comma-separated, placed before the text of the one user message | (none) |
-| `--image-max-pixels N`  | most pixels of a resized image                       | the encoder's |
+| `--image-max-tokens N`  | most tokens of a resized image, 4k = 4096            | the encoder's |
 | `--verbose`             | print prompt-token/thread counts, KV allocated/peak/used bytes and loading/processing status, and after `tg:` the generated token ids as `ids: a,b,...`, which `logits --then-ids` reads back, and with a drafter the drafts kept by position, as `drafts kept:` and, for drafts the history gave ahead of a drafter, `own drafts kept:` | off   |
 
 `--seed` is a decimal whole number up to 2^64 - 1, so a leading zero does not make it octal and a `0x` prefix is refused.
@@ -795,7 +795,7 @@ The server-only flags accepted by `llmx serve` are listed below. Each row gives 
 | Speculative decoding | `--drafter D` | `off` | `off`, `lookup`, `embedded` (the model's MTP block), a drafter file with MTP blocks, or comma-separated sources with a model drafter last |
 | Speculative decoding | `--draft-max N` | `3` | From 1 to 63; maximum drafts checked in one pass |
 | Images | `--mmproj PATH` | (none) | Vision encoder file beside the model; the chat routes then read `image_url` parts |
-| Images | `--image-max-pixels N` | the encoder's | At least 1; most pixels of a resized image; needs `--mmproj` |
+| Images | `--image-max-tokens N` | the encoder's | At least 1, k or m suffix; most tokens of a resized image; needs `--mmproj` |
 
 `--host-cache-bytes` and `--disk-cache-*` configure the two prefix-cache tiers. The disk tier holds entries the host tier drops; it requires a host cache, so it is unavailable when all caches are on the CPU or the host cache is set to 0.
 

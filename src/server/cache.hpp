@@ -41,8 +41,8 @@ public:
     using Clock = std::chrono::steady_clock;
     // The model and the lock it shares with the scheduler, and the settings it keeps.
     Cache(infer::Model& model, std::mutex& m, Pools pools, size_t max_seqs, size_t host_cap, size_t limit, Clock::duration wait_bound, std::optional<std::chrono::milliseconds> read_wait,
-          std::optional<double> recompute_row_ms, Clock::time_point epoch, std::function<void(bool)> hold, std::function<void()> unhold)
-        : hold_(std::move(hold)), unhold_(std::move(unhold)), model_(model), m_(m), pools_(std::move(pools)), max_seqs_(max_seqs), host_cap_(host_cap), limit_(limit), wait_bound_(wait_bound), read_wait_(read_wait), recompute_row_ms_(recompute_row_ms),
+          std::optional<double> recompute_row_ms, Clock::time_point epoch)
+        : model_(model), m_(m), pools_(std::move(pools)), max_seqs_(max_seqs), host_cap_(host_cap), limit_(limit), wait_bound_(wait_bound), read_wait_(read_wait), recompute_row_ms_(recompute_row_ms),
           epoch_(epoch) {}
     // The scheduler's requests waiting for admission, queued and paused, which the calls that search them are given; under the lock.
     struct Lines {
@@ -410,7 +410,7 @@ public:
         enum class Why { kept, larger, outranked, room, memory } why = Why::kept;
         std::vector<std::pair<bool, uint64_t>> drops;
     };
-    HostRoom host_room(size_t n, const Rank& mine) const;
+    HostRoom host_room(size_t n, const Rank& mine, size_t tails = 0) const;
     std::vector<size_t> room(const std::vector<std::shared_ptr<Request>>& active) const;
     std::vector<size_t> promised(const Request& r) const;
     Gain gain_of(const std::vector<std::shared_ptr<Request>>& active, size_t keep = npos, size_t kept_len = 0, bool take = false, const std::vector<const infer::Sequence*>& also = {}) const;
@@ -453,6 +453,7 @@ public:
             d.back = back;
             d.tokens.assign(h.begin(), h.begin() + (std::ptrdiff_t)std::min(h.size(), held));
             d.classes = clip(r->classes_, held);
+            d.tails = tails_below(r->tails_, r->media_, held);
             d.seq = std::move(r->seq_);
             r->need_.clear();
             // The copy its last pause left in host memory (paused_as_) is superseded, the first to go, and so is a donor promoted from it and left on the devices, which would stand for it again when evicted.
@@ -770,37 +771,62 @@ public:
     void write_turn(WriteTurn t) { turn_ = t; }
     // The position r's slices stop at, its next image's first row while that image waits for its rows, or npos.
     static size_t image_stop(const Request& r) { return r.media_next_ < r.media_.size() ? r.media_[r.media_next_].first : npos; }
-    // One piece of r's waiting image's encode under the hold, a pass in flight possibly recording on its device, and more while `more` says so; true if a piece ran, the last giving the sequence its images.
-    // None runs while another request's image encodes, but a job's encode gives way to a request's, since a job takes turns only while no prompt waits.
+    // r's waiting image's encode, one at a time: its next piece queued on the first stage's thread (more while `more` says so), and its rows given once landed (docs/src/server.md).
+    // False while it waits on a queued piece, its rows or another request's encode, a job's giving way to a request's.
     bool encode_piece(Request& r, const std::function<bool()>& more) {
         if (encoding_for_ && encoding_for_ != &r) {
             if (r.job_ || !encoding_for_->job_) return false;
             drop_encode(*encoding_for_);
         }
-        std::shared_ptr<const std::vector<float>> rows;
-        {
-            const Held held = quieted();
-            if (!encoding_for_) {
-                encoding_ = r.encode_(r.media_next_);
-                encoding_for_ = &r;
-                encoded_pieces_ = 0;
-                encode_began_ = std::chrono::steady_clock::now();
-            }
-            do {
-                rows = encoding_.step();
-                ++encoded_pieces_;
-            } while (!rows && more());
+        if (!encoding_for_) {
+            encoding_ = std::make_shared<Encoding>();
+            encoding_->steps = r.encode_(r.media_next_);
+            encoding_for_ = &r;
+            encode_began_ = std::chrono::steady_clock::now();
         }
-        if (!rows) return true;
+        Encoding& e = *encoding_;
+        {
+            std::lock_guard<std::mutex> lk(e.m);
+            if (!e.error.empty()) {
+                r.finish_pending_ = "error";
+                r.error_pending_ = "an image's encode failed: " + e.error;
+                drop_encode(r);
+                return true;
+            }
+        }
+        if (e.queued < e.steps.pieces) {
+            if (e.queued > e.ran.load()) return false;
+            do queue_piece(e);
+            while (e.queued < e.steps.pieces && more());
+            return true;
+        }
+        if (!landed(e)) return false;
+        auto rows = std::move(e.rows);
         drop_encode(r);
         r.media_[r.media_next_].encoded = std::move(rows);
         give_ready_media(r);
         return true;
     }
-    // Ends r's encode at a piece boundary, as r ends or its sequence is replaced; the encoder is free for the next image.
+    // Whether r's encode has nothing to do until a piece it queued has run or its rows have landed, so the round need not wake for r.
+    bool waits_encode(const Request& r) {
+        if (encoding_for_ != &r) return false;
+        Encoding& e = *encoding_;
+        {
+            std::lock_guard<std::mutex> lk(e.m);
+            if (!e.error.empty()) return false;
+        }
+        return e.queued > e.ran.load() || (e.queued == e.steps.pieces && !landed(e));
+    }
+    // While an encode's last piece has run and its rows are still on the device, when the round looks again: nothing reports their landing, and a millisecond is a small part of any image's encode.
+    std::optional<std::chrono::steady_clock::time_point> encode_bound() {
+        if (!encoding_ || encoding_->queued < encoding_->steps.pieces || encoding_->ran.load() < encoding_->steps.pieces || landed(*encoding_)) return std::nullopt;
+        return std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+    }
+    // Ends r's encode at a piece boundary, as r ends or its sequence is replaced: its pieces still queued run nothing, and the encoder is free for the next image.
     void drop_encode(const Request& r) {
         if (encoding_for_ != &r) return;
-        encoding_ = ImageSteps{};
+        encoding_->dropped.store(true);
+        encoding_.reset();
         encoding_for_ = nullptr;
     }
     // The pieces of r's encode run and in all and when it began, 0 of 0 where the encoder is not r's.
@@ -808,25 +834,16 @@ public:
         size_t done = 0, total = 0;
         std::chrono::steady_clock::time_point began{};
     };
-    EncodeProgress encode_progress(const Request& r) const { return encoding_for_ == &r ? EncodeProgress{encoded_pieces_, encoding_.pieces, encode_began_} : EncodeProgress{}; }
+    EncodeProgress encode_progress(const Request& r) const {
+        return encoding_for_ == &r ? EncodeProgress{encoding_->ran.load(), encoding_->steps.pieces, encode_began_} : EncodeProgress{};
+    }
 private:
     // Defined below, out of the class.
     void drop_donor(size_t i = 0, bool evicted = false);
     static constexpr Growth kGrowth{};
     size_t token_limit() const { return limit_; }
-    // The model for work on a stage's devices that is not a pass's stage, held for as long as the value lives (Scheduler::quieted, whose hold and release the scheduler hands in at construction).
-    std::function<void(bool)> hold_;
-    std::function<void()> unhold_;
     // Device work of a copy handed to the stages' threads, the scheduler's (Scheduler::defer_item); empty, the work runs in the call.
     infer::Model::Defer defer_;
-    struct Held {
-        const Cache& c;
-        explicit Held(const Cache& cache, bool generated = false) : c(cache) { c.hold_(generated); }
-        Held(const Held&) = delete;
-        Held& operator=(const Held&) = delete;
-        ~Held() { c.unhold_(); }
-    };
-    Held quieted(bool generated = false) const { return Held(*this, generated); }
     // The stats' own types the moved code names.
     struct Stats {
         using RestoreTotals = server::RestoreTotals;
@@ -857,6 +874,7 @@ private:
         bool back = false;            // its conversation came back: the request it holds, or the one a job read the reply of, forked a history a tier kept
         size_t keep = std::numeric_limits<size_t>::max();   // what its next turn's ids share with it, past which nothing is copied or written (trim)
         mutable std::vector<std::string> digests;   // as HostDonor::digests, of what its cache holds
+        std::vector<ImageTail> tails;               // its images' last rows (Request::tails_)
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: parked, forked or promoted
     };
     // Defined below, out of the class.
@@ -883,6 +901,7 @@ private:
         uint64_t disk = 0;         // the file that makes the same history whole on disk (DiskTier::on_disk), 0 while part of it is not there
         mutable std::vector<std::string> digests;   // its whole blocks' digests, once asked for (digests_of)
         bool from_disk = false;    // read back from disk, so a promotion of it completes a restore from disk
+        std::vector<ImageTail> tails;   // as Donor::tails, counted in host_held_
         std::filesystem::file_time_type used = std::filesystem::file_time_type::clock::now();   // its last use: made, renewed or promoted, which its file keeps
     };
     // A message boundary (docs/SPECULATIVE.md, section 2, Host tier): a job's donor's state alone (Model::save_host without blocks), at its checkpoint where the next user message starts, with the tokens and row classes below it.
@@ -1021,6 +1040,13 @@ private:
                 r.seq_ = shared ? model_.fork(from ? from->seq_ : donors_[d].seq, shared) : model_.make_sequence();
             }
             if (shared && !from) donors_[d].used = std::filesystem::file_time_type::clock::now();
+            // A fork takes the rows its source keeps of the images it holds.
+            if (shared)
+                for (const ImageTail& t : tails_below(from ? from->tails_ : donors_[d].tails, r.media_, shared)) {
+                    bool have = false;
+                    for (const ImageTail& o : r.tails_) have = have || (o.digest == t.digest && o.rows == t.rows);
+                    if (!have) r.tails_.push_back(t);
+                }
         }
         give_media(r);
         if (!first) return;
@@ -1080,20 +1106,97 @@ private:
         r.media_next_ = 0;
         give_ready_media(r);
     }
-    // Gives r's sequence its images from media_next_ on until one it reads needs rows it lacks.
+    // Gives r's sequence its images from media_next_ on until one it reads needs rows it lacks, an image's last rows taken where r keeps them (kept_tail).
     void give_ready_media(Request& r) {
         for (; r.media_next_ < r.media_.size(); ++r.media_next_) {
             infer::MediaRun run = r.media_[r.media_next_];
-            if (run.first + run.rows > r.seq_.length() && !run.encoded) return;
+            if (run.encoded && !run.from) keep_tail(r.tails_, run);
+            else if (run.first + run.rows > r.seq_.length() && !run.encoded && !kept_tail(r, run, r.seq_.length())) return;
             model_.add_media(r.seq_, std::move(run));
             r.media_[r.media_next_].encoded.reset();
         }
     }
-    // The one image encoding: its steps and the request it is for.
-    ImageSteps encoding_;
+    // Keeps in `tails` the rows of `run`'s image from the last whole block it reaches into, which a history forked at that block reads, once a digest; less than a block of rows.
+    void keep_tail(std::vector<ImageTail>& tails, const infer::MediaRun& run) const {
+        if (run.digest == std::array<uint8_t, 32>{} || !run.rows) return;
+        const size_t bt = model_.kv_block_tokens(), end = run.first + run.rows, block = end / bt * bt;
+        const size_t from = block > run.first ? block - run.first : 0;
+        if (from == run.rows) return;
+        for (const ImageTail& t : tails)
+            if (t.digest == run.digest && t.rows == run.rows && t.from <= from) return;
+        const size_t width = run.encoded->size() / run.rows;
+        tails.push_back(ImageTail{run.digest, run.rows, from, std::make_shared<const std::vector<float>>(run.encoded->begin() + (std::ptrdiff_t)(from * width), run.encoded->end())});
+    }
+    // Gives `run` the rows r keeps of its image from at or below `read`, the history's length, if it keeps them.
+    static bool kept_tail(const Request& r, infer::MediaRun& run, size_t read) {
+        if (read <= run.first || run.digest == std::array<uint8_t, 32>{}) return false;
+        for (const ImageTail& t : r.tails_)
+            if (t.digest == run.digest && t.rows == run.rows && run.first + t.from <= read) {
+                run.encoded = t.encoded;
+                run.from = t.from;
+                return true;
+            }
+        return false;
+    }
+    // The tails of `from` an entry holding `length` tokens of the history keeps: those of images that start below it.
+    static std::vector<ImageTail> tails_below(const std::vector<ImageTail>& from, const std::vector<infer::MediaRun>& media, size_t length) {
+        std::vector<ImageTail> out;
+        for (const ImageTail& t : from)
+            for (const infer::MediaRun& m : media)
+                if (m.digest == t.digest && m.rows == t.rows && m.first < length) {
+                    out.push_back(t);
+                    break;
+                }
+        return out;
+    }
+    static size_t tail_bytes(const std::vector<ImageTail>& tails) {
+        size_t n = 0;
+        for (const ImageTail& t : tails) n += t.bytes();
+        return n;
+    }
+    // The one image encode, shared with its pieces queued on the first stage's thread: its steps, the pieces queued (the scheduler's) and run, its rows once landed, and a piece's failure.
+    struct Encoding {
+        ImageSteps steps;
+        size_t queued = 0;
+        std::atomic<size_t> ran{0};
+        std::atomic<bool> dropped{false};
+        std::shared_ptr<const std::vector<float>> rows;
+        std::mutex m;
+        std::string error;   // under m
+    };
+    std::shared_ptr<Encoding> encoding_;
     const Request* encoding_for_ = nullptr;
-    size_t encoded_pieces_ = 0;
     std::chrono::steady_clock::time_point encode_began_{};
+    // The first stage records the embedding, so its thread runs the encoder's pieces, behind the passes formed before and ahead of those formed after; with no thread for it the piece runs here.
+    // A piece of an encode dropped or failed runs nothing, and every piece counts as run, so nothing waits on it.
+    void queue_piece(Encoding& e) {
+        ++e.queued;
+        std::shared_ptr<Encoding> held = encoding_;
+        auto run = [held] {
+            Encoding& x = *held;
+            bool skip = x.dropped.load();
+            if (!skip) {
+                std::lock_guard<std::mutex> lk(x.m);
+                skip = !x.error.empty();
+            }
+            if (!skip) {
+                try {
+                    x.steps.piece();
+                } catch (const std::exception& err) {
+                    std::lock_guard<std::mutex> lk(x.m);
+                    x.error = err.what();
+                }
+            }
+            ++x.ran;
+        };
+        if (defer_) defer_(infer::Model::StageItem{0, std::move(run)});
+        else run();
+    }
+    // Whether the encode's rows have landed in host memory, taken once its last piece's work has retired.
+    static bool landed(Encoding& e) {
+        if (!e.rows && e.ran.load() == e.steps.pieces) e.rows = e.steps.rows();
+        return e.rows != nullptr;
+    }
     // The ids a conversation's next turn begins with, given for request `of` (follow).
     struct Follow {
         std::shared_ptr<Request> of;
@@ -1203,6 +1306,7 @@ private:
     size_t misses_ = 0;                           // turns that reused little (note_miss), under the lock
     ReuseMiss last_miss_;
     size_t host_held_ = 0, host_hits_ = 0, host_moved_ = 0;   // under the lock
+    size_t host_tails_ = 0;                                    // of host_held_, the images' rows the copies keep (ImageTail), under the lock
     std::vector<Follow> follows_;                 // under the lock, the ids given since the last round
     std::vector<std::shared_ptr<Request>> restores_;   // under the lock, jobs restore_later made since follow_up last took them in
     bool restoring_ = false;   // under the lock: a donor a restore job read takes its slot, so the donor it evicts gets no restore job (restore_later)
@@ -1292,7 +1396,7 @@ private:
 // Takes fresh slabs of the host tier while the server has nothing to do, kHostGrow a round or the shortest copy's where that needs more, and gives them back at once to stand idle in the model's pool; whether more are to come.
 // A fresh slab is zero-filled as it is taken, which a read from disk otherwise spends on this thread before it starts (docs/STATUS.md); the model counts the fresh ones device by device (Model::host_fresh), and this runs under the lock.
 inline bool Cache::grow_host() {
-    const size_t slab = infer::Model::host_slab_bytes(), alive = model_.host_allocated(), in_use = host_held_ + parked_held();
+    const size_t slab = infer::Model::host_slab_bytes(), alive = model_.host_allocated(), in_use = host_held_ - host_tails_ + parked_held();
     if (alive + slab > host_cap_ || in_use > alive) return false;
     const size_t bt = model_.kv_block_tokens(), limit = token_limit();
     std::vector<infer::HostHistory> probes;
@@ -1719,10 +1823,11 @@ inline size_t Cache::copy_length(const Donor& d) const {
     return n;
 }
 
-// What write_back does with a copy of `n` tokens ranked `mine`, the one owner of whether a copy is kept: the room it takes, in the ranking's order below its own, and host memory for the slabs it takes anew.
-inline Cache::HostRoom Cache::host_room(size_t n, const Rank& mine) const {
+// What write_back does with a copy of `n` tokens ranked `mine`, the one owner of whether a copy is kept: the room it takes below its own rank, and host memory for its new slabs.
+// The images' last rows it keeps (`tails`) count in its bytes.
+inline Cache::HostRoom Cache::host_room(size_t n, const Rank& mine, size_t tails) const {
     HostRoom plan;
-    const size_t bytes = model_.host_bytes(n);
+    const size_t bytes = model_.host_bytes(n) + tails;
     if (bytes > host_cap_) {
         plan.why = HostRoom::Why::larger;
         return plan;
@@ -1749,7 +1854,10 @@ inline Cache::HostRoom Cache::host_room(size_t n, const Rank& mine) const {
                 if (b.id == id) release(b.state, true, id);
         } else {
             for (const HostDonor& h : host_)
-                if (h.id == id) release(h.history, false, id);
+                if (h.id == id) {
+                    release(h.history, false, id);
+                    held -= std::min(held, tail_bytes(h.tails));
+                }
         }
     }
     // Still short once every entry ranked below it is gone, the copy is refused for the entries that outrank it, or for those pinned (a boundary being admitted, the copy being promoted, a read's source).
@@ -1785,7 +1893,7 @@ inline void Cache::write_back(Donor& d) {
             return;
         }
     }
-    const HostRoom plan = host_room(n, Rank{d.superseded ? 0 : d.back ? 2 : 1, d.used});
+    const HostRoom plan = host_room(n, Rank{d.superseded ? 0 : d.back ? 2 : 1, d.used}, tail_bytes(d.tails));
     if (plan.why == HostRoom::Why::larger) {
         // Too large for the host tier: it is kept only where its files are already whole on disk, and otherwise lost, which is counted and said.
         uncopied();
@@ -1833,6 +1941,7 @@ inline void Cache::write_back(Donor& d) {
         h.used = d.used;
         h.tokens.assign(d.tokens.begin(), d.tokens.begin() + (std::ptrdiff_t)n);
         h.classes = clip(d.classes, n);
+        h.tails = d.tails;
         // The donor's blocks go back once this returns, while its copy may still be queued: a pass that takes them again is queued after the copy on the same device, so the copy reads them first.
         model_.save_host(d.seq, n, h.history, copy_limit(), true, defer_);
     } catch (const std::exception& e) {
@@ -1841,7 +1950,8 @@ inline void Cache::write_back(Donor& d) {
         uncopied();
         return;
     }
-    host_held_ += h.history.held;
+    host_held_ += h.history.held + tail_bytes(h.tails);
+    host_tails_ += tail_bytes(h.tails);
     host_moved_ += h.history.bytes;
     moved(Move::to_host, "server: a donor of %zu tokens kept in host memory, %.1f MiB, its copy enqueued in %.1f ms\n", n, (double)h.history.bytes / (1 << 20), ms_since(start));
     if (disk_) {
@@ -1875,7 +1985,8 @@ inline void Cache::drop_host(size_t i) {
     // Without a disk tier the copy is a restore point gone all the same, given with its history so a loss is told from work never done.
     else if (gone && !stopping_) this->gone(host_[i].tokens, Move::host_dropped, 0, host_[i].history.length);
     else moved(Move::host_dropped);
-    host_held_ -= host_[i].history.held;
+    host_held_ -= host_[i].history.held + tail_bytes(host_[i].tails);
+    host_tails_ -= tail_bytes(host_[i].tails);
     release_entry(false, host_[i].id, host_[i].history);
     host_.erase(host_.begin() + (std::ptrdiff_t)i);
 }
@@ -2779,6 +2890,7 @@ inline bool Cache::promote(const std::vector<std::shared_ptr<Request>>& active, 
     }
     d.id = ++donor_ids_;
     d.on_host = h->id;
+    d.tails = h->tails;
     d.promoted_for = r.get();
     d.back = h->back;
     d.tokens = h->tokens;

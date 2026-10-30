@@ -78,9 +78,14 @@ def golden():
     return doc
 
 
+def size_flags(case):
+    """A case's processor bound, given as the token count whose merged patches of 32 by 32 pixels make it."""
+    return ["--image-max-tokens", str(case["max_pixels"] // (32 * 32))] if case["max_pixels"] else []
+
+
 def image_args(case, mmproj=MMPROJ):
     args = ["--chat", "--dtype", "f32", "--mmproj", mmproj, "--image", ",".join(os.path.join(DATA, "images", f) for f in case["images"])]
-    return args + (["--image-max-pixels", str(case["max_pixels"])] if case["max_pixels"] else [])
+    return args + size_flags(case)
 
 
 def check_rows(model, case, mmproj=MMPROJ):
@@ -159,7 +164,7 @@ def same_reply(a, b, what):
 
 
 def image_server(model, case, *extra):
-    flags = ["--mmproj", MMPROJ, "--dtype", "f32"] + (["--image-max-pixels", str(case["max_pixels"])] if case["max_pixels"] else [])
+    flags = ["--mmproj", MMPROJ, "--dtype", "f32"] + size_flags(case)
     return Server(model, *(flags + list(extra)))
 
 

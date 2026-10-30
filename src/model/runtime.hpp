@@ -92,12 +92,13 @@ struct ModelOptions {
 };
 
 // An image's rows in a history (docs/VISION.md, sections 4 and 5): its first row and its rows, the encoder's merged grid they fill row by row, its digest, and the encoder's rows, which a pass writes over their pad rows after the embedding.
-// The rows are held until the pass reading the last of them commits; the digest, zero where no tier compares it, is what a fork, a host copy and the owner's giving it again are held to.
+// The rows, held until read and possibly only those from `from` on, and the digest, zero where no tier compares it, are what a fork, a host copy and the owner's giving it again are held to.
 struct MediaRun {
     size_t first = 0, rows = 0;
     uint32_t grid_h = 0, grid_w = 0;
     std::array<uint8_t, 32> digest{};
     std::shared_ptr<const std::vector<float>> encoded;
+    size_t from = 0;
 };
 
 // One request's history in a model's cache, made by Model::make_sequence: the committed length of each stage, a block table per KV storage, and per device the ticket of the last pass that touched it (docs/EXECUTION.md).

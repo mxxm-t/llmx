@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -235,9 +236,19 @@ void plan_and_encode() {
     require(a.tokens(14, 20) == 70 && a.positions() == infer::VisionPositions::grid, "tokens and positions");
     const infer::ImageTokenTexts t = a.token_texts();
     require(t.start == "<|vision_start|>" && t.pad == "<|image_pad|>" && t.end == "<|vision_end|>", "the template's image tokens");
-    const image::Params pp = a.preprocess();
+    const image::Params pp = a.preprocess({});
     require(pp.patch == P && pp.merge == 2 && pp.min_pixels == 65536 && pp.max_pixels == 16777216 && pp.mean[1] == 0.5f && pp.std[2] == 0.5f,
             "the preprocessing parameters");
+    // A token bound is smart_resize's of that many merged patches, (patch * merge)^2 pixels each, and the default bound reads back as its tokens.
+    const uint64_t side = P * 2;
+    require(a.preprocess(uint64_t(4096)).max_pixels == 4096 * side * side && a.preprocess(uint64_t(12)).max_pixels == 12 * side * side &&
+                a.max_tokens(a.preprocess(uint64_t(4096))) == 4096 && a.max_tokens(pp) == 16777216 / (side * side),
+            "a token bound as pixels");
+    for (const uint64_t refused : {uint64_t(0), std::numeric_limits<uint64_t>::max()}) {
+        bool threw = false;
+        try { (void)a.preprocess(refused); } catch (const std::runtime_error&) { threw = true; }
+        require(threw, "a bound of " + std::to_string(refused) + " tokens refused");
+    }
     // Inputs: positions in merge-block order, taps on the 4 by 4 grid with aligned corners, each patch's weights summing to one.
     const infer::EncodeInputs in = a.inputs(4, 6);
     require(in.positions.size() == 48 && in.taps.size() == 96 && in.weights.size() == 96, "an image's inputs");

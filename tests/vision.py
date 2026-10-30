@@ -30,7 +30,7 @@ def device_flag():
 def encode(tool, mmproj, image, out, threads, max_pixels):
     cmd = [tool, mmproj, image, out, "--dtype", "f32", "--threads", str(threads)] + device_flag()
     if max_pixels:
-        cmd += ["--image-max-pixels", str(max_pixels)]
+        cmd += ["--image-max-tokens", str(max_pixels // (32 * 32))]
     p = subprocess.run(cmd, capture_output=True, text=True)
     assert p.returncode == 0, "vision: %s failed\n%s%s" % (" ".join(cmd), p.stdout, p.stderr)
     info = json.loads(p.stdout)

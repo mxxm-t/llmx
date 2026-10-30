@@ -27,7 +27,7 @@
 namespace {
 
 int usage(const std::string& why) {
-    std::cerr << "usage: llmx-encode-image MMPROJ IMAGE OUT [--device D] [--threads N] [--dtype auto|f32|f16|bf16] [--image-max-pixels N] [--repeat N] [--profile]\n"
+    std::cerr << "usage: llmx-encode-image MMPROJ IMAGE OUT [--device D] [--threads N] [--dtype auto|f32|f16|bf16] [--image-max-tokens N] [--repeat N] [--profile]\n"
               << "error: " << why << "\n";
     return 2;
 }
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> positional;
     std::string device = "cpu", dtype = "auto";
     int threads = 0;
-    std::optional<uint64_t> max_pixels;
+    std::optional<uint64_t> max_tokens;
     uint64_t repeat = 0;
     bool profile = false;
     try {
@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
             if (a == "--device") device = value();
             else if (a == "--threads") threads = int(positive(a, value()));
             else if (a == "--dtype") dtype = value();
-            else if (a == "--image-max-pixels") max_pixels = positive(a, value());
+            else if (a == "--image-max-tokens") max_tokens = positive(a, value());
             else if (a == "--repeat") repeat = positive(a, value());
             else if (a == "--profile") profile = true;
             else if (a.size() > 1 && a[0] == '-') throw std::invalid_argument("unknown flag " + a);
@@ -92,8 +92,7 @@ int main(int argc, char** argv) {
         if (!in) throw std::runtime_error("cannot open " + positional[1]);
         const std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
         const image::Raster raster = image::decode_image(bytes.data(), bytes.size());
-        image::Params params = weights.arch->preprocess();
-        if (max_pixels) params.max_pixels = *max_pixels;
+        const image::Params params = weights.arch->preprocess(max_tokens);
         const auto t0 = std::chrono::steady_clock::now();
         const image::Prepared prepared = image::prepare(raster, params);
         const auto t1 = std::chrono::steady_clock::now();

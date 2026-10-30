@@ -1532,16 +1532,21 @@ inline void Model::add_media(Sequence& s, MediaRun run) {
     if (plan_.image_streams.empty()) throw std::runtime_error("inference: the model's architecture takes no image rows");
     if (!run.rows || size_t(run.grid_h) * run.grid_w != run.rows) throw std::runtime_error("inference: an image's rows do not fill its grid");
     const size_t end = run.first + run.rows;
-    if (run.encoded && run.encoded->size() != backend::size_mul(run.rows, embedding_width()))
-        throw std::runtime_error("inference: an image's rows are not " + std::to_string(run.rows) + " rows of the embedding's " + std::to_string(embedding_width()) + " floats");
+    if (run.encoded && (run.from >= run.rows || run.encoded->size() != backend::size_mul(run.rows - run.from, embedding_width())))
+        throw std::runtime_error("inference: an image's rows are not " + std::to_string(run.rows) + " rows of the embedding's " + std::to_string(embedding_width()) + " floats from row " +
+                                 std::to_string(run.from));
     if (!run.encoded && end > s.length()) throw std::runtime_error("inference: an image the history has not read given without its rows");
+    if (run.encoded && run.from && run.first + run.from > s.length()) throw std::runtime_error("inference: an image given without rows the history has not read");
     if (run.first > plan_.context_length || run.rows > plan_.context_length - run.first)
         throw std::runtime_error("inference: context length exceeded (" + std::to_string(plan_.context_length) + " tokens)");
     for (Sequence::Media& m : s.media_)
         if (m.run.first == run.first) {
             if (m.run.rows != run.rows || m.run.grid_h != run.grid_h || m.run.grid_w != run.grid_w || m.run.digest != run.digest)
                 throw std::logic_error("inference: an image given again is not the image the history holds there");
-            if (end > s.length()) m.run.encoded = std::move(run.encoded);
+            if (end > s.length()) {
+                m.run.encoded = std::move(run.encoded);
+                m.run.from = run.from;
+            }
             return;
         }
     if (!s.media_.empty() && run.first < s.media_.back().run.first + s.media_.back().run.rows)
@@ -1581,6 +1586,7 @@ inline std::vector<Sequence::Media> Model::carried(const Sequence& s, size_t len
         if (m.run.first < length) {
             MediaRun run = m.run;
             run.encoded.reset();
+            run.from = 0;
             out.push_back(Sequence::Media{std::move(run), std::vector<backend::BufferPtr>(devices_.size())});
         }
     return out;

@@ -686,11 +686,11 @@ std::string chat_prompt(const chat::ChatFormat& format, const std::string& text,
     return format.render({ m }, true);
 }
 
-// --mmproj, --image and --image-max-pixels, which generate and logits take with --chat: the vision encoder's file and the images the one user message holds before its text (docs/VISION.md, section 6).
+// --mmproj, --image and --image-max-tokens, which generate and logits take with --chat: the vision encoder's file and the images the one user message holds before its text (docs/VISION.md, section 6).
 struct Images {
     std::string mmproj;
     std::vector<std::string> files;
-    std::optional<uint64_t> max_pixels;
+    std::optional<uint64_t> max_tokens;
     // Every image's bytes, read before the model is opened.
     std::vector<std::string> read(const std::string& command) const {
         std::vector<std::string> bytes;
@@ -699,8 +699,8 @@ struct Images {
     }
     // The flags given together and with --chat, or none of them.
     void check(bool as_chat) const {
-        if (files.empty() && mmproj.empty() && !max_pixels) return;
-        if (files.empty()) throw UsageError(mmproj.empty() ? "--image-max-pixels sizes the images --image gives" : "--mmproj encodes the images --image gives");
+        if (files.empty() && mmproj.empty() && !max_tokens) return;
+        if (files.empty()) throw UsageError(mmproj.empty() ? "--image-max-tokens sizes the images --image gives" : "--mmproj encodes the images --image gives");
         if (mmproj.empty()) throw UsageError("--image needs the vision encoder --mmproj names");
         if (!as_chat) throw UsageError("--image places its images in the one user message --chat sends");
     }
@@ -720,14 +720,14 @@ std::vector<std::string> image_files(const std::string& list) {
 bool images_flag(int argc, char** argv, int& i, const std::string& a, std::string_view f, Images& images) {
     if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
     else if (f == "--image") images.files = image_files(nonempty_value(argc, argv, i, a, "a path"));
-    else if (f == "--image-max-pixels") images.max_pixels = int_arg<uint64_t>(argc, argv, i, a, 1);
+    else if (f == "--image-max-tokens") images.max_tokens = count_arg<uint64_t>(argc, argv, i, a, 1);
     else return false;
     return true;
 }
 
 // The prompt `--chat` makes of `text` with `images`: the rendered message's ids with each image's pad run, and the runs its rows are read from, the encoder opened on the model's embedding device at the model's dtype.
 infer::ImagePrompt image_turn(const infer::LoadedModel& loaded, const Images& images, const std::vector<std::string>& bytes, const std::string& text) {
-    const auto vision = infer::open_vision(images.mmproj, *loaded.model, *loaded.tok, loaded.dtype.effective, images.max_pixels);
+    const auto vision = infer::open_vision(images.mmproj, *loaded.model, *loaded.tok, loaded.dtype.effective, images.max_tokens);
     return infer::image_prompt(*vision, loaded.tok->encode(chat_prompt(loaded.chat, text, bytes.size())), bytes);
 }
 
@@ -1422,7 +1422,7 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
     std::unique_ptr<infer::Vision> vision;
     if (!images.mmproj.empty()) {
         startup.begin("vision");
-        vision = infer::open_vision(images.mmproj, model, tok, loaded->dtype.effective, images.max_pixels);
+        vision = infer::open_vision(images.mmproj, model, tok, loaded->dtype.effective, images.max_tokens);
         c.vision = vision.get();
         c.vision_identity = vision_identity(images.mmproj, c.disk);
     }
@@ -1435,7 +1435,7 @@ void serve_loaded(const std::string& model_path, const server::Config& cfg, cons
               << (model.keeps_state() ? ", " + std::to_string(model.checkpoint_slots()) + " state checkpoints" : std::string())
               << (loaded->checkpoint_kv_tokens ? " taking " + std::to_string(loaded->checkpoint_kv_tokens) + " KV tokens" : std::string())
               << (drafts.sources.empty() ? std::string() : ", drafting " + join_sources(drafts.sources))
-              << (vision ? ", reading images of up to " + std::to_string(vision->params.max_pixels) + " pixels" : std::string())
+              << (vision ? ", reading images of up to " + std::to_string(vision->encoder->architecture().max_tokens(vision->params)) + " tokens" : std::string())
               << ", " << (*c.host_cache_bytes >> 20) << " MiB of host memory for evicted prefixes"
               << (rows ? " and " + std::to_string(rows >> 20) + " MiB for the lookup tables' hot rows" : std::string())
               << ", queue of " << c.max_queue << ")\n";
@@ -1553,7 +1553,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
     const auto image_options = [&]() {
         page << "  --mmproj PATH           Vision encoder file of the model's images, with --chat and --image\n"
              << "  --image PATH            Images, comma-separated, placed before the text of the one user message\n"
-             << "  --image-max-pixels N    Most pixels of a resized image (default: the encoder's)\n";
+             << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n";
     };
     const auto model_options = [&](bool batch_threads) {
         page << "\nExecution options:\n"
@@ -1678,7 +1678,7 @@ bool print_usage(const std::string& command, std::ostream& out) {
             << "  --draft-max N           Most drafted tokens checked at once, 1 to " << infer::spec::kMaxDrafts << " (default: " << Drafts{}.draft_max << ")\n"
             << "\nImages (on the chat routes, as image_url parts holding data: URLs of PNG or JPEG):\n"
             << "  --mmproj PATH           Vision encoder file of the model's images\n"
-            << "  --image-max-pixels N    Most pixels of a resized image (default: the encoder's)\n";
+            << "  --image-max-tokens N    Most tokens of a resized image, 4k = 4096 (default: the encoder's)\n";
         model_options(false);
         page << "\nRoutes:\n"
             << "  POST /v1/generate             POST /v1/chat\n"
@@ -2027,7 +2027,7 @@ int main(int argc, char** argv) {
                 else if (f == "--ctx-size") cfg.ctx_size = (size_t)count_arg(argc, argv, i, a, 1);
                 else if (f == "--kv-tokens") exec.kv_tokens = count_arg(argc, argv, i, a, 1);
                 else if (f == "--mmproj") images.mmproj = nonempty_value(argc, argv, i, a, "a path");
-                else if (f == "--image-max-pixels") images.max_pixels = int_arg<uint64_t>(argc, argv, i, a, 1);
+                else if (f == "--image-max-tokens") images.max_tokens = count_arg<uint64_t>(argc, argv, i, a, 1);
                 else if (drafts_flag(argc, argv, i, a, f, drafts)) {}
                 else if (exec_flag(argc, argv, i, exec, false)) {}
                 else throw UsageError("unknown flag: " + a);
@@ -2035,7 +2035,7 @@ int main(int argc, char** argv) {
             }
             if (host_bytes) cfg.host_cache_bytes = (size_t)*host_bytes;
             if (cfg.disk.adopt_proved && !cfg.disk.keep) throw UsageError("--disk-cache-adopt proved adopts what --disk-cache-keep left and leaves; give --disk-cache-keep");
-            if (images.max_pixels && images.mmproj.empty()) throw UsageError("--image-max-pixels sizes the images the encoder --mmproj names reads");
+            if (images.max_tokens && images.mmproj.empty()) throw UsageError("--image-max-tokens sizes the images the encoder --mmproj names reads");
             return cmd_serve(argv[2], cfg, exec, drafts, images);
         }
         if (cmd == "bench") {

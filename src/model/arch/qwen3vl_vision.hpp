@@ -3,7 +3,9 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -92,7 +94,8 @@ class Module final : public VisionArchitecture {
 public:
     explicit Module(Config c) : c_(c) {}
 
-    image::Params preprocess() const override {
+    // N tokens bound smart_resize's max_pixels at N merged patches of (patch * merge)^2 pixels; an image below min_pixels is still raised to it, as HF's processor raises it, and any count from 1 is taken.
+    image::Params preprocess(std::optional<uint64_t> max_tokens) const override {
         image::Params p;
         p.patch = uint32_t(c_.patch);
         p.merge = uint32_t(c_.merge);
@@ -102,8 +105,15 @@ public:
         }
         p.min_pixels = kMinPixels;
         p.max_pixels = kMaxPixels;
+        if (max_tokens) {
+            const uint64_t side = uint64_t(c_.patch) * c_.merge;
+            if (!*max_tokens) throw std::runtime_error("vision: an image takes at least 1 token, not 0");
+            if (*max_tokens > std::numeric_limits<uint64_t>::max() / (side * side)) throw std::runtime_error("vision: " + std::to_string(*max_tokens) + " tokens an image is past any image's size");
+            p.max_pixels = *max_tokens * side * side;
+        }
         return p;
     }
+    uint64_t max_tokens(const image::Params& p) const override { return p.max_pixels / (uint64_t(p.patch) * p.merge * p.patch * p.merge); }
     size_t tokens(uint32_t grid_h, uint32_t grid_w) const override { return size_t(grid_h) * grid_w / (c_.merge * c_.merge); }
     VisionPositions positions() const override { return VisionPositions::grid; }
     ImageTokenTexts token_texts() const override { return {"<|vision_start|>", "<|image_pad|>", "<|vision_end|>"}; }

@@ -686,14 +686,14 @@ private:
         return text;
     }
 
-    // An image part's data URL, its `detail` absent or "auto", the one sizing being --image-max-pixels.
+    // An image part's data URL, its `detail` absent or "auto", the one sizing being --image-max-tokens.
     static std::string image_url_of(const jmini::Value& part) {
         const jmini::Value* image = part.get("image_url");
         const jmini::Value* url = image && image->isObject() ? image->get("url") : nullptr;
         if (!url || !url->isString()) throw BadRequest(400, "an image_url part needs image_url.url, a string");
         const jmini::Value* detail = image->get("detail");
         if (detail && detail->t != jmini::Value::T::Null && (!detail->isString() || detail->asString() != "auto"))
-            throw BadRequest(400, "image_url.detail is not taken: images are sized by the server's --image-max-pixels");
+            throw BadRequest(400, "image_url.detail is not taken: images are sized by the server's --image-max-tokens");
         return url->asString();
     }
 
@@ -1399,17 +1399,21 @@ private:
             std::vector<std::shared_ptr<const image::Raster>> resized;
             for (const std::string& url : image_urls(body)) resized.push_back(images.prepared.at(url).resized);
             given.encode = [vision = cfg_.vision, resized](size_t i) {
-                auto e = std::make_shared<infer::ImageEncode>(*vision, *resized.at(i));
-                auto ms = std::make_shared<double>(0.0);
-                return ImageSteps{[vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
-                    const auto t0 = std::chrono::steady_clock::now();
-                    const bool done = e->step();
-                    *ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-                    if (!done) return nullptr;
-                    auto rows = e->rows();
-                    std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms of them\n", rows->size() / vision->encoder->plan().out_width, e->pieces(), *ms);
-                    return rows;
-                }, e->pieces()};
+                auto e = std::make_shared<infer::ImageEncode>(*vision, resized.at(i));
+                auto began = std::make_shared<std::chrono::steady_clock::time_point>();
+                return ImageSteps{[e, began] {
+                                      if (*began == std::chrono::steady_clock::time_point{}) *began = std::chrono::steady_clock::now();
+                                      e->piece();
+                                  },
+                                  [vision, e, began]() -> std::shared_ptr<const std::vector<float>> {
+                                      auto rows = e->rows();
+                                      if (rows)
+                                          std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms from its first piece to its rows\n",
+                                                       rows->size() / vision->encoder->plan().out_width, e->pieces(),
+                                                       std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - *began).count());
+                                      return rows;
+                                  },
+                                  e->pieces()};
             };
         }
         MessageSpans spans = route == Route::chat || route == Route::chat_completions ? message_spans(messages_of(body), ids) : MessageSpans{};

@@ -1,5 +1,59 @@
 # llmx - Development Status
 
+## Image encodes beside replies, reused images and the image token bound (2026-10-30, RDEV, branch feat/image-no-hold on main 06936f48e, the coordinator's orders of 2026-10-30 and the owner's rulings relayed with them, approved by F2DEV but for the tails' owner, now built; the owner asked for it on production as a preview)
+
+- **Goal:** an image's encode runs as ordinary work between the passes, never under a whole-model hold; a history that forks inside an image encodes nothing; `--image-max-tokens` replaces `--image-max-pixels`; the encoder's time profiled.
+- **Done, no hold:** an encode's pieces are items of the thread that records the first stage, which records the embedding's backend (`Cache::encode_piece`, `queue_piece`, `ImageSteps`), behind the passes formed before them and ahead of those formed after.
+  The last piece copies the rows on the device into host-visible storage and submits (`VisionEncoder::copy_rows`), and the round takes them once that ticket has retired (`ImageEncode::rows`, `Cache::landed`), looking again a millisecond on (`encode_bound`), as a promotion's copy does; a request waiting on a queued piece or on its rows does not wake the round (`waits_encode`).
+  A dropped or failed encode's queued pieces run nothing; a failed piece ends its request with the error.
+  Beside replies a replies' pass meets the pieces the chunk budget holds at a piece's measured time, one at least (`encode_pieces`, `Scheduler::piece_ms_`, F2DEV's landing condition), as a prompt takes a chunk beside them: without the hold's drains the pieces came every round, and on four cards a reply fell from 57 to 5 tokens a second while the image encoded.
+  A piece's time is what a replies' pass that waited behind pieces took beyond the time the prices predicted for it, or the scheduler thread's own time running them where the first stage records there, whichever is longer, shared among them: pieces that run on that thread run before the pass begins, so the pass's time alone measured them as nothing, and a CPU reply then met every piece at once (image-cache's `pieces` case, whose pieces take longer than the chunk budget, fails without it); a device donor's tails, a few hundred KiB of host memory, are counted nowhere.
+  `Vision::encoding`, the mutex that held the encoder for an encode's life, is gone: the scheduler runs one encode at a time and the CLI encodes on its own thread.
+- **Done, reused images:** a history forked inside an image, at the last whole block before the image's end, needs only the rows past that block, less than a block of rows.
+  A request keeps those rows of each image it is given with rows (`Request::tails_`, `ImageTail`, `Cache::keep_tail`), and each entry holding its history keeps them beside it, the donor, its host copy, counted in the copy's bytes and freed with it, and a promotion (F2DEV's condition: one owner, no second budget); a fork takes its source's, and a sequence takes them as an image's rows from row `MediaRun::from` on (`Model::add_media`, `write_media`), so a follow-up turn or a job forking inside its image encodes nothing while the history is held, and encodes it again once the history has gone (a disk copy keeps none).
+  That was production's case of a turn with 15616 of 17037 tokens reused still encoding the image for 58 s: the follow-up forked its first turn's prompt at the last block before the image's end.
+- **Done, the flag:** `--image-max-tokens N` on `generate`, `logits` and `serve` (and `llmx-encode-image`), a token count read by the CLI's one count parser with its k and m suffixes; each encoder turns it into its own resize bound (`VisionArchitecture::preprocess(max_tokens)`, for Qwen's N * (patch * merge)^2 pixels of smart_resize's `max_pixels`), the default the encoder's own (16384 tokens, HF's 16777216 pixels, so digests are unchanged); the server's start line gives the bound in tokens.
+  `--image-max-pixels` is removed with no alias; production's launch line does not give it, so it needs no change, and any other script giving it must give `--image-max-tokens` (pixels / 1024 for Qwen's encoders).
+- **Tests:** `image-cache` `no_hold`: on two devices whose second stage records on its own thread, a reply beside a 24-piece encode keeps its passes between the pieces and the encode stops the stages no times (24 holds on the base); `reused_inside`: a follow-up forking its first turn's history inside its image runs none of its pieces (2 on the base) and gives its reply on a fresh model, and one with another image of the same grid forks nothing and runs its own; `reused_evicted`: with the first turn's history evicted to host memory the follow-up forks the copy and runs none, and with no host tier, the history gone, it forks nothing and runs both, each reply its reply on a fresh model; `job_gives_way` gives its conversation's image no digest, so no rows of it are kept and the job still encodes. `arch-qwen3vl-vision` holds the token bound's conversion and refusals, `cli.py` the flag's refusals and the old flag refused as unknown.
+- **Measured, the encoder (Flash-Next's BF16 mmproj, a 4032x3008 image, grid 188x252, 11844 tokens, one MI50, renderD130):** 58.8 s an encode, 91% of it attention (`attention_full_tile_d72`, 53.7 s at about 5.2 TFLOPS, 4 n^2 D a layer over 47376 patches) and 8% the products (5.0 s); what production logs.
+  Bit-identical tile changes tried and not kept: 128 query rows a workgroup 86.5 s, 32 rows 73.5 s, keys staged 32 at a time with the softmax still stepping 16 53.6 s (no change); the rows were the same bits each time.
+  The cost is the full attention's square in the patches, so the token bound is the lever: at `--image-max-tokens 4096` (4070 tokens) an encode takes 7.4 s, at 1024 (999 tokens) 0.82 s.
+- **Measured before the rebase and the pacing, serving (Qwen3.5-0.8B Q4_K_M with its BF16 mmproj, a layer split over renderD130 and renderD131, the same image, base 57aceb8a5 and head d8a5d000b each built from a detached worktree):**
+
+| | base | head |
+|---|---|---|
+| reply alone | 282 tok/s | 285 tok/s |
+| reply while the image waits for its first token | 16.0-16.6 tok/s, largest gap 0.20-0.26 s | 17.3 tok/s, largest gap 0.20 s |
+| image request, first token | 22.9-24.1 s | 22.6 s |
+| holds an image | 338 | 0 |
+| second turn of the image's conversation, 11840 of 11902 tokens reused | 20.0-20.1 s, the image encoded again | 0.47 s, nothing encoded |
+
+  Both turns' replies are the same text on both arms. On this placement the hold cost little: each piece is about 55 ms of device work between the replies' passes, so a reply gets about one step a piece either way, above the service rule's 8 tokens a second.
+- **Measured, production's placement (Qwen3.8-Flash-Next UD-Q4_K_XL, its BF16 mmproj, renderD130, 131, 134 and 135, production's flags but no disk tier and a 4 GiB host tier, the same 12 MP image beside a reply of 12000 tokens, then a two-turn conversation of the image; base main 06936f48e, the head unpaced 9631aeb92, one piece a replies' pass e9680e043, and priced 2bf7aadeb, each built from a detached worktree; the rig's load average 17 to 19 from other work):**
+
+| | base | unpaced | one piece a pass | priced (landing) | one a pass, 4k | priced, 4k |
+|---|---|---|---|---|---|---|
+| reply alone | 57.4 tok/s | 68.7 | 54.0 | 65.6 | 66.0 | 37.1 |
+| reply while the image waits for its first token | 13.4-13.6 tok/s | 5.0 | 20.8 | 7.8 | 24.1 | 10.0 |
+| its largest gap | 1.18 s | 1.17 s | 1.11 s | 1.15 s | 0.52 s | 0.54 s |
+| image request, first token | 108 s; 313 s beside a build | 78 s | 128 s | 95 s | 22.4 s | 19.6 s |
+| next request with the image, 11840 tokens reused | 60.4-60.6 s, encoded again | 0.60 s | 0.63 s | 0.70 s | 0.79 s | 0.93 s |
+| its follow-up turn | 60.5-60.6 s, encoded again | 0.54 s | 0.54 s | 0.58 s | 0.90 s | 1.18 s |
+
+  Priced, the reply holds about the service rule's objective of 8 tokens a second (7.8 at the default bound, 10.0 at 4k) and the image takes the rest: its drafts bring several tokens a step, which widens the step gap the chunk budget is cut from, so the budget holds more than one 55 ms piece.
+  The 7.8 is not the estimate lagging at the encode's start: before a piece's time is measured a pass meets one piece, which errs toward the reply.
+  It is the objective as the rule holds it, a product objective rather than a guaranteed rate: the gap is cut from the fewest tokens a step among the last eight, and a piece's time comes from the retirements of passes in flight, so the rate settles near 8 and not above it; 2.5% under over 95 s needs no change.
+  The priced 4k column's reply alone, 37.1 tok/s against 65.6 and 66.0 in the other runs of this server, is unexplained: no CPU, disk or GPU monitoring was recorded for these runs, and matvec probes on another card (CPUs 12-15, which this unpinned run could share) overlapped them, so it may be contended and is not compared; its other cells are measured beside the encode, as in the other columns.
+
+  Both turns' replies are the same text on base and head; the base's second sample ran beside this branch's build, so its first figures are a contended run, kept as measured.
+- **Gates (head 2bf7aadeb, the landing code):** CTest 94 of 94 (rig, renderD130/131), `image-cache` three runs in a row, `server-passes` (`encode_pieces`); the CPU suite, 45 components pass and `baseline` skipped without its models, `docs` and `dead-code` among them; Qwen3-0.6B Q8_0 `generate` ids and `logits` byte-identical to main 06936f48e on the CPU and on vulkan:0 (on e9680e043, whose model code is the same).
+- **Flakes under load (Windows PC, F2DEV's ruling of 2026-10-30):** in one round of 50 `image-cache` runs five at a time, run beside MSVC builds, three cases failed once each: `host_tier` ("the host tier with images: 1 promotions and 256 tokens reused, against 2 and 512"), `reused_evicted` ("a follow-up of a history in host memory: 0 promotions") and `disk_tier` ("images on disk: 2 entries after turn 4 within a minute").
+  None is a reply differing from its reply alone: the first two fail after every reply matched, and the third is the minute-long wait for the disk entries.
+  None recurred without the builds: 50 more runs five at a time at this head, 20 runs one at a time, 400 runs five at a time of the three cases alone on this head and on main 06936f48e, and 50 runs five at a time of main's binary without its `pieces` case (main's own `pieces` failed 25 of 50 at that load, the timing-bound check this branch replaces).
+  The likely cause, not confirmed since the failing runs' logs were not kept: these tests admit host copies against the machine's real free memory, which the builds drew down (`Model::host_copy_fits`), as `server-passes-cpu`'s boundary cases did before their fix; the follow-up gives the three cases a fixed host memory through `on`'s `host_memory`, as that fix did.
+- **Left:** the hosted run at landing; it lands by fast-forward on main as two commits.
+  Not built, by the owner's ruling: the encoder-output cache across chats, and the decode and resize speed-up, about 0.4 s of a 12 MP PNG and 1 s of production's JPEG beside a 7.4 s encode at the 4k bound.
+
 ## The quick-newcomer case counts passes between a reply's steps (2026-10-30, TDEV, branch fix/server-passes-cpu-flake on main 06936f48e, tests only, the coordinator's order of 2026-10-30, lands by fast-forward as one commit)
 
 **Goal.** `short_newcomer` in `server-passes-cpu` failed on the hosted macOS runner on every branch and on main: `a reply waited 511.6 to 605.7 ms between two steps beside a quick newcomer beside a long prompt, against the step gap's cap` (jobs 124160912977, 124179102195, 124208863368, 124195078299).

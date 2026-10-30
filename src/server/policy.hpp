@@ -546,6 +546,11 @@ inline ChunkPlan chunk_plan(double fewest_tokens_per_step, double replies_ms, si
     if (budget > 0) return {gap, budget, true, capped};
     return {gap, gap / (double)std::max<size_t>(1, stages), false, capped};
 }
+// The pieces of an image's encode a replies' pass meets: as many as the chunk budget holds at the measured time of a piece, and one at least, or one before both are known.
+inline size_t encode_pieces(double budget_ms, double piece_ms) {
+    if (!(budget_ms < std::numeric_limits<double>::infinity()) || !(piece_ms > 0)) return 1;
+    return std::max<size_t>(1, (size_t)(budget_ms / piece_ms));
+}
 // How long a ready prompt goes without rows at most before it reads first, the bound of least-remaining-first (Share::wait_ms) the replays chose (docs/SERVER.md, Prompt shares).
 inline constexpr double kPromptWaitMs = 10000;
 // A lone prompt's next slice on `stages` stages when it lacks `waiting` rows: about a 2 * stages-th of them, at least 128 rows and at most a ubatch.

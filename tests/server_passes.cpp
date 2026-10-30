@@ -1397,6 +1397,11 @@ void service_by_hand() {
             "a slice was not priced by the line through the two largest measures below, or by the nearest above");
     // A prompt is quick while its remaining cost and the replies' pass fit within the step gap's cap, and never before it is priced.
     require(server::quick_prompt(380, 120) && !server::quick_prompt(381, 120) && !server::quick_prompt(0, 40), "a quick prompt was read wrongly");
+    // An image's encode takes the pieces the chunk budget holds at a piece's measured time beside a replies' pass, one at least, and one before either is known.
+    const double unpriced = std::numeric_limits<double>::infinity();
+    require(server::encode_pieces(45, 15) == 3 && server::encode_pieces(45, 16) == 2 && server::encode_pieces(45, 55) == 1 && server::encode_pieces(0, 10) == 1 &&
+                server::encode_pieces(unpriced, 10) == 1 && server::encode_pieces(45, 0) == 1,
+            "an encode's pieces beside replies were not the chunk budget's");
     require(server::lone_slice(768, 2, 256) == 192 && server::lone_slice(300, 2, 256) == 128 && server::lone_slice(4000, 2, 256) == 256 && server::lone_slice(768, 1, 256) == 256 &&
                 server::lone_slice(100, 2, 64) == 64,
             "a lone prompt's slice was not cut so every stage reads");

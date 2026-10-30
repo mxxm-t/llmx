@@ -235,11 +235,13 @@ def check_usage_errors():
     for command in (["generate", model, "a"], ["logits", model, "a"]):
         for args, reason in ((["--image", "a.png", "--chat"], "--image needs the vision encoder --mmproj names"),
                              (["--mmproj", "m.gguf", "--chat"], "--mmproj encodes the images --image gives"),
-                             (["--image-max-pixels", "1024", "--chat"], "--image-max-pixels sizes the images --image gives"),
+                             (["--image-max-tokens", "4k", "--chat"], "--image-max-tokens sizes the images --image gives"),
                              (["--mmproj", "m.gguf", "--image", "a.png"], "--image places its images in the one user message --chat sends"),
                              (["--mmproj", "m.gguf", "--image", "a.png,", "--chat"], "--image: an empty entry in 'a.png,'"),
                              (["--mmproj", "m.gguf", "--image", "a.png", "--image", "b.png", "--chat"], "--image is given twice"),
-                             (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-pixels", "0"], "--image-max-pixels")):
+                             (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-tokens", "0"], "--image-max-tokens"),
+                             (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-tokens", "4q"], "--image-max-tokens"),
+                             (["--mmproj", "m.gguf", "--image", "a.png", "--chat", "--image-max-pixels", "1024"], "unknown flag: --image-max-pixels")):
             usage_error(command + args, command[0], reason)
 
 
@@ -293,9 +295,9 @@ def check_help():
     # bench's --size and --iters are the synthetic bench's, which runs in full on a short line giving the other of the two once; --profile times one Vulkan device, and --moe-stream-from streams the experts on the CPU.
     synthetic = ["bench", "--p", "1", "--n", "1"]
     # The image flags are taken together and with --chat, but serve's, which take an encoder alone and size its images with it.
-    serve_company = {"--mmproj": [], "--image-max-pixels": ["--mmproj", "missing.gguf"]}
+    serve_company = {"--mmproj": [], "--image-max-tokens": ["--mmproj", "missing.gguf"]}
     company = {"--profile": ["--device", "vulkan:0"], "--moe-stream-from": ["--cpu-moe"], "--image": ["--chat", "--mmproj", "missing.gguf"],
-               "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-pixels": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"]}
+               "--mmproj": ["--chat", "--image", "missing.png"], "--image-max-tokens": ["--chat", "--mmproj", "missing.gguf", "--image", "missing.png"]}
     # Values a placeholder's would not give: --size is a multiple of 32, a perplexity window holds two tokens at least, and --drafter names a drafter.
     values = {"--size": "32", "--ctx-size": "2", "-c": "2", "--drafter": "off"}
 

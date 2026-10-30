@@ -406,11 +406,16 @@ void acceptance_rest() {
     require(!a.resting(), "the average forgot the verify that kept three");
     require(a.drafted() == std::vector<size_t>({14, 13, 13, 1}) && a.kept() == std::vector<size_t>({2, 1, 1, 0}),
             "the drafts fed and kept by position are not the verifies' counts");
-    // A position's chance of being kept: its own share weighed with four verifies at the prior's share there, or at one half where neither has fed one.
+    // The chance of keeping the drafts up to a position: each position's share over the verifies that reached it, weighed with four at the prior's, which is weighed with four at the last reached position's, one half for the first draft.
+    // Position 0 was reached by all 14 verifies, 1 by the two that kept a draft, 2 by the one that kept two, and 3 by none, which goes on at position 2's chance.
     infer::spec::Acceptance prior;
     prior.verified(1, 2);
-    require(close_to(a.keeps(0, prior), (2 + 4 * 1.0) / (14 + 4)) && close_to(a.keeps(1, prior), (1 + 4 * 0.0) / (13 + 4)) && close_to(a.keeps(5, prior), 0.5),
-            "a position's chance of being kept is not its share weighed with the prior's");
+    const double c0 = (2 + 4 * ((1 + 4 * 0.5) / (1 + 4))) / (14 + 4), c1 = (1 + 4 * ((0 + 4 * c0) / (1 + 4))) / (2 + 4), c2 = (1 + 4 * c1) / (1 + 4);
+    require(close_to(a.keeps(0, prior), c0) && close_to(a.keeps(1, prior), c0 * c1) && close_to(a.keeps(2, prior), c0 * c1 * c2) &&
+                close_to(a.keeps(5, prior), c0 * c1 * c2 * c2 * c2 * c2),
+            "a position's chance of being kept is not the product of the reached verifies' shares weighed with the prior's");
+    const infer::spec::Acceptance none;
+    require(close_to(none.keeps(0, none), 0.5) && close_to(none.keeps(5, none), 0.5), "a record of no verifies does not keep its first draft at one half and the rest whenever it is");
 }
 
 // The pass price (spec::PassTimes, spec::draft_depths), on passes that cost 34 ms and 10 ms a row and chains of 4 ms a step and 1 ms a chain.
@@ -471,6 +476,13 @@ void censored_depth() {
     std::vector<size_t> takes;
     infer::spec::draft_depths(c, 1, {keeps}, takes);
     require(takes[0] > 15, "a request keeping its eight drafts was held at " + std::to_string(takes[0]) + " by deep verifies that missed early");
+    // A request whose drafts fall away, kept given the ones before at 0.9, 0.5 and 0.2 over verifies of three, still stops within them: a position no verify reached goes on at 0.2, not above it.
+    infer::spec::Acceptance falling;
+    for (int i = 0; i < 1000; ++i) falling.verified(i < 100 ? 0 : i < 550 ? 1 : i < 910 ? 2 : 3, 3);
+    for (size_t j = 0; j < keeps.size(); ++j) keeps[j] = falling.keeps(j, falling);
+    require(keeps[3] < keeps[2] * 0.21, "a position past the measured ones was priced above the last measured chance");
+    infer::spec::draft_depths(c, 1, {keeps}, takes);
+    require(takes[0] >= 1 && takes[0] <= 3, "a request whose drafts fall away took " + std::to_string(takes[0]));
 }
 
 // The additive penalties of the compatible APIs, subtracted from a seen token's score before the temperature: presence once however often the token was seen, frequency once for each time.

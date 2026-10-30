@@ -1,5 +1,34 @@
 # llmx - Development Status
 
+## Draft positions priced by the verifies that reached them (2026-10-30, SDEV, branch fix/draft-depth-censored on main 06936f48e, the owner's production report through the coordinator, reviewed by F2DEV, lands by fast-forward as two commits)
+
+- **Goal:** production's Qwen3.8-Flash-Next UD-Q4_K_XL 2x2 at `--draft-max 63` (`lookup` ahead of the MTP head) drafted at most 8 positions where it kept 15 at `--draft-max 15`, and its replies stayed under 100 tok/s.
+- **Cause:** `spec::Acceptance::keeps(i)` was the share of the verifies that fed position i and kept it, the request's own weighed with the server's.
+  A verify that missed at position 2 counted as a miss at every later position it fed, and a position past a draft's depth got no count at all.
+  Production's health after 12043 s: positions 6, 7 and 8 kept 8130 of 9095, 7826 of 8694 and 7699 of 8506 drafted (96 to 98 percent of the drafts that reached them), position 9 39 of 221 and positions 23 to 63 none of about 80, those being the first verifies, which fed every position before the pass price was known and missed within a few.
+  At 3.3 ms a row on a 20 ms pass position 9 pays from a chance of about 0.36; its share gave 0.18, so no request fed it again and the share never moved.
+  At `--draft-max 15` the same first verifies fed 15 positions and kept most of them, which is why the cap showed there.
+  Refuted: the price table (`PriceTable`), whose rare widths hold outlier means, never reaches the depth; `spec::draft_depths` reads `PassTimes`' line. No other cap is 8 there: decode columns 16 on the MI50 profile, a lone decoder's columns `--draft-max`, 64 draft rows, 64 mark rows.
+- **Done:** the failing test (`tests/sampler.cpp`, `censored_depth`: 80 verifies of 63 drafts missing within three, then verifies of 8 kept, priced at 16.7 ms and 3.3 ms a row, held at 8 on main), then the fix: a position's chance given every draft before it was kept, counted over the verifies that reached it (`Acceptance::reached_`), weighed with four verifies at the prior's, which is weighed with four at the chance measured at the last position either reached (one half for the first draft, one where none was reached), and the chance of keeping the drafts up to a position their product; the test's request now drafts 21.
+- **CPU checks (rig, CPUs 10-13, 06936f48e against this branch, the same build way):** `sampler` and `spec` pass; `server-passes` passes 2000 schedules; `server-passes-cpu` passes; `docs` and `dead-code` pass.
+  `server-spec` passes 10 of 11 runs, 5 alone and 5 beside `server-passes-cpu`; its first run, beside `server-passes-cpu`, failed the Flash split QSA private case on `cpu,cpu` ("unequal requests never drafted together"), which main passed in 13 of 13 runs, 5 of them under the same load; that case drafts 3 a verify on 16 columns with 3 marks, so the order the chances give, the one thing this change can move there, grants every draft either way; at 7e30cb7d0 it then passed 20 runs of 20, each beside `server-passes-cpu` run in a loop, which closes it as F2DEV asked.
+- **Before and after on cards (2026-10-30, renderD130, 131, 134 and 135, CPUs 4-7, default clocks, main 0.1.0+g06936f48ec69 against 0.1.0+g6a639e733c2c, both from detached clones, a fresh server an arm, interleaved main, fix, main, fix, greedy, `--drafter lookup,...` at `--draft-max 63`, DMAX's client; raw in /zpool1/llmx-ldev-scratch/sdev/ab):**
+  Every reply is identical across arms.
+  | Model, task | main (tok/s) | fix (tok/s) |
+  |---|---|---|
+  | Flash-Next UD-Q4_K_XL 2x2, spec.hpp edit, 1 user | 174.5, 178.4 | 176.9, 186.9 |
+  | Flash-Next 2x2, policy.hpp edit, 1 user | 192.6, 193.2 | 191.6, 189.5 |
+  | Flash-Next 2x2, five prose prompts, 1 user | 44.1 to 55.4 | 44.2 to 57.5 |
+  | Flash-Next 2x2, four prose users, aggregate | 79.8, 70.1 | 74.7, 70.9 |
+  | Qwen3.6-27B-MTP Q4_1 on two cards, spec.hpp edit after a copy whose history draft misses, 1 user | 38.5, 38.4 | 39.0, 35.9 |
+  | 27B-MTP, five prose prompts, 1 user | 15.7 to 28.0 | 16.0 to 23.4 |
+  | 27B-MTP, four prose users, aggregate | 33.0, 33.6 | 33.8, 34.1 |
+  The lock did not form on main in these fresh-server sessions: main's code edits drafted all 63 positions (Flash: 5660 of 6606 drafts past position 8; 27B: 100 verifies of 63), since the first deep history verifies there kept their drafts, so these runs show parity and no gain; a copy built to miss early (27B, 63 fed, 16 kept) did not lock main either, the pass price being unknown on many passes, which gives each request its cap.
+  The gain rests on production's table after hours of mixed load and on the CPU replay.
+- **Landing:** F2DEV approved landing at parity as a bug fix; the change lands by fast-forward as two commits, the failing test and then the fix, on a green hosted run.
+- **Left:** production runs it as a canary; the coordinator reads `/v1/health` drafted and kept by position past 8 after about a day of real load, and positions past 8 still never fed reopen it.
+- **Gotchas:** a record of no verifies keeps every draft at one half, as before, so a new request still ranks above one whose drafts miss; a first version extrapolated one half from the first position and starved such a request in `server-spec`'s column case.
+
 ## ROCm int8 and the prompt tile (2026-10-30, DDEV, branch feat/rocm-int8 on main 06936f48e (rebased from aca246a74 without a conflict; ROCm build, docs and dead-code and CTest 79/79 with rocm-runtime and backend-rocm on an MI50 rerun on the rebased head), the owner's order of 2026-10-30: int8 next as its own short step, built with fix 1 of the step 3 profile, landing by fast-forward on a green hosted run)
 
 **Goal:** `--dtype int8` on ROCm with Vulkan's meaning and its frozen budget (docs/PRECISION.md, section 5), and the prompt tile that served 91 percent of an 8B pp512 pass rebuilt once for both twin forms, each change profiled before and after.

@@ -56,11 +56,21 @@ def golden():
     return doc
 
 
+# A device whose backend lacks an op a fixture's layers issue refuses the model as it loads (docs/src/backends-backend.md, implements); that fixture is reported as refused rather than measured.
+REFUSAL = "which the backend of its device does not implement"
+
+
+class Refused(Exception):
+    pass
+
+
 def errors(model, fixture, dtype):
     """The largest logit and NLL errors of `model` under `dtype` against its golden, at the frozen bounds of the paths the runs witnessed; the paths seen."""
     worst, worst_nll, paths = 0.0, 0.0, set()
     for case in fixture["cases"]:
         p = common.run_process(["logits", model, case["text"], "--top", "257", "--dtype", dtype], cache="f32", text=True)
+        if p.returncode != 0 and REFUSAL in p.stderr:
+            raise Refused(p.stderr.strip().splitlines()[-1])
         assert p.returncode == 0, "int8 fixture logits failed: " + p.stdout + p.stderr
         bounds = common.hf_execution(p.stderr)
         paths |= witnessed(p.stderr)
@@ -95,7 +105,13 @@ def run():
         for fixture in doc["fixtures"]:
             model = os.path.join(directory, fixture["name"] + ".gguf")
             assert write_fixture(model, fixture["name"], fixture["seed"]) == fixture["file_sha256"], "int8 fixture %s changed" % fixture["name"]
-            logit, nll, paths = errors(model, fixture, "f16")
+            try:
+                logit, nll, paths = errors(model, fixture, "f16")
+            except Refused as e:
+                # Only the routed fixture's layers issue an op a device may lack; a dense fixture refused is a failure.
+                assert fixture["name"] == "moe", "int8 fixture %s refused: %s" % (fixture["name"], e)
+                report.append("%s refused by the device (%s)" % (fixture["name"], e))
+                continue
             report.append("%s f16 %.5f/%.6f" % (fixture["name"], logit, nll))
             assert "block-int8" not in paths, "f16 took 8-bit inputs"
             if native is None:

@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <cstring>
 #include <exception>
 #include <mutex>
@@ -112,9 +113,10 @@ public:
         // The dot module loads only where the build compiled it for this device: that is the capability flag, read from the code object rather than from the device's name.
         dev_.caps.integer_dot = f.hipModuleLoadData(&dot_module_, kInt16DotModule) == hipSuccess;
         if (!dev_.caps.integer_dot) dot_module_ = nullptr;
+        dev_.profile = profile_for(dev_.caps);
         // The prompt tile takes the dot where there is one; the row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
         for (size_t k = 0; k < kKernels; ++k) {
-            const hipModule_t m = k < kTwin16 ? module_ : k == kTile16 && dot_module_ ? dot_module_ : int16_module_;
+            const hipModule_t m = k < kTwin16 ? module_ : (k == kTile16 || k == kTile8) && dot_module_ ? dot_module_ : int16_module_;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -135,6 +137,7 @@ public:
         parts_ = {};
         twin_ = {};
         staged_ = {};
+        partials_ = {};
         args_ = {};
         stage_ = {};
         if (module_) (void)f.hipModuleUnload(module_);
@@ -158,7 +161,13 @@ public:
     bool supports_type(uint32_t type) const override { return type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_Q8_0; }
     bool implements(Op op) const override { return op == Op::norm_rope_partial; }
     // No kernel here chooses anything by a row's extent, so a generated token is a class and every prompt row another.
-    size_t row_class(size_t extent) const override { return extent == 1 ? 1 : 2; }
+    // A generated token is a class; a prompt's rows take the product tile, whose inner split follows the extent's column tiles (split_tiles_of), and from the profile's attention_tile_rows the attention tile, so each pair of those is a class.
+    size_t row_class(size_t extent) const override {
+        if (extent == 1) return 1;
+        return 2 + 2 * split_tiles_of(extent) + (extent >= dev_.profile.attention_tile_rows ? 1 : 0);
+    }
+    // The column tiles the tile's inner split is chosen for: the prompt's own, counted up to 512 rows, as the Vulkan tile counts them.
+    static size_t split_tiles_of(size_t extent) { return (std::min<size_t>(extent, 512) + kTileRows - 1) / kTileRows; }
 
     // HIP allocates on the calling thread's current device, and a backend may be called from several threads.
     BufferPtr alloc(size_t bytes, Memory where) override {
@@ -273,16 +282,34 @@ public:
     }
     // One twin of X serves every projection of the group.
     void matmul_group(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch, RowRuns runs, Dtype dtype) override {
+        // Up to three integer projections into device memory take one twin and one tile call, as the Vulkan tile takes them.
+        bool together = projections.size() > 1 && projections.size() <= 3 && nin && nbatch;
+        for (const Projection& p : projections)
+            together = together && p.weight.data.buffer && integer(p.weight, dtype) && p.rows && !as_rocm(*p.out.buffer).host_ptr();
+        if (together) {
+            Proj proj[3];
+            size_t n = 0;
+            span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
+            for (const Projection& p : projections) {
+                check_weight(p.weight, nin, "matrix");
+                span(*p.weight.data.buffer, p.weight.data.offset * sizeof(float), quant::row_bytes(p.weight.type, nin, p.rows));
+                span(*p.out.buffer, p.out.offset * sizeof(float), size_mul(size_mul(p.rows, nbatch), sizeof(float)));
+                proj[n++] = {bytes(p.weight.data), f32(p.out), p.rows};
+            }
+            return product_twin(proj, n, X, nin, nbatch, false, runs, true, dtype == Dtype::int8);
+        }
         bool twinned = false;
         for (const Projection& p : projections) {
             if (!p.weight.data.buffer) throw std::runtime_error("rocm: projection without storage");
             product(p.weight, X, p.out, nin, p.rows, nbatch, false, runs, dtype, !twinned);
-            twinned = twinned || int16(p.weight, dtype);
+            twinned = twinned || integer(p.weight, dtype);
         }
     }
-    std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32}; }
+    std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32, Dtype::int8}; }
     std::string dtype_path(Dtype dtype) const override {
         if (dtype == Dtype::f32) return "f32";
+        if (dtype == Dtype::int8)
+            return dev_.caps.integer_dot ? "block-int8 (Q8_0 rows, and tiles on the 8-bit dot), f32 (F32 weights)" : "block-int8 (Q8_0 rows and tiles), f32 (F32 weights)";
         return dev_.caps.integer_dot ? "block-int16 (Q8_0 rows, and tiles on the 16-bit dot), f32 (F32 weights)" : "block-int16 (Q8_0 rows and tiles), f32 (F32 weights)";
     }
     void embed(Slice dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) override {
@@ -418,17 +445,29 @@ public:
         if (!n_views) return;
         RocmKVStorage& s = storage(views[0]);
         if ((size_t)head_dim != s.dim() || (size_t)n_head_kv != s.heads()) throw std::runtime_error("rocm: attention outside the KV view");
-        std::vector<int32_t> table, firsts, ends;
+        // Views of a prompt whose extent reaches the profile's attention_tile_rows, causal and of 128-wide heads, take the tile kernel, the rest the chunk kernel: by the view's extent, its row class, never by how many rows the call holds.
+        const size_t tile_rows = dev_.profile.attention_tile_rows;
+        std::vector<int32_t> table, firsts, ends, wide;
+        int32_t row0 = 0, tiles = 0;
+        bool narrow = false;
         for (size_t vi = 0; vi < n_views; ++vi) {
             const KVView& view = views[vi];
             if (&storage(view) != &s) throw std::runtime_error("rocm: attention over views of different storages");
             const size_t used = s.check_view(view, layer, false);
             const int32_t first = (int32_t)table.size();
             table.insert(table.end(), view.blocks, view.blocks + used);
+            const size_t extent = view.extent ? view.extent : view.nq;
+            const bool tiled = view.causal && extent >= tile_rows && head_dim == 128 && view.nq;
+            if (tiled) {
+                wide.insert(wide.end(), {row0, (int32_t)view.nq, (int32_t)view.length, first, tiles});
+                tiles += (int32_t)((view.nq + 31) / 32);
+            }
+            narrow = narrow || (!tiled && view.nq);
             for (size_t b = 0; b < view.nq; ++b) {
                 firsts.push_back(first);
-                ends.push_back((int32_t)(view.causal ? view.length + b + 1 : view.length + view.nq));
+                ends.push_back(tiled ? 0 : (int32_t)(view.causal ? view.length + b + 1 : view.length + view.nq));
             }
+            row0 += (int32_t)view.nq;
         }
         const size_t rows = firsts.size();
         if (!rows) return;
@@ -445,34 +484,42 @@ public:
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens;
         int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
         float scale = 1.0f / std::sqrt((float)head_dim);
+        if (!wide.empty()) {
+            const int* wv = (const int*)arg(wide.data(), wide.size() * sizeof(int32_t));
+            int nviews = (int)(wide.size() / 5);
+            void* args[] = {&q, &o, &kc, &vc, &tp, &wv, &nviews, &n_head, &n_head_kv, &bt, &kh, &vh, &scale};
+            launch(kAttentionTile, (unsigned)(tiles * n_head), 1, args);
+        }
         // Each row's history in chunks of its own, merged in order (kernels/f32.hip), so its bits do not depend on the call.
         const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
         if (!parts_ || parts_->size() < need) {
             parts_ = alloc(need, Memory::device);
         }
         float* pp = (float*)as_rocm(*parts_).data();
-        // A call with a prompt's rows on F16 sides of heads up to 128 wide takes the tile kernel, a view's rows of one chunk split sharing each K and V tile; it gives the chunk kernel's bits.
-        // Generated rows alone keep the chunk kernel, whose blocks of one row and head each fill the device better.
-        const int per_tile = std::max(1, std::min(16, 32 / ratio));
-        const bool prompt = std::any_of(views, views + n_views, [](const KVView& v) { return v.nq > 1; });
-        if (prompt && kh && vh && head_dim <= 128 && ratio <= 32) {
-            std::vector<int32_t> tiles;
-            int last_count = -1, last_length = -1;
-            for (size_t r = 0; r < rows; ++r) {
-                const int count = std::min(16, (ends[r] + 255) / 256), length = ((ends[r] + count - 1) / count + 63) / 64 * 64;
-                const bool joins = !tiles.empty() && firsts[r] == firsts[(size_t)tiles[tiles.size() - 2]] && count == last_count &&
-                                   length == last_length && tiles.back() < per_tile;
-                if (joins) ++tiles.back();
-                else tiles.insert(tiles.end(), {(int32_t)r, 1});
-                last_count = count;
-                last_length = length;
+        // Rows of the tile kernel's views were answered above, and every kernel below skips them by their end of 0.
+        // Heads 128 wide take the per-row kernel, its splits chunks of each row's length, as many as the longest row needs (a shorter row's extra splits are empty), within the profile's limit.
+        if (narrow && head_dim == 128) {
+            const DeviceProfile& prof = dev_.profile;
+            int longest = 0;
+            for (int32_t e : ends) longest = std::max(longest, e);
+            int chunk = (int)prof.attention_split_chunk, max_parts = (int)prof.attention_split_max;
+            int nsplit = std::min(max_parts, std::max(1, (longest + chunk - 1) / chunk));
+            const size_t vneed = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul(130, sizeof(float)));
+            if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
+            float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
+            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp};
+            launch(kAttentionVec, (unsigned)(rows * n_head * nsplit), 1, args);
+            if (nsplit > 1) {
+                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit};
+                launch(kAttentionVecMerge, (unsigned)(rows * n_head), 1, margs);
             }
-            const int* tl = (const int*)arg(tiles.data(), tiles.size() * sizeof(int32_t));
-            void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &tl, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &scale};
-            launch(kAttentionTile, (unsigned)(tiles.size() / 2), (unsigned)n_head_kv, args, kChunks);
-        } else {
+            return;
+        }
+        if (narrow) {
             void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale};
             launch(kAttentionChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
+        } else {
+            return;
         }
         void* merge[] = {&pp, &o, &ep, &n_head, &head_dim};
         launch(kAttentionMerge, (unsigned)rows, (unsigned)n_head, merge);
@@ -481,15 +528,18 @@ public:
 
 private:
     // The F32 module's kernels, then from kTwin16 the int16 module's.
-    enum Kernel { kAdd, kSiluMul, kRmsNorm, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge,
-                  kTwin16, kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16, kKernels };
+    enum Kernel { kAdd, kSiluMul, kRmsNorm, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec, kAttentionVecMerge,
+                  kTwin16, kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
+                  kTwin8, kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_rms_norm_rows", "llmx_norm_rope", "llmx_gather",
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
-                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_twin16", "llmx_q8_0_rows16_1",
+                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge", "llmx_twin16", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
-                                                           "llmx_q8_0_tile16"};
+                                                           "llmx_q8_0_tile16", "llmx_twin8", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
+                                                           "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce"};
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
+    static constexpr size_t kTileOut = 64, kTileRows = 64;   // the prompt tile's outputs and rows (kernels/int16.hip)
 
     // Pinned host memory in slots the device reads in place or copies from: a slot is taken again once the ticket that last read it retires.
     struct Ring {
@@ -542,7 +592,7 @@ private:
         return *s;
     }
     // A Q8_0 product outside the F32 class reads the block-int16 twin; F32 weights and the F32 class read the activations as they are.
-    static bool int16(const WeightView& weight, Dtype dtype) { return weight.type == quant::GGML_TYPE_Q8_0 && dtype != Dtype::f32; }
+    static bool integer(const WeightView& weight, Dtype dtype) { return weight.type == quant::GGML_TYPE_Q8_0 && dtype != Dtype::f32; }
     void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, Dtype dtype,
                  bool twin) {
         check_weight(weight, nin, "matrix");
@@ -559,7 +609,10 @@ private:
             copy(*Y.buffer, Y.offset * sizeof(float), *staged_, 0, bytes_out);
             return;
         }
-        if (int16(weight, dtype)) return product16(weight, X, Y, nin, nout, nbatch, accumulate, runs, twin);
+        if (integer(weight, dtype)) {
+            const Proj one[1] = {{bytes(weight.data), f32(Y), nout}};
+            return product_twin(one, 1, X, nin, nbatch, accumulate, runs, twin, dtype == Dtype::int8);
+        }
         const uint8_t* w = bytes(weight.data);
         const float* x = f32(X);
         float* y = f32(Y);
@@ -570,27 +623,55 @@ private:
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
     }
-    // The twin of nbatch rows of X, then each run on its kernel: generated rows (extent 1) on the row kernel, kColumns at a time, prompt rows on the tile.
+    // A projection of a call: its weight rows, its output and their count.
+    struct Proj {
+        const uint8_t* w;
+        float* y;
+        size_t nout;
+    };
+    // The host's copy of the tile kernel's call (kernels/int16.hip, TileCall), field for field.
+    struct TileCall {
+        const uint8_t* w[3];
+        float* y[3];
+        unsigned long long nout[3];
+        unsigned start[3];
+        unsigned nproj;
+        unsigned long long nin, nrows;
+        int add;
+        unsigned kper, parts;
+        float* partials;
+    };
+    static_assert(sizeof(TileCall) == 128 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120, "TileCall is the kernel's layout");
+    // The blocks a part of a split tile call sums, by the Vulkan tile's rule (split_blocks): a split below the profile's workgroups per compute unit, keeping at least its fewest blocks a part.
+    size_t split_blocks(size_t workgroups, size_t nblk) const {
+        const DeviceProfile& p = dev_.profile;
+        const size_t per_cu = nblk * 32 < p.tile_narrow_nin ? p.tile_split_per_cu_narrow : p.tile_split_per_cu;
+        const size_t target = per_cu * std::max(1u, dev_.caps.compute_units);
+        if (workgroups >= target) return nblk;
+        const size_t parts = std::min((target + workgroups - 1) / workgroups, std::max<size_t>(1, nblk / std::max<size_t>(p.tile_split_min_blocks, 2)));
+        if (parts <= 1) return nblk;
+        const size_t kper = (((nblk + parts - 1) / parts) + 1) & ~size_t(1);
+        return std::min(kper, nblk);
+    }
+    // The twin of X, a block-int8 one for the int8 class, then each run on its kernel: generated rows on the row kernel, kColumns at a time, a prompt's rows on the tile.
     // Without runs a call of one row is a generated row and any other a prompt's.
-    void product16(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, bool twin) {
-        const size_t blocks = size_mul(nbatch, nin / 32);
-        const size_t qbytes = size_mul(blocks, 32 * sizeof(int16_t)), need = size_add(qbytes, size_mul(blocks, sizeof(float)));
+    void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
+        const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
+        const size_t qbytes = size_mul(blocks, 32 * qsize), need = size_add(qbytes, size_mul(blocks, sizeof(float)));
         if (twin) {
             if (!twin_ || twin_->size() < need) {
                 twin_ = alloc(need, Memory::device);
             }
             const float* x = f32(X);
-            int16_t* q = (int16_t*)as_rocm(*twin_).data();
-            float* d = (float*)((uint8_t*)q + qbytes);
+            uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
+            float* d = (float*)(q + qbytes);
             unsigned long long nb = blocks;
             void* args[] = {&x, &q, &d, &nb};
-            launch(kTwin16, (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
+            launch(int8 ? kTwin8 : kTwin16, (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
         }
-        const uint8_t* w = bytes(weight.data);
-        const int16_t* q0 = (const int16_t*)as_rocm(*twin_).data();
-        const float* d0 = (const float*)((const uint8_t*)q0 + qbytes);
-        float* y0 = f32(Y);
-        unsigned long long ni = nin, no = nout;
+        const uint8_t* q0 = (const uint8_t*)as_rocm(*twin_).data();
+        const float* d0 = (const float*)(q0 + qbytes);
+        unsigned long long ni = nin;
         int add = accumulate;
         const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
         const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
@@ -600,25 +681,66 @@ private:
             if (end <= begin || end > nbatch) throw std::runtime_error("rocm: row runs out of order or past the call");
             for (size_t at = begin; at < end;) {
                 const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
-                const int16_t* q = q0 + at * nin;
+                const uint8_t* q = q0 + at * nin * qsize;
                 const float* d = d0 + at * (nin / 32);
-                float* y = y0 + at * nout;
                 if (all.runs[r].extent == 1) {
-                    int ncols = (int)rows;
-                    void* args[] = {&w, &q, &d, &y, &ni, &no, &ncols, &add};
-                    const Kernel build = rows <= 1 ? kRows16x1 : rows <= 2 ? kRows16x2 : rows <= 4 ? kRows16x4 : rows <= 8 ? kRows16x8 : kRows16x16;
-                    launch(build, (unsigned)((nout + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                    for (size_t pi = 0; pi < nproj; ++pi) {
+                        const uint8_t* w = proj[pi].w;
+                        float* y = proj[pi].y + at * proj[pi].nout;
+                        unsigned long long no = proj[pi].nout;
+                        int ncols = (int)rows;
+                        void* args[] = {&w, &q, &d, &y, &ni, &no, &ncols, &add};
+                        const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
+                        static constexpr Kernel builds[2][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
+                                                                {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16}};
+                        launch(builds[int8 ? 1 : 0][build], (unsigned)((no + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                    }
                 } else {
-                    unsigned long long nr = rows;
-                    void* args[] = {&w, &q, &d, &y, &ni, &no, &nr, &add};
-                    launch(kTile16, (unsigned)((nout + 15) / 16), (unsigned)((rows + 15) / 16), args);
+                    // The split follows the run's extent, its row class, never the rows this call holds.
+                    tile(proj, nproj, q, d, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);
                 }
                 at += rows;
             }
             begin = end;
         }
         if (begin != nbatch) throw std::runtime_error("rocm: row runs short of the call");
-        record_matrix_path(MatrixPath::block_int16);
+        record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
+    }
+    // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
+    void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, size_t at, size_t rows, size_t tiles, size_t nin, int add, bool int8) {
+        TileCall c{};
+        size_t gx = 0, outputs = 0;
+        for (size_t pi = 0; pi < nproj; ++pi) {
+            c.w[pi] = proj[pi].w;
+            c.y[pi] = proj[pi].y + at * proj[pi].nout;
+            c.nout[pi] = proj[pi].nout;
+            c.start[pi] = (unsigned)gx;
+            gx += (proj[pi].nout + kTileOut - 1) / kTileOut;
+            outputs += proj[pi].nout;
+        }
+        c.nproj = (unsigned)nproj;
+        c.nin = nin;
+        c.nrows = rows;
+        c.add = add;
+        const size_t nblk = nin / 32, kper = split_blocks(gx * tiles, nblk);
+        c.kper = (unsigned)kper;
+        c.parts = (unsigned)((nblk + kper - 1) / kper);
+        if (c.parts > 1) {
+            const size_t need = size_mul(size_mul(size_mul(c.parts, rows), outputs), sizeof(float));
+            if (!partials_ || partials_->size() < need) partials_ = alloc(need, Memory::device);
+            c.partials = (float*)as_rocm(*partials_).data();
+        }
+        void* args[] = {&c, &q, &d};
+        launch(int8 ? kTile8 : kTile16, (unsigned)gx, (unsigned)((rows + kTileRows - 1) / kTileRows), args, c.parts);
+        if (c.parts > 1) {
+            size_t g = 0;
+            for (size_t pi = 0; pi < nproj; ++pi) {
+                c.start[pi] = (unsigned)g;
+                g += (proj[pi].nout * rows + kThreads - 1) / kThreads;
+            }
+            void* rargs[] = {&c};
+            launch(kTileReduce, (unsigned)g, 1, rargs);
+        }
     }
     void gather(Slice dst, CSlice src, size_t width, const uint32_t* ids, size_t count) {
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(count, width), sizeof(float)));
@@ -667,6 +789,7 @@ private:
     BufferPtr parts_;  // attention's chunk partials, grown as calls need
     BufferPtr twin_;   // the block-int16 twin of the last product's activations, grown as calls need
     BufferPtr staged_;   // a product bound for host memory, formed here first
+    BufferPtr partials_;   // the parts of a split tile call, grown as calls need
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};

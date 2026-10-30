@@ -14,6 +14,7 @@ struct RocmDevice {
     DeviceCaps caps;   // the wave width and units the kernels are shaped by, and the device and runtime a measured profile is keyed by
     std::string arch, pci_bus, pci_root;
     size_t shared_per_block = 0, total_memory = 0;
+    DeviceProfile profile;   // profile_for(caps), taken once the backend knows the integer dot
 };
 
 // The device HIP numbers `index`, refused as unavailable where the runtime has no such device.

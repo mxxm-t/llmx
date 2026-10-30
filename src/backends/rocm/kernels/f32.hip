@@ -218,116 +218,228 @@ extern "C" __global__ void llmx_attention_chunk(const float* Q, float* part, con
     }
 }
 
-// The chunk kernel's arithmetic for a tile of a view's rows that share their chunks (one count and length), and the query heads of one KV head: each 64-position tile of K, then of V, is read into shared memory once for every (row, head) pair of the block.
-// Each pair's score, tile maximum, sum and accumulators are formed as llmx_attention_chunk forms them, the same operations in the same order, so a row gives the same bits in either kernel and in any tile.
-// Block (tile, KV head, chunk); `tiles` gives each tile's first row and row count, at most 32 pairs a tile; F16 sides and heads up to 128 wide.
-extern "C" __global__ void llmx_attention_tile(const float* Q, float* part, const __half* kc, const __half* vc, const int* table, const int* firsts,
-                                               const int* ends, const int* tiles, int n_head, int ratio, int heads_kv, int dim, int bt, float scale) {
-    __shared__ __half kv[64][130];   // a row padded by two halves, so the score phase's lanes on consecutive positions fall on different banks
-    __shared__ float qs[32][128];
-    __shared__ float sc[32][64];
-    __shared__ float red[32][64];
-    __shared__ float ms[32], ls[32], as[32];
-    __shared__ int lasts[32];
-    const int kvh = blockIdx.y, c = blockIdx.z, t = threadIdx.x;
-    const int r0 = tiles[2 * blockIdx.x], nr = tiles[2 * blockIdx.x + 1], pairs = nr * ratio;
-    int count, length;
-    attention_chunks(ends[r0], count, length);
-    if (c >= count) return;
-    const int first = c * length;
-    int tile_last = first;
-    for (int i = 0; i < nr; ++i) tile_last = max(tile_last, min(ends[r0 + i], first + length));
-    const int* blocks = table + firsts[r0];
-    // Pair p is row r0 + p / ratio and head kvh * ratio + p % ratio.
-    for (int e = t; e < pairs * dim; e += 256) {
-        const int p = e / dim, x = e % dim;
-        qs[p][x] = Q[((unsigned long long)(r0 + p / ratio) * n_head + kvh * ratio + p % ratio) * dim + x];
-    }
-    if (t < pairs) {
-        ms[t] = -INFINITY;
-        ls[t] = 0.0f;
-        lasts[t] = min(ends[r0 + t / ratio], first + length);
-    }
-    // Accumulators: dimension t % 128 of pairs t / 128, t / 128 + 2, ...
-    const int d = t % 128, pg = t / 128;
-    float acc[16];
-    for (int i = 0; i < 16; ++i) acc[i] = 0.0f;
-    const auto load = [&](const __half* src, int base) {
-        for (int e = t; e < 64 * dim; e += 256) {
-            const int j = e / dim, x = e % dim, pos = base + j;
-            if (pos < tile_last) kv[j][x] = src[(((unsigned long long)blocks[pos / bt] * heads_kv + kvh) * bt + pos % bt) * dim + x];
+// Eight values of a K or V row from `i`, as floats: one 16-byte load of halves, or two of floats.
+__device__ inline void load8(const void* base, unsigned long long i, bool half, float v[8]) {
+    if (half) {
+        const uint4 w = *(const uint4*)((const __half*)base + i);
+        const unsigned words[4] = {w.x, w.y, w.z, w.w};
+        for (int k = 0; k < 4; ++k) {
+            v[2 * k] = __half2float(__ushort_as_half((unsigned short)(words[k] & 0xffff)));
+            v[2 * k + 1] = __half2float(__ushort_as_half((unsigned short)(words[k] >> 16)));
         }
-    };
-    __syncthreads();
-    for (int base = first; base < tile_last; base += 64) {
-        load(kc, base);
+    } else {
+        const float4 a = *(const float4*)((const float*)base + i), b = *(const float4*)((const float*)base + i + 4);
+        v[0] = a.x, v[1] = a.y, v[2] = a.z, v[3] = a.w, v[4] = b.x, v[5] = b.y, v[6] = b.z, v[7] = b.w;
+    }
+}
+
+// Causal attention of a prompt's rows (the Vulkan tile's design, attention_tile.comp): a block a tile of 32 query rows of one view and one head, eight lanes a row each holding 16 dimensions of the scaled query, K and V through shared memory 16 tokens at a time.
+// A row's scores are partial dots over its lanes folded by a butterfly, its softmax runs online over the tiles from token 0 in order, so a row's result depends on its own history alone, whatever rows share its tile; heads 128 wide.
+// `views` holds, a view each, its first row, rows, history, first block in `table` and first tile; `tiles` is their total.
+extern "C" __global__ void llmx_attention_tile(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* views, int nviews,
+                                               int n_head, int heads_kv, int bt, int k_half, int v_half, float scale) {
+    constexpr int DIM = 128, TQ = 32, TK = 16, OWN = TK / 8, RUNS = DIM / 32;
+    __shared__ float4 ks[TK * DIM / 4];
+    __shared__ float4 vs[TK * DIM / 4];
+    __shared__ float ps[TQ * TK];
+    const int wg = blockIdx.x;
+    int v = 0;
+    for (int i = 1; i < nviews; ++i)
+        if (wg >= views[5 * i + 4] * n_head) v = i;
+    const int row0 = views[5 * v], nq = views[5 * v + 1], hist = views[5 * v + 2];
+    const int* blocks = table + views[5 * v + 3];
+    const int local = wg - views[5 * v + 4] * n_head, tile = local / n_head, h = local % n_head;
+    const int kvh = h / (n_head / heads_kv);
+    const int lid = threadIdx.x, r = lid >> 3, lane = lid & 7;
+    const int b = tile * TQ + r;
+    const bool live = b < nq;
+    const unsigned long long qbase = (unsigned long long)(row0 + (b < nq ? b : nq - 1)) * n_head * DIM + (unsigned long long)h * DIM;
+    float4 qv[RUNS], acc[RUNS];
+    for (int k = 0; k < RUNS; ++k) {
+        const int d = 32 * k + 4 * lane;
+        qv[k] = make_float4(Q[qbase + d] * scale, Q[qbase + d + 1] * scale, Q[qbase + d + 2] * scale, Q[qbase + d + 3] * scale);
+        acc[k] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    float m = -INFINITY, l = 0.0f;
+    const int tile_end = min(hist + tile * TQ + TQ, hist + nq), my_end = hist + b + 1;
+    for (int t0 = 0; t0 < tile_end; t0 += TK) {
+        // Eight values a load, zero past the tile's last token so a masked score meets a finite value.
+        for (int i = lid; i < TK * DIM / 8; i += kThreads) {
+            const int j = i / (DIM / 8), d = (i % (DIM / 8)) * 8, t = t0 + j;
+            float kv8[8] = {0, 0, 0, 0, 0, 0, 0, 0}, vv8[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+            if (t < tile_end) {
+                const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + d;
+                load8(kc, at, k_half, kv8);
+                load8(vc, at, v_half, vv8);
+            }
+            const int s4 = (j * DIM + d) / 4;
+            ks[s4] = make_float4(kv8[0], kv8[1], kv8[2], kv8[3]);
+            ks[s4 + 1] = make_float4(kv8[4], kv8[5], kv8[6], kv8[7]);
+            vs[s4] = make_float4(vv8[0], vv8[1], vv8[2], vv8[3]);
+            vs[s4 + 1] = make_float4(vv8[4], vv8[5], vv8[6], vv8[7]);
+        }
         __syncthreads();
-        // Scores: four partial sums over every fourth dimension, folded as the chunk kernel's two shuffles fold them.
-        for (int e = t; e < pairs * 64; e += 256) {
-            const int p = e / 64, j = e % 64, pos = base + j;
-            float s = -INFINITY;
-            if (pos < lasts[p]) {
-                float p0 = 0.0f, p1 = 0.0f, p2 = 0.0f, p3 = 0.0f;
-                for (int x = 0; x < dim; x += 4) {
-                    p0 = fmaf(qs[p][x], __half2float(kv[j][x]), p0);
-                    p1 = fmaf(qs[p][x + 1], __half2float(kv[j][x + 1]), p1);
-                    p2 = fmaf(qs[p][x + 2], __half2float(kv[j][x + 2]), p2);
-                    p3 = fmaf(qs[p][x + 3], __half2float(kv[j][x + 3]), p3);
+        // Partial dots eight tokens at a time over the lane's dimensions, then the butterfly, which leaves token 8 g + lane's score in this lane.
+        float sc[OWN];
+        float mt = -INFINITY;
+        for (int g = 0; g < OWN; ++g) {
+            float part[8];
+            for (int j = 0; j < 8; ++j) {
+                float s = 0.0f;
+                for (int k = 0; k < RUNS; ++k) {
+                    const float4 kk = ks[(8 * g + j) * (DIM / 4) + 8 * k + lane];
+                    s = fmaf(qv[k].x, kk.x, s);
+                    s = fmaf(qv[k].y, kk.y, s);
+                    s = fmaf(qv[k].z, kk.z, s);
+                    s = fmaf(qv[k].w, kk.w, s);
                 }
-                s = ((p0 + p1) + (p2 + p3)) * scale;
+                part[j] = s;
             }
-            sc[p][j] = s;
-            red[p][j] = s;
-        }
-        __syncthreads();
-        load(vc, base);
-        // Each pair's tile maximum and then its sum, the chunk kernel's trees over the 64 scores.
-        for (int w = 32; w > 0; w /= 2) {
-            for (int e = t; e < pairs * w; e += 256) red[e / w][e % w] = fmaxf(red[e / w][e % w], red[e / w][e % w + w]);
-            __syncthreads();
-        }
-        // The running maximum taken with the tile's, kept in as[] until the sum is formed.
-        if (t < pairs) as[t] = fmaxf(ms[t], red[t][0]);
-        __syncthreads();
-        for (int e = t; e < pairs * 64; e += 256) sc[e / 64][e % 64] = expf(sc[e / 64][e % 64] - as[e / 64]);
-        __syncthreads();
-        for (int e = t; e < pairs * 64; e += 256) red[e / 64][e % 64] = sc[e / 64][e % 64];
-        __syncthreads();
-        for (int w = 32; w > 0; w /= 2) {
-            for (int e = t; e < pairs * w; e += 256) red[e / w][e % w] += red[e / w][e % w + w];
-            __syncthreads();
-        }
-        if (t < pairs && base < lasts[t]) {
-            const float a = expf(ms[t] - as[t]);
-            ls[t] = ls[t] * a + red[t][0];
-            ms[t] = as[t];
-            as[t] = a;
-        }
-        __syncthreads();
-        if (d < dim)
-            for (int i = 0, p = pg; p < pairs; ++i, p += 2) {
-                const int last = lasts[p];
-                if (base >= last) continue;
-                float v = acc[i] * as[p];
-                for (int j = 0; j < 64 && base + j < last; ++j) v = fmaf(sc[p][j], __half2float(kv[j][d]), v);
-                acc[i] = v;
+            for (int half = 4; half >= 1; half /= 2) {
+                const bool upper = (lane & half) != 0;
+                for (int j = 0; j < half; ++j) {
+                    const float lo = part[j], hi = part[j + half];
+                    part[j] = (upper ? hi : lo) + __shfl_xor(upper ? lo : hi, half, 8);
+                }
             }
+            sc[g] = t0 + 8 * g + lane < my_end ? part[0] : -INFINITY;
+            mt = fmaxf(mt, sc[g]);
+        }
+        mt = fmaxf(mt, __shfl_xor(mt, 1, 8));
+        mt = fmaxf(mt, __shfl_xor(mt, 2, 8));
+        mt = fmaxf(mt, __shfl_xor(mt, 4, 8));
+        const float mn = fmaxf(m, mt);
+        // A row with nothing unmasked yet keeps m at -inf; its weights are zero rather than the NaN of inf - inf.
+        const float corr = mn == -INFINITY ? 1.0f : expf(m - mn);
+        float sum = 0.0f;
+        for (int g = 0; g < OWN; ++g) {
+            const float w = sc[g] == -INFINITY ? 0.0f : expf(sc[g] - mn);
+            ps[r * TK + 8 * g + lane] = w;
+            sum += w;
+        }
+        sum += __shfl_xor(sum, 1, 8);
+        sum += __shfl_xor(sum, 2, 8);
+        sum += __shfl_xor(sum, 4, 8);
+        l = l * corr + sum;
+        m = mn;
+        for (int k = 0; k < RUNS; ++k) acc[k] = make_float4(acc[k].x * corr, acc[k].y * corr, acc[k].z * corr, acc[k].w * corr);
+        __syncthreads();
+        // The weighted sum of the tile's values.
+        for (int j = 0; j < TK; ++j) {
+            const float w = ps[r * TK + j];
+            for (int k = 0; k < RUNS; ++k) {
+                const float4 vv = vs[j * (DIM / 4) + 8 * k + lane];
+                acc[k] = make_float4(fmaf(w, vv.x, acc[k].x), fmaf(w, vv.y, acc[k].y), fmaf(w, vv.z, acc[k].z), fmaf(w, vv.w, acc[k].w));
+            }
+        }
         __syncthreads();
     }
-    if (d < dim)
-        for (int i = 0, p = pg; p < pairs; ++i, p += 2)
-            part[(((unsigned long long)(r0 + p / ratio) * n_head + kvh * ratio + p % ratio) * 16 + c) * (dim + 2) + 2 + d] = acc[i];
-    if (t < pairs) {
-        float* out = part + (((unsigned long long)(r0 + t / ratio) * n_head + kvh * ratio + t % ratio) * 16 + c) * (dim + 2);
-        out[0] = ms[t];
-        out[1] = ls[t];
+    if (live)
+        for (int k = 0; k < RUNS; ++k) {
+            const int d = 32 * k + 4 * lane;
+            O[qbase + d] = acc[k].x / l;
+            O[qbase + d + 1] = acc[k].y / l;
+            O[qbase + d + 2] = acc[k].z / l;
+            O[qbase + d + 3] = acc[k].w / l;
+        }
+}
+
+// Causal attention of rows that attend one at a time, generated rows and short prompts (the Vulkan per-row attention's design, attention_vec.comp), heads 128 wide: a block a (row, head, split), 16 streams of 16 lanes, stream i taking tokens start + i, start + i + 16 and on, a lane 8 dimensions.
+// A token's score is the lanes' partial dot folded across its 16 lanes, each stream's softmax runs online over its tokens, and the streams merge in stream order; a row's splits are chunks of its own length (32 tokens, doubled until at most max_parts), so it computes the same beside any rows.
+// With one split the result goes to O, else to partials at (row * n_head + head) * nsplit + split, (dim + 2) floats each, for llmx_attention_vec_merge; a row whose end is 0 is the tile kernel's.
+extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
+                                              int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
+                                              float* partials) {
+    constexpr int DIM = 128, LANES = 16, STREAMS = kThreads / LANES;
+    __shared__ float ms[STREAMS], ls[STREAMS];
+    __shared__ float accs[STREAMS * DIM];
+    const int split = blockIdx.x % nsplit, rh = blockIdx.x / nsplit, r = rh / n_head, h = rh % n_head;
+    const int len = ends[r];
+    if (len == 0) return;
+    const int kvh = h / (n_head / heads_kv), lid = threadIdx.x, stream = lid / LANES, d0 = (lid % LANES) * 8;
+    const int* blocks = table + firsts[r];
+    const unsigned long long qrow = ((unsigned long long)r * n_head + h) * DIM;
+    float qv[8], acc[8], m = -INFINITY, l = 0.0f;
+    for (int e = 0; e < 8; ++e) {
+        qv[e] = Q[qrow + d0 + e];
+        acc[e] = 0.0f;
     }
+    int chunk = chunk0;
+    while ((len + chunk - 1) / chunk > max_parts) chunk *= 2;
+    const int start = min(split * chunk, len), end = min(len, start + chunk);
+    for (int t = start + stream; t < end; t += STREAMS) {
+        const unsigned long long at = (((unsigned long long)blocks[t / bt] * heads_kv + kvh) * bt + t % bt) * DIM + d0;
+        float k8[8], v8[8];
+        load8(kc, at, k_half, k8);
+        load8(vc, at, v_half, v8);
+        float part = 0.0f;
+        for (int e = 0; e < 8; ++e) part += qv[e] * k8[e];
+        for (int o = LANES / 2; o > 0; o /= 2) part += __shfl_xor(part, o, LANES);
+        const float sc = part * scale, mn = fmaxf(m, sc);
+        const float corr = expf(m - mn), w = expf(sc - mn);
+        l = l * corr + w;
+        for (int e = 0; e < 8; ++e) acc[e] = acc[e] * corr + w * v8[e];
+        m = mn;
+    }
+    if (lid == stream * LANES) {
+        ms[stream] = m;
+        ls[stream] = l;
+    }
+    for (int e = 0; e < 8; ++e) accs[stream * DIM + d0 + e] = acc[e];
+    __syncthreads();
+    if (lid >= DIM) return;
+    float M = ms[0];
+    for (int i = 1; i < STREAMS; ++i) M = fmaxf(M, ms[i]);
+    float L = 0.0f, A = 0.0f;
+    // A stream that saw no token holds -inf and zeros and adds nothing; exp(-inf - -inf) must never be formed.
+    for (int i = 0; i < STREAMS; ++i) {
+        if (isinf(ms[i])) continue;
+        const float c = expf(ms[i] - M);
+        L += ls[i] * c;
+        A += accs[i * DIM + lid] * c;
+    }
+    if (nsplit == 1) {
+        O[qrow + lid] = A / L;
+    } else {
+        float* out = partials + ((unsigned long long)rh * nsplit + split) * (DIM + 2);
+        out[2 + lid] = A;
+        if (lid == 0) {
+            out[0] = M;
+            out[1] = L;
+        }
+    }
+}
+
+// The splits of one (row, head) merged (the Vulkan split merge's order, attention_merge.comp): the largest maximum, then the sums in split order, a split without tokens weighing nothing.
+extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit) {
+    constexpr int DIM = 128;
+    __shared__ float sw[kThreads], sl[kThreads];
+    const int rh = blockIdx.x, r = rh / n_head, lid = threadIdx.x;
+    if (ends[r] == 0) return;
+    const float* base = partials + (unsigned long long)rh * nsplit * (DIM + 2);
+    float M = -INFINITY;
+    for (int i = 0; i < nsplit; ++i) M = fmaxf(M, base[i * (DIM + 2)]);
+    if (lid < nsplit) {
+        const float mi = base[lid * (DIM + 2)];
+        sw[lid] = isinf(mi) ? 0.0f : expf(mi - M);
+        sl[lid] = base[lid * (DIM + 2) + 1];
+    }
+    __syncthreads();
+    if (lid >= DIM) return;
+    float L = 0.0f, A = 0.0f;
+    for (int i = 0; i < nsplit; ++i) {
+        const float c = sw[i];
+        if (c == 0.0f) continue;
+        L += sl[i] * c;
+        A += base[i * (DIM + 2) + 2 + lid] * c;
+    }
+    O[(unsigned long long)rh * DIM + lid] = A / L;
 }
 
 // A block a (row, head): the row's chunks merged in order, each scaled to the largest maximum.
 extern "C" __global__ void llmx_attention_merge(const float* part, float* out, const int* ends, int n_head, int dim) {
     const int r = blockIdx.x, h = blockIdx.y, t = threadIdx.x;
-    if (t >= dim) return;
+    if (t >= dim || ends[r] == 0) return;   // an end of 0 marks a row the tile kernel answered
     int count, length;
     attention_chunks(ends[r], count, length);
     const float* p = part + ((unsigned long long)r * n_head + h) * 16 * (dim + 2);

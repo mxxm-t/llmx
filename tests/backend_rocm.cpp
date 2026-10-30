@@ -463,7 +463,7 @@ void twin_products(Backend& g, Dtype dt) {
     {
         const size_t cols = 64;
         bool alone = true, added = true, grouped = true;
-        for (size_t w : {size_t(4096), size_t(1280)}) {
+        for (size_t w : {size_t(4096), size_t(1280), size_t(1312)}) {
             const std::vector<uint8_t> mw = q8_matrix(w, nout, 61);
             const std::vector<float> xw = row_classes::values(w * cols, 62), base = row_classes::values(nout * cols, 63);
             auto mwb = g.adopt(mw.data(), mw.size()), xwb = g.adopt(xw.data(), xw.size() * 4);
@@ -498,7 +498,7 @@ void twin_products(Backend& g, Dtype dt) {
                 }
             }
         }
-        require(alone, form + ": every decode column of 1 to 64 generated rows is the column alone, bit for bit, rows 4096 and 1280 wide");
+        require(alone, form + ": every decode column of 1 to 64 generated rows is the column alone, bit for bit, rows 4096, 1280 and 1312 wide (41 blocks, the int8 class's quarter layout)");
         require(added, form + ": every decode column of the residual add at 1 to 64 rows is the column alone, bit for bit");
         require(grouped, form + ": every decode column of a group of three projections at 1 to 64 rows is the column alone, bit for bit");
     }
@@ -536,6 +536,57 @@ void twin_products(Backend& g, Dtype dt) {
         out.push_back(read(g, *ys, nout * four));
     }
     require(row_classes::same_within_classes(g, out, "a Q8_0 product, " + form) > 0, "the row-class check compared pairs, " + form);
+}
+
+// The twins producers write beside their outputs, once a product has read one in the class: a product of a norm's or silu_mul's output gives the bits of the same product of a copy of it, whose twin the product makes itself.
+// A write into the output between them, or a product into it, drops the producer's twin.
+void producer_twins(Backend& g, Dtype dt) {
+    const std::string form = dt == Dtype::int8 ? "8-bit" : "16-bit";
+    const size_t nout = 40;
+    bool norms = true, silus = true, dropped = true;
+    // Rows of 1024, 4096 and 5120 take the held builds of 16 and 32 values a thread, 9216 the plain one, and a stride past n writes no twin.
+    struct Case { size_t n, rows, stride, extent; };
+    for (const Case cs : {Case{4096, 1, 4096, 1}, Case{4096, 3, 4096, 3}, Case{5120, 2, 5120, 1}, Case{9216, 2, 9216, 2}, Case{1024, 2, 1024, 2}, Case{4096, 2, 4200, 1}}) {
+        const size_t n = cs.n, rows = cs.rows, stride = cs.stride;
+        const std::vector<float> x = row_classes::values(rows * stride, 91), w = row_classes::values(n, 92), up = row_classes::values(rows * stride, 93);
+        const std::vector<uint8_t> m = q8_matrix(n, nout, 94);
+        auto xb = g.adopt(x.data(), x.size() * 4), wb = g.adopt(w.data(), w.size() * 4), ub = g.adopt(up.data(), up.size() * 4), mb = g.adopt(m.data(), m.size());
+        auto ob = g.alloc(rows * stride * 4), cb = g.alloc(rows * n * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
+        const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+        const RowRun run[1] = {{rows, cs.extent}};
+        // The copy is dense, so the product of a strided output reads row 0 alone.
+        const size_t prows = stride == n ? rows : 1;
+        const RowRun prun[1] = {{prows, prows == 1 ? size_t(1) : cs.extent}};
+        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
+        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, prows, {prun, 1}, dt);
+        g.copy(*cb, 0, *ob, 0, prows * n * 4);
+        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, prows, {prun, 1}, dt);
+        norms = norms && same(read(g, *y, nout * prows), read(g, *yc, nout * prows));
+        if (stride != n) continue;
+        g.silu_mul({ob.get(), 0}, {xb.get(), 0}, {ub.get(), 0}, rows * n);
+        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
+        g.copy(*cb, 0, *ob, 0, rows * n * 4);
+        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
+        silus = silus && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+        // A write into the norm's output: the product reads the written values.
+        g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
+        g.write(*ob, 0, up.data(), rows * n * 4);
+        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
+        g.matmul(wv, {ub.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
+        dropped = dropped && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+        // A product into the norm's output, then a product of it.
+        if (n >= nout * rows) {
+            g.rms_norm_rows({ob.get(), 0}, {xb.get(), 0}, {wb.get(), 0}, rows, n, stride, 1e-6f);
+            g.matmul(wv, {ob.get(), 0}, {ob.get(), 0}, n, nout, 1, {}, dt);
+            g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, n, nout, rows, {run, 1}, dt);
+            g.copy(*cb, 0, *ob, 0, rows * n * 4);
+            g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, n, nout, rows, {run, 1}, dt);
+            dropped = dropped && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+        }
+    }
+    require(norms, form + ": a product of rms_norm_rows' output gives the bits of a product of its copy");
+    require(silus, form + ": a product of silu_mul's output gives the bits of a product of its copy");
+    require(dropped, form + ": a write or a product into a producer's output drops its twin");
 }
 
 // A prompt's rows whose histories cross a change in the attention's chunks (256 positions, and 4096 where the count stops at 16), and at 16K a prompt of 40 rows on the attention tile: each row the same bits as that row alone in its class.
@@ -657,7 +708,9 @@ int main() {
         attention(*g, *c);
         classes(*g);
         twin_products(*g, Dtype::f16);
+        producer_twins(*g, Dtype::f16);
         twin_products(*g, Dtype::int8);
+        producer_twins(*g, Dtype::int8);
         host_output(*g);
         attention_chunks(*g);
         failure();

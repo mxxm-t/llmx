@@ -1,4 +1,4 @@
-// The dense F32 kernels of the ROCm backend's first step (docs/ROCM.md, Delivery checkpoints, step 2): every sum is F32 in a fixed order that depends on the row alone, never on how many rows a call holds.
+// The dense F32 kernels of the ROCm backend (docs/ROCM.md, Delivery checkpoints, step 2) and the activation twins the quantized products read: every sum is F32 in a fixed order that depends on the row alone, never on how many rows a call holds.
 // A block reduction folds lane partials in one tree whatever the wave width, so a row gives the same bits in any call.
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
@@ -7,14 +7,21 @@ namespace {
 
 constexpr int kThreads = 256;
 
-// The sum of each thread's value over the block, the same tree for every block.
+// The sum of each thread's value over the block, the same tree for every block and wave width: levels across waves in shared memory, the rest by shuffles in wave 0, each adding the pair the shared-memory level would.
 __device__ float block_sum(float v, float* lds) {
     lds[threadIdx.x] = v;
     __syncthreads();
-    for (int s = kThreads / 2; s > 0; s >>= 1) {
+    int s = kThreads / 2;
+    for (; s >= warpSize; s >>= 1) {
         if ((int)threadIdx.x < s) lds[threadIdx.x] += lds[threadIdx.x + s];
         __syncthreads();
     }
+    if ((int)threadIdx.x < warpSize) {
+        float t = lds[threadIdx.x];
+        for (; s > 0; s >>= 1) t += __shfl_down(t, s);
+        if (threadIdx.x == 0) lds[0] = t;
+    }
+    __syncthreads();
     const float r = lds[0];
     __syncthreads();
     return r;
@@ -28,7 +35,103 @@ __device__ void rms_norm_row(float* dst, const float* src, const float* w, int n
     for (int i = threadIdx.x; i < n; i += kThreads) dst[i] = src[i] * (r * w[i]);
 }
 
+// The largest magnitude of the 32 lanes of a twin block, a value a lane.
+__device__ inline float block_amax(float v) {
+    float a = fabsf(v);
+    for (int o = 16; o > 0; o >>= 1) a = fmaxf(a, __shfl_xor(a, o, 32));
+    return a;
+}
+
+// Value v of a twin block whose 32 lanes give amax, at L levels: d the block's scale and q the value scaled to L (docs/STATUS.md, the twin's rule), L 32767 for block-int16 and 127 for block-int8; lane 0 writes d.
+template <typename QT, int L>
+__device__ inline void twin_value(float v, float amax, QT* q, float* d, int lane) {
+    if (amax == 0.0f) {
+        *q = 0;
+        if (lane == 0) *d = 0.0f;
+        return;
+    }
+    int e = 0;
+    (void)frexpf(amax, &e);   // amax = m 2^e, m in [0.5, 1)
+    const int s = (amax >= 0x1p-100f && amax <= 0x1p100f) ? 0 : 1 - e;
+    const float an = ldexpf(amax, s), xn = ldexpf(v, s);
+    const float r = xn * ((float)L / an);
+    float t = floorf(fabsf(r) + 0.5f);
+    t = fminf(t, (float)L);
+    *q = (QT)(r < 0.0f ? -t : t);
+    if (lane == 0) *d = ldexpf(an / (float)L, -s);
+}
+
+// The twin of `blocks` blocks of 32 floats, 32 threads a block.
+template <typename QT, int L>
+__device__ void twin(const float* x, QT* q, float* d, unsigned long long blocks) {
+    const unsigned long long b = (unsigned long long)blockIdx.x * (kThreads / 32) + threadIdx.x / 32;
+    const int lane = threadIdx.x % 32;
+    const float v = b < blocks ? x[b * 32 + lane] : 0.0f;
+    const float amax = block_amax(v);
+    if (b < blocks) twin_value<QT, L>(v, amax, q + b * 32 + lane, d + b, lane);
+}
+
+constexpr int kNormThreads = 1024;   // the held norm's block: four times kThreads, so each thread scales a quarter of the values
+
+// A block a row of n <= K * kThreads values: dst = RMSNorm(src) against w, with its twin at L levels beside it when L is not 0, the rows then dense and n a multiple of 32.
+// Each of the block's kNormThreads threads loads its values and their weights at once, element t + kNormThreads j; the sum is rms_norm_row's, thread t < kThreads chaining elements t + kThreads k and the chains folded by block_sum's tree, so both give the same bits.
+template <int K, typename QT, int L>
+__device__ void rms_norm_held(float* __restrict__ dst, const float* __restrict__ src, const float* __restrict__ w, int n, unsigned long long stride, float eps,
+                              QT* __restrict__ q, float* __restrict__ d) {
+    constexpr int J = K * kThreads / kNormThreads;
+    __shared__ float xs[K * kThreads];
+    __shared__ float lds[kThreads];
+    const int t = threadIdx.x;
+    const unsigned long long r = blockIdx.x;
+    const float* x = src + r * stride;
+    float v[J], wv[J];
+#pragma unroll
+    for (int j = 0; j < J; ++j) {
+        const int i = t + kNormThreads * j;
+        v[j] = i < n ? x[i] : 0.0f;
+        wv[j] = i < n ? w[i] : 0.0f;
+        xs[i] = v[j];
+    }
+    __syncthreads();
+    if (t < kThreads) {
+        float s = 0.0f;
+#pragma unroll
+        for (int k = 0; k < K; ++k)
+            if (t + kThreads * k < n) s = fmaf(xs[t + kThreads * k], xs[t + kThreads * k], s);
+        lds[t] = s;
+    }
+    __syncthreads();
+    int h = kThreads / 2;
+    for (; h >= warpSize; h >>= 1) {
+        if (t < h) lds[t] += lds[t + h];
+        __syncthreads();
+    }
+    if (t < warpSize) {
+        float u = lds[t];
+        for (; h > 0; h >>= 1) u += __shfl_down(u, h);
+        if (t == 0) lds[0] = u;
+    }
+    __syncthreads();
+    const float rr = 1.0f / sqrtf(lds[0] / (float)n + eps);
+    float* y = dst + r * stride;
+#pragma unroll
+    for (int j = 0; j < J; ++j) {
+        const int i = t + kNormThreads * j;
+        if (i >= n) break;
+        const float o = v[j] * (rr * wv[j]);
+        y[i] = o;
+        if (L) {
+            const float amax = block_amax(o);
+            const unsigned long long g = r * (unsigned long long)n + i;
+            twin_value<QT, L>(o, amax, q + g, d + g / 32, i % 32);
+        }
+    }
+}
+
 } // namespace
+
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin16(const float* x, short* q, float* d, unsigned long long blocks) { twin<short, 32767>(x, q, d, blocks); }
+extern "C" __global__ void __launch_bounds__(kThreads) llmx_twin8(const float* x, signed char* q, float* d, unsigned long long blocks) { twin<signed char, 127>(x, q, d, blocks); }
 
 // dst[i] += src[i].
 extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long long n) {
@@ -36,37 +139,89 @@ extern "C" __global__ void llmx_add(float* dst, const float* src, unsigned long 
     if (i < n) dst[i] += src[i];
 }
 
-// dst[i] = silu(gate[i]) * up[i].
-extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n) {
+// dst[i] = silu(gate[i]) * up[i], with its twin at L levels beside it when L is not 0, n then a multiple of 32.
+template <typename QT, int L>
+__device__ void silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, QT* q, float* d) {
     const unsigned long long i = (unsigned long long)blockIdx.x * kThreads + threadIdx.x;
+    float o = 0.0f;
     if (i < n) {
         const float g = gate[i];
-        dst[i] = g / (1.0f + expf(-g)) * up[i];
+        o = g / (1.0f + expf(-g)) * up[i];
+        dst[i] = o;
+    }
+    if (L) {
+        const float amax = block_amax(o);
+        if (i < n) twin_value<QT, L>(o, amax, q + i, d + i / 32, (int)(i % 32));
     }
 }
+extern "C" __global__ void llmx_silu_mul(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
+    silu_mul<short, 0>(dst, gate, up, n, q, d);
+}
+extern "C" __global__ void llmx_silu_mul_twin16(float* dst, const float* gate, const float* up, unsigned long long n, short* q, float* d) {
+    silu_mul<short, 32767>(dst, gate, up, n, q, d);
+}
+extern "C" __global__ void llmx_silu_mul_twin8(float* dst, const float* gate, const float* up, unsigned long long n, signed char* q, float* d) {
+    silu_mul<signed char, 127>(dst, gate, up, n, q, d);
+}
 
-// A block a row: dst row r = RMSNorm(src row r) against w.
+// A block a row: dst row r = RMSNorm(src row r) against w, for any n.
 extern "C" __global__ void llmx_rms_norm_rows(float* dst, const float* src, const float* w, int n, unsigned long long stride, float eps) {
     __shared__ float lds[kThreads];
     const unsigned long long r = blockIdx.x;
     rms_norm_row(dst + r * stride, src + r * stride, w, n, eps, lds);
 }
 
+// The held builds for rows of up to 4096 and 8192 values, plain and with the twin of either class.
+#define LLMX_NORM(name, K, QT, L)                                                                                                       \
+    extern "C" __global__ void __launch_bounds__(kNormThreads) name(float* dst, const float* src, const float* w, int n, unsigned long long stride, \
+                                                                float eps, QT* q, float* d) {                                         \
+        rms_norm_held<K, QT, L>(dst, src, w, n, stride, eps, q, d);                                                                   \
+    }
+LLMX_NORM(llmx_rms_norm_16, 16, short, 0)
+LLMX_NORM(llmx_rms_norm_16_twin16, 16, short, 32767)
+LLMX_NORM(llmx_rms_norm_16_twin8, 16, signed char, 127)
+LLMX_NORM(llmx_rms_norm_32, 32, short, 0)
+LLMX_NORM(llmx_rms_norm_32_twin16, 32, short, 32767)
+LLMX_NORM(llmx_rms_norm_32_twin8, 32, signed char, 127)
+
 // A block a (row, head): the head's RMS norm when w is given, then pairs (i, i + half) rotated at the row's position.
+// A head of up to kThreads values is held a value a thread, its weights and the row's angles loaded with it, and the pairs meet in shared memory; the sum and every product are the wider form's, so both give the same bits.
 extern "C" __global__ void llmx_norm_rope(float* dst, const float* src, unsigned long long dst_stride, unsigned long long src_stride,
                                           unsigned long long src_head_stride, int head_dim, int half, const float* w, float eps,
                                           const float* cos, const float* sin, const unsigned* pos) {
     __shared__ float lds[kThreads];
+    __shared__ float hs[kThreads];
     const unsigned long long r = blockIdx.x, h = blockIdx.y;
     float* head = dst + r * dst_stride + h * head_dim;
     const float* from = src + r * src_stride + h * src_head_stride;
-    if (w) rms_norm_row(head, from, w, head_dim, eps, lds);
-    else if (head != from)
-        for (int i = threadIdx.x; i < head_dim; i += kThreads) head[i] = from[i];
-    __syncthreads();
     const float* c = cos + (unsigned long long)pos[r] * half;
     const float* s = sin + (unsigned long long)pos[r] * half;
-    for (int i = threadIdx.x; i < half; i += kThreads) {
+    const int t = threadIdx.x;
+    if (head_dim <= kThreads) {
+        const float v = t < head_dim ? from[t] : 0.0f;
+        const float wt = w && t < head_dim ? w[t] : 0.0f;
+        const float ct = t < half ? c[t] : 0.0f, st = t < half ? s[t] : 0.0f;
+        float o = v;
+        if (w) {
+            const float r2 = 1.0f / sqrtf(block_sum(t < head_dim ? fmaf(v, v, 0.0f) : 0.0f, lds) / (float)head_dim + eps);
+            o = v * (r2 * wt);
+        }
+        hs[t] = o;
+        __syncthreads();
+        if (t < half) {
+            const float xb = hs[t + half];
+            head[t] = fmaf(-xb, st, o * ct);
+            head[t + half] = fmaf(o, st, xb * ct);
+        } else if (t >= 2 * half && t < head_dim) {
+            head[t] = o;
+        }
+        return;
+    }
+    if (w) rms_norm_row(head, from, w, head_dim, eps, lds);
+    else if (head != from)
+        for (int i = t; i < head_dim; i += kThreads) head[i] = from[i];
+    __syncthreads();
+    for (int i = t; i < half; i += kThreads) {
         const float xa = head[i], xb = head[i + half];
         head[i] = fmaf(-xb, s[i], xa * c[i]);
         head[i + half] = fmaf(xa, s[i], xb * c[i]);

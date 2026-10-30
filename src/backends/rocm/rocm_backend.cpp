@@ -114,9 +114,10 @@ public:
         dev_.caps.integer_dot = f.hipModuleLoadData(&dot_module_, kInt16DotModule) == hipSuccess;
         if (!dev_.caps.integer_dot) dot_module_ = nullptr;
         dev_.profile = profile_for(dev_.caps);
-        // The prompt tile takes the dot where there is one; the row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
+        // The prompt tile and the int8 half-block row kernels take the dot where there is one; the quarter-layout row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
         for (size_t k = 0; k < kKernels; ++k) {
-            const hipModule_t m = k < kTwin16 ? module_ : (k == kTile16 || k == kTile8) && dot_module_ ? dot_module_ : int16_module_;
+            const bool dot = k == kTile16 || k == kTile8 || k >= kHalf8x1;
+            const hipModule_t m = k < kRows16x1 ? module_ : dot && dot_module_ ? dot_module_ : int16_module_;
             hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
         }
         for (size_t s = 0; s < kRingSlots; ++s) {
@@ -173,6 +174,7 @@ public:
     BufferPtr alloc(size_t bytes, Memory where) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
         auto b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
+        kept_ = {};
         if (!bytes) return b;
         // KV growth and the model read a fresh buffer as zeros.
         if (where == Memory::host_visible) std::memset(b->data(), 0, bytes);
@@ -256,6 +258,7 @@ public:
     void write(Buffer& dst_b, size_t off, const void* src, size_t bytes) override {
         const RocmBuffer& dst = as_rocm(dst_b);
         span(dst, off, bytes);
+        kept_ = {};
         for (size_t done = 0; done < bytes;) {
             const size_t n = std::min(bytes - done, kStageBytes);
             void* st = stage_.take(*this, n);
@@ -270,6 +273,7 @@ public:
         span(dst, dst_off, bytes);
         span(src, src_off, bytes);
         if (!bytes) return;
+        kept_ = {};
         launch_check(hip().hipMemcpyAsync((uint8_t*)dst.data() + dst_off, (const uint8_t*)src.data() + src_off, bytes, hipMemcpyDefault, stream_),
                      "hipMemcpyAsync");
     }
@@ -344,8 +348,19 @@ public:
         const float* wp = f32(w);
         int in = (int)n;
         unsigned long long st = stride;
-        void* args[] = {&d, &s, &wp, &in, &st, &eps};
-        launch(kRmsNorm, (unsigned)rows, 1, args);
+        if (n > 32 * kThreads) {
+            void* args[] = {&d, &s, &wp, &in, &st, &eps};
+            return launch(kRmsNorm, (unsigned)rows, 1, args);
+        }
+        // Rows of up to 8192 values take a held build, which writes the twin beside them where a product reads one next.
+        const TwinOut t = stride == n ? twin_out(dst, rows * n) : TwinOut{};
+        const bool wide = n > 16 * kThreads;
+        const Kernel k = !t.q ? (wide ? kRmsNorm32 : kRmsNorm16) : t.int8 ? (wide ? kRmsNorm32Twin8 : kRmsNorm16Twin8) : (wide ? kRmsNorm32Twin16 : kRmsNorm16Twin16);
+        void* q = t.q;
+        float* td = t.d;
+        void* args[] = {&d, &s, &wp, &in, &st, &eps, &q, &td};
+        launch(k, (unsigned)rows, 1, args, 1, kNormThreads);
+        keep(t, d, rows * n);
     }
     void norm_rope_partial(Slice dst, CSlice src, size_t rows, size_t src_stride, size_t src_head_stride, size_t heads, size_t head_dim,
                            size_t rope_dim, CSlice w, float eps, CSlice cos, CSlice sin, const uint32_t* pos, RopeStreams streams) override {
@@ -382,8 +397,12 @@ public:
         const float* g = f32(gate);
         const float* u = f32(up);
         unsigned long long nn = n;
-        void* args[] = {&d, &g, &u, &nn};
-        launch(kSiluMul, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        const TwinOut t = twin_out(dst, n);
+        void* q = t.q;
+        float* td = t.d;
+        void* args[] = {&d, &g, &u, &nn, &q, &td};
+        launch(!t.q ? kSiluMul : t.int8 ? kSiluMulTwin8 : kSiluMulTwin16, (unsigned)((n + kThreads - 1) / kThreads), 1, args);
+        keep(t, d, n);
     }
     void add(Slice dst, CSlice src, size_t n) override {
         if (!n) return;
@@ -527,17 +546,25 @@ public:
 
 
 private:
-    // The F32 module's kernels, then from kTwin16 the int16 module's.
-    enum Kernel { kAdd, kSiluMul, kRmsNorm, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec, kAttentionVecMerge,
-                  kTwin16, kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
-                  kTwin8, kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce, kKernels };
-    static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_rms_norm_rows", "llmx_norm_rope", "llmx_gather",
+    // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
+    enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
+                  kRmsNorm32Twin8, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
+                  kAttentionVecMerge, kTwin16, kTwin8,
+                  kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
+                  kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
+                  kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kKernels };
+    static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
+                                                           "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
+                                                           "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_gather",
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
-                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge", "llmx_twin16", "llmx_q8_0_rows16_1",
+                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
+                                                           "llmx_twin16", "llmx_twin8", "llmx_q8_0_rows16_1",
                                                            "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
-                                                           "llmx_q8_0_tile16", "llmx_twin8", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
-                                                           "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce"};
+                                                           "llmx_q8_0_tile16", "llmx_q8_0_rows8_1", "llmx_q8_0_rows8_2",
+                                                           "llmx_q8_0_rows8_4", "llmx_q8_0_rows8_8", "llmx_q8_0_rows8_16", "llmx_q8_0_tile8", "llmx_tile_reduce",
+                                                           "llmx_q8_0_half8_1", "llmx_q8_0_half8_2", "llmx_q8_0_half8_4", "llmx_q8_0_half8_8", "llmx_q8_0_half8_16"};
     static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
+    static constexpr unsigned kNormThreads = 1024;   // the held norms' block (kernels/f32.hip)
     static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
     static constexpr size_t kTileOut = 64, kTileRows = 64;   // the prompt tile's outputs and rows (kernels/int16.hip)
 
@@ -658,11 +685,12 @@ private:
     void product_twin(const Proj* proj, size_t nproj, CSlice X, size_t nin, size_t nbatch, bool accumulate, RowRuns runs, bool twin, bool int8) {
         const size_t blocks = size_mul(nbatch, nin / 32), qsize = int8 ? 1 : 2;
         const size_t qbytes = size_mul(blocks, 32 * qsize), need = size_add(qbytes, size_mul(blocks, sizeof(float)));
-        if (twin) {
+        const float* x = f32(X);
+        if (twin) want_twin_ = int8 ? 2 : 1;
+        if (twin && !(kept_.x == x && kept_.blocks == blocks && kept_.int8 == int8)) {
             if (!twin_ || twin_->size() < need) {
                 twin_ = alloc(need, Memory::device);
             }
-            const float* x = f32(X);
             uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
             float* d = (float*)(q + qbytes);
             unsigned long long nb = blocks;
@@ -691,9 +719,12 @@ private:
                         int ncols = (int)rows;
                         void* args[] = {&w, &q, &d, &y, &ni, &no, &ncols, &add};
                         const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                        static constexpr Kernel builds[2][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
-                                                                {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16}};
-                        launch(builds[int8 ? 1 : 0][build], (unsigned)((no + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                        // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
+                        static constexpr Kernel builds[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
+                                                                {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
+                                                                {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
+                        const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
+                        launch(builds[form][build], (unsigned)((no + rows_per_block_ - 1) / rows_per_block_), 1, args);
                     }
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
@@ -705,6 +736,8 @@ private:
         }
         if (begin != nbatch) throw std::runtime_error("rocm: row runs short of the call");
         record_matrix_path(int8 ? MatrixPath::block_int8 : MatrixPath::block_int16);
+        for (size_t pi = 0; pi < nproj; ++pi)
+            if (kept_.x && proj[pi].y < kept_.x + kept_.blocks * 32 && kept_.x < proj[pi].y + proj[pi].nout * nbatch) kept_ = {};
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, size_t at, size_t rows, size_t tiles, size_t nin, int add, bool int8) {
@@ -751,9 +784,28 @@ private:
         void* args[] = {&d, &s, &ip, &w};
         launch(kGather, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
     }
-    void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1) {
+    // Where a producer writes the twin of its output of `values` floats: once a product has read a twin, in that class, for an output of whole blocks in device memory.
+    struct TwinOut {
+        void* q = nullptr;
+        float* d = nullptr;
+        bool int8 = false;
+    };
+    TwinOut twin_out(Slice dst, size_t values) {
+        if (!want_twin_ || values % 32 || as_rocm(*dst.buffer).host_ptr()) return {};
+        const bool int8 = want_twin_ == 2;
+        const size_t qbytes = size_mul(values, int8 ? 1 : 2), need = size_add(qbytes, size_mul(values / 32, sizeof(float)));
+        if (!twin_ || twin_->size() < need) twin_ = alloc(need, Memory::device);
+        uint8_t* q = (uint8_t*)as_rocm(*twin_).data();
+        return {q, (float*)(q + qbytes), int8};
+    }
+    void keep(const TwinOut& t, const float* x, size_t values) {
+        if (t.q) kept_ = {x, values / 32, t.int8};
+    }
+    void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1, unsigned threads = kThreads) {
         raise_failed();
-        launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, kThreads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
+        // Any kernel but a product may write the kept twin's input.
+        if (k < kRows16x1) kept_ = {};
+        launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, threads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
     }
     // A launch or copy refused as it is enqueued throws at once; the stream is still the caller's.
     void launch_check(hipError_t e, const char* what) {
@@ -787,7 +839,14 @@ private:
     hipStream_t stream_ = nullptr;
     hipModule_t module_ = nullptr, int16_module_ = nullptr, dot_module_ = nullptr;
     BufferPtr parts_;  // attention's chunk partials, grown as calls need
-    BufferPtr twin_;   // the block-int16 twin of the last product's activations, grown as calls need
+    BufferPtr twin_;   // the twin of the last product's activations, or of a producer's output, grown as calls need
+    // The twin a producer wrote into twin_ beside its output (the Vulkan producers' design), which a product of that output reads instead of making its own; any other launch, copy, write or allocation forgets it.
+    struct {
+        const float* x = nullptr;
+        size_t blocks = 0;
+        bool int8 = false;
+    } kept_;
+    int want_twin_ = 0;   // the class of the last twin a product read, 1 block-int16 and 2 block-int8, which producers write; 0 before any
     BufferPtr staged_;   // a product bound for host memory, formed here first
     BufferPtr partials_;   // the parts of a split tile call, grown as calls need
     size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each

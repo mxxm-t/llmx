@@ -1640,6 +1640,59 @@ void promotion_after_write_back(const gguf::GGUFModel& weights, const bpe::Token
     std::cout << "server-resume: " << what << ": " << stats.host_hits << " promoted with no wait of the scheduler's thread, its reply its reply alone\n";
 }
 
+// A request arriving while an idle disk write's copy off the devices still lands: under --disk-cache-keep, idle writes starting at once, over two non-CPU devices whose slab copies land 5 ms late and retire 500 ms after their submission.
+// The write goes on once its copy has landed, so the scheduler's thread waits for no stage's work or device, and the request's reply is its reply alone.
+void arrival_beside_idle_write(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool hybrid) {
+    const std::string what = std::string("a request arriving beside an idle disk write's copy on two devices' threads") + (hybrid ? ", a hybrid model" : "");
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<FailingCopies>();
+            c->set_threads(1);
+            c->device = true;
+            c->late = std::chrono::milliseconds(5);
+            c->retire_late = std::chrono::milliseconds(500);
+            b.push_back(c);
+        }
+        return b;
+    }, 3, hybrid ? 2 : 0);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    Reply alone;
+    {
+        auto model = make(2048, 0);
+        alone = serve(*model, tok, 1, {{b}})[0];
+    }
+    DiskRoot disk("arrival");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    options.keep = true;
+    options.idle = std::chrono::milliseconds(0);
+    auto model = make(2048, 0);
+    server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)1 << 30, nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    Reply got;
+    server::Scheduler::Stats stats;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+        drain(*sched.submit(a.prompt, params_of(a)));
+        // The idle write of the first request's donor begins as it ends, and its copy retires half a second later.
+        got = drain(*sched.submit(b.prompt, params_of(b)));
+        within_a_minute([&] {
+            const auto s = sched.stats();
+            return s.disk_bytes_written > 0 && !s.disk_in_flight;
+        }, what + ": the donors written");
+        stats = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    same(alone, got, what + ", the request");
+    require(stats.stage_waits == 0, what + ": the scheduler's thread waited " + std::to_string(stats.stage_waits) + " times for a stage's work or a device");
+    std::cout << "server-resume: " << what << ": " << stats.disk_bytes_written / 1024 << " KiB written with no wait of the scheduler's thread, the request's reply its reply alone\n";
+}
+
 // A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks, C's donor and A's request donor and, read again, A's job's donor of 384 tokens.
 // An 800-token request then takes a donor's room: A's superseded donor goes though C is older, and is not copied to host memory, so C's repeat forks 256 tokens, A's follow-up its job's 384, and every reply is its reply alone.
 void superseded_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -5352,6 +5405,7 @@ int main(int argc, char** argv) {
                 host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, devices, 1, HostFault::none,
                           "a hybrid model's donors in host memory on " + std::to_string(devices) + " CPU" + (devices > 1 ? "s" : ""));
             promotion_after_write_back(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, true);
+            arrival_beside_idle_write(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, true);
             host_tier(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, 1, 1, HostFault::promotion, "a hybrid model's donors in host memory, a promotion failing");
             // The job reads 128 rows in passes of 16, so it can be cancelled at each of the seven boundaries before its last pass.
             writing_growth(one, tok, vocab);
@@ -5367,6 +5421,7 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 2, 0, HostFault::write_back, "donors in host memory on two devices' threads, a write-back failing", 1, true);
             host_tier(weights, tok, vocab, 2, 0, HostFault::promotion, "donors in host memory on two devices' threads, a promotion failing", 1, true);
             promotion_after_write_back(weights, tok, vocab, false);
+            arrival_beside_idle_write(weights, tok, vocab, false);
             failed_promotion(one, tok, vocab);
             next_candidate(weights, tok, vocab);
             cut_ranked_out(one, tok, vocab);

@@ -75,6 +75,7 @@ struct Sim {
         uint64_t line = 0;                           // its place in the line of what waits: its submission's number, 0 once paused for another's growth, a new number once it gave the pool's edge up
         size_t edge = 0;                             // growth steps it took, its admission one of them, while an uncapped request was paused
         bool uncapped = false, stalled = false, cancel = false;
+        bool job = false;                                     // a job reading a turn ahead (docs/SERVER.md, The service rule): prompt rows alone, no token, ending once they are read
         size_t prompt = 0, max_tokens = 0, gen = 0, len = 0;   // len: what its cache holds, a pass in flight's rows not counted
         std::vector<size_t> in;                               // the slots of its passes in flight, oldest first: one, or a prompt's consecutive slices (docs/MULTI-DEVICE.md, phase 4)
         uint64_t since = 0, cancelled = 0;                    // the round it last got a token or could not, and the round its cancel was first seen in
@@ -134,7 +135,7 @@ struct Sim {
         uint64_t until = 0;
     };
     std::vector<Recording> recording;
-    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, quick_rides = 0;
+    size_t slow = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, quick_rides = 0, jobs_passes = 0;
     bool quick_turn = true;   // whether the next replies' pass may take the quick prompt, every other one (Scheduler::form_round)
     bool last_ride = false;   // whether the last replies' pass carried one
     server::LogitRows rows;
@@ -380,6 +381,15 @@ struct Sim {
         r.uncapped = rng() % 3 != 0;
         r.prompt = 1 + rng() % std::min<size_t>(limit() - 1, 4 * largest_block());
         r.max_tokens = r.uncapped ? limit() - r.prompt : 1 + rng() % std::min<size_t>(limit() - r.prompt, 48);
+        // One request in five is a job, capped at no token.
+        if (rng() % 5 == 0) {
+            r.job = true;
+            r.uncapped = false;
+            r.max_tokens = 0;
+            r.line = ++admissions;
+            queue.push_back(r);
+            return;
+        }
         // One request in three waits for a read of a random time, which fails one time in four, under a random bound.
         if (rng() % 3 == 0) {
             r.reads = true;
@@ -600,7 +610,7 @@ struct Sim {
     // After the round's retirements, the requests whose last token has been sampled finish, in order of first admission.
     void finish_ended() {
         for (size_t i = 0; i < active.size();)
-            if (active[i].gen >= active[i].max_tokens) finish(i);
+            if (active[i].job ? active[i].len >= active[i].prompt && active[i].in.empty() : active[i].gen >= active[i].max_tokens) finish(i);
             else ++i;
     }
 
@@ -691,6 +701,10 @@ struct Sim {
         at = "growth";
         grow_all();
         check(true);
+        // A request that could not grow makes the jobs not in flight give way, as Cache::yield_jobs does, so a reply a job waits behind never waits for the job.
+        if (std::any_of(active.begin(), active.end(), [](const Req& r) { return r.stalled; }))
+            for (size_t i = active.size(); i-- > 0;)
+                if (active[i].job && active[i].in.empty()) finish(i);
         const bool stalled = std::any_of(active.begin(), active.end(), [](const Req& r) { return r.stalled; });
         at = "admission";
         if (!stalled)
@@ -742,7 +756,11 @@ struct Sim {
                 deepest = std::max(deepest, r.len);
                 decoders += ready(r);
             }
-        const bool prompt_work = std::any_of(active.begin(), active.end(), [&](const Req& q) { return !q.decoding() && left(q) && !q.cancel; });
+        // A job forms rows only in a round where no reply decodes, ready or in flight, and no client prompt is read (Scheduler::plan).
+        const bool replies_on = std::any_of(active.begin(), active.end(), [](const Req& q) { return q.decoding() && !q.cancel; });
+        const bool client_work = std::any_of(active.begin(), active.end(), [&](const Req& q) { return !q.job && !q.decoding() && left(q) && !q.cancel; });
+        const bool jobs_run = !replies_on && !client_work;
+        const bool prompt_work = client_work || (jobs_run && std::any_of(active.begin(), active.end(), [&](const Req& q) { return q.job && left(q) && !q.cancel; }));
         const bool overlap = decoders && prompt_work;
         const size_t packed = server::packed_passes(decoders, v.columns, P), packed_share = server::packed_share(decoders, packed);
         // A chunk's budget from the reply objective and the replies' pass packed, the slowest stage's; none until it is measured; the replays' replies take a token a step.
@@ -775,7 +793,7 @@ struct Sim {
             std::stable_sort(ready_now.begin(), ready_now.end(), [](const Req* a, const Req* b) { return a->landed < b->landed; });
             std::vector<Req*> prompts;
             for (Req& r : active)
-                if (!r.decoding() && left(r) && !r.cancel && (r.in.empty() ? ready(r) : continuing(r))) prompts.push_back(&r);
+                if (!r.decoding() && left(r) && !r.cancel && (!r.job || jobs_run) && (r.in.empty() ? ready(r) : continuing(r))) prompts.push_back(&r);
             // With the objective unmet only a prompt the wait bound makes due takes a chunk, but one quick prompt, the least remaining whose rows cost no more than the replies' pass, goes at once and whole.
             // A slot no prompt can use goes to the replies.
             const Req* quick = nullptr;
@@ -875,10 +893,12 @@ struct Sim {
                     if (r.in.empty()) r.worst_wait = std::max(r.worst_wait, clock - r.rows_at);
                     p.ids.push_back(r.id);
                     p.rows.push_back(n);
-                    p.wants.push_back(at_len + n == r.history());
+                    p.wants.push_back(!r.job && at_len + n == r.history());
                     p.from.push_back(at_len);
                     p.extent.push_back(r.prompt);
                     budget -= n;
+                    require(!r.job || jobs_run, at + ": a job's rows in a round where a reply decodes or a client prompt is read");
+                    jobs_passes += r.job;
                     Pass one;
                     one.ids = {r.id};
                     one.rows = {n};
@@ -899,7 +919,7 @@ struct Sim {
             if (p.ids.empty()) {
                 // A free slot stays empty only when no request is ready: every decoder and prompt is in flight, sits the round out, is a prompt in flight that cannot continue, or a prompt not yet due while the objective is unmet.
                 for (const Req& r : active)
-                    require(!ready(r) || (!r.decoding() && !left(r)) || r.cancel || (!met && !r.decoding() && clock - r.rows_at < v.share.wait_ms),
+                    require(!ready(r) || (!r.decoding() && !left(r)) || r.cancel || (r.job && !jobs_run) || (!met && !r.decoding() && clock - r.rows_at < v.share.wait_ms),
                             at + ": a free slot idled while a request was ready");
                 return;
             }
@@ -1248,7 +1268,7 @@ void due_step_first() {
 
 // Random schedules: schedule n runs over 1 + n % 4 stages and 1 to twice that many pass slots, submissions arriving with the host's time, and ends either in a stop at a random round or, one in eight, once every request has ended.
 void random_schedules(size_t n) {
-    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0;
+    size_t totals[14] = {0}, rounds = 0, recorded = 0, record_failures = 0, held_formations = 0, continued_passes = 0, replies_passes = 0, chunk_passes = 0, jobs_passes = 0;
     for (uint32_t seed = 1; seed <= n; ++seed) {
         const size_t S = 1 + seed % 4, P = 1 + (seed / 4) % (2 * S);
         Sim sim(seed, S, P);
@@ -1286,19 +1306,21 @@ void random_schedules(size_t n) {
         continued_passes += sim.continued_passes;
         replies_passes += sim.replies_passes;
         chunk_passes += sim.chunk_passes;
+        jobs_passes += sim.jobs_passes;
     }
     // Enough schedules must meet every rule's case.
     if (n >= 1000) {
         require(recorded > 0 && record_failures > 0 && held_formations > 0, "the schedules met no stage recorded on a thread of its own, none that failed while it was recorded, or no formation held for the first stage's recorder");
         require(continued_passes > 0, "the schedules met no prompt continued while its slice before was in flight");
         require(replies_passes > 0 && chunk_passes > 0, "the schedules formed no pass of replies alone or no prompt's chunk alone while both waited");
+        require(jobs_passes > 0, "the schedules formed no pass of a job's rows");
     }
     if (n >= 1000)
         for (size_t i = 1; i < 14; ++i) require(totals[i] > 0, "the schedules met no case " + std::to_string(i) + " of pauses, stalls, donors taken back, plans waiting on a request in flight, the oldest request's waits ended, failures, cancellations in flight, cancellations before a first stage, pauses of a model keeping a state, requests passing one waiting for its read, reads given up at their bound, reads that failed and turns at the pool's edge");
     std::printf("server-passes: %zu schedules, %zu rounds, %zu requests, %zu pauses (%zu keeping a state), %zu stalls, %zu donors taken back, %zu growth plans that waited on a request in flight, %zu waits of the oldest request ended in the round the request left flight, %zu failed passes, %zu cancellations in flight (%zu before a first stage), %zu admissions past a request waiting for its read, %zu reads given up at their bound, %zu failed reads, %zu turns at the pool's edge\n",
                 n, rounds, totals[0], totals[1], totals[9], totals[2], totals[3], totals[4], totals[5], totals[6], totals[7], totals[8], totals[10], totals[11], totals[12], totals[13]);
-    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight, %zu passes of replies and %zu chunks while both waited\n",
-                recorded, record_failures, held_formations, continued_passes, replies_passes, chunk_passes);
+    std::printf("server-passes: %zu stages recorded on a thread of their own, %zu of them failing as they ended, %zu formations held for the first stage's recorder, %zu prompt passes continuing a slice in flight, %zu passes of replies and %zu chunks while both waited, %zu job slices, none beside a reply or a client prompt\n",
+                recorded, record_failures, held_formations, continued_passes, replies_passes, chunk_passes, jobs_passes);
 }
 
 // The service rule's policy by hand (docs/SERVER.md, The price table, The service rule, Prompt shares): depth bands, the price table's prices and its slice search, the gap and packing, and each share rule's choice.

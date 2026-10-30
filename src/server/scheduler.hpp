@@ -577,6 +577,7 @@ public:
         uint64_t continued = 0;                   // since start, those formed while the same prompt's pass before them was in flight (Scheduler::continues)
         // Since start, the passes formed while replies and prompt work both waited (docs/SERVER.md, The service rule): of replies alone, of one prompt's chunk alone, and of both kinds or two prompts, which on a split the rule never forms.
         uint64_t rule_replies = 0, rule_chunks = 0, rule_mixed = 0;
+        uint64_t rule_jobs = 0;   // passes of a job's rows alone, which form only with no reply and no client prompt
         LiveRequests live{};
         ServiceRecord::Snapshot service{};        // the service record (docs/SERVER.md, The price table)
     };
@@ -598,6 +599,7 @@ public:
         s.rule_replies = rule_replies_.load();
         s.rule_chunks = rule_chunks_.load();
         s.rule_mixed = rule_mixed_.load();
+        s.rule_jobs = rule_jobs_.load();
         s.prompt_tokens = prompt_total_.load();
         s.generated_tokens = generated_total_.load();
         s.prefilled_tokens = prefilled_total_.load();
@@ -632,7 +634,7 @@ public:
                 // A pass being recorded gives the round nothing to do until its recorder is done, which wakes it.
                 const auto due = [&] {
                     return stopping_ || ended() || acting() || Cache::ready(queue_) || Cache::ready(paused_) || cache_.due(active.size() < max_seqs_) ||
-                           std::any_of(active.begin(), active.end(), [&](const std::shared_ptr<Request>& r) { return working(*r) && !cache_.waits_encode(*r) && (!r->seq_.in_flight() || continues(*r)); });
+                           std::any_of(active.begin(), active.end(), [&](const std::shared_ptr<Request>& r) { return working(*r) && !cache_.waits_encode(*r) && !(r->job_ && replying(active)) && (!r->seq_.in_flight() || continues(*r)); });
                 };
                 // Under --disk-cache-keep a server with nothing to do for kDiskIdle writes ahead (disk_round), and the loop wakes for it.
                 cache_.idle_moment(!active.empty() || flying() || !queue_.empty() || !paused_.empty());
@@ -700,7 +702,7 @@ public:
                 // A request that could not grow makes the jobs give way and takes its step from what they held, in this round: with no other request ready, a round later nothing would be in flight.
                 if (std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; }) && cache_.yield_jobs(active, lines())) grow(active, true);
                 stalled_now_ = std::any_of(active.begin(), active.end(), [](const std::shared_ptr<Request>& r) { return r->stalled_; });
-                jobs_yield_ = waiter || stalled_now_;
+                jobs_yield_ = waiter || stalled_now_ || replying(active);
                 {
                     std::lock_guard<std::mutex> lk(m_);
                     // Room goes by first admission: nothing resumes or is admitted while a request that could not grow sits out the pass, paused requests resume oldest first, and new requests come in queue order once none is paused.
@@ -873,7 +875,7 @@ private:
     std::vector<Flight> flights() const { return std::vector<Flight>(slots_.begin(), slots_.end()); }
 
     // The service rule's plan for a round (docs/SERVER.md, The service rule): whether replies and prompt work both wait, the replies' passes, a chunk's stage time and the prompts' order.
-    // Prompt work is the clients' prompts, and with none waiting the jobs', which so take only what no prompt wants.
+    // Prompt work is the clients' prompts, and with none waiting and no reply decoding the jobs', which so take only what no request wants (docs/SERVER.md, The service rule).
     struct Plan {
         bool overlap = false, priced = false, met = true, capped = false;
         std::shared_ptr<Request> quick;   // while the objective is unmet, the shortest prompt that rides the replies' pass (quick_prompt), whole once its cost is measured
@@ -901,7 +903,8 @@ private:
                 prompts.push_back(r);
             }
         }
-        if (prompts.empty()) prompts = jobs;
+        // A job has no one waiting for it, so it buys nothing that justifies slowing a reply: it forms rows only in a round with no reply and no client prompt.
+        if (prompts.empty() && !decoders) prompts = jobs;
         p.overlap = decoders && !prompts.empty();
         const size_t S = model_.stage_count();
         p.limit = passes_in_flight(slots_.size(), S, p.overlap);
@@ -1004,6 +1007,7 @@ private:
             if (!formed) return;
             if (slots_[k].decoders && p.quick) quick_turn_ = rows != Rows::quick;
             replying += slots_[k].decoders > 0;
+            rule_jobs_ += std::all_of(slots_[k].members.begin(), slots_[k].members.end(), [](const std::shared_ptr<Request>& m) { return m->job_; });
             if (!p.overlap) continue;
             if (p.priced) record_.objective(p.gap_ms, p.met, p.capped);
             size_t prompts = 0;
@@ -2553,7 +2557,7 @@ private:
     ServiceRecord record_{model_.stage_count()};     // before the recorders' lanes, whose threads post to it
     std::vector<std::unique_ptr<std::mutex>> locks_;   // the recorders' lanes' locks; before the recorders, which refer to them
     bool quick_turn_ = true;   // the scheduler thread's: whether the next replies' pass may take the quick prompt, every other one
-    std::atomic<uint64_t> rule_replies_{0}, rule_chunks_{0}, rule_mixed_{0};   // written by the scheduler thread, read by stats(): Stats::rule_*
+    std::atomic<uint64_t> rule_replies_{0}, rule_chunks_{0}, rule_mixed_{0}, rule_jobs_{0};   // written by the scheduler thread, read by stats(): Stats::rule_*
     std::vector<std::unique_ptr<Recorder>> recorders_;   // per stage, one where Model::stage_waits; before the lanes, whose threads use them
     infer::StageLanes lanes_;   // the recorders' threads (Recorder::cv, quit); last, so they end before anything they record on
 };

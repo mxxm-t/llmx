@@ -1453,7 +1453,7 @@ void write_cadence(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, ui
 }
 
 // The production case of 2026-10-20: a cut conversation's long reply with reasoning beside its read-ahead job, another conversation's long prompt arriving as it ends, then the next turn.
-// The next turn holds the reply without its reasoning, so the job forks the prompt and reads the reply's content while the reply is written, each submission of the device spinning 30 ms.
+// The next turn holds the reply without its reasoning, so the job forks the prompt and reads the reply's content once the replies have ended, each submission of the device spinning 30 ms.
 void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t v) {
     const std::string what = "cache-scenario, a cut conversation's reply with reasoning read again beside it";
     const auto slow = hooked(1, true);
@@ -1510,6 +1510,11 @@ void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uin
             // Another conversation's long prompt arrives as the reply ends, and the next turn once it has ended.
             const Handle b = sched.submit(other.prompt, params_of(other));
             rb = drain(*b);
+            // The job reads between turns, while the user reads the reply (docs/SERVER.md, The service rule).
+            for (const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60); sched.stats().reprefills == 0;) {
+                require(std::chrono::steady_clock::now() < until, what + ": the job did not complete in 60 seconds once the replies had ended");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             next.prompt = joined(next.prompt, prompt_of(51, 30, v));
             next.cap = 20;
             const Handle c = sched.submit(next.prompt, params_of(next));
@@ -1534,7 +1539,7 @@ void reply_reread(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uin
     const double rows_s = content_ms > 0 ? (double)read * 1000.0 / content_ms : 0;
     std::cout << what << ": the reply's gaps beside the job " << mean << " ms mean, " << at(0.95) << " p95, " << at(0.99) << " p99; " << left_at_eos << " ids left at its end, the job about "
               << rows_s << " rows a second; the next turn reused " << reused << " of " << content << "\n";
-    // The job read the content while the reply was written, so the next turn forks the prompt and the content's whole blocks, though another conversation's prompt came first after the reply.
+    // The job read the content between the turns, so the next turn forks the prompt and the content's whole blocks, though another conversation's prompt came first after the reply.
     require(reused >= content, what + ": the next turn reused " + std::to_string(reused) + " tokens, against the prompt and the reply's content, " + std::to_string(content));
     auto fresh = plain(4096, 64);
     const std::vector<Reply> alone = serve(*fresh, tok, 3, {{turn}, {other}, {next}});

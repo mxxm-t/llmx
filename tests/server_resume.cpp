@@ -902,15 +902,22 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     {
         server::Scheduler sched(*model, tok, 3, 64, passes);
         std::shared_ptr<server::Request> h, interrupter;
-        size_t job_passes = 0, request_passes = 0;
+        size_t job_passes = 0, request_passes = 0, job_rows_writing = 0;
+        bool written_whole = false;   // the pass that samples the reply's last token has retired
         std::mutex handles;
         // A pass that holds none of the case's requests is the job's.
         sched.on_retire = [&](const server::Scheduler::Retired& t) {
             std::lock_guard<std::mutex> lock(handles);
+            // Counted by the passes, not by when the test thread looks: a job's rows in a pass that retires before the reply's last were read while the reply was written.
+            if (writing && !written_whole)
+                for (size_t e = 0; e < t.requests.size(); ++e)
+                    if (t.requests[e] != h.get() && t.requests[e] != interrupter.get()) job_rows_writing += t.rows[e];
             for (const server::Request* r : t.requests)
                 if (r == h.get() || r == interrupter.get()) {
                     // 19 passes read the prompt, so the 20th after it has written more than 20 tokens: the 120th gives the ids written, and while writing every 20th to the 400th, as the routes do.
                     if (writing && r == h.get()) {
+                        const size_t e = (size_t)(std::find(t.requests.begin(), t.requests.end(), r) - t.requests.begin());
+                        if (t.from[e] + t.rows[e] + 1 >= first.prompt.size() + written.size()) written_whole = true;
                         ++request_passes;
                         if (request_passes >= 120 && request_passes <= (when == When::writing ? 400u : 120u) && request_passes % 20 == 0) {
                             std::vector<uint32_t> ids = first.prompt;
@@ -930,9 +937,13 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
             }
             const Reply reply = drain(*h);
             if (writing) {
-                const size_t rows = sched.stats().reprefill_rows;
-                const size_t want = when == When::writing ? 384 : 128;
-                require(rows == want, what + ": the job read " + std::to_string(rows) + " rows while the reply was written, against " + std::to_string(want));
+                size_t rows;
+                {
+                    std::lock_guard<std::mutex> lock(handles);
+                    rows = job_rows_writing;
+                }
+                // A job yields to the reply it reads ahead for: nothing is read while it is written (docs/SERVER.md, The service rule).
+                require(rows == 0, what + ": the job read " + std::to_string(rows) + " rows while the reply was written, against none");
             }
             next = first.prompt;
             for (uint32_t id : ids_of(reply)) next.push_back(id);
@@ -973,8 +984,8 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
             follow_reply = drain(*f);
             const size_t kept = next.size() / kBlock * kBlock;
             if (when == When::at_once) {
-                // With passes in flight the job may be in a pass as the follow-up comes, when it forks the donor instead.
-                const size_t least = (sched.stats().passes > 1 ? 2 : 3) * kBlock;
+                // The job has read nothing yet, so the follow-up forks at least the request's prompt blocks.
+                const size_t least = 2 * kBlock;
                 require(f->reused() >= least && f->reused() % kBlock == 0,
                         what + ": the follow-up turn reused " + std::to_string(f->reused()) + " tokens, against " + std::to_string(least) + " or more");
                 read_again();
@@ -1005,7 +1016,7 @@ void reprefilled(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, si
     }
 }
 
-// A job beside a decoding request over a two-CPU split at three passes in flight: its rows go in chunk passes of their own, never in the request's (docs/SERVER.md, The service rule).
+// A job beside a decoding request over a two-CPU split yields to the reply (docs/SERVER.md, The service rule): no pass formed while it decodes carries its rows, and it reads once the reply ends.
 // `idle`: a job begun once the reply has ended, beside another request; otherwise a job begun mid-reply, beside its own.
 void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab, bool idle) {
     const std::string what = idle ? "a job begun at idle beside a decoding request over a two-CPU split" : "a job begun while its reply is written over a two-CPU split";
@@ -1075,6 +1086,27 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
                 }
             } else {
                 reply = drain(*h);
+                // Its ids read, the job waits for the rest of the turn, live with nothing left and counted as no completed job; given the whole turn it completes and leaves.
+                auto until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                for (server::Scheduler::Stats s = sched.stats(); s.jobs != 1 || s.job_rows_left != 0 || s.reprefill_rows == 0; s = sched.stats()) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the job did not read its ids in 60 seconds once the reply had ended");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                require(sched.stats().reprefills == 0, what + ": a job given part of its turn counted as completed");
+                std::vector<uint32_t> whole = first.prompt;
+                for (uint32_t id : ids_of(reply)) whole.push_back(id);
+                whole.push_back(1);
+                whole.push_back(2);
+                {
+                    std::lock_guard<std::mutex> lock(handles);
+                    sched.follow(h, whole, true);
+                }
+                until = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+                for (server::Scheduler::Stats s = sched.stats(); s.reprefills != 1 || s.jobs != 0 || s.job_rows_left != 0; s = sched.stats()) {
+                    require(std::chrono::steady_clock::now() < until, what + ": the job given the whole turn did not complete in 60 seconds, " + std::to_string(s.jobs) + " live with " +
+                                                                          std::to_string(s.job_rows_left) + " rows left and " + std::to_string(s.reprefills) + " completed");
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
             }
             stats = sched.stats();
         } catch (...) {
@@ -1097,11 +1129,14 @@ void job_beside_decode(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok
         most = std::max(most, passes[i].second);
         read += passes[i].second;
     }
-    // The job read beside the decoding request, each chunk in a pass the request is not in.
-    size_t together = 0;
-    for (size_t i = first_pass; i <= last_pass; ++i) together += passes[i].first && passes[i].second;
-    require(read > 0 && together == 0, what + ": the job read " + std::to_string(read) + " rows beside the decoding request, at most " + std::to_string(most) + " a pass, " +
-                                           std::to_string(together) + " passes holding both, against some and none");
+    // Beside the decoding request the job's rows come only in the chunks in flight as it became ready, at most one a pass slot past the request's, and never in the request's pass.
+    size_t together = 0, chunks = 0;
+    for (size_t i = first_pass; i <= last_pass; ++i) {
+        together += passes[i].first && passes[i].second;
+        chunks += passes[i].second > 0;
+    }
+    require(together == 0 && chunks <= 2, what + ": the job read " + std::to_string(read) + " rows in " + std::to_string(chunks) + " passes beside the decoding request, at most " +
+                                              std::to_string(most) + " a pass, " + std::to_string(together) + " passes holding both, against at most 2 passes and none");
 }
 
 // A job begun while its reply is written forks its request's prompt blocks whenever its ids arrive, also in a round where a pass holds the request, and never reads the prompt again.

@@ -455,6 +455,24 @@ void pass_price() {
     require(!t.cost().known && close_to(t.cost().seen_rows, 8, 1e-3), "passes of one width do not give that width as the rows seen");
 }
 
+// A draft position's chance follows the verifies that reached it, a draft's depth censoring what it says of later positions (docs/SPECULATIVE.md, section 3).
+// As production met it at --draft-max 63: the first verifies fed 63 drafts and missed within three, and later ones fed eight and kept them; the deep misses say nothing of position 9, so a request keeping its eight drafts is priced deeper.
+void censored_depth() {
+    infer::spec::Acceptance prior, own;
+    for (int i = 0; i < 80; ++i) prior.verified((size_t)(i % 3), 63);
+    for (int i = 0; i < 2000; ++i) prior.verified(i % 50 ? 8 : 7, 8);
+    for (int i = 0; i < 200; ++i) own.verified(i % 50 ? 8 : 7, 8);
+    std::vector<double> keeps(63);
+    for (size_t j = 0; j < keeps.size(); ++j) keeps[j] = own.keeps(j, prior);
+    infer::spec::PassCost c;
+    c.known = true;
+    c.base_ms = 16.7;
+    c.row_ms = 3.3;
+    std::vector<size_t> takes;
+    infer::spec::draft_depths(c, 1, {keeps}, takes);
+    require(takes[0] > 15, "a request keeping its eight drafts was held at " + std::to_string(takes[0]) + " by deep verifies that missed early");
+}
+
 // The additive penalties of the compatible APIs, subtracted from a seen token's score before the temperature: presence once however often the token was seen, frequency once for each time.
 infer::Sampling settings(float temp, int top_k, float top_p) {
     infer::Sampling s;
@@ -572,6 +590,7 @@ int main() {
         acceptance();
         acceptance_rest();
         pass_price();
+        censored_depth();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

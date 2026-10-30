@@ -669,6 +669,16 @@ private:
         float* partials;
     };
     static_assert(sizeof(TileCall) == 128 && offsetof(TileCall, nin) == 88 && offsetof(TileCall, partials) == 120, "TileCall is the kernel's layout");
+    // The host's copy of the row kernel's call (kernels/int16.hip, RowCall), field for field.
+    struct RowCall {
+        const uint8_t* w[3];
+        float* y[3];
+        unsigned long long nout[3];
+        unsigned long long start[3];
+        unsigned long long total;
+        unsigned nproj;
+    };
+    static_assert(sizeof(RowCall) == 112 && offsetof(RowCall, start) == 72 && offsetof(RowCall, nproj) == 104, "RowCall is the kernel's layout");
     // The blocks a part of a split tile call sums, by the Vulkan tile's rule (split_blocks): a split below the profile's workgroups per compute unit, keeping at least its fewest blocks a part.
     size_t split_blocks(size_t workgroups, size_t nblk) const {
         const DeviceProfile& p = dev_.profile;
@@ -712,20 +722,25 @@ private:
                 const uint8_t* q = q0 + at * nin * qsize;
                 const float* d = d0 + at * (nin / 32);
                 if (all.runs[r].extent == 1) {
+                    // One launch for the group's projections, their output rows one after another.
+                    RowCall c{};
                     for (size_t pi = 0; pi < nproj; ++pi) {
-                        const uint8_t* w = proj[pi].w;
-                        float* y = proj[pi].y + at * proj[pi].nout;
-                        unsigned long long no = proj[pi].nout;
-                        int ncols = (int)rows;
-                        void* args[] = {&w, &q, &d, &y, &ni, &no, &ncols, &add};
-                        const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
-                        // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
-                        static constexpr Kernel builds[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
-                                                                {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
-                                                                {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
-                        const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
-                        launch(builds[form][build], (unsigned)((no + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                        c.w[pi] = proj[pi].w;
+                        c.y[pi] = proj[pi].y + at * proj[pi].nout;
+                        c.nout[pi] = proj[pi].nout;
+                        c.start[pi] = c.total;
+                        c.total += proj[pi].nout;
                     }
+                    c.nproj = (unsigned)nproj;
+                    int ncols = (int)rows;
+                    void* args[] = {&c, &q, &d, &ni, &ncols, &add};
+                    const int build = rows <= 1 ? 0 : rows <= 2 ? 1 : rows <= 4 ? 2 : rows <= 8 ? 3 : 4;
+                    // int8 rows of an even block count take the half-block order, on word loads; the F16 class keeps the quarter layout, measured faster for its widened weights (docs/STATUS.md).
+                    static constexpr Kernel builds[3][5] = {{kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16},
+                                                            {kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16},
+                                                            {kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16}};
+                    const int form = !int8 ? 0 : nin / 32 % 2 ? 1 : 2;
+                    launch(builds[form][build], (unsigned)((c.total + rows_per_block_ - 1) / rows_per_block_), 1, args);
                 } else {
                     // The split follows the run's extent, its row class, never the rows this call holds.
                     tile(proj, nproj, q, d, at, rows, split_tiles_of(all.runs[r].extent), nin, add, int8);

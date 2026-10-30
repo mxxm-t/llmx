@@ -502,6 +502,36 @@ void twin_products(Backend& g, Dtype dt) {
         require(added, form + ": every decode column of the residual add at 1 to 64 rows is the column alone, bit for bit");
         require(grouped, form + ": every decode column of a group of three projections at 1 to 64 rows is the column alone, bit for bit");
     }
+    // A decode group of three different projections in one launch gives each projection's own call, bit for bit; 1248 wide takes the int8 quarter layout.
+    {
+        const size_t outs[3] = {41, 104, 63};
+        bool group_ok = true;
+        for (size_t w : {size_t(1280), size_t(1248)}) {
+            const std::vector<float> xw = row_classes::values(w * 17, 91);
+            auto xwb = g.adopt(xw.data(), xw.size() * 4);
+            std::vector<std::vector<uint8_t>> gm;
+            std::vector<BufferPtr> gw, gy, ys;
+            for (size_t p = 0; p < 3; ++p) {
+                gm.push_back(q8_matrix(w, outs[p], 92 + (uint32_t)p));
+                gw.push_back(g.adopt(gm[p].data(), gm[p].size()));
+                gy.push_back(g.alloc(outs[p] * 17 * 4));
+                ys.push_back(g.alloc(outs[p] * 17 * 4));
+            }
+            for (size_t n : {size_t(1), size_t(2), size_t(17)}) {
+                const RowRun run[1] = {{n, 1}};
+                for (size_t p = 0; p < 3; ++p) g.matmul({quant::GGML_TYPE_Q8_0, {gw[p].get(), 0}}, {xwb.get(), 0}, {ys[p].get(), 0}, w, outs[p], n, {run, 1}, dt);
+                g.matmul_group({Projection({quant::GGML_TYPE_Q8_0, {gw[0].get(), 0}}, {gy[0].get(), 0}, outs[0]),
+                                Projection({quant::GGML_TYPE_Q8_0, {gw[1].get(), 0}}, {gy[1].get(), 0}, outs[1]),
+                                Projection({quant::GGML_TYPE_Q8_0, {gw[2].get(), 0}}, {gy[2].get(), 0}, outs[2])},
+                               {xwb.get(), 0}, w, n, {run, 1}, dt);
+                for (size_t p = 0; p < 3; ++p) {
+                    const std::vector<float> a = read(g, *gy[p], outs[p] * n), b = read(g, *ys[p], outs[p] * n);
+                    group_ok = group_ok && std::memcmp(a.data(), b.data(), a.size() * 4) == 0;
+                }
+            }
+        }
+        require(group_ok, form + ": a decode group of three different projections in one launch is each projection's own call, bit for bit, at 1, 2 and 17 rows");
+    }
     // A prompt row gives the same bits in calls of 1 to 21 rows and of 63 to 65, 128 and 130, which cross the tile's 64 rows, over 100 outputs, which end inside its 64.
     {
         const size_t pn = 130, po = 100;

@@ -45,16 +45,40 @@ __device__ inline void eight(const signed char* p, int v[8]) {
 }
 
 
+// A row kernel call: up to three projections of one twin, their output rows numbered one after another, projection p's from start[p] on.
+struct RowCall {
+    const unsigned char* w[3];
+    float* y[3];
+    unsigned long long nout[3];
+    unsigned long long start[3];
+    unsigned long long total;
+    unsigned nproj;
+};
+// Row o of a call: its weight row, its output for column 0 and its projection's output count.
+struct Row {
+    const unsigned char* w;
+    float* y;
+    unsigned long long nout;
+};
+// The kernels pass o through readfirstlane: it is one wave's, so the projection is chosen in scalar registers, which measured 3 to 4 percent faster on the 8B's rows.
+__device__ inline Row row_of(const RowCall& c, unsigned long long o, unsigned long long row_bytes) {
+    const unsigned p = c.nproj > 2 && o >= c.start[2] ? 2 : c.nproj > 1 && o >= c.start[1] ? 1 : 0;
+    const unsigned long long local = o - (p == 2 ? c.start[2] : p == 1 ? c.start[1] : 0);
+    const unsigned char* w = p == 2 ? c.w[2] : p == 1 ? c.w[1] : c.w[0];
+    float* y = p == 2 ? c.y[2] : p == 1 ? c.y[1] : c.y[0];
+    return {w + local * row_bytes, y + local, p == 2 ? c.nout[2] : p == 1 ? c.nout[1] : c.nout[0]};
+}
+
 // A wave an output row o for up to C generated rows: four lanes a block, eight values each, so a wave reads 16 blocks a step in wide loads.
 // Each lane's part is scaled into F32 in block order and the parts folded by one shuffle tree, the same for every column whatever C the call takes.
 template <int C, typename QT>
-__device__ void q8_0_rows(const unsigned char* W, const QT* q, const float* dx, float* Y, unsigned long long nin, unsigned long long nout,
-                          int ncols, int add) {
+__device__ void q8_0_rows(const RowCall& rc, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
     // A wave takes rows o, o + waves, ...: the host launches a wave a row, and this loop form measured four times faster than an early return on rows of 2048 and 4096 (docs/STATUS.md, ROCm step 3).
-    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < nout; o += waves) {
-        const unsigned char* w = W + o * blocks * 34;
+    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < rc.total; o += waves) {
+        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * 34);
+        const unsigned char* w = r.w;
         float acc[C];
         for (int c = 0; c < C; ++c) acc[c] = 0.0f;
         for (unsigned long long u = lane; u < blocks * 4; u += lanes) {
@@ -87,7 +111,7 @@ __device__ void q8_0_rows(const unsigned char* W, const QT* q, const float* dx, 
             float v = acc[c];
             for (int m = lanes / 2; m > 0; m /= 2) v += __shfl_xor(v, m, lanes);
             if (lane == 0) {
-                float* y = Y + (unsigned long long)c * nout + o;
+                float* y = r.y + (unsigned long long)c * r.nout;
                 *y = add ? *y + v : v;
             }
         }
@@ -103,46 +127,71 @@ __device__ inline int half_dot(const unsigned wq[4], const signed char* p, int s
     return word_dot((int)wq[3], x.w, s, (signed char)0);
 }
 
-// The int8 class's Q8_0 decode kernel in the half-block order of the Vulkan decode kernel (matmul_vec_q8_one.glsl, HALF), for rows of an even block count: a wave an output row o, two lanes a block, each lane 16 weights of it as aligned words, so a wave reads warpSize / 2 blocks a step.
+// The int8 class's Q8_0 decode kernel in the half-block order of the Vulkan decode kernel (matmul_vec_q8_one.glsl, HALF), for rows of an even block count: a wave an output row, two lanes a block, so a wave reads warpSize / 2 blocks a step.
+// The even lane takes the block's bytes [0, 18), the scale and 16 weights, the odd lane bytes [18, 34), each as aligned words realigned in registers without a branch, and the even lane hands the scale to the odd one; a branch on the alignment waited on its loads and measured slower (docs/STATUS.md, ROCm decode products).
 // Each lane scales its halves' integer dots into F32 in block order and the lanes fold by one shuffle tree, the same for every column whatever C the call takes.
 template <int C>
-__device__ void q8_0_rows_half(const unsigned char* W, const signed char* q, const float* dx, float* Y, unsigned long long nin, unsigned long long nout,
-                               int ncols, int add) {
+__device__ void q8_0_rows_half(const RowCall& rc, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) {
     const int lanes = warpSize, lane = threadIdx.x % lanes;
     const unsigned long long blocks = nin / 32, waves = (unsigned long long)gridDim.x * (kThreads / lanes);
-    const int hl = lane & 1;
-    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < nout; o += waves) {
+    const unsigned hl = lane & 1;
+    for (unsigned long long o = (unsigned long long)blockIdx.x * (kThreads / lanes) + threadIdx.x / lanes; o < rc.total; o += waves) {
+        const Row r = row_of(rc, __builtin_amdgcn_readfirstlane((unsigned)o), blocks * 34);
         // An even block count puts every row on a word boundary.
-        const unsigned* w = (const unsigned*)(W + o * blocks * 34);
+        const unsigned* w = (const unsigned*)r.w;
         float acc[C];
         for (int c = 0; c < C; ++c) acc[c] = 0.0f;
 #pragma unroll 2
-        for (unsigned long long b = lane >> 1; b < blocks; b += lanes / 2) {
-            const unsigned long long at = b * 34;
-            const unsigned sw = w[at >> 2];
-            const float dw = __half2float(__ushort_as_half((unsigned short)(b & 1 ? sw >> 16 : sw & 0xffff)));
-            // The half's 16 bytes start two bytes past a word in an even block, whose fifth word ends inside the block after it, and on a word in an odd one.
-            const unsigned long long qb = at + 2 + 16 * hl;
-            const unsigned* p = w + (qb >> 2);
-            unsigned wq[4];
-            if (qb & 2) {
-                const unsigned t0 = p[0], t1 = p[1], t2 = p[2], t3 = p[3], t4 = p[4];
-                wq[0] = (t0 >> 16) | (t1 << 16);
-                wq[1] = (t1 >> 16) | (t2 << 16);
-                wq[2] = (t2 >> 16) | (t3 << 16);
-                wq[3] = (t3 >> 16) | (t4 << 16);
-            } else {
-                wq[0] = p[0];
-                wq[1] = p[1];
-                wq[2] = p[2];
-                wq[3] = p[3];
-            }
+        for (unsigned b = lane >> 1; b < blocks; b += lanes / 2) {
+            // The lane's bytes start sh bytes into word wi and its weights s0 bytes in, 4 meaning the next word.
+            // The even lane's fifth word lies inside its block and the odd lane's, read only where its bytes do not start on a word, inside the block after it.
+            const unsigned at = b * 34, start = at + 18 * hl, sh = start & 2, wi = start >> 2, s0 = sh + 2 * (1 - hl);
+            // Up to 8 columns the twin's loads issue before the weights' and the dots come before the scale's exchange, so nothing waits on the weights before every load is in flight; wider builds keep each column's work together, which holds their registers (docs/STATUS.md, ROCm decode products).
+            constexpr bool first = C <= 8;
+            int4 xq[first ? C : 1];
+            float xd[first ? C : 1];
+            if constexpr (first) {
 #pragma unroll
-            for (int c = 0; c < C; ++c) {
-                if (c >= ncols) break;
-                const unsigned long long xb = (unsigned long long)c * blocks + b;
-                const int isum = half_dot(wq, q + xb * 32 + 16 * hl, 0);
-                acc[c] = fmaf(dw * dx[xb], (float)isum, acc[c]);
+                for (int c = 0; c < C; ++c) {
+                    if (c >= ncols) break;
+                    const unsigned long long xb = (unsigned long long)c * blocks + b;
+                    xq[c] = *(const int4*)(q + xb * 32 + 16 * hl);
+                    xd[c] = dx[xb];
+                }
+            }
+            const unsigned t0 = w[wi], t1 = w[wi + 1], t2 = w[wi + 2], t3 = w[wi + 3], t4 = w[wi + 3 + (hl == 0 || sh ? 1 : 0)];
+            const bool next = s0 == 4;
+            const unsigned u0 = next ? t1 : t0, u1 = next ? t2 : t1, u2 = next ? t3 : t2, u3 = next ? t4 : t3, n = s0 & 3;
+            const unsigned wq[4] = {__builtin_amdgcn_alignbyte(u1, u0, n), __builtin_amdgcn_alignbyte(u2, u1, n), __builtin_amdgcn_alignbyte(u3, u2, n),
+                                    __builtin_amdgcn_alignbyte(t4, u3, n)};
+            const int own = (int)(t0 >> (8 * sh)) & 0xffff;
+            if constexpr (first) {
+                int isum[C];
+#pragma unroll
+                for (int c = 0; c < C; ++c) {
+                    if (c >= ncols) break;
+                    int t = word_dot((int)wq[0], xq[c].x, 0, (signed char)0);
+                    t = word_dot((int)wq[1], xq[c].y, t, (signed char)0);
+                    t = word_dot((int)wq[2], xq[c].z, t, (signed char)0);
+                    isum[c] = word_dot((int)wq[3], xq[c].w, t, (signed char)0);
+                }
+                const int partner = __shfl_xor(own, 1, lanes);
+                const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+#pragma unroll
+                for (int c = 0; c < C; ++c) {
+                    if (c >= ncols) break;
+                    acc[c] = fmaf(dw * xd[c], (float)isum[c], acc[c]);
+                }
+            } else {
+                const int partner = __shfl_xor(own, 1, lanes);
+                const float dw = __half2float(__ushort_as_half((unsigned short)(hl ? partner : own)));
+#pragma unroll
+                for (int c = 0; c < C; ++c) {
+                    if (c >= ncols) break;
+                    const unsigned long long xb = (unsigned long long)c * blocks + b;
+                    const int isum = half_dot(wq, q + xb * 32 + 16 * hl, 0);
+                    acc[c] = fmaf(dw * dx[xb], (float)isum, acc[c]);
+                }
             }
         }
 #pragma unroll
@@ -151,7 +200,7 @@ __device__ void q8_0_rows_half(const unsigned char* W, const signed char* q, con
             float v = acc[c];
             for (int m = lanes / 2; m > 0; m /= 2) v += __shfl_xor(v, m, lanes);
             if (lane == 0) {
-                float* y = Y + (unsigned long long)c * nout + o;
+                float* y = r.y + (unsigned long long)c * r.nout;
                 *y = add ? *y + v : v;
             }
         }
@@ -309,9 +358,8 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
 // Every kernel here runs blocks of kThreads, which __launch_bounds__ tells the compiler: its default assumes 1024 threads and caps a thread at 64 registers, which spilled the tile's prefetch to scratch.
 // The row kernel's builds, the host taking the narrowest that holds a call's columns.
 #define LLMX_ROWS(name, C, QT)                                                                                                          \
-    extern "C" __global__ void __launch_bounds__(kThreads) name(const unsigned char* W, const QT* q, const float* dx, float* Y, unsigned long long nin,           \
-                                    unsigned long long nout, int ncols, int add) {                                                      \
-        q8_0_rows<C, QT>(W, q, dx, Y, nin, nout, ncols, add);                                                                           \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const QT* q, const float* dx, unsigned long long nin, int ncols, int add) { \
+        q8_0_rows<C, QT>(c, q, dx, nin, ncols, add);                                                                                    \
     }
 LLMX_ROWS(llmx_q8_0_rows16_1, 1, short)
 LLMX_ROWS(llmx_q8_0_rows16_2, 2, short)
@@ -324,9 +372,8 @@ LLMX_ROWS(llmx_q8_0_rows8_4, 4, signed char)
 LLMX_ROWS(llmx_q8_0_rows8_8, 8, signed char)
 LLMX_ROWS(llmx_q8_0_rows8_16, 16, signed char)
 #define LLMX_HALF(name, C)                                                                                                              \
-    extern "C" __global__ void __launch_bounds__(kThreads) name(const unsigned char* W, const signed char* q, const float* dx, float* Y,                \
-                                    unsigned long long nin, unsigned long long nout, int ncols, int add) {                              \
-        q8_0_rows_half<C>(W, q, dx, Y, nin, nout, ncols, add);                                                                          \
+    extern "C" __global__ void __launch_bounds__(kThreads) name(RowCall c, const signed char* q, const float* dx, unsigned long long nin, int ncols, int add) { \
+        q8_0_rows_half<C>(c, q, dx, nin, ncols, add);                                                                                   \
     }
 LLMX_HALF(llmx_q8_0_half8_1, 1)
 LLMX_HALF(llmx_q8_0_half8_2, 2)

@@ -423,29 +423,32 @@ public:
     // A prompt that leaves its reply no room is refused here, before it waits (prompt_room), and so is a request arriving at a full queue; an uncapped request's max_tokens is the room its prompt leaves.
     std::shared_ptr<Request> submit(std::vector<uint32_t> prompt, SampleParams params, size_t stable = std::numeric_limits<size_t>::max(), size_t message = 0,
                                     Request::Clock::time_point received = Request::Clock::now(), std::vector<uint32_t> cut = {}, Images images = {}, MessageSpans spans = {}) {
-        if (prompt.empty()) throw std::runtime_error("server: empty prompt");
-        if (!images.runs.empty() && (!model_.takes_images() || !images.encode)) throw std::runtime_error("server: images for a model that takes none, or without their encoder");
-        for (size_t i = 0; i < images.runs.size(); ++i) {
-            const infer::MediaRun& m = images.runs[i];
-            if (!m.rows || m.first + m.rows > prompt.size() || (i && m.first < images.runs[i - 1].first + images.runs[i - 1].rows))
-                throw std::runtime_error("server: an image outside its prompt or out of order");
-        }
-        if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
-        if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
-        if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
-        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
-        r->cut_ = std::move(cut);
-        r->spans_ = std::move(spans);
-        r->media_ = std::move(images.runs);
-        r->encode_ = std::move(images.encode);
+        auto r = make(std::move(prompt), std::move(params), stable, message, received, std::move(cut), std::move(images), std::move(spans));
         {
             std::lock_guard<std::mutex> lk(m_);
             if (queue_.size() >= max_queue_)
                 throw QueueFull("server: the queue holds " + std::to_string(max_queue_) + " requests; try again later");
             r->line_ = ++lines_;
-            r->id_ = ++request_ids_;
-            queue_.push_back(r);
-            ++arrivals_;
+            enqueue(r);
+        }
+        cv_.notify_all();
+        return r;
+    }
+
+    // An uncapped reply that reached what a request may hold, continued under --context-overflow shift on `prompt`, the history the route's cut kept (docs/SERVER.md, A reply that reaches the context).
+    // The continuation takes `from`'s settings and its place in line, so a full queue never refuses a reply partway, and its stop texts read on across the shift from the end of `from`'s text.
+    std::shared_ptr<Request> carry_on(const Request& from, std::vector<uint32_t> prompt, size_t stable, size_t message, Request::Clock::time_point received, std::vector<uint32_t> cut,
+                                      Images images, MessageSpans spans) {
+        if (!from.params_.until_limit) throw std::logic_error("server: only an uncapped reply reaches what a request may hold");
+        auto r = make(std::move(prompt), from.params_, stable, message, received, std::move(cut), std::move(images), std::move(spans));
+        // A stop text never lies whole in what the last part wrote, or that part would have stopped, so its longest less one byte is all the window needs.
+        size_t longest = 0;
+        for (const std::string& s : from.params_.stop) longest = std::max(longest, s.size());
+        if (longest > 1) r->decoded_ = from.decoded_.substr(from.decoded_.size() - std::min(from.decoded_.size(), longest - 1));
+        {
+            std::lock_guard<std::mutex> lk(m_);
+            r->line_ = from.line_;
+            enqueue(r);
         }
         cv_.notify_all();
         return r;
@@ -810,6 +813,34 @@ public:
 
 private:
     using Clock = std::chrono::steady_clock;
+
+    // A request of `prompt`, held to what fits (prompt_room) and to its images lying in it in order, before it is queued; an uncapped request's max_tokens is the room its prompt leaves.
+    std::shared_ptr<Request> make(std::vector<uint32_t> prompt, SampleParams params, size_t stable, size_t message, Request::Clock::time_point received,
+                                  std::vector<uint32_t> cut, Images images, MessageSpans spans) const {
+        if (prompt.empty()) throw std::runtime_error("server: empty prompt");
+        if (!images.runs.empty() && (!model_.takes_images() || !images.encode)) throw std::runtime_error("server: images for a model that takes none, or without their encoder");
+        for (size_t i = 0; i < images.runs.size(); ++i) {
+            const infer::MediaRun& m = images.runs[i];
+            if (!m.rows || m.first + m.rows > prompt.size() || (i && m.first < images.runs[i - 1].first + images.runs[i - 1].rows))
+                throw std::runtime_error("server: an image outside its prompt or out of order");
+        }
+        if (!params.until_limit && params.max_tokens <= 0) throw std::runtime_error("server: max_tokens must be positive");
+        if (prompt.size() > prompt_room(params)) throw TooLong(too_long(prompt.size(), params));
+        if (params.until_limit) params.max_tokens = (int)(token_limit() - prompt.size());
+        auto r = std::make_shared<Request>(std::move(prompt), std::move(params), stable, message, received);
+        r->cut_ = std::move(cut);
+        r->spans_ = std::move(spans);
+        r->media_ = std::move(images.runs);
+        r->encode_ = std::move(images.encode);
+        return r;
+    }
+    // A made request into the queue at its place in line, under the lock.
+    void enqueue(const std::shared_ptr<Request>& r) {
+        r->id_ = ++request_ids_;
+        queue_.insert(std::upper_bound(queue_.begin(), queue_.end(), r, [](const auto& a, const auto& b) { return a->line_ < b->line_; }), r);
+        ++arrivals_;
+    }
+
     // How requests reserve room, at admission and as uncapped ones grow.
     static constexpr Growth kGrowth{};
     // The most generated tokens a pass recomputes for one resume, each taking ubatch / kReplayRows of the budget since it takes the decode kernels; docs/STATUS-2026-09.md (Exact resume of a paused request) records the timing that sets it.

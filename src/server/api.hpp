@@ -1177,8 +1177,10 @@ private:
                ",\"total_tokens\":" + std::to_string(prompt_tokens + tokens) + ",\"prompt_tokens_details\":{\"cached_tokens\":" + std::to_string(cached) + "}}";
     }
     // A finished request's speed in the fields clients that display speed read beside the standard usage: prompt tokens prefilled and reused, milliseconds to the first token, and generation after it.
-    static std::string timings_json(const Request& r, size_t tokens) {
-        const Request::Timings t = r.timings();
+    // `later_ms` is the time of the parts after a shift (docs/SERVER.md, A reply that reaches the context), which generation counts.
+    static std::string timings_json(const Request& r, size_t tokens, double later_ms = 0) {
+        Request::Timings t = r.timings();
+        t.predicted_ms += later_ms;
         const size_t cached = r.reused(), prefilled = r.prompt_tokens() - cached;
         auto num = [](double v) { char b[32]; std::snprintf(b, sizeof b, "%.3f", v); return std::string(b); };
         return "{\"cache_n\":" + std::to_string(cached) + ",\"prompt_n\":" + std::to_string(prefilled) +
@@ -1211,10 +1213,10 @@ private:
     }
     // The same chunk with a request's timings, for the one that carries the finish reason, `reason` as finish_reason gives it.
     std::string last_chunk(Route route, const std::string& id, const std::string& reason, const Request& r, size_t tokens,
-                           const std::string& logprobs) const {
+                           const std::string& logprobs, double later_ms) const {
         std::string c = chunk(route, id, "", false, &reason, logprobs);
         c.pop_back();
-        return c + ",\"timings\":" + timings_json(r, tokens) + "}";
+        return c + ",\"timings\":" + timings_json(r, tokens, later_ms) + "}";
     }
 
     // A prompt's ids, a text the tokenizer cannot encode refused with 400 on every route that reads one.
@@ -1259,11 +1261,21 @@ private:
         c.respond(200, "application/json", "{\"text\":" + jmini::quote(utf8_sanitize(tok_.decode(ids))) + "}");
     }
 
-    // What a cut dropped of a prompt, for the reply's context object and the request's line.
+    // What a cut dropped of a prompt, and of a history as its reply is written, for the reply's context object and the request's line.
     struct Fitted {
         size_t messages = 0, tokens = 0, renders = 0;   // renders: those that placed the messages' ends, on a chat route
         bool cut = false, at_marker = false;
+        size_t replies = 0;       // the shifts while the reply was written (docs/SERVER.md, A reply that reaches the context)
+        size_t prompt_rows = 0;   // after a cut, the kept history's rows before the reply's kept rows; on a text route all of them
         std::vector<uint32_t> dropped;   // the uncut prompt through the first row the cut dropped, whose holders the scheduler supersedes (Scheduler::submit)
+        // A shift of the same reply's history added: what every cut dropped, at a marker only where each was.
+        void add(const Fitted& later) {
+            at_marker = (cut ? at_marker : true) && later.at_marker;
+            cut = true;
+            messages += later.messages;
+            tokens += later.tokens;
+            ++replies;
+        }
     };
 
     // Where each message of a conversation ends in the prompt's `ids`: the end tokens, where they number the messages and the template's own, else each part asked about rendered as text.
@@ -1305,11 +1317,12 @@ private:
         return s;
     }
 
-    // A prompt that does not fit what a request may hold (docs/SERVER.md, A prompt larger than the context): refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (context_cut.hpp).
-    // A chat route drops its oldest messages after the system message, a dropped message's images with it, and a text route rows after its leading block (cut_rows), and `body`, `prompt` and `ids` are the cut request's afterwards.
-    Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids, const RequestImages& images) {
+    // A prompt that does not fit what a request may hold is refused with its numbers, or, with --context-overflow shift, cut at a cut point in steps of half of that (docs/SERVER.md, A prompt larger than the context).
+    // With `reply`, the rows a reply holds after its prompt as it reaches the limit, the history is cut alike (docs/SERVER.md, A reply that reaches the context); `body`, `prompt` and `ids` are the cut request's afterwards.
+    Fitted fit(jmini::Value& body, Route route, const SampleParams& params, std::string& prompt, std::vector<uint32_t>& ids, const RequestImages& images,
+               const std::vector<uint32_t>& reply = {}) {
         // The rows the prompt may take beside its reply, the scheduler's rule, and the step a cut drops in.
-        const size_t limit = sched_.token_limit(), n = ids.size(), room = sched_.prompt_room(params), step = limit / kCutTo;
+        const size_t limit = sched_.token_limit(), n = ids.size() + reply.size(), room = sched_.prompt_room(params), step = limit / kCutTo;
         const auto fits = [&](size_t rows) { return rows <= room; };
         if (fits(n)) return {};
         const auto refuse = [&](const std::string& why) { throw BadRequest(413, sched_.too_long(n, params) + "; " + why); };
@@ -1317,7 +1330,9 @@ private:
             refuse(std::string(params.until_limit ? "shorten it, send max_tokens" : "shorten it") + ", or start the server with --context-overflow shift, which drops the oldest turns");
         Fitted f;
         f.cut = true;
-        const std::vector<uint32_t> uncut = ids;
+        std::vector<uint32_t> uncut = ids;
+        uncut.insert(uncut.end(), reply.begin(), reply.end());
+        bool tail = false;
         if (route == Route::chat || route == Route::chat_completions) {
             const std::vector<chat::Message> messages = messages_of(body);
             const std::vector<chat::TemplateVar> vars = template_vars(body);
@@ -1331,8 +1346,15 @@ private:
                 std::vector<char> exchanges;
                 for (const chat::Message& m : messages) exchanges.push_back(m.role == "assistant");
                 inside = cut_inside(ends, starts, exchanges, lead, n, room, step);
-                if (inside.refused == TurnCut::Refused::head) refuse(std::string(lead ? "its system message and " : "its ") + "newest user message alone do not fit, so no cut helps");
-                if (inside.refused == TurnCut::Refused::exchange) refuse("its newest user message and newest tool exchange alone do not fit, and a message is not cut inside");
+                if (!reply.empty() && inside.refused != TurnCut::Refused::none && inside.user >= lead && starts[inside.user]) {
+                    // A reply too long beside its turn: every message after the newest user message goes, and the reply's oldest rows below.
+                    inside.from = messages.size();
+                    tail = true;
+                } else if (inside.refused == TurnCut::Refused::head) {
+                    refuse(std::string(lead ? "its system message and " : "its ") + "newest user message alone do not fit, so no cut helps");
+                } else if (inside.refused == TurnCut::Refused::exchange) {
+                    refuse("its newest user message and newest tool exchange alone do not fit, and a message is not cut inside");
+                }
             }
             f.renders = ends.renders() + 1;
             for (auto& member : body.obj)
@@ -1344,12 +1366,18 @@ private:
             prompt = prompt_of(body, route);
             ids = prompt_ids(body, prompt, images);
             f.messages = (inside.user - lead) + (inside.from - inside.user - (inside.from > inside.user ? 1 : 0));
-            f.at_marker = true;
+            f.at_marker = !tail;
+            // The reply's oldest rows go in whole steps from its start, the fewest after which the history fits.
+            const size_t over = ids.size() + reply.size() > room ? ids.size() + reply.size() - room : 0, from = tail ? std::min(reply.size(), (over + step - 1) / step * step) : 0;
+            f.prompt_rows = ids.size();
+            ids.insert(ids.end(), reply.begin() + (std::ptrdiff_t)from, reply.end());
         } else {
+            ids = uncut;
             const RowCut c = cut_rows(cut_points(ids.data(), n, [this](uint32_t id) { return tok_.is_eos(id); }), n, room, step);
             if (c.from >= n) refuse("its newest rows alone do not fit, so no cut helps");
             ids.erase(ids.begin() + (std::ptrdiff_t)c.lead, ids.begin() + (std::ptrdiff_t)c.from);
             f.at_marker = c.at_marker;
+            f.prompt_rows = ids.size();
         }
         f.tokens = n - ids.size();
         size_t same = 0;
@@ -1360,19 +1388,43 @@ private:
         shifted_tokens_ += f.tokens;
         const std::string messages = f.messages ? ", " + std::to_string(f.messages) + " messages" : std::string();
         const std::string renders = f.renders ? ", its messages' ends found in " + std::to_string(f.renders) + " render" + (f.renders == 1 ? "" : "s") : std::string();
-        std::fprintf(stderr, "server: a prompt of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s%s\n", n, ids.size(), limit, f.tokens,
+        std::fprintf(stderr, "server: a %s of %zu tokens cut to %zu to fit %zu, %zu tokens dropped%s%s%s\n", reply.empty() ? "prompt" : "reply's history", n, ids.size(), limit, f.tokens,
                      messages.c_str(), renders.c_str(), f.at_marker ? "" : ", not at a turn's end");
         return f;
     }
 
-    // A reply's context object: the rows the request holds against what it may, and what a cut dropped of its prompt.
-    std::string context_json(size_t prompt_tokens, size_t tokens, const Fitted& f) const {
-        std::string c = "{\"tokens\":" + std::to_string(prompt_tokens + tokens) + ",\"limit\":" + std::to_string(sched_.token_limit());
+    // A reply's context object: the rows the request holds against what it may, `held`, and what the cuts dropped of its prompt and, after a shift, of its history.
+    std::string context_json(size_t held, const Fitted& f) const {
+        std::string c = "{\"tokens\":" + std::to_string(held) + ",\"limit\":" + std::to_string(sched_.token_limit());
         if (f.cut) {
             if (f.messages) c += ",\"dropped_messages\":" + std::to_string(f.messages);
             c += ",\"dropped_tokens\":" + std::to_string(f.tokens) + ",\"at_marker\":" + (f.at_marker ? "true" : "false");
+            if (f.replies) c += ",\"reply_shifts\":" + std::to_string(f.replies);
         }
         return c + "}";
+    }
+
+    // The images a prompt holds after any cut, which the scheduler encodes from their resized pixels wherever a sequence reads their rows, a recompute among them.
+    Scheduler::Images images_given(const jmini::Value& body, const std::string& prompt, const RequestImages& images) const {
+        Scheduler::Images given;
+        if (image_rows_of(body, images).empty()) return given;
+        (void)prompt_ids(body, prompt, images, &given.runs);
+        std::vector<std::shared_ptr<const image::Raster>> resized;
+        for (const std::string& url : image_urls(body)) resized.push_back(images.prepared.at(url).resized);
+        given.encode = [vision = cfg_.vision, resized](size_t i) {
+            auto e = std::make_shared<infer::ImageEncode>(*vision, *resized.at(i));
+            auto ms = std::make_shared<double>(0.0);
+            return ImageSteps{[vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
+                const auto t0 = std::chrono::steady_clock::now();
+                const bool done = e->step();
+                *ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                if (!done) return nullptr;
+                auto rows = e->rows();
+                std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms of them\n", rows->size() / vision->encoder->plan().out_width, e->pieces(), *ms);
+                return rows;
+            }, e->pieces()};
+        };
+        return given;
     }
 
     void generate(http::Connection& c, const http::Request& req, Route route) {
@@ -1389,34 +1441,39 @@ private:
         std::shared_ptr<Request> r;
         const RequestImages images = images_of(body, route);
         std::vector<uint32_t> ids = prompt_ids(body, prompt, images);
-        const Fitted fitted = fit(body, route, params, prompt, ids, images);
-        const size_t stable = stable_of(body, route, ids), start = message_start_of(body, route, prompt, ids);
-        // The images the prompt holds after any cut, which the scheduler encodes from their resized pixels wherever a sequence reads their rows, a recompute among them.
-        Scheduler::Images given;
+        Fitted fitted = fit(body, route, params, prompt, ids, images);
+        // What the scheduler takes beside a history's ids, from the body as a cut left it: the prefix a follow-up turn begins with, where its last user message starts, its images and where its messages end.
+        struct Parts {
+            size_t stable = 0, start = 0;
+            Scheduler::Images given;
+            MessageSpans spans;
+        };
+        const auto parts_of = [&](const std::vector<uint32_t>& history) {
+            Parts p;
+            p.stable = stable_of(body, route, history);
+            p.start = message_start_of(body, route, prompt, history);
+            p.given = images_given(body, prompt, images);
+            if (route == Route::chat || route == Route::chat_completions) p.spans = message_spans(messages_of(body), history);
+            return p;
+        };
         const std::vector<size_t> image_rows = image_rows_of(body, images);
-        if (!image_rows.empty()) {
-            (void)prompt_ids(body, prompt, images, &given.runs);
-            std::vector<std::shared_ptr<const image::Raster>> resized;
-            for (const std::string& url : image_urls(body)) resized.push_back(images.prepared.at(url).resized);
-            given.encode = [vision = cfg_.vision, resized](size_t i) {
-                auto e = std::make_shared<infer::ImageEncode>(*vision, *resized.at(i));
-                auto ms = std::make_shared<double>(0.0);
-                return ImageSteps{[vision, e, ms]() -> std::shared_ptr<const std::vector<float>> {
-                    const auto t0 = std::chrono::steady_clock::now();
-                    const bool done = e->step();
-                    *ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-                    if (!done) return nullptr;
-                    auto rows = e->rows();
-                    std::fprintf(stderr, "server: an image of %zu rows encoded in %zu pieces, %.1f ms of them\n", rows->size() / vision->encoder->plan().out_width, e->pieces(), *ms);
-                    return rows;
-                }, e->pieces()};
-            };
-        }
-        MessageSpans spans = route == Route::chat || route == Route::chat_completions ? message_spans(messages_of(body), ids) : MessageSpans{};
-        try { r = sched_.submit(std::move(ids), params, stable, start, received, fitted.dropped, std::move(given), std::move(spans)); }
+        // The prompt's rows of the history the request holds, and where in the reply its kept rows begin: all of it until a shift.
+        std::vector<uint32_t> base = ids;
+        size_t from = 0;
+        Parts parts = parts_of(ids);
+        try { r = sched_.submit(std::move(ids), params, parts.stable, parts.start, received, fitted.dropped, std::move(parts.given), std::move(parts.spans)); }
         catch (const TooLong& e) { throw BadRequest(413, e.what()); }
         catch (const QueueFull& e) { throw BadRequest(503, e.what()); }
         catch (const std::exception& e) { throw BadRequest(400, e.what()); }
+        // The first part, whose prompt and reuse the reply reports, the part's first token in the reply, and the time of the parts after it.
+        const std::shared_ptr<Request> first_part = r;
+        size_t part_start = 0;
+        double later_ms = 0;
+        const auto spent = [](const Request& q) {
+            const Request::Timings t = q.timings();
+            return t.prepared_ms + t.queued_ms + t.prompt_ms + t.predicted_ms;
+        };
+
         const std::string id = (route == Route::chat_completions ? "chatcmpl-" : "cmpl-") + std::to_string(next_id_.fetch_add(1));
         // A chat reply gives its reasoning as reasoning_content, apart from its content, as clients show a reasoning model's: inside the <think> its template opened or it opened itself.
         const bool split = route == Route::chat_completions;
@@ -1449,13 +1506,40 @@ private:
             if (following) sched_.follow(r, ended ? next_turn(body, route, prompt, text, false, image_rows) : std::vector<uint32_t>{}, true);
             following = false;
         };
+        // An uncapped reply that reached what a request may hold goes on under --context-overflow shift (docs/SERVER.md, A reply that reaches the context): its history is cut as a prompt is, and the reply continues on what is kept as one reply.
+        // A history no cut fits ends the reply there, with length.
+        const auto shift = [&]() {
+            if (cut || !cfg_.context_shift || !params.until_limit || r->finish() != "length") return false;
+            const Request::Clock::time_point at = Request::Clock::now();
+            std::vector<uint32_t> history = base, reply(gen.begin() + (std::ptrdiff_t)from, gen.end());
+            Fitted f;
+            try { f = fit(body, route, params, prompt, history, images, reply); }
+            catch (const BadRequest& e) {
+                std::fprintf(stderr, "server: a reply of %zu tokens ends at the limit, since %s\n", gen.size(), e.what());
+                return false;
+            }
+            if (!f.cut) return false;
+            // A cut conversation's next turn is cut again, so no job reads it ahead.
+            close_follow(false);
+            fitted.add(f);
+            base.assign(history.begin(), history.begin() + (std::ptrdiff_t)f.prompt_rows);
+            from = gen.size() - (history.size() - f.prompt_rows);
+            if (r != first_part) later_ms += spent(*r);
+            Parts p = parts_of(history);
+            r = sched_.carry_on(*r, std::move(history), p.stable, p.start, at, std::move(f.dropped), std::move(p.given), std::move(p.spans));
+            part_start = gen.size();
+            return true;
+        };
         try {
             if (stream) c.begin_stream(200, "text/event-stream");
             Request::Token tok;
             Request::Clock::time_point probe = Request::Clock::now() + kProbe;
             for (;;) {
                 const Request::Next got = r->next(tok, probe);
-                if (got == Request::Next::end) break;
+                if (got == Request::Next::end) {
+                    if (shift()) continue;
+                    break;
+                }
                 if (Request::Clock::now() >= probe) {
                     if (c.peer_closed()) throw http::ClientGone("http: the client closed the connection");
                     probe = Request::Clock::now() + kProbe;
@@ -1521,7 +1605,8 @@ private:
                 return;
             }
             close_follow(finish != "cancel");
-            const size_t prompt_tokens = r->prompt_tokens();
+            const size_t prompt_tokens = first_part->prompt_tokens(), held = r->prompt_tokens() + (gen.size() - part_start);
+            if (r != first_part) later_ms += spent(*r);
             if (stream && compat(route)) {
                 if (split) {
                     chat::ReplySplit::Parts parts = splitter.feed(rest);
@@ -1542,16 +1627,16 @@ private:
                 } else if (!rest.empty() || first) {
                     c.write_chunk("data: " + chunk(route, id, rest, first, nullptr, no_logprobs) + "\n\n");
                 }
-                c.write_chunk("data: " + last_chunk(route, id, finish_reason(finish, caller.calls() > 0), *r, gen.size(), no_logprobs) + "\n\n");
+                c.write_chunk("data: " + last_chunk(route, id, finish_reason(finish, caller.calls() > 0), *first_part, gen.size(), no_logprobs, later_ms) + "\n\n");
                 if (include_usage)
                     c.write_chunk("data: " + head(id, route == Route::chat_completions ? "chat.completion.chunk" : "text_completion") +
-                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\n");
+                                  ",\"choices\":[],\"usage\":" + usage_json(prompt_tokens, gen.size(), first_part->reused()) + ",\"context\":" + context_json(held, fitted) + "}\n\n");
                 c.write_chunk("data: [DONE]\n\n");
                 c.end_stream();
             } else if (stream) {
                 if (!pending.empty()) c.write_chunk("data: {\"text\":" + jmini::quote(pending) + "}\n\n");
                 c.write_chunk("data: {\"done\":true,\"finish\":" + jmini::quote(finish) +
-                              ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}\n\ndata: [DONE]\n\n");
+                              ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(held, fitted) + "}\n\ndata: [DONE]\n\n");
                 c.end_stream();
             } else if (compat(route)) {
                 const std::string lp = params.logprobs ? ",\"logprobs\":" + compat_logprobs(route, sampled.data(), sampled.size()) : "";
@@ -1578,7 +1663,7 @@ private:
                 c.respond(200, "application/json",
                           head(id, route == Route::chat_completions ? "chat.completion" : "text_completion") + ",\"choices\":[" + choice + lp +
                           ",\"finish_reason\":" + jmini::quote(finish_reason(finish, caller.calls() > 0)) + "}],\"usage\":" +
-                          usage_json(prompt_tokens, gen.size(), r->reused()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + ",\"timings\":" + timings_json(*r, gen.size()) + "}");
+                          usage_json(prompt_tokens, gen.size(), first_part->reused()) + ",\"context\":" + context_json(held, fitted) + ",\"timings\":" + timings_json(*first_part, gen.size(), later_ms) + "}");
             } else {
                 // With logprobs, a list beside the ids, and with top_logprobs a list of each position's most likely tokens.
                 std::string lp;
@@ -1593,8 +1678,8 @@ private:
                 c.respond(200, "application/json",
                           "{\"text\":" + jmini::quote(text) + ",\"ids\":" + ids_json(gen) + lp +
                           ",\"finish\":" + jmini::quote(finish) + ",\"prompt_tokens\":" +
-                          std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(r->reused()) +
-                          ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(prompt_tokens, gen.size(), fitted) + "}");
+                          std::to_string(prompt_tokens) + ",\"reused_tokens\":" + std::to_string(first_part->reused()) +
+                          ",\"tokens\":" + std::to_string(gen.size()) + ",\"context\":" + context_json(held, fitted) + "}");
             }
         } catch (...) {
             r->cancel();

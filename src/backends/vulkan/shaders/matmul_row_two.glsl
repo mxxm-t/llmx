@@ -177,6 +177,39 @@
             }
         }
 #endif
+        // The butterfly's pairs l ^ TREE_CLUSTER / 2 .. l ^ 1 in order, transposed so each level halves the values a lane holds; float adds commute, so the sums keep the butterfly's bits.
+        if (TREE_CLUSTER > 1u) {
+            const uint NV = ROWS * MAX_COLS;
+            const uint NLEFT = NV >= TREE_CLUSTER ? NV / (TREE_CLUSTER > 0u ? TREE_CLUSTER : 1u) : 1u;
+            float t[ROWS * MAX_COLS];
+            [[unroll]] for (uint r = 0u; r < ROWS; ++r) [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) t[r * MAX_COLS + c] = accr[r][c];
+            uint idx = 0u;
+            bool writer = true;
+            [[unroll]] for (uint k = 0u; k < 8u; ++k) {
+                if ((TREE_CLUSTER >> (k + 1u)) == 0u) break;
+                const uint off = TREE_CLUSTER >> (k + 1u), h = NV >> (k + 1u);
+                bool up = (l & off) != 0u;
+                if (h > 0u) {
+                    [[unroll]] for (uint j = 0u; j < h; ++j) {
+                        float lo = t[j], hi = t[j + h];
+                        t[j] = (up ? hi : lo) + subgroupShuffleXor(up ? lo : hi, off);
+                    }
+                    if (up) idx += h;
+                } else {
+                    t[0] = t[0] + subgroupShuffleXor(t[0], off);
+                    if (up) writer = false;
+                }
+            }
+            [[unroll]] for (uint j = 0u; j < NLEFT; ++j) {
+                uint v = idx + j, r = v / MAX_COLS, c = v - r * MAX_COLS;
+                if (writer && c < ncols && r <= rlast) {
+                    uint o = OCOL(c) * nout + r0 + r;
+                    if (p.accum != 0u) ys[pi].y[o] += t[j];
+                    else ys[pi].y[o] = t[j];
+                }
+            }
+            return;
+        }
         // Each row and column reduced as the one-row builds reduce one.
         [[unroll]] for (uint c = 0u; c < MAX_COLS; ++c) {
             if (c >= ncols) break;

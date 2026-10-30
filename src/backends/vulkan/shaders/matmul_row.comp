@@ -38,7 +38,8 @@ void main() {
     uint l = lane - rsub * p.cluster;  // lane within the row's cluster
     uint row = (local_wg * (256u / gl_SubgroupSize) + gl_SubgroupID) * p.rows_per_sg + rsub;
 #endif
-    uint col0 = p.col0, out0 = p.col0, wrow = row, g_first = 0u, g_cnt = 0u;
+    // A plain call's workgroups in y take its whole chunks side by side, each its own columns (for_each_column_chunk).
+    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols, out0 = col0, wrow = row, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];

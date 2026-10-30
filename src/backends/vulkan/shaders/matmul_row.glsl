@@ -99,9 +99,11 @@ layout(set = 0, binding = 10) readonly buffer IDS { uint ids[]; };
 // As a specialization it costs the plain and routed pipelines nothing.
 layout(constant_id = 8) const bool GROUPED = false;
 layout(set = 0, binding = 11) readonly buffer TAB { uint tab[]; };
-// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both.
+// Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (kRowBuilds) give a lane two rows' weights, four in the 16-column build, so each column's activation loads serve them all.
 // A row's lanes, blocks, products and reduction are the one-row builds', and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 layout(constant_id = 9) const uint ROWS = 1;
+// The cluster width whose reduction the two-row builds transpose, specialization constant 17, or 0 for the butterfly alone (matmul_row_two.glsl).
+layout(constant_id = 17) const uint TREE_CLUSTER = 0;
 
 uint pi = 0u;
 #if defined(LLMX_WEIGHT_F16) || defined(LLMX_WEIGHT_BF16)

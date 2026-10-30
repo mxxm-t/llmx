@@ -635,7 +635,8 @@ public:
                        " tree=" + std::to_string((forms & kQ8Tree) ? 1 : 0) + " half=" + std::to_string((forms & kQ8Half) ? 1 : 0) +
                        " halves=" + std::to_string(b.halves) + "\n";
             } else if (build_rows((KernelId)id, variant) > 1) {
-                text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) + "\n";
+                text = "; row_build cols=" + std::to_string(build_cols((KernelId)id, variant)) + " rows=" + std::to_string(build_rows((KernelId)id, variant)) +
+                       " tree=" + std::to_string(row_tree_cluster((KernelId)id, variant, d.profile, d.caps.subgroup_size)) + "\n";
             }
             if (!pipeline_text(k.pipeline, text)) continue;
             out.emplace_back(kernel_variant_name(id, variant), std::move(text));
@@ -1629,11 +1630,11 @@ public:
     void check_group(const Projection* projections, size_t count, CSlice X, size_t nin, size_t nbatch) const;
     void matmul_group_impl(const Projection* projections, size_t count, CSlice X,
                            size_t nin, size_t nbatch, bool accumulate, Dtype dtype, int kernel_choice = -1, size_t split_tiles = 0);
-    size_t column_builds(KernelId id, size_t nin, size_t rows, int (&out)[kVariants]) const;
+    size_t column_builds(KernelId id, size_t nin, size_t rows, uint32_t cluster, int (&out)[kVariants]) const;
     int one_column_build(size_t nin, size_t rows, bool x8) const;
     bool paired_build(KernelId id, size_t nin) const;
     template <typename Fn>
-    void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, const Fn& each) const;
+    void for_each_column_chunk(KernelId id, size_t nbatch, size_t nin, size_t rows, uint32_t cluster, const Fn& each) const;
 
     // Choose a row module, layout and lanes per row from the weight format and input width.
     // The Q8_0 decode module instead takes its rows from the build (sg_rows).

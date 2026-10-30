@@ -2239,9 +2239,9 @@ size_t check_q8_one_column_builds(backend::Backend& vk) {
 // Every decode column must equal the same column computed alone, through plain, grouped, residual and routed calls (docs/VULKAN.md, batch invariance).
 // AGENTS.md, Tests describes the widths and tails that distinguish the kernel builds; `only_q8` checks the Q8_0 rows alone.
 size_t check_decode_columns(backend::Backend& vk, backend::Dtype dtype, bool only_q8 = false) {
-    const size_t widest = 64;
-    // Remainders reach every narrower build, and 18 and 29 columns leave the widest Q8_0 build's second group partially filled.
-    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64};
+    const size_t widest = 256;
+    // Remainders reach every narrower build, 18 and 29 columns leave the widest Q8_0 build's second group partially filled, and past 64 whole chunks run side by side beside a remainder of each width.
+    const size_t widths[] = {1, 2, 3, 8, 9, 13, 16, 18, 29, 32, 33, 34, 36, 40, 48, 64, 65, 96, 127, 128, 129, 200, 256};
     const uint32_t f32 = quant::GGML_TYPE_F32, q8 = quant::GGML_TYPE_Q8_0, q40 = quant::GGML_TYPE_Q4_0, q41 = quant::GGML_TYPE_Q4_1;
     const uint32_t q50 = quant::GGML_TYPE_Q5_0, q51 = quant::GGML_TYPE_Q5_1;
     const uint32_t q4k = quant::GGML_TYPE_Q4_K, q5k = quant::GGML_TYPE_Q5_K, q6k = quant::GGML_TYPE_Q6_K;
@@ -2560,12 +2560,19 @@ bool decode_build(const std::string& text, DecodeBuild& b) {
     b.half = half != 0;
     return b.cols && b.rows && b.steps && (b.halves == 1 || (b.halves == 2 && b.tree && b.half && b.cols == 1));
 }
-// A two-row build of the Q4 and K-quant row kernels, read from the first line of its representation: the columns it holds and the rows a cluster takes.
-bool row_build(const std::string& text, unsigned& cols, unsigned& rows) {
+// A two-row build of the Q4 and K-quant row kernels, read from the first line of its representation: the columns it holds, the rows a cluster takes and the cluster width its reduction transposes (0 for none).
+bool row_build(const std::string& text, unsigned& cols, unsigned& rows, unsigned& tree) {
     const std::string head = "; row_build";
     const std::string line = text.substr(0, text.find('\n'));
     if (line.compare(0, head.size(), head) != 0) return false;
-    return header_field(line, "cols", cols) && header_field(line, "rows", rows) && cols && rows;
+    return header_field(line, "cols", cols) && header_field(line, "rows", rows) && header_field(line, "tree", tree) && cols && rows;
+}
+
+// The adds of a transposed reduction of n values over a cluster of w lanes: n / 2, n / 4 .. down to one value a lane, then one add a remaining level.
+size_t tree_adds(size_t n, size_t w) {
+    size_t adds = 0;
+    for (size_t off = w / 2; off > 0; off /= 2) adds += n > 1 ? (n /= 2) : 1;
+    return adds;
 }
 DecodeOps decode_ops(const DecodeBuild& b, size_t levels, size_t extra) {
     DecodeOps n;
@@ -2616,6 +2623,7 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
         size_t cols;
         unsigned rows;
         FloatOps got, ref;
+        unsigned tree;
     };
     std::vector<TwoRow> two_row;
     for (const auto& o : ops) {
@@ -2623,7 +2631,10 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
         const std::string wide = o.first.substr(0, o.first.size() - grouped_suffix.size());
         const FloatOps* w = find(wide);
         if (!w || wide == vec || wide == vec8) continue;
-        if (!(o.second == *w)) throw std::runtime_error("a grouped build's float multiplies and adds differ from its wide build's: " + o.first);
+        // A driver may keep the grouped build's column loop rolled, leaving it one column's operations, the one-column build's.
+        const FloatOps* col1 = find(wide + one_suffix);
+        if (!(o.second == *w) && !(col1 && o.second == *col1))
+            throw std::runtime_error("a grouped build's float multiplies and adds differ from its wide build's and its one-column build's: " + o.first);
         ++n.grouped;
     }
     for (const auto& one : ops) {
@@ -2643,7 +2654,12 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
             if (cols < 2 && !two_row_one) continue;
             const FloatOps& got = build.second;
             auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + b); };
-            if (got.kinds() != ref.kinds()) fail("a build's float multiply and add kinds differ from its one-column build's");
+            // A transposed reduction's adds come plain or over shuffled lanes as the driver forms them, so its kinds count both as adds.
+            unsigned head_cols = 0, head_rows = 0, head_tree = 0;
+            for (const auto& kr : representations)
+                if (kr.first == b) row_build(kr.second, head_cols, head_rows, head_tree);
+            auto kinds = [&](const FloatOps& o) { const unsigned k = o.kinds(); return head_tree && (k & 16u) ? (k & ~16u) | 8u : k; };
+            if (kinds(got) != kinds(ref)) fail("a build's float multiply and add kinds differ from its one-column build's");
             if (kernel == vec || kernel == vec8) {
                 if (!ref.add || !ref.lane_add) {
                     ++n.kinds_only;
@@ -2669,11 +2685,11 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
                 ++n.decode;
                 continue;
             }
-            unsigned two_cols = 0, rows = 1;
+            unsigned two_cols = 0, rows = 1, tree = 0;
             for (const auto& kr : representations)
-                if (kr.first == b && row_build(kr.second, two_cols, rows) && two_cols != cols) fail("a two-row build whose shape gives other columns than its name");
+                if (kr.first == b && row_build(kr.second, two_cols, rows, tree) && two_cols != cols) fail("a two-row build whose shape gives other columns than its name");
             if (rows > 1) {
-                two_row.push_back({kernel, b, cols, rows, got, ref});
+                two_row.push_back({kernel, b, cols, rows, got, ref, tree});
                 continue;
             }
             if (got == ref) {
@@ -2688,28 +2704,61 @@ ContractionChecks check_contraction(const std::vector<std::pair<std::string, std
             ++n.whole_columns;
         }
     }
-    // Two-row builds differ by whole copies of one column's products, retaining the one-column build's proportion of fused products.
-    std::map<std::string, std::vector<size_t>> column_ops;
-    for (size_t i = 0; i < two_row.size(); ++i)
-        for (size_t j = 0; j < two_row.size(); ++j) {
-            const TwoRow &a = two_row[i], &c = two_row[j];
-            if (a.kernel != c.kernel || c.cols <= a.cols) continue;
-            auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + a.name + " and " + c.name); };
-            if (a.rows != c.rows) fail("two-row builds of one kernel with other rows");
-            const size_t step = size_t(a.rows) * (c.cols - a.cols);
-            const size_t ga[5] = {a.got.mul, a.got.mad, a.got.fused, a.got.add, a.got.lane_add}, gc[5] = {c.got.mul, c.got.mad, c.got.fused, c.got.add, c.got.lane_add};
-            const size_t r[5] = {a.ref.mul, a.ref.mad, a.ref.fused, a.ref.add, a.ref.lane_add};
-            size_t per[5];
-            for (int k = 0; k < 5; ++k) {
-                if (gc[k] < ga[k] || (gc[k] - ga[k]) % step != 0 || (gc[k] - ga[k]) / step > r[k])
-                    fail("two-row builds' float multiplies and adds differ by other than whole copies of a row and column's products");
-                per[k] = (gc[k] - ga[k]) / step;
+    // Two-row builds differ by whole copies of one row and column's products, retaining the one-column build's proportion of fused products.
+    // A transposed reduction's adds, plain or over shuffled lanes as the driver forms them, come off whole with each value a lane stores, leaving the products' adds.
+    auto counts = [&](const TwoRow& b, size_t (&g)[5]) {
+        const size_t v[5] = {b.got.mul, b.got.mad, b.got.fused, b.got.add, b.got.lane_add};
+        std::copy(v, v + 5, g);
+        if (!b.tree) return true;
+        const size_t nv = size_t(b.rows) * b.cols, reduce = tree_adds(nv, b.tree) + (nv >= b.tree ? nv / b.tree : 1);
+        if (g[3] + g[4] < reduce) return false;
+        g[3] = g[3] + g[4] - reduce, g[4] = 0;
+        return true;
+    };
+    auto reference = [](const TwoRow& b, size_t (&r)[5]) {
+        const size_t v[5] = {b.ref.mul, b.ref.mad, b.ref.fused, b.ref.add + (b.tree ? b.ref.lane_add : 0), b.tree ? 0 : b.ref.lane_add};
+        std::copy(v, v + 5, r);
+    };
+    std::map<std::string, std::vector<size_t>> column_ops, row_ops;
+    for (int pass = 0; pass < 2; ++pass)
+        for (size_t i = 0; i < two_row.size(); ++i)
+            for (size_t j = 0; j < two_row.size(); ++j) {
+                const TwoRow &a = two_row[i], &c = two_row[j];
+                if (a.kernel != c.kernel || c.cols <= a.cols || (pass == 0) != (a.rows == c.rows)) continue;
+                auto fail = [&](const char* what) { throw std::runtime_error(std::string(what) + ": " + a.name + " and " + c.name); };
+                if (a.tree != c.tree) fail("two-row builds of one kernel with other reductions");
+                size_t ga[5], gc[5], r[5];
+                if (!counts(a, ga) || !counts(c, gc)) fail("a transposed two-row build with fewer adds than its reduction takes");
+                reference(a, r);
+                if (pass == 0) {
+                    const size_t step = size_t(a.rows) * (c.cols - a.cols);
+                    size_t per[5];
+                    for (int k = 0; k < 5; ++k) {
+                        if (gc[k] < ga[k] || (gc[k] - ga[k]) % step != 0 || (gc[k] - ga[k]) / step > r[k])
+                            fail("two-row builds' float multiplies and adds differ by other than whole copies of a row and column's products");
+                        per[k] = (gc[k] - ga[k]) / step;
+                    }
+                    if (per[1] * r[2] != per[2] * r[1]) fail("a two-row build fuses a column's products in another proportion than its one-column build");
+                    auto seen = column_ops.emplace(a.kernel, std::vector<size_t>(per, per + 5));
+                    if (!std::equal(per, per + 5, seen.first->second.begin())) fail("two-row builds of one kernel differ by other products a column in another pair");
+                } else {
+                    // Builds of other rows also differ by whole copies of one row's weight operations, which every column of the row shares, no more than the one-column build holds.
+                    const auto per = column_ops.find(a.kernel);
+                    if (per == column_ops.end()) fail("two-row builds of other rows without two of the same rows to give a column's products");
+                    if (c.rows <= a.rows) fail("a wider two-row build with fewer rows");
+                    const size_t products = size_t(c.rows) * c.cols - size_t(a.rows) * a.cols, rows = c.rows - a.rows;
+                    size_t w[5];
+                    for (int k = 0; k < 5; ++k) {
+                        const size_t want = ga[k] + per->second[k] * products;
+                        if (gc[k] < want || (gc[k] - want) % rows != 0 || (gc[k] - want) / rows > r[k])
+                            fail("two-row builds of other rows differ by other than whole copies of a row and column's products and of a row's weight operations");
+                        w[k] = (gc[k] - want) / rows;
+                    }
+                    auto seen = row_ops.emplace(a.kernel, std::vector<size_t>(w, w + 5));
+                    if (!std::equal(w, w + 5, seen.first->second.begin())) fail("two-row builds of one kernel differ by other weight operations a row in another pair");
+                }
+                ++n.two_rows;
             }
-            if (per[1] * r[2] != per[2] * r[1]) fail("a two-row build fuses a column's products in another proportion than its one-column build");
-            auto seen = column_ops.emplace(a.kernel, std::vector<size_t>(per, per + 5));
-            if (!std::equal(per, per + 5, seen.first->second.begin())) fail("two-row builds of one kernel differ by other products a column in another pair");
-            ++n.two_rows;
-        }
     return n;
 }
 

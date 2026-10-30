@@ -1,5 +1,6 @@
 #pragma once
 // The kernel table: the embedded modules, kernel ids, each weight format's kernels, the row and decode builds, and the bindings each kernel reads and writes.
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -1568,8 +1569,8 @@ inline bool row_kernel_builds_two_rows(KernelId id) {
 struct RowBuild {
     uint32_t cols, rows;
 };
-const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 2}};
-// The two-row builds, narrowest first.
+const RowBuild kRowBuilds[] = {{kRowColsWide, 1}, {kRowColsOne, 1}, {kRowColsWide, 1}, {2, 2}, {4, 2}, {8, 2}, {16, 4}};
+// The two-row builds, narrowest first; the 16-column build takes four rows, which pay for themselves once the transposed reduction makes a reduction's cost follow its values (docs/VULKAN.md).
 const int kRowByWidth[] = {3, 4, 5, 6};
 
 // The rows a cluster takes in a row kernel's build, by pipeline variant: one but in the two-row builds.
@@ -1598,6 +1599,13 @@ const uint32_t kQ8LanesPerPair = 4;       // matmul_row.comp, wide Q8_0: `group 
 const uint32_t kKQuantLanes = 8;          // matmul_row.comp, Q4_K, Q5_K and Q6_K: `group = l / 8u` ("eight lanes per block")
 const size_t kAttentionTileRows = 32;     // attention_tile.comp: `TQ = 32u`, the query rows of one tile
 const size_t kFullTileRows = 64;          // attention_flash.comp: `TQ = 64u`, the query rows of one non-causal tile
+
+// The cluster width whose reduction a two-row build transposes (shaders/matmul_row_two.glsl, TREE_CLUSTER): the width a long row of its kernel takes on the device, or 0 where the profile keeps the butterfly.
+inline uint32_t row_tree_cluster(KernelId id, int variant, const DeviceProfile& profile, uint32_t subgroup) {
+    if (!profile.row_decode_tree || build_rows(id, variant) < 2) return 0;
+    const bool k45 = id == K_MATMUL_ROW_K4_DOT || id == K_MATMUL_ROW_K5_DOT || id == K_MATMUL_ROW_K4_I8 || id == K_MATMUL_ROW_K5_I8;
+    return k45 ? std::min(subgroup, std::max(kKQuantLanes, profile.k45_row_lanes)) : subgroup;
+}
 
 // The multiply-adds one dispatch of non-causal attention takes at most, about 60 ms on an MI50, well inside the GPU's job timeout.
 // The per-row build is about 16 times slower a product, so it takes 16 times fewer.

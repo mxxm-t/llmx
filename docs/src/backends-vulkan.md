@@ -95,6 +95,7 @@ The first three come before the class; the others define members the class decla
   one-column build's counts of float multiplies and adds, each Q8_0
   decode build to the counts its shape and forms give, and a kernel's
   two-row builds to whole copies of one row and column's products apart,
+  and of one row's weight operations where their rows differ,
   as the first line of each build's representation states its shape (AGENTS.md, Tests). On a queue that
   timestamps it the backend also times the
   dispatches: `vulkan_kernel_times` returns device milliseconds per kernel
@@ -230,11 +231,12 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   The Q8_0 decode kernel is built for 1, 2, 4, 8, 16 and 32 columns (`kVecBuilds`), its one column in three builds, two rows and one step for rows narrower than the profile's `q8_decode_narrow_below`, else one row and four steps ahead below the knee of the activations' width in output rows of a call (`q8_decode_two_rows_from` for 8-bit activations, `q8_decode_one_row_below_16bit` for 16-bit) and from it two rows and two steps for 8-bit activations and two rows and one step for 16-bit, by the width, rows and activations `for_each_column_chunk` is given (`one_column_build`), with the rows a subgroup takes, the steps of weights a lane loads ahead, its two forms and its column groups as specialization constants 9 to 13; `sg_rows` gives the rows a subgroup takes in any row kernel build, which a dispatch's rows per workgroup follow.
   The 32-column build is two 16-column groups over the same rows, and a dispatch gives each workgroup's rows two adjacent workgroups.
   A build takes the transposed reduction where it asks for it and the profile's `q8_decode_forms` allows it, and the half-block order (`kQ8Half`) wherever the profile allows it, in every build alike, since that order sums a column's products in another order than the quarter layout (`vec_forms`); `kernel_representations` starts each build's text with its shape and forms for `backend-vulkan`.
-  `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, then the rest in the narrowest build that holds them.
+  `for_each_column_chunk` splits a pass's columns: chunks of the widest build the kernel has on the device (the profile's `q8_decode_cols` for this kernel) while more columns remain than it holds, all in one dispatch whose workgroups in y each take one chunk (`gl_WorkGroupID.y` in `matmul_row.comp` and `matmul_vec_q8.comp`), then the rest in the narrowest build that holds them; a matrix of few rows, such as a router, so fills the device with its columns rather than running one chunk after another.
   Each Q8_0 decode build holds twice the next narrower's columns, so a chunk fills more than half its build, and a build of one column group checks the column count only before the groups of columns past its first half, while the 32-column build's second group, which gets 1 to 16 columns, checks it before each, and the grouped build, whose runs hold any count, checks it before each group; a build of up to 8 columns also skips the products of the columns past the count in a group the pass fills in part.
   Every build computes a column as the one-column build does, so the split changes only the time; `backend-vulkan` checks each column against the same column alone.
-  The Q4 and K-quant families (`row_kernel_builds_two_rows`) also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
-  `kernel_representations` starts such a build's text with `; row_build cols=C rows=R`.
+  The Q4 and K-quant families (`row_kernel_builds_two_rows`) also have two-row builds of 2, 4, 8 and 16 columns (`kRowBuilds`, specialization constants 0 and 9, the latter `build_rows`), which a device takes in place of the eight-column build up to its profile's `row_decode_cols` (16 on the MI50 under RADV, none by default): a cluster takes two adjacent rows, four in the 16-column build, and computes every column the build holds, so its chunks too fill more than half a build, and `sg_rows` counts the rows a subgroup's clusters take while the push constant keeps the clusters.
+  Where the profile sets `row_decode_tree` (the MI50 under RADV) these builds reduce through the transposed reduction (`row_tree_cluster`, specialization constant 17), and `column_builds` gives them only rows of its cluster width, the rest taking the one-row builds.
+  `kernel_representations` starts such a build's text with `; row_build cols=C rows=R tree=W`.
   The lanes that share a wide Q8_0 block pair (four) and a K-quant block (eight) are fixed by `matmul_row.comp`, and the host mirrors them in constants beside the tile heights rather than in the profile.
 - Wide batches take a tile kernel. Where the profile sets
   `prefer_integer_dot`, every quantized type goes through the
@@ -377,8 +379,13 @@ across build widths.
 
 The Q4 and K-quant row families use constants 0 and 9 for columns per lane
 and rows per cluster. Their first three variants are the one-row wide,
-one-column and grouped builds, followed by two-row builds with 2, 4, 8 and
-16 columns. Constant 8 marks grouped execution. All pipelines receive the
+one-column and grouped builds, followed by the two-row builds: two rows with
+2, 4 and 8 columns and four rows with 16 (`kRowBuilds`). Constant 8 marks
+grouped execution. Constant 17 (`TREE_CLUSTER`, `row_tree_cluster`) is the
+cluster width whose reduction those builds transpose where the profile sets
+`row_decode_tree`: the cluster width a long row of the kernel takes on the
+device, so `column_builds` gives them only rows of that width and a row of
+another width takes the one-row builds. All pipelines receive the
 shared specialization entries; a module ignores those it does not declare.
 
 `for_each_column_chunk` fills the widest supported build while more columns remain
@@ -562,7 +569,7 @@ From the comment at line 118:
 
 From the comment at line 122:
 
-- Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
+- Rows a cluster takes, specialization constant 9: the Q4 and K-quant families' two-row decode builds (the backend's kRowBuilds) give a lane two rows' weights, four in the 16-column build, so each column's activation loads serve both, and compute every column they hold, one past the pass's count on its last column and never stored.
 - A row's lanes, blocks, products and reduction are those of the one-row builds, and each block's weights and float terms come from the same macros below, so a column gets the one-column build's bits (docs/VULKAN.md, batch invariance).
 
 From the comment at line 364:
@@ -577,7 +584,8 @@ The including function supplies the row, its weight row, the type, the column co
 
 ### `src/backends/vulkan/shaders/matmul_row_two.glsl`
 
-The Q4 and K-quant families' two-row builds' body (`ROWS` above 1): a cluster's dots of two adjacent rows with up to MAX_COLS columns, each sum handed to `ROW_STORE2(c, r, s)`, then a return from the including function.
+The Q4 and K-quant families' two-row builds' body (`ROWS` above 1): a cluster's dots of `ROWS` adjacent rows with up to MAX_COLS columns, each sum handed to `ROW_STORE2(c, r, s)`, then a return from the including function.
+In a build whose `TREE_CLUSTER` is set, the cluster reduces through the butterfly's pairs l ^ W/2 .. l ^ 1 in that order, transposed so each level halves the values a lane holds, and every lane stores the sums it is left with; float adds commute, so each sum has the butterfly's bits.
 
 ### `src/backends/vulkan/shaders/matmul_tile.comp`
 

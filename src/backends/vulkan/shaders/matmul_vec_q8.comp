@@ -66,7 +66,8 @@ void main() {
         local_wg /= SPAN;
     }
     uint row0 = (local_wg * (256u / S) + gl_SubgroupID) * ROWS * HALVES + (HALVES > 1u ? (lane >> 5u) * ROWS : 0u);
-    uint col0 = p.col0 + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
+    // A plain call's workgroups in y take its whole chunks side by side, as in matmul_row.comp.
+    uint col0 = p.col0 + gl_WorkGroupID.y * p.ncols + part * MAX_COLS, out0 = col0, wrow0 = 0u, g_first = 0u, g_cnt = 0u;
     if (GROUPED) {
         uint y = gl_WorkGroupID.y;
         g_first = tab[4u * y + 1u];

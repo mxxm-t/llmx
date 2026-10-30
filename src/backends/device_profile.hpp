@@ -49,9 +49,11 @@ struct DeviceProfile {
     uint32_t k45_row_lanes = 32;
     // Columns the widest build of the Q8_0 decode kernel on the integer dot holds, which reads a weight once for that many generated tokens; a subgroup that keeps more columns holds more registers and runs fewer waves (docs/VULKAN.md).
     uint32_t q8_decode_cols = 8;
-    // Columns the widest two-row decode build of the Q4 and K-quant row kernels holds (2 to 16), or 0 for the eight-column build of one row a cluster: those builds give a lane two rows and compute every column they hold (docs/VULKAN.md).
-    // A driver may compile their code apart from the one-row builds' and sum a column's products in another order, so they are set only where their columns were checked bit for bit against the one-column build.
+    // Columns the widest two-row decode build of the Q4 and K-quant row kernels holds (2 to 16), or 0 for the eight-column build; set it with row_decode_tree (docs/VULKAN.md).
+    // Set only where those builds' columns were checked bit for bit against the one-column build, since a driver may sum their products in another order.
     uint32_t row_decode_cols = 0;
+    // Whether those two-row builds reduce a whole cluster through its own pairs transposed, each level halving the values a lane holds, which gives every column the butterfly's bits in fewer shuffles; set only where they were checked bit for bit.
+    bool row_decode_tree = false;
     // Forms of the Q8_0 decode kernel a build may take (the Vulkan backend's kQ8Tree and kQ8Half): the first is set only where the disassembly showed the reduction takes the pairs it writes out (docs/VULKAN.md).
     // The second is the half-block order, which every build takes where it is set; it sums a column's products in another order than the quarter layout, so setting it changes the device's decode results once.
     uint32_t q8_decode_forms = 0;
@@ -131,6 +133,7 @@ inline const TunedDevice* tuned_devices(size_t& count) {
              p.q8_decode_cols = 32;
              p.q8_decode_forms = 3;
              p.row_decode_cols = 16;
+             p.row_decode_tree = true;
              p.attention_split_max = 32;
              p.q8_decode_narrow_below = 1024;
              p.q8_decode_two_rows_from = 4096;

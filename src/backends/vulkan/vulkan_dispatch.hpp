@@ -96,14 +96,14 @@ inline Kernel& VulkanBackend::kernel(KernelId id, int variant) {
         const bool twin8 = variant == 1 && !tile && !is_row_kernel(id);
         // Constant 14 keeps a fused kernel's row products; a diagnostic backend also builds each fused kernel without them (role_free_).
         // Constant 15 fixes NVFP4's format independently of the fused role control, and 16 is a Q8_0 decode build's halves.
-        uint32_t spec_data[11] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
+        uint32_t spec_data[12] = {vec ? vb.cols : spec_value, twin8 ? 1u : 0u, variant == 2 ? 1u : 0u, vec ? vb.rows : build_rows(id, variant), vb.steps,
                                   (forms & kQ8Tree) ? 1u : 0u, (forms & kQ8Half) ? 1u : 0u, vb.span, 1u, (is_nvfp4_tile(id) || id == K_MATMUL_ROW_NVFP4) ? uint32_t(quant::GGML_TYPE_NVFP4) : UINT32_MAX,
-                                  vec ? vb.halves : 1u};
-        const uint32_t spec_ids[11] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-        VkSpecializationMapEntry entries[11];
-        for (uint32_t i = 0; i < 11; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
+                                  vec ? vb.halves : 1u, row_tree_cluster(id, variant, d.profile, d.caps.subgroup_size)};
+        const uint32_t spec_ids[12] = {0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+        VkSpecializationMapEntry entries[12];
+        for (uint32_t i = 0; i < 12; ++i) entries[i] = {spec_ids[i], i * uint32_t(sizeof(uint32_t)), sizeof(uint32_t)};
         VkSpecializationInfo spec{};
-        spec.mapEntryCount = 11;
+        spec.mapEntryCount = 12;
         spec.pMapEntries = entries;
         spec.dataSize = sizeof(spec_data);
         spec.pData = spec_data;

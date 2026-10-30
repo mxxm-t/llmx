@@ -1045,6 +1045,7 @@ A server without a disk tier or a drafter still prints the fields, as zeros, `fa
 | `drafting.sources` | list | - | The `--drafter` sources in the order tried, as the flag spells them; empty without a drafter | - |
 | `drafting.since_start.drafted`, `.kept` | tokens | since start | Drafted tokens that verifies fed, and the ones they kept; `by_position` has the same by draft position, from 1 | `kept` far below `drafted` |
 | `drafting.since_start.own_history.drafted`, `.kept` | tokens | since start | Those of them the requests' own histories gave ahead of a drafter that runs a model | - |
+| `drafting.since_start.by_source[]` | drafts | since start | By the acceptance a draft is priced by (`proposer`, `history 8-15`, `history 16-31`, `history 32+`), per position from 1: fed, kept and reached (fed with every draft before it kept) | a position fed far less than the one before it while both keep most of what reaches them: drafts held short |
 | `drafting.since_start.failed` | drafts | since start | Drafts that failed; each cost its pass the drafts and ended no request, and the log has a line with the reason | above 0 |
 | `passes.limit`, `.in_flight` | passes | fixed, now | `--passes` and the passes under way | |
 | `passes.sampling_threads` | threads | fixed | Threads that sample beside the scheduler's | |

@@ -564,6 +564,7 @@ public:
         bool disk_writing = false;                // a disk tier that has not stopped writing
         std::vector<size_t> drafted{}, kept{};    // by draft position, the drafts verifies fed and those they kept
         std::vector<size_t> own_drafted{}, own_kept{};   // those of them requests' own histories gave ahead of the proposer (spec::lookup_first)
+        std::vector<infer::spec::Acceptance> by_source{};   // the proposer's acceptance, then the history drafts' by match bucket, as the server prices drafts with them
         size_t draft_failures = 0;                // drafts that threw, each costing its pass the drafts and no request
         size_t holds = 0;                         // times the scheduler's thread stopped every stage's recorder to work on their devices itself (quiet, Held)
         size_t stage_waits = 0;                   // times the scheduler's thread waited for work it had queued on a stage's thread (Model::on_stage_wait)
@@ -610,6 +611,7 @@ public:
         // Every source's by position, and the requests' own histories' apart.
         tally_.tally(infer::spec::Source::lookup, s.own_drafted, s.own_kept);
         tally_.tally(infer::spec::Source::proposer, s.drafted, s.kept);
+        s.by_source.assign({tally_.proposer, tally_.lookup[0], tally_.lookup[1], tally_.lookup[2]});
         if (s.drafted.size() < s.own_drafted.size()) s.drafted.resize(s.own_drafted.size()), s.kept.resize(s.own_drafted.size());
         for (size_t i = 0; i < s.own_drafted.size(); ++i) s.drafted[i] += s.own_drafted[i], s.kept[i] += s.own_kept[i];
         s.live = live_;

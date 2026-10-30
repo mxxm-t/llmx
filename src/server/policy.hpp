@@ -362,7 +362,7 @@ inline double in_flight_rate(uint64_t bytes, double seconds) {
     return (double)bytes / seconds;
 }
 
-// What a measured cost a row keeps of its old value at each new measurement, a forgetting mean (forget); spec::PassCost weighs its passes by its own kForget.
+// What a measured cost a row keeps of its old value at each new measurement, a forgetting mean (forget); spec::PassTimes weighs its passes by spec::kForget.
 inline constexpr double kCostKeep = 0.75;
 inline double forget(double old, double now) { return old > 0 ? kCostKeep * old + (1 - kCostKeep) * now : now; }
 

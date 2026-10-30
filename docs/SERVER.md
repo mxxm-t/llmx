@@ -659,7 +659,9 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
   "reread": {"since_start": {"jobs": 55, "rows": 31040, "cancelled": 3, "handed": 2}},
   "drafting": {"sources": ["lookup", "embedded"], "since_start": {"drafted": 4096, "kept": 2780,
                "by_position": [{"position": 1, "drafted": 1024, "kept": 901}],
-               "own_history": {"drafted": 512, "kept": 480}}},
+               "own_history": {"drafted": 512, "kept": 480},
+               "by_source": [{"source": "proposer", "by_position": [[512, 421, 512]]}, {"source": "history 8-15", "by_position": [[120, 101, 120]]},
+                             {"source": "history 16-31", "by_position": []}, {"source": "history 32+", "by_position": [[392, 379, 392]]}]}},
   "passes": {"limit": 2, "in_flight": 1, "sampling_threads": 3}
 }
 ```
@@ -667,6 +669,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 `timing` appears beside `passes` only under `--timing`, with the keys it has now and `stage_idle` renamed `stage_idle_share` (a fraction per stage).
 `drafting.sources` lists the `--drafter` sources in the order tried, as the flag spells them, and is empty with no drafter.
 `drafting.by_position` is empty with no drafter, and a server has one drafter, so the counts are by draft position and not by drafter; `own_history` counts those of them the requests' own histories gave ahead of a drafter that runs a model.
+`by_source` gives the same by the acceptance each is priced by, the drafter's and the history drafts' by the length of their match: by position, the drafts fed, those kept and those reached, fed with every draft before them kept, the counts a position's chance is computed from (docs/SPECULATIVE.md, section 3).
 
 ### Where each old field goes
 
@@ -698,6 +701,7 @@ A name carries its unit where it has one: `_bytes`, `_tokens`, `_ms`, `_s`.
 | `reprefill_handed` | `reread.since_start.handed` | `Stats` |
 | `drafted`, `kept` | `drafting.since_start.by_position[]` and their sums | `Stats` |
 | `own_drafted`, `own_kept` | `drafting.since_start.own_history` | `Stats` |
+| (new) | `drafting.since_start.by_source` | `Stats::by_source` |
 | `passes`, `in_flight` | `passes.limit`, `passes.in_flight` | `Stats` |
 | `timing` | `timing` | `Stats::timing` |
 

@@ -206,6 +206,9 @@ private:
     std::vector<uint32_t> fed_;   // the tokens the model's history holds
 };
 
+// What each verify a request's acceptance counts, and each pass or chain step the pass cost measures, weighs of the next, so about the last hundred count and a figure set by a few early ones gives way to later ones.
+inline constexpr double kForget = 0.99;
+
 // A request's acceptance figure (docs/SPECULATIVE.md, section 3): a running average of the drafts its verifies kept, each moving it an eighth of the way to what that one kept.
 // Below kBreakEven the request drafts nothing for its next 16 tokens, and it counts by draft position the drafts its verifies fed and kept.
 class Acceptance {
@@ -214,11 +217,14 @@ public:
     void verified(size_t kept, size_t fed) {
         average_ += ((double)kept - average_) / kWeight;
         if (average_ < kBreakEven) rest_ = kRest;
-        if (drafted_.size() < fed) drafted_.resize(fed), kept_.resize(fed), reached_.resize(fed);
+        if (drafted_.size() < fed) drafted_.resize(fed), kept_.resize(fed), reached_.resize(fed), kept_w_.resize(fed), reached_w_.resize(fed);
+        for (size_t i = 0; i < kept_w_.size(); ++i) kept_w_[i] *= kForget, reached_w_[i] *= kForget;
         for (size_t i = 0; i < fed; ++i) {
             ++drafted_[i];
             kept_[i] += i < kept;
             reached_[i] += i <= kept;
+            kept_w_[i] += i < kept;
+            reached_w_[i] += i <= kept;
         }
     }
     // `n` tokens generated without this acceptance's drafts.
@@ -226,8 +232,9 @@ public:
     bool resting() const { return rest_ > 0; }
     const std::vector<size_t>& drafted() const { return drafted_; }
     const std::vector<size_t>& kept() const { return kept_; }
-    // The chance a verify keeps its drafts up to position i: the product of each position's chance given every draft before it was kept, counted over the verifies that reached it, so a verify that missed early says nothing of later positions.
-    // A position's chance is these verifies' share weighed with kPrior verifies at `prior`'s, which is weighed with kPrior at the chance measured at the last position either reached, one half for the first draft and one where none was reached.
+    const std::vector<size_t>& reached() const { return reached_; }
+    // The chance a verify keeps its drafts up to position i: the product of each position's chance over the verifies that reached it (docs/SPECULATIVE.md, section 3).
+    // Each is weighed with kPrior verifies at `prior`'s, that at the last reached position's (one half for the first draft), and each verify weighs kForget of the next.
     double keeps(size_t i, const Acceptance& prior) const {
         double chance = 1.0, before = 1.0;
         for (size_t j = 0; j <= i; ++j) {
@@ -242,11 +249,12 @@ public:
 private:
     static constexpr double kBreakEven = 0.5, kWeight = 8.0, kPrior = 4.0;
     static constexpr size_t kRest = 16;
-    double kept_at(size_t i) const { return i < kept_.size() ? (double)kept_[i] : 0.0; }
-    double reached_at(size_t i) const { return i < reached_.size() ? (double)reached_[i] : 0.0; }
+    double kept_at(size_t i) const { return i < kept_w_.size() ? kept_w_[i] : 0.0; }
+    double reached_at(size_t i) const { return i < reached_w_.size() ? reached_w_[i] : 0.0; }
     double average_ = 2.0;
     size_t rest_ = 0;
     std::vector<size_t> drafted_, kept_, reached_;   // by position, the drafts fed, those kept and those fed after every draft before them was kept
+    std::vector<double> kept_w_, reached_w_;          // the kept and reached the chances read, each verify weighing kForget of the next
 };
 
 // Where a draft comes from: the request's own history ahead of a model proposer (lookup_first), or its proposer.
@@ -346,7 +354,6 @@ public:
     }
 
 private:
-    static constexpr double kForget = 0.99;
     struct Line {
         double w = 0, x = 0, y = 0, xx = 0, xy = 0;
         void add(double a, double b) {

@@ -2601,6 +2601,13 @@ def check_flash_mtp_http(tool=None):
                 assert stream_logprobs("/v1/chat", events) == {k: whole[k] for k in ("logprobs", "top_logprobs")}, events
                 finished = srv.wait(lambda h: h["requests"]["now"]["active"] == 0, "Flash HTTP request stayed active")
                 count = finished["drafting"]["since_start"]
+                # Each source's counts by position add up to the whole, and a position reached was fed, and kept only where reached.
+                sources = count["by_source"]
+                assert [x["source"] for x in sources] == ["proposer", "history 8-15", "history 16-31", "history 32+"], sources
+                for i, row in enumerate(count["by_position"]):
+                    at = [x["by_position"][i] for x in sources if i < len(x["by_position"])]
+                    assert sum(a[0] for a in at) == row["drafted"] and sum(a[1] for a in at) == row["kept"], (i, row, at)
+                    assert all(a[1] <= a[2] <= a[0] for a in at), (i, at)
                 for before, after in ((initial, ordinary), (initial, count)):
                     assert after["failed"] == 0 and after["own_history"]["drafted"] == 0, after
                     drafted, kept = [after[key] - before[key] for key in ("drafted", "kept")]

@@ -410,6 +410,16 @@ private:
             drafted += s.drafted[i];
             kept += k;
         }
+        // Each source's drafts by position, fed, kept and reached (fed with every draft before kept), the counts its chances are priced from.
+        std::string by_source;
+        static const char* const kSources[] = {"proposer", "history 8-15", "history 16-31", "history 32+"};
+        for (size_t i = 0; i < s.by_source.size() && i < 4; ++i) {
+            const infer::spec::Acceptance& a = s.by_source[i];
+            std::string at;
+            for (size_t j = 0; j < a.drafted().size(); ++j)
+                at += (j ? ",[" : "[") + n(a.drafted()[j]) + "," + n(a.kept()[j]) + "," + n(a.reached()[j]) + "]";
+            by_source += (i ? "," : "") + std::string("{\"source\":") + jmini::quote(kSources[i]) + ",\"by_position\":[" + at + "]}";
+        }
         const std::string numerics = std::string(LLMX_NUMERICS).substr(0, 16);
         const int64_t up = (int64_t)std::time(nullptr) - started_;
         c.respond(200, "application/json",
@@ -440,7 +450,7 @@ private:
                   ",\"pressure\":{\"since_start\":{\"pauses\":" + n(s.pauses) + ",\"stalls\":" + n(s.stalls) + ",\"waits\":" + n(s.waits) +
                   ",\"recomputed_tokens\":" + n(s.recomputed) + ",\"resumes_taking_history_back\":" + n(s.taken_back) + ",\"turns\":" + n(s.yields) + ",\"turns_without_memory\":" + n(s.turns_without_memory) + "}}" +
                   ",\"reread\":{\"now\":{\"jobs\":" + n(s.jobs) + ",\"rows_left\":" + n(s.job_rows_left) + "},\"since_start\":{\"jobs\":" + n(s.reprefills) + ",\"rows\":" + n(s.reprefill_rows) + ",\"cancelled\":" + n(s.reprefill_cancels) + ",\"handed\":" + n(s.reprefill_handed) + ",\"rows_released\":" + n(s.reprefill_released) + "}}" +
-                  ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" +
+                  ",\"drafting\":{\"sources\":[" + sources + "],\"since_start\":{\"drafted\":" + n(drafted) + ",\"kept\":" + n(kept) + ",\"failed\":" + n(s.draft_failures) + ",\"by_position\":[" + positions + "]" + ",\"by_source\":[" + by_source + "]" +
                   ",\"own_history\":{\"drafted\":" + n(own_drafted) + ",\"kept\":" + n(own_kept) + "}}}" +
                   ",\"passes\":{\"limit\":" + n(s.passes) + ",\"in_flight\":" + n(s.in_flight) + ",\"sampling_threads\":" + n(s.samplers) + ",\"since_start\":{\"prompt\":" + n(s.prompt_passes) + ",\"continued\":" + n(s.continued) + ",\"rule_replies\":" + n(s.rule_replies) + ",\"rule_chunks\":" + n(s.rule_chunks) + ",\"rule_mixed\":" + n(s.rule_mixed) + ",\"holds\":" + n(s.holds) + ",\"stage_waits\":" + n(s.stage_waits) + "}}" +
                   ",\"service\":" + service_json(s.service) +

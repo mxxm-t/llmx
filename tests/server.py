@@ -1363,6 +1363,110 @@ def check_context_overflow(model):
     return cuts
 
 
+# A vocabulary of printable characters, every byte from ! to ~, then the line feed and the end of text, so a random model's reply is text of one token a character.
+SHIFT_VOCAB = [chr(b) for b in range(33, 127)] + [build_byte_vocab()[10], "<|endoftext|>"]
+SHIFT_CONFIG = dict(f32.CONFIG, context_length=512)
+
+
+def first_stop(full, lo, hi):
+    """The shortest text of `full` that starts before `hi` and ends after `lo` and occurs nowhere earlier, with where it starts: a stop text that ends a reply there."""
+    for length in range(2, 40):
+        for start in range(max(0, lo - length + 1), hi):
+            text = full[start:start + length]
+            if start + length > lo and len(text) == length and full.find(text) == start:
+                return start, text
+    raise AssertionError("no stop text found between %d and %d in %r" % (lo, hi, full))
+
+
+def check_reply_shift(model):
+    """A reply that reaches what a request may hold while it is written (docs/SERVER.md, A reply that reaches the context), on a random tiny model of a printable vocabulary and a request limit of 128 (a pool of 128), so a shift keeps at most 112 rows and drops in steps of 64.
+    Under refuse an uncapped reply that ignores the end of text ends with length at the limit; under --context-overflow shift it goes on as one reply, each part the reply a client gets for the history the same cut keeps, until a stop text, one that spans a shift included.
+    Returns the shifts the server counted."""
+    f32.write_model(model, f32.tensors(False, seed=1, config=SHIFT_CONFIG, vocab=len(SHIFT_VOCAB)), PLAIN_TEMPLATE, len(SHIFT_VOCAB) - 1, config=SHIFT_CONFIG, tokens=SHIFT_VOCAB)
+    limit, step = 128, 64
+    prompt = "Tell+me+a+story:"
+    system, first, answer, newest = {"role": "system", "content": "s"}, {"role": "user", "content": "abcdefgh"}, {"role": "assistant", "content": "xyzw"}, {"role": "user", "content": "ef"}
+    messages = [system, first, answer, newest]
+    srv = Server(model, "--kv-tokens", "128", "--context-overflow", "shift")
+    try:
+        # The reply a client gets for `history` as its prompt, run to the limit, with each token's log-probability; one token a character, so a text is its ids.
+        values = {}
+
+        def part(history):
+            got = post_ok(srv, "/v1/generate", {"prompt": history, "max_tokens": limit - len(history), "temperature": 0, "ignore_eos": True, "logprobs": True})
+            assert got["prompt_tokens"] == len(history) and got["tokens"] == len(got["text"]) == len(got["logprobs"]) == limit - len(history), got
+            values[history] = got["logprobs"]
+            return got["text"]
+
+        # A text prompt holds no end token, so each shift keeps the first 32 rows, half a step, and drops the step after them (cut_rows).
+        text, history, bounds, logprobs = "", prompt, [], []
+        for _ in range(3):
+            more = part(history)
+            text += more
+            logprobs += values[history]
+            bounds.append(len(text))
+            history = (history + more)[:32] + (history + more)[32 + step:]
+        # A chat keeps its system message and its newest user message on the first shift, the earlier turn dropped; then the reply alone is past the room, so each shift drops a step of its oldest rows.
+        whole, kept = reasoning_render(messages), reasoning_render([system, newest])
+        chat = part(whole)
+        assert len(kept) + len(chat) <= limit - limit // 8, (len(kept), len(chat))
+        chat += part(kept + chat)
+        assert len(kept) + len(chat) == limit and len(kept) + len(chat) - step <= limit - limit // 8, len(chat)
+        chat_bound = len(chat)
+        chat += part(kept + chat[step:])
+        shifts = srv.get("/v1/health")["requests"]["since_start"]["shifts"]
+        assert shifts == 0, shifts
+
+        # A stop text past the second shift ends each route's reply there, whole and streamed, its tokens counted through the stop and its context the last part's.
+        # Its log-probabilities run on unbroken across both shifts, each the value of its part's reply alone, at offsets one character apart.
+        at, stop = first_stop(text, bounds[1] + 4, bounds[2])
+        body = {"prompt": prompt, "temperature": 0, "ignore_eos": True, "stop": [stop]}
+        status, got = srv.post("/v1/completions", dict(body, logprobs=1))
+        assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and got["choices"][0]["text"] == text[:at], (status, got, text[:at])
+        tail = at + len(stop) - bounds[1]
+        lp = got["choices"][0]["logprobs"]
+        assert lp["tokens"] == list(text[:at + len(stop)]) and lp["token_logprobs"] == logprobs[:at + len(stop)] and lp["text_offset"] == list(range(at + len(stop))), lp
+        assert len(lp["top_logprobs"]) == at + len(stop) and all(len(top) == 1 for top in lp["top_logprobs"]), lp["top_logprobs"]
+        assert got["usage"]["completion_tokens"] == at + len(stop) and got["usage"]["prompt_tokens"] == len(prompt), got["usage"]
+        assert got["context"] == {"tokens": 64 + tail, "limit": limit, "dropped_tokens": 2 * step, "at_marker": False, "reply_shifts": 2}, got["context"]
+        events = srv.stream("/v1/completions", dict(body, stream=True))
+        chunks = [e for e in events if e and e.get("choices")]
+        assert events[-1] is None and len({e["id"] for e in chunks}) == 1 and "".join(e["choices"][0]["text"] for e in chunks) == text[:at], events
+        assert chunks[-1]["choices"][0]["finish_reason"] == "stop", chunks[-1]
+        # A stop text that begins in the first part and ends in the second ends the reply at its start.
+        at, stop = first_stop(text, bounds[0], bounds[0])
+        status, got = srv.post("/v1/completions", dict(body, stop=[stop]))
+        assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and got["choices"][0]["text"] == text[:at] and got["context"]["reply_shifts"] == 1, (status, got, text[:at])
+        # The chat route the same: one turn dropped on the first shift, a step of the reply on the second.
+        at, stop = first_stop(chat, chat_bound + 4, len(chat))
+        status, got = srv.post("/v1/chat/completions", {"messages": messages, "temperature": 0, "ignore_eos": True, "stop": [stop]})
+        assert status == 200 and got["choices"][0]["finish_reason"] == "stop" and got["choices"][0]["message"]["content"] == chat[:at], (status, got, chat[:at])
+        context = got["context"]
+        assert context["dropped_messages"] == 2 and context["dropped_tokens"] == (len(whole) - len(kept)) + step and context["reply_shifts"] == 2, context
+        assert got["usage"]["prompt_tokens"] == len(whole) and got["usage"]["completion_tokens"] == at + len(stop), got["usage"]
+        # The next turn is the conversation the client sends, the shifted reply in it whole, cut as any prompt is: its reply and prompt those of the kept messages sent alone, with no shift of its own.
+        follow = messages + [{"role": "assistant", "content": chat[:at]}, {"role": "user", "content": "gh"}]
+        status, turn = srv.post("/v1/chat", {"messages": follow, "max_tokens": 8, "temperature": 0})
+        assert status == 200 and "reply_shifts" not in turn["context"], (status, turn)
+        own = [system] + follow[1 + turn["context"]["dropped_messages"]:]
+        assert own[1]["role"] == "user" and turn["prompt_tokens"] == len(reasoning_render(own)), (turn, own)
+        status, alone = srv.post("/v1/chat", {"messages": own, "max_tokens": 8, "temperature": 0})
+        assert status == 200 and alone["ids"] == turn["ids"] and "dropped_messages" not in alone["context"], (alone, turn)
+        health = srv.get("/v1/health")["requests"]
+        assert health["now"]["active"] == 0 and health["since_start"]["shifts"] == 8, health
+        shifts = health["since_start"]["shifts"]
+    finally:
+        srv.close()
+    # Under refuse the same reply ends with length at the limit, as before.
+    srv = Server(model, "--kv-tokens", "128")
+    try:
+        status, got = srv.post("/v1/completions", {"prompt": prompt, "temperature": 0, "ignore_eos": True})
+        assert status == 200 and got["choices"][0]["finish_reason"] == "length" and got["choices"][0]["text"] == text[:bounds[0]] and "reply_shifts" not in got["context"], (status, got)
+    finally:
+        srv.close()
+    return shifts
+
+
 def check_tool_calls_real(model):
     """The Qwen3 fixture asked for the weather with a weather tool, greedy, calls it as the template's JSON format writes a call, which the compatible route gives as a call whole and streamed with finish_reason tool_calls; sent back with the tool's result, the call gets an answer."""
     tools = [{"type": "function", "function": {"name": "get_weather", "description": "The current weather in a city.",
@@ -2681,6 +2785,9 @@ def run(require=False):
         check_ctx_past_context(os.path.join(directory, "overflow.gguf"))
         print("server: a request limit past the model's context refused at start with both numbers and the pool's flag  [ok]")
         cuts = check_context_overflow(os.path.join(directory, "overflow.gguf"))
+        shifts = check_reply_shift(os.path.join(directory, "shift.gguf"))
+        print("server: with --context-overflow shift, an uncapped reply past the pool goes on as one reply on the routes, whole and streamed, after %d shifts, "
+              "each part the reply of the history the same cut keeps, until a stop text, one spanning a shift included; under refuse it ends with length  [ok]" % shifts)
         check_no_turns_whole_block(os.path.join(directory, "overflow.gguf"))
         froms = check_agent_turn_cut(os.path.join(directory, "overflow.gguf"))
         print("server: with --context-overflow shift, an agent turn past the pool cut at its exchanges, kept from messages %s as it grows, its calls and results together and its reply that of the kept messages, "

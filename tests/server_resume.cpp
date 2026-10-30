@@ -11,6 +11,7 @@
 #include <set>
 
 #include "core/crc32c.hpp"
+#include "server/context_cut.hpp"
 #include "server/disk_index.hpp"
 #include "server/disk_store.hpp"
 #include "server_harness.hpp"
@@ -475,6 +476,77 @@ void cancelled_short_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t
                 "a paused request with a short donor cancelled: " + std::to_string(s.pauses) + " pauses, " + std::to_string(s.taken_back) + " taken back, " +
                 std::to_string(s.paused) + " paused and " + std::to_string(s.donors) + " donors, against 1, 0, 0 and 1");
         ledger(s, *model, "after a paused request with a short donor was cancelled");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
+// An uncapped reply continued past the request limit on the history a cut keeps (docs/SERVER.md, A reply that reaches the context), beside a capped request waiting for the one seat.
+// The next part takes the ended part's place in line, so it is admitted first, and then runs as any request does; it shares less than a block with the ended history, so it reads it all again.
+void continued_by_age(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab, const std::string& what) {
+    const size_t pool = 8 * kBlock, limit = 4 * kBlock;
+    const auto run = [&](infer::Model& model, const std::function<void(server::Scheduler&)>& body) {
+        server::Scheduler sched(model, tok, 1, 64, 0, false, 0, nullptr, 0, true, {}, limit);
+        std::thread runner([&] { sched.run(); });
+        try {
+            body(sched);
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    };
+    const auto alone = [&](const Req& r) {
+        auto model = make(pool, 0);
+        Reply out;
+        run(*model, [&](server::Scheduler& sched) { out = drain(*sched.submit(r.prompt, params_of(r))); });
+        return out;
+    };
+    const Req a{prompt_of(1, 40, vocab)}, b{prompt_of(2, 30, vocab), 20};
+    const Reply first = alone(a), b_alone = alone(b);
+    require(first.size() == limit - a.prompt.size(), what + ": the uncapped request gave " + std::to_string(first.size()) + " tokens before the limit");
+    std::vector<uint32_t> history = a.prompt;
+    for (const auto& t : first) history.push_back(t.id);
+    const server::RowCut cut = server::cut_rows({}, history.size(), limit - limit / 8, limit / 2);
+    std::vector<uint32_t> kept(history.begin(), history.begin() + (std::ptrdiff_t)cut.lead);
+    kept.insert(kept.end(), history.begin() + (std::ptrdiff_t)cut.from, history.end());
+    const Reply next_alone = alone(Req{kept});
+
+    // A and B are queued before the scheduler runs, so B waits for A's seat from the start and the hook sees both handles.
+    auto model = make(pool, 0);
+    server::Scheduler sched(*model, tok, 1, 64, 0, false, 0, nullptr, 0, true, {}, limit);
+    const std::shared_ptr<server::Request> ha = sched.submit(a.prompt, params_of(a)), hb = sched.submit(b.prompt, params_of(b));
+    std::shared_ptr<server::Request> hc;
+    std::atomic<bool> queued{false};
+    std::mutex m;
+    std::vector<const server::Request*> order;
+    sched.on_retire = [&](const server::Scheduler::Retired& t) {
+        std::lock_guard<std::mutex> lock(m);
+        for (size_t e = 0; e < t.requests.size(); ++e) {
+            if (std::find(order.begin(), order.end(), t.requests[e]) == order.end()) order.push_back(t.requests[e]);
+            if (t.requests[e] == ha.get() && !queued.load() && t.from[e] + t.rows[e] + 2 >= limit) {
+                hc = sched.carry_on(*ha, kept, std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, {}, {});
+                queued.store(true);
+            }
+        }
+    };
+    std::thread runner([&] { sched.run(); });
+    try {
+        same(first, drain(*ha), what + ", the part that ended");
+        require(queued.load(), what + ": no next part was queued");
+        same(next_alone, drain(*hc), what + ", the next part against its history alone");
+        same(b_alone, drain(*hb), what + ", the capped request");
+        std::lock_guard<std::mutex> lock(m);
+        const auto at = [&](const server::Request* r) { return std::find(order.begin(), order.end(), r) - order.begin(); };
+        require(order.size() == 3 && at(hc.get()) < at(hb.get()), what + ": the next part, older in line, was not admitted before the capped request submitted ahead of it");
+        require(hc->reused() == 0, what + ": the next part forked " + std::to_string(hc->reused()) + " tokens of a history it shares less than a block with");
+        ledger(sched.stats(), *model, what);
     } catch (...) {
         sched.stop();
         runner.join();
@@ -5269,6 +5341,8 @@ int main(int argc, char** argv) {
             growth_before_admission(one, tok, vocab);
             stall_holds_room(one, tok, vocab);
             cancelled_short_donor(one, tok, vocab);
+            continued_by_age(one, tok, vocab, "a reply continued past the limit");
+            continued_by_age(on(mixed, [] { return cpus(1); }, 3, 2), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "a reply continued past the limit on a hybrid model");
             hybrid(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             hybrid_checkpoints(mixed, bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab);
             turns_at_edge(on(mixed, [] { return cpus(1); }, 3, 1), bpe::Tokenizer(mixed), (uint32_t)kHybrid.vocab, "turns at the pool's edge on a hybrid model");

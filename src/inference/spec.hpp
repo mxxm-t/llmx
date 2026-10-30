@@ -214,10 +214,11 @@ public:
     void verified(size_t kept, size_t fed) {
         average_ += ((double)kept - average_) / kWeight;
         if (average_ < kBreakEven) rest_ = kRest;
-        if (drafted_.size() < fed) drafted_.resize(fed), kept_.resize(fed);
+        if (drafted_.size() < fed) drafted_.resize(fed), kept_.resize(fed), reached_.resize(fed);
         for (size_t i = 0; i < fed; ++i) {
             ++drafted_[i];
             kept_[i] += i < kept;
+            reached_[i] += i <= kept;
         }
     }
     // `n` tokens generated without this acceptance's drafts.
@@ -225,19 +226,27 @@ public:
     bool resting() const { return rest_ > 0; }
     const std::vector<size_t>& drafted() const { return drafted_; }
     const std::vector<size_t>& kept() const { return kept_; }
-    // The chance a verify keeps its draft at position i: the share these verifies kept there, weighed with kPrior verifies at `prior`'s share, or at one half where neither has fed one.
+    // The chance a verify keeps its drafts up to position i: the product of each position's chance given every draft before it was kept, counted over the verifies that reached it, so a verify that missed early says nothing of later positions.
+    // A position's chance is these verifies' share weighed with kPrior verifies at `prior`'s, which is weighed with kPrior at the chance measured at the last position either reached, one half for the first draft and one where none was reached.
     double keeps(size_t i, const Acceptance& prior) const {
-        const double p = i < prior.drafted_.size() && prior.drafted_[i] ? (double)prior.kept_[i] / (double)prior.drafted_[i] : 0.5;
-        const double n = i < drafted_.size() ? (double)drafted_[i] : 0.0, k = i < kept_.size() ? (double)kept_[i] : 0.0;
-        return (k + kPrior * p) / (n + kPrior);
+        double chance = 1.0, before = 1.0;
+        for (size_t j = 0; j <= i; ++j) {
+            const double p = (prior.kept_at(j) + kPrior * (j ? before : 0.5)) / (prior.reached_at(j) + kPrior);
+            const double c = (kept_at(j) + kPrior * p) / (reached_at(j) + kPrior);
+            chance *= c;
+            if (prior.reached_at(j) + reached_at(j) > 0) before = c;
+        }
+        return chance;
     }
 
 private:
     static constexpr double kBreakEven = 0.5, kWeight = 8.0, kPrior = 4.0;
     static constexpr size_t kRest = 16;
+    double kept_at(size_t i) const { return i < kept_.size() ? (double)kept_[i] : 0.0; }
+    double reached_at(size_t i) const { return i < reached_.size() ? (double)reached_[i] : 0.0; }
     double average_ = 2.0;
     size_t rest_ = 0;
-    std::vector<size_t> drafted_, kept_;
+    std::vector<size_t> drafted_, kept_, reached_;   // by position, the drafts fed, those kept and those fed after every draft before them was kept
 };
 
 // Where a draft comes from: the request's own history ahead of a model proposer (lookup_first), or its proposer.

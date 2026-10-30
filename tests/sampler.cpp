@@ -485,6 +485,17 @@ void censored_depth() {
     require(takes[0] >= 1 && takes[0] <= 3, "a request whose drafts fall away took " + std::to_string(takes[0]));
 }
 
+// A frontier set by a few early verifies relaxes (docs/SPECULATIVE.md, section 3): five verifies kept 20 drafts and missed the 21st, then 400 fed 20 and kept them all.
+// Nothing feeds position 21 again, so only forgetting the early verifies moves it: its chance must come back to within 5 percent of position 20's times the conditional measured before it.
+void frontier_relaxes() {
+    infer::spec::Acceptance tally;
+    for (int i = 0; i < 5; ++i) tally.verified(20, 21);
+    for (int i = 0; i < 400; ++i) tally.verified(20, 20);
+    const infer::spec::Acceptance none;
+    const double at19 = none.keeps(18, tally), at20 = none.keeps(19, tally), at21 = none.keeps(20, tally);
+    require(at21 >= 0.95 * at20 * (at20 / at19), "position 21 stayed at " + std::to_string(at21 / at20) + " of position 20 after 400 verifies kept every draft up to it");
+}
+
 // The additive penalties of the compatible APIs, subtracted from a seen token's score before the temperature: presence once however often the token was seen, frequency once for each time.
 infer::Sampling settings(float temp, int top_k, float top_p) {
     infer::Sampling s;
@@ -603,6 +614,7 @@ int main() {
         acceptance_rest();
         pass_price();
         censored_depth();
+        frontier_relaxes();
         std::cout << "sampler: " << checks << " checks pass\n";
         return 0;
     } catch (const std::exception& error) {

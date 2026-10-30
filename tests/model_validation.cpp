@@ -797,14 +797,16 @@ void topology_checks() {
     }
 }
 
-// A device with a missing weight type or mixed routed products, whose counters distinguish an early refusal from a failed upload.
+// A device with a missing weight type, mixed routed products or no routed products, whose counters distinguish an early refusal from a failed upload.
 struct TypeBackend : backend::CpuBackend {
     uint32_t refused = quant::GGML_TYPE_Q8_0;
     size_t adoptions = 0, allocations = 0, routed_calls = 0;
     bool device = false;
-    bool mixed_experts = true;
+    bool mixed_experts = true, routed_experts = true;
     bool reads_in_place() const override { return !device; }
-    bool implements(backend::Op op) const override { return op != backend::Op::mixed_experts || mixed_experts; }
+    bool implements(backend::Op op) const override {
+        return (op != backend::Op::mixed_experts || mixed_experts) && (op != backend::Op::routed_experts || routed_experts);
+    }
     void matmul_experts(std::initializer_list<backend::Projection> projections, backend::CSlice x, size_t nin,
                         size_t rows, const Routing& routing, backend::RowRuns runs = {}, backend::Dtype dtype = backend::Dtype::f16) override {
         for (const auto& p : projections) require(supports_type(p.weight.type), "a routed product reached an unsupported backend");
@@ -957,6 +959,38 @@ void type_stream_checks() {
                     !device->adoptions && !host->adoptions &&
                     !device->allocations && !host->allocations, "streaming hid unsupported home weights: " + error);
         if (!mixed) refusals.push_back(std::string("unsupported host ") + (copied_role ? "router" : "expert") + " type: " + error);
+        ++checks;
+        if (defect) continue;
+        // Every routed layer declares the routed products; a device without them holding a routed layer is refused before anything is adopted, and as a stream destination it leaves both layers on their host with the same logits.
+        const auto plan = infer::plan_model(weights);
+        for (const auto& layer : plan.layers)
+            require(std::count_if(layer.ops.begin(), layer.ops.end(), [](const auto& u) {
+                        return u.part == infer::Part::ffn && u.op == backend::Op::routed_experts;
+                    }) == 1, "a routed layer does not declare its routed products once");
+        auto bare = std::make_shared<TypeBackend>();
+        bare->refused = UINT32_MAX; bare->routed_experts = false; bare->set_threads(1);
+        error.clear();
+        try { infer::Model model(weights, bare); }
+        catch (const std::runtime_error& e) { error = e.what(); }
+        require(error == "inference: layer 0's feed-forward part needs routed_experts, which the backend of its device does not implement",
+                "missing early routed products refusal: " + error);
+        require(!bare->adoptions && !bare->allocations, "routed products refusal reached adoption or allocation");
+        refusals.push_back("unsupported routed products: " + error);
+        auto mixer = std::make_shared<TypeBackend>(), experts = std::make_shared<TypeBackend>();
+        mixer->refused = UINT32_MAX; mixer->device = true; mixer->routed_experts = false;
+        experts->refused = UINT32_MAX;
+        mixer->set_threads(1); experts->set_threads(1);
+        infer::Placement home;
+        home.mixer_device = {0, 0}; home.ffn_device = {1, 1}; home.stream_from = 2;
+        infer::Model model(weights, {mixer, experts}, home);
+        std::vector<float> logits = model.prefill({0, 1, 2});
+        require(mixer->routed_calls == 0 && experts->routed_calls == 2, "a stream destination without routed products ran a routed layer");
+        for (uint32_t id : {3u, 4u}) {
+            const auto row = model.step(id);
+            logits.insert(logits.end(), row.begin(), row.end());
+        }
+        require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
+                "keeping routed layers on their host changed the prompt or follow-up logits");
         ++checks;
     }
 }

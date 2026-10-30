@@ -11,7 +11,7 @@ roles and slots ([ADDING-AN-ARCHITECTURE](../ADDING-AN-ARCHITECTURE.md),
 One owner). [qwen3](model-arch-qwen3.md) and [qwen35](model-arch-qwen35.md)
 run them.
 
-- `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds the `mixed_experts` requirement of the part the gate role runs in (the feed-forward part, or an embedded drafter's) when both tensors exist with differing storage types. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
+- `routed_ops(layer, tensors, gate, up)`: finds the two declared roles by id and adds, for the part the gate role runs in (the feed-forward part, or an embedded drafter's), the `routed_experts` requirement and, when both tensors exist with differing storage types, the `mixed_experts` one. The down projection is separate. Missing tensors stay with the runtime's existing resolution errors; this helper performs no schema validation.
 - `shard(roles, id, axis, sections)`: declares role `id`'s split over a tensor group (`Role::shard`, [shard](model-shard.md)); a role the list lacks is the plan's error.
   `shard_swiglu(roles, gate, up, down, ff)`: the SwiGLU block's split, the gate and up projections by their `ff` rows and the down projection by as many columns.
   `shard_experts(roles, tensors, gate, up, down, ff, experts)`: a routed layer's split, the gate and up stacks by the `ff` rows of each expert and the down stack by as many columns, the router whole; each section carries the down stack's block size as its alignment, read from the tensor, so a member holds the blocks that cover its share ([shard](model-shard.md)); a shared expert is split by the same call as one expert.

@@ -63,6 +63,17 @@ void buffers(Backend& g) {
         g.copy(*d, 0, *tmp, 0, 4000);
     }
     require(read(g, *d, 1000) == x, "a buffer dropped after its copy was enqueued gave its bytes");
+    // A large buffer dropped while many copies out of it are still queued: hipFree unmaps it at once, so its memory must wait for them.
+    {
+        const size_t n = size_t(256) << 20;
+        auto dst = g.alloc(n);
+        {
+            auto src = g.alloc(n);
+            g.write(*src, 0, x.data(), 4000);
+            for (int i = 0; i < 64; ++i) g.copy(*dst, 0, *src, 0, n);
+        }
+        require(read(g, *dst, 1000) == x, "a large buffer dropped with copies out of it queued gave its bytes");
+    }
     require(throws([&] { g.read(*d, 3999, nullptr, 2); }), "a read past the buffer is refused");
     require(throws([&] { g.write(*d, 0, x.data(), 4001); }), "a write past the buffer is refused");
     auto big = [&] { g.alloc(size_t(1) << 50); };
@@ -125,6 +136,30 @@ std::vector<uint8_t> q8_matrix(size_t nin, size_t rows, uint32_t seed) {
         for (size_t j = 0; j < 32; ++j) m.push_back(uint8_t(int8_t(std::max(-127.0f, std::min(127.0f, std::round(v[b * 32 + j]))))));
     }
     return m;
+}
+
+// A product into pinned host memory, as the logits are, gives the bits of the same product into device memory, both written and added, for a generated row and a prompt's rows.
+void host_output(Backend& g) {
+    const size_t nin = 256, nout = 300;
+    const std::vector<uint8_t> w = q8_matrix(nin, nout, 51);
+    const std::vector<float> x = row_classes::values(nin * 3, 52), y0 = row_classes::values(nout * 3, 53);
+    auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4);
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {wb.get(), 0}};
+    for (size_t rows : {size_t(1), size_t(3)})
+        for (bool add : {false, true}) {
+            auto dev = g.adopt(y0.data(), nout * rows * 4), host = g.alloc(nout * rows * 4, Memory::host_visible);
+            g.write(*host, 0, y0.data(), nout * rows * 4);
+            if (add) {
+                g.matmul_add(wv, {xb.get(), 0}, {dev.get(), 0}, nin, nout, rows);
+                g.matmul_add(wv, {xb.get(), 0}, {host.get(), 0}, nin, nout, rows);
+            } else {
+                g.matmul(wv, {xb.get(), 0}, {dev.get(), 0}, nin, nout, rows);
+                g.matmul(wv, {xb.get(), 0}, {host.get(), 0}, nin, nout, rows);
+            }
+            g.sync();
+            require(same(read(g, *dev, nout * rows), read(g, *host, nout * rows)),
+                    std::string("a product into host memory is the product into device memory (") + (add ? "added" : "written") + ", " + std::to_string(rows) + " rows)");
+        }
 }
 
 void ops(Backend& g, Backend& c) {
@@ -288,6 +323,209 @@ void attention(Backend& g, Backend& c) {
         }
 }
 
+// The twin's rule as docs/STATUS.md gives it, on the host: a block's scale and its 16-bit values.
+void twin_rule(const float* x, float& d, int16_t* q) {
+    float amax = 0.0f;
+    for (int j = 0; j < 32; ++j) amax = std::max(amax, std::fabs(x[j]));
+    if (amax == 0.0f) {
+        d = 0.0f;
+        for (int j = 0; j < 32; ++j) q[j] = 0;
+        return;
+    }
+    int e = 0;
+    std::frexp(amax, &e);
+    const int s = (amax >= 0x1p-100f && amax <= 0x1p100f) ? 0 : 1 - e;
+    const float an = std::ldexp(amax, s);
+    const float k = 32767.0f / an;
+    for (int j = 0; j < 32; ++j) {
+        const float r = std::ldexp(x[j], s) * k;
+        const float t = std::min(std::floor(std::fabs(r) + 0.5f), 32767.0f);
+        q[j] = (int16_t)(r < 0.0f ? -t : t);
+    }
+    d = std::ldexp(an / 32767.0f, -s);
+}
+
+// A Q8_0 row of `nin` values whose block b holds value 1 at position j and scale 1, zero elsewhere: its product reads the twin's value d q at (b, j) alone.
+std::vector<uint8_t> one_hot_q8(size_t nin, size_t b, size_t j) {
+    std::vector<uint8_t> row(nin / 32 * 34, 0);
+    const uint16_t one = 0x3c00;
+    row[b * 34] = uint8_t(one);
+    row[b * 34 + 1] = uint8_t(one >> 8);
+    row[b * 34 + 2 + j] = 1;
+    return row;
+}
+
+// The F16 class's Q8_0 products: the twin against its rule reconstructed on the host, the row kernel and the tile against a double oracle on that twin, every decode column the column alone, and a prompt row the same bits in any call.
+void int16_products(Backend& g) {
+    // Twin: blocks of ordinary, tiny, huge, tied and zero values, read through one-hot rows on both kernels.
+    const size_t nin = 32 * 6;
+    std::vector<float> x = row_classes::values(nin * 2, 31);
+    for (size_t j = 0; j < 32; ++j) {
+        x[32 + j] *= 1e-35f;              // a block whose scale needs the power of two
+        x[64 + j] *= 1e35f;               // and one whose largest value would overflow its reciprocal's product
+        x[96 + j] = 0.0f;                 // a block of zeros
+        x[128 + j] = j == 0 ? 32767.0f : (float)j + 0.5f;   // exact halves: ties away from zero
+    }
+    x[160] = -32767.0f;
+    x[161] = -0.5f;
+    std::vector<uint8_t> w;
+    for (size_t o = 0; o < nin; ++o) {
+        const std::vector<uint8_t> row = one_hot_q8(nin, o / 32, o % 32);
+        w.insert(w.end(), row.begin(), row.end());
+    }
+    auto wb = g.adopt(w.data(), w.size()), xb = g.adopt(x.data(), x.size() * 4), yb = g.alloc(nin * 2 * 4);
+    bool rule = true;
+    for (size_t extent : {size_t(1), size_t(2)}) {
+        const RowRun run[1] = {{2, extent}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {wb.get(), 0}}, {xb.get(), 0}, {yb.get(), 0}, nin, nin, 2, {run, 1}, Dtype::f16);
+        const std::vector<float> y = read(g, *yb, nin * 2);
+        for (size_t r = 0; r < 2; ++r)
+            for (size_t b = 0; b < nin / 32; ++b) {
+                float d;
+                int16_t q[32];
+                twin_rule(x.data() + r * nin + b * 32, d, q);
+                for (size_t j = 0; j < 32; ++j) {
+                    const float want = d * (float)q[j];
+                    rule = rule && std::memcmp(&y[r * nin + b * 32 + j], &want, 4) == 0;
+                }
+            }
+    }
+    require(rule, "the 16-bit twin is its rule, through the row kernel and the tile");
+    // Products against a double oracle on the twin, rows 4096 wide, generated and prompt rows.
+    const size_t width = 4096, nout = 40, rows = 21;
+    const std::vector<uint8_t> m = q8_matrix(width, nout, 33);
+    const std::vector<float> xs = row_classes::values(width * rows, 34);
+    auto mb = g.adopt(m.data(), m.size()), xsb = g.adopt(xs.data(), xs.size() * 4), ys = g.alloc(nout * rows * 4);
+    std::vector<std::vector<float>> twin_d(rows, std::vector<float>(width / 32));
+    std::vector<std::vector<int16_t>> twin_q(rows, std::vector<int16_t>(width));
+    for (size_t r = 0; r < rows; ++r)
+        for (size_t b = 0; b < width / 32; ++b) twin_rule(xs.data() + r * width + b * 32, twin_d[r][b], twin_q[r].data() + b * 32);
+    for (size_t extent : {size_t(1), size_t(2)}) {
+        const RowRun run[1] = {{rows, extent}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {mb.get(), 0}}, {xsb.get(), 0}, {ys.get(), 0}, width, nout, rows, {run, 1}, Dtype::f16);
+        const std::vector<float> y = read(g, *ys, nout * rows);
+        bool close_ok = true;
+        for (size_t r = 0; r < rows; ++r)
+            for (size_t o = 0; o < nout; ++o) {
+                double sum = 0.0, mag = 0.0;
+                for (size_t b = 0; b < width / 32; ++b) {
+                    const uint8_t* block = m.data() + (o * (width / 32) + b) * 34;
+                    const double dw = f16_to_f32((uint16_t)(block[0] | block[1] << 8));
+                    long isum = 0;
+                    for (size_t j = 0; j < 32; ++j) isum += (long)(int8_t)block[2 + j] * twin_q[r][b * 32 + j];
+                    sum += dw * twin_d[r][b] * (double)isum;
+                    mag += std::fabs(dw * twin_d[r][b] * (double)isum);
+                }
+                close_ok = close_ok && std::fabs(y[r * nout + o] - sum) <= 1e-6 * mag + 1e-30;
+            }
+        require(close_ok, std::string("the ") + (extent == 1 ? "row kernel" : "tile") + " within 1e-6 of a double sum over the twin");
+    }
+    std::vector<std::vector<float>> single(rows);
+    auto y1 = g.alloc(nout * 4);
+    // Every decode column of 1 to 64 generated rows, up to four launches of 16, is the column alone, bit for bit.
+    // The residual add and a group of three projections are held so at counts either side of each launch's edge.
+    {
+        const size_t cols = 64;
+        bool alone = true, added = true, grouped = true;
+        for (size_t w : {size_t(4096), size_t(1280)}) {
+            const std::vector<uint8_t> mw = q8_matrix(w, nout, 61);
+            const std::vector<float> xw = row_classes::values(w * cols, 62), base = row_classes::values(nout * cols, 63);
+            auto mwb = g.adopt(mw.data(), mw.size()), xwb = g.adopt(xw.data(), xw.size() * 4);
+            auto yw = g.alloc(nout * cols * 4), ya = g.alloc(nout * cols * 4), yb = g.alloc(nout * cols * 4), yc = g.alloc(nout * cols * 4);
+            const WeightView wv{quant::GGML_TYPE_Q8_0, {mwb.get(), 0}};
+            std::vector<std::vector<float>> one(cols), one_added(cols);
+            for (size_t r = 0; r < cols; ++r) {
+                const RowRun run[1] = {{1, 1}};
+                g.matmul(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, nout, 1, {run, 1}, Dtype::f16);
+                one[r] = read(g, *y1, nout);
+                g.write(*y1, 0, base.data() + r * nout, nout * 4);
+                g.matmul_add(wv, {xwb.get(), r * w}, {y1.get(), 0}, w, nout, 1, {run, 1}, Dtype::f16);
+                one_added[r] = read(g, *y1, nout);
+            }
+            for (size_t n = 1; n <= cols; ++n) {
+                const RowRun run[1] = {{n, 1}};
+                g.matmul(wv, {xwb.get(), 0}, {yw.get(), 0}, w, nout, n, {run, 1}, Dtype::f16);
+                const std::vector<float> y = read(g, *yw, nout * n);
+                for (size_t r = 0; r < n; ++r) alone = alone && std::memcmp(y.data() + r * nout, one[r].data(), nout * 4) == 0;
+            }
+            for (size_t n : {size_t(1), size_t(2), size_t(3), size_t(15), size_t(16), size_t(17), size_t(31), size_t(32), size_t(33), size_t(48), size_t(49), size_t(63), size_t(64)}) {
+                const RowRun run[1] = {{n, 1}};
+                g.write(*ya, 0, base.data(), nout * n * 4);
+                g.matmul_add(wv, {xwb.get(), 0}, {ya.get(), 0}, w, nout, n, {run, 1}, Dtype::f16);
+                const std::vector<float> y = read(g, *ya, nout * n);
+                for (size_t r = 0; r < n; ++r) added = added && std::memcmp(y.data() + r * nout, one_added[r].data(), nout * 4) == 0;
+                g.matmul_group({Projection(wv, {yw.get(), 0}, nout), Projection(wv, {yb.get(), 0}, nout), Projection(wv, {yc.get(), 0}, nout)},
+                               {xwb.get(), 0}, w, n, {run, 1}, Dtype::f16);
+                for (BufferPtr* out : {&yw, &yb, &yc}) {
+                    const std::vector<float> yg = read(g, **out, nout * n);
+                    for (size_t r = 0; r < n; ++r) grouped = grouped && std::memcmp(yg.data() + r * nout, one[r].data(), nout * 4) == 0;
+                }
+            }
+        }
+        require(alone, "every decode column of 1 to 64 generated rows is the column alone, bit for bit, rows 4096 and 1280 wide");
+        require(added, "every decode column of the residual add at 1 to 64 rows is the column alone, bit for bit");
+        require(grouped, "every decode column of a group of three projections at 1 to 64 rows is the column alone, bit for bit");
+    }
+    // A prompt row gives the same bits in calls of 1 to 21 rows, wherever the tile's edges fall.
+    bool tiled = true;
+    for (size_t r = 0; r < rows; ++r) {
+        const RowRun run[1] = {{1, 2}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {mb.get(), 0}}, {xsb.get(), r * width}, {y1.get(), 0}, width, nout, 1, {run, 1}, Dtype::f16);
+        single[r] = read(g, *y1, nout);
+    }
+    for (size_t n = 1; n <= rows; ++n) {
+        const RowRun run[1] = {{n, 2}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {mb.get(), 0}}, {xsb.get(), 0}, {ys.get(), 0}, width, nout, n, {run, 1}, Dtype::f16);
+        const std::vector<float> y = read(g, *ys, nout * n);
+        for (size_t r = 0; r < n; ++r) tiled = tiled && std::memcmp(y.data() + r * nout, single[r].data(), nout * 4) == 0;
+    }
+    require(tiled, "a prompt row gives the same bits in calls of 1 to 21 rows");
+    // Every pair of extents of one class: the same bits through a Q8_0 product in the F16 class.
+    std::vector<std::vector<float>> out;
+    const size_t four = 4;
+    for (size_t e : row_classes::kExtents) {
+        const RowRun run[1] = {{four, e}};
+        g.matmul({quant::GGML_TYPE_Q8_0, {mb.get(), 0}}, {xsb.get(), 0}, {ys.get(), 0}, width, nout, four, {run, 1}, Dtype::f16);
+        out.push_back(read(g, *ys, nout * four));
+    }
+    require(row_classes::same_within_classes(g, out, "a Q8_0 product in the F16 class") > 0, "the F16 row-class check compared pairs");
+}
+
+// A prompt's rows whose histories cross a change in the attention's chunks (256 positions, and 4096 where the count stops at 16), and at 16K where 40 rows fill three tiles: each row the same bits as that row alone.
+void attention_chunks(Backend& g) {
+    const int n_head = 4, n_head_kv = 2, head_dim = 128;
+    const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim;
+    for (size_t hist : {size_t(250), size_t(4090), size_t(16300)}) {
+        const size_t rows = hist > 8192 ? 40 : 13;
+        const std::vector<float> keys = row_classes::values((hist + rows) * kvw, 41), vals = row_classes::values((hist + rows) * kvw, 42);
+        const std::vector<float> q = row_classes::values(rows * qw, 43, 4.0f);
+        auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4);
+        auto qb = g.adopt(q.data(), q.size() * 4), ob = g.alloc(rows * qw * 4), o1 = g.alloc(qw * 4);
+        auto st = g.kv_alloc(1, n_head_kv, head_dim, 16448, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence s(&pool, g.kv_layout().block_tokens);
+        s.prepare(hist + rows);
+        KVView all = s.view(st.get());
+        g.kv_write(0, &all, 1, {kb.get(), 0}, {vb.get(), 0});
+        KVView v = all;
+        v.length = hist;
+        v.nq = rows;
+        g.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+        const std::vector<float> together = read(g, *ob, rows * qw);
+        bool alone = true;
+        for (size_t b = 0; b < rows; ++b) {
+            KVView one = all;
+            one.length = hist + b;
+            one.nq = 1;
+            g.attention({qb.get(), b * qw}, 0, &one, 1, {o1.get(), 0}, n_head, n_head_kv, head_dim);
+            alone = alone && std::memcmp(read(g, *o1, qw).data(), together.data() + b * qw, qw * 4) == 0;
+        }
+        require(alone, "attention rows across a chunk change after a history of " + std::to_string(hist) + " are each the row alone, bit for bit");
+        s.abort();
+    }
+}
+
 // Every pair of extents of one class gives the same bits, through a matmul and through attention after a history (row_classes.hpp's shapes).
 void classes(Backend& g) {
     require(g.row_class(1) != g.row_class(2), "a generated token is a class of its own");
@@ -341,6 +579,9 @@ int main() {
         ops(*g, *c);
         attention(*g, *c);
         classes(*g);
+        int16_products(*g);
+        host_output(*g);
+        attention_chunks(*g);
         failure();
     } catch (const std::exception& e) {
         std::cout << "FAIL threw: " << e.what() << "\n";

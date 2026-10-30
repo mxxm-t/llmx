@@ -2282,7 +2282,9 @@ void experts() {
         const infer::LayerPlan& layer = p.layers[l];
         const bool full = l % 2;
         require(layer.routed && layer.roles.size() == (full ? 16u : 19u), "routed layer " + std::to_string(l) + "'s roles");
-        require(layer.ops.back().part == infer::Part::ffn && layer.ops.back().op == backend::Op::sigmoid_mul, "the shared expert's gate op");
+        const size_t n_ops = layer.ops.size();
+        require(n_ops >= 2 && layer.ops[n_ops - 2].part == infer::Part::ffn && layer.ops[n_ops - 2].op == backend::Op::sigmoid_mul, "the shared expert's gate op");
+        require(layer.ops.back().part == infer::Part::ffn && layer.ops.back().op == backend::Op::routed_experts, "the routed products' op");
         for (const infer::Role& role : layer.roles) {
             if (role.part != infer::Part::ffn) continue;
             const bool stack = role.kind == infer::RoleKind::experts;

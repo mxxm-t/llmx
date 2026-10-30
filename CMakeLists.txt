@@ -365,7 +365,7 @@ if(LLMX_HAS_BACKEND_ROCM)
     # The compiler reads the SDK it was found with, never another HIP installed beside it.
     get_filename_component(LLMX_ROCM_ROOT ${LLMX_HIP_INCLUDE_DIR} DIRECTORY)
     set(LLMX_ROCM_KERNEL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/backends/rocm/kernels)
-    set(LLMX_ROCM_KERNELS f32)
+    set(LLMX_ROCM_KERNELS f32 int16)
     set(LLMX_ROCM_OBJECTS)
     foreach(kernel IN LISTS LLMX_ROCM_KERNELS)
         set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/${kernel}.hipfb)
@@ -380,6 +380,18 @@ if(LLMX_HAS_BACKEND_ROCM)
             VERBATIM)
         list(APPEND LLMX_ROCM_OBJECTS ${inc})
     endforeach()
+    # The int16 kernels again, their products on the 16-bit integer dot, for the targets that have the instruction; a device whose code object is missing from it runs the plain module (docs/src/backends-rocm.md).
+    set(bundle ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.hipfb)
+    set(inc ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm/int16dot.inc)
+    add_custom_command(OUTPUT ${inc}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated/rocm
+        COMMAND ${LLMX_HIP_CLANG} -x hip -std=c++17 -O3 --rocm-path=${LLMX_ROCM_ROOT} --cuda-device-only --offload-arch=gfx906 -DLLMX_DOT16
+                -c ${LLMX_ROCM_KERNEL_DIR}/int16.hip -o ${bundle}
+        COMMAND ${CMAKE_COMMAND} -DIN=${bundle} -DOUT=${inc} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${LLMX_ROCM_KERNEL_DIR}/int16.hip ${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake
+        COMMENT "hip int16dot"
+        VERBATIM)
+    list(APPEND LLMX_ROCM_OBJECTS ${inc})
     add_custom_target(llmx-rocm-kernels DEPENDS ${LLMX_ROCM_OBJECTS})
     add_library(llmx-rocm STATIC src/backends/rocm/rocm_backend.cpp)
     add_dependencies(llmx-rocm llmx-rocm-kernels)

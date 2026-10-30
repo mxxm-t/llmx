@@ -61,6 +61,7 @@ Keep the implementation in the placement owner and existing backend dispatch own
 The auto-preference list advertises a dtype only after the backend implements that policy across its reached kernel families. An explicit dtype served only by emulation or F32 fallback is not thereby added to the native auto-preference list. Report native arithmetic, emulation and wider fallback accurately; F16C conversion alone is not native F16 arithmetic. The supported policies are listed below. Here native means the backend supplies the qualified policy directly; it does not assert literal half-arithmetic instructions on every path. The path record names the arithmetic used:
 - CPU (AVX2, F16C, no AVX-512 BF16): F16, F32.
 - Vulkan on the MI50 and the Radeon VII: F16 (qualified block-int16, wider F32, and a capability-gated NVFP4 tile input path), F32.
+- ROCm on the MI50: F16 (block-int16 for Q8_0 rows and the prompt tile, F32 for F32 weights; qualification in [STATUS](STATUS.md)), F32.
 - A device with BF16 arithmetic lists BF16 first once its BF16 kernels exist.
 
 Eligible Vulkan NVFP4 tiles can round F32 activations to binary16 inputs, then widen them for F32 products and sums. This path requires the device's F16 conversion and matching F16/F32 preservation controls; otherwise the tile uses F32 inputs. Packed weights and software decoding are unchanged. Device and model qualification is summarized in [STATUS](STATUS.md).

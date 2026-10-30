@@ -22,6 +22,14 @@ namespace {
 const unsigned char kF32Module[] = {
 #include "rocm/f32.inc"
 };
+// The F16 class's quantized products on a block-int16 twin (kernels/int16.hip).
+const unsigned char kInt16Module[] = {
+#include "rocm/int16.inc"
+};
+// The same kernels on the 16-bit integer dot, compiled only for the targets with the instruction; a device it holds no code object for runs the module above.
+const unsigned char kInt16DotModule[] = {
+#include "rocm/int16dot.inc"
+};
 
 constexpr unsigned kThreads = 256;         // the kernels' block size (kernels/f32.hip)
 constexpr size_t kBlockTokens = 64;        // tokens a KV block holds
@@ -31,10 +39,23 @@ constexpr size_t kArgBytes = size_t(1) << 20, kStageBytes = size_t(16) << 20;
 
 class RocmBackend;
 
-// Device memory from hipMalloc, or pinned host memory the device reads in place (Memory::host_visible); freed with the call that made it.
+// A free that fails has nothing left to act on.
+void free_memory(void* p, bool host) {
+    const HipFn& f = hip();
+    (void)(host ? f.hipHostFree(p) : f.hipFree(p));
+}
+
+// Memory of dropped buffers, freed once the work recorded before the drop retires, since hipFree does not wait for a launch or copy still queued that names it.
+struct Graves {
+    std::mutex m;
+    std::vector<std::pair<Ticket, std::pair<void*, bool>>> held;   // the ticket that covers the drop, and the memory
+    const TicketLedger* tickets = nullptr;                          // null once the backend has drained its stream, when a drop frees at once
+};
+
+// Device memory from hipMalloc, or pinned host memory the device reads in place (Memory::host_visible); dropped, its memory goes to the backend's graves.
 class RocmBuffer final : public Buffer {
 public:
-    RocmBuffer(size_t bytes, bool host) : size_(bytes), host_(host) {
+    RocmBuffer(size_t bytes, bool host, std::shared_ptr<Graves> graves) : size_(bytes), host_(host), graves_(std::move(graves)) {
         if (!bytes) return;
         const HipFn& f = hip();
         if (host) hip_check(f.hipHostMalloc(&p_, bytes, hipHostMallocDefault), "hipHostMalloc");
@@ -42,9 +63,14 @@ public:
     }
     ~RocmBuffer() override {
         if (!p_) return;
-        const HipFn& f = hip();
-        // A free that fails at teardown has nothing left to act on.
-        (void)(host_ ? f.hipHostFree(p_) : f.hipFree(p_));
+        {
+            std::lock_guard<std::mutex> lock(graves_->m);
+            if (graves_->tickets) {
+                graves_->held.push_back({graves_->tickets->last() + 1, {p_, host_}});
+                return;
+            }
+        }
+        free_memory(p_, host_);
     }
     RocmBuffer(const RocmBuffer&) = delete;
     RocmBuffer& operator=(const RocmBuffer&) = delete;
@@ -55,6 +81,7 @@ private:
     void* p_ = nullptr;
     size_t size_;
     bool host_;
+    std::shared_ptr<Graves> graves_;
 };
 
 const RocmBuffer& as_rocm(const Buffer& b) {
@@ -63,7 +90,7 @@ const RocmBuffer& as_rocm(const Buffer& b) {
     return *r;
 }
 
-// KV blocks on the device, kept and grown by BlockKVStorage; an old buffer a growth copied from is held until the copies retire.
+// KV blocks on the device, kept and grown by BlockKVStorage; an old buffer a growth copied from is dropped, its memory kept until the copies retire (Graves).
 class RocmKVStorage final : public BlockKVStorage {
 public:
     RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, size_t dim, size_t max_tokens, KVType kt, KVType vt,
@@ -75,26 +102,44 @@ private:
 class RocmBackend final : public Backend {
 public:
     explicit RocmBackend(int index) : dev_(rocm_device(index)) {
+        graves_->tickets = &tickets_;
         const HipFn& f = hip();
         hip_check(f.hipSetDevice(index), "hipSetDevice");
         hip_check(f.hipStreamCreateWithFlags(&stream_, hipStreamNonBlocking), "hipStreamCreateWithFlags");
         for (auto& e : events_) hip_check(f.hipEventCreateWithFlags(&e, hipEventDisableTiming), "hipEventCreateWithFlags");
         hip_check(f.hipModuleLoadData(&module_, kF32Module), "hipModuleLoadData");
-        for (size_t k = 0; k < kKernels; ++k)
-            hip_check(f.hipModuleGetFunction(&kernels_[k], module_, kKernelNames[k]), "hipModuleGetFunction");
+        hip_check(f.hipModuleLoadData(&int16_module_, kInt16Module), "hipModuleLoadData");
+        // The dot module loads only where the build compiled it for this device: that is the capability flag, read from the code object rather than from the device's name.
+        dev_.caps.integer_dot = f.hipModuleLoadData(&dot_module_, kInt16DotModule) == hipSuccess;
+        if (!dev_.caps.integer_dot) dot_module_ = nullptr;
+        // The prompt tile takes the dot where there is one; the row kernels keep the plain module, measured faster there (docs/STATUS.md, ROCm step 3).
+        for (size_t k = 0; k < kKernels; ++k) {
+            const hipModule_t m = k < kTwin16 ? module_ : k == kTile16 && dot_module_ ? dot_module_ : int16_module_;
+            hip_check(f.hipModuleGetFunction(&kernels_[k], m, kKernelNames[k]), "hipModuleGetFunction");
+        }
         for (size_t s = 0; s < kRingSlots; ++s) {
-            args_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, true);
-            stage_.slots[s] = std::make_shared<RocmBuffer>(kStageBytes, true);
+            args_.slots[s] = std::make_shared<RocmBuffer>(kArgBytes, true, graves_);
+            stage_.slots[s] = std::make_shared<RocmBuffer>(kStageBytes, true, graves_);
         }
     }
     ~RocmBackend() override {
         const HipFn& f = hip();
         (void)f.hipSetDevice(dev_.index);
         (void)f.hipStreamSynchronize(stream_);
-        for (auto& p : pending_) p.clear();
+        {
+            std::lock_guard<std::mutex> lock(graves_->m);
+            graves_->tickets = nullptr;
+            for (const auto& g : graves_->held) free_memory(g.second.first, g.second.second);
+            graves_->held.clear();
+        }
+        parts_ = {};
+        twin_ = {};
+        staged_ = {};
         args_ = {};
         stage_ = {};
         if (module_) (void)f.hipModuleUnload(module_);
+        if (int16_module_) (void)f.hipModuleUnload(int16_module_);
+        if (dot_module_) (void)f.hipModuleUnload(dot_module_);
         for (auto e : events_) if (e) (void)f.hipEventDestroy(e);
         if (stream_) (void)f.hipStreamDestroy(stream_);
     }
@@ -108,6 +153,8 @@ public:
         if (hip().hipSetDevice(dev_.index) != hipSuccess || hip().hipMemGetInfo(&free, &total) != hipSuccess) return std::nullopt;
         return free;
     }
+    // HIP rounds each device allocation to its pages (2 MiB past 1 MiB) and keeps memory of its own, and the kernels' scratch grows with a pass, so the fit leaves the share Vulkan leaves.
+    size_t scratch_reserve(size_t free) const override { return ((size_t)256 << 20) + free / 20; }
     bool supports_type(uint32_t type) const override { return type == quant::GGML_TYPE_F32 || type == quant::GGML_TYPE_Q8_0; }
     bool implements(Op op) const override { return op == Op::norm_rope_partial; }
     // No kernel here chooses anything by a row's extent, so a generated token is a class and every prompt row another.
@@ -116,7 +163,7 @@ public:
     // HIP allocates on the calling thread's current device, and a backend may be called from several threads.
     BufferPtr alloc(size_t bytes, Memory where) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-        auto b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible);
+        auto b = std::make_shared<RocmBuffer>(bytes, where == Memory::host_visible, graves_);
         if (!bytes) return b;
         // KV growth and the model read a fresh buffer as zeros.
         if (where == Memory::host_visible) std::memset(b->data(), 0, bytes);
@@ -125,7 +172,7 @@ public:
     }
     BufferPtr adopt(const void* src, size_t bytes) override {
         hip_check(hip().hipSetDevice(dev_.index), "hipSetDevice");
-        auto b = std::make_shared<RocmBuffer>(bytes, false);
+        auto b = std::make_shared<RocmBuffer>(bytes, false, graves_);
         write(*b, 0, src, bytes);
         return b;
     }
@@ -137,8 +184,7 @@ public:
         const Ticket t = tickets_.last() + 1;
         const size_t i = t % kEvents;
         if (t > kEvents) wait(t - kEvents);
-        pending_[i].clear();
-        pending_[i].swap(open_);
+        bury();
         hip_check(hip().hipEventRecord(events_[i], stream_), "hipEventRecord");
         tickets_.take();
         opened_ = false;
@@ -151,6 +197,7 @@ public:
         const hipError_t e = hip().hipEventSynchronize(events_[t % kEvents]);
         if (e != hipSuccess) remember(e, "a submission");
         tickets_.retired(t);
+        bury();
     }
     bool done(Ticket t) noexcept override {
         if (tickets_.settled(t)) return true;
@@ -218,11 +265,25 @@ public:
                      "hipMemcpyAsync");
     }
 
-    void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns, Dtype) override {
-        product(weight, X, Y, nin, nout, nbatch, false);
+    void matmul(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
+        product(weight, X, Y, nin, nout, nbatch, false, runs, dtype, true);
     }
-    void matmul_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns, Dtype) override {
-        product(weight, X, Y, nin, nout, nbatch, true);
+    void matmul_add(WeightView weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, RowRuns runs, Dtype dtype) override {
+        product(weight, X, Y, nin, nout, nbatch, true, runs, dtype, true);
+    }
+    // One twin of X serves every projection of the group.
+    void matmul_group(std::initializer_list<Projection> projections, CSlice X, size_t nin, size_t nbatch, RowRuns runs, Dtype dtype) override {
+        bool twinned = false;
+        for (const Projection& p : projections) {
+            if (!p.weight.data.buffer) throw std::runtime_error("rocm: projection without storage");
+            product(p.weight, X, p.out, nin, p.rows, nbatch, false, runs, dtype, !twinned);
+            twinned = twinned || int16(p.weight, dtype);
+        }
+    }
+    std::vector<Dtype> native_dtypes() const override { return {Dtype::f16, Dtype::f32}; }
+    std::string dtype_path(Dtype dtype) const override {
+        if (dtype == Dtype::f32) return "f32";
+        return dev_.caps.integer_dot ? "block-int16 (Q8_0 rows, and tiles on the 16-bit dot), f32 (F32 weights)" : "block-int16 (Q8_0 rows and tiles), f32 (F32 weights)";
     }
     void embed(Slice dst, WeightView weight, size_t nin, size_t nrows, const uint32_t* ids, size_t count) override {
         check_weight(weight, nin, "embedding");
@@ -384,17 +445,51 @@ public:
         int ratio = n_head / n_head_kv, bt = (int)kBlockTokens;
         int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
         float scale = 1.0f / std::sqrt((float)head_dim);
-        void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale};
-        launch(kAttention, (unsigned)rows, (unsigned)n_head, args);
+        // Each row's history in chunks of its own, merged in order (kernels/f32.hip), so its bits do not depend on the call.
+        const size_t need = size_mul(size_mul(size_mul(rows, (size_t)n_head), kChunks), size_mul((size_t)head_dim + 2, sizeof(float)));
+        if (!parts_ || parts_->size() < need) {
+            parts_ = alloc(need, Memory::device);
+        }
+        float* pp = (float*)as_rocm(*parts_).data();
+        // A call with a prompt's rows on F16 sides of heads up to 128 wide takes the tile kernel, a view's rows of one chunk split sharing each K and V tile; it gives the chunk kernel's bits.
+        // Generated rows alone keep the chunk kernel, whose blocks of one row and head each fill the device better.
+        const int per_tile = std::max(1, std::min(16, 32 / ratio));
+        const bool prompt = std::any_of(views, views + n_views, [](const KVView& v) { return v.nq > 1; });
+        if (prompt && kh && vh && head_dim <= 128 && ratio <= 32) {
+            std::vector<int32_t> tiles;
+            int last_count = -1, last_length = -1;
+            for (size_t r = 0; r < rows; ++r) {
+                const int count = std::min(16, (ends[r] + 255) / 256), length = ((ends[r] + count - 1) / count + 63) / 64 * 64;
+                const bool joins = !tiles.empty() && firsts[r] == firsts[(size_t)tiles[tiles.size() - 2]] && count == last_count &&
+                                   length == last_length && tiles.back() < per_tile;
+                if (joins) ++tiles.back();
+                else tiles.insert(tiles.end(), {(int32_t)r, 1});
+                last_count = count;
+                last_length = length;
+            }
+            const int* tl = (const int*)arg(tiles.data(), tiles.size() * sizeof(int32_t));
+            void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &tl, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &scale};
+            launch(kAttentionTile, (unsigned)(tiles.size() / 2), (unsigned)n_head_kv, args, kChunks);
+        } else {
+            void* args[] = {&q, &pp, &kc, &vc, &tp, &fp, &ep, &n_head, &ratio, &n_head_kv, &head_dim, &bt, &kh, &vh, &scale};
+            launch(kAttentionChunk, (unsigned)rows, (unsigned)n_head, args, kChunks);
+        }
+        void* merge[] = {&pp, &o, &ep, &n_head, &head_dim};
+        launch(kAttentionMerge, (unsigned)rows, (unsigned)n_head, merge);
     }
 
-    // A KV growth's old buffer, held with the work launched since the last ticket, so it is freed once its copies retire.
-    void hold(const BufferPtr& b) { open_.push_back(b); }
 
 private:
-    enum Kernel { kAdd, kSiluMul, kRmsNorm, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttention, kKernels };
+    // The F32 module's kernels, then from kTwin16 the int16 module's.
+    enum Kernel { kAdd, kSiluMul, kRmsNorm, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge,
+                  kTwin16, kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_rms_norm_rows", "llmx_norm_rope", "llmx_gather",
-                                                           "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write", "llmx_attention"};
+                                                           "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
+                                                           "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_twin16", "llmx_q8_0_rows16_1",
+                                                           "llmx_q8_0_rows16_2", "llmx_q8_0_rows16_4", "llmx_q8_0_rows16_8", "llmx_q8_0_rows16_16",
+                                                           "llmx_q8_0_tile16"};
+    static constexpr unsigned kChunks = 16;   // a row's attention chunks at most (kernels/f32.hip)
+    static constexpr size_t kColumns = 16;   // the row kernel's columns (kernels/int16.hip)
 
     // Pinned host memory in slots the device reads in place or copies from: a slot is taken again once the ticket that last read it retires.
     struct Ring {
@@ -446,12 +541,25 @@ private:
         if (!s) throw std::runtime_error("rocm: a KV view of another backend");
         return *s;
     }
-    void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate) {
+    // A Q8_0 product outside the F32 class reads the block-int16 twin; F32 weights and the F32 class read the activations as they are.
+    static bool int16(const WeightView& weight, Dtype dtype) { return weight.type == quant::GGML_TYPE_Q8_0 && dtype != Dtype::f32; }
+    void product(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, Dtype dtype,
+                 bool twin) {
         check_weight(weight, nin, "matrix");
         if (!nin || !nout || !nbatch) return;
         span(*weight.data.buffer, weight.data.offset * sizeof(float), quant::row_bytes(weight.type, nin, nout));
         span(*X.buffer, X.offset * sizeof(float), size_mul(size_mul(nin, nbatch), sizeof(float)));
         span(*Y.buffer, Y.offset * sizeof(float), size_mul(size_mul(nout, nbatch), sizeof(float)));
+        // Kernels write a product a float a row, which over PCIe into pinned host memory took the 0.6B's head 3.3 ms of a token: a host output is formed in device memory and copied over whole.
+        if (as_rocm(*Y.buffer).host_ptr()) {
+            const size_t bytes_out = size_mul(size_mul(nout, nbatch), sizeof(float));
+            if (!staged_ || staged_->size() < bytes_out) staged_ = alloc(bytes_out, Memory::device);
+            if (accumulate) copy(*staged_, 0, *Y.buffer, Y.offset * sizeof(float), bytes_out);
+            product(weight, X, {staged_.get(), 0}, nin, nout, nbatch, accumulate, runs, dtype, twin);
+            copy(*Y.buffer, Y.offset * sizeof(float), *staged_, 0, bytes_out);
+            return;
+        }
+        if (int16(weight, dtype)) return product16(weight, X, Y, nin, nout, nbatch, accumulate, runs, twin);
         const uint8_t* w = bytes(weight.data);
         const float* x = f32(X);
         float* y = f32(Y);
@@ -462,6 +570,56 @@ private:
         // Every product here reads F32 activations, whatever dtype was asked for.
         record_matrix_path(MatrixPath::f32);
     }
+    // The twin of nbatch rows of X, then each run on its kernel: generated rows (extent 1) on the row kernel, kColumns at a time, prompt rows on the tile.
+    // Without runs a call of one row is a generated row and any other a prompt's.
+    void product16(const WeightView& weight, CSlice X, Slice Y, size_t nin, size_t nout, size_t nbatch, bool accumulate, RowRuns runs, bool twin) {
+        const size_t blocks = size_mul(nbatch, nin / 32);
+        const size_t qbytes = size_mul(blocks, 32 * sizeof(int16_t)), need = size_add(qbytes, size_mul(blocks, sizeof(float)));
+        if (twin) {
+            if (!twin_ || twin_->size() < need) {
+                twin_ = alloc(need, Memory::device);
+            }
+            const float* x = f32(X);
+            int16_t* q = (int16_t*)as_rocm(*twin_).data();
+            float* d = (float*)((uint8_t*)q + qbytes);
+            unsigned long long nb = blocks;
+            void* args[] = {&x, &q, &d, &nb};
+            launch(kTwin16, (unsigned)((blocks + kThreads / 32 - 1) / (kThreads / 32)), 1, args);
+        }
+        const uint8_t* w = bytes(weight.data);
+        const int16_t* q0 = (const int16_t*)as_rocm(*twin_).data();
+        const float* d0 = (const float*)((const uint8_t*)q0 + qbytes);
+        float* y0 = f32(Y);
+        unsigned long long ni = nin, no = nout;
+        int add = accumulate;
+        const RowRun whole[1] = {{nbatch, nbatch == 1 ? size_t(1) : size_t(2)}};
+        const RowRuns all = runs.n ? runs : RowRuns{whole, 1};
+        size_t begin = 0;
+        for (size_t r = 0; r < all.n; ++r) {
+            const size_t end = all.runs[r].end;
+            if (end <= begin || end > nbatch) throw std::runtime_error("rocm: row runs out of order or past the call");
+            for (size_t at = begin; at < end;) {
+                const size_t rows = all.runs[r].extent == 1 ? std::min(end - at, kColumns) : end - at;
+                const int16_t* q = q0 + at * nin;
+                const float* d = d0 + at * (nin / 32);
+                float* y = y0 + at * nout;
+                if (all.runs[r].extent == 1) {
+                    int ncols = (int)rows;
+                    void* args[] = {&w, &q, &d, &y, &ni, &no, &ncols, &add};
+                    const Kernel build = rows <= 1 ? kRows16x1 : rows <= 2 ? kRows16x2 : rows <= 4 ? kRows16x4 : rows <= 8 ? kRows16x8 : kRows16x16;
+                    launch(build, (unsigned)((nout + rows_per_block_ - 1) / rows_per_block_), 1, args);
+                } else {
+                    unsigned long long nr = rows;
+                    void* args[] = {&w, &q, &d, &y, &ni, &no, &nr, &add};
+                    launch(kTile16, (unsigned)((nout + 15) / 16), (unsigned)((rows + 15) / 16), args);
+                }
+                at += rows;
+            }
+            begin = end;
+        }
+        if (begin != nbatch) throw std::runtime_error("rocm: row runs short of the call");
+        record_matrix_path(MatrixPath::block_int16);
+    }
     void gather(Slice dst, CSlice src, size_t width, const uint32_t* ids, size_t count) {
         span(*dst.buffer, dst.offset * sizeof(float), size_mul(size_mul(count, width), sizeof(float)));
         float* d = f32(dst);
@@ -471,9 +629,9 @@ private:
         void* args[] = {&d, &s, &ip, &w};
         launch(kGather, (unsigned)((width + kThreads - 1) / kThreads), (unsigned)count, args);
     }
-    void launch(Kernel k, unsigned gx, unsigned gy, void** args) {
+    void launch(Kernel k, unsigned gx, unsigned gy, void** args, unsigned gz = 1) {
         raise_failed();
-        launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, 1, kThreads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
+        launch_check(hip().hipModuleLaunchKernel(kernels_[k], gx, gy, gz, kThreads, 1, 1, 0, stream_, args, nullptr), kKernelNames[k]);
     }
     // A launch or copy refused as it is enqueued throws at once; the stream is still the caller's.
     void launch_check(hipError_t e, const char* what) {
@@ -485,18 +643,33 @@ private:
         std::lock_guard<std::mutex> lk(failed_mu_);
         if (failed_.empty()) failed_ = std::string("rocm: ") + where + " failed on the device with " + hip().hipGetErrorName(e);
     }
+    // Frees the graves whose covering ticket has retired.
+    void bury() noexcept {
+        std::lock_guard<std::mutex> lock(graves_->m);
+        auto& held = graves_->held;
+        const Ticket last = tickets_.last();
+        const auto kept = std::remove_if(held.begin(), held.end(), [&](const auto& g) {
+            if (g.first > last || !tickets_.settled(g.first)) return false;
+            free_memory(g.second.first, g.second.second);
+            return true;
+        });
+        held.erase(kept, held.end());
+    }
     void raise_failed() {
         std::lock_guard<std::mutex> lk(failed_mu_);
         if (!failed_.empty()) throw std::runtime_error(failed_);
     }
 
     RocmDevice dev_;
+    std::shared_ptr<Graves> graves_ = std::make_shared<Graves>();   // before every buffer member, so it outlives them
     hipStream_t stream_ = nullptr;
-    hipModule_t module_ = nullptr;
+    hipModule_t module_ = nullptr, int16_module_ = nullptr, dot_module_ = nullptr;
+    BufferPtr parts_;  // attention's chunk partials, grown as calls need
+    BufferPtr twin_;   // the block-int16 twin of the last product's activations, grown as calls need
+    BufferPtr staged_;   // a product bound for host memory, formed here first
+    size_t rows_per_block_ = kThreads / dev_.caps.subgroup_size;   // the row kernel's output rows a block, a wave each
     std::array<hipFunction_t, kKernels> kernels_{};
     std::array<hipEvent_t, kEvents> events_{};
-    std::array<std::vector<BufferPtr>, kEvents> pending_;
-    std::vector<BufferPtr> open_;
     Ring args_, stage_;
     TicketLedger tickets_;
     bool opened_ = false;
@@ -508,7 +681,8 @@ RocmKVStorage::RocmKVStorage(RocmBackend& owner, size_t layers, size_t heads, si
                              const std::vector<size_t>& auxiliary_widths, const std::vector<size_t>& auxiliary_pools)
     : BlockKVStorage(owner, "rocm", kBlockTokens, layers, heads, dim, max_tokens, kt, vt, auxiliary_widths, auxiliary_pools) {}
 
-void RocmKVStorage::retire(const BufferPtr& old) { static_cast<RocmBackend&>(owner()).hold(old); }
+// Dropping the old buffer is enough: its memory waits in the graves for the copies recorded before.
+void RocmKVStorage::retire(const BufferPtr&) {}
 
 } // namespace
 

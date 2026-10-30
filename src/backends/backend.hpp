@@ -346,7 +346,7 @@ inline size_t check_state_views(const StateView* views, size_t n_views, size_t l
 
 enum class NormGate : uint8_t { silu, sigmoid };
 // The ops some backends lack, which a model's plan names for each part that issues one, so a backend without one refuses the model at load rather than in a pass (Backend::implements).
-enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, mixed_experts, argmax_rows, embed_ids,
+enum class Op : uint8_t { causal_conv_silu, gated_delta_rule, gated_rms_norm, norm_rope_partial, sigmoid_mul, routed_experts, mixed_experts, argmax_rows, embed_ids,
                           group_rms_norm, silu_scaled, mix_streams, inject_streams, signed_sqrt_gate, dilated_conv_silu_add, select_kv, sparse_attention,
                           layer_norm, gelu, add_bias, mix_rows, rope_streams, attention_full };
 inline const char* op_name(Op op) {
@@ -356,6 +356,7 @@ inline const char* op_name(Op op) {
         case Op::gated_rms_norm: return "gated_rms_norm";
         case Op::norm_rope_partial: return "norm_rope_partial";
         case Op::sigmoid_mul: return "sigmoid_mul";
+        case Op::routed_experts: return "routed_experts";
         case Op::mixed_experts: return "mixed_experts";
         case Op::argmax_rows: return "argmax_rows";
         case Op::embed_ids: return "embed_ids";
@@ -708,21 +709,21 @@ public:
     // A row without a candidate gives k picks of kNoExpert with weights 0.
     virtual void route_experts(CSlice /*scores*/, size_t /*rows*/, size_t /*n_expert*/, size_t /*k*/, bool /*normalize*/,
                                Slice /*ids*/, Slice /*weights*/) {
-        lacks(Op::mixed_experts);
+        lacks(Op::routed_experts);
     }
 
     // Routed projections of one X: entry e = r*k + j of projection p is out[e*rows_p + o] = dot(row o of expert ids[e], X row r), for up to three projections, an entry of kNoExpert left unwritten.
     // A projection's data holds its n_expert matrices of `rows` rows each back to back; `runs` are matmul's, over the `nrows` token rows.
     virtual void matmul_experts(std::initializer_list<Projection> /*projections*/, CSlice /*X*/, size_t /*nin*/,
                                 size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16) {
-        lacks(Op::mixed_experts);
+        lacks(Op::routed_experts);
     }
 
     // The routed projection whose output joins the residual stream: Y row r += sum over j in order of weights[e] * dot(expert ids[e], X row e), e = r*k + j, an entry of kNoExpert adding nothing.
     // The weighted sum is formed first and then added, so a row's result does not depend on how its slots were computed.
     virtual void matmul_experts_add(WeightView /*weight*/, CSlice /*X*/, Slice /*Y*/, size_t /*nin*/, size_t /*nout*/,
                                     size_t /*nrows*/, const Routing& /*routing*/, RowRuns /*runs*/ = {}, Dtype /*dtype*/ = Dtype::f16) {
-        lacks(Op::mixed_experts);
+        lacks(Op::routed_experts);
     }
 
     // A routed feed-forward step over the normed rows h (MoeStep): routing, the experts' SwiGLU and weighted down sum, then a shared expert's SwiGLU under its row gate, joining y.

@@ -26,7 +26,7 @@ inline std::vector<uint8_t> interleaved_streams(const std::vector<int>& sections
     return of;
 }
 
-// A grouped expert call needs mixed-type support only when both declared projections exist and their storage tags differ; the requirement is the part's the gate role runs in.
+// A routed layer's part issues the routed products, and a grouped expert call needs mixed-type support too when both declared projections exist and their storage tags differ; both are the part's the gate role runs in.
 inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t gate, uint16_t up) {
     const TensorView *g = nullptr, *u = nullptr;
     Part part = Part::ffn;
@@ -36,6 +36,7 @@ inline void routed_ops(LayerPlan& layer, const TensorIndex& tensors, uint16_t ga
         const auto tensor = tensors.find(role.name);
         if (tensor) (role.id == gate ? g : u) = &tensors.view(*tensor);
     }
+    layer.ops.push_back({part, backend::Op::routed_experts});
     if (g && u && g->type != u->type) layer.ops.push_back({part, backend::Op::mixed_experts});
 }
 

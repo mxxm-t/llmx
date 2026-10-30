@@ -2433,6 +2433,19 @@ private:
                 span(*r.buffer, size_mul(r.offset, sizeof(float)), size_mul(n, sizeof(float)));
                 x.push_back(at(r));
             }
+            sum(x, n, false);
+        }
+        void sum_in_place(size_t rows, size_t width) override {
+            const size_t n = size_mul(rows, width);
+            if (n > size_mul(rows_, width_)) throw std::logic_error("backend: a sum past the rows its collective was made for");
+            std::vector<float*> x;
+            for (const BufferPtr& b : partials_) x.push_back((float*)b->host_ptr());
+            sum(x, n, true);
+        }
+
+    private:
+        // Each float of `x` gains, or with `replace` becomes, the partials' sum in member order; the sum is read before any member's float is written.
+        void sum(const std::vector<float*>& x, size_t n, bool replace) {
             std::vector<const float*> p;
             for (const BufferPtr& b : partials_) p.push_back((const float*)b->host_ptr());
             lead_.chunk(n, [&](size_t begin, size_t end) {
@@ -2440,17 +2453,16 @@ private:
                 for (; i + 8 <= end; i += 8) {
                     __m256 s = _mm256_loadu_ps(p[0] + i);
                     for (size_t m = 1; m < p.size(); ++m) s = _mm256_add_ps(s, _mm256_loadu_ps(p[m] + i));
-                    for (float* xm : x) _mm256_storeu_ps(xm + i, _mm256_add_ps(_mm256_loadu_ps(xm + i), s));
+                    for (float* xm : x) _mm256_storeu_ps(xm + i, replace ? s : _mm256_add_ps(_mm256_loadu_ps(xm + i), s));
                 }
                 for (; i < end; ++i) {
                     float s = p[0][i];
                     for (size_t m = 1; m < p.size(); ++m) s += p[m][i];
-                    for (float* xm : x) xm[i] += s;
+                    for (float* xm : x) xm[i] = replace ? s : xm[i] + s;
                 }
             });
         }
 
-    private:
         CpuBackend& lead_;
         size_t rows_, width_;
         std::vector<BufferPtr> partials_;

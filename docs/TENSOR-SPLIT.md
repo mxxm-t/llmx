@@ -235,6 +235,9 @@ Each member's arithmetic is the one-device kernel over its shard, so a group add
 - **What a module changes:** the part's final residual projection goes through one block helper that adds into the residual at width 1, as today, and writes the member's partial into the slot the group gives at width W; the module reads its member's head counts from the `Step`.
   At width 1 every module runs the same ops as on main, which is how gate 1 holds.
 - **What the runtime does:** it runs each part on every member, then asks the group to sum the partials into every member's residual, then runs the next part.
+- **A part that ends in an elementwise join** (2026-10-30): where a part's last projection is followed by a step linear in its output, the group sums the projection's output and each member runs that step on the sum, as one device runs it on its whole output.
+  qwen4exp injects a 2560-wide block into four residual streams with per-stream gates, so its members sum the block in place (`Collective::sum_in_place`) and each injects it (`Architecture::join`), a quarter of the bytes of summing four injected streams; a group's bits there are `x + w * (b0 + b1)` in place of `x + (w * b0 + w * b1)`.
+  On Qwen3.8-Flash-Next 2x2 the sums had been 29% of each card's prompt time, all of it the copies into the peer's inbox at 9.1 GB/s (docs/STATUS.md).
 - **The sum** is `x + (((p0 + p1) + p2) + p3)` in member order, F32, the same kernel on every member, so every member's residual keeps the same bits; it is one algorithm at every message size, and a two-shot form for large messages is allowed only if it adds each element in the same order, so its bits are the one-shot's.
 - **The collective is a backend concern** with two implementations from its first branch, which is the second use that justifies the seam:
   - **CPU:** the members are CPU backends in one process; the partials are host memory and the sum reads them in member order.

@@ -200,7 +200,7 @@ inline Footprint footprint(const ModelWeights& weights, const ModelPlan& plan, c
     fp.host_scratch_per_row = backend::size_mul(backend::size_mul(plan.index_width, sizeof(uint32_t)), width);
     for (size_t w : plan.slots) fp.activations_per_row += w * sizeof(float);
     // A member of a group that runs routed experts keeps a zero row to clear its partial rows from.
-    if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += plan.residual * sizeof(float);
+    if (width > 1 && (std::any_of(plan.layers.begin(), plan.layers.end(), has_experts) || (plan.drafter && has_experts(*plan.drafter)))) fp.activations_per_row += sum_width(plan) * sizeof(float);
     return fp;
 }
 
@@ -220,7 +220,8 @@ inline Placement placement_for(const LayerSplit& split, size_t width = 1) {
 }
 
 // What a tensor split's fit places over (docs/TENSOR-SPLIT.md, section 4.6): each group of `width` consecutive devices as one device, named by its members, with its least member's free memory and its members' host memory.
-inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& devices, size_t width, size_t residual) {
+// `summed` is the floats in a row the group sums (sum_width).
+inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& devices, size_t width, size_t summed) {
     if (width == 1) return devices;
     std::vector<DeviceBudget> groups;
     for (size_t g = 0; g + width <= devices.size(); g += width) {
@@ -232,7 +233,7 @@ inline std::vector<DeviceBudget> group_budgets(const std::vector<DeviceBudget>& 
             b.scratch = std::max(b.scratch, devices[m].scratch);
         }
         for (size_t m = g; m < g + width; ++m)
-            if (devices[m].collective) b.collective_per_row = std::max(b.collective_per_row, devices[m].collective(width, residual));
+            if (devices[m].collective) b.collective_per_row = std::max(b.collective_per_row, devices[m].collective(width, summed));
         groups.push_back(std::move(b));
     }
     return groups;
@@ -516,7 +517,7 @@ inline ModelOptions fitted_kv(const ModelWeights& weights, const ModelPlan& plan
             try {
                 Footprint fp = footprint(source, *fitting, o, request.width);
                 fp.host_state = backend::size_add(fp.host_state, host_bytes);
-                split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(),
+                split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(),
                              std::max<size_t>(1, request.slots), logits);
                 return true;
             } catch (const std::runtime_error& e) {
@@ -812,7 +813,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         std::string why;
         const auto fits = [&] {
             try {
-                selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, plan.residual), fitted_rows(request), request.shares,
+                selected = split_layers(lookup_footprint(), group_budgets(budgets, request.width, sum_width(plan)), fitted_rows(request), request.shares,
                                         host_room, std::max<size_t>(1, request.slots), request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error& e) {
@@ -882,7 +883,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         std::exception_ptr refused;
         auto fit = [&] {
             try {
-                split = split_layers(fp, group_budgets(budgets, request.width, plan.residual), rows, request.shares, core::host_memory_available(), request.slots,
+                split = split_layers(fp, group_budgets(budgets, request.width, sum_width(plan)), rows, request.shares, core::host_memory_available(), request.slots,
                                      request.logit_rows ? std::optional<size_t>(request.logit_rows) : std::nullopt);
                 return true;
             } catch (const std::runtime_error&) {
@@ -900,7 +901,7 @@ inline PlannedModel plan_placement(const ModelWeights& weights, std::vector<back
         }
         if (!split) std::rethrow_exception(refused);
         placed.placement = placement_for(*split, request.width);
-        placed.plan = split->describe(group_budgets(budgets, request.width, plan.residual));
+        placed.plan = split->describe(group_budgets(budgets, request.width, sum_width(plan)));
     } else if (!adds_host_for_experts(backends, request)) {
         placed.placement = Placement{};
     } else {

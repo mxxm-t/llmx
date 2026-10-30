@@ -386,6 +386,8 @@ public:
     virtual Slice partial(size_t member) = 0;
     // Each member's residual rows, `rows` rows of `width` floats at residual[m], gain ((p0 + p1) + ...) + p(W-1) of the members' partial rows, enqueued on every member.
     virtual void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) = 0;
+    // Each member's partial rows, `rows` rows of `width` floats, replaced by ((p0 + p1) + ...) + p(W-1), the sum sum_into adds, for any width the reserved rows hold.
+    virtual void sum_in_place(size_t rows, size_t width) = 0;
     // Every member done with what the last sum submitted on it (`back` 0), or the sum before it (1); nothing to wait for where the members compute as they are called.
     virtual void wait(size_t back) noexcept { (void)back; }
 };

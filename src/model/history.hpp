@@ -1478,7 +1478,7 @@ inline void Model::draft_record(Chain& c) {
                     }
                     arch_->draft(step);
                 }
-                if (phase == 0 || phase == 1) ctx_.collectives[o]->sum_into(x, rows, plan_.residual);
+                if (phase == 0 || phase == 1) group_sum(ctx_, o, x, rows, {&run, 1}, plan_.drafter->kind, [&](size_t g) { return drafter_row(g); });
             }
         }
         c.sent.assign(W, 0);

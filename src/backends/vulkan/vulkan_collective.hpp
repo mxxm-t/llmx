@@ -61,11 +61,11 @@ inline void VulkanBackend::external_ownership(Buffer& buffer, size_t offset, siz
     if (bytes) external_ownership(&mb, 1, acquire);
 }
 
-// A tensor group's sum on this member (VulkanCollective): residual += the `members` sources added in member order, the summed values also written to `kept` where given (shaders/sum_rows.comp).
-inline void VulkanBackend::sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept) {
+// A tensor group's sum on this member (VulkanCollective): residual += the `members` sources added in member order, or with `replace` residual = them, the summed values also written to `kept` where given (shaders/sum_rows.comp).
+inline void VulkanBackend::sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace) {
     if (!n) return;
     if (!members || members > kSumSources) throw std::logic_error("vulkan: a sum of no sources or more than the kernel takes");
-    const uint32_t pc[3] = {u32(n), u32(members), kept ? 1u : 0u};
+    const uint32_t pc[3] = {u32(n), u32(members), (kept ? 1u : 0u) | (replace ? 2u : 0u)};
     auto source = [&](size_t k) { return bind(sources[k < members ? k : 0]); };
     dispatch(K_SUM_ROWS, {bind(residual), kept ? bind(*kept) : bind(residual), source(0), source(1), source(2), source(3)}, pc, sizeof(pc), groups(n, 256));
 }
@@ -145,13 +145,27 @@ public:
         for (size_t m = 0; m < sum.size(); ++m) members_[m]->wait(sum[m]);
     }
 
-    // A sum that fails part way drains the members and makes the semaphores again, so the collective is as new and the passes beside the failed one go on.
     void sum_into(const std::vector<Slice>& residual, size_t rows, size_t width) override {
         if (residual.size() != members_.size() || rows > rows_ || width != width_)
             throw std::logic_error("backend: a sum of other members, rows or width than its collective was made for");
+        summed(residual, size_mul(rows, width), false);
+    }
+
+    // Each member's own partial rows are its residual, which the sum replaces.
+    void sum_in_place(size_t rows, size_t width) override {
+        const size_t n = size_mul(rows, width);
+        if (n > size_mul(rows_, width_)) throw std::logic_error("backend: a sum past the rows its collective was made for");
+        std::vector<Slice> own;
+        for (size_t m = 0; m < members_.size(); ++m) own.push_back(partial(m));
+        summed(own, n, true);
+    }
+
+private:
+    // A sum that fails part way drains the members and makes the semaphores again, so the collective is as new and the passes beside the failed one go on.
+    void summed(const std::vector<Slice>& residual, size_t n, bool replace) {
         if (signal_.empty()) throw std::runtime_error("vulkan: a tensor group's semaphores could not be made again after a failed sum");
         try {
-            sum(residual, rows, width);
+            sum(residual, n, replace);
             before_ = last_;
             last_ = taken_;
         } catch (...) {
@@ -161,7 +175,6 @@ public:
         }
     }
 
-private:
     // Adjacent inbox acquires share one command; all spans are checked before recording it.
     void acquire_inboxes(size_t member, int parity, size_t offset, size_t bytes) {
         VulkanBackend& b = *members_[member];
@@ -174,14 +187,14 @@ private:
         b.external_ownership(acquires_.data(), count, true);
     }
 
-    void sum(const std::vector<Slice>& residual, size_t rows, size_t width) {
+    void sum(const std::vector<Slice>& residual, size_t n, bool replace) {
         const size_t W = members_.size();
-        const size_t n = rows * width, bytes = n * sizeof(float);
+        const size_t bytes = n * sizeof(float);
         // The parity is the collective's, flipped once a sum whichever pass makes it, so passes may interleave their sums here.
         // A sum's adds are submitted by the next exchange, and two parities are enough only because of that.
         const int p = parity_;
         parity_ ^= 1;
-        if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p);
+        if (n >= VulkanBackend::two_shot_crossover(W)) return two_shots(residual, n, p, replace);
         for (size_t m = 0; m < W; ++m)
             for (size_t t = 0; t < W; ++t)
                 if (t != m) {
@@ -195,11 +208,12 @@ private:
             auto source = [&](size_t k) { return CSlice{k == m ? partial_[m].get() : inbox_[p][m][k].get(), 0}; };
             CSlice sources[VulkanBackend::kSumSources];
             for (size_t k = 0; k < W; ++k) sources[k] = source(k);
-            b.sum_rows(residual[m], sources, W, n, nullptr);
+            b.sum_rows(residual[m], sources, W, n, nullptr, replace);
         }
     }
 
-    void two_shots(const std::vector<Slice>& residual, size_t n, int p) {
+    // With `replace` each share is written where it is summed and copied where it is gathered, so every member ends with the sum alone.
+    void two_shots(const std::vector<Slice>& residual, size_t n, int p, bool replace) {
         const size_t W = members_.size(), f = sizeof(float);
         auto lo = [&](size_t k) { return share_begin(k, n, W, share_align_); };
         auto len = [&](size_t k) { return lo(k + 1) - lo(k); };
@@ -218,7 +232,7 @@ private:
             const Slice share{scratch_[k].get(), lo(k)};
             CSlice sources[VulkanBackend::kSumSources];
             for (size_t j = 0; j < W; ++j) sources[j] = source(j);
-            b.sum_rows(Slice{residual[k].buffer, residual[k].offset + lo(k)}, sources, W, len(k), &share);
+            b.sum_rows(Slice{residual[k].buffer, residual[k].offset + lo(k)}, sources, W, len(k), &share, replace);
             for (size_t t = 0; t < W; ++t)
                 if (t != k) {
                     b.copy(*gathered_[p][t][k], 0, *scratch_[k], lo(k) * f, len(k) * f);
@@ -230,7 +244,8 @@ private:
             for (size_t k = 0; k < W; ++k)
                 if (k != m && len(k)) {
                     members_[m]->external_ownership(*gather_[p][m][k], 0, len(k) * f, true);
-                    members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
+                    if (replace) members_[m]->copy(*residual[m].buffer, (residual[m].offset + lo(k)) * f, *gather_[p][m][k], 0, len(k) * f);
+                    else members_[m]->add(Slice{residual[m].buffer, residual[m].offset + lo(k)}, CSlice{gather_[p][m][k].get(), 0}, len(k));
                 }
     }
 

@@ -1,5 +1,49 @@
 # llmx - Development Status
 
+## A tensor group sums a hyper-connection block, not its four streams (2026-10-30, RDEV, branch perf/ts-block-sum on main e8d413a84, the 2x2 prefill task, plan A approved by F2DEV at 17:36 with four conditions; approved by F2DEV at 23:25 and landing by fast-forward on a green hosted run)
+
+**Goal:** on a tensor group, qwen4exp's members sum the part's 2560-wide block and then each injects the summed block into the four residual streams, as one device does, instead of summing four injected 10240-wide streams, so a sum moves a quarter of the bytes.
+**Why (profile of main 06936f48e, Qwen3.8-Flash-Next UD-Q4_K_XL 2x2, int8, pp2048 1097.7 and 1096.4 tok/s, GPUs 4-7 at default clocks):** each card's span of about 1500 ms of a 1879 ms profiled pass is 980-1035 ms of compute and 440 ms of copies into the peer's inbox (192 sums of 512 rows x 10240 floats, 21 MB each, at 9.1 GB/s); waits on the peer are 15-26 ms, the stage handoff under 8 ms and host gaps 4 ms. ubatch 256, 384, 512 and 1024 give 1109, 1099, 1097 and 912-915 tok/s.
+**Done:** the profile and the plan; `Collective::sum_in_place` (CPU and Vulkan, `sum_rows` writing over its residual, two shots copying the gathered shares), `ModelPlan::partial` and `Architecture::join`, the runtime's sums through `Model::group_sum` (a stage's two, the drafter's two), the collective and the fit sized by `sum_width`, and qwen4exp writing its block as the partial rows and injecting the sum in `join`.
+- **Tests:** `backend-group` and `backend-vulkan` hold the in-place sum to the member-order sum at the width made for and narrower ones, in one shot and two, and refuse one past the reserved floats; the MTP fixture's architecture wrapper forwards `join`.
+- **Measured** (Qwen3.8-Flash-Next UD-Q4_K_XL, int8, f16 KV, `--lookup-storage file`, GPUs 4-7 at default clocks, CPUs 4-7,12-15, main 06936f48e against 12995fc9e built alike, two ABBA rounds, the second under a monitor log: load average 21 mean and 34 most, renderD130/131 busy with other work throughout):
+
+| 2x2 cell | main | branch |
+|---|---|---|
+| pp2048, tok/s | 1052.5, 1097.7, 1098.3, 1098.5 | 1399.6, 1407.0, 1406.5, 1411.5 |
+| pp512, tok/s | 707.8, 718.4, 708.8, 718.0 | 935.9, 937.3, 938.3, 938.7 |
+| verify of 15 drafts (16 rows), ms | 83.2, 82.3, 82.3, 83.4 | 76.8, 78.0, 76.8, 77.6 |
+| decode at 118k, one reply, tok/s | 34.0, 36.7 | 37.2, 38.4 |
+| decode at 118k, seven replies (7-row passes), tok/s | 132.8, 134.2 | 140.2, 143.6 |
+| the same, sum_wait a stage pass, ms (stage 0 / 1) | 12.3 / 11.7, 12.1 / 12.1 | 11.7 / 11.5, 11.6 / 11.9 |
+
+Verify of k drafts (`bench --drafter` with the sidecar MTP head, short context), ms, the mean of 4 samples an arm from two ABBA rounds; every branch sample is below every main sample but at 1 and 3 rows, where they overlap:
+
+| rows | 1 | 2 | 4 | 6 | 8 | 10 | 12 | 14 | 16 |
+|---|---|---|---|---|---|---|---|---|---|
+| main | 30.8 | 34.3 | 41.0 | 48.9 | 54.4 | 64.4 | 69.9 | 77.6 | 82.8 |
+| branch | 29.1 | 33.1 | 39.1 | 46.0 | 50.7 | 59.6 | 64.6 | 71.6 | 77.3 |
+
+With drafts (sidecar MTP and lookup, at most 7) at production's flags, interleaved main, branch, branch, main: the 117,876-token prompt, then 256 tokens alone, then seven replies of 128 at once, a monitor log throughout (production's cards about 50% busy over the whole window, in every run):
+
+| run | one reply, s | its tokens and rows a pass | seven replies, s (tok/s together) | rows a pass | stage 0 pass at seven, ms (recording, sum_wait, after) |
+|---|---|---|---|---|---|
+| main | 6.37 | 1.35, 1.44 | 7.06 (126.9) | 3.58 | 22.7 (17.3, 11.7, 7.2) |
+| branch | 6.51 | 1.24, 1.36 | 6.55 (136.8) | 3.49 | 21.1 (15.8, 11.3, 6.7) |
+| branch | 5.67 | 1.63, 1.78 | 6.50 (137.8) | 3.53 | 21.0 (16.0, 11.5, 6.7) |
+| main | 6.29 | 1.35, 1.44 | 7.04 (127.3) | 3.58 | 22.8 (17.4, 11.9, 7.2) |
+
+  - The drafted and kept counts are context, not a measure of either arm: a group's bits differ, so the replies are different text and lookup's matches differ with them. One reply drafted / kept 84 / 66 on main and 75 / 50 and 123 / 99 on the branch; seven replies 123 / 102 and 125 / 102 on main and 25 / 17 and 36 / 26 on the branch.
+  - A first, unmatched drafted pair read the branch 25% slower for one reply and 30% slower for seven. It was one branch run whose stage 0 recording outside the sums took 14.0 ms a pass against 5.8 on main, while production's cards were busy during that run only; in the interleaved pairs above it did not repeat.
+  - The 118k cells are a server at production's flags without drafts (with drafts the rows a pass differed run to run): a 117,876-token prompt read once, then that prompt and 256 tokens, then seven such replies at once, the stage split from `/v1/health` before and after each.
+  - Profile of the branch: a card's span 1162-1186 ms, copies into the peer's inbox 114-124 ms, compute 965-1028 ms; `sum_rows` 5.5 ms a card against 23; the join's `inject_streams` 16.3-16.5 ms a card, as main's inject.
+- **Correctness:** CTest 94 of 94 on the MI50 build and 95 of 95 on Windows with the Radeon VII; the tiny qwen4exp fixture's CPU group of 2 against HF, 17 rows, max 5.2e-08 before and after (bound 2e-5); qwen4exp-mtp's group against one CPU 5.96e-08 before and after, drafts on and off equal; Flash-Next on a layer split of 4 byte-identical to main (the last 16 logits rows of a 2753-token text and 64 greedy ids); docs, dead-code and arch-boundary pass.
+  - F2DEV's substitute for the Flash HF cells, whose released Q8_0 file and 16k references are gone: f32 dtype and caches, 2x2 main and branch against the layer split of 4, last 512 rows of the restore bundle's 16k inputs. Raw: top-1 510 and 508 of 512, median |dlogit| 0.030 and 0.040; chat: 458 and 457, 0.217 and 0.180. Before any discrete choice flips (rows 1-999 of a 2753-token text) both are 1.7e-5 median, 4.6e-5 p90 from the layer split.
+  - Found on the way, not this branch's: on the chat 16k both 2x2 arms part from the layer split by 0.38-0.42 mean |dNLL|. Per-layer dumps of the first rows that part show the residuals equal to 3e-6 until a router near-tie (margins 3e-6 and 8e-6) flips one of the eight experts, which then spreads; the indexer picks every key below its budget there. Main's and the branch's 2x2, which differ only in rounding, part by 0.147 on the chat and 0.022 on the raw input, so the chat input is the more sensitive one, and no group bug was found.
+  - The device suite (`run_tests.py --device vulkan:0` on an MI50) passed 45 of 46 components; the one failure was `version`, run on a tree with an uncommitted file, whose build identifier carries the dirty marker, and it passes on the rebuilt clean tree.
+**Left:** the hosted run in the coordinator's queue; then plan B (the sum copies left beside a micro-batch's compute on a second queue, and the submission path), a branch of its own.
+**Gotchas:** a group's bits change (x + w*(b0 + b1) in place of x + (w*b0 + w*b1)); one device and the layer split keep main's bytes.
+
 ## A background job yields to a decoding reply (2026-10-30, MDEV, branch fix/reread-yields on main 06936f48e, the owner's production report through the coordinator, F2DEV's ruling of 19:55, lands by fast-forward as two commits, the failing test and then the fix)
 - **Seen on production:** a job reading a conversation's next turn ahead took two 16-row chunk passes of about 65 ms for every decode pass of a live reply at 156k tokens of context, and the reply ran at about 6 tokens a second (`rule_replies` 1545 against `rule_chunks` 3273); later a 64-row chunk pass of 131 ms between decode passes of 27 to 33 ms.
 - **Cause:** `Scheduler::plan` took the jobs as the prompt work whenever no client prompt waited, so the service rule gave a job the share it gives a waiting user's prompt: on a split every slot past the replies' took a chunk, and a job always passed the wait bound.

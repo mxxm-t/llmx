@@ -6,7 +6,7 @@ The pinned text schema, its source provenance and the released file's qualificat
 
 A layer split runs it as any model.
 On a tensor group the plan shards attention heads, GDN head tiles, expert hidden dimensions and vocabulary rows, and keeps hyper-connection mixing, QSA selection and PLE replicated.
-Injection uses the residual collective for full-stream partials.
+On a tensor group the members sum a part's block, and each injects the summed block into its streams (`join`).
 External PLE rows are read once by the group's first member and uploaded to each member.
 Legal widths depend on the plan's head, vocabulary and quant-block spans.
 
@@ -35,7 +35,7 @@ Legal widths depend on the plan's head, vocabulary and quant-block spans.
 - `mix(config, step, weights, out, scratch)` and `inject(config, step, weight, normed, block, gates)`: mix normalized streams through the learned down and up projections, keeping the normalized streams in `scratch.normed`, then inject a block result into the original streams through learned per-stream gates.
   The architecture also wires the GDN recurrence and convolution, QSA index selection and selected-KV attention, routed and shared experts, PLE lookup and convolution, per-block HC and the final HC head.
   The routed and shared experts are one `blocks::moe_step` call ([blocks](model-arch-blocks.md)) into the block's output rows, cleared first from the model's zero row (`tables[2]`); the expert slots hold k routed rows and the shared expert's rows after them.
-  On a tensor group, injection writes zeroed full-stream partials for the runtime's residual sum (`Backend::repeat_row` from the same zero row), so the original residual is not added once per member.
+  On a tensor group a part writes its block as the member's partial rows (`ModelPlan::partial`, the hidden width, a quarter of the residual's) and makes the gates; the runtime sums the blocks in member order in place, and `join` injects the summed block with those gates into the member's streams, as one device injects its whole block, so a sum moves a quarter of the bytes of the four injected streams.
   PLE replay inputs are saved whole on each member, while GDN inputs follow its sharded head tiles.
 - The recurrent output uses sigmoid gating through `NormGate::sigmoid`, where Qwen35's gated normalization keeps SiLU; the released GGUF carries no key for it, so the module fixes sigmoid.
 - `plan_drafter`, `draft_rows` and `draft`: the optional MTP block uses the target's raw HC-wide residual and the residual-sized carried rows, marks and KV layer.

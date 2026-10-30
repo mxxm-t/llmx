@@ -1,6 +1,6 @@
 #version 450
-// A tensor group's sum (VulkanCollective::sum): residual[i] += (((s0[i] + s1[i]) + s2[i]) + s3[i]) over `members` sources in member order, the adds of add.comp in the same order.
-// With `keep` the summed value is also written to `kept`, the share the two-shot path's gather sends.
+// A tensor group's sum (VulkanCollective::sum): residual[i] += (((s0[i] + s1[i]) + s2[i]) + s3[i]) in member order, as add.comp adds.
+// Flag 1 also writes the sum to `kept`; flag 2 writes it over residual, which may be a source, since each invocation reads its float before writing it.
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P { uint n; uint members; uint keep; } p;
 layout(set = 0, binding = 0) buffer R { float r[]; };
@@ -16,6 +16,7 @@ void main() {
     if (p.members > 1u) t += s1[i];
     if (p.members > 2u) t += s2[i];
     if (p.members > 3u) t += s3[i];
-    if (p.keep != 0u) kept[i] = t;
-    r[i] += t;
+    if ((p.keep & 1u) != 0u) kept[i] = t;
+    if ((p.keep & 2u) != 0u) r[i] = t;
+    else r[i] += t;
 }

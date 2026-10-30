@@ -25,6 +25,7 @@ struct Observed final : infer::Architecture {
     void embed(const infer::Step& s, const uint32_t* ids) const override { base->embed(s, ids); }
     void mixer(const infer::Step& s) const override { base->mixer(s); }
     void ffn(const infer::Step& s) const override { base->ffn(s); }
+    void join(const infer::Step& s) const override { base->join(s); }
     void head(const infer::HeadStep& s) const override { base->head(s); }
     void recur(const infer::Step& s) const override { base->recur(s); }
     void draft_rows(const infer::DraftRowsStep& s) const override {

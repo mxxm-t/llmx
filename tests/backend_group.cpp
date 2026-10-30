@@ -61,6 +61,20 @@ static size_t check_collective() {
                 for (size_t m = 0; m < W; ++m)
                     require(std::equal(want.begin(), want.end(), x[m].begin() + (std::ptrdiff_t)offset, [](float a, float b) { return std::memcmp(&a, &b, sizeof a) == 0; }), "a member's residual is not the sum in member order");
                 count += n * W;
+                // Summed in place, every partial becomes that sum, at the width made for and a narrower one.
+                for (size_t narrow : {width, width - 7}) {
+                    const size_t k = rows * narrow;
+                    std::vector<float> all(k);
+                    for (size_t i = 0; i < k; ++i) {
+                        float s = ((const float*)sum->partial(0).buffer->host_ptr())[i];
+                        for (size_t m = 1; m < W; ++m) s += ((const float*)sum->partial(m).buffer->host_ptr())[i];
+                        all[i] = s;
+                    }
+                    sum->sum_in_place(rows, narrow);
+                    for (size_t m = 0; m < W; ++m)
+                        require(k == 0 || std::memcmp(all.data(), sum->partial(m).buffer->host_ptr(), k * sizeof(float)) == 0, "a member's partial rows summed in place are not the sum in member order");
+                    count += k * W;
+                }
             }
             auto refused = [&](const std::function<void()>& f) {
                 try { f(); } catch (const std::exception&) { return true; }
@@ -72,6 +86,7 @@ static size_t check_collective() {
             require(refused([&] { std::vector<backend::Slice> fewer(xs.begin(), xs.end() - 1); sum->sum_into(fewer, 1, width); }), "a sum of fewer members was taken");
             require(refused([&] { sum->sum_into(xs, reserved + 1, width); }), "a sum past the reserved rows was taken");
             require(refused([&] { sum->sum_into(xs, 1, width + 1); }), "a sum of another width was taken");
+            require(refused([&] { sum->sum_in_place(reserved, width + 1); }), "a sum in place past the reserved rows was taken");
             require(refused([&] { std::vector<backend::Slice> past(W, backend::Slice{sb.get(), 1}); sum->sum_into(past, reserved, width); }), "a sum past a residual's storage was taken");
             std::vector<backend::Backend*> reversed(members.rbegin(), members.rend());
             require(refused([&] { cpus[0]->join(reversed, 1, 1); }), "a collective joined by a member not first was made");

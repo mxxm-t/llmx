@@ -136,6 +136,8 @@ struct ModelPlan {
     std::vector<LayerPlan> layers;
     size_t context_length = 0;          // the tables cover these positions, a pass past them is refused, and the cache budget defaults to them
     size_t residual = 0;                // floats in a residual row: slot 0, a handoff row, a crossing
+    // Floats in a row of a tensor group member's partial rows (Step::partial), which the group sums: 0 for the residual's, which the sum adds to; narrower where each member joins the summed rows into its residual itself (Architecture::join).
+    size_t partial = 0;
     std::vector<size_t> slots;          // floats one row takes in each arena slot; slot 0 is the residual
     size_t index_width = 0;            // host U32 scratch entries per row, reused by embedding and gathered-weight lookups
     size_t kv_heads = 0, head_dim = 0;  // K and V of every layer whose cache is KV: heads, and each head's width
@@ -150,6 +152,9 @@ struct ModelPlan {
     std::optional<LayerPlan> drafter;
     size_t draft_h = 0, draft_x = 0;
 };
+
+// Floats in a row a tensor group sums (ModelPlan::partial).
+inline size_t sum_width(const ModelPlan& plan) { return plan.partial ? plan.partial : plan.residual; }
 
 // Whether a layer's roles hold an expert stack, whose routed sum a tensor group's member adds to partial rows it is handed cleared (Step::partial).
 inline bool has_experts(const LayerPlan& layer) {
@@ -254,6 +259,8 @@ public:
     // A layer that keeps no state has none, and a rerun reads the saved rows in place, where a plane holds the rows the mark has room for, given as Step::rows, the views giving the rows it runs.
     virtual void recur(const Step&) const {}
     virtual void ffn(const Step& s) const = 0;
+    // On a tensor group whose partial rows are narrower than the residual (ModelPlan::partial), each member's part after the group's sum: Step::partial holds the summed rows, which it joins into Step::x as one device's part ends.
+    virtual void join(const Step&) const {}
     virtual void head(const HeadStep& s) const = 0;
     // An embedded drafter (docs/SPECULATIVE.md, section 7), which a file may carry: its plan, added to `plan` when a caller asks for one, refused where the architecture or the file has none.
     virtual void plan_drafter(const TensorIndex&, ModelPlan&) const { throw std::runtime_error("inference: this architecture has no embedded drafter"); }

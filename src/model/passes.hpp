@@ -590,7 +590,8 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             arch_->mixer(step);
             if (plan_.layers[(size_t)l].cache == Cache::state) save(ctx, p, g + m, l);
         }
-        summed([&] { sum.sum_into(x, p.rows, plan_.residual); });
+        const auto layer_row = [&](size_t m) { return home_row(m, (size_t)l); };
+        summed([&] { group_sum(ctx, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
         for (size_t m = 0; m < W; ++m) {
             Step step = part(ctx, g + m, home_row(m, (size_t)l), plan_.layers[(size_t)l].kind, 0, p.rows, all);
             step.width = W;
@@ -598,7 +599,7 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
             if (has_experts(plan_.layers[(size_t)l])) clear_partial(ctx, g + m, step.partial, p.rows);
             arch_->ffn(step);
         }
-        summed([&] { sum.sum_into(x, p.rows, plan_.residual); });
+        summed([&] { group_sum(ctx, g, x, p.rows, all, plan_.layers[(size_t)l].kind, layer_row); });
     }
     if (s + 1 == stages_.size() && plan_.drafter) draft_context(ctx, p, s);
     if (s + 1 < stages_.size()) {
@@ -623,7 +624,22 @@ inline void Model::group_record(ExecContext& ctx, Pass& p, size_t s) {
 
 // A member's partial rows cleared, `rows` of them, before a part whose routed experts add their weighted sum to them (blocks::moe_step): a copy of zero rows the context keeps on the member.
 inline void Model::clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows) {
-    devices_[dev]->b->copy(*partial.buffer, partial.offset * sizeof(float), *ctx.zeros[dev], 0, rows * plan_.residual * sizeof(float));
+    devices_[dev]->b->copy(*partial.buffer, partial.offset * sizeof(float), *ctx.zeros[dev], 0, rows * sum_width(plan_) * sizeof(float));
+}
+
+// Group g's sum after a part: added to each member's residual x[m], or summed in place and joined into x[m] by each member (Architecture::join) where ModelPlan::partial says so.
+template <class Weights>
+inline void Model::group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w) {
+    backend::Collective& sum = *ctx.collectives[g];
+    if (!plan_.partial) return sum.sum_into(x, rows, plan_.residual);
+    sum.sum_in_place(rows, plan_.partial);
+    for (size_t m = 0; m < width_; ++m) {
+        Step step = part(ctx, g + m, w(m), kind, 0, rows, runs);
+        step.x = x[m];
+        step.width = width_;
+        step.partial = sum.partial(m);
+        arch_->join(step);
+    }
 }
 
 // The stage's submissions, every device it recorded on and each member of a tensor group, the pass's ticket that of `cur`.
@@ -823,10 +839,10 @@ inline void Model::ensure(ExecContext& ctx, size_t rows, size_t want, size_t buf
             members.push_back(devices_[m]->b.get());
             devices_[m]->b->wait(ctx.tickets[m]);
         }
-        ctx.collectives[g] = devices_[g]->b->join(members, rows, plan_.residual);
+        ctx.collectives[g] = devices_[g]->b->join(members, rows, sum_width(plan_));
         if (!ctx.collectives[g]) throw std::runtime_error("inference: the backends of a tensor group have no cross-device sum");
         // An allocation is zero-filled, and nothing writes these rows.
-        for (size_t m = g; clears && m < g + width_; ++m) ctx.zeros[m] = devices_[m]->b->alloc(mul(mul(rows, plan_.residual), sizeof(float)));
+        for (size_t m = g; clears && m < g + width_; ++m) ctx.zeros[m] = devices_[m]->b->alloc(mul(mul(rows, sum_width(plan_)), sizeof(float)));
     }
     ctx.collective_rows = std::max(ctx.collective_rows, rows);
     const size_t o = (size_t)place_.output_device;

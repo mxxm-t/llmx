@@ -85,13 +85,13 @@ inline void mix(const Config& c, const Step& s, const MixWeights& w, backend::Sl
     s.b.mix_streams(out, tmp.normed, tmp.gates, s.rows, H, E, s.runs);
 }
 
-// On a group, inject into zeroed full-stream partials for the existing residual collective.
+// A part's block added into the residual streams, weighted by gates from the normed streams.
+// On a group the block is the member's partial rows: the gates are made here, and the inject waits for the group's sum (Qwen4Exp::join).
 inline void inject(const Config& c, const Step& s, const Weight& w, backend::CSlice normed,
                    backend::CSlice block, backend::Slice gates) {
     const size_t E = size_t(c.n_embd), H = size_t(c.hc_count);
     s.b.matmul(w.operand(), normed, gates, H * E, H, s.rows, s.runs, s.dtype);
-    if (s.width > 1) s.b.repeat_row(s.partial, *s.tables[2], s.rows, H * E);
-    s.b.inject_streams(s.width > 1 ? s.partial : s.x, block, gates, s.rows, H, E);
+    if (s.width == 1) s.b.inject_streams(s.x, block, gates, s.rows, H, E);
 }
 
 inline std::vector<uint64_t> uint64_array(const gguf::GGUFModel& m, const std::string& key, size_t expected) {
@@ -637,6 +637,8 @@ public:
         }
         p.context_length = size_t(c.context_length);
         p.residual = size_t(R);
+        // A group sums a part's block, and each member injects the sum into its streams (join).
+        p.partial = size_t(c.n_embd);
         p.slots = slot_widths(c);
         p.index_width = std::max(size_t(c.hc_count), c.ple_head_offsets.size());
         p.kv_heads = size_t(c.n_head_kv);
@@ -691,7 +693,7 @@ public:
         if (s.kind == ple_kind) apply_ple(s);
         mix(cfg_, s, {s.w[hc_attn_norm], s.w[hc_attn_down], s.w[hc_attn_up]}, s.slot(mixed), mix_scratch(s));
         Step block = s;
-        block.x = s.slot(block_output);
+        block.x = s.width > 1 ? s.partial : s.slot(block_output);
         if (s.kind == qsa_kind || s.kind == mtp_qsa_kind || s.kind == dense_kind) sparse_attention(block);
         else linear_attention(block);
         inject(cfg_, s, s.w[hc_attn_inject], s.slot(hc_normed), block.x, s.slot(hc_gates));
@@ -700,8 +702,8 @@ public:
     void ffn(const Step& s) const override {
         mix(cfg_, s, {s.w[hc_ffn_norm], s.w[hc_ffn_down], s.w[hc_ffn_up]}, s.slot(mixed), mix_scratch(s));
         Step block = s;
-        block.x = s.slot(block_output);
-        // Accumulate this member's expert products locally, from zero, before mapping them into stream partials.
+        block.x = s.width > 1 ? s.partial : s.slot(block_output);
+        // The expert products accumulate from zero into the block, a member's partial rows on a group.
         block.width = 1;
         const Weight* w = s.w;
         const blocks::SharedExpert shared{w[ffn_gate_shexp], w[ffn_up_shexp], w[ffn_down_shexp], &w[ffn_gate_inp_shexp]};
@@ -709,6 +711,11 @@ public:
                          s.slot(mixed), s.slot(expert_gate), s.slot(expert_up), s.slot(expert_act), s.slot(scores), s.slot(expert_ids), s.slot(expert_weights),
                          &shared, s.slot(shared_gate), s.tables[2].get());
         inject(cfg_, s, w[hc_ffn_inject], s.slot(hc_normed), block.x, s.slot(hc_gates));
+    }
+
+    // On a group, the summed block of the part just run, injected with the gates that part left in hc_gates.
+    void join(const Step& s) const override {
+        s.b.inject_streams(s.x, s.partial, s.slot(hc_gates), s.rows, size_t(cfg_.hc_count), size_t(cfg_.n_embd));
     }
 
     void head(const HeadStep& s) const override {

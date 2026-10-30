@@ -1134,7 +1134,7 @@ public:
         dispatch(K_ADD, {bind(dst), bind(src)}, pc, sizeof(pc), groups(n, 256), 1, 0, {n});
     }
 
-    void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept);
+    void sum_rows(Slice residual, const CSlice* sources, size_t members, size_t n, const Slice* kept, bool replace = false);
     static constexpr size_t kSumSources = 4;
 
     void silu_mul(Slice dst, CSlice gate, CSlice up, size_t n, RowRuns runs = {}) override {

@@ -4345,6 +4345,38 @@ size_t check_collective(const backend::BackendPtr& first) {
         }
     };
     sums(members, *sum, width, {1, 7, 64, 64, 7, 1});
+    // Summed in place, each member's partial rows become the sum in member order, at the width made for and at a quarter of it.
+    auto in_place = [&](const std::vector<backend::Backend*>& group, backend::Collective& c, size_t wide, std::initializer_list<size_t> counts) {
+        const size_t W = group.size();
+        for (size_t rows : counts) {
+            const size_t n = rows * wide;
+            std::vector<std::vector<float>> partial(W, std::vector<float>(n));
+            for (size_t i = 0; i < n; ++i)
+                for (size_t m = 0; m < W; ++m) {
+                    seed = seed * 1664525u + 1013904223u;
+                    partial[m][i] = float(int(seed >> 16) % 2001 - 1000) / 97.0f;
+                }
+            for (size_t m = 0; m < W; ++m) {
+                const backend::Slice p = c.partial(m);
+                group[m]->write(*p.buffer, p.offset * sizeof(float), partial[m].data(), n * sizeof(float));
+            }
+            c.sum_in_place(rows, wide);
+            for (size_t m = 0; m < W; ++m) {
+                group[m]->submit();
+                std::vector<float> got(n);
+                const backend::Slice p = c.partial(m);
+                group[m]->read(*p.buffer, p.offset * sizeof(float), got.data(), n * sizeof(float));
+                for (size_t i = 0; i < n; ++i) {
+                    float want = partial[0][i];
+                    for (size_t k = 1; k < W; ++k) want += partial[k][i];
+                    require(std::memcmp(&got[i], &want, sizeof(float)) == 0, "a member's partial rows summed in place are not the sum in member order");
+                }
+            }
+            ++checks;
+        }
+    };
+    in_place(members, *sum, width, {1, 7, 64});
+    in_place(members, *sum, width / 4, {1, 64, 256});
     // Two passes' sums interleaved on the one collective, as a pass apart's are between a prompt's pieces: each must end with the bits it ends with alone.
     // The second run clears the partial rows before each sum and writes half of them, as a routed part does.
     for (const bool cleared : {false, true}) {
@@ -4444,6 +4476,7 @@ size_t check_collective(const backend::BackendPtr& first) {
         const size_t wide = 4097;
         std::unique_ptr<backend::Collective> of_three = first->join(three, 96, wide);
         sums(three, *of_three, wide, {1, 79, 80, 96, 80, 79, 1});
+        in_place(three, *of_three, wide, {1, 79, 80, 96});
         std::cout << "backend-vulkan: a collective of three devices, sums below and from the two-shot size on\n";
     } else {
         std::cout << "backend-vulkan: no third device, so no sum in two shots\n";
@@ -4482,6 +4515,7 @@ size_t check_collective(const backend::BackendPtr& first) {
     };
     std::vector<backend::Backend*> reversed{second.get(), first.get()};
     require(refused([&] { first->join(reversed, 1, 1); }), "a collective joined by a member not first was made");
+    require(refused([&] { sum->sum_in_place(reserved, width + 1); }), "a sum in place past the reserved rows was taken");
     auto cpu = backend::make_cpu_backend();
     std::vector<backend::Backend*> mixed{first.get(), cpu.get()};
     require(refused([&] { first->join(mixed, 1, 1); }), "a Vulkan collective over the CPU was made");

@@ -1424,6 +1424,8 @@ private:
     void group_prepare(Pass& p, size_t s);
     void group_record(ExecContext& ctx, Pass& p, size_t s);
     void clear_partial(ExecContext& ctx, size_t dev, backend::Slice partial, size_t rows);
+    template <class Weights>
+    void group_sum(ExecContext& ctx, size_t g, const std::vector<backend::Slice>& x, size_t rows, backend::RowRuns runs, uint8_t kind, const Weights& w);
     void stage_submit(ExecContext& ctx, Pass& p, size_t s, size_t cur);
     void stage_commit(Pass& p, size_t s);
     void prepare_tokens(Pass& p, size_t s) const;

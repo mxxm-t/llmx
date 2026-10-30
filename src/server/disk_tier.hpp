@@ -554,7 +554,7 @@ public:
         return out;
     }
 
-    // Whether a write may start now: the store made, writing not stopped and no write in flight.
+    // Whether a write may start now: the store made, writing not stopped and no write in flight or staged (write_landed).
     // Writing stopped by a failure starts again once a check, a minute after the last, finds the floor and a tenth of the cap free.
     bool can_write() {
         std::lock_guard<std::mutex> lk(m_);
@@ -563,7 +563,7 @@ public:
             const std::optional<uint64_t> free = store_->free_bytes();
             if (free && *free >= options_.floor.value_or(0) + options_.bytes / 10) writing_ = true;
         }
-        return store_ && writing_ && !in_flight_;
+        return store_ && writing_ && !in_flight_ && !copying_;
     }
 
     // The store's measured write rate in bytes a second, 0 until it is made or where it has none.
@@ -680,7 +680,7 @@ public:
         std::fprintf(stderr, "server: %.1f MiB written to disk since the idle writes last ended; %zu files on disk, %zu of them states\n", (double)(written_ - said_) / (1 << 20), index_.files().size(), index_.states());
         said_ = written_;
     }
-    size_t calls() const { return (key_ ? 1 : 0) + reads_.size() + streams_.size(); }
+    size_t calls() const { return (key_ || copying_ ? 1 : 0) + reads_.size() + streams_.size(); }
     // The host memory the tier's own calls hold beyond the host tier: the slabs a write off the devices is read from, and those for the part of a file a read does not want.
     size_t held() const {
         size_t n = staging_.held;
@@ -856,7 +856,8 @@ public:
         return bytes;
     }
 
-    enum class Wrote { nothing, started, refused };
+    // `copying`: the file waits for its copy to host memory to land, and a later round's write_landed or write_next goes on with it, so the scheduler's thread never waits for the copy.
+    enum class Wrote { nothing, started, refused, copying };
     // Starts the write of the next file a history of `n` tokens lacks on disk, a segment and then its state, out of `held` or off the devices from `seq`, a segment of at most `most` rows from `seq`.
     // `source` and `bound` name the host entry whose slabs the store reads, 0 for slabs of its own (docs/src/server.md, the disk tier).
     Wrote write_next(infer::Model& model, const std::vector<std::string>& d, size_t n, bool back, DiskIndex::Time used, const infer::HostHistory* held, infer::Sequence* seq, uint64_t source, bool bound,
@@ -909,38 +910,96 @@ public:
             model.release_host(staging_);
             return Wrote::refused;
         }
-        // The host reads what the copy wrote, so it waits for the copy; a copy that failed loses only itself.
-        model.wait_host(*from);
-        if (!from->error.empty()) {
+        // The host reads what the copy wrote, so the file waits for the copy: a host entry's write is asked again next round, and a copy off the devices into the staging slabs is kept for write_landed.
+        Copying c{std::move(f), std::move(blob), layout, std::move(ranges), n, from == &staging_ ? 0 : source, bound, std::chrono::steady_clock::now(), false};
+        if (!landed(model, *from)) {
+            if (from != &staging_) {
+                pins_.clear();
+                return Wrote::copying;
+            }
+            pending_ = c.f;
+            copying_ = std::move(c);
+            return Wrote::copying;
+        }
+        return put(model, *from, std::move(c));
+    }
+    // The staged file's write once its copy has landed, `copying` while it has not; with `wait`, as a stop may, it waits for the copy.
+    Wrote write_landed(infer::Model& model, bool wait = false) {
+        if (!copying_) return Wrote::nothing;
+        if (wait) model.wait_host(staging_);
+        if (!landed(model, staging_)) return Wrote::copying;
+        Copying c = std::move(*copying_);
+        copying_.reset();
+        if (c.dropped) {
+            pending_ = DiskIndex::File{};
             pins_.clear();
-            std::fprintf(stderr, "server: %zu tokens of a history were not written to the disk (its copy to host memory failed: %s)\n", n, from->error.c_str());
+            model.release_host(staging_);
+            return Wrote::nothing;
+        }
+        last_copy_ms_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - c.began).count();
+        return put(model, staging_, std::move(c));
+    }
+    // Whether a staged file waits for its copy (write_landed).
+    bool copying() const { return copying_.has_value(); }
+    // The time from a staged file's copy to its landing as write_landed saw it, the round's granularity included.
+    double last_copy_ms() const { return last_copy_ms_; }
+
+private:
+    // A file prepared for the store whose copy to host memory has yet to land.
+    struct Copying {
+        DiskIndex::File f;
+        std::string blob;
+        std::vector<size_t> layout;
+        std::vector<infer::HostRange> ranges;
+        size_t n = 0;
+        uint64_t source = 0;
+        bool bound = false;
+        std::chrono::steady_clock::time_point began;
+        bool dropped = false;   // cancelled while copying, its staging slabs released once the copy has landed
+    };
+    std::optional<Copying> copying_;
+    double last_copy_ms_ = 0;
+    // A copy's parts have run on the stages' threads and its device work has retired, so the host may read it without waiting.
+    static bool landed(infer::Model& model, const infer::HostHistory& h) { return model.host_settle(h, false) && model.copies_retired(h.tickets); }
+    // The store's write of a file whose copy has landed, out of `from`; a copy that failed loses only itself.
+    Wrote put(infer::Model& model, const infer::HostHistory& from, Copying c) {
+        if (!from.error.empty()) {
+            pins_.clear();
+            pending_ = DiskIndex::File{};
+            std::fprintf(stderr, "server: %zu tokens of a history were not written to the disk (its copy to host memory failed: %s)\n", c.n, from.error.c_str());
             model.release_host(staging_);
             return Wrote::refused;
         }
         {
             std::lock_guard<std::mutex> lk(m_);
-            in_flight_ = store_->put(std::move(blob), runs_of(*from, ranges), infer::Model::host_slab_bytes(), [this](bool ok, const std::string& error) {
+            in_flight_ = store_->put(std::move(c.blob), runs_of(from, c.ranges), infer::Model::host_slab_bytes(), [this](bool ok, const std::string& error) {
                 {
                     std::lock_guard<std::mutex> l(m_);
                     done_.push_back(Finished{in_flight_, false, ok, error, 0});
                 }
                 if (wake_) wake_();
-            }, layout);
+            }, c.layout);
             key_ = in_flight_;
         }
-        source_ = from == &staging_ ? 0 : source;
-        bound_ = bound;
+        source_ = c.source;
+        bound_ = c.bound;
         cancelled_ = false;
-        pending_ = std::move(f);
+        pending_ = std::move(c.f);
         return Wrote::started;
     }
+
+public:
     // The rows of the write in flight, a state's none.
     size_t pending_rows() const { return pending_.end - pending_.first; }
     // Whether the write in flight reads host entry `source`'s slabs and has not been stopped.
     bool writing_from(uint64_t source, bool bound) const { return key_ && source_ && source_ == source && bound_ == bound; }
     bool write_stopped() const { return cancelled_; }
-    // The write in flight stopped: its file is not kept, even should it land before the cancel reaches it.
+    // The write in flight stopped: its file is not kept, even should it land before the cancel reaches it; a staged file is dropped once its copy has landed (write_landed).
     void cancel_write() {
+        if (copying_) {
+            copying_->dropped = true;
+            return;
+        }
         if (!key_ || cancelled_) return;
         cancelled_ = true;
         cancel(key_);
@@ -1180,6 +1239,7 @@ public:
 
     // At the stop: the slabs the tier's own calls hold given back, once the store is gone.
     void release(infer::Model& model) {
+        copying_.reset();
         model.release_host(staging_);
         for (Reading& r : reads_) model.release_host(r.scratch);
         reads_.clear();

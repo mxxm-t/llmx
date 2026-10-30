@@ -123,7 +123,7 @@ public:
         s.disk_wait_ms = disk_wait_ms_;
         s.restore = restore_totals_;
         s.restore.timeouts = disk_wait_timeouts_;
-        s.disk_in_flight = disk_ ? disk_->calls() : 0;
+        s.disk_in_flight = disk_ ? disk_->calls() + (owed_ ? 1 : 0) : 0;
         s.disk_ready = disk_ && disk_->readable();
         if (disk_) s.disk_digest = disk_->start();
         s.disk_limit = disk_ ? disk_->cap() : 0;
@@ -970,6 +970,9 @@ private:
     bool write_from(const HostDonor& h);
     bool write_from(const Boundary& b);
     bool started(DiskTier::Wrote w);
+    bool owe(bool boundary, uint64_t id, DiskTier::Wrote w);
+    bool write_owed();
+    void landed_write(bool wait = false);
     bool flush_one(std::vector<uint64_t>& tried, bool beyond = false);
     void restore_later(const std::vector<uint32_t>& tokens, size_t n);
     // Whether request r waits this round for `what`, a restore or a save of `n` tokens its admission needs, said once and counted; under the lock.
@@ -1366,6 +1369,11 @@ private:
     std::vector<Copies> copies_;   // the scheduler thread's
     std::vector<infer::HostHistory> growing_;   // the scheduler thread's, the idle growth's probes whose slabs are still being made on the stages' threads
     bool promotion_waits_ = false;   // a promotion this round waited for its copy to retire on the devices, so the round looks again soon (next_disk_bound)
+    bool copy_waits_ = false;        // a disk write this round waited for its copy to host memory to land, so the round looks again soon (next_disk_bound)
+    bool copy_asked_ = false;        // a write flush_one asked for waits for its copy, so the idle writes are not done
+    std::optional<std::pair<bool, uint64_t>> owed_;   // under the lock, the host entry (boundary, id) whose write this round waits for its copy: in flight (stats), taken last by room
+    bool copy_beyond_ = false;       // the staged write is a turn's write past the host tier, whose copy time sizes the next pieces
+    uint64_t copy_donor_ = 0;        // the device donor the staged write copies, left out of the flushes if its write is refused
     double copy_block_ms_ = 0;         // under the lock, a forgetting mean of the milliseconds a block of a donor's copy off the devices for its write took (flush_one)
     uint64_t awaited_ = 0;             // under the lock, the donor whose write a request waits for (enter), written in whole pieces
     std::vector<uint64_t> turn_tried_; // under the lock, the donors the host tier cannot keep that are whole on disk or were refused their write (disk_round)
@@ -1971,8 +1979,8 @@ inline void Cache::restore_later(const std::vector<uint32_t>& tokens, size_t n) 
     restores_.push_back(std::move(j));
 }
 
-// Whether the entry `id` is the one whose write to disk is in flight: room takes it last among those it may take, since dropping it cancels the write (docs/DISK-TIER.md, Demotion).
-inline bool Cache::written_soon(bool boundary, uint64_t id) const { return disk_ && disk_->writing_from(id, boundary) && !disk_->write_stopped(); }
+// Whether the entry `id` is the one whose write to disk is in flight or owed, waiting for its copy: room takes it last among those it may take, since dropping it cancels the write (docs/DISK-TIER.md, Demotion).
+inline bool Cache::written_soon(bool boundary, uint64_t id) const { return disk_ && (disk_->writing_from(id, boundary) || owed_ == std::make_pair(boundary, id)) && !disk_->write_stopped(); }
 
 
 // Host donor i out of host memory.
@@ -2127,11 +2135,12 @@ inline void Cache::disk_round(const std::vector<std::shared_ptr<Request>>& activ
     sync_disk();
     stream_round(lines);
     prefetch(active, lines);
-    write_ahead();
+    if (disk_->copying()) landed_write();
+    if (!write_owed()) write_ahead();
     // A donor the host tier cannot keep is written from its turn's end on, with or without --disk-cache-keep and while requests run, a piece at a time (docs/DISK-TIER.md, Demotion).
-    if (disk_->can_write()) flush_one(turn_tried_, true);
+    if (disk_->can_write() && !owed_) flush_one(turn_tried_, true);
     // Under --disk-cache-keep a server idle for kDiskIdle (`idle`, from run) writes what a stop would have to, one file at a time, so a stop finds little left (docs/DISK-TIER.md, Keeping entries across a restart).
-    if (idle && lines.queue.empty() && lines.paused.empty() && disk_->can_write() && !flush_one(idle_tried_)) disk_->say_written();
+    if (idle && lines.queue.empty() && lines.paused.empty() && disk_->can_write() && !owed_ && !flush_one(idle_tried_)) disk_->say_written();
     sync_disk();
 }
 
@@ -2167,8 +2176,13 @@ inline void Cache::flush_disk(const Lines& lines, std::condition_variable& cv) {
     while (made) {
         settle_disk(lines);
         if (!disk_->writing()) { why = ", writing having stopped"; break; }
-        if (disk_->can_write() && !flush_one(tried)) { why = ", refused room on disk or host memory"; break; }
-        if (!cv.wait_until(lk, until, [&] { return disk_wake_; })) { why = ", the bound reached"; break; }
+        if (disk_->copying()) landed_write(true);
+        if (!write_owed() && disk_->can_write() && !flush_one(tried)) { why = ", refused room on disk or host memory"; break; }
+        // A host entry's write waiting for its copy is asked again a millisecond on, as nothing wakes the stop for it.
+        const bool soon = copy_waits_;
+        copy_waits_ = false;
+        const auto wake = soon ? std::min(until, std::chrono::steady_clock::now() + std::chrono::milliseconds(1)) : until;
+        if (!cv.wait_until(lk, wake, [&] { return disk_wake_; }) && std::chrono::steady_clock::now() >= until) { why = ", the bound reached"; break; }
         disk_wake_ = false;
     }
     disk_->cancel_write();
@@ -2208,19 +2222,60 @@ inline uint64_t Cache::unwritten_bytes() const {
 }
 
 // Starts the next file of a host entry's history that is not on disk, out of the entry's own slabs; a boundary's state once its history's blocks are there.
-inline bool Cache::write_from(const HostDonor& h) { return started(disk_->write_next(model_, digests(h), h.history.length, h.back, h.used, &h.history, nullptr, h.id, false)); }
+inline bool Cache::write_from(const HostDonor& h) { return owe(false, h.id, disk_->write_next(model_, digests(h), h.history.length, h.back, h.used, &h.history, nullptr, h.id, false)); }
 
-inline bool Cache::write_from(const Boundary& b) { return started(disk_->write_next(model_, digests(b), b.state.length, true, b.used, &b.state, nullptr, b.id, true)); }
+inline bool Cache::write_from(const Boundary& b) { return owe(true, b.id, disk_->write_next(model_, digests(b), b.state.length, true, b.used, &b.state, nullptr, b.id, true)); }
 
+// A host entry's write: one waiting for its copy to land is owed, asked again first each round (write_owed), and is the round's write, so no other entry's goes before it.
+inline bool Cache::owe(bool boundary, uint64_t id, DiskTier::Wrote w) {
+    if (w == DiskTier::Wrote::copying) owed_ = std::make_pair(boundary, id);
+    return started(w) || w == DiskTier::Wrote::copying;
+}
+
+// The owed write asked again before any other, so a round that ranks the entries another way does not start another entry's write first; true while it is the round's write.
+inline bool Cache::write_owed() {
+    if (!owed_) return false;
+    const auto [bound, id] = *owed_;
+    owed_.reset();
+    if (!disk_->can_write()) return false;
+    if (bound) {
+        for (const Boundary& b : bounds_)
+            if (b.id == id && !b.disk && !b.superseded) return write_from(b);
+    } else {
+        for (const HostDonor& h : host_)
+            if (h.id == id && !h.disk && !h.superseded) return write_from(h);
+    }
+    return false;
+}
+
+// A write waiting for its copy to land is asked again next round, a millisecond on; one copied off the devices is staged and counts as in flight.
 inline bool Cache::started(DiskTier::Wrote w) {
     sync_disk();
     if (w == DiskTier::Wrote::started) moved(Move::write_started);
-    return w == DiskTier::Wrote::started;
+    if (w == DiskTier::Wrote::copying) copy_waits_ = copy_asked_ = true;
+    return w == DiskTier::Wrote::started || (w == DiskTier::Wrote::copying && disk_->copying());
+}
+
+// The staged write goes to the store once its copy has landed; with `wait`, at a stop, it waits for the copy.
+inline void Cache::landed_write(bool wait) {
+    const size_t rows = disk_->pending_rows();
+    const DiskTier::Wrote w = disk_->write_landed(model_, wait);
+    if (w == DiskTier::Wrote::copying) {
+        copy_waits_ = true;
+        return;
+    }
+    if (w == DiskTier::Wrote::started) {
+        moved(Move::write_started);
+        if (copy_beyond_ && rows) copy_block_ms_ = forget(copy_block_ms_, disk_->last_copy_ms() * (double)model_.kv_block_tokens() / (double)rows);
+    }
+    if (w == DiskTier::Wrote::refused) idle_tried_.push_back(copy_donor_), turn_tried_.push_back(copy_donor_);
+    sync_disk();
 }
 
 // The next write of what memory holds, for flush_disk and for an idle server under --disk-cache-keep: true once one is in flight, false when nothing is left to write.
 // Most valuable first (docs/DISK-TIER.md), a device donor's missing blocks and state copied off the devices for it and no more; a donor refused room is in `tried`, not asked again that flush or idle period; under the lock.
 inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
+    copy_asked_ = false;
     tried.erase(std::remove_if(tried.begin(), tried.end(), [&](uint64_t id) { return std::none_of(donors_.begin(), donors_.end(), [&](const Donor& d) { return d.id == id; }); }), tried.end());
     // The donor a request waits for first, so no other donor's segments go before it.
     for (const bool first : {true, false})
@@ -2238,8 +2293,12 @@ inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
             if (beyond && !foreground && turn_ != WriteTurn::whole) most = (copy_block_ms_ > 0 ? std::max<size_t>(1, (size_t)(kPieceMs / copy_block_ms_)) : 1) * model_.kv_block_tokens();
             const Clock::time_point start = Clock::now();
             const DiskTier::Wrote w = disk_->write_next(model_, digests(d), n, d.back, std::filesystem::file_time_type::clock::now(), nullptr, &d.seq, 0, false, most, defer_);
+            if (w == DiskTier::Wrote::copying) {
+                copy_beyond_ = beyond;
+                copy_donor_ = d.id;
+            }
             if (started(w)) {
-                if (beyond) {
+                if (beyond && w == DiskTier::Wrote::started) {
                     const double ms = ms_since(start);
                     if (const size_t rows = disk_->pending_rows()) copy_block_ms_ = forget(copy_block_ms_, ms * (double)model_.kv_block_tokens() / (double)rows);
                 }
@@ -2256,7 +2315,7 @@ inline bool Cache::flush_one(std::vector<uint64_t>& tried, bool beyond) {
         for (size_t i = bounds_.size(); back && i-- > 0;)
             if (!bounds_[i].disk && write_from(bounds_[i])) return true;
     }
-    return false;
+    return copy_asked_;
 }
 
 // Whether a waiting request has something for the round: no read or room to wait for, its wait past its bound, or its client gone; the store's finished calls wake the round otherwise.
@@ -2271,8 +2330,8 @@ inline bool Cache::ready(const std::deque<std::shared_ptr<Request>>& q) {
 inline std::optional<std::chrono::steady_clock::time_point> Cache::next_disk_bound(const Lines& lines) {
     std::optional<std::chrono::steady_clock::time_point> t;
     // A streamed read's copies retire with no event, so the loop looks again a millisecond on while one runs (stream_round), and so it does for a promotion waiting for its copy to retire (enter).
-    if (!streams_.empty() || promotion_waits_) t = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
-    promotion_waits_ = false;
+    if (!streams_.empty() || promotion_waits_ || copy_waits_) t = std::chrono::steady_clock::now() + std::chrono::milliseconds(1);
+    promotion_waits_ = copy_waits_ = false;
     if (disk_ && disk_->max_age() && disk_now_.files && (!t || next_expiry_ < *t)) t = next_expiry_;
     for (const auto* q : {&lines.queue, &lines.paused, &jobs_})
         for (const auto& r : *q)

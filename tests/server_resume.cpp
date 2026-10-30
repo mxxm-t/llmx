@@ -1693,6 +1693,108 @@ void arrival_beside_idle_write(const gguf::GGUFModel& weights, const bpe::Tokeni
     std::cout << "server-resume: " << what << ": " << stats.disk_bytes_written / 1024 << " KiB written with no wait of the scheduler's thread, the request's reply its reply alone\n";
 }
 
+// A host entry's write waiting for its copy counts as in flight: a donor written back to host memory, its copy retiring 500 ms late, is written past three quarters of a small host tier.
+// No byte is written once the disk tier says nothing is in flight.
+void owed_write_in_flight(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a host entry's write waiting for its copy";
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<FailingCopies>();
+            c->set_threads(1);
+            c->device = true;
+            c->late = std::chrono::milliseconds(5);
+            c->retire_late = std::chrono::milliseconds(500);
+            b.push_back(c);
+        }
+        return b;
+    }, 3, 0);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    DiskRoot disk("owed");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    auto model = make(2048, 0);
+    // A host tier of 160 MiB, so the written-back entry's slabs pass three quarters of it and it is written at once (write_ahead).
+    server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)160 << 20, nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats quiet, later;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+        drain(*sched.submit(a.prompt, params_of(a)));
+        within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the first donor's writes");
+        // The second request takes the first donor's room, which writes it back to host memory.
+        drain(*sched.submit(b.prompt, params_of(b)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the host entry's write");
+        quiet = sched.stats();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        later = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(quiet.host_bytes_moved > 0, what + ": the first donor was not written back to host memory");
+    require(later.disk_bytes_written == quiet.disk_bytes_written,
+            what + ": " + std::to_string(later.disk_bytes_written - quiet.disk_bytes_written) + " bytes written after the disk tier said nothing was in flight");
+    std::cout << "server-resume: " << what << ": counted in flight, nothing written once the disk tier said nothing was\n";
+}
+
+// A host entry's write waiting for its copy is the round's write: no other entry's write starts before it.
+// An entry sits unwritten in host memory as a conversation's next turn leaves its first turn's donor below it, which goes there too, ranks below the older entry and takes the host tier past three quarters, its copy retiring 500 ms late.
+void owed_write_first(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok, uint32_t vocab) {
+    const std::string what = "a host entry's write waiting for its copy, beside an older entry";
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> b;
+        for (size_t d = 0; d < 2; ++d) {
+            auto c = std::make_shared<FailingCopies>();
+            c->set_threads(1);
+            c->device = true;
+            c->late = std::chrono::milliseconds(5);
+            c->retire_late = std::chrono::milliseconds(500);
+            b.push_back(c);
+        }
+        return b;
+    }, 3, 0);
+    const Req a{prompt_of(5, 300, vocab), 40}, b{prompt_of(7, 300, vocab), 40};
+    DiskRoot disk("owed-first");
+    server::DiskOptions options = disk.options(uint64_t(1) << 30);
+    auto model = make(2048, 0);
+    // A host tier of 320 MiB: one entry's slabs stay under three quarters of it and two pass them (write_ahead).
+    server::Scheduler sched(*model, tok, 1, 64, 0, false, (size_t)320 << 20, nullptr, 0, false, options);
+    std::thread runner([&] { sched.run(); });
+    server::Scheduler::Stats one, owed, quiet;
+    try {
+        within_a_minute([&] { return sched.stats().disk_ready; }, what + ": the disk tier made");
+        drain(*sched.submit(b.prompt, params_of(b)));
+        // The first conversation's donor goes to host memory as the second's is kept, its copy landing well before the next request.
+        const Reply first = drain(*sched.submit(a.prompt, params_of(a)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        one = sched.stats();
+        // The second conversation's next turn leaves its first turn's donor below it, which goes to host memory and is written first; while its copy has yet to retire, nothing is written.
+        Req again{a.prompt, 40};
+        for (uint32_t id : ids_of(first)) again.prompt.push_back(id);
+        const std::vector<uint32_t> more = prompt_of(11, 30, vocab);
+        again.prompt.insert(again.prompt.end(), more.begin(), more.end());
+        drain(*sched.submit(again.prompt, params_of(again)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+        owed = sched.stats();
+        within_a_minute([&] { return !sched.stats().disk_in_flight; }, what + ": the host entry's write");
+        quiet = sched.stats();
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+    require(one.host_donors == 1 && one.disk_bytes_written == 0, what + ": " + std::to_string(one.host_donors) + " entries in host memory and " + std::to_string(one.disk_bytes_written) + " bytes written, against 1 and 0");
+    require(owed.disk_bytes_written == 0, what + ": " + std::to_string(owed.disk_bytes_written) + " bytes of another entry written while the owed write waited for its copy");
+    require(quiet.disk_bytes_written > 0, what + ": the owed write was not made");
+    std::cout << "server-resume: " << what << ": nothing written before it, " << quiet.disk_bytes_written / 1024 << " KiB written once its copy landed\n";
+}
+
 // A job's donor supersedes the request's donor of the same conversation (one copy per conversation in each tier): on 16 blocks, C's donor and A's request donor and, read again, A's job's donor of 384 tokens.
 // An 800-token request then takes a donor's room: A's superseded donor goes though C is older, and is not copied to host memory, so C's repeat forks 256 tokens, A's follow-up its job's 384, and every reply is its reply alone.
 void superseded_donor(const Make& make, const bpe::Tokenizer& tok, uint32_t vocab) {
@@ -5422,6 +5524,8 @@ int main(int argc, char** argv) {
             host_tier(weights, tok, vocab, 2, 0, HostFault::promotion, "donors in host memory on two devices' threads, a promotion failing", 1, true);
             promotion_after_write_back(weights, tok, vocab, false);
             arrival_beside_idle_write(weights, tok, vocab, false);
+            owed_write_in_flight(weights, tok, vocab);
+            owed_write_first(weights, tok, vocab);
             failed_promotion(one, tok, vocab);
             next_candidate(weights, tok, vocab);
             cut_ranked_out(one, tok, vocab);

@@ -134,7 +134,8 @@ A container or service manager must give the server at least the bound before it
 **Written ahead while idle.** A stop should find little to write, so under `--disk-cache-keep` a server with no request active, queued or paused for five seconds (`kDiskIdle`) writes what the flush would, one file at a time (`Cache::disk_round`, `flush_one`), in the flush's order; a history whole on disk is not written again.
 The idle moment bounds the loop's wait until a round has run idle, also once it has passed, so a round that begins before it and ends after it does not leave the server waiting for a request to start its writes.
 The slabs a device donor's segment is copied into are the tier's own, beyond the host tier's bytes and at most a segment's (`DiskTier::held`), given back as its file lands, so a long conversation is written whatever tier the host was given.
-A request that arrives meanwhile waits for the copy off the devices in progress, as it waits for an eviction's, and its room takes the write in flight last (Demotion, above).
+A request that arrives meanwhile does not wait for the copy off the devices in progress: the write goes to the store from a later round, once its copy has landed (`DiskTier::write_landed`), and its room takes the write in flight last (Demotion, above).
+A host entry's write waiting for its copy is asked again first each round, so no other entry's write starts before it (`Cache::write_owed`).
 
 **Every turn, what it added.** A turn's idle write is its new blocks and its state (Entries written as what changed, below), so no rule spaces the writes out: the rule that left a conversation alone until it had grown by a third went with the whole copy it was for, and a crash loses what was not yet written, a turn at most.
 

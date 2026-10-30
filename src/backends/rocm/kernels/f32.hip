@@ -61,6 +61,14 @@ __device__ inline void twin_value(float v, float amax, QT* q, float* d, int lane
     if (lane == 0) *d = ldexpf(an / (float)L, -s);
 }
 
+// Value v at element i of an output whose twin a later product reads, at the class `level` names (1 block-int16, 2 block-int8, 0 none); the 32 lanes of i's block call it together.
+__device__ inline void twin_at(float v, unsigned long long i, void* q, float* d, int level) {
+    if (!level) return;
+    const float amax = block_amax(v);
+    if (level == 2) twin_value<signed char, 127>(v, amax, (signed char*)q + i, d + i / 32, (int)(i % 32));
+    else twin_value<short, 32767>(v, amax, (short*)q + i, d + i / 32, (int)(i % 32));
+}
+
 // The twin of `blocks` blocks of 32 floats, 32 threads a block.
 template <typename QT, int L>
 __device__ void twin(const float* x, QT* q, float* d, unsigned long long blocks) {
@@ -184,39 +192,47 @@ LLMX_NORM(llmx_rms_norm_32, 32, short, 0)
 LLMX_NORM(llmx_rms_norm_32_twin16, 32, short, 32767)
 LLMX_NORM(llmx_rms_norm_32_twin8, 32, signed char, 127)
 
+// One head of up to kThreads values held a value a thread: its RMS norm when w is given, then pairs (i, i + half) rotated by the angles c and s, written to head and to out, the value of thread t at out[t].
+// The sum and every product are those of the wider form in llmx_norm_rope, so both give the same bits.
+__device__ void norm_rope_held(float* head, const float* from, int head_dim, int half, const float* w, float eps, const float* c, const float* s,
+                               float* lds, float* hs, float* out) {
+    const int t = threadIdx.x;
+    const float v = t < head_dim ? from[t] : 0.0f;
+    const float wt = w && t < head_dim ? w[t] : 0.0f;
+    const float ct = t < half ? c[t] : 0.0f, st = t < half ? s[t] : 0.0f;
+    float o = v;
+    if (w) {
+        const float r2 = 1.0f / sqrtf(block_sum(t < head_dim ? fmaf(v, v, 0.0f) : 0.0f, lds) / (float)head_dim + eps);
+        o = v * (r2 * wt);
+    }
+    hs[t] = o;
+    __syncthreads();
+    if (t < half) {
+        const float xb = hs[t + half];
+        out[t] = fmaf(-xb, st, o * ct);
+        out[t + half] = fmaf(o, st, xb * ct);
+    } else if (t >= 2 * half && t < head_dim) {
+        out[t] = o;
+    }
+    __syncthreads();
+    if (t < head_dim) head[t] = out[t];
+}
+
 // A block a (row, head): the head's RMS norm when w is given, then pairs (i, i + half) rotated at the row's position.
-// A head of up to kThreads values is held a value a thread, its weights and the row's angles loaded with it, and the pairs meet in shared memory; the sum and every product are the wider form's, so both give the same bits.
+// A head of up to kThreads values is held a value a thread (norm_rope_held), else read through global memory with the same sums and products.
 extern "C" __global__ void llmx_norm_rope(float* dst, const float* src, unsigned long long dst_stride, unsigned long long src_stride,
                                           unsigned long long src_head_stride, int head_dim, int half, const float* w, float eps,
                                           const float* cos, const float* sin, const unsigned* pos) {
     __shared__ float lds[kThreads];
     __shared__ float hs[kThreads];
+    __shared__ float os[kThreads];
     const unsigned long long r = blockIdx.x, h = blockIdx.y;
     float* head = dst + r * dst_stride + h * head_dim;
     const float* from = src + r * src_stride + h * src_head_stride;
     const float* c = cos + (unsigned long long)pos[r] * half;
     const float* s = sin + (unsigned long long)pos[r] * half;
     const int t = threadIdx.x;
-    if (head_dim <= kThreads) {
-        const float v = t < head_dim ? from[t] : 0.0f;
-        const float wt = w && t < head_dim ? w[t] : 0.0f;
-        const float ct = t < half ? c[t] : 0.0f, st = t < half ? s[t] : 0.0f;
-        float o = v;
-        if (w) {
-            const float r2 = 1.0f / sqrtf(block_sum(t < head_dim ? fmaf(v, v, 0.0f) : 0.0f, lds) / (float)head_dim + eps);
-            o = v * (r2 * wt);
-        }
-        hs[t] = o;
-        __syncthreads();
-        if (t < half) {
-            const float xb = hs[t + half];
-            head[t] = fmaf(-xb, st, o * ct);
-            head[t + half] = fmaf(o, st, xb * ct);
-        } else if (t >= 2 * half && t < head_dim) {
-            head[t] = o;
-        }
-        return;
-    }
+    if (head_dim <= kThreads) return norm_rope_held(head, from, head_dim, half, w, eps, c, s, lds, hs, os);
     if (w) rms_norm_row(head, from, w, head_dim, eps, lds);
     else if (head != from)
         for (int i = t; i < head_dim; i += kThreads) head[i] = from[i];
@@ -226,6 +242,38 @@ extern "C" __global__ void llmx_norm_rope(float* dst, const float* src, unsigned
         head[i] = fmaf(-xb, s[i], xa * c[i]);
         head[i + half] = fmaf(xa, s[i], xb * c[i]);
     }
+}
+
+// One value of a K or V row into its KV block, in the side's type (f16 when half).
+__device__ inline void kv_store(void* cache, unsigned long long at, float x, int half) {
+    if (half) ((__half*)cache)[at] = __float2half_rn(x);
+    else ((float*)cache)[at] = x;
+}
+
+// The layer's q and k norm-rope and its KV write in one launch, heads of at most kThreads values (Backend::norm_rope_kv): a block a (row, head), the first n_head heads q's, in place.
+// The rest are k's heads, normed and rotated in place and then written with v's head into the row's KV block, as llmx_norm_rope and llmx_kv_write compute them; k's and v's rows are dense, n_head_kv * dim apart.
+extern "C" __global__ void llmx_norm_rope_kv(float* q, unsigned long long q_stride, int n_head, const float* q_w, float* k, const float* v, int n_head_kv,
+                                             const float* k_w, int half, float eps, const float* cos, const float* sin, const unsigned* pos,
+                                             void* kc, void* vc, const int* blocks, const int* slots, int bt, int k_half, int v_half) {
+    __shared__ float lds[kThreads];
+    __shared__ float hs[kThreads];
+    __shared__ float os[kThreads];
+    const int dim = 2 * half;
+    const unsigned long long r = blockIdx.x;
+    const int h = blockIdx.y, t = threadIdx.x;
+    const float* c = cos + (unsigned long long)pos[r] * half;
+    const float* s = sin + (unsigned long long)pos[r] * half;
+    if (h < n_head) {
+        float* head = q + r * q_stride + (unsigned long long)h * dim;
+        return norm_rope_held(head, head, dim, half, q_w, eps, c, s, lds, hs, os);
+    }
+    const int kh = h - n_head;
+    const unsigned long long in = (r * n_head_kv + kh) * dim;
+    norm_rope_held(k + in, k + in, dim, half, k_w, eps, c, s, lds, hs, os);
+    if (t >= dim) return;
+    const unsigned long long out = (((unsigned long long)blocks[r] * n_head_kv + kh) * bt + slots[r]) * dim + t;
+    kv_store(kc, out, os[t], k_half);
+    kv_store(vc, out, v[in + t], v_half);
 }
 
 // Rows of an F32 table: dst row i = table row ids[i], `nin` floats each.
@@ -256,10 +304,8 @@ extern "C" __global__ void llmx_kv_write(void* kc, void* vc, const float* k, con
     const unsigned long long in = ((unsigned long long)r * heads + h) * dim;
     const unsigned long long out = (((unsigned long long)blocks[r] * heads + h) * bt + slots[r]) * dim;
     for (int d = threadIdx.x; d < dim; d += kThreads) {
-        if (k_half) ((__half*)kc)[out + d] = __float2half_rn(k[in + d]);
-        else ((float*)kc)[out + d] = k[in + d];
-        if (v_half) ((__half*)vc)[out + d] = __float2half_rn(v[in + d]);
-        else ((float*)vc)[out + d] = v[in + d];
+        kv_store(kc, out + d, k[in + d], k_half);
+        kv_store(vc, out + d, v[in + d], v_half);
     }
 }
 
@@ -499,12 +545,11 @@ extern "C" __global__ void llmx_attention_tile(const float* Q, float* O, const v
         }
 }
 
-// Causal attention of rows that attend one at a time, generated rows and short prompts (the Vulkan per-row attention's design, attention_vec.comp), heads 128 wide: a block a (row, head, split), 16 streams of 16 lanes, stream i taking tokens start + i, start + i + 16 and on, a lane 8 dimensions.
-// A token's score is the lanes' partial dot folded across its 16 lanes, each stream's softmax runs online over its tokens, and the streams merge in stream order; a row's splits are chunks of its own length (32 tokens, doubled until at most max_parts), so it computes the same beside any rows.
-// With one split the result goes to O, else to partials at (row * n_head + head) * nsplit + split, (dim + 2) floats each, for llmx_attention_vec_merge; a row whose end is 0 is the tile kernel's.
+// Causal attention of rows that attend one at a time (the Vulkan per-row design, attention_vec.comp), heads 128 wide: a block a (row, head, split), 16 streams of 16 lanes, each stream's softmax online and the streams merged in stream order.
+// A row's splits are chunks of its own length; one split writes O and its twin (twin_at), several write partials for llmx_attention_vec_merge; a row whose end is 0 is the tile kernel's.
 extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const void* kc, const void* vc, const int* table, const int* firsts, const int* ends,
                                               int n_head, int heads_kv, int bt, int k_half, int v_half, float scale, int nsplit, int chunk0, int max_parts,
-                                              float* partials) {
+                                              float* partials, void* tq, float* td, int tlevel) {
     constexpr int DIM = 128, LANES = 16, STREAMS = kThreads / LANES;
     __shared__ float ms[STREAMS], ls[STREAMS];
     __shared__ float accs[STREAMS * DIM];
@@ -554,7 +599,9 @@ extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const vo
         A += accs[i * DIM + lid] * c;
     }
     if (nsplit == 1) {
-        O[qrow + lid] = A / L;
+        const float r = A / L;
+        O[qrow + lid] = r;
+        twin_at(r, qrow + lid, tq, td, tlevel);
     } else {
         float* out = partials + ((unsigned long long)rh * nsplit + split) * (DIM + 2);
         out[2 + lid] = A;
@@ -566,7 +613,7 @@ extern "C" __global__ void llmx_attention_vec(const float* Q, float* O, const vo
 }
 
 // The splits of one (row, head) merged (the Vulkan split merge's order, attention_merge.comp): the largest maximum, then the sums in split order, a split without tokens weighing nothing.
-extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit) {
+extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float* O, const int* ends, int n_head, int nsplit, void* tq, float* td, int tlevel) {
     constexpr int DIM = 128;
     __shared__ float sw[kThreads], sl[kThreads];
     const int rh = blockIdx.x, r = rh / n_head, lid = threadIdx.x;
@@ -588,7 +635,9 @@ extern "C" __global__ void llmx_attention_vec_merge(const float* partials, float
         L += sl[i] * c;
         A += base[i * (DIM + 2) + 2 + lid] * c;
     }
-    O[(unsigned long long)rh * DIM + lid] = A / L;
+    const float o = A / L;
+    O[(unsigned long long)rh * DIM + lid] = o;
+    twin_at(o, (unsigned long long)rh * DIM + lid, tq, td, tlevel);
 }
 
 // A block a (row, head): the row's chunks merged in order, each scaled to the largest maximum.

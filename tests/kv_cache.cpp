@@ -582,14 +582,14 @@ void release_syncs() {
     model.set_ubatch(2);
 
     // A successful pass is one submission, waited on for its logits, which leave through host-visible memory rather than a read op.
-    model.step(1);
+    step_row(model, 1);
     require(cpu->submits == 1 && cpu->waits == 1 && cpu->last_wait == 1,
             "a pass is one submission waited on once");
     require(cpu->reads == 0, "logits were copied out with a read op");
 
     int before = cpu->syncs;
     cpu->fail_output = true;
-    rejects([&] { model.step(2); }, "injected decode failure did not propagate");
+    rejects([&] { step_row(model, 2); }, "injected decode failure did not propagate");
     require(cpu->syncs > before, "a failed step released blocks without retiring work");
 
     before = cpu->waits;
@@ -613,7 +613,7 @@ void release_syncs() {
 
     // A step that succeeds commits rather than releases, so it needs no sync of its own: its ticket is the one ordering point per pass.
     before = cpu->syncs;
-    model.step(7);
+    step_row(model, 7);
     require(cpu->syncs == before, "a successful step retired work it did not have to");
     require(cpu->reads == 0, "a read op was used where a wait suffices");
 }
@@ -1115,14 +1115,14 @@ void model_transaction() {
     control.set_ubatch(2);
 
     // Decode path.
-    require(model.step(1) == control.step(1), "first step differs");
+    require(step_row(model, 1) == step_row(control, 1), "first step differs");
     const size_t used = model.kv_used_bytes(), allocated = model.kv_allocated_bytes();
     cpu->fail_output = true;
-    rejects([&] { model.step(2); }, "injected failure did not propagate");
+    rejects([&] { step_row(model, 2); }, "injected failure did not propagate");
     require(model.n_tokens() == 1 && model.kv_used_bytes() == used &&
             model.kv_allocated_bytes() == allocated, "failed step changed the history");
-    require(model.step(2) == control.step(2), "retry after failure differs");
-    require(model.step(3) == control.step(3), "step after retry differs");
+    require(step_row(model, 2) == step_row(control, 2), "retry after failure differs");
+    require(step_row(model, 3) == step_row(control, 3), "step after retry differs");
     require(model.n_tokens() == 3, "position after retry");
 
     // Prefill path, failing in the last microbatch's output stage.
@@ -1132,7 +1132,7 @@ void model_transaction() {
     rejects([&] { model.prefill({4, 5, 6}); }, "injected prefill failure did not propagate");
     require(model.n_tokens() == 0 && model.kv_used_bytes() == 0, "failed prefill changed the history");
     require(model.prefill({4, 5, 6}) == control.prefill({4, 5, 6}), "prefill retry differs");
-    require(model.step(7) == control.step(7), "step after prefill retry differs");
+    require(step_row(model, 7) == step_row(control, 7), "step after prefill retry differs");
     require(model.n_tokens() == 4 && cpu->outputs == 7, "output projection count");
 
     // A failure on the step that opens a new block.
@@ -1143,15 +1143,15 @@ void model_transaction() {
     std::vector<uint32_t> fill(bt - 1);
     for (size_t i = 0; i < fill.size(); ++i) fill[i] = (uint32_t)(1 + i % 15);
     require(model.prefill(fill) == control.prefill(fill), "block fill differs");
-    require(model.step(9) == control.step(9), "last token of the first block differs");
+    require(step_row(model, 9) == step_row(control, 9), "last token of the first block differs");
     const size_t before = model.kv_allocated_bytes();
     cpu->fail_output = true;
-    rejects([&] { model.step(10); }, "injected block-crossing failure did not propagate");
+    rejects([&] { step_row(model, 10); }, "injected block-crossing failure did not propagate");
     require(model.n_tokens() == (int)bt && model.kv_used_bytes() == bt * 1 * 2 * 1 * 4 * sizeof(float),
             "failed block-crossing step changed the history");
     require(model.kv_allocated_bytes() >= before, "retained capacity shrank");
-    require(model.step(10) == control.step(10), "retry across the block boundary differs");
-    require(model.step(11) == control.step(11), "step after block-crossing retry differs");
+    require(step_row(model, 10) == step_row(control, 10), "retry across the block boundary differs");
+    require(step_row(model, 11) == step_row(control, 11), "step after block-crossing retry differs");
     require(model.n_tokens() == (int)bt + 2, "position after block-crossing retry");
 
     // The prefill activation arena fails to allocate; the retry must allocate it again and match the control exactly.
@@ -1180,7 +1180,7 @@ void model_transaction() {
         try { fresh.prefill({1, 2, 3}); } catch (const std::bad_alloc&) { failed = true; }
         require(failed && arena_failing->fail_min == 0 && fresh.n_tokens() == 0, "partial scratch failure did not propagate cleanly");
         require(fresh.prefill({1, 2, 3}) == control.prefill({1, 2, 3}), "retry after partial scratch differs");
-        require(fresh.step(4) == control.step(4), "step after partial scratch retry differs");
+        require(step_row(fresh, 4) == step_row(control, 4), "step after partial scratch retry differs");
     }
 }
 

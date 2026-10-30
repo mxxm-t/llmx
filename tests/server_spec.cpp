@@ -12,6 +12,7 @@
 #include "server_harness.hpp"
 #include "inference/load.hpp"
 #include "qwen4exp_mtp_fixture.hpp"
+#include "tiny_qwen.hpp"
 
 namespace {
 
@@ -626,8 +627,8 @@ void flash_marked_rerun_failure() {
         } else {
             const uint32_t continuation[] = {5, 3, 7, 1, 6, 2, 4, 0, 3, 5, 1, 7};
             for (uint32_t id : continuation) {
-                const std::vector<float> want = clean.model->model->step(int(id));
-                const std::vector<float> got = broken.model->model->step(int(id));
+                const std::vector<float> want = step_row(*clean.model->model, int(id));
+                const std::vector<float> got = step_row(*broken.model->model, int(id));
                 require(std::all_of(want.begin(), want.end(), [](float x) { return std::isfinite(x); }) &&
                             std::memcmp(want.data(), got.data(), flash_mtp::V * sizeof(float)) == 0,
                         "Flash target logits after failed-rerun retry differ from the clean control");

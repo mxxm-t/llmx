@@ -204,6 +204,7 @@ delegated to a `backend::Backend`.
   - `n_tokens()` is the default sequence's length; `context_length()` and `n_vocab()` are the plan's; `lookup_store_bytes()` is the host bytes the lookup tables hold of their hot rows, each table once (`WeightRows::store_bytes`); `decode_columns()` is the fewest decode columns of its devices' backends (`Backend::decode_columns`).
   - `step(token_id) -> logits`: one entry of one token through `forward` on
     the model's own sequence and context. This is the decode path.
+    The row is read in place and stays valid until the next pass, so a caller that keeps it past one copies it.
   - `step(ids, n) -> rows`: one entry of `n` tokens of extent 1 with every
     row's logits, as a verify of drafts feeds them, so every row takes the
     decode kernels and gives the bits single steps give; the rows stay

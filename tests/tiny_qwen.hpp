@@ -12,6 +12,12 @@
 #include "format/gguf.hpp"
 #include "model/runtime.hpp"
 
+// A step's logits row as a copy, for a test that keeps it past the model's next pass (Model::step's row is read in place until then).
+inline std::vector<float> step_row(infer::Model& model, int id) {
+    const float* p = model.step(id);
+    return std::vector<float>(p, p + model.n_vocab());
+}
+
 // A Qwen3-shaped F32 model with deterministic weights, 8 wide with two query heads over one KV head, for the native tests that run a forward pass.
 // Without `tied` it has an output projection of its own.
 inline gguf::GGUFModel tiny_qwen(int layers, uint64_t context, bool tied) {

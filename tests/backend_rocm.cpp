@@ -1,5 +1,6 @@
 // backend-rocm: the ROCm backend's buffers, tickets, refusals and dense F32 ops against the CPU backend, and each op's batch invariance; exits 77 without a runtime or a device.
 #include "backends/cpu/cpu_backend.hpp"
+#include "backends/kv_storage.hpp"
 #include "backends/rocm/rocm_backend.hpp"
 #include "backends/rocm/rocm_runtime.hpp"
 #include "core/fp16.hpp"
@@ -656,6 +657,94 @@ void attention_chunks(Backend& g) {
     }
 }
 
+// The fused norm_rope_kv against the base's ops one at a time on the same backend: q, k and both KV sides bit for bit, two sequences after histories, f32 and f16 caches, with and without the norms' weights.
+void fused_norm_rope_kv(Backend& g) {
+    const size_t n_head = 8, n_head_kv = 2, dim = 128, half = dim / 2, qw = n_head * dim, kvw = n_head_kv * dim, ctx = 256;
+    const std::vector<float> cosv = row_classes::values(ctx * half, 51), sinv = row_classes::values(ctx * half, 52);
+    const std::vector<float> qwt = row_classes::values(dim, 53), kwt = row_classes::values(dim, 54);
+    bool ok = true;
+    for (KVType kt : {KVType::f32, KVType::f16})
+        for (bool weighted : {true, false})
+            for (size_t hist : {size_t(0), size_t(61)}) {
+                const size_t rows = 3;
+                const std::vector<float> q = row_classes::values(rows * 2 * qw, 55, 3.0f), k = row_classes::values(rows * 2 * kvw, 56, 3.0f),
+                                         v = row_classes::values(rows * 2 * kvw, 57);
+                auto cb = g.adopt(cosv.data(), cosv.size() * 4), sb = g.adopt(sinv.data(), sinv.size() * 4);
+                auto qwb = g.adopt(qwt.data(), qwt.size() * 4), kwb = g.adopt(kwt.data(), kwt.size() * 4);
+                std::vector<float> outs[2][2];
+                std::vector<uint8_t> caches[2][2];
+                for (int fused = 0; fused < 2; ++fused) {
+                    auto qb = g.adopt(q.data(), q.size() * 4), kb = g.adopt(k.data(), k.size() * 4), vb = g.adopt(v.data(), v.size() * 4);
+                    auto st = g.kv_alloc(1, n_head_kv, dim, 512, kt, kt);
+                    infer::BlockPool pool;
+                    pool.configure(st->max_blocks());
+                    infer::KVSequence s1(&pool, g.kv_layout().block_tokens), s2(&pool, g.kv_layout().block_tokens);
+                    if (hist) {
+                        for (infer::KVSequence* s : {&s1, &s2}) {
+                            s->prepare(hist);
+                            s->commit();
+                        }
+                    }
+                    s1.prepare(rows);
+                    s2.prepare(rows);
+                    const KVView views[2] = {s1.view(st.get()), s2.view(st.get())};
+                    std::vector<uint32_t> pos(rows * 2);
+                    for (size_t r = 0; r < pos.size(); ++r) pos[r] = (uint32_t)(hist + r % rows + 7 * (r / rows));
+                    const Backend::RopeArgs rope{{cb.get(), 0}, {sb.get(), 0}, half, pos.data(), 1e-6f};
+                    const CSlice qn = weighted ? CSlice{qwb.get(), 0} : CSlice{}, kn = weighted ? CSlice{kwb.get(), 0} : CSlice{};
+                    if (fused) g.norm_rope_kv({qb.get(), 0}, qw, n_head, qn, {kb.get(), 0}, {vb.get(), 0}, kvw, n_head_kv, kn, rope, rows * 2, 0, views, 2);
+                    else g.Backend::norm_rope_kv({qb.get(), 0}, qw, n_head, qn, {kb.get(), 0}, {vb.get(), 0}, kvw, n_head_kv, kn, rope, rows * 2, 0, views, 2);
+                    outs[fused][0] = read(g, *qb, q.size());
+                    outs[fused][1] = read(g, *kb, k.size());
+                    auto* bs = dynamic_cast<BlockKVStorage*>(st.get());
+                    for (int side = 0; side < 2; ++side) {
+                        const Buffer& buf = side ? *bs->v_buffer(0) : *bs->k_buffer(0);
+                        caches[fused][side].resize(buf.size());
+                        g.read(buf, 0, caches[fused][side].data(), buf.size());
+                    }
+                    s1.abort();
+                    s2.abort();
+                }
+                ok = ok && same(outs[0][0], outs[1][0]) && same(outs[0][1], outs[1][1]) && caches[0][0] == caches[1][0] && caches[0][1] == caches[1][1];
+            }
+    require(ok, "the fused norm_rope_kv gives q, k and both KV sides of the ops one at a time, bit for bit");
+}
+
+// Attention's output twin: a product of the output gives the bits of a product of its copy, whose twin llmx_twin8 or llmx_twin16 makes, at one split and at several, and with a row on the tile kernel, which writes none.
+void attention_twins(Backend& g, Dtype dt) {
+    const int n_head = 8, n_head_kv = 2, head_dim = 128;
+    const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, nout = 40;
+    const std::vector<uint8_t> m = q8_matrix(qw, nout, 61);
+    auto mb = g.adopt(m.data(), m.size());
+    const WeightView wv{quant::GGML_TYPE_Q8_0, {mb.get(), 0}};
+    bool ok = true;
+    struct Case { size_t hist, rows, extent; };
+    for (const Case cs : {Case{10, 1, 1}, Case{200, 1, 1}, Case{200, 3, 1}, Case{70, 40, 40}}) {
+        const size_t rows = cs.rows, all = cs.hist + rows;
+        const std::vector<float> keys = row_classes::values(all * kvw, 62), vals = row_classes::values(all * kvw, 63), q = row_classes::values(rows * qw, 64, 4.0f);
+        auto kb = g.adopt(keys.data(), keys.size() * 4), vb = g.adopt(vals.data(), vals.size() * 4), qb = g.adopt(q.data(), q.size() * 4);
+        auto ob = g.alloc(rows * qw * 4), cb = g.alloc(rows * qw * 4), y = g.alloc(nout * rows * 4), yc = g.alloc(nout * rows * 4);
+        auto st = g.kv_alloc(1, n_head_kv, head_dim, 512, KVType::f16, KVType::f16);
+        infer::BlockPool pool;
+        pool.configure(st->max_blocks());
+        infer::KVSequence s(&pool, g.kv_layout().block_tokens);
+        s.prepare(all);
+        KVView v = s.view(st.get());
+        g.kv_write(0, &v, 1, {kb.get(), 0}, {vb.get(), 0});
+        v.length = cs.hist;
+        v.nq = rows;
+        v.extent = cs.extent;
+        const RowRun run[1] = {{rows, cs.extent}};
+        g.attention({qb.get(), 0}, 0, &v, 1, {ob.get(), 0}, n_head, n_head_kv, head_dim);
+        g.matmul(wv, {ob.get(), 0}, {y.get(), 0}, qw, nout, rows, {run, 1}, dt);
+        g.copy(*cb, 0, *ob, 0, rows * qw * 4);
+        g.matmul(wv, {cb.get(), 0}, {yc.get(), 0}, qw, nout, rows, {run, 1}, dt);
+        ok = ok && same(read(g, *y, nout * rows), read(g, *yc, nout * rows));
+        s.abort();
+    }
+    require(ok, std::string(dt == Dtype::int8 ? "8-bit" : "16-bit") + ": a product of attention's output gives the bits of a product of its copy");
+}
+
 // Every pair of extents of one class gives the same bits, through a matmul and through attention after a history (row_classes.hpp's shapes).
 void classes(Backend& g) {
     require(g.row_class(1) != g.row_class(2), "a generated token is a class of its own");
@@ -741,6 +830,9 @@ int main() {
         producer_twins(*g, Dtype::f16);
         twin_products(*g, Dtype::int8);
         producer_twins(*g, Dtype::int8);
+        fused_norm_rope_kv(*g);
+        attention_twins(*g, Dtype::f16);
+        attention_twins(*g, Dtype::int8);
         host_output(*g);
         attention_chunks(*g);
         failure();

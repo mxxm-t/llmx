@@ -246,7 +246,7 @@ void resolution() {
     reference.set_ubatch(2);
     exact(mixed.model->prefill(prompt), reference.prefill(prompt));
     require(mixed.model->take_matrix_paths() == std::vector<std::vector<std::string>>{{"bf16"}, {"f32"}}, "mixed fallback policy not executed");
-    for (int id : {9, 2, 6}) exact(mixed.model->step(id), reference.step(id));
+    for (int id : {9, 2, 6}) exact(step_row(*mixed.model, id), step_row(reference, id));
     per_device.device_dtypes.pop_back();
     bool refused = false;
     try { infer::Model invalid(weights, {cpu(), cpu()}, split, per_device); } catch (const std::runtime_error& e) {
@@ -283,10 +283,10 @@ void models(bool routed) {
     witness(b, {narrow}); witness(a, {{"f32"}}); witness(split, {narrow, narrow});
     witness(a, {{}}); witness(b, {{}}); witness(split, {{}, {}});
     for (int token : {9, 2, 6, 5}) {
-        ra = refa.step(token); rb = refb.step(token);
-        exact(b.step(token), rb);
-        exact(a.step(token), ra);
-        exact(split.step(token), rb);
+        ra = step_row(refa, token); rb = step_row(refb, token);
+        exact(step_row(b, token), rb);
+        exact(step_row(a, token), ra);
+        exact(step_row(split, token), rb);
         witness(split, {narrow, narrow}); witness(a, {{"f32"}}); witness(b, {narrow});
     }
 }

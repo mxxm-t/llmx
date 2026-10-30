@@ -37,7 +37,8 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         return true;
     };
     const size_t n_vocab = logits.size();
-    uint32_t y = infer::sample(logits.data(), n_vocab, gp, tok.eos_id, gen, rng);
+    const float* row = logits.data();   // the prompt's logits, then each step's, read in place
+    uint32_t y = infer::sample(row, n_vocab, gp, tok.eos_id, gen, rng);
     bool going = take(y);
     if (end == End::fed) model.step((int)y);
     std::vector<uint32_t> drafts, feed, history;
@@ -67,8 +68,8 @@ inline std::vector<uint32_t> generate(infer::Model& model, bpe::Tokenizer& tok,
         }
         if (!k || !model.mark()) {
             if (drafting) drafting->record.stepped();
-            logits = model.step((int)y);   // predict the token after y
-            y = infer::sample(logits.data(), n_vocab, gp, tok.eos_id, gen, rng);
+            row = model.step((int)y);   // predict the token after y
+            y = infer::sample(row, n_vocab, gp, tok.eos_id, gen, rng);
             going = take(y);
             if (end == End::fed) model.step((int)y);
             continue;

@@ -11,6 +11,7 @@
 #include <vector>
 #include "inference/load.hpp"
 #include "loading_backend.hpp"
+#include "tiny_qwen.hpp"
 
 namespace {
 size_t checks = 0;
@@ -129,7 +130,7 @@ void construct(const gguf::GGUFModel& m, bool step = false) {
     cpu->set_threads(1);
     infer::Model model(infer::gguf_weights(m), cpu);
     if (step) {
-        const auto logits = model.step(0);
+        const auto logits = step_row(model, 0);
         require(logits.size() == 5, "valid fixture vocabulary changed");
         for (float v : logits) require(v == 0.0f, "zero-weight fixture produced nonzero logits");
     }
@@ -933,7 +934,7 @@ void type_stream_checks() {
             require(device->routed_calls == on_device && host->routed_calls == 2u - on_device,
                     "stream eligibility did not keep only unsupported layers on the host");
             for (uint32_t id : {3u, 4u}) {
-                const auto row = model.step(id);
+                const auto row = step_row(model, id);
                 logits.insert(logits.end(), row.begin(), row.end());
             }
             for (float v : logits) require(std::isfinite(v), "nonfinite stream fixture logits");
@@ -986,7 +987,7 @@ void type_stream_checks() {
         std::vector<float> logits = model.prefill({0, 1, 2});
         require(mixer->routed_calls == 0 && experts->routed_calls == 2, "a stream destination without routed products ran a routed layer");
         for (uint32_t id : {3u, 4u}) {
-            const auto row = model.step(id);
+            const auto row = step_row(model, id);
             logits.insert(logits.end(), row.begin(), row.end());
         }
         require(logits.size() == expected.size() && std::memcmp(logits.data(), expected.data(), logits.size() * sizeof(float)) == 0,
@@ -1003,7 +1004,7 @@ void context_checks() {
     infer::Model model(infer::gguf_weights(file), cpu);
     rejects("a prompt past the context", [&] { model.prefill(std::vector<uint32_t>(9, 0)); });
     model.prefill(std::vector<uint32_t>(8, 0));
-    rejects("a step past the context", [&] { model.step(0); });
+    rejects("a step past the context", [&] { step_row(model, 0); });
 }
 
 // Each refusal's label and text against the list, one "label: message" a line in the order the checks provoke them.

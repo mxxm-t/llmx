@@ -84,7 +84,7 @@ static int capture(int argc, const char* const* argv) {
         const auto batched_paths = model.take_matrix_paths();
         model.reset();
         auto decode = output("decode");
-        for (uint32_t id : ids) save(decode, model.step((int)id).data());
+        for (uint32_t id : ids) save(decode, model.step((int)id));
         decode.close();
         const auto decode_paths = model.take_matrix_paths();
         model.reset();
@@ -95,7 +95,10 @@ static int capture(int argc, const char* const* argv) {
             save(greedy, logits.data());
             const uint32_t next = (uint32_t)(std::max_element(logits.begin(), logits.end()) - logits.begin());
             reply.push_back(next);
-            if (i + 1 < 64) logits = model.step((int)next);
+            if (i + 1 < 64) {
+                const float* p = model.step((int)next);
+                logits.assign(p, p + vocab);
+            }
         }
         greedy.close();
         const auto greedy_paths = model.take_matrix_paths();

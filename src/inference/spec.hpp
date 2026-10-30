@@ -180,17 +180,19 @@ public:
         if (h.size() + k > (size_t)model_.context_length()) return;
         const std::vector<uint32_t> rest(h.begin() + (std::ptrdiff_t)fed_.size(), h.end());
         // What a verify kept and its pick, at most a verify's rows, go in as generated tokens through the decode kernels; a longer rest, a new prompt, goes through the prompt path.
-        std::vector<float> logits;
+        const size_t n_vocab = model_.n_vocab();
+        std::vector<float> prompt;
+        const float* logits = nullptr;
         if (rest.size() <= size_t(kMaxDrafts) + 1) {
-            const float* rows = model_.step(rest.data(), rest.size());
-            logits.assign(rows + (rest.size() - 1) * model_.n_vocab(), rows + rest.size() * model_.n_vocab());
+            logits = model_.step(rest.data(), rest.size()) + (rest.size() - 1) * n_vocab;
         } else {
-            logits = model_.prefill(rest);
+            prompt = model_.prefill(rest);
+            logits = prompt.data();
         }
         fed_ = h;
         if (model_.keeps_state()) model_.keep();
         for (;;) {
-            const uint32_t d = (uint32_t)(std::max_element(logits.begin(), logits.end()) - logits.begin());
+            const uint32_t d = (uint32_t)(std::max_element(logits, logits + n_vocab) - logits);
             out.push_back(d);
             if (out.size() == k) return;
             logits = model_.step((int)d);

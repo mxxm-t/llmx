@@ -73,7 +73,8 @@ int main(int argc, char** argv) {
             std::printf("step %zu greedy %u %.6f", s, top[0].id, logits[top[0].id]);
             if (top.size() > 1) std::printf(" second %u %.6f", top[1].id, logits[top[1].id]);
             std::printf(" forced %u %.6f\n", forced[s], logits[forced[s]]);
-            logits = model.step((int)forced[s]);
+            const float* p = model.step((int)forced[s]);
+            logits.assign(p, p + model.n_vocab());
         }
         std::printf("step %zu best", forced.size());
         for (const auto& t : best(5)) std::printf(" %u %.6f", t.id, logits[t.id]);

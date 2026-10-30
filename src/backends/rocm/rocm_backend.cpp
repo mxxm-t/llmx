@@ -427,35 +427,58 @@ public:
         if (n_views && !views) throw std::runtime_error("rocm: KV write without views");
         if (auxiliary.buffer) throw std::runtime_error("rocm: auxiliary KV rows are not implemented");
         if (!n_views) return;
-        RocmKVStorage& s = storage(views[0]);
-        size_t rows = 0;
-        for (size_t vi = 0; vi < n_views; ++vi) {
-            if (&storage(views[vi]) != &s) throw std::runtime_error("rocm: KV views of different storages in one write");
-            s.check_view(views[vi], layer, true);
-            rows = size_add(rows, views[vi].nq);
-        }
-        if (!rows) return;
-        const size_t floats = size_mul(size_mul(rows, s.heads()), s.dim());
+        const KvTargets t = kv_targets(layer, views, n_views);
+        if (!t.rows) return;
+        RocmKVStorage& s = *t.s;
+        const size_t floats = size_mul(size_mul(t.rows, s.heads()), s.dim());
         span(*k.buffer, k.offset * sizeof(float), size_mul(floats, sizeof(float)));
         span(*v.buffer, v.offset * sizeof(float), size_mul(floats, sizeof(float)));
-        std::vector<int32_t> blocks(rows), slots(rows);
-        size_t r = 0;
-        for (size_t vi = 0; vi < n_views; ++vi)
-            for (size_t b = 0; b < views[vi].nq; ++b, ++r) {
-                const size_t t = views[vi].length + b;
-                blocks[r] = views[vi].blocks[t / kBlockTokens];
-                slots[r] = (int32_t)(t % kBlockTokens);
-            }
-        void* kc = as_rocm(*s.k_buffer(layer)).data();
-        void* vc = as_rocm(*s.v_buffer(layer)).data();
+        void* kc = t.kc;
+        void* vc = t.vc;
         const float* kp = f32(k);
         const float* vp = f32(v);
-        const int* bp = (const int*)arg(blocks.data(), rows * sizeof(int32_t));
-        const int* sp = (const int*)arg(slots.data(), rows * sizeof(int32_t));
+        const int* bp = t.blocks;
+        const int* sp = t.slots;
         int heads = (int)s.heads(), dim = (int)s.dim(), bt = (int)kBlockTokens;
-        int kh = s.k_type() == KVType::f16, vh = s.v_type() == KVType::f16;
+        int kh = t.k_half, vh = t.v_half;
         void* args[] = {&kc, &vc, &kp, &vp, &bp, &sp, &heads, &dim, &bt, &kh, &vh};
-        launch(kKvWrite, (unsigned)rows, (unsigned)heads, args);
+        launch(kKvWrite, (unsigned)t.rows, (unsigned)heads, args);
+    }
+    // q and k normed and rotated and the KV write in one launch, where every head fits a block and k's and v's rows are dense; otherwise the ops one at a time.
+    void norm_rope_kv(Slice q, size_t q_stride, size_t n_head, CSlice q_w, Slice k, CSlice v, size_t kv_stride, size_t n_head_kv, CSlice k_w,
+                      const RopeArgs& rope, size_t rows, size_t layer, const KVView* views, size_t n_views) override {
+        const size_t dim = 2 * rope.half;
+        if (!rows || !n_views || !n_head || !n_head_kv || !rope.half || dim > kThreads || kv_stride != size_mul(n_head_kv, dim))
+            return Backend::norm_rope_kv(q, q_stride, n_head, q_w, k, v, kv_stride, n_head_kv, k_w, rope, rows, layer, views, n_views);
+        if (!views) throw std::runtime_error("rocm: KV write without views");
+        if (!rope.pos) throw std::runtime_error("rocm: partial rope without positions");
+        const KvTargets t = kv_targets(layer, views, n_views);
+        RocmKVStorage& s = *t.s;
+        if (t.rows != rows || s.dim() != dim || s.heads() != n_head_kv) throw std::runtime_error("rocm: norm_rope_kv inputs do not match the KV storage");
+        span(*q.buffer, q.offset * sizeof(float), size_mul(size_add(size_mul(rows - 1, q_stride), size_mul(n_head, dim)), sizeof(float)));
+        for (const CSlice& x : {CSlice(k), v}) span(*x.buffer, x.offset * sizeof(float), size_mul(size_mul(rows, kv_stride), sizeof(float)));
+        for (const CSlice& w : {q_w, k_w})
+            if (w.buffer) span(*w.buffer, w.offset * sizeof(float), size_mul(dim, sizeof(float)));
+        const size_t table = size_mul(size_add(*std::max_element(rope.pos, rope.pos + rows), 1), rope.half * sizeof(float));
+        span(*rope.cos.buffer, rope.cos.offset * sizeof(float), table);
+        span(*rope.sin.buffer, rope.sin.offset * sizeof(float), table);
+        float* qp = f32(q);
+        float* kp = f32(k);
+        const float* vp = f32(v);
+        const float* qw = q_w.buffer ? f32(q_w) : nullptr;
+        const float* kw = k_w.buffer ? f32(k_w) : nullptr;
+        const float* c = f32(rope.cos);
+        const float* sn = f32(rope.sin);
+        const unsigned* p = (const unsigned*)arg(rope.pos, rows * sizeof(uint32_t));
+        unsigned long long qs = q_stride;
+        int nh = (int)n_head, nkv = (int)n_head_kv, hf = (int)rope.half, bt = (int)kBlockTokens, kh = t.k_half, vh = t.v_half;
+        float eps = rope.eps;
+        void* kc = t.kc;
+        void* vc = t.vc;
+        const int* bp = t.blocks;
+        const int* sp = t.slots;
+        void* args[] = {&qp, &qs, &nh, &qw, &kp, &vp, &nkv, &kw, &hf, &eps, &c, &sn, &p, &kc, &vc, &bp, &sp, &bt, &kh, &vh};
+        launch(kNormRopeKv, (unsigned)rows, (unsigned)(n_head + n_head_kv), args);
     }
     void attention(CSlice Q, size_t layer, const KVView* views, size_t n_views, Slice out, int n_head, int n_head_kv, int head_dim) override {
         if (n_views && !views) throw std::runtime_error("rocm: attention without views");
@@ -526,12 +549,19 @@ public:
             const size_t vneed = size_mul(size_mul(size_mul(rows, (size_t)n_head), (size_t)nsplit), size_mul(130, sizeof(float)));
             if (nsplit > 1 && (!parts_ || parts_->size() < vneed)) parts_ = alloc(vneed, Memory::device);
             float* vp = nsplit > 1 ? (float*)as_rocm(*parts_).data() : nullptr;
-            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp};
+            // With no row on the tile kernel, the kernel that writes the output writes the twin the output projection reads beside it.
+            const TwinOut t = wide.empty() ? twin_out(out, floats) : TwinOut{};
+            void* tq = t.q;
+            float* td = t.d;
+            int tl = !t.q ? 0 : t.int8 ? 2 : 1, none = 0;
+            void* args[] = {&q, &o, &kc, &vc, &tp, &fp, &ep, &n_head, &n_head_kv, &bt, &kh, &vh, &scale, &nsplit, &chunk, &max_parts, &vp, &tq, &td,
+                            nsplit > 1 ? &none : &tl};
             launch(kAttentionVec, (unsigned)(rows * n_head * nsplit), 1, args);
             if (nsplit > 1) {
-                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit};
+                void* margs[] = {&vp, &o, &ep, &n_head, &nsplit, &tq, &td, &tl};
                 launch(kAttentionVecMerge, (unsigned)(rows * n_head), 1, margs);
             }
+            keep(t, o, floats);
             return;
         }
         if (narrow) {
@@ -548,14 +578,14 @@ public:
 private:
     // The F32 module's kernels, then from kRows16x1 the int16 module's, which only read twins.
     enum Kernel { kAdd, kSiluMul, kSiluMulTwin16, kSiluMulTwin8, kRmsNorm, kRmsNorm16, kRmsNorm16Twin16, kRmsNorm16Twin8, kRmsNorm32, kRmsNorm32Twin16,
-                  kRmsNorm32Twin8, kNormRope, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
+                  kRmsNorm32Twin8, kNormRope, kNormRopeKv, kGather, kGatherQ8, kMatmul, kMatmulQ8, kKvWrite, kAttentionChunk, kAttentionTile, kAttentionMerge, kAttentionVec,
                   kAttentionVecMerge, kTwin16, kTwin8,
                   kRows16x1, kRows16x2, kRows16x4, kRows16x8, kRows16x16, kTile16,
                   kRows8x1, kRows8x2, kRows8x4, kRows8x8, kRows8x16, kTile8, kTileReduce,
                   kHalf8x1, kHalf8x2, kHalf8x4, kHalf8x8, kHalf8x16, kKernels };
     static constexpr const char* kKernelNames[kKernels] = {"llmx_add", "llmx_silu_mul", "llmx_silu_mul_twin16", "llmx_silu_mul_twin8", "llmx_rms_norm_rows",
                                                            "llmx_rms_norm_16", "llmx_rms_norm_16_twin16", "llmx_rms_norm_16_twin8", "llmx_rms_norm_32",
-                                                           "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_gather",
+                                                           "llmx_rms_norm_32_twin16", "llmx_rms_norm_32_twin8", "llmx_norm_rope", "llmx_norm_rope_kv", "llmx_gather",
                                                            "llmx_gather_q8_0", "llmx_matmul_f32", "llmx_matmul_q8_0", "llmx_kv_write",
                                                            "llmx_attention_chunk", "llmx_attention_tile", "llmx_attention_merge", "llmx_attention_vec", "llmx_attention_vec_merge",
                                                            "llmx_twin16", "llmx_twin8", "llmx_q8_0_rows16_1",
@@ -596,6 +626,42 @@ private:
         }
     };
 
+    // Where a write's rows land: each row's KV block and token slot, read by the kernels from the argument ring.
+    struct KvTargets {
+        RocmKVStorage* s = nullptr;
+        size_t rows = 0;
+        void* kc = nullptr;
+        void* vc = nullptr;
+        const int* blocks = nullptr;
+        const int* slots = nullptr;
+        int k_half = 0, v_half = 0;
+    };
+    KvTargets kv_targets(size_t layer, const KVView* views, size_t n_views) {
+        KvTargets t;
+        RocmKVStorage& s = storage(views[0]);
+        for (size_t vi = 0; vi < n_views; ++vi) {
+            if (&storage(views[vi]) != &s) throw std::runtime_error("rocm: KV views of different storages in one write");
+            s.check_view(views[vi], layer, true);
+            t.rows = size_add(t.rows, views[vi].nq);
+        }
+        t.s = &s;
+        if (!t.rows) return t;
+        std::vector<int32_t> blocks(t.rows), slots(t.rows);
+        size_t r = 0;
+        for (size_t vi = 0; vi < n_views; ++vi)
+            for (size_t b = 0; b < views[vi].nq; ++b, ++r) {
+                const size_t at = views[vi].length + b;
+                blocks[r] = views[vi].blocks[at / kBlockTokens];
+                slots[r] = (int32_t)(at % kBlockTokens);
+            }
+        t.kc = as_rocm(*s.k_buffer(layer)).data();
+        t.vc = as_rocm(*s.v_buffer(layer)).data();
+        t.blocks = (const int*)arg(blocks.data(), t.rows * sizeof(int32_t));
+        t.slots = (const int*)arg(slots.data(), t.rows * sizeof(int32_t));
+        t.k_half = s.k_type() == KVType::f16;
+        t.v_half = s.v_type() == KVType::f16;
+        return t;
+    }
     // Host values a kernel reads, copied into the argument ring.
     const void* arg(const void* src, size_t bytes) {
         void* p = args_.take(*this, std::max<size_t>(bytes, 1));

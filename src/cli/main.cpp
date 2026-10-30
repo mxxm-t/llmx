@@ -918,19 +918,21 @@ int cmd_logits(const std::string& model_path, const std::string& text, bool as_c
     };
     printf("tokens: %zu\n", ids.size());
     std::vector<float> logits;
+    const float* lp = nullptr;
     if (per_token) {
         for (const infer::MediaRun& run : turn.runs) model.add_media(run);
         for (size_t pos = 0; pos < ids.size(); ++pos) {
-            logits = model.step((int)ids[pos]);
-            if (last) row(pos, logits.data());
+            lp = model.step((int)ids[pos]);
+            if (last) row(pos, lp);
         }
     } else if (last) {
         model.score(ids, row, turn.runs);
     } else {
         logits = model.prefill(ids, 0, turn.runs);
+        lp = logits.data();
     }
     if (!last)
-        for (const auto& t : top(logits.data())) printf("%u %.6f\n", t.id, logits[t.id]);
+        for (const auto& t : top(lp)) printf("%u %.6f\n", t.id, lp[t.id]);
     matrix_record(*loaded);
     return 0;
 }

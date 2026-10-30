@@ -105,7 +105,7 @@ void split_matches_single() {
     require(one->copies == 0 && one->writes == 0, "a single device crossed");
     // Each device of the split waits while the other runs its part, so the model asks both to hold between submissions, and the single device not.
     require(a->holds == 1 && b->holds == 1 && one->holds == 0, "holds not asked of exactly a split's devices");
-    for (int t : {9, 2, 6}) exact(single.step(t), split.step(t), "split step differs from one device");
+    for (int t : {9, 2, 6}) exact(step_row(single, t), step_row(split, t), "split step differs from one device");
     require(split.n_tokens() == 8 && split.kv_used_bytes() == single.kv_used_bytes(),
             "split history differs");
     // Storage is per device and only for the layers it runs: two storages of one layer each back the same bytes as one storage of two.
@@ -120,7 +120,7 @@ void split_matches_single() {
     single.reset();
     split.reset();
     require(split.n_tokens() == 0, "reset left tokens");
-    exact(single.step(7), split.step(7), "step after reset differs");
+    exact(step_row(single, 7), step_row(split, 7), "step after reset differs");
     checked += 2;
 
     // Two sequences in one pass across the split, against the same two on one device.
@@ -626,7 +626,7 @@ void layer_split_fits() {
     infer::Model fitted(infer::gguf_weights(weights), {a, b}, placed);
     const std::vector<uint32_t> prompt{2, 7, 1, 8, 2, 8};
     exact(single.prefill(prompt), fitted.prefill(prompt), "fitted split prefill differs from one device");
-    for (int t : {3, 14, 1}) exact(single.step(t), fitted.step(t), "fitted split step differs from one device");
+    for (int t : {3, 14, 1}) exact(step_row(single, t), step_row(fitted, t), "fitted split step differs from one device");
     ++checked;
 
     // The one placement entry (infer::place_model): budgets asked of the backends, a split by shares exact against one device, the request's ubatch applied, and the refusals of experts on the CPU and of a stream point without them.
@@ -756,7 +756,7 @@ void pipelined_matches_single(bool devices) {
             for (size_t i = 1; i < stages.size(); ++i)
                 require(!stages[i]->submitters.empty() && (stages[i]->submitters.count(std::this_thread::get_id()) == 0) == devices,
                         devices ? "a stage that waits on its devices was recorded on the prompt's thread" : "a stage on the host was recorded on another thread");
-            for (int t : {7, 9, 3}) exact(single.step(t), split.step(t), "step after a pipelined prefill differs from one device");
+            for (int t : {7, 9, 3}) exact(step_row(single, t), step_row(split, t), "step after a pipelined prefill differs from one device");
             const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
             exact(single.prefill(more), split.prefill(more), "a pipelined prompt continuing a history differs from one device");
             require(split.n_tokens() == 23 && single.n_tokens() == 23 && split.kv_used_bytes() == single.kv_used_bytes(),
@@ -842,7 +842,7 @@ void pipelined_failure_rolls_back(bool devices) {
                 require(!s->histories.empty() && s->histories.front() == before, "a storage kept tokens of a failed pipelined prompt");
             checked += 2;
         }
-        exact(control.step(5), split.step(5), "a step after the retried prompts differs from one device");
+        exact(step_row(control, 5), step_row(split, 5), "a step after the retried prompts differs from one device");
         ++checked;
     }
 }
@@ -1351,7 +1351,7 @@ void replay_over_stages() {
         for (uint32_t v = 1; v < V; ++v)
             if (want[v] > want[next]) next = v;
         ids.push_back(next);
-        want = single.step((int)next);
+        want = step_row(single, (int)next);
     }
     single.reset();
     auto replay = [&](infer::Model& m, infer::Sequence& seq) {
@@ -1495,7 +1495,7 @@ void passes_run(const gguf::GGUFModel& weights, size_t S, size_t P, uint32_t see
         all.insert(all.end(), q.prompt.begin(), q.prompt.end());
         single.reset();
         q.alone.push_back(single.prefill(all));
-        for (uint32_t t : q.gen) q.alone.push_back(single.step((int)t));
+        for (uint32_t t : q.gen) q.alone.push_back(step_row(single, (int)t));
     }
     const size_t V = single.n_vocab();
     for (auto& q : reqs)
@@ -1785,7 +1785,7 @@ void passes_refused() {
     m.run_pass_stage(ctx, 1, 0);
     m.run_pass_stage(ctx, 1, 1);
     single.reset();
-    const std::vector<float> retried = single.step(3);
+    const std::vector<float> retried = step_row(single, 3);
     require(!std::memcmp(m.pass_logits(ctx, 1, 0), retried.data(), V * sizeof(float)), "an aborted pass run again differs from its sequence alone");
     m.end_pass(ctx, 1);
     require(b.length() == 1, "the pass run again did not commit");
@@ -1853,7 +1853,7 @@ void passes_continue() {
         const infer::BatchEntry step{&q, &next, 1, true};
         m.begin_pass(ctx, 0, &step, 1, 0);
         for (size_t st = 0; st < S; ++st) m.run_pass_stage(ctx, 0, st);
-        require(!std::memcmp(m.pass_logits(ctx, 0, 0), single.step(next).data(), V * sizeof(float)), "a step after a prompt in consecutive passes differs from one device");
+        require(!std::memcmp(m.pass_logits(ctx, 0, 0), step_row(single, next).data(), V * sizeof(float)), "a step after a prompt in consecutive passes differs from one device");
         m.end_pass(ctx, 0);
         checked += 2;
 
@@ -1957,9 +1957,9 @@ void tensor_groups() {
         exact(first, whole.model->prefill(kPrompt), "a prompt in slices of the ubatch differs from the prompt in one pass on a group");
         require(close(first, single.prefill(kPrompt)), "a group's prompt is not one device's within the F32 bound");
         for (int t : {7, 9, 3}) {
-            const std::vector<float> x = a.step(t);
-            exact(x, b.step(t), "a decode step differs between one and two stages of width 2");
-            require(close(x, single.step(t)), "a group's decode step is not one device's within the F32 bound");
+            const std::vector<float> x = step_row(a, t);
+            exact(x, step_row(b, t), "a decode step differs between one and two stages of width 2");
+            require(close(x, step_row(single, t)), "a group's decode step is not one device's within the F32 bound");
         }
         const std::vector<uint32_t> more{2, 7, 1, 8, 2, 8, 1};
         exact(a.prefill(more), b.prefill(more), "a prompt continuing a history differs between one and two stages of width 2");

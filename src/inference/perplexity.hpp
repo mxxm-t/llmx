@@ -67,10 +67,10 @@ inline PerplexityResult perplexity(Model& model, const std::vector<uint32_t>& id
             });
         } else {
             model.reset();
-            std::vector<float> logits = model.step((int)ids[begin]);
+            const float* logits = model.step((int)ids[begin]);
             for (size_t i = begin + 1; i < begin + count; i++) {
                 const uint32_t target = ids[i];
-                take(token_nll(logits.data(), logits.size(), target));
+                take(token_nll(logits, model.n_vocab(), target));
                 // The last token is a target only; its next-token logits are unused.
                 if (i + 1 < begin + count) logits = model.step((int)target);
             }

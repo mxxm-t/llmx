@@ -128,7 +128,7 @@ Run generate(const gguf::GGUFModel& weights, size_t stages, const std::vector<ui
     }
     r.passes = submits - prefilled;
     r.fed = model->n_tokens();
-    r.next = model->step(7);
+    r.next = step_row(*model, 7);
     return r;
 }
 
@@ -527,7 +527,7 @@ void history(const gguf::GGUFModel& w, size_t vocab, size_t stages) {
     auto single = placed(w, 1);
     single->prefill(prompt);
     std::vector<std::vector<float>> want;
-    for (uint32_t id : walk) want.push_back(single->step((int)id));
+    for (uint32_t id : walk) want.push_back(step_row(*single, (int)id));
     const size_t n = want[0].size();
     auto model = placed(w, stages);
     model->prefill(prompt);
@@ -543,12 +543,12 @@ void history(const gguf::GGUFModel& w, size_t vocab, size_t stages) {
         at += keep;
         // A retract to the mark keeps nothing: the next token is fed again by a single step.
         if (!keep) {
-            require(bits(model->step((int)walk[at]).data(), want[at].data(), n), "a step after a retract to the mark differs");
+            require(bits(step_row(*model, (int)walk[at]).data(), want[at].data(), n), "a step after a retract to the mark differs");
             ++at;
         }
         ++round;
     }
-    require(bits(model->step((int)walk[at]).data(), want[at].data(), n), "the step after the last retract differs");
+    require(bits(step_row(*model, (int)walk[at]).data(), want[at].data(), n), "the step after the last retract differs");
 }
 
 // A rerun that fails keeps the mark, so the retract is called again and reaches its length with the bits of single steps; and what a mark refuses.
@@ -557,7 +557,7 @@ void failures(const gguf::GGUFModel& w, size_t vocab) {
     auto single = placed(w, 1);
     single->prefill(prompt);
     std::vector<std::vector<float>> want;
-    for (uint32_t id : walk) want.push_back(single->step((int)id));
+    for (uint32_t id : walk) want.push_back(step_row(*single, (int)id));
     auto conv = std::make_shared<FailingConv>();
     conv->set_threads(1);
     infer::ModelOptions options;
@@ -573,7 +573,7 @@ void failures(const gguf::GGUFModel& w, size_t vocab) {
     require(threw, "an injected rerun failure did not fail the retract");
     require(!conv->unordered_on, "a failed rerun left its backend recording unordered");
     require(model.retract(prompt.size() + 3) == prompt.size() + 3, "the retry of a failed retract did not reach its length");
-    require(bits(model.step((int)walk[3]).data(), want[3].data(), want[3].size()), "the step after a retried retract differs");
+    require(bits(step_row(model, (int)walk[3]).data(), want[3].data(), want[3].size()), "the step after a retried retract differs");
     // Refusals: a second mark, a second pass after a mark, a pass of more rows than a mark saves; a mark with none free gives false.
     require(model.mark(), "a mark was refused");
     bool second = false;

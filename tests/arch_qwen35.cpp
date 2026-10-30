@@ -321,7 +321,7 @@ void state_rules() {
     require(broken.n_tokens() == 0, "a failed first prompt left a history");
     require(same(broken.prefill(ids), want), "a sequence after a failed first pass differs");
     failing->fail = true;
-    refuses("a step failing", "injected", [&] { broken.step(7); });
+    refuses("a step failing", "injected", [&] { step_row(broken, 7); });
     require(broken.n_tokens() == 0, "a failed step without a checkpoint kept a history");
     require(same(broken.prefill(ids), want), "a sequence after a failed step differs from a fresh one");
 }
@@ -674,7 +674,7 @@ void checkpoints() {
     const std::vector<float> want = fresh.prefill(ids);
     std::vector<float> steps;
     for (uint32_t t : {9u, 14u}) {
-        const std::vector<float> next = fresh.step((int)t);
+        const std::vector<float> next = step_row(fresh, (int)t);
         steps.insert(steps.end(), next.begin(), next.end());
     }
 
@@ -690,7 +690,7 @@ void checkpoints() {
     require(same(model.prefill(tail), want), "the prompt continued from its checkpoint differs");
     std::vector<float> got;
     for (uint32_t t : {9u, 14u}) {
-        const std::vector<float> next = model.step((int)t);
+        const std::vector<float> next = step_row(model, (int)t);
         got.insert(got.end(), next.begin(), next.end());
     }
     require(same(got, steps), "decode after a checkpoint's continuation differs");
@@ -735,7 +735,7 @@ void checkpoints() {
     infer::Model broken(w, failing, options);
     require(same(broken.prefill(ids, 128), want), "a prompt keeping its state differs on the failing backend");
     failing->fail = true;
-    refuses("a step failing", "injected", [&] { broken.step(9); });
+    refuses("a step failing", "injected", [&] { step_row(broken, 9); });
     require(broken.n_tokens() == 128, "a failed step did not go back to the checkpoint");
     require(same(broken.prefill(tail), want), "the history after a failed step differs");
 }
@@ -1459,7 +1459,7 @@ void refused_passes_take_no_slot() {
     infer::Model model(w, backend::make_cpu_backend(), options);
     infer::Model reference(w, backend::make_cpu_backend(), options);
     reference.prefill({ids, ids + 2});
-    const std::vector<float> want = reference.step((int)ids[2]);
+    const std::vector<float> want = step_row(reference, (int)ids[2]);
     infer::Sequence h = model.make_sequence(), a = model.make_sequence(), b = model.make_sequence();
     infer::ExecContext ctx;
     model.reserve_passes(ctx, 1, 3, 3);
@@ -1838,7 +1838,7 @@ void drafts() {
         infer::Model plain(w, backend::make_cpu_backend(), options);
         auto drafting = make(backend::make_cpu_backend(), options);
         require(same(drafting->prefill(prompt), plain.prefill(prompt)), "a drafter changed the prompt's logits");
-        for (uint32_t s : steps) require(same(drafting->step((int)s), plain.step((int)s)), "a drafter changed a decode step's logits");
+        for (uint32_t s : steps) require(same(step_row(*drafting, (int)s), step_row(plain, (int)s)), "a drafter changed a decode step's logits");
         refuses("a draft without a drafter", "a draft without an embedded drafter", [&] { std::vector<uint32_t> out; plain.draft(last, 1, out); });
     }
     auto model = make(backend::make_cpu_backend(), options);
@@ -2086,7 +2086,7 @@ void slices(const gguf::GGUFModel& m, backend::Dtype dtype = backend::Dtype::f32
         model.set_ubatch(ubatch);
         std::vector<float> out = model.prefill(ids);
         for (uint32_t t : {9u, 14u, 27u}) {
-            const std::vector<float> next = model.step((int)t);
+            const std::vector<float> next = step_row(model, (int)t);
             out.insert(out.end(), next.begin(), next.end());
         }
         runs.push_back(out);
@@ -2138,7 +2138,7 @@ void split_with_a_stage_of_states(const gguf::GGUFModel& m, bool ffn_apart = fal
         two.reset();
         const std::vector<uint32_t> ids = {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
         require(same(one.prefill(ids), two.prefill(ids)), "a split's prompt differs at ubatch " + std::to_string(ubatch));
-        for (uint32_t t : {1u, 2u, 3u}) require(same(one.step((int)t), two.step((int)t)), "a split's decode differs");
+        for (uint32_t t : {1u, 2u, 3u}) require(same(step_row(one, (int)t), step_row(two, (int)t)), "a split's decode differs");
         require(one.kv_used_bytes() == two.kv_used_bytes() && one.n_tokens() == two.n_tokens(), "a split's counters differ");
     }
     one.reset();
@@ -2209,7 +2209,7 @@ void split_continued(const gguf::GGUFModel& m) {
     two.begin_pass(ctx, 0, &step, 1, 0);
     two.run_pass_stage(ctx, 0, 0);
     two.run_pass_stage(ctx, 0, 1);
-    require(!std::memcmp(two.pass_logits(ctx, 0, 0), one.step((int)next).data(), VOCAB * sizeof(float)), "a step after a prompt in consecutive passes differs from one backend");
+    require(!std::memcmp(two.pass_logits(ctx, 0, 0), step_row(one, (int)next).data(), VOCAB * sizeof(float)), "a step after a prompt in consecutive passes differs from one backend");
     two.end_pass(ctx, 0);
     two.reset(q);
 }
@@ -2299,7 +2299,7 @@ void experts() {
         options.dtype = dtype;
         infer::Model model(infer::gguf_weights(m), backend, options);
         model.prefill({7, 3, 11});
-        model.step(9);
+        step_row(model, 9);
         require(backend->routers == 8 && backend->shared == 8, "gate policy check missed a layer or phase");
         require(backend->steps == 8 && backend->outside == 0, "a routed layer did not take one routed step a pass");
         // A qwen3moe model's routed layers too (tiny_qwen_moe), with a plain CPU backend's logits; the file outlives the models, whose weights view it.
@@ -2309,7 +2309,7 @@ void experts() {
         auto one = backend::make_cpu_backend();
         one->set_threads(1);
         infer::Model counted(q3, counting, options), plain(q3, one, options);
-        require(same(counted.prefill({7, 3, 11}), plain.prefill({7, 3, 11})) && same(counted.step(9), plain.step(9)), "a qwen3moe model's routed steps changed its logits");
+        require(same(counted.prefill({7, 3, 11}), plain.prefill({7, 3, 11})) && same(step_row(counted, 9), step_row(plain, 9)), "a qwen3moe model's routed steps changed its logits");
         require(counting->steps == 4 && counting->outside == 0, "a qwen3moe routed layer did not take one routed step a pass");
         slices(m, dtype);
         split_with_a_stage_of_states(m, false, dtype);

@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "inference/load.hpp"
 #include "loading_backend.hpp"
+#include "tiny_qwen.hpp"
 
 namespace {
 void require(bool condition, const char* text) {
@@ -237,7 +238,7 @@ void check_experts(const std::string& path) {
     infer::Model reference(infer::gguf_weights(oracle), cpu(), options);
     const std::vector<uint32_t> prompt{1, 4, 2, 7, 3}, followup{2, 5, 6};
     const auto expected = reference.prefill(prompt);
-    const auto decoded = reference.step(8);
+    const auto decoded = step_row(reference, 8);
     const auto continued = reference.prefill(followup);
     for (size_t width : {size_t(1), size_t(2)}) {
         infer::Placement placement;
@@ -247,7 +248,7 @@ void check_experts(const std::string& path) {
         placement.output_device = width == 1 ? 1 : 0;
         infer::Model model(weights, {cpu(), cpu()}, placement, options);
         compare(model.prefill(prompt), expected);
-        compare(model.step(8), decoded);
+        compare(step_row(model, 8), decoded);
         compare(model.prefill(followup), continued);
     }
     auto device = std::make_shared<Copying>();
@@ -258,7 +259,7 @@ void check_experts(const std::string& path) {
     infer::Model model(weights, {device, cpu()}, placement, options);
     compare(model.prefill(prompt), expected);
     require(device->expert_calls == 2, "prompt did not stream both layers' experts");
-    compare(model.step(8), decoded);
+    compare(step_row(model, 8), decoded);
     require(device->expert_calls == 2, "decode unexpectedly streamed experts");
     compare(model.prefill(followup), continued);
     require(device->expert_calls == 4, "follow-up did not reuse both expert windows");
@@ -312,7 +313,7 @@ void check_experts(const std::string& path) {
             }
             compare(loaded->model->prefill(prompt), expected);
             require(copying->expert_calls == 2, "file-loaded prompt did not stream both layers' experts");
-            compare(loaded->model->step(8), decoded);
+            compare(step_row(*loaded->model, 8), decoded);
             require(copying->expert_calls == 2, "file-loaded decode unexpectedly streamed experts");
             compare(loaded->model->prefill(followup), continued);
             require(copying->expert_calls == 4, "file-loaded follow-up did not reuse both expert windows");

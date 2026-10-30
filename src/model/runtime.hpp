@@ -977,12 +977,12 @@ public:
     // The single-sequence entry points the CLI uses: one sequence and one context owned here, and one entry per pass.
 
     // Run one token through the model (prefill or continue).
-    // Returns logits over the full vocabulary.
-    std::vector<float> step(int token_id) {
+    // Returns logits over the full vocabulary, read in place and valid until the next pass.
+    const float* step(int token_id) {
         const uint32_t id = (uint32_t)token_id;
         const BatchEntry entry{&seq_, &id, 1, true};
         forward(ctx_, &entry, 1);
-        return row(ctx_, 0);
+        return ctx_.logits(0);
     }
 
     // The logits after each of `n` tokens fed in one pass as generated tokens, as a verify of drafts feeds them (docs/SPECULATIVE.md, section 3): `n` rows of the vocabulary, each the bits single steps give, valid until the next pass.

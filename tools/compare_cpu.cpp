@@ -84,7 +84,8 @@ int main(int argc, char ** argv) {
             if (llama_decode(ctx, llama_batch_get_one(&ref_ids[i], 1))) return 6;
             llama_synchronize(ctx);
 #else
-            logits = model.step(ids[i]);
+            const float* p = model.step(ids[i]);
+            logits.assign(p, p + model.n_vocab());
 #endif
         }
         const auto tg_end = Clock::now();

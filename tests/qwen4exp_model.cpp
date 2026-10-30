@@ -22,6 +22,7 @@
 #include "model/arch/qwen4exp.hpp"
 #include "model/runtime.hpp"
 #include "model/weight_rows.hpp"
+#include "tiny_qwen.hpp"
 
 namespace {
 using Json = jmini::Value;
@@ -1353,7 +1354,7 @@ void image_checks(const infer::ModelWeights& weights) {
         }
         std::vector<float> out = model.prefill(prompt, 0, runs);
         for (uint32_t t : steps) {
-            const std::vector<float> next = model.step(int(t));
+            const std::vector<float> next = step_row(model, int(t));
             out.insert(out.end(), next.begin(), next.end());
         }
         const std::vector<uint32_t> expected = hf_image_positions(segments, steps.size());

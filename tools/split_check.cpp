@@ -227,8 +227,9 @@ static size_t verify(infer::Model& one, infer::Model& two, const std::vector<uin
     size_t at = prompt, differ = 0;
     std::vector<float> rows;
     auto step_differs = [&](uint32_t id) {
-        const std::vector<float> x = one.step((int)id), y = two.step((int)id);
-        return std::memcmp(x.data(), y.data(), vocab * sizeof(float)) != 0;
+        const float* x = one.step((int)id);
+        const float* y = two.step((int)id);
+        return std::memcmp(x, y, vocab * sizeof(float)) != 0;
     };
     for (rounds = 0; at + 17 <= history.size(); ++rounds) {
         const size_t k = 1 + rounds % 16, keep = rounds % 5 == 4 ? k + 1 : (rounds * 7) % (k + 1);
@@ -315,8 +316,10 @@ int main(int argc, char** argv) {
             uint32_t next = 0;
             for (size_t v = 1; v < vocab; ++v)
                 if (a[v] > a[next]) next = (uint32_t)v;
-            a = one.step((int)next);
-            b = two.step((int)next);
+            const float* pa = one.step((int)next);
+            a.assign(pa, pa + vocab);
+            const float* pb = two.step((int)next);
+            b.assign(pb, pb + vocab);
             history.push_back(next);
             steps_differ += std::memcmp(a.data(), b.data(), vocab * sizeof(float)) != 0;
         }

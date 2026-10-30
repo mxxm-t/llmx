@@ -196,7 +196,7 @@ void check_model(bool tied) {
         exact(control.prefill({8}), model.prefill({8}));
         require(cpu->entries == entries + 2 && cpu->bodies == bodies + 2, "follow-up scope count");
         cpu->check_graph = false;
-        exact(control.step(9), model.step(9));
+        exact(step_row(control, 9), step_row(model, 9));
         require(cpu->entries == entries + 2, "decode entered prefill scope");
         model_calls += 2;
     }

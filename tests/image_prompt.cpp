@@ -126,7 +126,7 @@ std::vector<float> run(const gguf::GGUFModel& m, int ubatch, int threads, uint32
     const auto [ids, runs] = prompt(kPrompt, pad);
     std::vector<float> out = model.prefill(ids, 0, runs);
     for (uint32_t t : kSteps) {
-        const std::vector<float> next = model.step(int(t));
+        const std::vector<float> next = step_row(model, int(t));
         out.insert(out.end(), next.begin(), next.end());
     }
     if (calls) *calls = probe->calls;

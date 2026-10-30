@@ -1261,17 +1261,30 @@ void short_newcomer(const gguf::GGUFModel& weights, uint32_t vocab) {
         std::atomic<bool> sent{false};
         size_t misses = 0, before = 0, between = 0, rides = 0;
         bool rode = false, read = false;
-        // The longest a reply waited between two of its steps, from the scheduler thread's clock, read once it has joined.
-        std::map<const server::Request*, std::chrono::steady_clock::time_point> stepped;
-        double longest_gap_ms = 0;
+        // Between two steps of a reply, the most other passes that retired and the most prompt rows one of them carried, counted on the scheduler thread and read once it has joined.
+        // Counts rather than times: the 500 ms cap is an objective the prices aim at, and a runner slower at every pass widens the gap without the rule letting any more work in.
+        struct Since {
+            size_t passes = 0, rows = 0;
+        };
+        std::map<const server::Request*, Since> stepped;
+        size_t most_passes = 0, most_rows = 0;
         sched.on_retire = [&](const server::Scheduler::Retired& t) {
             ++retired;
-            const auto now = std::chrono::steady_clock::now();
+            size_t prompt_rows = 0;
+            for (size_t e = 0; e < t.requests.size(); ++e)
+                if (t.requests[e]->prompt_tokens() != 4) prompt_rows = std::max(prompt_rows, t.rows[e]);
+            for (auto& entry : stepped) {
+                ++entry.second.passes;
+                entry.second.rows = std::max(entry.second.rows, prompt_rows);
+            }
             for (size_t e = 0; e < t.requests.size(); ++e)
                 if (t.requests[e]->prompt_tokens() == 4 && t.from[e] >= 4) {
                     const auto it = stepped.find(t.requests[e]);
-                    if (it != stepped.end()) longest_gap_ms = std::max(longest_gap_ms, std::chrono::duration<double, std::milli>(now - it->second).count());
-                    stepped[t.requests[e]] = now;
+                    if (it != stepped.end()) {
+                        most_passes = std::max(most_passes, it->second.passes - 1);
+                        most_rows = std::max(most_rows, it->second.rows);
+                    }
+                    stepped[t.requests[e]] = {};
                 }
             if (!sent.load() || read) return;
             bool replies = false, carried = false;
@@ -1316,7 +1329,10 @@ void short_newcomer(const gguf::GGUFModel& weights, uint32_t vocab) {
         require(before <= slots + 2, "a short newcomer under an unmet objective" + where + " waited " + std::to_string(before) + " replies' passes for its first rows, against the passes in flight and two more");
         require(between <= slots, "a short newcomer under an unmet objective" + where + " missed " + std::to_string(between) + " replies' passes in a row between its rides, against the passes in flight");
         require(rides <= 6, "a short newcomer under an unmet objective" + where + " took " + std::to_string(rides) + " passes to read 85 rows, against six learning steps");
-        require(longest_gap_ms <= server::kMaxStepGapMs, "a reply waited " + std::to_string(longest_gap_ms) + " ms between two steps beside a quick newcomer" + where + ", against the step gap's cap");
+        std::cout << "server-passes-cpu: a quick newcomer" << where << ": at most " << most_passes << " other passes and " << most_rows << " prompt rows a pass between two steps of a reply" << std::endl;
+        // Between two steps of a reply, the passes in flight beside its own, none holding more prompt rows than the newcomer's whole prompt.
+        require(most_passes <= slots - 1, "a reply saw " + std::to_string(most_passes) + " other passes retire between two steps beside a quick newcomer" + where + ", against the passes in flight beside its own");
+        require(most_rows <= late.prompt.size(), "a pass between two steps of a reply held " + std::to_string(most_rows) + " prompt rows beside a quick newcomer" + where + ", against the newcomer's whole prompt");
     }
 }
 

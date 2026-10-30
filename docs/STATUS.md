@@ -1,5 +1,14 @@
 # llmx - Development Status
 
+## The quick-newcomer case counts passes between a reply's steps (2026-10-30, TDEV, branch fix/server-passes-cpu-flake on main 06936f48e, tests only, the coordinator's order of 2026-10-30, lands by fast-forward as one commit)
+
+**Goal.** `short_newcomer` in `server-passes-cpu` failed on the hosted macOS runner on every branch and on main: `a reply waited 511.6 to 605.7 ms between two steps beside a quick newcomer beside a long prompt, against the step gap's cap` (jobs 124160912977, 124179102195, 124208863368, 124195078299).
+The 500 ms cap is an objective the service rule aims at by measured prices, not a bound the scheduler keeps, as the serving rework's open item records at 670 ms on two MI50s, and a reply's gap there is two or three pass times of two 70 ms stages plus the CPU's work, which a slow runner stretches without the rule letting any more work in.
+**Done.** The wall-clock gap is replaced by what the rule decides: between two steps of a reply at most the passes in flight beside its own (2) retire, and none of them holds more prompt rows than the newcomer's whole 85-token prompt,, which the long prompt's chunks beside the replies (16 rows in every trace) stay well below.
+On the Windows PC the case alone on four cores, two busy loops beside two copies: 50 of 50 runs pass, at most 2 other passes and 64 prompt rows between two steps of a reply, while the old measure passed 500 ms in 5 of 100 cases (largest 790 ms); with six busy loops beside four copies, 50 of 52 pass, the old measure past 500 ms in 25 of 102 cases (largest 3.2 s, the process descheduled whole), the counts unchanged.
+The two failures there are an existing check: alone, the newcomer missed 72 and 73 replies' passes between rides, about the 10 s bound in passes, consistent with its 85 rows pricing past the cap at that load so that the rule held it to the bound as it should; the hosted macOS runs never reached that case's checks failing, and holding it would need the newcomer's price taken out of the test's machine, left open here.
+**Left.** The hosted macOS job at the head.
+
 ## ROCm step 3, first part: Qwen3 Q8_0 on one MI50 (2026-10-30, DDEV, branch feat/rocm-qwen3-q8 on main 7f83d159a, the coordinator's order of 2026-10-30 for the part both delivery orders need; approved by F2DEV and landing by fast-forward on a green hosted run, the speed gate open)
 
 **Goal:** Qwen3 Q8_0 runs on one MI50 through `--device rocm:0` at the default F16 precision: the Q8_0 decode row kernel and prompt tile on block-int16 activations with F32 sums (docs/PRECISION.md), paged attention over F16 caches, the KV cache and the server path, with batch invariance from the first kernel and the collective seam kept for step 4.

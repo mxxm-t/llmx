@@ -234,6 +234,79 @@ server::Scheduler::Images stepped(const Req& r, size_t steps, const std::shared_
     return images;
 }
 
+// A follow-up turn that forks the first turn's history inside its image encodes nothing: the rows past the fork, those of the image's last block, are kept from the first turn's encode.
+// Its reply is its reply on a fresh model; a follow-up with another image of the same grid at that place forks nothing and encodes its image.
+void reused_inside(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
+    const Make kept = on(weights, [] { return cpus(1); }, 3, 3);
+    const Req inside = with_image(7, 240, 6, 5, 30, 2, 40);
+    const Req again = follow(kept, tok, inside, 8);
+    Req other = again;
+    other.images = {image(240, 6, 5, 3)};
+    for (const Req* r : std::vector<const Req*>{&again, &other}) {
+        auto fresh = kept(1024, 0);
+        const Reply alone = serve(*fresh, tok, 3, {{*r}})[0];
+        auto model = kept(1024, 0);
+        server::Scheduler sched(*model, tok, 3, 64);
+        std::thread runner([&] { sched.run(); });
+        const auto submit = [&](const Req& q, server::Scheduler::Images images) {
+            return sched.submit(q.prompt, params_of(q), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, std::move(images));
+        };
+        const bool same_image = r == &again;
+        const std::string what = same_image ? "a follow-up forking inside its image" : "a follow-up with another image where the first turn's was";
+        try {
+            auto first = std::make_shared<Encodes>(), next = std::make_shared<Encodes>();
+            drain(*submit(inside, stepped(inside, 2, first)));
+            const auto h = submit(*r, stepped(*r, 2, next));
+            same(alone, drain(*h), what);
+            require(first->steps == 2, what + ": the first turn's image ran " + std::to_string(first->steps.load()) + " pieces, against 2");
+            require(h->reused() == (same_image ? 2 * kBlock : 0), what + ": " + std::to_string(h->reused()) + " tokens reused");
+            require(next->steps == (same_image ? 0u : 2u), what + ": its image ran " + std::to_string(next->steps.load()) + " pieces, against " + (same_image ? "none" : "2"));
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+}
+
+// A follow-up whose first turn's history went to host memory forks the copy inside its image and encodes nothing, the image's last rows going with the copy; with no host tier the history leaves with nothing kept, and the follow-up encodes its image again.
+// Each reply is its reply on a fresh model.
+void reused_evicted(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
+    const Make make = on(weights, [] { return cpus(1); }, 3, 3);
+    const Req a = with_image(5, 240, 6, 5, 30, 7, 40), b = with_image(9, 100, 4, 6, 176, 8, 40);
+    const Req fa = follow(make, tok, a, 6);
+    auto fresh = make(512, 0);
+    const Reply alone = serve(*fresh, tok, 3, {{fa}})[0];
+    for (const size_t host : {size_t(1) << 30, size_t(0)}) {
+        const std::string what = host ? "a follow-up of a history in host memory" : "a follow-up of a history evicted with no copy";
+        auto model = make(512, 0);
+        server::Scheduler sched(*model, tok, 3, 64, 0, false, host);
+        std::thread runner([&] { sched.run(); });
+        const auto submit = [&](const Req& q, server::Scheduler::Images images) {
+            return sched.submit(q.prompt, params_of(q), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, std::move(images));
+        };
+        try {
+            auto first = std::make_shared<Encodes>(), other = std::make_shared<Encodes>(), next = std::make_shared<Encodes>();
+            drain(*submit(a, stepped(a, 2, first)));
+            drain(*submit(b, stepped(b, 2, other)));
+            const auto h = submit(fa, stepped(fa, 2, next));
+            same(alone, drain(*h), what);
+            const server::Scheduler::Stats stats = sched.stats();
+            require(stats.host_hits == (host ? 1u : 0u), what + ": " + std::to_string(stats.host_hits) + " promotions");
+            require(h->reused() == (host ? 2 * kBlock : 0), what + ": " + std::to_string(h->reused()) + " tokens reused");
+            require(next->steps == (host ? 0u : 2u), what + ": its image ran " + std::to_string(next->steps.load()) + " pieces, against " + (host ? "none" : "2"));
+        } catch (...) {
+            sched.stop();
+            runner.join();
+            throw;
+        }
+        sched.stop();
+        runner.join();
+    }
+}
+
 // An image's encode runs in the request's slice turns (docs/VISION.md, section 10): beside a reply its six pieces fall among the reply's passes, both replies their replies alone.
 // A request cancelled mid-encode ends it at a piece boundary, freeing the encoder for the next image.
 void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
@@ -274,6 +347,52 @@ void pieces(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
         auto after = std::make_shared<Encodes>();
         same(alone[2], drain(*submit(next, stepped(next, 4, after))), "an image after a cancelled encode");
         require(after->steps == 4 && after->alive == 0, "the image after a cancelled encode: " + std::to_string(after->steps.load()) + " pieces");
+    } catch (...) {
+        sched.stop();
+        runner.join();
+        throw;
+    }
+    sched.stop();
+    runner.join();
+}
+
+// A reply beside another request's image encode: on two devices whose second stage records on its own thread, the encode's pieces take no hold that stops the stages.
+// Both replies are their replies alone; holds are counted, not times, since how the pieces fall among the passes follows the threads' timing.
+void no_hold(const gguf::GGUFModel& weights, const bpe::Tokenizer& tok) {
+    const Make make = on(weights, [] {
+        std::vector<backend::BackendPtr> v;
+        for (const auto& h : hooked(2, true)) v.push_back(h);
+        return v;
+    }, 3, 0);
+    Req text;
+    text.prompt = prompt_of(40, 30, kVocab);
+    text.cap = 200;
+    const Req img = with_image(3, 20, 4, 4, 10, 11, 12);
+    std::vector<Reply> alone;
+    for (const Req& r : {text, img}) {
+        auto model = make(1024, 0);
+        alone.push_back(serve(*model, tok, 3, {{r}}, nullptr, 2)[0]);
+    }
+    auto model = make(1024, 0);
+    server::Scheduler sched(*model, tok, 3, 64, 2);
+    auto seen = std::make_shared<Encodes>();
+    std::thread runner([&] { sched.run(); });
+    const auto submit = [&](const Req& r, server::Scheduler::Images images) {
+        return sched.submit(r.prompt, params_of(r), std::numeric_limits<size_t>::max(), 0, server::Request::Clock::now(), {}, std::move(images));
+    };
+    try {
+        const auto t = submit(text, images_of(text));
+        server::Request::Token first;
+        require(t->next(first, server::Request::Clock::now() + std::chrono::seconds(60)) == server::Request::Next::id, "a reply gave no token within a minute");
+        const uint64_t holds = sched.stats().holds;
+        const auto i = submit(img, stepped(img, 24, seen));
+        Reply got{first};
+        for (const auto& u : collect(*t)) got.push_back(u);
+        same(alone[0], got, "a reply beside an image's encode on two devices");
+        same(alone[1], drain(*i), "a request whose image encodes beside a reply on two devices");
+        require(seen->steps == 24, "an image's 24 pieces: " + std::to_string(seen->steps.load()) + " run");
+        const uint64_t held = sched.stats().holds - holds;
+        require(held == 0, "an image's encode beside a reply stopped the stages " + std::to_string(held) + " times");
     } catch (...) {
         sched.stop();
         runner.join();
@@ -378,9 +497,12 @@ int main() {
         const gguf::GGUFModel weights = image_hybrid();
         const bpe::Tokenizer tok(weights);
         pieces(weights, tok);
+        no_hold(weights, tok);
         job_gives_way(weights, tok);
         encode_live(weights, tok);
         follow_ups(weights, tok);
+        reused_inside(weights, tok);
+        reused_evicted(weights, tok);
         paused(weights, tok);
         host_tier(weights, tok);
         disk_tier(weights, tok);

@@ -227,6 +227,12 @@ class HealthTests(unittest.TestCase):
             for path in ("/secret", "/tools/health_dashboard/server.py", "/?x=y", "/api/history#fragment", "http://example.org/api/history"):
                 response, _ = get(path)
                 self.assertEqual(response.status, 400 if "#" in path or path.startswith("http:") else 404, path)
+            head = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=2)
+            head.request("HEAD", "/api/stream")
+            response = head.getresponse()
+            self.assertEqual(response.status, 405)
+            self.assertEqual(response.read(), b"")
+            head.close()
             response, _ = get("/api/history", {"Accept-Encoding": "gzip;q=0"})
             self.assertIsNone(response.getheader("Content-Encoding"))
             response, body = get("/api/history", {"Accept-Encoding": "gzip"})
@@ -237,6 +243,128 @@ class HealthTests(unittest.TestCase):
                 self.assertEqual(json.loads(body)["collector_id"], first["collector_id"])
             self.assertEqual(len(calls), 1)
         finally:
+            web.shutdown()
+            web.server_close()
+            thread.join()
+
+    def test_sse_replays_from_cursor_and_does_not_poll_per_client(self):
+        calls = []
+
+        def fetch():
+            calls.append(len(calls) + 1)
+            return health(requests=len(calls))
+
+        collector = server.Collector("unused", fetch=fetch)
+        collector.poll_once()
+        handler = server.make_handler(collector, os.path.join(os.path.dirname(__file__), "index.html"))
+        web = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        web.daemon_threads = True
+        thread = threading.Thread(target=web.serve_forever, daemon=True)
+        thread.start()
+
+        def read_frame(response):
+            lines = []
+            while True:
+                line = response.readline()
+                if not line or line in (b"\r\n", b"\n"):
+                    break
+                lines.append(line.decode("utf-8").rstrip("\r\n"))
+            return lines
+
+        def connect(last_event_id=None):
+            conn = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=3)
+            headers = {"Last-Event-ID": last_event_id} if last_event_id else {}
+            conn.request("GET", "/api/stream", headers=headers)
+            response = conn.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.getheader("Content-Type"), "text/event-stream; charset=utf-8")
+            lines = read_frame(response)
+            event_id = next(line[4:] for line in lines if line.startswith("id: "))
+            data = json.loads(next(line[6:] for line in lines if line.startswith("data: ")))
+            return conn, response, event_id, data
+
+        try:
+            first, _, event_id, initial = connect()
+            self.assertEqual([sample["seq"] for sample in initial["samples"]], [1])
+            second, _, _, same = connect()
+            self.assertEqual([sample["seq"] for sample in same["samples"]], [1])
+            self.assertEqual(calls, [1])
+            first.close()
+            second.close()
+
+            collector.poll_once()
+            resumed, replay_response, _, replay = connect(event_id)
+            self.assertEqual([sample["seq"] for sample in replay["samples"]], [2])
+            self.assertEqual(calls, [1, 2])
+            collector.fetch = lambda: (503, startup_health())
+            collector.poll_once()
+            starting = json.loads(next(line[6:] for line in read_frame(replay_response) if line.startswith("data: ")))
+            self.assertEqual(starting["startup"]["status"], "starting")
+            self.assertEqual(starting["samples"], [])
+            collector.fetch = lambda: (_ for _ in ()).throw(ValueError("upstream unavailable"))
+            collector.poll_once()
+            lines = read_frame(replay_response)
+            disconnected = json.loads(next(line[6:] for line in lines if line.startswith("data: ")))
+            self.assertFalse(disconnected["ok"])
+            self.assertEqual(disconnected["events"][-1]["kind"], "disconnect")
+            collector.stop()
+            self.assertEqual(replay_response.read(1), b"")
+            resumed.close()
+        finally:
+            web.shutdown()
+            web.server_close()
+            thread.join()
+
+    def test_slow_stream_writer_does_not_block_collection(self):
+        collector = server.Collector("unused", fetch=lambda: health())
+        collector.poll_once()
+        base_handler = server.make_handler(collector, os.path.join(os.path.dirname(__file__), "index.html"))
+        writing = threading.Event()
+        release = threading.Event()
+        write_timeouts = []
+
+        class SlowWriter:
+            def __init__(self, stream):
+                self.stream = stream
+                self.first = True
+
+            def write(self, data):
+                if self.first:
+                    self.first = False
+                    writing.set()
+                    release.wait(2.0)
+                return self.stream.write(data)
+
+            def flush(self):
+                return self.stream.flush()
+
+            def __getattr__(self, name):
+                return getattr(self.stream, name)
+
+        class SlowHandler(base_handler):
+            def _stream(self):
+                write_timeouts.append(self.connection.gettimeout())
+                self.wfile = SlowWriter(self.wfile)
+                super()._stream()
+
+        web = ThreadingHTTPServer(("127.0.0.1", 0), SlowHandler)
+        web.daemon_threads = True
+        thread = threading.Thread(target=web.serve_forever, daemon=True)
+        thread.start()
+        conn = http.client.HTTPConnection("127.0.0.1", web.server_port, timeout=3)
+        try:
+            conn.request("GET", "/api/stream")
+            response = conn.getresponse()
+            self.assertEqual(response.status, 200)
+            self.assertTrue(writing.wait(2.0))
+            self.assertEqual(write_timeouts, [5.0])
+            start = time.perf_counter()
+            self.assertTrue(collector.poll_once())
+            self.assertLess(time.perf_counter() - start, 1.0)
+        finally:
+            release.set()
+            collector.stop()
+            conn.close()
             web.shutdown()
             web.server_close()
             thread.join()

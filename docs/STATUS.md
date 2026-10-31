@@ -1,5 +1,15 @@
 # llmx - Development Status
 
+## Dashboard live delivery (2026-11-01, branch feat/dashboard-sse-20261101)
+
+- **Goal:** Replace the browser's second two-second polling wait with a shared collector-to-browser event stream while preserving bounded history, rates, chart timestamps and the compact drafting grid.
+- **Done:** Added one-way SSE over the collector's shared change condition and existing sample cursor. Browser reconnects replay from `Last-Event-ID`, collector restarts reset history through the existing collector identity, disconnects mark the display stale, and incoming updates coalesce to no more than one telemetry render per second. The upstream interval remains two seconds by default; operators can opt into `--interval 1`.
+- **Checks:** The focused dashboard suite passes 15 tests, including SSE framing, reconnect cursor continuity, disconnect and startup delivery, collector shutdown, one shared upstream poll, and a blocked client writer that does not block collection. The Windows Chrome CLI browser harness checks EventSource updates, stale-history retention, cursor order, one-render coalescing and the existing compact drafting grid/pinned inspection at 1440 and 390 pixels. Source dead-code passes with 8 listed findings and 19 planted faults; docs passes with 0 findings and 21 planted faults using a one-worker Release CLI built from this head. `git diff --check` is clean.
+- **Linux checks:** all seven collector/SSE tests pass in the isolated Python 3.12.13 container, with copied source hashes verified, no GPU devices and no inference calls. The initial wrong test-directory invocation failed before tests and remains recorded. Artifacts are in `build-dashboard-sse-rig-20261101`. Root review verified bodyless stream HEAD refusal, bounded socket writes and fixture startup isolation.
+- **Landing:** prepared for fast-forward from af6589cd7 after the applicable hosted dashboard checks. Only collector/browser delivery changes; numerical and inference performance gates do not apply.
+- **Left:** applicable hosted checks, merge and dashboard-only production rollout. No production service was changed or restarted.
+- **Gotchas:** Mock endpoint cost does not establish inference-side overhead at one-second polling. No inference or same-server load measurement is claimed; no performance claim of literally zero overhead is made.
+
 ## Dashboard hidden browser results (2026-11-01, branch fix/dashboard-hidden-test-results-20261101)
 
 - **Goal:** let the command-line browser runner read the drafting regression test's hidden results element.

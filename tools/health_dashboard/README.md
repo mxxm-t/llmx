@@ -2,8 +2,12 @@
 
 A standalone, read-only view of an llmx server's `/v1/health` endpoint.
 The Python standard library collects one shared sample every two seconds and
-keeps up to one hour in memory. Browsers use the collector; opening another tab
-does not add another upstream sampler. No inference request is sent.
+keeps up to one hour in memory. Browsers receive updates over a one-way
+EventSource stream; opening another tab does not add another upstream sampler.
+No inference request is sent. Browser updates are coalesced to at most once per
+second, while the collector keeps its existing two-second default interval.
+Headline and per-request rates keep a reserved numeric width and two decimal
+places to avoid shifting neighboring labels as values change.
 
 ## Run
 
@@ -20,6 +24,14 @@ or responses, modify llmx, or start a model.
 
 `--interval` selects 1 to 60 seconds between polls; `--history` selects at most
 3,600 seconds of retained data. Data is lost when the dashboard restarts.
+The stream sends the latest state on connect and resumes sample history from
+the browser's last event cursor after a reconnect. The browser marks the view
+stale while disconnected and retains its displayed history until the collector
+reconnects. Each client waits on the shared collector notification; a slow
+client cannot hold up collection, and there is no per-client polling loop.
+One-second upstream polling remains an operator choice through `--interval 1`.
+The local mock tests do not measure its load on a live inference server, so the
+default remains two seconds and no zero-overhead claim is made.
 The collector requests only the configured URL, refuses redirects, and uses
 normal certificate validation for HTTPS. Runtime configuration uses flags.
 

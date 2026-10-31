@@ -129,6 +129,8 @@ class Collector:
         self.clock = clock
         self.collector_id = str(uuid.uuid4())
         self.lock = threading.Lock()
+        self.changed = threading.Condition(self.lock)
+        self.revision = 0
         self.samples = collections.deque()
         self.events = collections.deque(maxlen=MAX_EVENTS)
         self.seq = 0
@@ -182,6 +184,8 @@ class Collector:
                 if not self.was_down:
                     self.events.append({"t": now, "kind": "disconnect", "message": "Health source disconnected"})
                 self.was_down = True
+                self.revision += 1
+                self.changed.notify_all()
             return False
 
         now = self.clock()
@@ -194,6 +198,8 @@ class Collector:
                 self.startup_seen_since_ready = True
                 self.error = None
                 self.was_down = False
+                self.revision += 1
+                self.changed.notify_all()
             return True
 
         server = health["server"]
@@ -221,6 +227,8 @@ class Collector:
             self.error = None
             self.was_down = False
             self._prune_locked(now)
+            self.revision += 1
+            self.changed.notify_all()
         return True
 
     def _prune_locked(self, now):
@@ -242,6 +250,8 @@ class Collector:
 
     def stop(self):
         self.stopped.set()
+        with self.changed:
+            self.changed.notify_all()
         if self.thread is not None:
             self.thread.join(timeout=4.0)
 
@@ -251,6 +261,7 @@ class Collector:
             self._prune_locked(now)
             return {
                 "collector_id": self.collector_id,
+                "revision": self.revision,
                 "ok": self.error is None and self.latest is not None and self.startup is None,
                 "error": self.error,
                 "startup": self.startup,
@@ -356,7 +367,65 @@ def make_handler(collector, html_path):
                 payload = json.dumps(collector.snapshot(after), ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("utf-8")
                 self._send(200, payload, "application/json; charset=utf-8")
                 return
+            if parsed.path == "/api/stream" and not parsed.query and not parsed.fragment:
+                if self.command == "HEAD":
+                    self._send(405, b"Method not allowed", "text/plain; charset=utf-8")
+                    return
+                self._stream()
+                return
             self._send(404, b"Not found", "text/plain; charset=utf-8")
+
+        def _stream(self):
+            cursor = 0
+            collector_id = None
+            last_id = self.headers.get("Last-Event-ID", "")
+            if last_id:
+                parts = last_id.split(":")
+                if (len(parts) == 3 and len(parts[0]) <= 64 and
+                        all(part.isascii() and part.isdigit() and len(part) <= 20 for part in parts[1:])):
+                    collector_id = parts[0]
+                    cursor = int(parts[1])
+            if collector_id != collector.collector_id:
+                cursor = 0
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            revision = -1
+            try:
+                while True:
+                    with collector.changed:
+                        if collector.stopped.is_set():
+                            self.close_connection = True
+                            return
+                        if revision == collector.revision:
+                            collector.changed.wait(15.0)
+                        if collector.stopped.is_set():
+                            self.close_connection = True
+                            return
+                        current_revision = collector.revision
+                    if current_revision != revision:
+                        data = collector.snapshot(cursor)
+                        if data["collector_id"] != collector_id:
+                            cursor = 0
+                            data = collector.snapshot(cursor)
+                        if data["samples"]:
+                            cursor = data["samples"][-1]["seq"]
+                        event_id = data["collector_id"] + ":" + str(cursor) + ":" + str(data["revision"])
+                        body = json.dumps(data, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+                        self.wfile.write(("id: " + event_id + "\nevent: history\ndata: " + body + "\n\n").encode("utf-8"))
+                        self.wfile.flush()
+                        collector_id = data["collector_id"]
+                        revision = current_revision
+                    else:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+                self.close_connection = True
+                return
 
         def do_POST(self):
             self._send(405, b"Method not allowed", "text/plain; charset=utf-8")

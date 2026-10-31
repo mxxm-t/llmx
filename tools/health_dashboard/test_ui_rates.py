@@ -11,6 +11,15 @@ from pathlib import Path
 
 
 HTML_FILE = Path(__file__).resolve().with_name("index.html")
+
+
+def without_stream_start(source):
+    marker = "connectStream();"
+    if source.count(marker) != 1:
+        raise AssertionError("expected exactly one dashboard stream startup")
+    return source.replace(marker, "")
+
+
 CHROME_PATHS = (
     Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
@@ -224,7 +233,7 @@ for (const [name, samples, value, stale] of [
   measures.push({name, boxes: [row, $('prompt-chart'), $('throughput-chart'), $('live-requests-card'), $('token-rate-note')].map(node => {
     const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height];
   }), font: getComputedStyle(strong).fontSize, color: getComputedStyle(strong).color});
-  if (name === 'zero') check('zero readout is numeric', $('throughput-value').textContent === '0' && strong.textContent === '0');
+  if (name === 'zero') check('zero readout has fixed precision', $('throughput-value').textContent === '0.00' && strong.textContent === '0.00');
   if (name === 'expired') check('expired gap reason is visible', $('throughput-at').textContent.includes('unchanged'));
   if (name === 'reset') check('reset gap reason is visible', $('throughput-at').textContent.includes('reset'));
   if (name === 'missing') check('missing counter reason is visible', $('throughput-at').textContent.includes('missing'));
@@ -298,7 +307,7 @@ def function_source(source, name):
 
 class DashboardRateWindowTests(unittest.TestCase):
     def test_drafting_lifetime_and_empty_states(self):
-        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
@@ -347,7 +356,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                 self.assertEqual(len(self.run_browser(wrapper)), 28)
 
     def test_draft_position_inspection_survives_refresh(self):
-        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
@@ -415,7 +424,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
 
     def test_rendered_rate_geometry_and_zero_gaps(self):
         source = HTML_FILE.read_text(encoding="utf-8")
-        source = source.rsplit("poll();", 1)[0] + source.rsplit("poll();", 1)[1]
+        source = without_stream_start(source)
         results = ("<pre id='rate-test-results'></pre><script>" + RENDER_CASES +
                    "\ndocument.querySelector('#rate-test-results').textContent = JSON.stringify(globalThis.rateTestResults);</script>")
         document = source.replace("</body>", results + "</body>")
@@ -424,7 +433,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                 self.assertEqual(len(self.run_browser(document, width)), 19)
 
     def test_startup_panel_transitions_and_rate_suppression(self):
-        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
@@ -510,7 +519,7 @@ document.querySelector('#rate-test-results').textContent = JSON.stringify(outcom
                 self.assertEqual(len(self.run_browser(document, width)), 15)
 
     def test_image_encode_progress_rendering(self):
-        source = HTML_FILE.read_text(encoding="utf-8").replace("poll();", "")
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
         cases = r"""
 const outcomes = [];
 function check(name, ok) { outcomes.push({name, ok: !!ok}); }
@@ -570,6 +579,45 @@ globalThis.rateTestResults = outcomes;
         for width in (1440, 390):
             with self.subTest(width=width):
                 self.assertEqual(len(self.run_browser(document, width)), 10)
+
+    def test_event_stream_updates_are_shared_and_coalesced(self):
+        source = without_stream_start(HTML_FILE.read_text(encoding="utf-8"))
+        self.assertNotIn("fetch('/api/history", source)
+        cases = r"""
+const outcomes = [];
+function check(name, ok) { outcomes.push({name, ok: !!ok}); }
+let sources = [];
+class FakeEventSource {
+  constructor(url) { this.url = url; this.listeners = {}; sources.push(this); }
+  addEventListener(name, callback) { this.listeners[name] = callback; }
+  close() {}
+}
+window.EventSource = FakeEventSource;
+window.fetch = () => { throw new Error('dashboard must not keep a polling loop'); };
+let renders = 0;
+window.render = () => { renders++; };
+let timers = [];
+window.setTimeout = callback => { timers.push(callback); return timers.length; };
+connectStream();
+check('one EventSource uses the shared collector stream', sources.length === 1 && sources[0].url === '/api/stream');
+function payload(seq, count) { return {collector_id:'test', revision:seq, ok:true, error:null,
+ interval_s:2, retention_s:3600, last_success:Date.now()/1000, startup:null, startup_observed_at:null,
+ latest:{status:'ok',server:{uptime_s:seq,model:'test'},requests:{now:{active:count},since_start:{finished:0}}},
+ samples:[{seq,t:Date.now()/1000,reset:false,metrics:{'requests.now.active':count}}],events:[]}; }
+sources[0].listeners.history({data:JSON.stringify(payload(1,1))});
+sources[0].listeners.history({data:JSON.stringify(payload(2,2))});
+check('reconnect replay keeps ordered samples and latest cursor', state.seq === 2 && state.samples.length === 2 && state.samples[0].seq === 1 && state.samples[1].seq === 2);
+sources[0].onerror();
+check('disconnect marks stale without clearing observed history', !state.ok && state.samples.length === 2 && state.seq === 2);
+sources[0].listeners.history({data:JSON.stringify(payload(3,3))});
+check('reconnected stream continues the cursor', state.ok && state.seq === 3 && state.samples.length === 3);
+check('updates coalesce to one scheduled render', renderTimer !== null && renders === 0 && timers.length === 1);
+timers[0]();
+check('one render publishes the latest snapshot', renders === 1 && state.latest.requests.now.active === 3);
+document.querySelector('#rate-test-results').textContent = JSON.stringify(outcomes);
+"""
+        document = source.replace("</body>", "<pre hidden id='rate-test-results'></pre><script>" + cases + "</script></body>")
+        self.assertEqual(len(self.run_browser(document)), 6)
 
     def test_shared_runtime_and_request_windows(self):
         source = HTML_FILE.read_text(encoding="utf-8")

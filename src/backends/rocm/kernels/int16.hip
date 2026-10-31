@@ -318,64 +318,65 @@ __device__ void q8_0_tile(const TileCall& c, const QT* q, const float* dx) {
     // A stage's blocks are loaded into registers while the previous stage computes, and stored to shared memory after it.
     const int r = t / 4, seg = t % 4;
     const unsigned long long o = o0 + r, b = b0 + r;
-    unsigned wv[STEP][2];          // eight quants: two words of bytes
-    unsigned short wh[STEP];       // the block's f16 scale
+    unsigned wv[STEP][3];          // the quarter's eight quants and the scale: two words where they start aligned, three where not, plus the word before
+    bool wok[STEP], al[STEP], xok[STEP];
     int xv[STEP][WORDS / 4];       // a quarter of the twin block
     float xs_[STEP];
-    // The quarter's eight bytes sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes; two or three word loads and a shift realign them.
+    // The tile's first output and first row as uniform bases, so each thread's offsets from them are 32-bit and its loads take the base from scalar registers.
+    const unsigned char* Wt = W + o0 * blocks * 34;
+    const unsigned mis = (unsigned)((unsigned long long)Wt & 3);
+    const unsigned* W4 = (const unsigned*)(Wt - mis);   // the words around the tile's weights, as a pointer into the same buffer so its loads stay global ones
+    const QT* qt = q + b0 * blocks * 32;
+    const float* dxt = dx + b0 * blocks;
+    // The quarter's eight bytes sit at an offset of 0 or 2 in their 4-byte words, since a block is 34 bytes: three word loads cover them, the word after where they straddle and the word before where not, which holds the scale in its high half; straddling, the first word holds it in its low half.
+    // Every load of a stage goes out before any is waited for: a load out of range reads block 0 and its zero is chosen at the store, so no load sits under a branch the compiler would wait inside.
     const auto load = [&](unsigned long long k0) {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
             const unsigned long long k = k0 + s;
-            const bool wok = k < kend && o < nout, xok = k < kend && b < nrows;
-            if (wok) {
-                const unsigned char* block = W + (o * blocks + k) * 34;
-                const unsigned long long a = (unsigned long long)(block + 2 + seg * 8);
-                const unsigned* p4 = (const unsigned*)(a & ~3ull);
-                if ((a & 3) == 0) {
-                    wv[s][0] = p4[0];
-                    wv[s][1] = p4[1];
-                } else {
-                    const unsigned d0 = p4[0], d1 = p4[1], d2 = *(const unsigned short*)(p4 + 2);   // two bytes only: the block ends there
-                    wv[s][0] = (d0 >> 16) | (d1 << 16);
-                    wv[s][1] = (d1 >> 16) | (d2 << 16);
-                }
-                wh[s] = seg == 0 ? *(const unsigned short*)block : 0;
-            } else {
-                wv[s][0] = wv[s][1] = 0;
-                wh[s] = 0;
-            }
+            xok[s] = k < kend && b < nrows;
+            wok[s] = k < kend && o < nout;
+            const unsigned a = mis + (wok[s] ? ((unsigned)r * (unsigned)blocks + (unsigned)k) * 34u : 0u) + 2u + seg * 8u, w = a >> 2;
+            al[s] = (a & 3) == 0;
+            wv[s][0] = W4[w];
+            wv[s][1] = W4[w + 1];
+            wv[s][2] = W4[al[s] ? w - 1 : w + 2];
+            const unsigned xb = xok[s] ? (unsigned)r * (unsigned)blocks + (unsigned)k : 0u;
             if constexpr (sizeof(QT) == 2) {
-                const int4 v = xok ? ((const int4*)(q + (b * blocks + k) * 32))[seg] : int4{0, 0, 0, 0};
+                const int4 v = ((const int4*)(qt + xb * 32u))[seg];
                 xv[s][0] = v.x, xv[s][1] = v.y, xv[s][2] = v.z, xv[s][3] = v.w;
             } else {
-                const int2 v = xok ? ((const int2*)(q + (b * blocks + k) * 32))[seg] : int2{0, 0};
+                const int2 v = ((const int2*)(qt + xb * 32u))[seg];
                 xv[s][0] = v.x, xv[s][1] = v.y;
             }
-            xs_[s] = seg == 0 && xok ? dx[b * blocks + k] : 0.0f;
+            xs_[s] = dxt[xb];
         }
     };
     // Widened to the twin's integer type as they are stored: four words of two 16-bit values, or the two words of bytes as they are.
     const auto store = [&]() {
 #pragma unroll
         for (int s = 0; s < STEP; ++s) {
+            const unsigned q0 = wok[s] ? (al[s] ? wv[s][0] : __builtin_amdgcn_alignbit(wv[s][1], wv[s][0], 16)) : 0;
+            const unsigned q1 = wok[s] ? (al[s] ? wv[s][1] : __builtin_amdgcn_alignbit(wv[s][2], wv[s][1], 16)) : 0;
+            const unsigned short sc = wok[s] ? (unsigned short)(al[s] ? wv[s][2] >> 16 : wv[s][0] & 0xffff) : 0;
+            const unsigned qw[2] = {q0, q1};
             if constexpr (sizeof(QT) == 2) {
 #pragma unroll
                 for (int h = 0; h < 2; ++h)
 #pragma unroll
                     for (int w = 0; w < 2; ++w) {
-                        const unsigned pair = (wv[s][h] >> (16 * w)) & 0xffff;
+                        const unsigned pair = (qw[h] >> (16 * w)) & 0xffff;
                         wq[s * WORDS + seg * 4 + 2 * h + w][r] = (int)((unsigned)(unsigned short)(short)(signed char)(pair & 0xff) |
                                                                        ((unsigned)(unsigned short)(short)(signed char)(pair >> 8) << 16));
                     }
             } else {
-                wq[s * WORDS + seg * 2][r] = (int)wv[s][0];
-                wq[s * WORDS + seg * 2 + 1][r] = (int)wv[s][1];
+                wq[s * WORDS + seg * 2][r] = (int)q0;
+                wq[s * WORDS + seg * 2 + 1][r] = (int)q1;
             }
-            if (seg == 0) wd[s][r] = __half2float(__ushort_as_half(wh[s]));
+            if (seg == 0) wd[s][r] = __half2float(__ushort_as_half(sc));
 #pragma unroll
-            for (int w = 0; w < WORDS / 4; ++w) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xv[s][w];
-            if (seg == 0) xd[s][r] = xs_[s];
+            for (int w = 0; w < WORDS / 4; ++w) xw[s * WORDS + seg * (WORDS / 4) + w][r] = xok[s] ? xv[s][w] : 0;
+            if (seg == 0) xd[s][r] = xok[s] ? xs_[s] : 0.0f;
         }
     };
     load(kbeg);

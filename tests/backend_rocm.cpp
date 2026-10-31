@@ -558,6 +558,30 @@ void twin_products(Backend& g, Dtype dt) {
         }
         require(tiled, form + ": a prompt row gives the same bits in calls of 1 to 130 rows across the tile's edges");
     }
+    // A matrix of an odd number of blocks, 65 outputs of 3 blocks adopted alone, so its last block starts on a word and the tile's last word load of it runs past the matrix: each prompt row the bits of that row alone.
+    {
+        const size_t sw = 96, so = 65, sn = 70;
+        const std::vector<uint8_t> ms = q8_matrix(sw, so, 73);
+        const std::vector<float> xs = row_classes::values(sw * sn, 74);
+        auto msb = g.adopt(ms.data(), ms.size()), xsb2 = g.adopt(xs.data(), xs.size() * 4), ysn = g.alloc(so * sn * 4), ys1 = g.alloc(so * 4);
+        const WeightView wv{quant::GGML_TYPE_Q8_0, {msb.get(), 0}};
+        bool edge = true;
+        const RowRun all[1] = {{sn, 2}};
+        g.matmul(wv, {xsb2.get(), 0}, {ysn.get(), 0}, sw, so, sn, {all, 1}, dt);
+        const std::vector<float> y = read(g, *ysn, so * sn);
+        for (size_t r = 0; r < sn; ++r) {
+            const RowRun run[1] = {{1, 2}};
+            g.matmul(wv, {xsb2.get(), r * sw}, {ys1.get(), 0}, sw, so, 1, {run, 1}, dt);
+            edge = edge && std::memcmp(y.data() + r * so, read(g, *ys1, so).data(), so * 4) == 0;
+        }
+        // The same matrix with room after it in its buffer gives the same bits, so the load past its end reads nothing that reaches a sum.
+        std::vector<uint8_t> roomy = ms;
+        roomy.resize(ms.size() + 64, 0xa5);
+        auto rb = g.adopt(roomy.data(), roomy.size());
+        g.matmul({quant::GGML_TYPE_Q8_0, {rb.get(), 0}}, {xsb2.get(), 0}, {ysn.get(), 0}, sw, so, sn, {all, 1}, dt);
+        edge = edge && std::memcmp(read(g, *ysn, so * sn).data(), y.data(), so * sn * 4) == 0;
+        require(edge, form + ": a prompt row of a matrix whose last block ends inside a word gives the bits of that row alone and of the matrix with room after it");
+    }
     // Every pair of extents of one class: the same bits through a Q8_0 product in this class.
     std::vector<std::vector<float>> out;
     const size_t four = 4;

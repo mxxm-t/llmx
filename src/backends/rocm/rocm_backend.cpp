@@ -59,8 +59,10 @@ public:
     RocmBuffer(size_t bytes, bool host, std::shared_ptr<Graves> graves) : size_(bytes), host_(host), graves_(std::move(graves)) {
         if (!bytes) return;
         const HipFn& f = hip();
-        if (host) hip_check(f.hipHostMalloc(&p_, bytes, hipHostMallocDefault), "hipHostMalloc");
-        else hip_check(f.hipMalloc(&p_, bytes), "hipMalloc");
+        // Whole words: the prompt tile reads a Q8_0 quarter as aligned words, the last of which may run past a buffer's final block.
+        const size_t words = (bytes + 3) & ~size_t(3);
+        if (host) hip_check(f.hipHostMalloc(&p_, words, hipHostMallocDefault), "hipHostMalloc");
+        else hip_check(f.hipMalloc(&p_, words), "hipMalloc");
     }
     ~RocmBuffer() override {
         if (!p_) return;
@@ -858,6 +860,8 @@ private:
     }
     // One tile call over the projections' rows [at, at + rows): their output tiles side by side, the inner dimension split for `tiles` column tiles (a prompt's own), the parts added by the reduce kernel.
     void tile(const Proj* proj, size_t nproj, const uint8_t* q, const float* d, size_t at, size_t rows, size_t tiles, size_t nin, int add, bool int8) {
+        // The tile addresses a workgroup's weights and twin by 32-bit offsets off its first output and row, which hold 64 rows of blocks.
+        if ((nin / 32) * kTileOut * 34 + 64 > 0xffffffffull) throw std::runtime_error("rocm: a prompt tile's rows are too wide for its 32-bit offsets");
         TileCall c{};
         size_t gx = 0, outputs = 0;
         for (size_t pi = 0; pi < nproj; ++pi) {

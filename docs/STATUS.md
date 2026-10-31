@@ -1,5 +1,19 @@
 # llmx - Development Status
 
+## The 2x2 targets are kernel work (2026-10-31, RDEV, a device-timestamp profile of main bea3ffdb3, F2DEV's ruling of 10:04, docs only)
+
+**Goal:** record where Flash-Next 2x2's time goes against the final gate's second reference (pp2048 1939 tok/s, decode 79.5, MTP 119), so the owners of each part take it from here.
+**Setup:** Qwen3.8-Flash-Next UD-Q4_K_XL over four MI50s as two stages of tensor groups of two, int8, f16 caches, `--lookup-storage file`, default clocks; walls from main, profiles from main plus a timestamp dump that never lands.
+**Walls:** pp2048 by `--ubatch`: 128 1185, 256 1445, 384 1439, 512 1402, 768 1370, 1024 1177 tok/s; tg128 49-51 tok/s (20.0 ms a token).
+**Prefill model:** a slice costs about 25 ms plus 0.53 ms a row a stage (the 25 ms is the experts' weights read once a slice), and a pass takes (slices + 1) slice times; it predicts four ubatches within 1-2% and puts the best at 6-7 slices, about 1440 tok/s.
+1939 tok/s is 1056 ms for 2048 rows, below the 1085 ms of per-row work alone, so no split change reaches it.
+**Ranked, prefill (1417 ms at ubatch 256):** per-row product cost, dense and expert tiles, about 0.33 of the 0.53 ms a row (products, VDEV and DDEV); fill and per-slice expert reads about 330 ms at the best slice count; inbox copies 112-125 ms (the cut hides them, perf/ts-copy-queue, held); prompt attention at depth 0 135 ms, about 10 times its flop floor (MDEV); stage 0 heavier than stage 1 by about 45 ms (rebalancing parked by the owner); hyper-connection and norm ops 84-94 ms; sum gaps 16-45 ms.
+**Ranked, decode (20.0 ms a token, 12.6 for the target):** kernels about 14 ms over about 1550 dispatches, three times the bandwidth floor of about 2 ms a stage, launch-bound (dispatch count and the small kernels, DDEV); sum exchanges about 4.2 ms, 96 a token at 40 us (the transport's sync-file wait, the collective's owner); inbox copies, sums and injects about 2 ms; host about 1.2 ms.
+With every collective cost gone decode would be about 66 tok/s, so 79.5 needs the kernels near 8 ms; MTP 119 rides the same pass cost, a 4-row verify being 39 ms today.
+**The server's lone first token** (main bea3ffdb3, production's flags without the disk cache and the image encoder, six fresh servers interleaved, medians of nine prompts): 512 tokens 0.607 s at `--ubatch` 1024 and 0.573 s at 256, 2k 1.888 and 1.635 s, 8k 6.152 and 6.051 s; replies identical at both.
+The server cuts a lone prompt on a split into shrinking slices at either ubatch (`lone_slice`), so the bench's 19% gap at 2k is about 6% in the server.
+**Split-side probes approved as probes (F2DEV 10:04), each landing only on a measured gain with bits unchanged:** a lone prompt's slices equal and counted from PriceTable's prices in place of `lone_slice`, and the peer's partial read in place with the sum and inject fused; neither closes a target alone.
+
 ## Drafts priced by the price table's measured pass cost (2026-10-30, SDEV, branch fix/draft-pass-price on main fe2ccacae, the coordinator's report of production on 2f4f4481 slower than cb374f282, for F2DEV's review)
 
 - **Goal:** production (Qwen3.8-Flash-Next UD-Q4_K_XL 2x2, lookup and its MTP head, `--draft-max 63`) gave 0.053 tokens/ms on 2f4f4481 against 0.059 on cb374f282, on different traffic.

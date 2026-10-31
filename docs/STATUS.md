@@ -1,5 +1,13 @@
 # llmx - Development Status
 
+## Restore original compact drafting grid (2026-11-01, XDEV)
+
+- **Goal:** BOSS selected the original compact grid from before the UI revisions. Other panels stay unchanged.
+- **Done:** restored the original e96bf1bdf chart styles, compact cells, source controls and sparse labels, retaining pinned inspection/focus across refresh and the consistent reached denominator.
+- **Landing:** seven focused browser tests pass on rig Chromium. Live-data previews at 1440, 1024 and 390 pixels have no overflow or browser errors and preserve pinned inspection/focus. Syntax, docs (zero findings, 21 planted faults) and dead-code (eight listed findings, 19 planted faults) pass. The restored grid is deployed, and production inspection confirms the refresh fix. The isolated static UI change lands by fast-forward from 0c5f02e1e. No collector or inference restart.
+- **Gotchas:** this supersedes the continuous chart below. The chart still displays all reported positions and scrolls long grids. No collector or runtime changes.
+
+
 ## Compact draft-position chart (2026-10-31, XDEV)
 
 - **Goal:** replace the tall wrapped position grid with one compact chart, as BOSS requested after the first UI revision. Other panels stay unchanged.

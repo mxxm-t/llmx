@@ -1054,16 +1054,16 @@ const uint32_t kSpvHold[] = {
     X(K_MATMUL_ROW_K5, "matmul_row_k5", kSpvMatmulRowK5, sizeof(kSpvMatmulRowK5), 12, kMatmulRowCounts, kSpvMatmulRowK5Preserve, sizeof(kSpvMatmulRowK5Preserve), 0, kPreserve32) \
     X(K_MATMUL_ROW_K, "matmul_row_k", kSpvMatmulRowK, sizeof(kSpvMatmulRowK), 12, kMatmulRowCounts, kSpvMatmulRowKPreserve, sizeof(kSpvMatmulRowKPreserve), 0, kPreserve32) \
     X(K_NORM_ROPE_KV, "norm_rope_kv", kSpvNormRopeKv, sizeof(kSpvNormRopeKv), 11, nullptr) \
-    X(K_ATTENTION_TILE, "attention_tile", kSpvAttentionTile, sizeof(kSpvAttentionTile), 6, nullptr) \
+    X(K_ATTENTION_TILE, "attention_tile", kSpvAttentionTile, sizeof(kSpvAttentionTile), 7, nullptr) \
     X(K_KV_WRITE_K16, "kv_write_k16", kSpvKvWriteK16, sizeof(kSpvKvWriteK16), 5, nullptr) \
     X(K_KV_WRITE_V16, "kv_write_v16", kSpvKvWriteV16, sizeof(kSpvKvWriteV16), 5, nullptr) \
     X(K_KV_WRITE_KV16, "kv_write_kv16", kSpvKvWriteKV16, sizeof(kSpvKvWriteKV16), 5, nullptr) \
     X(K_ATTENTION_K16, "attention_k16", kSpvAttentionK16, sizeof(kSpvAttentionK16), 7, nullptr) \
     X(K_ATTENTION_V16, "attention_v16", kSpvAttentionV16, sizeof(kSpvAttentionV16), 7, nullptr) \
     X(K_ATTENTION_KV16, "attention_kv16", kSpvAttentionKV16, sizeof(kSpvAttentionKV16), 7, nullptr) \
-    X(K_ATTENTION_TILE_K16, "attention_tile_k16", kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 6, nullptr) \
-    X(K_ATTENTION_TILE_V16, "attention_tile_v16", kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 6, nullptr) \
-    X(K_ATTENTION_TILE_KV16, "attention_tile_kv16", kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 6, nullptr) \
+    X(K_ATTENTION_TILE_K16, "attention_tile_k16", kSpvAttentionTileK16, sizeof(kSpvAttentionTileK16), 7, nullptr) \
+    X(K_ATTENTION_TILE_V16, "attention_tile_v16", kSpvAttentionTileV16, sizeof(kSpvAttentionTileV16), 7, nullptr) \
+    X(K_ATTENTION_TILE_KV16, "attention_tile_kv16", kSpvAttentionTileKV16, sizeof(kSpvAttentionTileKV16), 7, nullptr) \
     X(K_NORM_ROPE_KV_K16, "norm_rope_kv_k16", kSpvNormRopeKvK16, sizeof(kSpvNormRopeKvK16), 11, nullptr) \
     X(K_NORM_ROPE_KV_V16, "norm_rope_kv_v16", kSpvNormRopeKvV16, sizeof(kSpvNormRopeKvV16), 11, nullptr) \
     X(K_NORM_ROPE_KV_KV16, "norm_rope_kv_kv16", kSpvNormRopeKvKV16, sizeof(kSpvNormRopeKvKV16), 11, nullptr) \
@@ -1147,10 +1147,10 @@ const uint32_t kSpvHold[] = {
     X(K_GATED_RMS_NORM, "gated_rms_norm", kSpvGatedRmsNorm, sizeof(kSpvGatedRmsNorm), 5, nullptr) \
     X(K_CAUSAL_CONV_SILU, "causal_conv_silu", kSpvCausalConvSilu, sizeof(kSpvCausalConvSilu), 5, nullptr) \
     X(K_DELTA_RULE, "delta_rule", kSpvDeltaRule, sizeof(kSpvDeltaRule), 8, nullptr) \
-    X(K_ATTENTION_TILE_D256, "attention_tile_d256", kSpvAttentionTileD256, sizeof(kSpvAttentionTileD256), 6, nullptr) \
-    X(K_ATTENTION_TILE_D256_K16, "attention_tile_d256_k16", kSpvAttentionTileD256K16, sizeof(kSpvAttentionTileD256K16), 6, nullptr) \
-    X(K_ATTENTION_TILE_D256_V16, "attention_tile_d256_v16", kSpvAttentionTileD256V16, sizeof(kSpvAttentionTileD256V16), 6, nullptr) \
-    X(K_ATTENTION_TILE_D256_KV16, "attention_tile_d256_kv16", kSpvAttentionTileD256KV16, sizeof(kSpvAttentionTileD256KV16), 6, nullptr) \
+    X(K_ATTENTION_TILE_D256, "attention_tile_d256", kSpvAttentionTileD256, sizeof(kSpvAttentionTileD256), 7, nullptr) \
+    X(K_ATTENTION_TILE_D256_K16, "attention_tile_d256_k16", kSpvAttentionTileD256K16, sizeof(kSpvAttentionTileD256K16), 7, nullptr) \
+    X(K_ATTENTION_TILE_D256_V16, "attention_tile_d256_v16", kSpvAttentionTileD256V16, sizeof(kSpvAttentionTileD256V16), 7, nullptr) \
+    X(K_ATTENTION_TILE_D256_KV16, "attention_tile_d256_kv16", kSpvAttentionTileD256KV16, sizeof(kSpvAttentionTileD256KV16), 7, nullptr) \
     X(K_ATTENTION_VEC_D256, "attention_vec_d256", kSpvAttentionVecD256, sizeof(kSpvAttentionVecD256), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_K16, "attention_vec_d256_k16", kSpvAttentionVecD256K16, sizeof(kSpvAttentionVecD256K16), 7, nullptr) \
     X(K_ATTENTION_VEC_D256_V16, "attention_vec_d256_v16", kSpvAttentionVecD256V16, sizeof(kSpvAttentionVecD256V16), 7, nullptr) \

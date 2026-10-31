@@ -49,6 +49,8 @@ struct VulkanLifetimeTest {
         return b.args(data, bytes);
     }
     static uint32_t slot(VulkanBackend& b) { return b.ring_index_; }
+    static size_t attention_scratch_cap(VulkanBackend& b) { return b.attention_scratch_cap_; }
+    static void attention_scratch_cap(VulkanBackend& b, size_t bytes) { b.attention_scratch_cap_ = bytes; }
     static VkSemaphore timeline(VulkanBackend& b) { return b.timeline_; }
     static bool submits_apart(VulkanBackend& b) { return b.submitter_ != nullptr; }
     static Ticket last(VulkanBackend& b) { return b.tickets_.last(); }
@@ -2131,6 +2133,131 @@ struct OrderCalls {
     }
 };
 
+// The split tiled attention cut over whole tiles under the smallest scratch cap gives the bytes of the uncut call, output and twin.
+int tile_split_cap_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    const int n_head = 4, n_head_kv = 2, head_dim = 128;
+    const size_t part = backend::vulkan_device_profile(b).attention_tile_part;
+    const size_t kvw = size_t(n_head_kv) * head_dim, qw = size_t(n_head) * head_dim, hist = 2 * part + 70, nq = 100;
+    auto filled = [&](size_t floats, uint32_t seed) {
+        std::vector<float> v(floats);
+        for (size_t i = 0; i < floats; ++i) v[i] = float(int((i * 2654435761u + seed) >> 24) % 33 - 16) / 16.0f;
+        return b.adopt(v.data(), v.size() * sizeof(float));
+    };
+    auto kv = b.kv_alloc(1, size_t(n_head_kv), size_t(head_dim), hist + nq + 128);
+    infer::BlockPool pool;
+    pool.configure(kv->max_blocks());
+    infer::KVSequence s(&pool, b.kv_layout().block_tokens);
+    auto K = filled((hist + nq) * kvw, 31), V = filled((hist + nq) * kvw, 32), q = filled(nq * qw, 33);
+    s.prepare(hist + nq);
+    {
+        const backend::KVView h = s.view(kv.get());
+        b.kv_write(0, &h, 1, {K.get(), 0}, {V.get(), 0});
+    }
+    s.commit();
+    backend::KVView v = s.view(kv.get());
+    v.length -= nq;
+    v.nq = nq;
+    v.extent = nq;
+    std::vector<uint8_t> w8(32 * (qw / 32) * quant::Q8_0_TYPESIZE);
+    for (size_t i = 0; i < w8.size(); ++i) w8[i] = uint8_t(i * 131 + 7);
+    for (size_t blk = 0; blk < 32 * (qw / 32); ++blk) { w8[blk * quant::Q8_0_TYPESIZE] = 0x00; w8[blk * quant::Q8_0_TYPESIZE + 1] = 0x20; }
+    auto w = b.adopt(w8.data(), w8.size());
+    const std::vector<backend::RowRun> run{{nq, nq}};
+    // The output, then a Q8_0 projection of it, which reads the output's twin where the call wrote one.
+    auto once = [&]() {
+        auto y = b.alloc(nq * qw * sizeof(float), backend::Memory::device), p = b.alloc(nq * 32 * sizeof(float), backend::Memory::device);
+        b.attention({q.get(), 0}, 0, &v, 1, {y.get(), 0}, n_head, n_head_kv, head_dim);
+        b.matmul({quant::GGML_TYPE_Q8_0, {w.get(), 0}}, {y.get(), 0}, {p.get(), 0}, qw, 32, nq, backend::RowRuns{run.data(), run.size()});
+        std::vector<float> out(nq * qw + nq * 32);
+        b.read(*y, 0, out.data(), nq * qw * sizeof(float));
+        b.read(*p, 0, out.data() + nq * qw, nq * 32 * sizeof(float));
+        return out;
+    };
+    const auto whole = once();
+    const size_t cap = backend::VulkanLifetimeTest::attention_scratch_cap(b);
+    backend::VulkanLifetimeTest::attention_scratch_cap(b, 1);
+    const auto cut = once();
+    backend::VulkanLifetimeTest::attention_scratch_cap(b, cap);
+    const bool same = std::memcmp(whole.data(), cut.data(), whole.size() * sizeof(float)) == 0;
+    std::cout << "tiled attention " << nq << " rows after " << hist << " tokens, cut into pieces of one tile: " << (same ? "same bytes PASS\n" : "differs FAIL\n");
+    return same ? 0 : 1;
+}
+
+// The split tiled attention past one merge's chunk of 1024 parts, parts of 16 tokens after a 20000-token history, meets a double reference, and a short prompt gives the same bytes alone and beside it.
+int tile_split_deep_checks() {
+    auto base = backend::make_vulkan_backend(0);
+    auto& b = dynamic_cast<backend::VulkanBackend&>(*base);
+    const auto dev = backend::VulkanLifetimeTest::device(b);
+    const size_t part = dev->profile.attention_tile_part;
+    dev->profile.attention_tile_part = 16;
+    const int n_head = 4, n_head_kv = 2, head_dim = 128;
+    const size_t kvw = size_t(n_head_kv) * head_dim, qw = size_t(n_head) * head_dim, deep = 20000, shallow = 100, nq = 32;
+    // Keys and values are multiples of 1/16 within [-1, 1], exact in an f16 cache, so the reference reads what the device reads.
+    auto values = [](size_t floats, uint32_t seed, float scale) {
+        std::vector<float> v(floats);
+        for (size_t i = 0; i < floats; ++i) v[i] = float(int(((i + seed) * 2654435761u) >> 24) % 33 - 16) * scale;
+        return v;
+    };
+    const auto hk = values((deep + nq) * kvw, 41, 1.0f / 16), hv = values((deep + nq) * kvw, 42, 1.0f / 16), hq = values(2 * nq * qw, 43, 1.0f / 64);
+    auto K = b.adopt(hk.data(), hk.size() * sizeof(float)), V = b.adopt(hv.data(), hv.size() * sizeof(float)), q = b.adopt(hq.data(), hq.size() * sizeof(float));
+    auto kv = b.kv_alloc(1, size_t(n_head_kv), size_t(head_dim), deep + shallow + 2 * nq + 256);
+    infer::BlockPool pool;
+    pool.configure(kv->max_blocks());
+    infer::KVSequence ss(&pool, b.kv_layout().block_tokens), sd(&pool, b.kv_layout().block_tokens);
+    auto view = [&](infer::KVSequence& s, size_t hist) {
+        s.prepare(hist + nq);
+        const backend::KVView h = s.view(kv.get());
+        b.kv_write(0, &h, 1, {K.get(), 0}, {V.get(), 0});
+        s.commit();
+        backend::KVView v = s.view(kv.get());
+        v.length -= nq;
+        v.nq = nq;
+        v.extent = nq;
+        return v;
+    };
+    const backend::KVView vs = view(ss, shallow), vd = view(sd, deep);
+    auto y1 = b.alloc(nq * qw * sizeof(float), backend::Memory::device), y2 = b.alloc(2 * nq * qw * sizeof(float), backend::Memory::device);
+    b.attention({q.get(), 0}, 0, &vs, 1, {y1.get(), 0}, n_head, n_head_kv, head_dim);
+    const backend::KVView both[2] = {vs, vd};
+    b.attention({q.get(), 0}, 0, both, 2, {y2.get(), 0}, n_head, n_head_kv, head_dim);
+    std::vector<float> alone(nq * qw), together(2 * nq * qw);
+    b.read(*y1, 0, alone.data(), alone.size() * sizeof(float));
+    b.read(*y2, 0, together.data(), together.size() * sizeof(float));
+    dev->profile.attention_tile_part = part;
+    const bool same = std::memcmp(alone.data(), together.data(), alone.size() * sizeof(float)) == 0;
+    // Row r of the deep prompt attends tokens 0 to deep + r, its query heads sharing KV heads in pairs.
+    double worst = 0;
+    for (size_t r = 0; r < nq; ++r)
+        for (int h = 0; h < n_head; ++h) {
+            const float* qr = hq.data() + (nq + r) * qw + size_t(h) * head_dim;
+            const size_t kvh = size_t(h / (n_head / n_head_kv)), n = deep + r + 1;
+            std::vector<double> sc(n);
+            double mx = -1e300, sum = 0;
+            for (size_t t = 0; t < n; ++t) {
+                double d = 0;
+                for (int i = 0; i < head_dim; ++i) d += double(qr[i]) * hk[t * kvw + kvh * head_dim + size_t(i)];
+                sc[t] = d / std::sqrt(double(head_dim));
+                mx = std::max(mx, sc[t]);
+            }
+            std::vector<double> acc(size_t(head_dim), 0.0);
+            for (size_t t = 0; t < n; ++t) {
+                const double w = std::exp(sc[t] - mx);
+                sum += w;
+                for (int i = 0; i < head_dim; ++i) acc[size_t(i)] += w * hv[t * kvw + kvh * head_dim + size_t(i)];
+            }
+            for (int i = 0; i < head_dim; ++i) {
+                const double ref = acc[size_t(i)] / sum, got = together[(nq + r) * qw + size_t(h) * head_dim + size_t(i)];
+                worst = std::max(worst, std::abs(got - ref) / (1 + std::abs(ref)));
+            }
+        }
+    const bool close = worst <= 1e-4;
+    std::cout << "tiled attention " << nq << " rows after " << deep << " tokens in " << (deep + nq + 15) / 16 << " parts of 16: largest error " << worst
+              << (close ? " within 1e-4" : " past 1e-4") << ", a short prompt beside it " << (same ? "the same bytes" : "differs") << ((close && same) ? " PASS\n" : " FAIL\n");
+    return close && same ? 0 : 1;
+}
+
 // While unordered, each op still orders its own steps, and what the backend keeps for later calls, a twin among them, is ordered before another call reads it (Backend::unordered).
 int unordered_checks() {
     auto base = backend::make_vulkan_backend(0);
@@ -2385,7 +2512,7 @@ int main(int argc, char** argv) {
         if (argc == 2 && std::string(argv[1]) == "--collective") return collective_checks() ? 1 : 0;
         if (argc == 2 && std::string(argv[1]) == "--queue") {
             const int failures = queue_checks() + dictionary_checks() + kernel_checks() + query_checks(false) + query_checks(true) + padded_drop_checks() +
-                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks();
+                                 loader_weight_checks() + scratch_reserve_checks() + hold_checks() + hold_timing_checks() + collective_checks() + lent_checks() + wait_beside_recording() + args_slot_checks() + unordered_checks() + tile_split_cap_checks() + tile_split_deep_checks();
             return failures ? 1 : 0;
         }
         if (argc != 1) return 2;

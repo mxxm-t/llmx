@@ -65,6 +65,8 @@ struct DeviceProfile {
     uint32_t q8_decode_one_row_below_16bit = 1024;
     // Prompt extent from which attention takes its tiled kernel; the query rows a tile holds are the kernel's own.
     size_t attention_tile_rows = 32;
+    // Tokens of history in one part of the tiled attention's split, a multiple of every build's key tile (16); 1024 was best or within 1 percent of 2048 and 4096 on two models (docs/STATUS.md).
+    size_t attention_tile_part = 1024;
     // Batch rows from which a matmul takes the tile kernel rather than the row kernel, for 8-bit and other types, narrow and wide rows; the crossover moves with the row width, and the values are measured (docs/VULKAN.md).
     size_t tile_from_8bit = 32, tile_from_8bit_narrow = 64, tile_from_other = 64;
     size_t tile_from_other_narrow = 64;

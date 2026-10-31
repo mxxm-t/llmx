@@ -5,7 +5,7 @@
 #extension GL_KHR_shader_subgroup_shuffle : require
 layout(local_size_x = 256) in;
 layout(push_constant) uniform P {
-    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major;
+    uint n_head; uint n_head_kv; uint bt; float scale; uint quant; uint rows; uint major; uint chunk; uint nsplit; uint wg0;
 } p;
 layout(set = 0, binding = 0) readonly buffer Q { float q[]; };
 layout(set = 0, binding = 1) writeonly buffer O { float o[]; };
@@ -35,6 +35,8 @@ void v_load8(uint i, out vec4 a, out vec4 b) { a = vb[i / 4u]; b = vb[i / 4u + 1
 layout(set = 0, binding = 4) readonly buffer T { uint tab[]; };
 // With `quant` set every view of the batch is here and the batch's `rows` rows are read next by the integer-dot tile, and the output's 16-bit twin is written here (xquant_word).
 layout(set = 0, binding = 5) writeonly buffer XQ { uint xq[]; };
+// A split call's parts, per (dispatch row, head, part): the maximum, the sum, then the unscaled accumulation.
+layout(set = 0, binding = 6) writeonly buffer S { float scratch[]; };
 #include "views.glsl"
 #include "xquant.glsl"
 #ifdef LLMX_D256
@@ -48,7 +50,8 @@ shared vec4 vs[TK * DIM / 4u];
 shared float ps[TQ * TK];
 
 void main() {
-    uint wg = gl_WorkGroupID.x;
+    uint wg = (gl_WorkGroupID.x + p.wg0) / p.nsplit;
+    uint part = gl_WorkGroupID.x + p.wg0 - wg * p.nsplit;
     uint n = view_count();
     uint v = 0u, first = 0u;
     for (uint i = 0u; i < n; ++i) {
@@ -59,7 +62,7 @@ void main() {
     uint local = wg - first;
     uint tile = local / p.n_head;
     uint h = local - tile * p.n_head;
-    uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v);
+    uint nq = view_nq(v), hist = view_hist(v), row0 = view_row0(v), local0 = view_local0(v);
     uint kvh = h / (p.n_head / p.n_head_kv);
     uint lid = gl_LocalInvocationID.x;
     uint r = lid >> 3u, lane = lid & 7u;             // query row of the tile, lane within it
@@ -77,14 +80,17 @@ void main() {
     // The last token any row of this tile attends, exclusive.
     uint tile_end = min(hist + tile * TQ + TQ, hist + nq);
     uint my_end = hist + b + 1u;
+    // Split, a workgroup walks one part of `chunk` tokens from position 0 and leaves its rows' states to attention_merge.
+    uint t_lo = p.nsplit > 1u ? part * p.chunk : 0u;
+    uint t_hi = p.nsplit > 1u ? min(t_lo + p.chunk, tile_end) : tile_end;
     uint bf = p.n_head_kv * p.bt * DIM;
-    for (uint t0 = 0u; t0 < tile_end; t0 += TK) {
+    for (uint t0 = t_lo; t0 < t_hi; t0 += TK) {
         // Stage the tile eight values a load, zero past the tile's last token so a masked score meets a finite value.
         for (uint i = lid; i < TK * DIM / 8u; i += 256u) {
             uint j = i / (DIM / 8u), d = (i - j * (DIM / 8u)) * 8u;
             uint t = t0 + j;
             vec4 k0 = vec4(0.0), k1 = vec4(0.0), v0 = vec4(0.0), v1 = vec4(0.0);
-            if (t < tile_end) {
+            if (t < t_hi) {
                 uint base = view_block(v, t / p.bt) * bf + (kvh * p.bt + t - (t / p.bt) * p.bt) * DIM + d;
                 k_load8(base, k0, k1);
                 v_load8(base, v0, v1);
@@ -141,6 +147,16 @@ void main() {
             for (uint k = 0u; k < RUNS; ++k) acc[k] += w * vs[j * (DIM / 4u) + 8u * k + lane];
         }
         barrier();
+    }
+    if (p.nsplit > 1u) {
+        // A row with no token in this part keeps m at -inf and l at 0, which the merge weighs as nothing.
+        uint base = (((local0 + b) * p.n_head + h) * p.nsplit + part) * (DIM + 2u);
+        if (live && lane == 0u) { scratch[base] = m; scratch[base + 1u] = l; }
+        for (uint k = 0u; k < RUNS; ++k) {
+            uint d = base + 2u + 32u * k + 4u * lane;
+            if (live) { scratch[d] = acc[k].x; scratch[d + 1u] = acc[k].y; scratch[d + 2u] = acc[k].z; scratch[d + 3u] = acc[k].w; }
+        }
+        return;
     }
     for (uint k = 0u; k < RUNS; ++k) {
         uint d = 32u * k + 4u * lane;

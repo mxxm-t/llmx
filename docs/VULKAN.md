@@ -709,6 +709,18 @@ Their reference inputs use the same rounding; independent HF gates measure the r
   | Radeon VII, after | 3165 | 2416 | - |
 
   Finishing each tile's scores all at once rather than eight at a time held 208 registers and one wave per SIMD, where the eight-token chunks hold 128 and two waves. A 32-token tile ran slower than a 16-token one: 4577 against 5576 tok/s at 2048 rows, since its shared memory leaves one workgroup per compute unit.
+  At depth one workgroup per tile and head walking the whole history leaves the card underfilled: at 65k tokens a 128-row pass of Qwen3.6-27B-MTP Q4_1 kept 48 workgroups on 60 compute units.
+  So a row's history is cut into parts of the profile's `attention_tile_part` tokens (1024), a workgroup per tile, head and part, and attention_merge merges the parts, as decode merges its splits.
+  A row within one part keeps the unsplit bytes; past it the rescaling order changes, and the 16k sequences and the qwen35 4096-token windows hold it to HF (docs/STATUS.md).
+  Pass time on one MI50, int8, unsplit against parts of 1024, ms (a probe of the first build; bench pp512 at 16k at the landed code: 30B 294 -> 315 tok/s, 27B level):
+
+  | | 128 rows | 512 rows | 1024 rows |
+  |---|---:|---:|---:|
+  | Qwen3-30B-A3B Q4_K_M, 16k | 598 -> 471 | 1912 -> 1500 | 3662 -> 3009 |
+  | Qwen3-30B-A3B Q4_K_M, 64k | 2154 -> 1462 | 6732 -> 5848 | 13217 -> 11693 |
+  | Qwen3.6-27B-MTP Q4_1, 64k | 1297 -> 1121 | 4636 -> 4428 | 8713 -> 8745 |
+
+  Over two MI50s at tensor width 2 the 27B's 1024-row pass at 65536 tokens went from 214 to 223 tok/s; on Qwen3.8-Flash-Next 2x2 a 140k-token prompt's first token stayed level (about 133 s), since there the card is already full.
 - **The view table** (`views.glsl`): every cache kernel takes one
   table over the views it processes. The host writes that table
   into the args arena, per view its batch row, dispatch-local row, row

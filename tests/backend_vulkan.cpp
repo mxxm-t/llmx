@@ -738,6 +738,96 @@ size_t check_write_sets() {
     return bindings;
 }
 
+// The tiled prompt attention's split over history: against the CPU, within one part beside a merged row, and in slices (AGENTS.md, Tests).
+size_t check_tile_split(Pair& p) {
+    const size_t part = backend::vulkan_device_profile(p.vk).attention_tile_part;
+    size_t values = 0;
+    struct Spec { size_t hist, nq, extent; };
+    for (int head_dim : {128, 256})
+    for (backend::KVType kt : {backend::KVType::f32, backend::KVType::f16}) {
+        const int n_head = head_dim == 128 ? 4 : 12, n_head_kv = 2;
+        const size_t qw = (size_t)n_head * head_dim, kvw = (size_t)n_head_kv * head_dim, longest = 2 * part + 200, pout = 32;
+        const auto hk = uniform(longest * kvw, 90 + (uint32_t)head_dim), hv = uniform(longest * kvw, 91 + (uint32_t)head_dim);
+        const auto qq = uniform(256 * qw, 92 + (uint32_t)head_dim, -6.0f, 6.0f);
+        const auto pwf = uniform(pout * qw, 93 + (uint32_t)head_dim);
+        std::vector<uint8_t> pw8(pout * (qw / 32) * quant::Q8_0_TYPESIZE);
+        for (size_t r = 0; r < pout; ++r)
+            quant::quantize_row_q8_0(pwf.data() + r * qw, pw8.data() + r * (qw / 32) * quant::Q8_0_TYPESIZE, qw / 32);
+        // Each spec a sequence over the same keys and values, queries from row `q0` on, in one call or each alone.
+        // The outputs, then with `project` a Q8_0 projection of them, which reads the output's twin where the call wrote one.
+        auto run = [&](backend::Backend& b, const std::vector<Spec>& specs, bool together, bool project, size_t q0 = 0) {
+            const size_t bt = b.kv_layout().block_tokens;
+            auto st = b.kv_alloc(1, n_head_kv, head_dim, 4 * longest, kt, kt);
+            infer::BlockPool pool; pool.configure(st->max_blocks());
+            const auto Kb = b.adopt(hk.data(), hk.size() * sizeof(float));
+            const auto Vb = b.adopt(hv.data(), hv.size() * sizeof(float));
+            const auto Qb = b.adopt(qq.data(), qq.size() * sizeof(float));
+            size_t rows = 0;
+            for (const Spec& sp : specs) rows += sp.nq;
+            // Allocated before the attention, since a new buffer drops every twin.
+            const auto ob = b.alloc(rows * qw * sizeof(float), backend::Memory::device);
+            const auto pwb = b.adopt(pw8.data(), pw8.size());
+            const auto pyb = b.alloc(rows * pout * sizeof(float), backend::Memory::device);
+            std::vector<infer::KVSequence> seqs;
+            for (size_t i = 0; i < specs.size(); ++i) seqs.emplace_back(&pool, bt);
+            std::vector<backend::KVView> views;
+            std::vector<backend::RowRun> runs;
+            for (size_t i = 0, r = 0; i < specs.size(); ++i) {
+                seqs[i].prepare(specs[i].hist + specs[i].nq);
+                const backend::KVView h = seqs[i].view(st.get());
+                b.kv_write(0, &h, 1, {Kb.get(), 0}, {Vb.get(), 0});
+                seqs[i].commit();
+                backend::KVView v = seqs[i].view(st.get());
+                v.length -= specs[i].nq;
+                v.nq = specs[i].nq;
+                v.extent = specs[i].extent;
+                views.push_back(v);
+                r += specs[i].nq;
+                runs.push_back(backend::RowRun{r, specs[i].extent});
+            }
+            if (together) {
+                b.attention({Qb.get(), q0 * qw}, 0, views.data(), views.size(), {ob.get(), 0}, n_head, n_head_kv, head_dim);
+            } else {
+                for (size_t i = 0, r = 0; i < views.size(); r += views[i].nq, ++i)
+                    b.attention({Qb.get(), (q0 + r) * qw}, 0, &views[i], 1, {ob.get(), r * qw}, n_head, n_head_kv, head_dim);
+            }
+            std::vector<float> out(rows * qw);
+            b.read(*ob, 0, out.data(), out.size() * sizeof(float));
+            if (project) {
+                b.matmul({quant::GGML_TYPE_Q8_0, {pwb.get(), 0}}, {ob.get(), 0}, {pyb.get(), 0}, qw, pout, rows, backend::RowRuns{runs.data(), runs.size()});
+                std::vector<float> y(rows * pout);
+                b.read(*pyb, 0, y.data(), y.size() * sizeof(float));
+                out.insert(out.end(), y.begin(), y.end());
+            }
+            return out;
+        };
+        try {
+            // Rows that cross the first part's end, and rows three parts deep, against the CPU.
+            for (const Spec sp : {Spec{part - 20, 45, 45}, Spec{2 * part + 70, 45, 45}})
+                values += close(run(p.cpu, {sp}, false, false), run(p.vk, {sp}, false, false), 1e-4, "split tiled attention differs beyond 1e-4");
+            // A prompt within one part, alone (one dispatch, no merge) and beside a prompt three parts deep (merged), its twin read through a projection.
+            const Spec shallow{100, 32, 32}, deep{2 * part + 70, 45, 45};
+            values += exact(run(p.vk, {shallow, deep}, true, true), run(p.vk, {shallow, deep}, false, true),
+                            "a tiled attention row differs alone and beside a row split over history");
+            // A prompt's rows in slices of 16 and of 32, each slice a call of its own, against the whole prompt in one call.
+            const Spec whole{part + 300, 100, 100};
+            const auto one = run(p.vk, {whole}, false, false);
+            for (size_t slice : {size_t(16), size_t(32)}) {
+                std::vector<float> got;
+                for (size_t b0 = 0; b0 < whole.nq; b0 += slice) {
+                    const auto o = run(p.vk, {Spec{whole.hist + b0, std::min(slice, whole.nq - b0), whole.extent}}, false, false, b0);
+                    got.insert(got.end(), o.begin(), o.end());
+                }
+                values += exact(one, got, "a split tiled attention row differs in slices from the whole prompt");
+            }
+        } catch (const std::runtime_error&) {
+            std::fprintf(stderr, "  split tiled attention width %d cache %s part %zu\n", head_dim, backend::kv_type_name(kt), part);
+            throw;
+        }
+    }
+    return values;
+}
+
 size_t check_kernels(backend::Backend& vk) {
     Pair p(vk);
     const bool integer_dot = backend::vulkan_device_profile(p.vk).prefer_integer_dot;
@@ -5371,6 +5461,10 @@ int main(int argc, char** argv) {
         std::cout << "backend-vulkan: " << checks << " storage and submission checks; "
                   << values << " kernel outputs against the CPU backend\n";
         std::cout << "backend-vulkan: " << check_float_workspace(*b) << " exact products across bounded float workspace slices\n";
+        {
+            Pair tp(*b);
+            std::cout << "backend-vulkan: " << check_tile_split(tp) << " split tiled attention outputs against the CPU, and against themselves alone, in slices and cut over tiles\n";
+        }
         report_routed_occupancy();
         const size_t narrow_tiles = check_routed_narrow();
         std::cout << "backend-vulkan: " << narrow_tiles << " routed narrow tiles equal to the 64-column build\n";

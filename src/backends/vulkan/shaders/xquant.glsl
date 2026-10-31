@@ -152,9 +152,12 @@ void xquant16_word(vec4 v, bool live, uint w, uint blk, uint n) {
 // Where the 8-bit twin starts, in words, after the 16-bit twin, rounded up to 256 bytes so it can be bound at its own offset.
 uint xquant8_base(uint n) { return (n / 2u + n / 16u + 63u) & ~63u; }
 
+// The columns a block-major 8-bit twin keeps a block's columns in: a multiple of four, an odd number of fours.
+uint xquant8_columns(uint cols) { return (((cols + 3u) >> 2u) | 1u) << 2u; }
+
 // The 8-bit twin from word `base`, --dtype int8's input: blocks of 32 scaled so the largest magnitude is 127, four signed bytes a word in position order, n / 4 words, then per block the scale and scaled sum.
-// Written as xquant16_block writes the 16-bit one, a lane per value.
-void xquant8_block(uint i, float v, uint n, uint base) {
+// Written as xquant16_block writes the 16-bit one, a lane per value; `major` lays the blocks out as xquant8_word's does.
+void xquant8_block(uint i, float v, uint n, uint base, uint major) {
     uint lane = gl_SubgroupInvocationID;
     uint j = i & 31u, blk = i / 32u;
     uint amax = floatBitsToUint(v) & 0x7FFFFFFFu;
@@ -170,6 +173,12 @@ void xquant8_block(uint i, float v, uint n, uint base) {
     uint b1 = uint(subgroupShuffle(q, min(lane + 1u, gl_SubgroupSize - 1u))) & 255u;
     uint b2 = uint(subgroupShuffle(q, min(lane + 2u, gl_SubgroupSize - 1u))) & 255u;
     uint b3 = uint(subgroupShuffle(q, min(lane + 3u, gl_SubgroupSize - 1u))) & 255u;
+    uint tab = base + n / 4u;
+    if (major != 0u) {
+        uint c = blk / major, pad = xquant8_columns(n / 32u / major);
+        blk = (blk - c * major) * pad + c;
+        tab = base + pad * major * 8u;
+    }
     if ((j & 3u) == 0u) xq[base + blk * 8u + j / 4u] = (uint(q) & 255u) | (b1 << 8u) | (b2 << 16u) | (b3 << 24u);
     int s = q;
     s += subgroupShuffleXor(s, 16u);
@@ -178,15 +187,12 @@ void xquant8_block(uint i, float v, uint n, uint base) {
     s += subgroupShuffleXor(s, 2u);
     s += subgroupShuffleXor(s, 1u);
     if (j == 0u) {
-        uint t = base + n / 4u + 2u * blk;
+        uint t = tab + 2u * blk;
         vec2 values = xq_shift(vec2(d, d * float(s)), -shift);
         xq[t] = floatBitsToUint(values.x);
         xq[t + 1u] = floatBitsToUint(values.y);
     }
 }
-
-// The columns a block-major 8-bit twin keeps a block's columns in: a multiple of four, an odd number of fours.
-uint xquant8_columns(uint cols) { return (((cols + 3u) >> 2u) | 1u) << 2u; }
 
 // The 8-bit twin as xquant16_word writes the 16-bit one, a lane per four consecutive values; the same bits as xquant8_block.
 // With `major` zero the blocks lie as xquant8_block lays them, column after column; otherwise `major` is the blocks of a column and the twin is block-major, block k of column c at k * xquant8_columns(columns) + c.
@@ -222,10 +228,11 @@ void xquant8_word(vec4 v, bool live, uint w, uint blk, uint n, uint base, uint m
 
 // What a producer writes: the 16-bit twin, and with specialization constant 7 the 8-bit one after it, a second build the backend dispatches once a matmul has read the 8-bit twin, so other runs keep the cheaper producers.
 layout(constant_id = 7) const bool TWIN8 = false;
-void xquant_block(uint i, float v, uint n) {
+void xquant_block(uint i, float v, uint n, uint major) {
     xquant16_block(i, v, n);
-    if (TWIN8) xquant8_block(i, v, n, xquant8_base(n));
+    if (TWIN8) xquant8_block(i, v, n, xquant8_base(n), major);
 }
+void xquant_block(uint i, float v, uint n) { xquant_block(i, v, n, 0u); }
 void xquant_word(vec4 v, bool live, uint w, uint blk, uint n, uint major) {
     xquant16_word(v, live, w, blk, n);
     if (TWIN8) xquant8_word(v, live, w, blk, n, xquant8_base(n), major);

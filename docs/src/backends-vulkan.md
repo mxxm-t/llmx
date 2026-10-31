@@ -311,6 +311,7 @@ The real-device `vulkan-lifetime` check uses its existing private test friend to
   It derives from `BlockKVStorage` (`backends-kv_storage.md`), which grows it, keeps its accounting and checks each view as the table is built; its `retire` hands the buffers a growth copied from to `keep_until_retired`, and `kv_alloc` refuses a head `attention_head_fits` does not take.
   Attention can dispatch tiled and row kernels plus a history-split merge in one layer.
   It gives views of 128- or 256-wide heads whose prompt reaches the profile's `attention_tile_rows` to the tiled kernel (`shaders/attention_tile.comp`, 32 query rows a tile as the shader fixes them, its `_d256` builds staging 8 keys a tile where the 128-wide ones stage 16) and the rest to the per-row kernel, which splits a row's history into parts from the row's own length and merges them (`shaders/attention_merge.comp`); once the longest row fills every split, a workgroup takes up to four query heads of one KV head (the `_g4` builds), loading the history once for them with each head's arithmetic unchanged.
+  `wide_attention` runs the tiled kernel whole while every row's history and position fit one part of the profile's `attention_tile_part` tokens; past that a workgroup takes one part of a tile's history and attention_merge merges the parts, the call cut over whole tiles where the parts' scratch would pass `attention_scratch_cap_` (64 MiB), which changes no bit. Parts start at absolute positions, so a row's parts follow its own history, and a row within one part keeps the unsplit bytes, its one part weighing exactly 1 in the merge.
   The merge reads each part's maximum and sum once into shared memory, forms its weight once, and loads eight parts' column values before summing them in part order. The profile keeps the number of parts at most 256, the merge's workgroup width.
   Heads 128 wide take `shaders/attention_vec.comp`, which reads a token's row in 16 lanes, one 16-byte load a lane for an f16 side and two for f32, and several tokens a subgroup, and heads 256 wide its `_d256` builds, 32 lanes a token; other widths keep `attention.comp`.
 - `kv_variant` picks the shader module for a storage's K and V types.
@@ -478,7 +479,8 @@ From the comment at line 2:
 - Merge the split attention states of one (row, head): the maximum and sum across splits, then the accumulation rescaled to them; a split with no tokens carries -inf and zero.
 - Each split's maximum and sum are read once into shared memory and its weight formed once, so a lane's column sum reads only independent loads; the sums run in split order, as one lane reading every split would take them.
 - The row is found through the view table, since a dispatch's rows need not be a prefix of the batch.
-- With `quant` set the output's 16-bit twin is written beside it.
+- With `quant` set the output's 16-bit twin is written beside it, and its 8-bit twin in the integer-dot tile's block-major layout when `major` is set, as the tiled kernel writes it.
+- A lane takes splits lid, lid + 256 and so on, in chunks of 1024 weighed one after another in split order, so any number of the tiled kernel's parts merges with the bits of one pass over them.
 
 ### `src/backends/vulkan/shaders/attention_flash.comp`
 
@@ -503,6 +505,7 @@ From the comment at line 2:
 - A staged token is DIM / 4 words and lane l's word of run k is 8k + l; with the lane taken by a mask the driver folds each word's address into its read.
 - TK sets where the online softmax rescales, so it is a constant of the head width, never of the batch.
 - Per K tile: partial dots eight tokens at a time, a butterfly that finishes the sums and deals one to each lane, then one online-softmax step per tile, and the probabilities through shared memory for the weighted sum of V.
+- With nsplit above 1 the history is cut into parts of `chunk` tokens from position 0 (the profile's `attention_tile_part`), a workgroup per (tile, head, part), each writing its rows' maximum, sum and unscaled accumulation for attention_merge; parts start at multiples of TK, so a row whose tokens lie in one part walks exactly the unsplit steps.
 
 ### `src/backends/vulkan/shaders/attention_vec.comp`
 
